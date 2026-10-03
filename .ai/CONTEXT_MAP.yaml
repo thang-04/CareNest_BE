@@ -1,23 +1,66 @@
-version: 1
+# KHÔNG đọc cả file: grep -iE "<từ khóa>" .ai/CONTEXT_MAP.yaml rồi chỉ mở file được trỏ tới.
+# Bản đồ context CareNest_BE. Agent: grep `keywords` để tìm module, rồi đọc `modules.<id>.card`.
+# Chỉ đường dẫn trong `available` (và các card/flow/adr dưới đây) đã tồn tại; `planned` thì chưa.
+version: 2
 repository: CareNest_BE
+role: source of truth (business rules, domain, architecture, API contract, database, engineering memory)
+
+keywords:
+  # từ khóa (VN|EN, regex-friendly) -> module id
+  "điểm danh|attendance|đi muộn|đến muộn|late arrival|vắng": [attendance]
+  "đơn nghỉ|xin nghỉ|leave": [attendance]
+  "báo ăn|tham gia ăn|meal participation": [attendance, nutrition]
+  "suất ăn|số suất|meal count|chốt suất|adjustment": [nutrition, attendance]
+  "thực đơn|menu|món|dish|recipe|công thức": [nutrition]
+  "dinh dưỡng|nutrient|thực phẩm|food|định lượng|food quantity|bếp|kitchen": [nutrition]
+  "kho|nhà cung cấp|supplier|inventory|tồn kho": [nutrition]   # ngoài V1 — ADR-0009
+  "dị ứng|allergy": [child, nutrition]
+  "trẻ|child|hồ sơ trẻ|ghi danh|enrollment|phụ huynh liên kết|guardian": [child]
+  "sức khỏe|health|chiều cao|cân nặng|measurement|tăng trưởng|trend": [health]
+  "quan sát|observation|tiêu chí|criteria|nhận xét|summary|đánh giá|assessment|follow-up|phát triển|development profile": [learning-observation]
+  "hoạt động|activity|giáo án|gokids|mục tiêu học": [learning-observation]   # ADR-0006 OPEN
+  "cơ sở vật chất|csvc|thiết bị|sự cố|facility|hỏng|thiếu": [facility-issue]
+  "tài sản|asset|khấu hao|bảo trì|kiểm kê": [facility-issue]   # ngoài V1 — FAC-03
+  "đăng nhập|login|token|role|permission|phân quyền|scope|account|tài khoản": [identity-access]
+  "điểm trường|campus|lớp|classroom|năm học|phân công|assignment|hiệu phó|hiệu trưởng": [school-structure, identity-access]
+  "thông báo|notification|push": [notification]
+  "audit|nhật ký|lịch sử thay đổi": [audit]
+  "ai|llm|gợi ý|prompt|provider|openai|gemini|ollama": [ai-assistance]
+  "báo cáo|report|thống kê|dashboard|tổng hợp": [reporting]
+  "phụ huynh xem|parent view|hiển thị phụ huynh": [child, identity-access]   # ADR-0010
+
+modules:
+  identity-access:      {card: docs/modules/identity-access.md, feature: account, rules: [AUTH], adr: [0002, 0003]}
+  school-structure:     {card: docs/modules/school-structure.md, feature: organization, rules: [AUTH], adr: [0002, 0003]}
+  child:                {card: docs/modules/child.md, feature: child, rules: [AUTH-04, HLT-06, PAR], adr: [0010]}
+  attendance:           {card: docs/modules/attendance.md, feature: attendance, rules: [ATT], flows: [docs/business/flows/attendance.md, docs/business/flows/leave-request.md], adr: [0005]}
+  nutrition:            {card: docs/modules/nutrition.md, feature: meals, rules: [NUT, AI], flows: [docs/business/flows/meal-management.md, docs/business/flows/attendance.md], adr: [0005, 0007, 0008, 0009]}
+  health:               {card: docs/modules/health.md, feature: health, rules: [HLT, AI], flows: [docs/business/flows/health-check.md], adr: [0007, 0008, 0010]}
+  learning-observation: {card: docs/modules/learning-observation.md, feature: observation, rules: [OBS, AI], flows: [docs/business/flows/child-observation.md], adr: [0006, 0008, 0010]}
+  facility-issue:       {card: docs/modules/facility-issue.md, feature: facilities, rules: [FAC], flows: [docs/business/flows/facility-issue.md]}
+  notification:         {card: docs/modules/notification.md, feature: notification, adr: [0004]}
+  audit:                {card: docs/modules/audit.md, feature: audit}
+  ai-assistance:        {card: docs/modules/ai-assistance.md, package: com.carenest.integration, rules: [AI], adr: [0007, 0008]}
+  reporting:            {card: docs/modules/reporting.md, feature: report, rules: [AUTH-08], adr: [0002]}
+
+topics:
+  project:        [docs/context/PROJECT_CONTEXT.md, docs/context/GLOSSARY.md, docs/context/CURRENT_STATE.md]
+  business:       [docs/business/BUSINESS_RULES.md, docs/business/USER_ROLES.md, docs/business/DOMAIN_MODEL.md]
+  architecture:   [docs/system/SYSTEM_ARCHITECTURE.md, docs/system/MODULE_MAP.md, docs/architecture/BACKEND_ARCHITECTURE.md, docs/architecture/PACKAGE_STRUCTURE.md, docs/architecture/DATA_FLOW.md]
+  security:       [docs/architecture/SECURITY.md, docs/business/USER_ROLES.md, docs/decisions/ADR-0003-access-scope-model.md]
+  api:            [docs/contracts/API_CONVENTIONS.md, docs/contracts/ERROR_CONTRACT.md, docs/contracts/AUTH_CONTRACT.md]
+  database:       [docs/database/DATABASE.md, docs/database/DATA_DICTIONARY.md, docs/database/ERD.md]
+  cross-repo:     [docs/system/CROSS_REPO_MAP.md]
+  memory:         [docs/knowledge/ISSUE_INDEX.md, docs/knowledge/CROSS_MODULE_ISSUES.md, docs/knowledge/KNOWN_ISSUES.md, docs/knowledge/PATTERNS.md, docs/knowledge/TROUBLESHOOTING.md]
+  quality:        [docs/quality/DEFINITION_OF_DONE.md, docs/quality/TEST_STRATEGY.md, docs/quality/NFR.md]
+  operations:     [docs/system/DEPLOYMENT.md, docs/knowledge/TROUBLESHOOTING.md]
+  decisions:      [docs/decisions/]
+  coding-rules:   [docs/backend-coding-guide.md, .claude/rules/]
+
 available:
-  entrypoints:
-    - AGENTS.md
-    - CLAUDE.md
-  routing:
-    - .ai/ROUTER.md
-    - .ai/ESCALATION.md
-    - .ai/CONTEXT_MAP.yaml
-  context:
-    - .ai/REPO_CONTEXT.md
-  coding_guide:
-    - docs/backend-coding-guide.md
-  build_and_run:
-    - README.md
-    - pom.xml
-    - Dockerfile
-    - compose.yaml
-    - .env.example
+  entrypoints: [README.md, AGENTS.md, CLAUDE.md, docs/INDEX.md]
+  coding_guide: [docs/backend-coding-guide.md]   # bắt buộc trước khi viết/review code
+  build_and_run: [README.md, pom.xml, Dockerfile, compose.yaml, .env.example]
   source:
     - src/main/java/com/carenest/
     - src/main/resources/application.yml
@@ -28,30 +71,23 @@ available:
     - src/main/java/com/carenest/utils/ResponseJson.java
     - src/main/java/com/carenest/exception/GlobalExceptionHandler.java
     - src/test/java/com/carenest/exception/ResponseContractTest.java
-  profiles:
-    - .ai/profiles/code.md
-    - .ai/profiles/feature.md
-    - .ai/profiles/cross-repo.md
-  workflows:
-    - .ai/workflows/fix-bug.md
-    - .ai/workflows/implement-feature.md
-    - .ai/workflows/review-code.md
-    - .ai/workflows/update-api.md
-    - .ai/workflows/update-database.md
-  agent_skills:
-    - .agents/skills/carenest-backend/SKILL.md
-    - .claude/skills/carenest-backend/SKILL.md
+  routing: [.ai/ROUTER.md, .ai/ESCALATION.md, .ai/CONTEXT_MAP.yaml]
+  profiles: [.ai/profiles/code.md, .ai/profiles/feature.md, .ai/profiles/architecture.md, .ai/profiles/operations.md, .ai/profiles/cross-repo.md, .ai/profiles/full.md]
+  workflows: [.ai/workflows/fix-bug.md, .ai/workflows/implement-feature.md, .ai/workflows/review-code.md, .ai/workflows/update-database.md, .ai/workflows/update-api.md, .ai/workflows/deploy.md]
+  skills: [.agents/skills/, .claude/skills/]
+  skeleton_only:   # tồn tại nhưng chưa có nội dung — không dùng làm nguồn
+    - docs/system/DEPLOYMENT.md
+    - docs/contracts/AUTH_CONTRACT.md
+    - docs/database/ERD.md
+    - docs/database/DATA_DICTIONARY.md
+
 planned:
   - CONTRIBUTING.md
-  - docs/architecture/   # thư mục đã có, chưa có nội dung
-  - docs/api/            # thư mục đã có, chưa có nội dung
-  - docs/INDEX.md
-  - docs/business/BUSINESS_RULES.md
-  - docs/system/CROSS_REPO_MAP.md
-  - docs/contracts/openapi.yaml
-  - docs/knowledge/ISSUE_INDEX.md
+  - docs/api/                       # thư mục đã có, chưa có OpenAPI export
+
 external_sources:
-  architecture: D:/CAPSTONE_FALL26/CareNest_Backend_Architecture_v2.docx
+  architecture: D:/CAPSTONE_FALL26/CareNest_Backend_Architecture_v2.docx   # nguồn gốc của coding guide
+
 related_repositories:
   CareNest_FE: https://github.com/thang-04/CareNest_FE.git
   CareNest_APP: https://github.com/thang-04/CareNest_APP.git

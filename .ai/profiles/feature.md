@@ -1,6 +1,12 @@
-# Profile FEATURE — Backend
+# Profile FEATURE — chức năng mới / đổi nghiệp vụ
 
-Bắt đầu từ outcome người dùng và actor. Đọc `../REPO_CONTEXT.md`, source/test liên quan nếu đã có, rồi xác định chủ sở hữu rule, dữ liệu đầu vào/đầu ra, quyền và hợp đồng API. Kiểm tra luồng liên quan trước khi quyết định boundary; một entity riêng không mặc nhiên cần module riêng. Với AI feature, giữ chính sách xác định ở BE và con người quyết định ở điểm phê duyệt.
+Mức: L2. Bắt đầu từ actor và outcome, không từ bảng DB.
 
-Thiết kế và code theo `../../docs/backend-coding-guide.md`: đặt code đúng lớp/package (mục 3–5), API và response chuẩn (mục 7–8), phân quyền (mục 9), quy tắc nghiệp vụ đã chốt (mục 13).
+Đọc:
+1. Module card của module sở hữu (`.ai/CONTEXT_MAP.yaml` → `keywords`).
+2. Flow trong card (`docs/business/flows/`), rule ID nhóm module trong `docs/business/BUSINESS_RULES.md`.
+3. `docs/business/USER_ROLES.md` nếu có permission mới.
+4. `docs/contracts/API_CONVENTIONS.md` / `docs/database/DATABASE.md` khi thiết kế API/bảng.
+5. `docs/backend-coding-guide.md` mục 3–13 + `.claude/rules/` theo loại file; kết thúc bằng Checklist mục 17.
 
+Kiểm tra trước khi code: rule cần dùng có status CONFIRMED/ACCEPTED? Nếu PENDING/OPEN ⇒ hỏi hoặc làm cấu hình được. Một entity mới không mặc nhiên cần module mới. Feature có AI ⇒ có baseline không AI + người duyệt.

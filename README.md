@@ -8,6 +8,8 @@ REST API dùng chung cho CareNest web (`CareNest_FE`) và mobile (`CareNest_APP`
 
 Quy tắc code: [`docs/backend-coding-guide.md`](docs/backend-coding-guide.md) — đọc trước khi code.
 
+Tài liệu nghiệp vụ, kiến trúc, quyết định và engineering memory: [`docs/INDEX.md`](docs/INDEX.md). Làm việc với AI agent (Codex/Claude): `AGENTS.md` → `.ai/ROUTER.md`.
+
 ## Chạy
 
 ### Cách 1 — Docker Compose (API + PostgreSQL)

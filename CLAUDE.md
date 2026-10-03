@@ -4,6 +4,10 @@
 
 Mọi task viết/review code BE phải tuân theo `docs/backend-coding-guide.md` và chạy Checklist ở cuối guide trước khi báo hoàn thành.
 
+- Nghiệp vụ theo module: `.ai/CONTEXT_MAP.yaml` (`keywords`) → module card `docs/modules/<module>.md`.
+- Skill `.claude/skills/<workflow>/` chỉ trỏ về `.ai/workflows/`; `.claude/rules/` tự áp theo loại file đang sửa.
+- Bug: tra `docs/knowledge/ISSUE_INDEX.md` trước khi điều tra; ghi lại (kể cả cách đã thử thất bại) sau khi fix.
+
 ## Quy tắc chung CareNest (bắt buộc)
 
 Khối này giống nhau ở cả ba repo `CareNest_BE`, `CareNest_FE`, `CareNest_APP`; chỉ mục "Hỏi trước khi làm" khác theo repo. Sửa ở một repo thì đồng bộ sang hai repo còn lại.
@@ -12,14 +16,25 @@ Khối này giống nhau ở cả ba repo `CareNest_BE`, `CareNest_FE`, `CareNes
 
 - KHÔNG tự ý `git commit`. Chỉ commit khi user yêu cầu rõ trong tin nhắn hiện tại; được phép một lần không có nghĩa là được phép lần sau.
 - KHÔNG tự ý `git push`, tạo/merge/đóng pull request khi chưa được user cho phép rõ ràng.
-- KHÔNG commit thẳng lên `main`; làm trên branch `feature/<mo-ta>`, `fix/<mo-ta>`, `chore/<mo-ta>`.
+- KHÔNG tự ý tạo branch mới khi user chưa cho phép rõ; cần làm trên branch khác `main` thì hỏi user trước. Tên branch khi được phép: `feature/<KEY>-<mo-ta>`, `fix/<KEY>-<mo-ta>`, `chore/<mo-ta>`.
 - KHÔNG chạy lệnh git phá hủy khi chưa hỏi: `reset --hard`, `push --force`, `rebase`, `branch -D`, `clean -fd`, `checkout -- .`, `restore .`, `stash drop`. KHÔNG dùng `--no-verify` hoặc bỏ qua hook.
 
 ### Commit message
 
 - Conventional Commits, tiếng Anh: `<type>(<scope>): <subject>`; `type` thuộc `feat|fix|refactor|test|docs|chore|build|ci`.
 - Subject tối đa 72 ký tự, thể mệnh lệnh, không dấu chấm cuối. Body tùy chọn, tối đa ~5 gạch đầu dòng nói lý do/tác động; không liệt kê từng file, không kể quá trình làm.
-- Một commit = một thay đổi logic. Ví dụ: `feat(response): add PageResponse for paginated APIs`.
+- Một commit = một thay đổi logic.
+- **Jira:** khi user bảo commit mà chưa nêu task, PHẢI hỏi trước: "Thay đổi này thuộc task Jira nào (vd. `CN-123`)?". Mỗi commit gắn đúng một key. Nếu thay đổi thuộc nhiều task, tách commit theo task. User xác nhận không có task thì commit không kèm key và nói rõ điều đó trong báo cáo. Không tự đoán hay bịa key.
+- Key Jira ghi ở footer: `Refs: <KEY>`; branch mới đặt tên có key: `feature/<KEY>-<mo-ta>`, `fix/<KEY>-<mo-ta>`.
+- Ví dụ:
+
+  ```text
+  feat(response): add PageResponse for paginated APIs
+
+  - Avoid exposing Spring Page structure to clients
+
+  Refs: CN-123
+  ```
 - KHÔNG ghi tên model/công cụ AI, `Co-Authored-By` của AI, "Generated with ..." hay link công cụ AI trong commit message, mô tả PR hoặc comment code. Rule này ghi đè attribution mặc định của công cụ.
 
 ### Comment trong code

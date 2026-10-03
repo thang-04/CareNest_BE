@@ -1,7 +1,9 @@
-# Workflow đổi dữ liệu Backend
+# Workflow — Thay đổi database
 
-1. Xác định chủ sở hữu dữ liệu, campus scope, dữ liệu nhạy cảm, quan hệ và các dữ liệu dẫn xuất bị ảnh hưởng.
-2. Kiểm tra schema và dữ liệu thực tế đang tồn tại. Thay đổi schema bằng migration Flyway mới trong `src/main/resources/db/migration` (mục 12 của `../../docs/backend-coding-guide.md`); không sửa migration đã chạy.
-3. Thiết kế đường nâng cấp, ràng buộc và khả năng tương thích trước khi thay đổi dữ liệu; xác nhận ảnh hưởng API và các module dùng dữ liệu.
-4. Kiểm chứng migration/query bằng test phù hợp với stack đã chọn; báo rủi ro dữ liệu và cách rollback nếu có thay đổi triển khai.
-
+1. **Ownership & scope:** bảng thuộc module nào (module card); campus-scoped cần `campus_id`; dữ liệu nhạy cảm; dữ liệu dẫn xuất bị ảnh hưởng. Theo `docs/database/DATABASE.md`.
+2. **Entity:** JPA entity trong `<module>.infrastructure`/`domain`; tham chiếu module khác bằng ID; theo `.claude/rules/database.md`.
+3. **Migration:** dùng migration tool của project (kiểm tra source; nếu chưa chọn ⇒ hỏi, không tự chọn). Migration mới, không sửa migration đã chạy. Có đường nâng cấp cho dữ liệu cũ.
+4. **Data dictionary:** cập nhật `docs/database/DATA_DICTIONARY.md` (và `ERD.md` khi đổi quan hệ) trong cùng thay đổi.
+5. **Impact:** API/DTO, query của module khác (qua api), reporting view.
+6. **Test:** integration test với PostgreSQL thật (Testcontainers) cho migration + query; scope filter.
+7. Báo rủi ro dữ liệu và cách rollback nếu có thay đổi phá vỡ.
