@@ -1,0 +1,9 @@
+{
+  "identities": [
+    {
+      "name": "carenest",
+      "credentials": [{ "accessKey": "carenest", "secretKey": "carenest-secret" }],
+      "actions": ["Admin", "Read", "Write", "List", "Tagging"]
+    }
+  ]
+}

@@ -25,8 +25,25 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-carenest}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-carenest}
       API_PREFIX: ${API_PREFIX:-/api}
+      JWT_SECRET: ${JWT_SECRET:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      STORAGE_ENDPOINT: http://s3:8333
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY:-carenest}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY:-carenest-secret}
     ports:
       - "${SERVER_PORT:-8080}:8080"
 
+  # Object storage S3-compatible cho ảnh (MinIO không còn phát hành Docker image); key trong docker/s3.json
+  s3:
+    image: chrislusf/seaweedfs
+    command: server -dir=/data -s3 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - "${STORAGE_PORT:-9000}:8333"
+    volumes:
+      - s3-data:/data
+      - ./docker/s3.json:/etc/seaweedfs/s3.json:ro
+
 volumes:
   postgres-data:
+  s3-data:

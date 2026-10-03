@@ -1,19 +1,26 @@
 # Build
 target/
 !.mvn/wrapper/maven-wrapper.jar
+HELP.md
 
 # Environment / secrets
 .env
 *.env.local
+src/main/resources/application-local.yml
 
 # IDE
 .idea/
 *.iml
+*.iws
+*.ipr
 .vscode/
 .classpath
 .project
 .settings/
 .factorypath
+.apt_generated
+.springBeans
+.sts4-cache
 
 # OS
 .DS_Store

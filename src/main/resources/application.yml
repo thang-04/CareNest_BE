@@ -1,6 +1,9 @@
 spring:
   application:
     name: carenest-be
+  # Giá trị thật cho máy local (mật khẩu mail, JWT secret...) đặt trong application-local.yml, file này không commit.
+  config:
+    import: optional:classpath:application-local.yml
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/carenest}
     username: ${DB_USERNAME:carenest}
@@ -8,7 +11,8 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      # Chưa có migration Flyway cho các bảng auth/user/child nên tạm để Hibernate tạo bảng
+      ddl-auto: ${JPA_DDL_AUTO:update}
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -16,6 +20,18 @@ spring:
     multipart:
       max-file-size: 5MB
       max-request-size: 10MB
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    # Gmail: dùng App Password 16 ký tự, không dùng mật khẩu tài khoản
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 server:
   port: ${SERVER_PORT:8080}
@@ -30,3 +46,32 @@ management:
     web:
       exposure:
         include: health
+
+jwt:
+  # Tối thiểu 64 ký tự (HS512); bắt buộc cấu hình, app không khởi động nếu thiếu
+  secret-key: ${JWT_SECRET:}
+  access-token-expiration: ${JWT_ACCESS_EXPIRATION:30m}
+  refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:15d}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+  auth:
+    cookie:
+      # Dev http://localhost: false; production HTTPS: true
+      secure: ${AUTH_COOKIE_SECURE:false}
+      # Lax khi FE và BE cùng site; None (kèm secure: true) khi khác domain
+      same-site: ${AUTH_COOKIE_SAME_SITE:Lax}
+  # Tài khoản Hiệu trưởng đầu tiên, tạo khi khởi động nếu chưa có; bắt đổi mật khẩu ở lần đăng nhập đầu
+  admin:
+    email: ${ADMIN_EMAIL:admin@carenest.com}
+    password: ${ADMIN_PASSWORD:Admin@123}
+  # S3-compatible storage; local dùng service s3 (SeaweedFS) trong compose.yaml, AWS S3 thì bỏ endpoint
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    region: ${STORAGE_REGION:us-east-1}
+    bucket: ${STORAGE_BUCKET:carenest}
+    access-key: ${STORAGE_ACCESS_KEY:carenest}
+    secret-key: ${STORAGE_SECRET_KEY:carenest-secret}
+    # Ảnh private, client đọc qua presigned URL ngắn hạn
+    presigned-url-expiration: 15m
