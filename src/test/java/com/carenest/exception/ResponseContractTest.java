@@ -11,14 +11,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.WebMvcConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.FilterType;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Mọi response, thành công hay lỗi, phải có dạng {code, desc, data} với code = HTTP status. */
-@WebMvcTest
-@Import(WebMvcConfig.class)
+// Chỉ nạp controller test: controller nghiệp vụ cần service thật, và tắt filter Spring Security cho hợp đồng response
+@WebMvcTest(useDefaultFilters = false, includeFilters = @ComponentScan.Filter(type = FilterType.REGEX,
+        pattern = "com\\.carenest\\.controller\\.ResponseContractTestController"))
+@AutoConfigureMockMvc(addFilters = false)
+@Import({WebMvcConfig.class, GlobalExceptionHandler.class})
 class ResponseContractTest {
 
     private static final String BASE = "/api/response-contract";
