@@ -1,0 +1,6588 @@
+{
+  "info": {
+    "name": "CareNest API - Test cases",
+    "description": "Chạy cả collection bằng Runner theo đúng thứ tự TC001 -> TC136. Mỗi lần chạy tự sinh email/SĐT mới. Cần đặt Postman Settings > Working directory = thư mục postman/ để Runner tìm thấy sample.png và not-image.png.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "TC001 - Đăng nhập sai mật khẩu",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const runId = String(Date.now()).slice(-8);",
+              "const set = (k, v) => pm.collectionVariables.set(k, v);",
+              "set('runId', runId);",
+              "set('viceEmail', 'pho' + runId + '@gmail.com');",
+              "set('vice2Email', 'pho2_' + runId + '@gmail.com');",
+              "set('teacherEmail', 'gv' + runId + '@gmail.com');",
+              "set('staffEmail', 'nv' + runId + '@gmail.com');",
+              "set('teacherPhone', '07' + runId);",
+              "set('parentPhone', '09' + runId);",
+              "set('parentPhoneIntl', '+849' + runId);",
+              "set('otherParentPhone', '03' + runId);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1101', () => pm.expect(b.code).to.eql(1101));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{principalEmail}}\",\n  \"password\": \"sai-mat-khau\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC002 - Đăng nhập tài khoản không tồn tại",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1101', () => pm.expect(b.code).to.eql(1101));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"khongco@gmail.com\",\n  \"password\": \"abc12345\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC003 - Đăng nhập thiếu dữ liệu",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi trường identifier\", () => { pm.expect(d.identifier).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}"
+        }
+      }
+    },
+    {
+      "name": "TC004 - Hiệu trưởng đăng nhập (mobile)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có accessToken và refreshToken\", () => { pm.expect(d.accessToken).to.be.a('string'); pm.expect(d.refreshToken).to.be.a('string'); });",
+              "pm.test(\"tokenType = Bearer\", () => { pm.expect(d.tokenType).to.eql('Bearer'); });",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('principalToken', d.accessToken); } catch (e) {}",
+              "try { if (d.refreshToken !== undefined) pm.collectionVariables.set('principalRefresh', d.refreshToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{principalEmail}}\",\n  \"password\": \"{{principalPassword}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC005 - Gọi API khi chưa đăng nhập",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1100', () => pm.expect(b.code).to.eql(1100));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC006 - Gọi API với token giả",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1104', () => pm.expect(b.code).to.eql(1104));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer abc.def.ghi"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC007 - Xem thông tin tài khoản Hiệu trưởng",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có role PRINCIPAL\", () => { pm.expect(d.roles).to.include('PRINCIPAL'); });",
+              "pm.test(\"Trạng thái ACTIVE\", () => { pm.expect(d.status).to.eql('ACTIVE'); });",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('principalId', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC008 - Làm mới token (refresh)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('oldPrincipalRefresh', pm.collectionVariables.get('principalRefresh'));"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Refresh token mới khác token cũ\", () => { pm.expect(d.refreshToken).to.not.eql(pm.collectionVariables.get('oldPrincipalRefresh')); });",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('principalToken', d.accessToken); } catch (e) {}",
+              "try { if (d.refreshToken !== undefined) pm.collectionVariables.set('principalRefresh', d.refreshToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh-token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh-token"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{principalRefresh}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC009 - Dùng lại refresh token cũ (đã bị thu hồi)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1104', () => pm.expect(b.code).to.eql(1104));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh-token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh-token"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{oldPrincipalRefresh}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC010 - Dùng refresh token thay access token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalRefresh}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC011 - Hiệu trưởng tạo Phó hiệu trưởng",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Role VICE_PRINCIPAL\", () => { pm.expect(d.roles).to.eql(['VICE_PRINCIPAL']); });",
+              "pm.test(\"Bắt đổi mật khẩu lần đầu\", () => { pm.expect(d.mustChangePassword).to.be.true; });",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('viceId', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{viceEmail}}\",\n  \"fullName\": \"Cô Mai\",\n  \"password\": \"vice1234\",\n  \"role\": \"VICE_PRINCIPAL\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC012 - Phó hiệu trưởng đăng nhập",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"mustChangePassword = true\", () => { pm.expect(d.mustChangePassword).to.be.true; });",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('viceToken', d.accessToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{viceEmail}}\",\n  \"password\": \"vice1234\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC013 - Phó HT tạo Giáo viên (email viết hoa)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Email được chuẩn hoá chữ thường\", () => { pm.expect(d.email).to.eql(pm.collectionVariables.get('teacherEmail')); });",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('teacherId', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"GV{{runId}}@Gmail.com\",\n  \"fullName\": \"Cô Lan\",\n  \"phoneNumber\": \"{{teacherPhone}}\",\n  \"password\": \"teacher123\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC014 - Phó HT tạo Nhân viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Role STAFF\", () => { pm.expect(d.roles).to.eql(['STAFF']); });",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('staffId', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{staffEmail}}\",\n  \"fullName\": \"Chú Bảo\",\n  \"password\": \"staff1234\",\n  \"role\": \"STAFF\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC015 - Phó HT tạo Phó HT khác (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"x{{runId}}@gmail.com\",\n  \"fullName\": \"X\",\n  \"password\": \"vice1234\",\n  \"role\": \"VICE_PRINCIPAL\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC016 - Tạo tài khoản Hiệu trưởng (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1207', () => pm.expect(b.code).to.eql(1207));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"y{{runId}}@gmail.com\",\n  \"fullName\": \"Y\",\n  \"password\": \"abc12345\",\n  \"role\": \"PRINCIPAL\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC017 - Tạo tài khoản với email đã tồn tại",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "pm.test('code = 1200', () => pm.expect(b.code).to.eql(1200));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{teacherEmail}}\",\n  \"fullName\": \"Trùng\",\n  \"password\": \"abc12345\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC018 - Tạo tài khoản với SĐT đã tồn tại",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "pm.test('code = 1201', () => pm.expect(b.code).to.eql(1201));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"z{{runId}}@gmail.com\",\n  \"fullName\": \"Trùng\",\n  \"phoneNumber\": \"{{teacherPhone}}\",\n  \"password\": \"abc12345\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC019 - Tạo tài khoản mật khẩu yếu",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi trường password\", () => { pm.expect(d.password).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"w{{runId}}@gmail.com\",\n  \"fullName\": \"W\",\n  \"password\": \"123\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC020 - Tạo tài khoản email sai định dạng",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi trường email\", () => { pm.expect(d.email).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"khong-phai-email\",\n  \"fullName\": \"W\",\n  \"password\": \"abc12345\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC021 - Tạo tài khoản thiếu role",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi trường role\", () => { pm.expect(d.role).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"v{{runId}}@gmail.com\",\n  \"fullName\": \"V\",\n  \"password\": \"abc12345\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC022 - Tạo tài khoản role không tồn tại",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1001', () => pm.expect(b.code).to.eql(1001));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"u{{runId}}@gmail.com\",\n  \"fullName\": \"U\",\n  \"password\": \"abc12345\",\n  \"role\": \"ABC\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC023 - Hiệu trưởng tạo Phó HT thứ 2",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('vice2Id', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{vice2Email}}\",\n  \"fullName\": \"Thầy Nam\",\n  \"password\": \"vice1234\",\n  \"role\": \"VICE_PRINCIPAL\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC024 - Giáo viên đăng nhập bằng email",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('teacherToken', d.accessToken); } catch (e) {}",
+              "try { if (d.refreshToken !== undefined) pm.collectionVariables.set('teacherRefresh', d.refreshToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{teacherEmail}}\",\n  \"password\": \"teacher123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC025 - Giáo viên gọi API quản lý (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"t{{runId}}@gmail.com\",\n  \"fullName\": \"T\",\n  \"password\": \"abc12345\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC026 - Chỉ định tổ trưởng",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có cả TEACHER và HEAD_TEACHER\", () => { pm.expect(d.roles).to.include.members(['TEACHER', 'HEAD_TEACHER']); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/teachers/{{teacherId}}/head-teacher",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "teachers",
+            "{{teacherId}}",
+            "head-teacher"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC027 - Chỉ định tổ trưởng cho Nhân viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1208', () => pm.expect(b.code).to.eql(1208));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/teachers/{{staffId}}/head-teacher",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "teachers",
+            "{{staffId}}",
+            "head-teacher"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC028 - Chỉ định tổ trưởng cho id không tồn tại",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1208', () => pm.expect(b.code).to.eql(1208));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/teachers/999999/head-teacher",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "teachers",
+            "999999",
+            "head-teacher"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC029 - Bỏ chức tổ trưởng",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Không còn HEAD_TEACHER\", () => { pm.expect(d.roles).to.not.include('HEAD_TEACHER'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/teachers/{{teacherId}}/head-teacher",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "teachers",
+            "{{teacherId}}",
+            "head-teacher"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC030 - Token cũ của GV bị từ chối sau khi đổi chức vụ",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1104', () => pm.expect(b.code).to.eql(1104));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC031 - Giáo viên đăng nhập lại",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('teacherToken', d.accessToken); } catch (e) {}",
+              "try { if (d.refreshToken !== undefined) pm.collectionVariables.set('teacherRefresh', d.refreshToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{teacherEmail}}\",\n  \"password\": \"teacher123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC032 - Thêm trẻ, tự tạo tài khoản phụ huynh (SĐT +84)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"parentAccountCreated = true\", () => { pm.expect(d.parentAccountCreated).to.be.true; });",
+              "pm.test(\"SĐT chuẩn hoá về 0...\", () => { pm.expect(d.parent.phoneNumber).to.eql(pm.collectionVariables.get('parentPhone')); });",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('childId', d.id); } catch (e) {}",
+              "try { if (d.parent.id !== undefined) pm.collectionVariables.set('parentId', d.parent.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Bé Na\",\n  \"dateOfBirth\": \"2022-05-01\",\n  \"parentPhone\": \"{{parentPhoneIntl}}\",\n  \"parentName\": \"Chị Hoa\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC033 - Thêm trẻ thứ 2 cùng SĐT phụ huynh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Gắn vào phụ huynh cũ\", () => { pm.expect(d.parentAccountCreated).to.be.false; pm.expect(d.parent.id).to.eql(Number(pm.collectionVariables.get('parentId'))); });",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('child2Id', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Bé Bin\",\n  \"parentPhone\": \"{{parentPhone}}\",\n  \"parentName\": \"Chị Hoa\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC034 - Thêm trẻ của phụ huynh khác",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('otherChildId', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Bé Tí\",\n  \"parentPhone\": \"{{otherParentPhone}}\",\n  \"parentName\": \"Anh Tùng\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC035 - Thêm trẻ thiếu tên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi childName\", () => { pm.expect(d.childName).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"parentPhone\": \"{{parentPhone}}\",\n  \"parentName\": \"Chị Hoa\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC036 - Thêm trẻ SĐT phụ huynh sai",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi parentPhone\", () => { pm.expect(d.parentPhone).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Bé\",\n  \"parentPhone\": \"12345\",\n  \"parentName\": \"X\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC037 - Thêm trẻ ngày sinh ở tương lai",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi dateOfBirth\", () => { pm.expect(d.dateOfBirth).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Bé\",\n  \"dateOfBirth\": \"2999-01-01\",\n  \"parentPhone\": \"{{parentPhone}}\",\n  \"parentName\": \"X\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC038 - Giáo viên thêm trẻ (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Bé\",\n  \"parentPhone\": \"{{parentPhone}}\",\n  \"parentName\": \"X\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC039 - Phụ huynh đăng nhập bằng SĐT, mật khẩu mặc định",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Bắt đổi mật khẩu\", () => { pm.expect(d.mustChangePassword).to.be.true; });",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('parentToken', d.accessToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{parentPhone}}\",\n  \"password\": \"{{parentPhone}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC040 - Phụ huynh gọi API giáo viên (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/teacher/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "teacher",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC041 - Phụ huynh xem danh sách con",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có 2 trẻ\", () => { pm.expect(d).to.have.lengthOf(2); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC042 - Đổi mật khẩu sai mật khẩu cũ",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1204', () => pm.expect(b.code).to.eql(1204));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/change-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "change-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oldPassword\": \"sai12345\",\n  \"newPassword\": \"parent123\",\n  \"confirmPassword\": \"parent123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC043 - Đổi mật khẩu xác nhận không khớp",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1202', () => pm.expect(b.code).to.eql(1202));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/change-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "change-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oldPassword\": \"{{parentPhone}}\",\n  \"newPassword\": \"parent123\",\n  \"confirmPassword\": \"khac1234\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC044 - Đổi mật khẩu mới chỉ có số",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi newPassword\", () => { pm.expect(d.newPassword).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/change-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "change-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oldPassword\": \"{{parentPhone}}\",\n  \"newPassword\": \"12345678\",\n  \"confirmPassword\": \"12345678\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC045 - Đổi mật khẩu thành công",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/change-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "change-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oldPassword\": \"{{parentPhone}}\",\n  \"newPassword\": \"parent123\",\n  \"confirmPassword\": \"parent123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC046 - Đăng nhập bằng mật khẩu cũ sau khi đổi",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1101', () => pm.expect(b.code).to.eql(1101));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{parentPhone}}\",\n  \"password\": \"{{parentPhone}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC047 - Đăng nhập bằng mật khẩu mới",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Không còn bắt đổi mật khẩu\", () => { pm.expect(d.mustChangePassword).to.be.false; });",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('parentToken', d.accessToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{parentPhone}}\",\n  \"password\": \"parent123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC048 - Đổi mật khẩu mới trùng mật khẩu cũ",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1205', () => pm.expect(b.code).to.eql(1205));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/change-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "change-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oldPassword\": \"parent123\",\n  \"newPassword\": \"parent123\",\n  \"confirmPassword\": \"parent123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC049 - Giáo viên reset mật khẩu phụ huynh không quản lý",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1206', () => pm.expect(b.code).to.eql(1206));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/teacher/parents/{{parentId}}/reset-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "teacher",
+            "parents",
+            "{{parentId}}",
+            "reset-password"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC050 - BGH reset mật khẩu phụ huynh về SĐT",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/parents/{{parentId}}/reset-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "parents",
+            "{{parentId}}",
+            "reset-password"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC051 - Phụ huynh đăng nhập lại bằng mật khẩu mặc định",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Bắt đổi mật khẩu lại\", () => { pm.expect(d.mustChangePassword).to.be.true; });",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('parentToken', d.accessToken); } catch (e) {}",
+              "try { if (d.refreshToken !== undefined) pm.collectionVariables.set('parentRefresh', d.refreshToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{parentPhone}}\",\n  \"password\": \"{{parentPhone}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC052 - Reset mật khẩu cho tài khoản không phải phụ huynh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1203', () => pm.expect(b.code).to.eql(1203));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/parents/{{teacherId}}/reset-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "parents",
+            "{{teacherId}}",
+            "reset-password"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC053 - Quên mật khẩu bằng SĐT (chưa hỗ trợ SMS)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 501', () => pm.response.to.have.status(501));",
+              "pm.test('code = 1304', () => pm.expect(b.code).to.eql(1304));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/forgot-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "forgot-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{parentPhone}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC054 - Đổi ảnh đại diện",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có avatarUrl\", () => { pm.expect(d.avatarUrl).to.include('avatars/'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me/avatar",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me",
+            "avatar"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "sample.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC055 - Upload file không phải ảnh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1400', () => pm.expect(b.code).to.eql(1400));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me/avatar",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me",
+            "avatar"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "not-image.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC056 - Upload thiếu file",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me/images",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me",
+            "images"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "title",
+              "value": "Không có file",
+              "type": "text"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC057 - Thêm ảnh có tiêu đề",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"title đúng\", () => { pm.expect(d.title).to.eql('Chứng chỉ'); });",
+              "pm.test(\"Có url\", () => { pm.expect(d.url).to.be.a('string'); });",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('imageId', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me/images",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me",
+            "images"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "sample.png"
+            },
+            {
+              "key": "title",
+              "value": "Chứng chỉ",
+              "type": "text"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC058 - Xem danh sách ảnh của tôi",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có 1 ảnh\", () => { pm.expect(d).to.have.lengthOf(1); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me/images",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me",
+            "images"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC059 - BGH xem ảnh của giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có 1 ảnh\", () => { pm.expect(d).to.have.lengthOf(1); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/images",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "images"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC060 - Giáo viên xem ảnh người khác qua API quản lý",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{viceId}}/images",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{viceId}}",
+            "images"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC061 - Xoá ảnh của người khác",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1403', () => pm.expect(b.code).to.eql(1403));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me/images/{{imageId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me",
+            "images",
+            "{{imageId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC062 - Xoá ảnh của mình",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me/images/{{imageId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me",
+            "images",
+            "{{imageId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC063 - Xem tài khoản sau khi đổi avatar",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có avatarUrl\", () => { pm.expect(d.avatarUrl).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC064 - Phụ huynh đổi ảnh con",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có photoUrl\", () => { pm.expect(d.photoUrl).to.include('children/'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children/{{childId}}/photo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children",
+            "{{childId}}",
+            "photo"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "sample.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC065 - Phụ huynh đổi ảnh trẻ không phải con mình",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1500', () => pm.expect(b.code).to.eql(1500));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children/{{otherChildId}}/photo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children",
+            "{{otherChildId}}",
+            "photo"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "sample.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC066 - BGH đổi ảnh trẻ",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có photoUrl\", () => { pm.expect(d.photoUrl).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children/{{child2Id}}/photo",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children",
+            "{{child2Id}}",
+            "photo"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": "sample.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC067 - Phụ huynh thêm người đón",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Trạng thái PENDING\", () => { pm.expect(d.status).to.eql('PENDING'); });",
+              "pm.test(\"Có photoUrl\", () => { pm.expect(d.photoUrl).to.be.a('string'); });",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('pickupPersonId', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "fullName",
+              "value": "Bà Tư",
+              "type": "text"
+            },
+            {
+              "key": "relationship",
+              "value": "Bà ngoại",
+              "type": "text"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "0933333333",
+              "type": "text"
+            },
+            {
+              "key": "photo",
+              "type": "file",
+              "src": "sample.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC068 - Thêm người đón thiếu ảnh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "fullName",
+              "value": "Bà Tư",
+              "type": "text"
+            },
+            {
+              "key": "relationship",
+              "value": "Bà ngoại",
+              "type": "text"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "0933333333",
+              "type": "text"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC069 - Thêm người đón SĐT sai",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test(\"Báo lỗi phoneNumber\", () => { pm.expect(d.phoneNumber).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "fullName",
+              "value": "Bà Tư",
+              "type": "text"
+            },
+            {
+              "key": "relationship",
+              "value": "Bà ngoại",
+              "type": "text"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "123",
+              "type": "text"
+            },
+            {
+              "key": "photo",
+              "type": "file",
+              "src": "sample.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC070 - Gửi form-urlencoded thay vì multipart",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 415', () => pm.response.to.have.status(415));",
+              "pm.test('code = 415', () => pm.expect(b.code).to.eql(415));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        },
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "fullName",
+              "value": "Bà Tư"
+            },
+            {
+              "key": "relationship",
+              "value": "Bà ngoại"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "0933333333"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC071 - Thêm người đón cho trẻ không phải con mình",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1500', () => pm.expect(b.code).to.eql(1500));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children/{{otherChildId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children",
+            "{{otherChildId}}",
+            "pickup-persons"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "fullName",
+              "value": "Bà Tư",
+              "type": "text"
+            },
+            {
+              "key": "relationship",
+              "value": "Bà ngoại",
+              "type": "text"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "0933333333",
+              "type": "text"
+            },
+            {
+              "key": "photo",
+              "type": "file",
+              "src": "sample.png"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC072 - Phụ huynh xem danh sách người đón",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có 1 người\", () => { pm.expect(d).to.have.lengthOf(1); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC073 - Giáo viên xem người đón khi chưa duyệt",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Chưa thấy ai\", () => { pm.expect(d).to.have.lengthOf(0); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/teacher/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "teacher",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC074 - BGH xem danh sách chờ duyệt",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có người vừa thêm\", () => { pm.expect(d.map(p => p.id)).to.include(Number(pm.collectionVariables.get('pickupPersonId'))); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/pickup-persons?status=PENDING",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "pickup-persons"
+          ],
+          "query": [
+            {
+              "key": "status",
+              "value": "PENDING"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC075 - Lọc theo trạng thái không hợp lệ",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/pickup-persons?status=ABC",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "pickup-persons"
+          ],
+          "query": [
+            {
+              "key": "status",
+              "value": "ABC"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC076 - Phụ huynh tự duyệt (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/pickup-persons/{{pickupPersonId}}/approve",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "pickup-persons",
+            "{{pickupPersonId}}",
+            "approve"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC077 - Giáo viên duyệt (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/pickup-persons/{{pickupPersonId}}/approve",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "pickup-persons",
+            "{{pickupPersonId}}",
+            "approve"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC078 - BGH duyệt người đón",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"APPROVED\", () => { pm.expect(d.status).to.eql('APPROVED'); });",
+              "pm.test(\"Có reviewedAt\", () => { pm.expect(d.reviewedAt).to.be.a('string'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/pickup-persons/{{pickupPersonId}}/approve",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "pickup-persons",
+            "{{pickupPersonId}}",
+            "approve"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC079 - Giáo viên xem người đón đã duyệt",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Thấy 1 người\", () => { pm.expect(d).to.have.lengthOf(1); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/teacher/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "teacher",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC080 - Phụ huynh sửa người đón (giữ ảnh cũ)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Quay về PENDING\", () => { pm.expect(d.status).to.eql('PENDING'); });",
+              "pm.test(\"relationship mới\", () => { pm.expect(d.relationship).to.eql('Bà nội'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/pickup-persons/{{pickupPersonId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "pickup-persons",
+            "{{pickupPersonId}}"
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "fullName",
+              "value": "Bà Tư",
+              "type": "text"
+            },
+            {
+              "key": "relationship",
+              "value": "Bà nội",
+              "type": "text"
+            },
+            {
+              "key": "phoneNumber",
+              "value": "0933333333",
+              "type": "text"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC081 - Giáo viên không còn thấy người đón vừa sửa",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Không thấy ai\", () => { pm.expect(d).to.have.lengthOf(0); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/teacher/children/{{childId}}/pickup-persons",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "teacher",
+            "children",
+            "{{childId}}",
+            "pickup-persons"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC082 - BGH từ chối có lý do",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"REJECTED\", () => { pm.expect(d.status).to.eql('REJECTED'); });",
+              "pm.test(\"Có lý do\", () => { pm.expect(d.rejectReason).to.eql('Ảnh không rõ mặt'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/pickup-persons/{{pickupPersonId}}/reject",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "pickup-persons",
+            "{{pickupPersonId}}",
+            "reject"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reason\": \"Ảnh không rõ mặt\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC083 - Duyệt người đón không tồn tại",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1501', () => pm.expect(b.code).to.eql(1501));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/pickup-persons/999999/approve",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "pickup-persons",
+            "999999",
+            "approve"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC084 - Phụ huynh xoá người đón",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/pickup-persons/{{pickupPersonId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "pickup-persons",
+            "{{pickupPersonId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC085 - Xoá người đón đã bị xoá",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1501', () => pm.expect(b.code).to.eql(1501));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/pickup-persons/{{pickupPersonId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "pickup-persons",
+            "{{pickupPersonId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC086 - Phó HT khoá Phó HT khác (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{vice2Id}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{vice2Id}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"LOCKED\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC087 - Phó HT khoá Hiệu trưởng (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{principalId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{principalId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"LOCKED\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC088 - Hiệu trưởng tự khoá mình",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1209', () => pm.expect(b.code).to.eql(1209));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{principalId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{principalId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"LOCKED\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC089 - Giáo viên khoá người khác (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{staffId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{staffId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"LOCKED\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC090 - Trạng thái không hợp lệ",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1001', () => pm.expect(b.code).to.eql(1001));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"XYZ\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC091 - Phó HT khoá giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"LOCKED\", () => { pm.expect(d.status).to.eql('LOCKED'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"LOCKED\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC092 - Giáo viên bị khoá dùng token cũ",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1102', () => pm.expect(b.code).to.eql(1102));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC093 - Giáo viên bị khoá làm mới token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1102', () => pm.expect(b.code).to.eql(1102));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh-token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh-token"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{teacherRefresh}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC094 - Giáo viên bị khoá đăng nhập",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1102', () => pm.expect(b.code).to.eql(1102));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{teacherEmail}}\",\n  \"password\": \"teacher123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC095 - Hiệu trưởng mở khoá giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"ACTIVE\", () => { pm.expect(d.status).to.eql('ACTIVE'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"ACTIVE\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC096 - Giáo viên đăng nhập lại sau khi mở khoá",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('teacherToken', d.accessToken); } catch (e) {}",
+              "try { if (d.refreshToken !== undefined) pm.collectionVariables.set('teacherRefresh', d.refreshToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{teacherEmail}}\",\n  \"password\": \"teacher123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC097 - Phó HT khoá phụ huynh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{parentId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{parentId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"LOCKED\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC098 - Phụ huynh bị khoá gọi API",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1102', () => pm.expect(b.code).to.eql(1102));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC099 - Phó HT mở khoá phụ huynh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{parentId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{parentId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"ACTIVE\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC100 - Danh sách tài khoản lọc role + từ khoá",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Tìm thấy 1 giáo viên\", () => { pm.expect(d.totalElements).to.eql(1); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users?role=TEACHER&keyword=gv{{runId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users"
+          ],
+          "query": [
+            {
+              "key": "role",
+              "value": "TEACHER"
+            },
+            {
+              "key": "keyword",
+              "value": "gv{{runId}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC101 - Danh sách tài khoản có phân trang",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Tối đa 2 dòng\", () => { pm.expect(d.items.length).to.be.at.most(2); pm.expect(d.size).to.eql(2); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users?page=0&size=2",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users"
+          ],
+          "query": [
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "2"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC102 - Giáo viên xem danh sách tài khoản (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC103 - Chi tiết tài khoản phụ huynh kèm danh sách con",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có 2 trẻ\", () => { pm.expect(d.children).to.have.lengthOf(2); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{parentId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{parentId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC104 - Sửa email giáo viên trùng email người khác",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "pm.test('code = 1200', () => pm.expect(b.code).to.eql(1200));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Cô Lan\",\n  \"email\": \"{{viceEmail}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC105 - Xoá email của nhân sự",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1211', () => pm.expect(b.code).to.eql(1211));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{staffId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{staffId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Chú Bảo\",\n  \"email\": \"\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC106 - Xoá SĐT của phụ huynh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1212', () => pm.expect(b.code).to.eql(1212));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{parentId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{parentId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Chị Hoa\",\n  \"phoneNumber\": \"\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC107 - Phó HT sửa Phó HT khác (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{vice2Id}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{vice2Id}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"X\",\n  \"email\": \"{{vice2Email}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC108 - Sửa thông tin giáo viên (email mới, chức vụ)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Email mới\", () => { pm.expect(d.email).to.eql('gvmoi' + pm.collectionVariables.get('runId') + '@gmail.com'); });",
+              "pm.test(\"Có chức vụ\", () => { pm.expect(d.position).to.eql('Giáo viên lớp Mầm'); });",
+              "try { if (d.email !== undefined) pm.collectionVariables.set('teacherEmail', d.email); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Cô Lan Anh\",\n  \"email\": \"gvmoi{{runId}}@gmail.com\",\n  \"phoneNumber\": \"{{teacherPhone}}\",\n  \"position\": \"Giáo viên lớp Mầm\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC109 - Token cũ bị từ chối sau khi đổi email",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1104', () => pm.expect(b.code).to.eql(1104));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC110 - Giáo viên đăng nhập bằng email mới",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('teacherToken', d.accessToken); } catch (e) {}",
+              "try { if (d.refreshToken !== undefined) pm.collectionVariables.set('teacherRefresh', d.refreshToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{teacherEmail}}\",\n  \"password\": \"teacher123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC111 - Tự sửa họ tên của mình",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Tên mới\", () => { pm.expect(d.fullName).to.eql('Lan Anh'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Lan Anh\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC112 - Phó HT nâng giáo viên lên Phó HT (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "role"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"VICE_PRINCIPAL\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC113 - Đổi role cho tài khoản chỉ là phụ huynh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1213', () => pm.expect(b.code).to.eql(1213));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{parentId}}/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{parentId}}",
+            "role"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC114 - Tự đổi role của mình",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1214', () => pm.expect(b.code).to.eql(1214));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{principalId}}/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{principalId}}",
+            "role"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC115 - Đổi giáo viên thành nhân viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Chỉ còn STAFF\", () => { pm.expect(d.roles).to.eql(['STAFF']); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "role"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"STAFF\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC116 - Đổi lại thành giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"TEACHER\", () => { pm.expect(d.roles).to.eql(['TEACHER']); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "role"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC117 - Giáo viên đăng nhập lại sau khi đổi role",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "try { if (d.accessToken !== undefined) pm.collectionVariables.set('teacherToken', d.accessToken); } catch (e) {}",
+              "try { if (d.refreshToken !== undefined) pm.collectionVariables.set('teacherRefresh', d.refreshToken); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{teacherEmail}}\",\n  \"password\": \"teacher123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC118 - Đặt mật khẩu tạm quá yếu",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{staffId}}/reset-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{staffId}}",
+            "reset-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"123\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC119 - BGH đặt mật khẩu tạm cho nhân viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{staffId}}/reset-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{staffId}}",
+            "reset-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"temp1234\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC120 - Nhân viên đăng nhập bằng mật khẩu tạm",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Bắt đổi mật khẩu\", () => { pm.expect(d.mustChangePassword).to.be.true; });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{staffEmail}}\",\n  \"password\": \"temp1234\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC121 - Tạo nhầm tài khoản",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "try { if (d.id !== undefined) pm.collectionVariables.set('mistakeId', d.id); } catch (e) {}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"nham{{runId}}@gmail.com\",\n  \"fullName\": \"Tạo nhầm\",\n  \"password\": \"abc12345\",\n  \"role\": \"STAFF\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC122 - Xoá tài khoản tạo nhầm (chưa dùng)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{mistakeId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{mistakeId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC123 - Xem tài khoản đã xoá",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1203', () => pm.expect(b.code).to.eql(1203));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{mistakeId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{mistakeId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC124 - Xoá tài khoản đã đăng nhập (phải khoá thay vì xoá)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "pm.test('code = 1210', () => pm.expect(b.code).to.eql(1210));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC125 - Xoá phụ huynh đang có con",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "pm.test('code = 1210', () => pm.expect(b.code).to.eql(1210));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{parentId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{parentId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC126 - Phó HT xoá Hiệu trưởng (không được phép)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1103', () => pm.expect(b.code).to.eql(1103));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{principalId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{principalId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC127 - Danh sách trẻ tìm theo SĐT phụ huynh",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"2 trẻ\", () => { pm.expect(d.totalElements).to.eql(2); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children?keyword={{parentPhone}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children"
+          ],
+          "query": [
+            {
+              "key": "keyword",
+              "value": "{{parentPhone}}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC128 - Chi tiết trẻ kèm người đón",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Có thông tin trẻ\", () => { pm.expect(d.child.id).to.eql(Number(pm.collectionVariables.get('childId'))); });",
+              "pm.test(\"Có danh sách người đón\", () => { pm.expect(d.pickupPersons).to.be.an('array'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children/{{childId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children",
+            "{{childId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC129 - Sửa thông tin trẻ",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Tên mới\", () => { pm.expect(d.fullName).to.eql('Bé Na Na'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children/{{childId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children",
+            "{{childId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Bé Na Na\",\n  \"dateOfBirth\": \"2022-06-01\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC130 - Sửa trẻ ngày sinh ở tương lai",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children/{{childId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children",
+            "{{childId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"childName\": \"Bé Na\",\n  \"dateOfBirth\": \"2999-01-01\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC131 - Chuyển trẻ sang phụ huynh khác (nhập nhầm SĐT)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"Gắn vào phụ huynh đã có\", () => { pm.expect(d.parentAccountCreated).to.be.false; pm.expect(d.parent.phoneNumber).to.eql(pm.collectionVariables.get('otherParentPhone')); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children/{{child2Id}}/parent",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children",
+            "{{child2Id}}",
+            "parent"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"parentPhone\": \"{{otherParentPhone}}\",\n  \"parentName\": \"Anh Tùng\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC132 - Phụ huynh cũ chỉ còn 1 con",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test(\"1 trẻ\", () => { pm.expect(d).to.have.lengthOf(1); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{parentToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/parent/children",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "parent",
+            "children"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC133 - Xem trẻ không tồn tại",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1500', () => pm.expect(b.code).to.eql(1500));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{viceToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/children/999999",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "children",
+            "999999"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC134 - Giáo viên đăng xuất",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/logout",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "logout"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{teacherRefresh}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "TC135 - Dùng access token sau khi đăng xuất",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1104', () => pm.expect(b.code).to.eql(1104));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "TC136 - Dùng refresh token sau khi đăng xuất",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1104', () => pm.expect(b.code).to.eql(1104));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh-token",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh-token"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"refreshToken\": \"{{teacherRefresh}}\"\n}"
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "principalEmail",
+      "value": "admin@carenest.com"
+    },
+    {
+      "key": "principalPassword",
+      "value": "Admin@123"
+    }
+  ]
+}

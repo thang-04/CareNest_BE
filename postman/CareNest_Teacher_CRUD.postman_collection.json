@@ -1,0 +1,974 @@
+{
+  "info": {
+    "name": "CareNest - CRUD giáo viên",
+    "description": "Chọn environment 'CareNest Local' rồi chạy lần lượt 1 -> 16 (hoặc Run collection). Token và id tự lưu vào environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Login Hiệu trưởng",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.environment.set('principalToken', d.accessToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{principalEmail}}\",\n  \"password\": \"{{principalPassword}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "2. Tạo giáo viên",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// New email/phone each run so the request can be sent again.",
+              "const n = String(Date.now()).slice(-8);",
+              "pm.environment.set('teacherEmail', 'gv' + n + '@gmail.com');",
+              "pm.environment.set('teacherPhone', '07' + n);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('role TEACHER', () => pm.expect(d.roles).to.eql(['TEACHER']));",
+              "pm.test('bắt đổi mật khẩu', () => pm.expect(d.mustChangePassword).to.be.true);",
+              "pm.environment.set('teacherId', d.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{teacherEmail}}\",\n  \"fullName\": \"Cô Lan\",\n  \"phoneNumber\": \"{{teacherPhone}}\",\n  \"password\": \"{{teacherPassword}}\",\n  \"role\": \"TEACHER\",\n  \"position\": \"Giáo viên lớp Mầm\"\n}"
+        }
+      }
+    },
+    {
+      "name": "2b. Tạo giáo viên email trùng (lỗi)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "pm.test('code = 1200', () => pm.expect(b.code).to.eql(1200));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{teacherEmail}}\",\n  \"fullName\": \"Trùng\",\n  \"password\": \"teacher123\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "2c. Tạo giáo viên sai dữ liệu (lỗi)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+              "pm.test('code = 1000', () => pm.expect(b.code).to.eql(1000));",
+              "pm.test('báo lỗi từng trường', () => pm.expect(d).to.include.keys('email', 'fullName', 'phoneNumber', 'password'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"abc\",\n  \"fullName\": \"\",\n  \"phoneNumber\": \"123\",\n  \"password\": \"123\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "3. Danh sách giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('có phân trang', () => pm.expect(d).to.include.keys('items', 'totalElements', 'totalPages'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users?role=TEACHER&status=ACTIVE&keyword=&page=0&size=20",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users"
+          ],
+          "query": [
+            {
+              "key": "role",
+              "value": "TEACHER"
+            },
+            {
+              "key": "status",
+              "value": "ACTIVE"
+            },
+            {
+              "key": "keyword",
+              "value": ""
+            },
+            {
+              "key": "page",
+              "value": "0"
+            },
+            {
+              "key": "size",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Chi tiết giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('đúng giáo viên', () => pm.expect(d.account.email).to.eql(pm.environment.get('teacherEmail')));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Giáo viên đăng nhập",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.environment.set('teacherToken', d.accessToken);",
+              "pm.environment.set('teacherRefresh', d.refreshToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{teacherEmail}}\",\n  \"password\": \"{{teacherPassword}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "6. Sửa thông tin giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('tên mới', () => pm.expect(d.fullName).to.eql('Cô Lan Anh'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Cô Lan Anh\",\n  \"email\": \"{{teacherEmail}}\",\n  \"phoneNumber\": \"{{teacherPhone}}\",\n  \"position\": \"Giáo viên lớp Chồi\"\n}"
+        },
+        "description": "Không đổi email/SĐT nên giáo viên không bị đăng xuất."
+      }
+    },
+    {
+      "name": "7. Chỉ định tổ trưởng",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('có HEAD_TEACHER', () => pm.expect(d.roles).to.include.members(['TEACHER', 'HEAD_TEACHER']));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/teachers/{{teacherId}}/head-teacher",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "teachers",
+            "{{teacherId}}",
+            "head-teacher"
+          ]
+        }
+      }
+    },
+    {
+      "name": "7b. Token cũ của GV bị từ chối (đổi role)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+              "pm.test('code = 1104', () => pm.expect(b.code).to.eql(1104));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "8. Bỏ chức tổ trưởng",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('không còn HEAD_TEACHER', () => pm.expect(d.roles).to.not.include('HEAD_TEACHER'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/teachers/{{teacherId}}/head-teacher",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "teachers",
+            "{{teacherId}}",
+            "head-teacher"
+          ]
+        }
+      }
+    },
+    {
+      "name": "9. Đặt mật khẩu tạm cho giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.environment.set('teacherPassword', 'temp1234');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/reset-password",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "reset-password"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"password\": \"temp1234\"\n}"
+        },
+        "description": "Biến teacherPassword được đổi thành temp1234."
+      }
+    },
+    {
+      "name": "10. Giáo viên đăng nhập bằng mật khẩu tạm",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('bắt đổi mật khẩu', () => pm.expect(d.mustChangePassword).to.be.true);",
+              "pm.environment.set('teacherToken', d.accessToken);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"identifier\": \"{{teacherEmail}}\",\n  \"password\": \"{{teacherPassword}}\"\n}"
+        }
+      }
+    },
+    {
+      "name": "11. Khoá giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('LOCKED', () => pm.expect(d.status).to.eql('LOCKED'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"LOCKED\"\n}"
+        }
+      }
+    },
+    {
+      "name": "11b. Giáo viên bị khoá gọi API",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+              "pm.test('code = 1102', () => pm.expect(b.code).to.eql(1102));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{teacherToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/users/me",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "me"
+          ]
+        }
+      }
+    },
+    {
+      "name": "12. Mở khoá giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.test('ACTIVE', () => pm.expect(d.status).to.eql('ACTIVE'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}",
+            "status"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"ACTIVE\"\n}"
+        }
+      }
+    },
+    {
+      "name": "13. Xoá giáo viên đã đăng nhập (lỗi, phải khoá)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+              "pm.test('code = 1210', () => pm.expect(b.code).to.eql(1210));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{teacherId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{teacherId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "14. Tạo nhầm tài khoản giáo viên",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));",
+              "pm.environment.set('mistakeTeacherId', d.id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/staff",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "staff"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"nham{{$timestamp}}@gmail.com\",\n  \"fullName\": \"Tạo nhầm\",\n  \"password\": \"teacher123\",\n  \"role\": \"TEACHER\"\n}"
+        }
+      }
+    },
+    {
+      "name": "15. Xoá tài khoản tạo nhầm",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+              "pm.test('code = 0', () => pm.expect(b.code).to.eql(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{mistakeTeacherId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{mistakeTeacherId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "16. Xem tài khoản đã xoá",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "let b = {}; try { b = pm.response.json(); } catch (e) {}",
+              "const d = b.data;",
+              "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+              "pm.test('code = 1203', () => pm.expect(b.code).to.eql(1203));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Client-Type",
+            "value": "mobile"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{principalToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/management/users/{{mistakeTeacherId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "management",
+            "users",
+            "{{mistakeTeacherId}}"
+          ]
+        }
+      }
+    }
+  ]
+}
