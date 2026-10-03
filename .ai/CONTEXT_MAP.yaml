@@ -1,0 +1,57 @@
+version: 1
+repository: CareNest_BE
+available:
+  entrypoints:
+    - AGENTS.md
+    - CLAUDE.md
+  routing:
+    - .ai/ROUTER.md
+    - .ai/ESCALATION.md
+    - .ai/CONTEXT_MAP.yaml
+  context:
+    - .ai/REPO_CONTEXT.md
+  coding_guide:
+    - docs/backend-coding-guide.md
+  build_and_run:
+    - README.md
+    - pom.xml
+    - Dockerfile
+    - compose.yaml
+    - .env.example
+  source:
+    - src/main/java/com/carenest/
+    - src/main/resources/application.yml
+    - src/main/resources/db/migration/
+    - src/test/java/com/carenest/
+  response_contract:
+    - src/main/java/com/carenest/utils/ApiCode.java
+    - src/main/java/com/carenest/utils/ResponseJson.java
+    - src/main/java/com/carenest/exception/GlobalExceptionHandler.java
+    - src/test/java/com/carenest/exception/ResponseContractTest.java
+  profiles:
+    - .ai/profiles/code.md
+    - .ai/profiles/feature.md
+    - .ai/profiles/cross-repo.md
+  workflows:
+    - .ai/workflows/fix-bug.md
+    - .ai/workflows/implement-feature.md
+    - .ai/workflows/review-code.md
+    - .ai/workflows/update-api.md
+    - .ai/workflows/update-database.md
+  agent_skills:
+    - .agents/skills/carenest-backend/SKILL.md
+    - .claude/skills/carenest-backend/SKILL.md
+planned:
+  - CONTRIBUTING.md
+  - docs/architecture/   # thư mục đã có, chưa có nội dung
+  - docs/api/            # thư mục đã có, chưa có nội dung
+  - docs/INDEX.md
+  - docs/business/BUSINESS_RULES.md
+  - docs/system/CROSS_REPO_MAP.md
+  - docs/contracts/openapi.yaml
+  - docs/knowledge/ISSUE_INDEX.md
+external_sources:
+  architecture: D:/CAPSTONE_FALL26/CareNest_Backend_Architecture_v2.docx
+related_repositories:
+  CareNest_FE: https://github.com/thang-04/CareNest_FE.git
+  CareNest_APP: https://github.com/thang-04/CareNest_APP.git
