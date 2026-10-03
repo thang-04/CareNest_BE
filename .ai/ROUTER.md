@@ -29,3 +29,7 @@ Chạm bất kỳ mục nào ⇒ ít nhất L3: số suất ăn / xác nhận su
 ## Bảng 3 — Yêu cầu ngoài scope
 
 Kho/NCC, tài sản/khấu hao/bảo trì, chat, giáo án, chẩn đoán, multi-school, payroll/kế toán ⇒ **dừng**, đối chiếu `docs/context/PROJECT_CONTEXT.md` (Exclusions) và hỏi người dùng.
+
+## Cập nhật tri thức (song song với mọi task)
+
+User đưa thông tin nghiệp vụ mới / chốt PENDING, gặp **bug mới** hoặc edge case ⇒ chạy `workflows/update-knowledge.md` (skill `update-knowledge`) **ngay trong lượt**, rồi tiếp tục task chính. Claude có Stop hook (`.claude/hooks/memory-reminder.mjs`) nhắc một lần khi code đổi mà `docs/` chưa đổi.

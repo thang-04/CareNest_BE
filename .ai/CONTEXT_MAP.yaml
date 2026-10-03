@@ -71,9 +71,10 @@ available:
     - src/main/java/com/carenest/utils/ResponseJson.java
     - src/main/java/com/carenest/exception/GlobalExceptionHandler.java
     - src/test/java/com/carenest/exception/ResponseContractTest.java
+  hooks: [.claude/settings.json, .claude/hooks/memory-reminder.mjs]   # Claude Stop hook nhắc cập nhật memory
   routing: [.ai/ROUTER.md, .ai/ESCALATION.md, .ai/CONTEXT_MAP.yaml]
   profiles: [.ai/profiles/code.md, .ai/profiles/feature.md, .ai/profiles/architecture.md, .ai/profiles/operations.md, .ai/profiles/cross-repo.md, .ai/profiles/full.md]
-  workflows: [.ai/workflows/fix-bug.md, .ai/workflows/implement-feature.md, .ai/workflows/review-code.md, .ai/workflows/update-database.md, .ai/workflows/update-api.md, .ai/workflows/deploy.md]
+  workflows: [.ai/workflows/fix-bug.md, .ai/workflows/implement-feature.md, .ai/workflows/review-code.md, .ai/workflows/update-database.md, .ai/workflows/update-api.md, .ai/workflows/deploy.md, .ai/workflows/update-knowledge.md]
   skills: [.agents/skills/, .claude/skills/]
   skeleton_only:   # tồn tại nhưng chưa có nội dung — không dùng làm nguồn
     - docs/system/DEPLOYMENT.md

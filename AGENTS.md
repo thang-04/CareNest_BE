@@ -10,6 +10,8 @@ Repo này là **source of truth** của CareNest: business rule, domain, kiến 
 4. Bug/lỗi/case lạ: **search `docs/knowledge/ISSUE_INDEX.md` trước** (chuỗi lỗi, module, từ khóa). Incident cũ là manh mối, phải kiểm chứng với code hiện tại.
 5. Trước khi báo xong: chạy Checklist mục 17 của guide + `docs/quality/DEFINITION_OF_DONE.md` (gồm cập nhật engineering memory); báo mục nào không áp dụng hoặc chưa đạt.
 
+**Tri thức mới** — user đưa nghiệp vụ mới / chốt PENDING, hoặc gặp **bug mới** / edge case ⇒ chạy `.ai/workflows/update-knowledge.md` ngay trong lượt (không đợi cuối task).
+
 ## Đọc tiết kiệm token
 
 - **`.ai/CONTEXT_MAP.yaml`: grep, không đọc cả file** — `grep -iE "<từ khóa>" .ai/CONTEXT_MAP.yaml` để ra module/card. Chỉ mở cả file khi cần sửa map.
