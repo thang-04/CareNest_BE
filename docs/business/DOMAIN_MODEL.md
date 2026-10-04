@@ -28,7 +28,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | child | Child, Enrollment (childId, classroomId, from, to) | CLASS | Campus suy từ classroom |
 | child | GuardianChildLink (childId, userId, relation) | CHILD | Nguồn scope phụ huynh |
 | child | ChildAllergy / basic info | CHILD | Nguồn khai báo PENDING P-17 |
-| attendance | LeaveRequest (childId, from, to, status) | CHILD | Người tạo/duyệt PENDING |
+| attendance | LeaveRequest (childId, from, to, status) | CHILD | Phụ huynh gửi, không duyệt: SUBMITTED → CANCELLED (ATT-05) |
 | attendance | AttendanceRecord (childId, date, status, arrivalTime?) | CLASS | 1 bản ghi/trẻ/ngày |
 | attendance | MealParticipation (childId, date, meal, participating) | CLASS | Nhập cùng điểm danh |
 | nutrition | Food, NutrientValue (source, sourceVersion) | SCHOOL | Không do AI tạo |
@@ -37,6 +37,8 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | nutrition | MealCount (campus, date, meal, count, status, confirmedBy) | CAMPUS | chờ xác nhận → CONFIRMED (không sửa ngầm; đổi ⇒ xác nhận lại) |
 | nutrition | MealConfirmation (lịch sử xác nhận/thay đổi số suất) | CAMPUS | Chi tiết PENDING P-04 |
 | nutrition | FoodQuantityPlan (date, campus, lines) | CAMPUS | Dẫn xuất |
+| nutrition | MealPreparation (campus, date, meal, status, photo?) | CAMPUS | PROPOSED — NUT-14, NUT-16 |
+| nutrition | MealHandover (classroom, date, meal, expected, received, confirmedBy) | CLASS | PROPOSED — NUT-15 |
 | facility-issue | FacilityReport (campus, location, type, status, history) | CAMPUS/CLASS | |
 | health | HealthRecord (childId, date, height, weight, status, note) | CHILD | |
 | health | HealthInterpretation (childId, period, text, source, status) | CHILD | AI DRAFT → APPROVED |
@@ -45,6 +47,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | learning-observation | ActivityContext (classroom/ageGroup, date, description, objective, source) | CLASS | Nguồn OPEN (ADR-0006) |
 | learning-observation | ActivityParticipation, Assessment, FollowUp | CHILD | Biểu mẫu PENDING |
 | learning-observation | Summary (childId/classId, period, text, source, status) | CLASS/CHILD | DRAFT → APPROVED |
+| learning-observation | Reward (childId, period, type, decidedBy) | CHILD | PROPOSED — OBS-10 |
 | learning-observation | DevelopmentProfile | CHILD | Read model, không lưu bản sao nguồn |
 | notification | Notification, DeliveryStatus | user | Không chứa dữ liệu nhạy cảm vượt mức |
 | audit | AuditEvent | SYSTEM | Append-only |

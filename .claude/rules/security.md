@@ -7,11 +7,11 @@ paths:
 
 # Security — CareNest_BE
 
-Nguồn chuẩn: guide mục 2 (Auth), 8.5, 9, 10; `docs/architecture/SECURITY.md`.
+Nguồn chuẩn: guide mục 2 (Auth), 8.5, 9, 10; code mẫu 401/403: `docs/architecture/SECURITY.md`.
 
 - Auth **chưa chốt** — không tự thêm Spring Security/JWT/thư viện auth (hỏi nhóm).
 - Quyền = role + scope campus/class/child, kiểm tra ở service/security, không chỉ FE hay role. Truy cập theo id ⇒ xác minh thuộc scope.
-- 401/403 từ filter phải ghi `ResponseJson` qua entry point/access denied handler riêng (guide 8.5).
+- 401/403 từ filter phải ghi `ResponseJson` qua entry point/access denied handler riêng (guide 8.5, mẫu ở `docs/architecture/SECURITY.md`).
 - Nhà bếp không xem hồ sơ sức khỏe/đánh giá; Admin không mặc định xem dữ liệu trẻ.
 - Secret qua biến môi trường; `.env.example` chỉ tên biến; không commit `.env`.
 - Không log password, token, refresh token, secret, dữ liệu sức khỏe/cá nhân trẻ.

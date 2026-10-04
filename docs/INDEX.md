@@ -1,6 +1,6 @@
 # Docs Index — CareNest_BE
 
-Không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **FULL** = dùng làm nguồn · **SKELETON** = chưa có nội dung, không dùng làm nguồn.
+Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (cùng thư mục). Agent: không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **FULL** = dùng làm nguồn · **SKELETON** = chưa có nội dung, không dùng làm nguồn.
 
 | Nhóm | File | Nội dung | Status |
 | --- | --- | --- | --- |
@@ -28,9 +28,9 @@ Không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **
 | database | `database/DATABASE.md` | Nguyên tắc DB | FULL |
 | | `database/ERD.md`, `database/DATA_DICTIONARY.md` | Schema | SKELETON |
 | knowledge | `knowledge/ISSUE_INDEX.md` | **Search đầu tiên khi debug** | FULL (chưa có issue) |
-| | `knowledge/incidents/_TEMPLATE.md` | Mẫu incident (có Attempts) | FULL |
+| | `knowledge/incidents/_TEMPLATE.md` | Mẫu incident (status open/fixed, có Attempts) | FULL |
 | | `knowledge/CROSS_MODULE_ISSUES.md` | Rủi ro CMR + issue liên module | FULL |
-| | `knowledge/KNOWN_ISSUES.md`, `TROUBLESHOOTING.md`, `PATTERNS.md` | Giới hạn, lỗi môi trường, bài học | FULL |
+| | `knowledge/KNOWN_ISSUES.md`, `TROUBLESHOOTING.md`, `PATTERNS.md` | Giới hạn cố ý (không phải bug), lỗi môi trường/config, pattern | FULL |
 | decisions | `decisions/ADR-0001..0010`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
 | plans | `plans/active/`, `plans/completed/` | Kế hoạch thay đổi lớn | — |
 | quality | `quality/DEFINITION_OF_DONE.md`, `TEST_STRATEGY.md`, `NFR.md` | Tiêu chí hoàn thành, test, NFR | FULL |
@@ -47,5 +47,5 @@ Không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **
 | 0006 | Nguồn ngữ cảnh hoạt động / GoKids | **OPEN** |
 | 0007 | AI provider abstraction + data minimization | ACCEPTED / provider OPEN |
 | 0008 | Human-in-the-loop AI | ACCEPTED |
-| 0009 | Không kho/NCC trong V1 | ACCEPTED |
+| 0009 | Phạm vi kho/NCC | **OPEN** |
 | 0010 | Parent visibility default-deny | ACCEPTED (field pending) |

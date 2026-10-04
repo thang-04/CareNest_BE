@@ -7,27 +7,39 @@ role: source of truth (business rules, domain, architecture, API contract, datab
 
 keywords:
   # từ khóa (VN|EN, regex-friendly) -> module id
-  "điểm danh|attendance|đi muộn|đến muộn|late arrival|vắng": [attendance]
-  "đơn nghỉ|xin nghỉ|leave": [attendance]
-  "báo ăn|tham gia ăn|meal participation": [attendance, nutrition]
-  "suất ăn|số suất|meal count|chốt suất|adjustment": [nutrition, attendance]
-  "thực đơn|menu|món|dish|recipe|công thức": [nutrition]
-  "dinh dưỡng|nutrient|thực phẩm|food|định lượng|food quantity|bếp|kitchen": [nutrition]
-  "kho|nhà cung cấp|supplier|inventory|tồn kho": [nutrition]   # ngoài V1 — ADR-0009
-  "dị ứng|allergy": [child, nutrition]
-  "trẻ|child|hồ sơ trẻ|ghi danh|enrollment|phụ huynh liên kết|guardian": [child]
-  "sức khỏe|health|chiều cao|cân nặng|measurement|tăng trưởng|trend": [health]
-  "quan sát|observation|tiêu chí|criteria|nhận xét|summary|đánh giá|assessment|follow-up|phát triển|development profile": [learning-observation]
-  "hoạt động|activity|giáo án|gokids|mục tiêu học": [learning-observation]   # ADR-0006 OPEN
-  "cơ sở vật chất|csvc|thiết bị|sự cố|facility|hỏng|thiếu": [facility-issue]
+  "điểm danh|attendance|attendancerecord|đi muộn|đến muộn|late arrival|vắng|cut-off|giờ chốt|khóa sổ": [attendance]
+  "đơn nghỉ|báo nghỉ|xin nghỉ|leave|leaverequest": [attendance]
+  "báo ăn|tham gia ăn|meal participation|mealparticipation": [attendance, nutrition]
+  "suất ăn|số suất|meal count|mealcount|mealconfirmation|chốt suất|adjustment": [nutrition, attendance]
+  "thực đơn|menu|mealplan|món|dish|recipe|công thức": [nutrition]
+  "chuẩn bị bếp|bàn giao suất|handover|mealhandover|mealpreparation|chờ nấu|đang nấu": [nutrition]
+  "dinh dưỡng|nutrient|nutrientvalue|thực phẩm|food|định lượng|food quantity|foodquantityplan|bếp|kitchen": [nutrition]
+  "kho|nhà cung cấp|supplier|inventory|tồn kho": [nutrition]   # OPEN — ADR-0009, dừng và hỏi
+  "dị ứng|allergy|childallergy": [child, nutrition]
+  "trẻ|child|hồ sơ trẻ|ghi danh|enrollment|chuyển lớp|phụ huynh liên kết|guardian|guardianchildlink": [child]
+  "sức khỏe|health|healthrecord|healthinterpretation|chiều cao|cân nặng|measurement|tăng trưởng|trend": [health]
+  "quan sát|observation|tiêu chí|criteria|nhận xét|summary|đánh giá|assessment|follow-up|phát triển|development profile|developmentprofile|bé ngoan|khen thưởng|reward": [learning-observation]
+  "hoạt động|activity|activitycontext|giáo án|gokids|mục tiêu học": [learning-observation]   # ADR-0006 OPEN
+  "cơ sở vật chất|csvc|thiết bị|sự cố|facility|facilityreport|thiết bị hỏng|thiếu thiết bị": [facility-issue]
   "tài sản|asset|khấu hao|bảo trì|kiểm kê": [facility-issue]   # ngoài V1 — FAC-03
-  "đăng nhập|login|token|role|permission|phân quyền|scope|account|tài khoản": [identity-access]
-  "điểm trường|campus|lớp|classroom|năm học|phân công|assignment|hiệu phó|hiệu trưởng": [school-structure, identity-access]
+  "đăng nhập|login|token|role|permission|phân quyền|scope|accessscope|account|useraccount|tài khoản": [identity-access]
+  "điểm trường|campus|lớp|classroom|năm học|schoolyear|phân công|assignment|staffassignment|hiệu phó|hiệu trưởng": [school-structure, identity-access]
   "thông báo|notification|push": [notification]
-  "audit|nhật ký|lịch sử thay đổi": [audit]
-  "ai|llm|gợi ý|prompt|provider|openai|gemini|ollama": [ai-assistance]
-  "báo cáo|report|thống kê|dashboard|tổng hợp": [reporting]
+  "audit|auditevent|nhật ký|lịch sử thay đổi": [audit]
+  "ai|aiclient|llm|gợi ý|prompt|provider|openai|gemini|ollama": [ai-assistance]
+  "báo cáo|reporting|thống kê|dashboard|tổng hợp|excel": [reporting]
   "phụ huynh xem|parent view|hiển thị phụ huynh": [child, identity-access]   # ADR-0010
+
+tech_keywords:
+  # lỗi/kỹ thuật không thuộc module nghiệp vụ -> file đọc trước
+  "apicode|responsejson|globalexception|exception handler|response format|desc": [docs/contracts/ERROR_CONTRACT.md, "docs/backend-coding-guide.md#8 #11"]
+  "prefix|api_prefix|webmvcconfig|endpoint|swagger|openapi|springdoc": [docs/contracts/API_CONVENTIONS.md]
+  "flyway|migration|ddl|schema|entity|jpa|hibernate": [.ai/workflows/update-database.md, docs/database/DATABASE.md]
+  "docker|compose|env|db_password|port|datasource|postgres|testcontainers|actuator": [README.md, docs/knowledge/TROUBLESHOOTING.md]
+  "event|listener|after commit|transaction": [docs/decisions/ADR-0004-module-communication.md]
+  "upload|ảnh|storage|mediaasset|multipart": ["docs/backend-coding-guide.md#12", docs/contracts/API_CONVENTIONS.md]
+  "log|logging|pii": ["docs/backend-coding-guide.md#10"]
+  "hook|memory-reminder|skill": [.claude/settings.json, .ai/workflows/update-knowledge.md]
 
 modules:
   identity-access:      {card: docs/modules/identity-access.md, feature: account, rules: [AUTH], adr: [0002, 0003]}
@@ -48,12 +60,12 @@ topics:
   business:       [docs/business/BUSINESS_RULES.md, docs/business/USER_ROLES.md, docs/business/DOMAIN_MODEL.md]
   architecture:   [docs/system/SYSTEM_ARCHITECTURE.md, docs/system/MODULE_MAP.md, docs/architecture/BACKEND_ARCHITECTURE.md, docs/architecture/PACKAGE_STRUCTURE.md, docs/architecture/DATA_FLOW.md]
   security:       [docs/architecture/SECURITY.md, docs/business/USER_ROLES.md, docs/decisions/ADR-0003-access-scope-model.md]
-  api:            [docs/contracts/API_CONVENTIONS.md, docs/contracts/ERROR_CONTRACT.md, docs/contracts/AUTH_CONTRACT.md]
-  database:       [docs/database/DATABASE.md, docs/database/DATA_DICTIONARY.md, docs/database/ERD.md]
+  api:            [docs/contracts/API_CONVENTIONS.md, docs/contracts/ERROR_CONTRACT.md]   # AUTH_CONTRACT: skeleton
+  database:       [docs/database/DATABASE.md, docs/business/DOMAIN_MODEL.md]   # ERD, DATA_DICTIONARY: skeleton
   cross-repo:     [docs/system/CROSS_REPO_MAP.md]
   memory:         [docs/knowledge/ISSUE_INDEX.md, docs/knowledge/CROSS_MODULE_ISSUES.md, docs/knowledge/KNOWN_ISSUES.md, docs/knowledge/PATTERNS.md, docs/knowledge/TROUBLESHOOTING.md]
   quality:        [docs/quality/DEFINITION_OF_DONE.md, docs/quality/TEST_STRATEGY.md, docs/quality/NFR.md]
-  operations:     [docs/system/DEPLOYMENT.md, docs/knowledge/TROUBLESHOOTING.md]
+  operations:     [README.md, .env.example, compose.yaml, src/main/resources/application.yml, docs/knowledge/TROUBLESHOOTING.md]   # DEPLOYMENT: skeleton
   decisions:      [docs/decisions/]
   coding-rules:   [docs/backend-coding-guide.md, .claude/rules/]
 

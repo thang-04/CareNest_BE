@@ -1,11 +1,11 @@
 # Workflow — Build & deploy
 
-> Hạ tầng chưa chốt (`docs/system/DEPLOYMENT.md` là SKELETON). Không suy đoán server, domain, secret — hỏi người dùng.
+> Hạ tầng server chưa chốt (`docs/system/DEPLOYMENT.md` là SKELETON). Không suy đoán server, domain, secret; hỏi người dùng. Chạy local/dev: `README.md` (mục Chạy, Cấu hình).
 
-1. **Build:** lệnh build của project (kiểm tra Maven/Gradle thực tế).
-2. **Test:** chạy toàn bộ test + test kiến trúc; không deploy khi fail.
-3. **Docker:** build image theo Dockerfile trong repo (khi có).
-4. **Environment:** biến môi trường theo danh sách tên biến trong DEPLOYMENT.md; secret không nằm trong repo/image.
-5. **Deploy:** theo DEPLOYMENT.md. Thao tác lên server thật, migration DB production, xóa dữ liệu ⇒ xác nhận với người dùng trước.
-6. **Verify:** health check, đăng nhập, 1 luồng chính (điểm danh → số suất), log không lỗi.
-7. **Memory:** lỗi build/deploy tốn >15 phút ⇒ `docs/knowledge/TROUBLESHOOTING.md` + `ENV-xxx` trong ISSUE_INDEX. Cập nhật DEPLOYMENT.md khi quy trình thay đổi.
+1. **Package:** `./mvnw -B package` (Windows: `mvnw.cmd`).
+2. **Test:** `./mvnw test`; không deploy khi fail. Testcontainers cần Docker.
+3. **Docker:** `docker compose up --build` (API + PostgreSQL) theo `Dockerfile`, `compose.yaml`.
+4. **Environment:** tên biến theo `.env.example` + bảng Cấu hình trong README; secret không nằm trong repo/image.
+5. **Deploy server:** chỉ khi `DEPLOYMENT.md` đã có nội dung. Thao tác server thật, migration DB production, xóa dữ liệu ⇒ xác nhận với người dùng trước.
+6. **Verify:** `/actuator/health`, Swagger UI, 1 luồng chính khi đã có (điểm danh → số suất).
+7. **Memory:** lỗi môi trường tốn >15 phút ⇒ `update-knowledge.md` T2 (`ENV-` + `TROUBLESHOOTING.md`).

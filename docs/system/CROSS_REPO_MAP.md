@@ -20,7 +20,7 @@ Lỗi liên quan contract/nghiệp vụ phát hiện ở FE/APP ⇒ ghi ở BE `
 | System Admin | Web | identity-access, school-structure, child (cấu hình) |
 | Principal / Vice Principal | Web (App: sau, nếu có yêu cầu) | reporting, nutrition (xác nhận/duyệt), learning-observation, health, facility-issue |
 | Teacher | Web + App | attendance, learning-observation, health, facility-issue |
-| Parent | App | attendance (đơn nghỉ — PENDING), đọc: attendance, nutrition, health, learning (theo PAR-*) |
+| Parent | App | attendance (gửi báo nghỉ — ATT-05), đọc: attendance, nutrition, health, learning (theo PAR-*) |
 | Kitchen Staff | App (+Web) | nutrition (suất đã chốt, thực đơn, định lượng) |
 
 ## Điểm chạm cần kiểm tra khi đổi BE

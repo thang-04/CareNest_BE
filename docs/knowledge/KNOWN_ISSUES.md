@@ -1,7 +1,6 @@
-# Known Issues & Limitations
+# Known Limitations
 
-Lỗi/giới hạn **đang tồn tại** hoặc chưa xử lý triệt để, kể cả chưa rõ root cause. Khi fix xong ⇒ chuyển thành incident + dòng ISSUE_INDEX, xóa khỏi đây.
+Giới hạn **cố ý hoặc chưa làm** của hệ thống mà agent cần biết để không coi là bug, ví dụ "chưa hỗ trợ X", "contract thiếu Y". Bug (kể cả chưa rõ root cause) **không** ghi ở đây mà ghi vào `ISSUE_INDEX.md` với status `open`. Trạng thái dự án và PENDING xem `docs/context/CURRENT_STATE.md`.
 
-| ID | Module | Mô tả | Workaround | Trạng thái | Ngày |
-| --- | --- | --- | --- | --- | --- |
-| KI-001 | toàn hệ thống | Mới có scaffold (chưa auth, chưa nghiệp vụ); mọi rule PENDING (P-xx trong BUSINESS_RULES) chưa có hành vi chốt | Làm cấu hình được, không hard-code | Mở | 2026-10-03 |
+| ID | Module | Giới hạn | Cách làm việc với nó | Ngày |
+| --- | --- | --- | --- | --- |

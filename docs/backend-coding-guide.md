@@ -18,7 +18,7 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 
 | Trong v1 | Không thuộc v1 |
 | --- | --- |
-| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay thế PMS/GoKids; soạn và duyệt giáo án; tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
+| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; soạn và duyệt giáo án (GoKids giữ); kho/NCC (OPEN — ADR-0009); tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
 
 ## 2. Tech stack
 
@@ -42,13 +42,12 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 ```text
 CareNest_BE/
 ├── README.md                 # Cách chạy, cấu hình, test
-├── CONTRIBUTING.md           # Quy tắc Git và coding convention
 ├── pom.xml
 ├── Dockerfile
 ├── compose.yaml              # API + PostgreSQL cho dev/demo
 ├── .env.example              # Tên biến môi trường, KHÔNG chứa secret
 ├── docs/
-│   ├── architecture/         # Sơ đồ và quyết định kiến trúc
+│   ├── INDEX.md              # Bản đồ tài liệu (nghiệp vụ, kiến trúc, ADR ở decisions/, memory ở knowledge/)
 │   └── api/                  # OpenAPI export / ví dụ request
 └── src/
     ├── main/
@@ -63,7 +62,7 @@ CareNest_BE/
     │   │   ├── security/     # Xác thực và kiểm tra quyền
     │   │   ├── config/       # Cấu hình Spring, OpenAPI, WebMvc
     │   │   ├── exception/    # GlobalException, GlobalExceptionHandler
-    │   │   ├── utils/        # ApiCode, ResponseJson, CommonUtils; hàm stateless
+    │   │   ├── utils/        # ApiCode, ResponseJson; hàm stateless
     │   │   └── common/       # Thành phần dùng chung khác
     │   └── resources/
     │       ├── application.yml
@@ -227,9 +226,6 @@ carenest:
 ### 8.2. Ví dụ
 
 ```json
-// 200 — có dữ liệu
-{ "code": 200, "desc": "Get child profile success", "data": { "id": 123, "name": "Example" } }
-
 // 200 — không có dữ liệu
 { "code": 200, "desc": "Update success", "data": null }
 
@@ -251,7 +247,7 @@ File nguồn là chuẩn; guide không chép lại code.
 
 | File | Vai trò |
 | --- | --- |
-| `src/main/java/com/carenest/utils/ApiCode.java` | Enum mã: `SUCCESSFUL 200`, `CREATED 201`, `BAD_REQUEST 400` (alias `UNSUCCESSFUL`), `UNAUTHORIZED 401`, `FORBIDDEN 403`, `NOT_FOUND 404`, `METHOD_NOT_ALLOWED 405`, `CONFLICT 409`, `PAYLOAD_TOO_LARGE 413`, `UNSUPPORTED_MEDIA_TYPE 415`, `INTERNAL_ERROR 500`, `SERVICE_UNAVAILABLE 503` (AI/storage), `GATEWAY_TIMEOUT 504` (AI timeout). `getCode()` = HTTP status |
+| `src/main/java/com/carenest/utils/ApiCode.java` | Enum mã; `getCode()` = HTTP status. Danh sách + dùng theo tình huống nghiệp vụ: `docs/contracts/ERROR_CONTRACT.md` |
 | `src/main/java/com/carenest/utils/ResponseJson.java` | `toJsonWithData(ApiCode, desc, data)`, `toJson(ApiCode, desc)` trả `ResponseEntity` với HTTP status từ `ApiCode`; `of(...)` chỉ tạo body (dùng khi tự ghi response, vd. filter). `@JsonInclude(ALWAYS)` giữ `data: null` |
 | `src/main/java/com/carenest/dto/common/PageResponse.java` | `PageResponse.from(page)` hoặc `PageResponse.from(page, mapper::toResponse)` |
 | `src/test/java/com/carenest/exception/ResponseContractTest.java` | Test hợp đồng response; chạy lại khi sửa các file trên |
@@ -285,62 +281,7 @@ Lỗi PHẢI ném exception (mục 11) để handler trả thống nhất. Chỉ
 
 ### 8.5. 401/403 từ Spring Security
 
-> **Chưa triển khai** — team đang chốt phương án auth. Phần dưới là thiết kế tham khảo, áp dụng khi thêm Spring Security. `ObjectMapper` lấy từ `tools.jackson.databind` (Jackson 3).
-
-Lỗi xác thực/phân quyền ở filter xảy ra **trước** controller nên `@RestControllerAdvice` không bắt được. PHẢI có handler riêng ghi `ResponseJson`:
-
-```java
-// security/RestAuthenticationEntryPoint.java
-@Component
-@RequiredArgsConstructor
-public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
-
-    private final ObjectMapper objectMapper;
-
-    @Override
-    public void commence(HttpServletRequest request, HttpServletResponse response,
-                         AuthenticationException authException) throws IOException {
-        SecurityResponseWriter.write(response, objectMapper, ApiCode.UNAUTHORIZED, "Unauthorized");
-    }
-}
-
-// security/RestAccessDeniedHandler.java
-@Component
-@RequiredArgsConstructor
-public class RestAccessDeniedHandler implements AccessDeniedHandler {
-
-    private final ObjectMapper objectMapper;
-
-    @Override
-    public void handle(HttpServletRequest request, HttpServletResponse response,
-                       AccessDeniedException accessDeniedException) throws IOException {
-        SecurityResponseWriter.write(response, objectMapper, ApiCode.FORBIDDEN, "Forbidden");
-    }
-}
-
-// security/SecurityResponseWriter.java
-final class SecurityResponseWriter {
-    private SecurityResponseWriter() {}
-
-    static void write(HttpServletResponse response, ObjectMapper objectMapper,
-                      ApiCode apiCode, String desc) throws IOException {
-        response.setStatus(apiCode.getCode());
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        objectMapper.writeValue(response.getOutputStream(), ResponseJson.of(apiCode, desc, null));
-    }
-}
-```
-
-Đăng ký trong `SecurityConfig`:
-
-```java
-http.exceptionHandling(ex -> ex
-        .authenticationEntryPoint(restAuthenticationEntryPoint)
-        .accessDeniedHandler(restAccessDeniedHandler));
-```
-
-Filter JWT tự viết KHÔNG ĐƯỢC tự ghi response lỗi theo dạng khác; để lỗi đi qua entry point ở trên.
+**Chưa triển khai** (auth chưa chốt). Lỗi ở filter xảy ra trước controller nên `@RestControllerAdvice` không bắt được ⇒ PHẢI có `AuthenticationEntryPoint` + `AccessDeniedHandler` ghi đúng `ResponseJson`; filter JWT tự viết KHÔNG tự ghi response lỗi dạng khác. Code mẫu: `docs/architecture/SECURITY.md` mục "Response 401/403" — chỉ đọc khi làm auth.
 
 ## 9. Phân quyền
 
@@ -414,14 +355,7 @@ try {
 - pgvector chỉ bật khi làm semantic search/RAG; migration bật extension tách riêng.
 - Ràng buộc nghiệp vụ quan trọng NÊN có ràng buộc DB tương ứng (unique, foreign key, not null).
 
-Nhóm entity khởi đầu (nháp để vẽ ERD; PHẢI chốt theo use case trước khi tạo migration):
-
-| Nhóm | Entity |
-| --- | --- |
-| Tổ chức & truy cập | Campus, Class, User, Role, StaffAssignment, Child, GuardianChildLink |
-| Điểm danh & bữa ăn | AttendanceSession, AttendanceRecord, MealPlan, MealCount, MealConfirmation |
-| Hồ sơ trẻ | HealthRecord, Observation, DevelopmentAssessment, SharedChildUpdate |
-| Tệp & vận hành | MediaAsset, FacilityReport, Notification, AuditEvent |
+Entity và quan hệ: `docs/business/DOMAIN_MODEL.md` (tên chuẩn, vd. `Classroom`, `UserAccount`). Chốt theo use case trước khi tạo migration.
 
 ## 13. Quy tắc nghiệp vụ PHẢI giữ trong code
 

@@ -23,7 +23,5 @@ Agent và developer đối chiếu trước khi báo hoàn thành. Bỏ qua mụ
 - [ ] Quyết định kiến trúc mới ⇒ ADR.
 
 ## Engineering memory
-- [ ] Lỗi không hiển nhiên / thử >1 cách / liên module / lỗi môi trường >15 phút ⇒ incident + dòng `ISSUE_INDEX.md` (kèm các cách đã thử thất bại).
-- [ ] Bẫy đặc thù module ⇒ 1 dòng "Known pitfalls" trong module card.
-- [ ] Bài học tổng quát ⇒ `PATTERNS.md`.
-- [ ] Giới hạn còn tồn tại ⇒ `KNOWN_ISSUES.md`.
+- [ ] Đã chạy `.ai/workflows/update-knowledge.md` nếu có trigger T1/T2/T3 (hoặc nêu 1 dòng vì sao không cần).
+- [ ] Sửa skill ⇒ `.agents/skills` và `.claude/skills` giống hệt nhau (`diff -r .agents/skills .claude/skills`).

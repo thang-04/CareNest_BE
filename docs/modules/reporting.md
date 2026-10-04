@@ -3,7 +3,7 @@
 Feature: `report` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thiết kế
 
 ## Mục đích
-Báo cáo/tổng hợp chỉ đọc theo lớp / campus / toàn trường cho BGH.
+Báo cáo/tổng hợp chỉ đọc theo lớp / campus / toàn trường cho BGH; xuất Excel (PROPOSED — Roadmap Must) để nộp/nhập lại vào hệ thống ngành (không tích hợp trực tiếp — EX-01).
 
 ## Owns
 Report query, export. Có thể có read model/view tối ưu cho báo cáo.
@@ -27,4 +27,4 @@ AUTH-08 (chỉ dữ liệu trong scope người xem).
 Chưa có.
 
 ## Đọc thêm khi
-Báo cáo cần dữ liệu mới từ module ⇒ thêm query vào api module đó, không đọc bảng trực tiếp (trừ view read-only).
+Báo cáo cần dữ liệu mới từ module ⇒ thêm method đọc vào service của feature đó, không đọc bảng trực tiếp (trừ view read-only).

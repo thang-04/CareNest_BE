@@ -14,10 +14,6 @@ Nguồn chuẩn: `docs/backend-coding-guide.md` mục 12. PostgreSQL 17, Spring 
 8. pgvector chỉ khi làm semantic search/RAG, migration bật extension tách riêng.
 9. Kiểu ID, cột audit chuẩn, tiền tố bảng: **chưa chốt** — theo migration đầu tiên của nhóm, rồi ghi lại tại đây.
 
-## Entity khởi đầu (nháp, guide mục 12)
-
-Campus, Class, User, Role, StaffAssignment, Child, GuardianChildLink · AttendanceSession, AttendanceRecord, MealPlan, MealCount, MealConfirmation · HealthRecord, Observation, DevelopmentAssessment, SharedChildUpdate · MediaAsset, FacilityReport, Notification, AuditEvent. Chốt theo use case trước khi tạo migration.
-
 ## Tài liệu liên quan
 
 ERD: `ERD.md` (SKELETON) · Data dictionary: `DATA_DICTIONARY.md` (SKELETON) · Entity khái niệm: `docs/business/DOMAIN_MODEL.md` · Quy trình: `.ai/workflows/update-database.md`.

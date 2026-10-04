@@ -27,8 +27,9 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | ATT-01b | Một trẻ chỉ có một trạng thái điểm danh cho một ngày/lớp; gửi lặp không tạo bản ghi trùng (upsert + unique) | ACCEPTED | guide 13.1 |
 | ATT-02 | GV nhập tham gia ăn (MealParticipation) cùng lúc với điểm danh | CONFIRMED | FE-01 |
 | ATT-03 | Trẻ đến muộn: điểm danh được cập nhật sau lần nhập đầu | CONFIRMED | FE-01 |
-| ATT-04 | Đơn nghỉ đã chấp nhận ⇒ trẻ được đánh dấu vắng có phép các ngày tương ứng; tham gia ăn mặc định = không (GV có thể chỉnh) | PROPOSED | Thiết kế |
-| ATT-05 | Người tạo đơn nghỉ (phụ huynh qua app / GV) và người duyệt | PENDING P-15 | — |
+| ATT-04 | Báo nghỉ đã gửi (SUBMITTED) ⇒ trẻ được đánh dấu vắng có phép các ngày tương ứng; tham gia ăn = không (hủy suất). GV vẫn chỉnh được nếu trẻ thực tế đến lớp | CONFIRMED (hủy suất); GV chỉnh: PROPOSED | Review 24/09 (flow "Thông báo nghỉ phép và hủy suất ăn"), team 02/10 |
+| ATT-05 | Đơn nghỉ là **thông báo, không có bước duyệt**: phụ huynh gửi qua app; GV/BGH trong scope chỉ xem/ghi nhận. GV tạo thay phụ huynh (báo qua điện thoại/Zalo): PROPOSED | CONFIRMED (chốt 02/10, đóng P-15) | Team 02/10, review 24/09 |
+| ATT-05b | Báo nghỉ/hủy báo nghỉ cho ngày đã qua cut-off (P-03) hoặc khi số suất đã xác nhận ⇒ xử lý như ATT-07 (đánh dấu thay đổi, xác nhận lại) | PROPOSED | Suy từ ATT-07 |
 | ATT-06 | Thời điểm khóa nhập điểm danh/báo ăn trong ngày (cut-off) | PENDING P-03 — để cấu hình, không hard-code | — |
 | ATT-07 | Thay đổi điểm danh/báo ăn sau khi số suất đã xác nhận ⇒ số suất bị đánh dấu thay đổi, cần xác nhận lại (NUT-03); attendance không tự sửa số suất | ACCEPTED | ADR-0004, ADR-0005 |
 
@@ -46,9 +47,12 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | NUT-08 | Thực đơn (MealPlan) chỉ dùng cho bếp khi được người có quyền duyệt; AI chỉ tạo phương án tham khảo | CONFIRMED | Report 1, guide 13.3 |
 | NUT-09 | Gợi ý/chọn thực đơn phải kiểm tra dị ứng, dữ liệu bắt buộc, ngân sách bằng logic xác định (không chỉ prompt); không gửi danh tính trẻ cho AI | CONFIRMED | Brief, guide 13.3 |
 | NUT-10 | Phân loại nguyên liệu Fresh (NCC giao hằng ngày) / Stored (kho khô) | CONFIRMED | Khảo sát |
-| NUT-11 | Quản lý tồn kho, nhập/xuất kho khô | PENDING P-08 — ngoài V1 cho tới khi chốt (ADR-0009) | — |
-| NUT-12 | Quy trình NCC, giá theo hợp đồng, đổi/trả thực phẩm tươi | PENDING P-09 — ngoài V1 | — |
+| NUT-11 | Quản lý tồn kho, nhập/xuất kho khô, xuất theo điểm trường | OPEN (ADR-0009) — chưa làm, không tự tạo entity | BP-BT-03, review 24/09 |
+| NUT-12 | Quy trình NCC, giá theo hợp đồng, đổi/trả thực phẩm tươi | PENDING P-09 — đề xuất ngoài V1 (ADR-0009 phương án C) | Khảo sát |
 | NUT-13 | MealPlan chung toàn trường hay theo campus/nhóm tuổi | PENDING P-07 | — |
+| NUT-14 | Chuẩn bị bữa theo campus/ngày/bữa có trạng thái `WAITING_TO_COOK → COOKING → READY_FOR_HANDOVER → HANDED_OVER`; bếp cập nhật, hệ thống chỉ ghi trạng thái (nấu là bước [B]) | PROPOSED | BP-BT-03, review 24/09 L302-305, Roadmap (Must) |
+| NUT-15 | Bàn giao suất: hệ thống hiển thị số suất mỗi lớp (từ MealCount CONFIRMED); GV xác nhận số nhận; thiếu/sai ⇒ bếp bổ sung, bàn giao lại; hệ thống ghi hoàn tất | PROPOSED | BP-BT-03 |
+| NUT-16 | Ảnh món ăn/bữa ăn do bếp chụp, lưu qua `StorageService` | PROPOSED | Roadmap (Must) |
 
 ## HLT — Sức khỏe (module: health)
 
@@ -70,10 +74,12 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | OBS-03 | Hồ sơ phát triển là view liên tục theo trẻ, tổng hợp điểm danh, bữa ăn, sức khỏe, quan sát, hoạt động, đánh giá, follow-up | CONFIRMED | Report 1 |
 | OBS-04 | Summary có baseline template không dùng AI; AI chỉ là tùy chọn tạo narrative draft | CONFIRMED | Report 1 |
 | OBS-05 | Summary: DRAFT → GV review/sửa → GV APPROVED → BGH xem. AI draft không tự thành đánh giá chính thức | CONFIRMED | Report 1 |
-| OBS-06 | Tần suất summary (ngày/tuần/tháng/kỳ) và người nhận | PENDING P-12 | — |
+| OBS-06 | Summary theo trẻ hằng **tuần** và **cuối kỳ** (GV soạn/duyệt → gửi BGH); tóm tắt lớp hằng ngày (FE-09). Có gửi phụ huynh không: PENDING P-12 | CONFIRMED (tuần + kỳ); phụ huynh: PENDING | Review 24/09 L102-107 (chỉ đạo giảng viên), Report 1 FE-09 |
 | OBS-07 | Nguồn ngữ cảnh hoạt động (nhập tối thiểu / import / GoKids) | OPEN (ADR-0006) | Review 24/09 |
 | OBS-08 | CareNest không soạn/nộp/duyệt giáo án (GoKids giữ) | CONFIRMED | Report 1 |
 | OBS-09 | Biểu mẫu/chu kỳ assessment & follow-up | PENDING P-16b | — |
+| OBS-10 | Khen thưởng "phiếu bé ngoan" (tuần/tháng) và "bé ngoan toàn diện" dựa trên đánh giá hằng ngày; hệ thống chỉ gợi ý từ dữ liệu, GV/BGH quyết định | PROPOSED; tiêu chí PENDING P-11 | Review 24/09 L101, L310; Roadmap (Must) |
+| OBS-11 | Thuật ngữ: dùng "đánh giá" (assessment), không dùng "feedback" cho nhận xét trẻ | CONFIRMED | Review 24/09 L311-313 |
 
 ## FAC — Sự cố cơ sở vật chất (module: facility-issue)
 
@@ -112,20 +118,25 @@ Mỗi mục cần khảo sát. Khi chốt: cập nhật rule liên quan sang CON
 | --- | --- | --- |
 | P-01 | GoKids có API/export (Excel/PDF) kế hoạch tuần không? Mục tiêu hoạt động theo độ tuổi ghi ở đâu? | OBS-07 |
 | P-02 | AI provider: external API hay local model? | AI-* (ADR-0007) |
-| P-03 | Điểm danh/báo ăn khóa lúc mấy giờ? | ATT-06 |
-| P-04 | Trẻ đến muộn sau khi bếp đã nhận số: báo bếp thế nào, có thêm suất không? | NUT-04 |
-| P-05 | Ai xác nhận số suất (HT, HP điểm trường, nhân viên được giao)? | NUT-02 |
-| P-06 | Mỗi campus có bếp riêng hay bếp trung tâm? | AUTH-05, NUT-* |
-| P-07 | MealPlan chung toàn trường hay riêng campus/nhóm tuổi? | NUT-13 |
-| P-08 | Kho khô: có sổ nhập-xuất-tồn? CareNest quản lý tới đâu? | NUT-11 |
+| P-03 | Điểm danh/báo ăn khóa lúc mấy giờ? *AS-IS: bếp nhận số đã xác nhận qua Zalo khoảng 8:30 (Report 1, khảo sát)* | ATT-06 |
+| P-04 | Trẻ đến muộn sau khi bếp đã nhận số: báo bếp thế nào, có thêm suất không? *AS-IS: GV báo lại, PHT tổng hợp lại; bếp điều chỉnh, trả bớt hoặc xin thêm qua BGH (khảo sát, review 24/09)* | NUT-04 |
+| P-05 | Ai xác nhận số suất (HT, HP điểm trường, nhân viên được giao)? *AS-IS: HP của điểm trường gom, kiểm, xác nhận rồi gửi bếp (Report 1, khảo sát)* | NUT-02 |
+| P-06 | Mỗi campus có bếp riêng hay bếp trung tâm? *Team trình bày 24/09: 2 bếp ở 2 điểm trường, 1 kho chung (chưa xác nhận với trường)* | AUTH-05, NUT-* |
+| P-07 | MealPlan chung toàn trường hay riêng campus/nhóm tuổi? *Review 24/09: cấu hình thực đơn ở cấp chung (PHT cơ sở chính); PMS tính dinh dưỡng theo nhóm tuổi* | NUT-13 |
+| P-08 | Kho khô: có sổ nhập-xuất-tồn? CareNest quản lý tới đâu? Ai quản lý kho chung? *Bằng chứng: review 24/09 gợi ý kho chung ở cơ sở chính, xuất theo điểm trường; BP-BT-03 có luồng kho đầy đủ* | NUT-11, ADR-0009 |
 | P-09 | Quy trình NCC: nhận/kiểm/đổi trả thực phẩm tươi, phiếu nhận? | NUT-12 |
 | P-10 | Nguồn bảng thành phần dinh dưỡng chuẩn; phần mềm tính khẩu phần hiện dùng? | NUT-05, NUT-07 |
 | P-11 | Danh sách tiêu chí quan sát và thang giá trị? | OBS-02 |
-| P-12 | Summary: tần suất, người nhận, có gửi phụ huynh không? | OBS-06 |
-| P-13 | Ngưỡng tham chiếu tăng trưởng (WHO / Bộ Y tế)? | HLT-03 |
+| P-12 | Summary có gửi phụ huynh không, gửi bản nào? (tần suất tuần + kỳ đã có — OBS-06) | OBS-06 |
+| P-13 | Ngưỡng tham chiếu tăng trưởng (WHO / Bộ Y tế)? *Roadmap đề xuất WHO z-score tính bằng rule* | HLT-03 |
 | P-13b | Phụ huynh được xem field nào; ai quyết định công bố? | PAR-03 |
-| P-14 | Hiệu phó phụ trách cố định một campus hay luân phiên/theo mảng? | AUTH-02 |
-| P-15 | Đơn nghỉ: phụ huynh gửi qua app hay GV nhập? Có cần duyệt? | ATT-05 |
+| P-14 | Hiệu phó phụ trách cố định một campus hay luân phiên/theo mảng? *Report 1: mỗi HP chủ yếu điều phối 1 điểm trường* | AUTH-02 |
 | P-16 | System Admin có được xem dữ liệu trẻ không? | AUTH-06 |
 | P-16b | Assessment/follow-up: biểu mẫu, chu kỳ, người lập? | OBS-09 |
 | P-17 | Dị ứng: ai khai báo, ai xác nhận, khi nào cập nhật? | HLT-06 |
+
+## Đã đóng
+
+| ID | Kết luận | Ngày | Nguồn |
+| --- | --- | --- | --- |
+| P-15 | Đơn nghỉ = thông báo của phụ huynh qua app, không duyệt (ATT-05) | 2026-10-02 | Team, review 24/09 |

@@ -20,12 +20,12 @@ SYSTEM                 System Admin       Tài khoản/role/cấu hình — khô
 | Principal | Web | Xem tổng hợp 2 campus, duyệt/xác nhận trong quyền, theo dõi sự cố, xem hồ sơ phát triển | Quản trị tài khoản kỹ thuật |
 | Vice Principal | Web | Như Principal nhưng trong campus được phân công (AUTH-02) | Xem campus khác (trừ khi được phân công) |
 | Teacher | Web + App | Điểm danh, báo ăn, quan sát hằng ngày, duyệt summary của lớp, báo sự cố CSVC, nhập đo sức khỏe (người nhập: PENDING) | Xem lớp không được phân công |
-| Parent | App | Xem thông tin được phép của con (PAR-*); gửi đơn nghỉ (PENDING P-15) | Chat thay Zalo; xem trẻ khác |
+| Parent | App | Xem thông tin được phép của con (PAR-*); gửi báo nghỉ, không cần duyệt (ATT-05) | Chat thay Zalo; xem trẻ khác |
 | Kitchen Staff | App (+Web nếu cần) | Xem suất đã chốt, thực đơn đã duyệt, định lượng, dị ứng cần cho nấu | Sửa điểm danh; xem hồ sơ trẻ |
 | System Admin | Web | Tài khoản, role, phân công, cấu hình hệ thống, master data kỹ thuật | Ra quyết định nghiệp vụ; mặc định không xem dữ liệu trẻ (AUTH-06) |
 
 ## Hành động cần permission riêng (danh sách khởi đầu)
 
-`attendance:record` · `leave:create` · `leave:approve` · `meal-count:confirm` · `menu:approve` · `food-master:manage` · `health:record` · `health-interpretation:approve` · `observation:record` · `summary:approve` · `facility-issue:report` · `facility-issue:manage` · `report:view` · `admin:accounts`
+`attendance:record` · `leave:create` · `meal-count:confirm` · `menu:approve` · `food-master:manage` · `health:record` · `health-interpretation:approve` · `observation:record` · `summary:approve` · `facility-issue:report` · `facility-issue:manage` · `report:view` · `admin:accounts`
 
-Gán permission cho role nào ở các hành động có người thực hiện PENDING (meal-count:confirm, leave:approve, health:record) ⇒ cấu hình, không hard-code.
+Gán permission cho role nào ở các hành động có người thực hiện PENDING (meal-count:confirm, health:record) ⇒ cấu hình, không hard-code.

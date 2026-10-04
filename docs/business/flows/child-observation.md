@@ -30,11 +30,20 @@ Assessment, FollowUp ─┘        (biểu mẫu PENDING P-16b)
 ## Nhận xét tổng hợp (OBS-04, OBS-05)
 
 ```text
-Structured records trong kỳ (ngày/tuần/tháng — PENDING P-12)
+Structured records trong kỳ (tuần theo trẻ + cuối kỳ; tóm tắt lớp hằng ngày — OBS-06)
       ├─ Baseline: template/rule-based summary (luôn có, không AI)
       └─ Tùy chọn: AI narrative draft (input tối thiểu, bí danh — AI-04)
       ↓
-Summary DRAFT → GV review → GV sửa → GV APPROVED → BGH xem
+Summary DRAFT → GV review → GV sửa → GV APPROVED → gửi BGH
       ↓
-Phụ huynh xem nếu policy cho phép (PAR-02)
+Phụ huynh xem nếu policy cho phép (PAR-02, P-12)
 ```
+
+## Khen thưởng — PROPOSED (OBS-10)
+
+```text
+Đánh giá hằng ngày trong tuần/tháng ─► [S] gợi ý trẻ đạt "phiếu bé ngoan" (rule theo tiêu chí — P-11)
+                                     ─► GV/BGH xem, chỉnh, quyết định ─► lưu kết quả; cuối năm: "bé ngoan toàn diện"
+```
+
+AI chỉ có thể soạn lời nhận xét; không tự xếp hạng hay trao thưởng (AI-02).

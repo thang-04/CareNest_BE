@@ -9,7 +9,7 @@
                                           │                    ├─ File storage (ảnh sự cố — PENDING)
                                           │                    ├─ Push provider (PENDING)
                                           │                    └─ AI provider qua adapter (OPEN, ADR-0007)
- PMS / GoKids / Zalo / hệ thống ngành: hệ thống ngoài, CareNest KHÔNG thay thế; tích hợp GoKids: ADR-0006
+ PMS / GoKids / Zalo / hệ thống ngành: hệ thống ngoài. CareNest bao phủ + mở rộng workflow cần thiết của PMS/GoKids (PROJECT_CONTEXT "Định vị"); không thay hệ thống ngành, không thay Zalo chat; GoKids: ADR-0006
 ```
 
 - BE: layered monolith, ranh giới theo feature (ADR-0001, `docs/backend-coding-guide.md`). Module: `docs/system/MODULE_MAP.md`.
@@ -47,7 +47,7 @@ Authoritative data → Deterministic rules → AI assistance (DRAFT) → Human r
 
 ## Dữ liệu dẫn xuất (ADR-0005)
 
-Số suất đã xác nhận không bị sửa ngầm; thay đổi sau đó ⇒ lịch sử + xác nhận lại; bếp chỉ thấy số đã xác nhận. DevelopmentProfile là read model query trực tiếp, không lưu bản sao.
+Số suất đã xác nhận: NUT-03 / ADR-0005. DevelopmentProfile là read model query trực tiếp, không lưu bản sao.
 
 ## Ngoài phạm vi kiến trúc V1
 

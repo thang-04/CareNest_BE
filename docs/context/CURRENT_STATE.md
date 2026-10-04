@@ -1,6 +1,6 @@
 # Current State
 
-Cập nhật: 2026-10-03. **Agent: cập nhật file này khi một feature bắt đầu có code, hoàn thành, hoặc một PENDING được chốt.**
+Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắt đầu có code, hoàn thành, hoặc một PENDING được chốt.**
 
 ## Tổng quan
 
@@ -24,7 +24,7 @@ Cập nhật: 2026-10-03. **Agent: cập nhật file này khi một feature bắ
 | identity-access (`account`, `security/`) | Có | — | Auth chưa chốt |
 | school-structure (`organization`) | Có | — | |
 | child (`child`) | Có | — | |
-| attendance (`attendance`) | Có | — | Giờ chốt, xử lý đến muộn PENDING |
+| attendance (`attendance`) | Có | — | Giờ chốt, xử lý đến muộn PENDING; đơn nghỉ đã chốt 02/10: thông báo, không duyệt (ATT-05) |
 | nutrition (`meals`) | Có | — | Bếp/thực đơn theo campus PENDING |
 | health (`health`) | Có | — | Ngưỡng tham chiếu PENDING |
 | learning-observation (`observation`) | Có | — | Activity context OPEN (ADR-0006) |
@@ -33,6 +33,10 @@ Cập nhật: 2026-10-03. **Agent: cập nhật file này khi một feature bắ
 | audit | Có | — | |
 | ai-assistance (`integration/`) | Có | — | Provider OPEN |
 | reporting (`report`) | Có | — | |
+
+## Giới hạn hiện tại
+
+Mới có scaffold: chưa auth, chưa nghiệp vụ. Mọi rule PENDING (P-xx trong `BUSINESS_RULES.md`) chưa có hành vi chốt ⇒ làm cấu hình được, không hard-code.
 
 ## Thứ tự triển khai (guide mục 15)
 
