@@ -1,8 +1,13 @@
 package com.carenest.config;
 
+import com.carenest.security.CurrentUserArgumentResolver;
+import com.carenest.security.CurrentUserService;
+import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.HandlerTypePredicate;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
@@ -16,13 +21,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private static final String CONTROLLER_PACKAGE = "com.carenest.controller";
 
     private final String apiPrefix;
+    private final ObjectProvider<CurrentUserService> currentUserService;
 
-    public WebMvcConfig(@Value("${carenest.api.prefix}") String apiPrefix) {
+    public WebMvcConfig(@Value("${carenest.api.prefix}") String apiPrefix,
+                        ObjectProvider<CurrentUserService> currentUserService) {
         this.apiPrefix = apiPrefix;
+        this.currentUserService = currentUserService;
     }
 
     @Override
     public void configurePathMatch(PathMatchConfigurer configurer) {
         configurer.addPathPrefix(apiPrefix, HandlerTypePredicate.forBasePackage(CONTROLLER_PACKAGE));
+    }
+
+    @Override
+    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> resolvers) {
+        resolvers.add(new CurrentUserArgumentResolver(currentUserService));
     }
 }

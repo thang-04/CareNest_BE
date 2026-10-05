@@ -113,7 +113,7 @@ public class ChildController {
     @GetMapping("/{childId}")
     public ResponseEntity<ResponseJson<ChildProfileResponse>> getChildProfile(
             @PathVariable Long childId,
-            @AuthenticationPrincipal CurrentUser currentUser) {
+            CurrentUser currentUser) {
         ChildProfileResponse response = childService.getChildProfile(currentUser, childId);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child profile success", response);
     }
@@ -147,7 +147,7 @@ public class ChildService {
 }
 ```
 
-`CurrentUser`, `AccessScopeService` là tên minh họa; dùng đúng tên đã có trong source khi source được tạo.
+`CurrentUser` đã có (`security/CurrentUser.java`): controller khai báo tham số `CurrentUser` (resolve bởi `CurrentUserArgumentResolver` từ JWT `sub` → `user_accounts`, chặn tài khoản chưa cấp/INACTIVE) rồi truyền xuống service; service KHÔNG tự đọc `SecurityContextHolder`/`Jwt`. `AccessScopeService` là tên minh họa — kiểm tra scope nằm ở `security/authorization/` (policy theo campus/lớp/trẻ).
 
 ## 6. Quy ước đặt tên và comment
 

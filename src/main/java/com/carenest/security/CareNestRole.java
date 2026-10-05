@@ -24,4 +24,11 @@ public enum CareNestRole {
     public static Optional<CareNestRole> fromKeycloakRole(String roleName) {
         return Arrays.stream(values()).filter(role -> role.name().equals(roleName)).findFirst();
     }
+
+    public static Optional<CareNestRole> fromAuthority(String authority) {
+        if (authority == null || !authority.startsWith(AUTHORITY_PREFIX)) {
+            return Optional.empty();
+        }
+        return fromKeycloakRole(authority.substring(AUTHORITY_PREFIX.length()));
+    }
 }

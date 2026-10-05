@@ -134,7 +134,11 @@ TOKEN=$(curl -s -X POST "http://localhost:8180/realms/carenest/protocol/openid-c
 curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/accounts/me
 ```
 
-User dev (`admin.dev`, `teacher.a`, `parent.a`, …) có từ khi seed dữ liệu scope; trước đó dùng user thử ở mục 4 bước 10. `/api/accounts/me` có từ khi làm CurrentUser; trước đó gọi một path bất kỳ dưới `/api`: có token hợp lệ trả 404, thiếu/sai token trả 401.
+User dev (`admin.dev`, `teacher.a`, `parent.a`, …) có từ khi seed dữ liệu scope; trước đó dùng user thử ở mục 4 bước 10 và thêm hồ sơ CareNest cho user đó (nếu không, `/api/accounts/me` trả 403 `Account is not provisioned`):
+
+```bash
+docker compose exec postgres psql -U carenest -d carenest -c "INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('<ID user Keycloak>', 'try.teacher', 'Giáo viên thử');"
+```
 
 - **Xem claim**: payload JWT (phần giữa, base64url) phải có `iss = http://localhost:8180/realms/carenest`, `aud` chứa `carenest-api`, `sub`, `preferred_username`, `realm_access.roles`, `exp − iat = 300`. Chỉ dán token **dev** lên jwt.io, không bao giờ dán token môi trường thật.
 - **Swagger**: Swagger UI → nút *Authorize* → dán access token (không gõ chữ `Bearer`) → gọi API. Token sống 5 phút; hết hạn thì lấy lại.

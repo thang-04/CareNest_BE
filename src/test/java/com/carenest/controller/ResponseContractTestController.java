@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Controller chỉ dùng trong test để kiểm hợp đồng response; nằm package controller để nhận prefix API. */
 @RestController
 @RequestMapping("/response-contract")
-class ResponseContractTestController {
+public class ResponseContractTestController {
 
     record SampleRequest(@NotBlank String name, @NotNull Long classId) {
     }

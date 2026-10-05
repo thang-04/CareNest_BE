@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
+import com.carenest.controller.ResponseContractTestController;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Mọi response, thành công hay lỗi, phải có dạng {code, desc, data} với code = HTTP status. */
-@WebMvcTest
+@WebMvcTest(ResponseContractTestController.class)
 @Import({WebMvcConfig.class, SecurityConfig.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
 class ResponseContractTest {
 

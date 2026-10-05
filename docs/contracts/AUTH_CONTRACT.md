@@ -26,10 +26,25 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 
 Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất bại ⇒ về màn hình đăng nhập.
 
+## Tài khoản hiện tại (đã có)
+
+`GET {API_PREFIX}/accounts/me` — mọi user đã đăng nhập:
+
+```json
+{ "code": 200, "desc": "Get my account success",
+  "data": { "userId": 12, "username": "teacher.a", "fullName": "...", "email": null, "roles": ["TEACHER"] } }
+```
+
+| Tình huống | HTTP / `code` | `desc` |
+| --- | --- | --- |
+| Có tài khoản Keycloak nhưng chưa có hồ sơ CareNest | 403 | `Account is not provisioned` |
+| Tài khoản CareNest bị khóa (token còn hạn vẫn bị chặn) | 403 | `Account is inactive` |
+
+`roles` là role toàn cục (dùng ẩn/hiện menu). FE/APP không tự quyết quyền: BE kiểm scope ở từng API.
+
 ## Sắp có (chốt khi implement)
 
-- [ ] `GET /accounts/me` — user hiện tại: profile, roles, tóm tắt scope (assignment đang hiệu lực, id trẻ liên kết).
-- [ ] 403 `Account is not provisioned` (có tài khoản Keycloak nhưng chưa có hồ sơ CareNest) / `Account is inactive`.
+- [ ] `GET /accounts/me` thêm tóm tắt scope (assignment đang hiệu lực, id trẻ liên kết).
 - [ ] 403 ngoài scope campus/lớp/trẻ; id không tồn tại cũng trả 403 cùng `desc` (không lộ id để dò).
 - [ ] Cấp/khóa tài khoản (Admin): `POST /accounts`, `PATCH /accounts/{userId}/status`.
 

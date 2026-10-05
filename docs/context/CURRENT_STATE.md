@@ -11,8 +11,8 @@ Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắ
 | Prefix API cấu hình được | **Có** — `carenest.api.prefix` (`WebMvcConfig`), mặc định `/api` |
 | Coding guide | **Có** — `docs/backend-coding-guide.md` |
 | Docs nghiệp vụ / kiến trúc / memory | Bản đầu |
-| Authentication/authorization | **Đang làm** — Keycloak + Resource Server (ADR-0011). Xong: kiểm JWT, role, 401/403, realm import dev. Tiếp: CurrentUser, bảng scope, policy, cấp tài khoản (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
-| Schema/migration nghiệp vụ | Chưa (`db/migration` trống) |
+| Authentication/authorization | **Đang làm** — Keycloak + Resource Server (ADR-0011). Xong: kiểm JWT, role, 401/403, realm import dev, `user_accounts` + CurrentUser + `GET /accounts/me`. Tiếp: bảng scope, policy, cấp tài khoản (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
+| Schema/migration nghiệp vụ | Bắt đầu — `V1__create_user_accounts.sql` |
 | OpenAPI export (`docs/api/`) | Chưa |
 | AI provider | OPEN (ADR-0007) |
 | Hạ tầng deploy | Chưa chốt (có Dockerfile, compose dev/demo: API + PostgreSQL + Keycloak + Mailpit) |

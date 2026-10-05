@@ -419,3 +419,11 @@ Khác plan, đã kiểm thực tế trên Keycloak 26.8.0:
 - Image pin: `quay.io/keycloak/keycloak:26.8.0`, `axllent/mailpit:v1.31.4`. Thêm `.gitattributes` (`*.sh`, `mvnw` giữ LF) vì init script postgres chạy trong container Linux.
 - Compose bắt buộc `.env` (`:?` cho mật khẩu Keycloak/secret), `.env.example` có giá trị giả để copy chạy ngay.
 - Kiểm e2e (compose project tạm, đã xóa): token thật ⇒ 404 (đã xác thực), không token / sửa chữ ký / token client khác (sai `aud`) ⇒ 401; Keycloak tắt vẫn kiểm được token nhờ JWKS cache.
+
+### Phase 3 — xong 2026-10-04 (chờ user review)
+
+- `V1__create_user_accounts.sql` (đặt convention DB, ghi ở `docs/database/DATABASE.md`), `UserAccount`/`UserStatus`/`UserAccountRepository`.
+- `CurrentUser`, `CurrentUserService` (JWT `sub` → `user_accounts`; 403 `Account is not provisioned` / `Account is inactive`), `CurrentUserArgumentResolver` đăng ký trong `WebMvcConfig` qua `ObjectProvider` (WebMvcTest không cần bean khi controller không dùng `CurrentUser`).
+- `GET /accounts/me` (`AccountController` → `AccountService`); Swagger ẩn tham số `CurrentUser` (`SpringDocUtils.addRequestWrapperToIgnore`).
+- Phát hiện: `@WebMvcTest` không ghi controller ⇒ quét mọi controller ⇒ thiếu bean service. Đã ghi rule vào `.claude/rules/testing.md`; test cũ giới hạn controller (test controller đổi sang `public`).
+- Kiểm e2e với Keycloak thật: chưa cấp ⇒ 403, cấp ⇒ 200 (roles đúng, tên tiếng Việt), INACTIVE + token cũ ⇒ 403; Swagger không lộ tham số; log không có token.

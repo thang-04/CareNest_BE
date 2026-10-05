@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 /** Controller chỉ dùng trong test để kiểm cấu hình security (role mapping, 401/403). */
 @RestController
 @RequestMapping("/security-test")
-class SecurityTestController {
+public class SecurityTestController {
 
     @GetMapping("/teacher")
     @PreAuthorize("hasRole('TEACHER')")

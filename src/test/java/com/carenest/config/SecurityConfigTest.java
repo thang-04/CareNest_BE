@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.carenest.controller.SecurityTestController;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import java.util.List;
@@ -26,7 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
  * Kiểm filter chain thật (Bearer token → JwtDecoder → role converter → @PreAuthorize).
  * JwtDecoder được mock; validator thật kiểm riêng ở JwtValidatorTest.
  */
-@WebMvcTest
+@WebMvcTest(SecurityTestController.class)
 @Import({WebMvcConfig.class, SecurityConfig.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
 class SecurityConfigTest {
 
