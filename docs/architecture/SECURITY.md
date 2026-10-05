@@ -6,9 +6,12 @@ Dữ liệu cần bảo vệ: thông tin trẻ em, sức khỏe, quan hệ phụ
 
 ## Authentication
 
-Chưa chốt cơ chế (session vs JWT, refresh token, đăng nhập phụ huynh). Contract: `docs/contracts/AUTH_CONTRACT.md` (SKELETON). Khi chốt ⇒ ADR + cập nhật contract + FE/APP AUTH_FLOW.
+**Keycloak + Spring Security OAuth2 Resource Server** (ADR-0011). Contract: `docs/contracts/AUTH_CONTRACT.md`; vận hành: `docs/system/KEYCLOAK.md`.
 
-Yêu cầu tối thiểu (ACCEPTED): mật khẩu băm bằng thuật toán chuẩn (BCrypt/Argon2 qua Spring Security), HTTPS, không log token/mật khẩu, khóa tạm khi đăng nhập sai lặp (ngưỡng PROPOSED).
+- Keycloak: đăng nhập (Authorization Code + PKCE), băm mật khẩu, password policy, reset mật khẩu, khóa tạm khi sai 5 lần (PROPOSED), session, access token 5 phút + refresh token xoay vòng, realm role toàn cục.
+- BE: kiểm JWT tại chỗ bằng JWKS có cache (chữ ký, `iss`, `aud=carenest-api`, `exp`/`nbf`), map `realm_access.roles` → `ROLE_*`, `@PreAuthorize`; 401/403 dạng `ResponseJson`. Stateless, tắt CSRF (chỉ xác thực bằng header Bearer, không cookie), CORS theo danh sách origin.
+- BE **không** có login/refresh, không lưu mật khẩu hay refresh token, không tự ký JWT, không log token/header `Authorization`.
+- Yêu cầu tối thiểu (ACCEPTED) vẫn giữ: HTTPS khi lên server, không log token/mật khẩu.
 
 ## Authorization (ADR-0003)
 

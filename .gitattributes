@@ -1,0 +1,3 @@
+# Script chạy trong container Linux phải giữ LF kể cả khi checkout trên Windows (core.autocrlf=true)
+*.sh text eol=lf
+mvnw text eol=lf

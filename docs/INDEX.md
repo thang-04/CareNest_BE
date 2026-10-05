@@ -16,6 +16,7 @@ Không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **
 | | `system/MODULE_MAP.md` | Dependency, thứ tự lớp, cycle đã phá | FULL |
 | | `system/CROSS_REPO_MAP.md` | Ownership BE/FE/APP, điểm chạm | FULL |
 | | `system/DEPLOYMENT.md` | Hạ tầng | SKELETON |
+| | `system/KEYCLOAK.md` | Chạy/cấu hình Keycloak, lấy token, lỗi thường gặp | FULL |
 | guide | `backend-coding-guide.md` | **Quy tắc code bắt buộc** (layer, response, logging, exception, migration, checklist) | FULL — nguồn chuẩn code |
 | architecture | `architecture/BACKEND_ARCHITECTURE.md` | Layered monolith, giao tiếp feature, dẫn xuất | FULL |
 | | `architecture/PACKAGE_STRUCTURE.md` | Module → feature sub-package | FULL |
@@ -23,7 +24,7 @@ Không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **
 | | `architecture/SECURITY.md` | Authz, privacy, AI data | FULL |
 | contracts | `contracts/API_CONVENTIONS.md` | URL, prefix, pagination (tóm tắt guide) | FULL |
 | | `contracts/ERROR_CONTRACT.md` | `{code, desc, data}` + ApiCode | FULL |
-| | `contracts/AUTH_CONTRACT.md` | Auth | SKELETON |
+| | `contracts/AUTH_CONTRACT.md` | Auth: Keycloak, Bearer token, 401/403 | ĐANG TRIỂN KHAI |
 | api | `api/` | OpenAPI export (springdoc) | chưa có |
 | database | `database/DATABASE.md` | Nguyên tắc DB | FULL |
 | | `database/ERD.md`, `database/DATA_DICTIONARY.md` | Schema | SKELETON |
@@ -31,7 +32,7 @@ Không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **
 | | `knowledge/incidents/_TEMPLATE.md` | Mẫu incident (có Attempts) | FULL |
 | | `knowledge/CROSS_MODULE_ISSUES.md` | Rủi ro CMR + issue liên module | FULL |
 | | `knowledge/KNOWN_ISSUES.md`, `TROUBLESHOOTING.md`, `PATTERNS.md` | Giới hạn, lỗi môi trường, bài học | FULL |
-| decisions | `decisions/ADR-0001..0010`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
+| decisions | `decisions/ADR-0001..0011`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
 | plans | `plans/active/`, `plans/completed/` | Kế hoạch thay đổi lớn | — |
 | quality | `quality/DEFINITION_OF_DONE.md`, `TEST_STRATEGY.md`, `NFR.md` | Tiêu chí hoàn thành, test, NFR | FULL |
 
@@ -49,3 +50,4 @@ Không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **
 | 0008 | Human-in-the-loop AI | ACCEPTED |
 | 0009 | Không kho/NCC trong V1 | ACCEPTED |
 | 0010 | Parent visibility default-deny | ACCEPTED (field pending) |
+| 0011 | Keycloak + Spring Security Resource Server; scope ở CareNest | ACCEPTED |

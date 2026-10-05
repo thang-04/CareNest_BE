@@ -405,3 +405,17 @@ docker compose up -d keycloak
   - không token / token sửa / token hết hạn → 401, body dạng `ResponseJson`.
 - Phase 7: tạo tài khoản TEACHER → đăng nhập bằng mật khẩu tạm, bị buộc đổi mật khẩu → `/accounts/me` 200; email action hiện trong Mailpit (`localhost:8025`); disable → request tiếp 403, refresh thất bại.
 - Swagger UI → Authorize → dán token → gọi API có bảo vệ.
+
+---
+
+## Nhật ký triển khai
+
+### Phase 2 — xong 2026-10-04 (chờ user review)
+
+Khác plan, đã kiểm thực tế trên Keycloak 26.8.0:
+- Audience mapper đặt **trên từng client** (`<client>-dedicated`), không dùng realm client scope `carenest-api-audience`: tránh khai báo `clientScopes` ở cấp realm (có thể làm mất scope mặc định).
+- Service account `carenest-backend` **không cần `view-realm`**: `GET /roles/{name}` trả 403, nhưng `GET /users/{id}/role-mappings/realm/available` trả 200 với `manage-users` ⇒ Phase 7 lấy role representation qua endpoint này.
+- User profile mặc định KC 26 bắt buộc `email` + `lastName` ⇒ lỗi `Account is not fully set up` (ENV-001). Realm import bỏ bắt buộc 2 field này; `email/firstName/lastName` chỉ admin sửa.
+- Image pin: `quay.io/keycloak/keycloak:26.8.0`, `axllent/mailpit:v1.31.4`. Thêm `.gitattributes` (`*.sh`, `mvnw` giữ LF) vì init script postgres chạy trong container Linux.
+- Compose bắt buộc `.env` (`:?` cho mật khẩu Keycloak/secret), `.env.example` có giá trị giả để copy chạy ngay.
+- Kiểm e2e (compose project tạm, đã xóa): token thật ⇒ 404 (đã xác thực), không token / sửa chữ ký / token client khác (sai `aud`) ⇒ 401; Keycloak tắt vẫn kiểm được token nhờ JWKS cache.

@@ -8,6 +8,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,5 +51,11 @@ class ResponseContractTestController {
     @GetMapping("/unexpected")
     ResponseEntity<ResponseJson<Void>> throwUnexpected() {
         throw new IllegalStateException("secret internal detail");
+    }
+
+    @GetMapping("/admin-only")
+    @PreAuthorize("hasRole('ADMIN')")
+    ResponseEntity<ResponseJson<Void>> getAdminOnly() {
+        return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Admin only");
     }
 }

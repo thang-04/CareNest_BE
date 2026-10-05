@@ -29,4 +29,4 @@ Không tự đặt mã số riêng; chỉ thêm `ApiCode` khi cần HTTP status 
 | AI không khả dụng / quá thời gian | SERVICE_UNAVAILABLE / GATEWAY_TIMEOUT | AI-03 |
 | Upload quá cỡ / sai loại | PAYLOAD_TOO_LARGE / UNSUPPORTED_MEDIA_TYPE | — |
 
-Không trả stack trace, tên class, SQL. 401/403 từ Spring Security dùng handler riêng ghi cùng format (guide 8.5, khi có auth).
+Không trả stack trace, tên class, SQL. 401 (`desc` `Unauthorized`, kèm `WWW-Authenticate: Bearer`) và 403 (`Forbidden`) từ Spring Security ghi cùng format (guide 8.5, `docs/contracts/AUTH_CONTRACT.md`).

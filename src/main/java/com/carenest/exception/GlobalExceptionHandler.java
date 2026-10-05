@@ -8,6 +8,8 @@ import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -95,6 +97,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ResponseJson<Void>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
         return ResponseJson.toJson(ApiCode.PAYLOAD_TOO_LARGE, "File too large");
+    }
+
+    // @PreAuthorize từ chối bên trong DispatcherServlet nên tới đây, không qua RestAccessDeniedHandler
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ResponseJson<Void>> handleAccessDenied(AccessDeniedException ex) {
+        log.warn("[handleAccessDenied]|type={}", ex.getClass().getSimpleName());
+        return ResponseJson.toJson(ApiCode.FORBIDDEN, "Forbidden");
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ResponseJson<Void>> handleAuthentication(AuthenticationException ex) {
+        log.warn("[handleAuthentication]|type={}", ex.getClass().getSimpleName());
+        return ResponseJson.toJson(ApiCode.UNAUTHORIZED, "Unauthorized");
     }
 
     @ExceptionHandler(Exception.class)

@@ -1,6 +1,6 @@
 # Current State
 
-Cập nhật: 2026-10-03. **Agent: cập nhật file này khi một feature bắt đầu có code, hoàn thành, hoặc một PENDING được chốt.**
+Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắt đầu có code, hoàn thành, hoặc một PENDING được chốt.**
 
 ## Tổng quan
 
@@ -11,17 +11,17 @@ Cập nhật: 2026-10-03. **Agent: cập nhật file này khi một feature bắ
 | Prefix API cấu hình được | **Có** — `carenest.api.prefix` (`WebMvcConfig`), mặc định `/api` |
 | Coding guide | **Có** — `docs/backend-coding-guide.md` |
 | Docs nghiệp vụ / kiến trúc / memory | Bản đầu |
-| Authentication/authorization | Chưa — team đang chốt phương án |
+| Authentication/authorization | **Đang làm** — Keycloak + Resource Server (ADR-0011). Xong: kiểm JWT, role, 401/403, realm import dev. Tiếp: CurrentUser, bảng scope, policy, cấp tài khoản (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
 | Schema/migration nghiệp vụ | Chưa (`db/migration` trống) |
 | OpenAPI export (`docs/api/`) | Chưa |
 | AI provider | OPEN (ADR-0007) |
-| Hạ tầng deploy | Chưa chốt (có Dockerfile, compose cho dev/demo) |
+| Hạ tầng deploy | Chưa chốt (có Dockerfile, compose dev/demo: API + PostgreSQL + Keycloak + Mailpit) |
 
 ## Feature
 
 | Module (feature) | Thiết kế | Code | Ghi chú |
 | --- | --- | --- | --- |
-| identity-access (`account`, `security/`) | Có | — | Auth chưa chốt |
+| identity-access (`account`, `security/`) | Có | Đang làm | Nền Resource Server xong; CurrentUser/policy/cấp tài khoản tiếp theo |
 | school-structure (`organization`) | Có | — | |
 | child (`child`) | Có | — | |
 | attendance (`attendance`) | Có | — | Giờ chốt, xử lý đến muộn PENDING |
@@ -37,7 +37,7 @@ Cập nhật: 2026-10-03. **Agent: cập nhật file này khi một feature bắ
 ## Thứ tự triển khai (guide mục 15)
 
 1. Nền móng — **xong**.
-2. Đăng nhập và phạm vi: user/role, campus/class assignment, liên kết phụ huynh–trẻ, test quyền — **kế tiếp** (chờ chốt auth).
+2. Đăng nhập và phạm vi: user/role, campus/class assignment, liên kết phụ huynh–trẻ, test quyền — **đang làm** (ADR-0011).
 3. Điểm danh → BGH xác nhận số ăn → bếp xem.
 4. Hồ sơ trẻ: quan sát/sức khỏe, chia sẻ phụ huynh, audit, lịch sử.
 5. Mở rộng: sự cố CSVC, thông báo, thực đơn; AI sau khi dữ liệu + baseline sẵn sàng.
