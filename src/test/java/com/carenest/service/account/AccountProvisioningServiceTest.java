@@ -262,6 +262,15 @@ class AccountProvisioningServiceTest {
         verifyNoInteractions(identityProviderClient);
     }
 
+    @Test
+    void adminCannotChangeOwnAccountStatus() {
+        assertThatThrownBy(() -> service.updateAccountStatus(ADMIN, ADMIN.userId(), UserStatus.INACTIVE))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
+        verifyNoInteractions(userAccountRepository, identityProviderClient);
+    }
+
     private static CreateAccountRequest request(String username, String email, CareNestRole role, String password) {
         return new CreateAccountRequest(username, "Giáo viên Demo", email, role, password);
     }

@@ -95,6 +95,7 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: role (`@PreAuthorize`) r�
 | Username/email đã có bên Keycloak | 409 | `Username or email already exists` |
 | Keycloak từ chối dữ liệu (mật khẩu vi phạm policy, vd. trùng username; họ tên có ký tự như `( ) < > & /`) | 400 | `Account data rejected by identity provider (check password policy and full name)` |
 | Keycloak không khả dụng / chưa cấu hình | 503 | `Identity provider unavailable` |
+| Khóa: `userId` là chính người gọi (AUTH-09) | 400 | `You cannot change the status of your own account` |
 | Khóa: `userId` không tồn tại | 404 | `Account not found` |
 | Khóa: đã lưu CareNest nhưng Keycloak lỗi | 503 | `Account status saved but identity provider sync failed, please retry` |
 

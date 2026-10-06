@@ -105,6 +105,10 @@ public class AccountProvisioningService {
                 "[updateAccountStatus]|actorUserId=" + actor.userId() + "|userId=" + userId + "|status=" + status;
         log.info("{}|START", prefix);
 
+        // ADMIN tự khóa mình ⇒ có thể không còn ai mở lại qua API (team chốt 2026-10-06)
+        if (userId.equals(actor.userId())) {
+            throw new GlobalException(ApiCode.BAD_REQUEST, "You cannot change the status of your own account");
+        }
         UserAccount account = userAccountRepository
                 .findById(userId)
                 .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Account not found"));

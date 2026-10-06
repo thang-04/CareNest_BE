@@ -110,6 +110,7 @@ Filter JWT tự viết KHÔNG ĐƯỢC tự ghi response lỗi theo dạng khác
 ## Secret & cấu hình
 
 - Secret qua biến môi trường/secret store; không commit `.env`, key, credential.
+- `KEYCLOAK_ADMIN_CLIENT_SECRET` (service account `carenest-backend`, quyền `manage-users`) tương đương toàn quyền tài khoản realm: chỉ để trong secret store, xoay ngay khi nghi lộ (KI-008, chấp nhận cho V1).
 - Test/fixture dùng dữ liệu giả.
 
 ## Audit
