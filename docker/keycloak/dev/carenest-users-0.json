@@ -1,0 +1,83 @@
+{
+  "realm": "carenest",
+  "users": [
+    {
+      "id": "00000000-0000-4000-a000-000000000001",
+      "username": "admin.dev",
+      "enabled": true,
+      "firstName": "Quản trị Demo",
+      "email": "admin.dev@carenest.test",
+      "emailVerified": true,
+      "realmRoles": ["ADMIN"],
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000002",
+      "username": "principal.dev",
+      "enabled": true,
+      "firstName": "Hiệu trưởng Demo",
+      "email": "principal.dev@carenest.test",
+      "emailVerified": true,
+      "realmRoles": ["PRINCIPAL"],
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000003",
+      "username": "viceprincipal.a",
+      "enabled": true,
+      "firstName": "Hiệu phó Cơ sở A Demo",
+      "email": "viceprincipal.a@carenest.test",
+      "emailVerified": true,
+      "realmRoles": ["VICE_PRINCIPAL"],
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000004",
+      "username": "teacher.a",
+      "enabled": true,
+      "firstName": "Giáo viên A Demo",
+      "email": "teacher.a@carenest.test",
+      "emailVerified": true,
+      "realmRoles": ["TEACHER"],
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000005",
+      "username": "teacher.b",
+      "enabled": true,
+      "firstName": "Giáo viên B Demo",
+      "email": "teacher.b@carenest.test",
+      "emailVerified": true,
+      "realmRoles": ["TEACHER"],
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000006",
+      "username": "parent.a",
+      "enabled": true,
+      "firstName": "Phụ huynh A Demo",
+      "email": "parent.a@carenest.test",
+      "emailVerified": true,
+      "realmRoles": ["PARENT"],
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000007",
+      "username": "parent.b",
+      "enabled": true,
+      "firstName": "Phụ huynh B Demo",
+      "realmRoles": ["PARENT"],
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000008",
+      "username": "kitchen.a",
+      "enabled": true,
+      "firstName": "Nhà bếp Cơ sở A Demo",
+      "email": "kitchen.a@carenest.test",
+      "emailVerified": true,
+      "realmRoles": ["KITCHEN_STAFF"],
+      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+    }
+  ]
+}
