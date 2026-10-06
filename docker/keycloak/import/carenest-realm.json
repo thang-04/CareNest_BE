@@ -21,8 +21,8 @@
   "refreshTokenMaxReuse": 0,
   "passwordPolicy": "length(8) and notUsername",
   "smtpServer": {
-    "host": "mailpit",
-    "port": "1025",
+    "host": "${CARENEST_SMTP_HOST:mailpit}",
+    "port": "${CARENEST_SMTP_PORT:1025}",
     "from": "noreply@carenest.local",
     "fromDisplayName": "CareNest"
   },
@@ -139,8 +139,8 @@
     },
     {
       "clientId": "carenest-dev",
-      "name": "CareNest dev tools (CHỈ DEV - không đưa lên server)",
-      "enabled": true,
+      "name": "CareNest dev tools (chỉ bật ở dev qua CARENEST_DEV_CLIENT_ENABLED=true)",
+      "enabled": "${CARENEST_DEV_CLIENT_ENABLED:false}",
       "protocol": "openid-connect",
       "publicClient": true,
       "standardFlowEnabled": true,
