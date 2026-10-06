@@ -8,8 +8,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.carenest.controller.SecurityTestController;
+import com.carenest.exception.GlobalException;
+import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.utils.ApiCode;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -20,6 +23,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -39,6 +43,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private JwtDecoder jwtDecoder;
+
+    @MockitoBean
+    private CurrentUserService currentUserService;
 
     @Test
     void shouldRejectRequestWithoutToken() throws Exception {
@@ -113,5 +120,27 @@ class SecurityConfigTest {
                 .subject("kc-user-1")
                 .claim("realm_access", Map.of("roles", List.of(roles)))
                 .build();
+    }
+
+    @Test
+    void shouldReturn503WhenSigningKeysCannotBeFetched() throws Exception {
+        // Keycloak tắt khi API chưa cache JWKS: lỗi phía server, không phải token sai
+        given(jwtDecoder.decode("valid-token")).willThrow(new JwtException("Couldn't retrieve remote JWK set"));
+
+        mockMvc.perform(get(TEACHER_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.desc").value("Authentication service unavailable"));
+    }
+
+    @Test
+    void shouldBlockInactiveAccountEvenOnEndpointWithoutCurrentUserParameter() throws Exception {
+        given(jwtDecoder.decode("teacher-token")).willReturn(jwtWithRealmRoles("teacher-token", "TEACHER"));
+        given(currentUserService.getCurrentUser())
+                .willThrow(new GlobalException(ApiCode.FORBIDDEN, "Account is inactive"));
+
+        mockMvc.perform(get(TEACHER_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer teacher-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.desc").value("Account is inactive"));
     }
 }

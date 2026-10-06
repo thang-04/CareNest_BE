@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
 import com.carenest.controller.ResponseContractTestController;
+import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Mọi response, thành công hay lỗi, phải có dạng {code, desc, data} với code = HTTP status. */
@@ -30,6 +32,10 @@ class ResponseContractTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    // ActiveAccountInterceptor tra tài khoản cho mọi request có token; mock trả null = không chặn
+    @MockitoBean
+    private CurrentUserService currentUserService;
 
     @Test
     void successWithData() throws Exception {

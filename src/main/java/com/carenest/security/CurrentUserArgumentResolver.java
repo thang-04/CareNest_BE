@@ -4,12 +4,13 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.MethodParameter;
 import org.springframework.web.bind.support.WebDataBinderFactory;
 import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
 /**
- * Cho controller khai báo tham số {@link CurrentUser}. Lỗi (chưa cấp tài khoản, bị khóa) ném ra trong
- * DispatcherServlet nên GlobalExceptionHandler trả ResponseJson như lỗi nghiệp vụ khác.
+ * Cho controller khai báo tham số {@link CurrentUser}; luôn lấy từ token, không bao giờ bind từ request param.
+ * Dùng lại kết quả ActiveAccountInterceptor đã tính cho request; lỗi (chưa cấp, bị khóa) do GlobalExceptionHandler trả.
  */
 public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolver {
 
@@ -28,6 +29,8 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
     @Override
     public CurrentUser resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
                                        NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-        return currentUserService.getObject().getCurrentUser();
+        Object resolved = webRequest.getAttribute(ActiveAccountInterceptor.CURRENT_USER_ATTRIBUTE,
+                RequestAttributes.SCOPE_REQUEST);
+        return resolved instanceof CurrentUser currentUser ? currentUser : currentUserService.getObject().getCurrentUser();
     }
 }

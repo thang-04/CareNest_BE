@@ -62,4 +62,8 @@ public class UserAccount {
     public boolean isActive() {
         return status == UserStatus.ACTIVE;
     }
+
+    public void changeStatus(UserStatus newStatus) {
+        this.status = newStatus;
+    }
 }

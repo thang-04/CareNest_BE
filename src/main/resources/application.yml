@@ -37,9 +37,25 @@ carenest:
     cors:
       # Danh sách origin, phân tách bằng dấu phẩy; không dùng "*"
       allowed-origins: ${CARENEST_CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  keycloak:
+    # Keycloak Admin REST API (cấp/khóa tài khoản) qua service account của client carenest-backend
+    base-url: ${KEYCLOAK_BASE_URL:http://localhost:8180}
+    realm: ${KEYCLOAK_REALM:carenest}
+    admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:carenest-backend}
+    # Không có giá trị mặc định: thiếu secret thì API cấp tài khoản trả 503, các API khác vẫn chạy
+    admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+    # Bật khi đã cấu hình SMTP cho realm: gửi email đặt mật khẩu cho tài khoản mới có email
+    actions-email-enabled: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:false}
+    connect-timeout: 3s
+    read-timeout: 5s
 
 management:
   endpoints:
     web:
       exposure:
         include: health
+
+logging:
+  level:
+    # RestClient ở DEBUG in cả body (client_secret, mật khẩu tạm): giữ INFO kể cả khi bật DEBUG cho org.springframework.web
+    org.springframework.web.client: INFO
