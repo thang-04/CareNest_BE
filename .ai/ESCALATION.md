@@ -2,6 +2,8 @@
 
 Không mức nào đọc toàn bộ `docs/` trừ FULL. Đọc theo thứ tự; dừng khi đủ bằng chứng.
 
+Làn (`AGENTS.md`): S = L1 tối thiểu (file đích + test, không card/guide) · M = L1–L2 · L = L3–L4.
+
 | Mức | Khi nào | Đọc (cộng dồn) | Ngân sách gợi ý |
 | --- | --- | --- | --- |
 | L1 cục bộ | Bug/sửa trong 1 file/class | Source + test gần nhất · mục guide router chỉ tới (`docs/backend-coding-guide.md`) · module card · dòng liên quan trong `docs/knowledge/ISSUE_INDEX.md` | ~8–10k token (gồm AGENTS/router) |

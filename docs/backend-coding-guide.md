@@ -48,7 +48,7 @@ CareNest_BE/
 ├── .env.example              # Tên biến môi trường, KHÔNG chứa secret
 ├── docs/
 │   ├── INDEX.md              # Bản đồ tài liệu (nghiệp vụ, kiến trúc, ADR ở decisions/, memory ở knowledge/)
-│   └── api/                  # OpenAPI export / ví dụ request
+│   └── api/                  # openapi.yaml: snapshot hợp đồng, khóa bởi OpenApiSnapshotTest
 └── src/
     ├── main/
     │   ├── java/.../carenest/
@@ -389,7 +389,7 @@ Entity và quan hệ: `docs/business/DOMAIN_MODEL.md` (tên chuẩn, vd. `Classr
 - Repository/migration/luồng tích hợp: Testcontainers với PostgreSQL thật.
 - Controller NÊN có test kiểm tra dạng response `{code, desc, data}` và HTTP status cho thành công + lỗi.
 - Test KHÔNG dùng dữ liệu thật của trẻ/phụ huynh; dùng dữ liệu giả.
-- Docker Compose (API + PostgreSQL) cho dev/demo; CI chạy build + test.
+- Docker Compose (API + PostgreSQL) cho dev/demo. Chưa có CI: cổng local `node scripts/verify.mjs` (= `./mvnw verify`: test + ArchUnit + snapshot OpenAPI + Spotless) — ADR-0012.
 - Secret qua biến môi trường; `.env.example` chỉ chứa tên biến.
 
 ## 15. Thứ tự triển khai
@@ -424,6 +424,7 @@ Chạy trên diff trước khi tạo PR hoặc báo task xong. Mục không áp 
 - [ ] Không gọi SDK AI/storage/notification trực tiếp ngoài `integration/`.
 - [ ] Quy tắc nghiệp vụ ở mục 13 liên quan được giữ (idempotent điểm danh, suất ăn từ trẻ có mặt + đăng ký ăn, AI không quyết định cuối...).
 - [ ] Có test cho hành vi chính, lỗi quan trọng và trường hợp bị từ chối quyền.
-- [ ] OpenAPI cập nhật nếu đổi endpoint/DTO; đã nêu tác động FE/APP.
+- [ ] Snapshot `docs/api/openapi.yaml` cập nhật nếu đổi endpoint/DTO; đã nêu consumer FE/APP cụ thể.
+- [ ] Có dòng `VERIFY PASS` theo làn trong lượt (`docs/quality/VERIFICATION.md`); test tích hợp/snapshot không bị skip.
 - [ ] Comment chỉ ở logic chính và ngắn (mục 6.2); không code comment-out, không thông tin AI.
 - [ ] Không commit secret, `.env`, dữ liệu thật.

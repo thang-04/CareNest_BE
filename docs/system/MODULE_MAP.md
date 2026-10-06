@@ -49,4 +49,4 @@ L0  school-structure · identity-access · ai-assistance · notification · audi
 2. Entity xuyên feature: ưu tiên tham chiếu ID; quan hệ JPA chỉ khi không tạo vòng (chốt khi vẽ ERD).
 3. Phản ứng ngược chiều (vd. attendance → meals): Spring event sau commit (ADR-0004, PROPOSED).
 4. Thêm phụ thuộc mới phải giữ thứ tự lớp ở trên; nếu cần phụ thuộc ngược ⇒ dùng event hoặc đề xuất ADR.
-5. Kiểm tra: review theo Checklist guide mục 17; test kiến trúc tự động chỉ khi nhóm đồng ý thêm dependency.
+5. Kiểm tra: review theo Checklist guide mục 17; tự động: `ArchitectureRulesTest` (ADR-0012).

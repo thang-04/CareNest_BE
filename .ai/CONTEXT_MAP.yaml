@@ -39,7 +39,14 @@ tech_keywords:
   "event|listener|after commit|transaction": [docs/decisions/ADR-0004-module-communication.md]
   "upload|ảnh|storage|mediaasset|multipart": ["docs/backend-coding-guide.md#12", docs/contracts/API_CONVENTIONS.md]
   "log|logging|pii": ["docs/backend-coding-guide.md#10"]
-  "hook|memory-reminder|skill": [.claude/settings.json, .ai/workflows/update-knowledge.md]
+  "hook|githooks|pre-commit|commit-msg|pre-push|skill|check-ai-layer|harness|stop-gate|guard": [.claude/settings.json, docs/decisions/ADR-0012-engineering-harness.md, .ai/workflows/update-knowledge.md]
+  "verify|bằng chứng|evidence|iron law|test skip": [docs/quality/VERIFICATION.md]
+  "plan|kế hoạch|phase|làn|lane|progress log": [.ai/workflows/plan-change.md, docs/plans/_TEMPLATE.md]
+  "nghiệp vụ chưa rõ|làm rõ|clarify|lệch tài liệu|câu hỏi mở": [.ai/workflows/clarify-business.md]
+  "archunit|architecturerulestest|layer rule": [src/test/java/com/carenest/architecture/ArchitectureRulesTest.java, docs/quality/TEST_STRATEGY.md, docs/decisions/ADR-0012-engineering-harness.md]
+  "openapi.yaml|snapshot|api-docs": [docs/api/openapi.yaml, src/test/java/com/carenest/contract/OpenApiSnapshotTest.java, .ai/workflows/update-api.md]
+  "verify.mjs|verify --quick|verify pass|verify fail": [scripts/verify.mjs, docs/quality/VERIFICATION.md]
+  "spotless|palantir|format|crlf|line ending|gitattributes": [docs/quality/VERIFICATION.md, .gitattributes, .editorconfig]
 
 modules:
   identity-access:      {card: docs/modules/identity-access.md, feature: account, rules: [AUTH], adr: [0002, 0003]}
@@ -64,7 +71,7 @@ topics:
   database:       [docs/database/DATABASE.md, docs/business/DOMAIN_MODEL.md]   # ERD, DATA_DICTIONARY: skeleton
   cross-repo:     [docs/system/CROSS_REPO_MAP.md]
   memory:         [docs/knowledge/ISSUE_INDEX.md, docs/knowledge/CROSS_MODULE_ISSUES.md, docs/knowledge/KNOWN_ISSUES.md, docs/knowledge/PATTERNS.md, docs/knowledge/TROUBLESHOOTING.md]
-  quality:        [docs/quality/DEFINITION_OF_DONE.md, docs/quality/TEST_STRATEGY.md, docs/quality/NFR.md]
+  quality:        [docs/quality/DEFINITION_OF_DONE.md, docs/quality/VERIFICATION.md, docs/quality/TEST_STRATEGY.md, docs/quality/NFR.md]
   operations:     [README.md, .env.example, compose.yaml, src/main/resources/application.yml, docs/knowledge/TROUBLESHOOTING.md]   # DEPLOYMENT: skeleton
   decisions:      [docs/decisions/]
   coding-rules:   [docs/backend-coding-guide.md, .claude/rules/]
@@ -83,10 +90,12 @@ available:
     - src/main/java/com/carenest/utils/ResponseJson.java
     - src/main/java/com/carenest/exception/GlobalExceptionHandler.java
     - src/test/java/com/carenest/exception/ResponseContractTest.java
-  hooks: [.claude/settings.json, .claude/hooks/memory-reminder.mjs]   # Claude Stop hook nhắc cập nhật memory
+  hooks: [.claude/settings.json, .claude/hooks/session-orient.mjs, .claude/hooks/guard-edits.mjs, .claude/hooks/track-activity.mjs, .claude/hooks/stop-gate.mjs, .claude/hooks/lib/]   # Claude hooks (ADR-0012)
   routing: [.ai/ROUTER.md, .ai/ESCALATION.md, .ai/CONTEXT_MAP.yaml]
   profiles: [.ai/profiles/code.md, .ai/profiles/feature.md, .ai/profiles/architecture.md, .ai/profiles/operations.md, .ai/profiles/cross-repo.md, .ai/profiles/full.md]
-  workflows: [.ai/workflows/fix-bug.md, .ai/workflows/implement-feature.md, .ai/workflows/review-code.md, .ai/workflows/update-database.md, .ai/workflows/update-api.md, .ai/workflows/deploy.md, .ai/workflows/update-knowledge.md]
+  workflows: [.ai/workflows/fix-bug.md, .ai/workflows/implement-feature.md, .ai/workflows/review-code.md, .ai/workflows/update-database.md, .ai/workflows/update-api.md, .ai/workflows/deploy.md, .ai/workflows/update-knowledge.md, .ai/workflows/clarify-business.md, .ai/workflows/plan-change.md]
+  api_snapshot: [docs/api/openapi.yaml]   # hợp đồng API, khóa bởi OpenApiSnapshotTest
+  harness: [docs/quality/VERIFICATION.md, .githooks/, scripts/verify.mjs, src/test/java/com/carenest/architecture/ArchitectureRulesTest.java, docs/plans/_TEMPLATE.md, docs/decisions/ADR-0012-engineering-harness.md, .gitattributes, .editorconfig, scripts/check-ai-layer.mjs, scripts/ai-layer/, .claude/hooks/harness.config.json]   # quy trình làn S/M/L + cổng (ADR-0012)
   skills: [.agents/skills/, .claude/skills/]
   skeleton_only:   # tồn tại nhưng chưa có nội dung — không dùng làm nguồn
     - docs/system/DEPLOYMENT.md
@@ -96,7 +105,6 @@ available:
 
 planned:
   - CONTRIBUTING.md
-  - docs/api/                       # thư mục đã có, chưa có OpenAPI export
 
 external_sources:
   architecture: D:/CAPSTONE_FALL26/CareNest_Backend_Architecture_v2.docx   # nguồn gốc của coding guide

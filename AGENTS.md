@@ -2,35 +2,30 @@
 
 Repo này là **source of truth** của CareNest: business rule, domain, kiến trúc, API contract, database và engineering memory. Web (`CareNest_FE`) và Mobile (`CareNest_APP`) là client.
 
-## Bắt đầu mọi task
+## Bắt đầu mọi task — chọn làn
 
-1. Phân loại task bằng `.ai/ROUTER.md` → profile, workflow, mục guide, mức context (L1–L4).
-2. Tìm module bằng `.ai/CONTEXT_MAP.yaml` (`keywords`) → đọc **module card** `docs/modules/<module>.md`. Chỉ mở flow/ADR/doc khác khi card hoặc `.ai/ESCALATION.md` yêu cầu.
-3. **Bắt buộc** trước khi viết hoặc review code: đọc `docs/backend-coding-guide.md` (ít nhất các mục router chỉ tới). Không tự đặt convention ngoài guide; source đã implement là chuẩn.
-4. Bug/lỗi/case lạ: **search `docs/knowledge/ISSUE_INDEX.md` trước** (chuỗi lỗi, module, từ khóa). Incident cũ là manh mối, phải kiểm chứng với code hiện tại.
-5. Trước khi báo xong: chạy Checklist mục 17 của guide + `docs/quality/DEFINITION_OF_DONE.md` (gồm cập nhật engineering memory); báo mục nào không áp dụng hoặc chưa đạt.
+| Làn | Khi nào | Đọc | Plan · verify · báo cáo |
+| --- | --- | --- | --- |
+| **S** | ≤2 file source, 1 module, việc rõ, ngoài vùng rủi ro | File đích + test gần nhất; bug: grep `docs/knowledge/ISSUE_INDEX.md` | Không plan · `node scripts/verify.mjs --quick` · ≤3 dòng |
+| **M** | 3–8 file; đổi hành vi trong 1 module | `.ai/ROUTER.md` → grep `.ai/CONTEXT_MAP.yaml` → module card → mục guide router chỉ | Mini-plan trong chat · `node scripts/verify.mjs` · ≤8 dòng |
+| **L** | Vùng rủi ro (migration, `security/`, `integration/`, API contract, dependency/hạ tầng), ≥2 module, FE/APP, >8 file | + `.ai/ESCALATION.md` L3–L4 | Plan `.ai/workflows/plan-change.md` user duyệt · verify + snapshot |
 
-**Tri thức mới** — user đưa nghiệp vụ mới / chốt PENDING, hoặc gặp **bug mới** / edge case ⇒ chạy `.ai/workflows/update-knowledge.md` ngay trong lượt (không đợi cuối task).
-
-## Đọc tiết kiệm token
-
-- **`.ai/CONTEXT_MAP.yaml`: grep, không đọc cả file** — `grep -iE "<từ khóa>" .ai/CONTEXT_MAP.yaml` để ra module/card. Chỉ mở cả file khi cần sửa map.
-- **Coding guide** `docs/backend-coding-guide.md` (~9k token): chỉ đọc mục router chỉ tới — grep tiêu đề `^## <số>\.` rồi đọc mục đó; đọc cả file chỉ với profile `architecture`/`full`.
-- **Engineering memory:** grep `docs/knowledge/ISSUE_INDEX.md` theo chuỗi lỗi/từ khóa; chỉ mở `incidents/<ID>-*.md` khi dòng index khớp. Ghi mới: 1 issue = 1 dòng ngắn trong index, chi tiết để trong file incident.
-- **Coding rule theo loại file** ở `.claude/rules/<tên>.md` (frontmatter `paths`). Claude tự nạp; agent khác (Codex) tự mở rule khớp file đang sửa.
-- `.agents/skills/` là bản mirror của `.claude/skills/` — sửa một bên thì chép y hệt sang bên kia.
-- Không đọc toàn bộ `docs/` trừ profile `full`. Mức đọc theo `.ai/ESCALATION.md`.
+- Đổi nghiệp vụ (mọi làn) ⇒ `.ai/workflows/clarify-business.md` trước khi code. Vượt tiêu chí ⇒ nâng làn; không hạ làn để né quy trình.
+- Plan `docs/plans/active/` khớp branch ⇒ đọc Progress log cuối trước.
+- Grep, không đọc cả file (CONTEXT_MAP, BUSINESS_RULES theo ID, guide `^## <số>\.`, ISSUE_INDEX). Convention: guide + source hiện có là chuẩn.
+- Rule theo file: `.claude/rules/` (Codex tự mở). `.agents/skills/` mirror y hệt `.claude/skills/`.
+- Báo xong: `docs/quality/VERIFICATION.md` + DoD theo làn.
 
 ## Nguyên tắc bất biến
 
-1. **Không tự chế business rule.** Rule có ID trong `docs/business/BUSINESS_RULES.md`. `PENDING` / `OPEN` ⇒ nêu khoảng trống, hỏi hoặc làm cấu hình được.
-2. Ưu tiên khi mâu thuẫn — nghiệp vụ: quyết định mới nhất có nguồn (team chốt, chỉ đạo giảng viên đã nhận) > khảo sát/Report 1 > đề xuất; code: source > guide > ADR ACCEPTED (chi tiết `PROJECT_CONTEXT.md`). Code ≠ docs ⇒ báo xung đột, xác minh intended behavior trước khi sửa.
+1. **Không tự chế business rule.** Rule có ID trong `docs/business/BUSINESS_RULES.md`. Nghiệp vụ chưa rõ / `PENDING` / `OPEN` / lệch tài liệu ⇒ hỏi user tới khi rõ; làm cấu hình được chỉ khi user nói chưa chốt.
+2. Ưu tiên khi mâu thuẫn — nghiệp vụ: quyết định mới nhất có nguồn (team chốt, chỉ đạo giảng viên đã nhận) > khảo sát/Report 1 > đề xuất; code: source > guide > ADR ACCEPTED (chi tiết `PROJECT_CONTEXT.md`). Code ≠ docs ⇒ báo xung đột, xác minh trước khi sửa.
 3. **1 trường, 2 điểm trường** — không multi-school/multi-tenant. Mọi truy vấn dữ liệu trẻ/lớp kiểm tra quyền theo campus/class/child ở server.
 4. **AI chỉ hỗ trợ:** AI tạo bản nháp, con người duyệt; nghiệp vụ chạy được khi AI tắt; AI không tạo dữ liệu dinh dưỡng nền, không chẩn đoán. Gọi AI chỉ qua `integration/`.
 5. Không mở rộng ngoài V1 (`docs/context/PROJECT_CONTEXT.md` mục Exclusions).
 6. Dữ liệu trẻ em, sức khỏe, tài khoản: tối thiểu quyền; không đưa dữ liệu thật hoặc secret vào prompt, log, test, commit.
 7. Đổi API/auth ⇒ kiểm tra tác động FE/APP (`docs/system/CROSS_REPO_MAP.md`). Chỉ đọc repo FE/APP khi task có tác động liên repo; không tự sửa repo khác.
-8. Lỗi không hiển nhiên hoặc phải thử >1 cách ⇒ ghi vào `docs/knowledge/` kể cả các cách đã thử thất bại.
+8. Tri thức mới, lỗi không hiển nhiên hoặc phải thử >1 cách ⇒ `.ai/workflows/update-knowledge.md` ngay trong lượt, kể cả các cách đã thử thất bại.
 
 ## Stack
 
@@ -63,6 +58,12 @@ Refs: CN-123
 
 - Chỉ comment ngắn (1 dòng, tối đa 2–3) ở logic chính/không hiển nhiên; nói *tại sao / quy tắc gì*, tiếng Việt, giữ identifier tiếng Anh. Không comment code tự giải thích, không Javadoc/JSDoc tràn lan.
 - KHÔNG code comment-out, comment nhật ký, TODO mơ hồ (cần thì `// TODO(<người/issue>): <việc cụ thể>`), thông tin AI, dữ liệu thật/secret. Sửa code ⇒ sửa/xóa comment liên quan.
+
+### Cổng chất lượng
+
+- **Iron Law:** chưa có output `node scripts/verify.mjs` chạy sau lần sửa cuối ⇒ không báo "xong/pass/đã sửa"; skip = chưa kiểm chứng (`docs/quality/VERIFICATION.md`).
+- Làn L ⇒ plan user duyệt mới code. Sửa bug thất bại 3 lần ⇒ dừng, ghi Attempts, hỏi.
+- Sửa `.ai/ .claude/ .agents/ docs/` ⇒ `node scripts/check-ai-layer.mjs`. Cổng fail ⇒ sửa nguyên nhân, không lách.
 
 ### Hỏi trước khi làm
 

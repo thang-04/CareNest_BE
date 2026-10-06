@@ -24,16 +24,16 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | contracts | `contracts/API_CONVENTIONS.md` | URL, prefix, pagination (tóm tắt guide) | FULL |
 | | `contracts/ERROR_CONTRACT.md` | `{code, desc, data}` + ApiCode | FULL |
 | | `contracts/AUTH_CONTRACT.md` | Auth | SKELETON |
-| api | `api/` | OpenAPI export (springdoc) | chưa có |
+| api | `api/openapi.yaml` | Snapshot hợp đồng OpenAPI, khóa bởi `OpenApiSnapshotTest` (đổi có chủ đích: `update-api.md`) | FULL |
 | database | `database/DATABASE.md` | Nguyên tắc DB | FULL |
 | | `database/ERD.md`, `database/DATA_DICTIONARY.md` | Schema | SKELETON |
 | knowledge | `knowledge/ISSUE_INDEX.md` | **Search đầu tiên khi debug** | FULL (chưa có issue) |
 | | `knowledge/incidents/_TEMPLATE.md` | Mẫu incident (status open/fixed, có Attempts) | FULL |
 | | `knowledge/CROSS_MODULE_ISSUES.md` | Rủi ro CMR + issue liên module | FULL |
 | | `knowledge/KNOWN_ISSUES.md`, `TROUBLESHOOTING.md`, `PATTERNS.md` | Giới hạn cố ý (không phải bug), lỗi môi trường/config, pattern | FULL |
-| decisions | `decisions/ADR-0001..0010`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
-| plans | `plans/active/`, `plans/completed/` | Kế hoạch thay đổi lớn | — |
-| quality | `quality/DEFINITION_OF_DONE.md`, `TEST_STRATEGY.md`, `NFR.md` | Tiêu chí hoàn thành, test, NFR | FULL |
+| decisions | `decisions/ADR-0001..0010`, `ADR-0012`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
+| plans | `plans/_TEMPLATE.md`, `plans/active/`, `plans/completed/` | Plan làn L (template + đang làm + đã xong) | FULL |
+| quality | `quality/DEFINITION_OF_DONE.md`, `VERIFICATION.md`, `TEST_STRATEGY.md`, `NFR.md` | Tiêu chí hoàn thành theo làn, bằng chứng kiểm chứng, test, NFR | FULL |
 
 ## ADR
 
@@ -49,3 +49,4 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | 0008 | Human-in-the-loop AI | ACCEPTED |
 | 0009 | Phạm vi kho/NCC | **OPEN** |
 | 0010 | Parent visibility default-deny | ACCEPTED (field pending) |
+| 0012 | Engineering harness: làn S/M/L, Iron Law, hook, cổng Maven | ACCEPTED |

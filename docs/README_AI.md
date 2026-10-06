@@ -13,7 +13,7 @@ AI agent **không cần** đọc file này. Điểm vào của agent là `AGENTS
 | AI hiểu đúng nghiệp vụ, không tự chế rule | Mọi rule có **ID + status + nguồn** trong `docs/business/BUSINESS_RULES.md`. Mục chưa chốt là `PENDING`/`OPEN`, AI phải hỏi |
 | AI tìm đúng chỗ để sửa/debug | `.ai/CONTEXT_MAP.yaml` map từ khóa (VN/EN, tên class) → **module card** `docs/modules/<module>.md` |
 | AI nhớ lỗi đã gặp | **Engineering memory** trong `docs/knowledge/`: 1 dòng/issue trong `ISSUE_INDEX.md`, chi tiết + các cách đã thử trong `incidents/` |
-| Tiết kiệm token | Đọc theo **mức L1→L4** (`.ai/ESCALATION.md`): bug nhỏ chỉ đọc card + mục guide cần thiết; không bao giờ đọc hết `docs/` |
+| Tiết kiệm token | **Làn S/M/L** (`AGENTS.md`, mục 9): task nhỏ chỉ đọc file đích + test; đọc theo **mức L1→L4** (`.ai/ESCALATION.md`); không bao giờ đọc hết `docs/` |
 | Một nguồn sự thật | **`CareNest_BE` là nguồn chuẩn** cho nghiệp vụ, API contract, DB. `CareNest_FE` (Web) và `CareNest_APP` (Mobile) chỉ trỏ về BE bằng `BE:<path>`, không chép rule |
 | Dùng chung cho mọi agent | Quy trình nằm ở `.ai/` (trung lập công cụ). `.claude/` và `.agents/` chỉ là điểm vào trỏ về `.ai/` |
 
@@ -84,11 +84,13 @@ CareNest_BE/
 │   ├── profiles/             "Đọc gì" theo vai: code (L1), feature (L2), architecture (L3-L4),
 │   │                         cross-repo, operations, full
 │   └── workflows/            "Làm theo bước nào": fix-bug, implement-feature, review-code,
-│                             update-api, update-database, deploy, update-knowledge
+│                             update-api, update-database, deploy, update-knowledge,
+│                             clarify-business (cổng nghiệp vụ), plan-change (plan làn L)
 │
 ├── .claude/                  Riêng Claude Code
-│   ├── settings.json         Đăng ký Stop hook
-│   ├── hooks/memory-reminder.mjs   Nhắc cập nhật memory tối đa 1 lần/session khi có sửa code
+│   ├── settings.json         Đăng ký hook + tắt AI attribution
+│   ├── hooks/                session-orient (đầu phiên), guard-edits (chặn/hỏi), track-activity,
+│   │                         stop-gate (verify theo làn, memory, AI-layer); harness.config.json
 │   ├── rules/                Coding rule tự áp theo loại file (frontmatter `paths`): java, controller,
 │   │                         service, database, security, testing
 │   └── skills/<workflow>/    Skill mỏng — chỉ trỏ về `.ai/workflows/`
@@ -117,9 +119,9 @@ CareNest_BE/
 │   ├── database/             Nguyên tắc DB; ERD, DATA_DICTIONARY (skeleton tới khi có migration)
 │   ├── decisions/            ADR-0001..0010 — quyết định kiến trúc/scope và lý do
 │   ├── knowledge/            ENGINEERING MEMORY (mục 6)
-│   ├── quality/              DEFINITION_OF_DONE, TEST_STRATEGY, NFR (có ID)
-│   ├── plans/                Kế hoạch thay đổi lớn (active/completed)
-│   └── api/                  OpenAPI export (chưa có; runtime Swagger: `/swagger-ui/index.html`)
+│   ├── quality/              DEFINITION_OF_DONE (theo làn), VERIFICATION (bằng chứng), TEST_STRATEGY, NFR
+│   ├── plans/                Plan làn L: _TEMPLATE.md, active/, completed/
+│   └── api/openapi.yaml      Snapshot hợp đồng API (test khóa; runtime Swagger: `/swagger-ui/index.html`)
 └── src/                      Source Spring Boot
 ```
 
@@ -197,5 +199,52 @@ Trong code: comment/test name dẫn rule ID khi implement rule (vd. `// NUT-03: 
 | Sửa khối "Quy tắc chung CareNest" trong `AGENTS.md` | Đồng bộ sang 2 repo còn lại (chỉ "Hỏi trước khi làm" và "Phạm vi" khác nhau) |
 | Đổi API/auth | Workflow `update-api` + cập nhật `CROSS_REPO_MAP.md`; báo FE/APP |
 | Review AI output | Kiểm tra AI dẫn rule ID, không implement rule PENDING/OPEN như đã chốt, có cập nhật memory |
+| Task nghiệp vụ AI hỏi lại nhiều vòng | Trả lời rõ, nói mức chốt (trường/team chốt hay chỉ đề xuất) — AI ghi vào `BUSINESS_RULES.md` để không hỏi lại |
+
+---
+
+## 9. Quy trình & cổng kiểm soát (ADR-0012)
+
+Mục tiêu: task lớn làm đủ quy trình, task nhỏ không tốn token vô ích; kiểm tra nặng do máy làm (hook, script, Maven), không dùng token model.
+
+### Làn S/M/L (chi tiết: bảng trong `AGENTS.md`)
+
+```text
+S  ≤2 file, việc rõ        → file đích + test → sửa → verify --quick → báo ≤3 dòng
+M  3–8 file, 1 module      → router → card → [clarify-business] → mini-plan → code + test → verify → báo ≤8 dòng
+L  vùng rủi ro / ≥2 module → clarify-business (hỏi tới khi rõ) → plan draft → USER DUYỆT
+                             → mỗi phase: code → verify → Progress log → DỪNG review
+                             → review (spec → severity → verdict) → DoD → done, chuyển completed/
+Mọi làn: tri thức/bug mới ⇒ update-knowledge · commit chỉ khi user cho phép
+```
+
+Vùng rủi ro = migration, `security/`, `integration/`, API contract, dependency/hạ tầng. Hook tính làn thực tế từ diff — agent không hạ làn để né quy trình được.
+
+### Cổng làm rõ nghiệp vụ
+Task đổi hành vi nghiệp vụ mà rule chưa có / PENDING / OPEN / yêu cầu lệch tài liệu ⇒ agent đưa block "Hiểu nghiệp vụ" (actor, outcome, rule + status, ảnh hưởng, chỗ lệch tài liệu `file:line`) rồi hỏi theo vòng (≤5 câu, có phương án + đề xuất) tới khi rõ. Câu trả lời được ghi vào `BUSINESS_RULES.md` (T1) nên lần sau không hỏi lại. Nguồn: `.ai/workflows/clarify-business.md`.
+
+### Các lớp kiểm soát
+
+| Lớp | Chạy khi | Làm gì |
+| --- | --- | --- |
+| Chữ | Mọi agent (Claude, Codex) | `AGENTS.md`, `.ai/workflows/`, `docs/quality/VERIFICATION.md`, DoD |
+| Claude hooks | Mở Claude **bên trong** repo (không phải thư mục `CareNest_CODE/`) | Đầu phiên: plan đang làm, branch thiếu commit AI-layer của main, git hook chưa bật. Khi sửa: chặn đọc/ghi `.env`; hỏi xác nhận khi sửa migration đã commit, `pom.xml`/Docker, `ResponseJson`/`ApiCode`, vùng rủi ro chưa có plan duyệt; hỏi trước commit/push/tạo branch; cấm `--no-verify`. Khi dừng: chưa có verify sau lần sửa cuối; gợi ý ghi memory khi có dấu hiệu bug khó |
+| Git hooks | Mọi người sau khi bật | Commit message (Conventional Commits, cấm AI attribution, thiếu `Refs:` chỉ cảnh báo); chặn `.env`, secret, sửa migration cũ; chạy check-ai-layer; pre-push kiểm lại message, chặn force push |
+| Kiểm chứng | Chạy tay hoặc hook gọi | `node scripts/verify.mjs [--quick]` (tóm tắt ≤10 dòng, log đầy đủ ghi ra file), `node scripts/check-ai-layer.mjs` |
+
+### Thiết lập 1 lần mỗi máy
+- Node ≥ 18 trên PATH; Docker chạy (Testcontainers).
+- Git hook tự bật (`core.hooksPath=.githooks`) khi mở Claude trong repo hoặc chạy `node scripts/verify.mjs`; bật tay: `git config core.hooksPath .githooks`.
+- Không có CI: nên bật `git config carenest.verifyOnPush true` để chạy verify trước khi push.
+
+### Khi Claude hỏi xác nhận
+- "Chưa có plan approved" ⇒ duyệt plan, yêu cầu lập plan, hoặc nói rõ vì sao không cần.
+- "Migration đã commit" ⇒ chỉ đồng ý khi migration chưa chạy ở môi trường nào; còn lại tạo migration mới.
+- Commit/push/tạo branch ⇒ xác nhận đúng ý mình (khớp quy tắc "không commit khi chưa cho phép").
+- Hook lỗi chặn nhầm ⇒ mở Claude với biến môi trường `CARENEST_HARNESS=off`, rồi báo lại để sửa hook.
+
+### Đọc kết quả cổng
+- `VERIFY FAIL` ⇒ đọc các dòng lỗi được tóm tắt; cần chi tiết thì grep file log mà dòng VERIFY chỉ tới. Snapshot fail = API đã đổi (cố ý ⇒ cập nhật snapshot theo `update-api.md`). Spotless fail ⇒ `mvnw.cmd spotless:apply`.
+- "Chưa kiểm chứng" ≠ fail: thiếu bằng chứng (vd. Docker tắt nên test tích hợp bị skip).
 
 Yêu cầu máy: Hook Claude cần Node ≥ 18. Không commit `.env`, `.claude/settings.local.json`.

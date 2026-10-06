@@ -1,6 +1,6 @@
 # Test Strategy
 
-Nguồn chuẩn: `docs/backend-coding-guide.md` mục 14. Stack: JUnit, Mockito, Spring Boot Test (`spring-boot-starter-webmvc-test`), Testcontainers PostgreSQL. Chạy: `./mvnw test`.
+Nguồn chuẩn: `docs/backend-coding-guide.md` mục 14. Stack: JUnit, Mockito, Spring Boot Test (`spring-boot-starter-webmvc-test`), Testcontainers PostgreSQL, ArchUnit. Chạy: `node scripts/verify.mjs` (full = `./mvnw verify`) hoặc `--quick` cho làn S (`docs/quality/VERIFICATION.md`).
 
 ## Tầng test
 
@@ -10,6 +10,8 @@ Nguồn chuẩn: `docs/backend-coding-guide.md` mục 14. Stack: JUnit, Mockito,
 | Application/integration | Service + DB thật, transaction, scope filter | Spring Boot Test + Testcontainers | Use case ghi dữ liệu; mọi query có scope |
 | Controller | `{code, desc, data}` + HTTP status, validation | WebMvc test; `ResponseContractTest` khi đổi handler | Mỗi endpoint |
 | Regression | Tái hiện bug đã fix | Tầng phù hợp nhất | Mọi bug fix |
+| Architecture | Ranh giới layer/feature (ADR-0001, guide §4–5) | ArchUnit `ArchitectureRulesTest` | Luôn chạy (cả `--quick`) |
+| Contract snapshot | OpenAPI = `docs/api/openapi.yaml` | `OpenApiSnapshotTest` (Testcontainers) | Mọi đổi endpoint/DTO |
 
 ## Kịch bản bắt buộc (từ rủi ro đã biết)
 
@@ -23,5 +25,6 @@ Nguồn chuẩn: `docs/backend-coding-guide.md` mục 14. Stack: JUnit, Mockito,
 ## Quy ước
 
 - Tên test mô tả hành vi: `shouldRequireReconfirmationWhenAttendanceChangesAfterConfirmation`.
-- Có thể ghi rule ID trong `@DisplayName` để trace: `@DisplayName("NUT-03: confirmed meal count is immutable")`.
+- Test hành vi có rule ID ⇒ ghi trong `@DisplayName` để trace (làn M/L bắt buộc): `@DisplayName("NUT-03: confirmed meal count is immutable")`.
+- Test tích hợp bị skip (Docker tắt) ≠ pass: báo "chưa kiểm chứng".
 - Dữ liệu test giả; builder/fixture theo module.

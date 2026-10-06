@@ -12,5 +12,5 @@ Nguồn chuẩn: guide mục 14; `docs/quality/TEST_STRATEGY.md`.
 - Controller: kiểm tra `{code, desc, data}` + HTTP status; thêm handler exception ⇒ thêm test vào `ResponseContractTest`.
 - Bug fix ⇒ regression test fail trước/pass sau; ghi tên test vào incident.
 - Kịch bản bắt buộc khi chạm vùng tương ứng: trẻ đến muộn sau khi suất đã xác nhận; truy cập chéo campus/lớp; AI tắt/timeout; input AI không chứa định danh trẻ.
-- Dữ liệu giả; không dữ liệu trẻ/phụ huynh thật. Không xóa/skip test fail để qua build — báo rõ.
+- Dữ liệu giả; không dữ liệu trẻ/phụ huynh thật. Không xóa/skip test fail để qua build — báo rõ. `ArchitectureRulesTest`, `OpenApiSnapshotTest` là cổng: không nới rule/regenerate cho qua.
 - Chạy: `./mvnw test` (Windows `mvnw.cmd test`).

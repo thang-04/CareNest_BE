@@ -3,5 +3,5 @@
 @AGENTS.md
 
 Riêng Claude:
-- `.claude/rules/` tự áp theo file đang sửa; skill `.claude/skills/<workflow>/` chỉ trỏ về `.ai/workflows/`.
-- Stop hook `.claude/hooks/memory-reminder.mjs` nhắc cập nhật memory tối đa 1 lần/session (cần Node ≥ 18). Không cần ⇒ trả lời 1 dòng lý do.
+- Hook `.claude/settings.json` hỏi ⇒ trả lời 1 dòng đúng sự thật.
+- Repo ưu tiên hơn skill: brainstorming chỉ làn L hoặc M có ≥2 phương án; câu hỏi gộp ≤5/vòng; spec vào plan; không commit; không `writing-plans`. Làn S bỏ brainstorming.
