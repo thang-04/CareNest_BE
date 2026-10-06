@@ -2,7 +2,7 @@
 
 - Status: ACCEPTED
 - Date: 2026-10-06
-- Liên quan: NFR-MAINT-02; ADR-0001 mục Hệ quả (ArchUnit "nếu nhóm đồng ý"); plan `docs/plans/active/2026-10-06-engineering-harness.md`. Tham khảo quy trình ClaudeKit Engineer (Iron Law, plan/phase, fix gate, review) và haren (plan gate, truy vết rule → test, Key decisions, Progress log).
+- Liên quan: NFR-MAINT-02; ADR-0001 mục Hệ quả (ArchUnit "nếu nhóm đồng ý"); plan `docs/plans/completed/2026-10-06-engineering-harness.md`. Tham khảo quy trình ClaudeKit Engineer (Iron Law, plan/phase, fix gate, review) và haren (plan gate, truy vết rule → test, Key decisions, Progress log).
 
 ## Bối cảnh
 Agent viết phần lớn code. Lớp AI (`.ai/`, `docs/`) giúp tìm đúng chỗ nhưng chưa chặn sai: báo xong không có bằng chứng, đổi contract/migration không plan, nghiệp vụ mơ hồ bị tự diễn giải, ranh giới layer chỉ dựa vào review (ADR-0001), format không thống nhất, test tích hợp skip khi tắt Docker vẫn bị coi là pass. Mọi cổng đều là chữ. Không có CI. Quy trình đầy đủ cho mọi task lại tốn token vô ích ở task nhỏ.

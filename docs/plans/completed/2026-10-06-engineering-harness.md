@@ -1,6 +1,6 @@
 ---
 title: Engineering harness — làn S/M/L, cổng làm rõ nghiệp vụ, Iron Law, hook, cổng Maven
-status: in-progress
+status: done
 owner: thangnd
 jira: none
 branch: main
@@ -131,3 +131,8 @@ Mỗi phase **dừng chờ user review**.
 - Từ AGENTS+CLAUDE (AC-1): BE 1057→1056, FE 1173→1171, APP 1239→1236 (so HEAD).
 - Khác plan: không có. Phát hiện nhờ checker: tham chiếu cũ `memory-reminder.mjs` trong ROUTER/CLAUDE/CONTEXT_MAP FE/APP — đã sửa.
 - Tiếp: user review toàn bộ; commit 3 repo khi user cho phép; user tự `git config core.hooksPath .githooks` ở mỗi repo. Sau đó plan ⇒ `done`, chuyển `completed/`.
+
+### 2026-10-06 — Hoàn tất
+- User duyệt toàn bộ; đã commit + push `main` 3 repo (BE `ba092d7..5615717`, FE `7de45f9..db72ede`, APP `3010ac6..d42636b`, `Refs: G94-115`). Git hook tự bật qua session-orient / `scripts/verify.mjs`.
+- Ghi chú: message commit BE `da47185` thiếu ý "git hooks" (nội dung đầy đủ; không rebase vì cần hỏi).
+- Còn ngoài phạm vi: merge `main` vào `feature/authentication` (spotless:apply, regenerate snapshot, frontmatter plan Keycloak).
