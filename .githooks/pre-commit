@@ -1,0 +1,83 @@
+#!/bin/sh
+# Chặn trước commit (<2s): file secret, sửa migration đã commit, secret trong dòng thêm, conflict marker,
+# AI-layer lệch (check-ai-layer). ADR-0012. Không dùng --no-verify để lách (AGENTS.md › Git).
+. "$(dirname "$0")/lib.sh"
+staged=$(git -c core.quotepath=off diff --cached --name-only --diff-filter=ACMR)
+
+# 1. File không bao giờ được commit
+for f in $staged; do
+  base=${f##*/}
+  case "$base" in
+    .env.example | .env.sample | .env.template) ;;
+    .env | .env.* | *.pem | *.key | *.p12 | *.pfx | *.jks | id_rsa* | id_ed25519*)
+      cn_err "không commit file bí mật: $f" ;;
+  esac
+done
+
+# 2. Migration đã có trong HEAD là bất biến (tạo V{n+1} mới); sau khi user duyệt: CARENEST_ALLOW_MIGRATION_EDIT=1
+changed_migrations=$(git -c core.quotepath=off diff --cached --name-status --diff-filter=MDR | awk '$2 ~ /db\/migration\/[^\/]+\.sql$/ {print $2}')
+for f in $changed_migrations; do
+  if git cat-file -e "HEAD:$f" 2>/dev/null; then
+    if [ "${CARENEST_ALLOW_MIGRATION_EDIT:-0}" = 1 ]; then
+      cn_warn "sửa migration đã commit $f (đã được cho phép)"
+    else
+      cn_err "migration đã commit là bất biến: $f — tạo migration mới V{n+1}__...sql"
+    fi
+  fi
+done
+dups=$(git ls-files 'src/main/resources/db/migration/V*.sql' | sed -n 's#.*/V\([0-9_]*\)__.*#\1#p' | sort | uniq -d)
+[ -z "$dups" ] || cn_err "trùng version migration: $(echo $dups)"
+for f in $staged; do
+  case "$f" in
+    */db/migration/*.sql)
+      printf '%s' "${f##*/}" | grep -Eq '^(V[0-9]+(_[0-9]+)*|R)__[A-Za-z0-9_]+\.sql$' || cn_warn "tên migration nên dạng V{n}__mo_ta.sql: $f" ;;
+  esac
+done
+
+# 3. Secret + conflict marker trong dòng được thêm (bỏ qua dòng có carenest:allow-secret, giá trị ${...})
+hits=$(git -c core.quotepath=off diff --cached -U0 --no-color --diff-filter=ACM | awk '
+  /^\+\+\+ b\// { file = substr($0, 7); next }
+  /^\+/ && !/carenest:allow-secret/ {
+    line = substr($0, 2); low = tolower(line)
+    if (line ~ /^(<<<<<<<|>>>>>>>) /) { print "CONFLICT|" file; next }
+    secret = 0
+    if (line ~ /-----BEGIN [A-Z ]*PRIVATE KEY-----/) secret = 1
+    if (line ~ /AKIA[0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z][0-9A-Z]/) secret = 1
+    if (line ~ /eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/ && length(line) > 60) secret = 1
+    if (line ~ /gh[pousr]_[A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9][A-Za-z0-9]+/) secret = 1
+    if (line ~ /sk-(ant-)?[A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-]+/) secret = 1
+    if (low ~ /(password|passwd|secret|client[_-]?secret|api[_-]?key|access[_-]?token|private[_-]?key)["\047]?[ \t]*[:=][ \t]*["\047]?[a-z0-9\/+_.!@#%^&*-][a-z0-9\/+_.!@#%^&*-][a-z0-9\/+_.!@#%^&*-][a-z0-9\/+_.!@#%^&*-][a-z0-9\/+_.!@#%^&*-][a-z0-9\/+_.!@#%^&*-][a-z0-9\/+_.!@#%^&*-][a-z0-9\/+_.!@#%^&*-]/ \
+        && low !~ /change-?me|example|placeholder|dummy|your[_-]|xxxx|\*\*\*/) secret = 1
+    if (secret) print "SECRET|" file
+  }' | sort -u)
+for h in $hits; do
+  kind=${h%%|*}; f=${h#*|}
+  if [ "$kind" = CONFLICT ]; then
+    cn_err "còn conflict marker trong $f"
+  else
+    case "$f" in
+      src/test/* | *.example) cn_warn "có thể chứa secret (file test/example): $f" ;;
+      *) cn_err "có thể chứa secret: $f — dùng biến môi trường; nếu là giả thì thêm comment carenest:allow-secret" ;;
+    esac
+  fi
+done
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks git --pre-commit --staged --redact --no-banner >/dev/null 2>&1 || gitleaks protect --staged --redact >/dev/null 2>&1 || cn_err "gitleaks phát hiện secret (chạy 'gitleaks git --pre-commit --staged' để xem)"
+fi
+
+# 4. Lớp tài liệu AI phải nhất quán khi bị sửa
+if printf '%s\n' $staged | grep -Eq '^(AGENTS\.md|CLAUDE\.md|\.ai/|\.claude/|\.agents/|docs/)'; then
+  if command -v node >/dev/null 2>&1 && [ -f scripts/check-ai-layer.mjs ]; then
+    node scripts/check-ai-layer.mjs --quiet >&2
+    case $? in
+      0) ;;
+      1) cn_err "check-ai-layer báo lỗi (xem trên)" ;;
+      *) cn_warn "check-ai-layer không chạy được — bỏ qua" ;;
+    esac
+  else
+    cn_warn "không có node — bỏ qua check-ai-layer"
+  fi
+fi
+
+[ "$CN_ERRORS" -eq 0 ] || { echo "[CareNest] Commit bị chặn ($CN_ERRORS lỗi). Sửa nguyên nhân, không dùng --no-verify." >&2; exit 1; }
+exit 0

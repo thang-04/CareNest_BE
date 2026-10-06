@@ -1,0 +1,31 @@
+# LF trong repo và working tree kể cả Windows core.autocrlf=true (Spotless, script container Linux, hook) — ADR-0012
+* text=auto eol=lf
+
+# Script Windows giữ CRLF
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Script chạy trong container Linux / git hook phải giữ LF
+*.sh text eol=lf
+mvnw text eol=lf
+.githooks/* text eol=lf
+
+# Binary
+*.jar binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.pptx binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+*.jks binary
+*.keystore binary
+*.p12 binary
