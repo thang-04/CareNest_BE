@@ -6,5 +6,284 @@ info:
 servers:
 - description: Generated server url
   url: http://localhost
-paths: {}
-components: {}
+security:
+- bearerAuth: []
+paths:
+  /api/accounts:
+    post:
+      operationId: createAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCreateAccountResponse"
+          description: OK
+      tags:
+      - account-controller
+  /api/accounts/me:
+    get:
+      operationId: getMyAccount
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMyAccountResponse"
+          description: OK
+      tags:
+      - account-controller
+  /api/accounts/{userId}/status:
+    patch:
+      operationId: updateAccountStatus
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountResponse"
+          description: OK
+      tags:
+      - account-controller
+  /api/children/{childId}:
+    get:
+      operationId: getChildProfile
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildProfileResponse"
+          description: OK
+      tags:
+      - child-controller
+components:
+  schemas:
+    AccountResponse:
+      type: object
+      properties:
+        email:
+          type: string
+        fullName:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+    ChildProfileResponse:
+      type: object
+      properties:
+        classroomId:
+          type: integer
+          format: int64
+        dateOfBirth:
+          type: string
+          format: date
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+    CreateAccountRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+        fullName:
+          type: string
+          maxLength: 150
+          minLength: 0
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+        temporaryPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+        username:
+          type: string
+          maxLength: 100
+          minLength: 3
+          pattern: "^[A-Za-z0-9._-]+$"
+      required:
+      - fullName
+      - role
+      - username
+    CreateAccountResponse:
+      type: object
+      properties:
+        email:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+        setupEmailSent:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+    MyAccountResponse:
+      type: object
+      properties:
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffAssignmentSummaryResponse"
+        childIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        email:
+          type: string
+        fullName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - ADMIN
+            - PRINCIPAL
+            - VICE_PRINCIPAL
+            - TEACHER
+            - KITCHEN_STAFF
+            - PARENT
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+    ResponseJsonAccountResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AccountResponse"
+        desc:
+          type: string
+    ResponseJsonChildProfileResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildProfileResponse"
+        desc:
+          type: string
+    ResponseJsonCreateAccountResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/CreateAccountResponse"
+        desc:
+          type: string
+    ResponseJsonMyAccountResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MyAccountResponse"
+        desc:
+          type: string
+    StaffAssignmentSummaryResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        staffRole:
+          type: string
+          enum:
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+    UpdateAccountStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      required:
+      - status
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
