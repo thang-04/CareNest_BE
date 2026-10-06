@@ -18,10 +18,6 @@ Nguồn chuẩn: `docs/backend-coding-guide.md` mục 12. PostgreSQL 17, Spring 
    - Enum: `VARCHAR` + `CHECK (... IN (...))`, JPA `@Enumerated(EnumType.STRING)`.
    - Tên ràng buộc: `uk_<bảng>_<cột>`, `ck_<bảng>_<ý nghĩa>`, `fk_<bảng>_<cột>`, `idx_<bảng>_<cột>`. Không tiền tố bảng.
 
-## Entity khởi đầu (nháp, guide mục 12)
-
-Campus, Class, User, Role, StaffAssignment, Child, GuardianChildLink · AttendanceSession, AttendanceRecord, MealPlan, MealCount, MealConfirmation · HealthRecord, Observation, DevelopmentAssessment, SharedChildUpdate · MediaAsset, FacilityReport, Notification, AuditEvent. Chốt theo use case trước khi tạo migration.
-
 ## Tài liệu liên quan
 
 ERD: `ERD.md` (SKELETON) · Data dictionary: `DATA_DICTIONARY.md` (SKELETON) · Entity khái niệm: `docs/business/DOMAIN_MODEL.md` · Quy trình: `.ai/workflows/update-database.md`.

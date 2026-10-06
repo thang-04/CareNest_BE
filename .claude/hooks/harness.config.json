@@ -1,0 +1,60 @@
+{
+  "repo": "BE",
+  "siblings": {
+    "BE": ["../CareNest_BE-main", "../CareNest_BE"],
+    "FE": ["../CareNest_FE"],
+    "APP": ["../CareNest_APP"]
+  },
+  "lanes": {
+    "smallMaxFiles": 2,
+    "mediumMaxFiles": 8,
+    "riskGlobs": [
+      "src/main/resources/db/migration/**",
+      "src/main/java/com/carenest/security/**",
+      "src/main/java/com/carenest/integration/**",
+      "src/main/java/com/carenest/utils/ResponseJson.java",
+      "src/main/java/com/carenest/utils/ApiCode.java",
+      "src/main/java/com/carenest/exception/GlobalExceptionHandler.java",
+      "src/main/java/com/carenest/config/WebMvcConfig.java",
+      "docs/api/openapi.yaml",
+      "pom.xml",
+      "Dockerfile",
+      "compose*.yaml"
+    ]
+  },
+  "verify": {
+    "activeWhen": ["pom.xml"],
+    "globs": ["src/**", "pom.xml", ".mvn/**"],
+    "display": "node scripts/verify.mjs"
+  },
+  "guard": {
+    "immutableGlobs": ["src/main/resources/db/migration/**"],
+    "dependencyGlobs": ["pom.xml", "Dockerfile", "compose.yaml", "compose.*.yaml", ".mvn/wrapper/**", "mvnw", "mvnw.cmd"],
+    "contractGlobs": [
+      "src/main/java/com/carenest/utils/ResponseJson.java",
+      "src/main/java/com/carenest/utils/ApiCode.java",
+      "src/main/java/com/carenest/config/WebMvcConfig.java"
+    ],
+    "highRisk": [
+      { "glob": "src/main/java/com/carenest/security/**", "when": "any" },
+      { "glob": "src/main/java/com/carenest/integration/**", "when": "any" },
+      { "glob": "src/main/resources/db/migration/**", "when": "new" }
+    ]
+  },
+  "checkAiLayer": {
+    "pathRoots": ["docs", ".ai", "src/main/java/com/carenest", "src/main/resources"],
+    "incidentRequired": ["id", "type", "modules", "status", "date", "keywords"],
+    "incidentIdPattern": "^(BUG|CASE|ENV)-\\d{6}-[a-z0-9-]+$",
+    "sharedFiles": [
+      ".claude/settings.json",
+      ".claude/hooks/*.mjs",
+      ".claude/hooks/lib/**",
+      ".claude/hooks/__tests__/**",
+      ".githooks/**",
+      "scripts/**",
+      ".gitattributes",
+      ".editorconfig",
+      "docs/plans/_TEMPLATE.md"
+    ]
+  }
+}

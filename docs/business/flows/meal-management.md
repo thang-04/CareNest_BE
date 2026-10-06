@@ -1,6 +1,6 @@
 # Flow — Thực đơn, dinh dưỡng, định lượng, bếp
 
-Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất). Rule: NUT-*, AI-*. ADR: 0005, 0007, 0008, 0009.
+Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất). Rule: NUT-*, AI-*. ADR: 0005, 0007, 0008, 0009 (OPEN).
 
 ## Pipeline xác định
 
@@ -16,7 +16,9 @@ MealPlan APPROVED → tính dinh dưỡng (NUT-06)
 MealCount CONFIRMED (flow attendance.md) × Recipe → FoodQuantityPlan (NUT-07)
       ↓
 [S] Bếp xem kế hoạch định lượng theo Fresh / Stored
-[B] Đặt/nhận hàng NCC, xuất kho khô, nấu — ngoài hệ thống V1 (P-08, P-09)
+[B] Đặt/nhận hàng NCC, xuất kho khô — ngoài hệ thống cho tới khi chốt ADR-0009 (P-08, P-09)
+      ↓
+    Chuẩn bị bếp + bàn giao suất (mục dưới)
 ```
 
 ## AI gợi ý thực đơn (tùy chọn, không bắt buộc)
@@ -31,6 +33,22 @@ Người có quyền review/sửa/duyệt → APPROVED
 AI tắt/lỗi → lập MealPlan thủ công như bình thường (AI-03)
 ```
 
-## Ngoài phạm vi V1
+## Chuẩn bị bếp + bàn giao suất — PROPOSED (NUT-14..16, BP-BT-03)
 
-Tồn kho kho khô, nhập/xuất kho, quản lý NCC, giá hợp đồng, đổi/trả thực phẩm (ADR-0009). Không tự thêm entity cho các phần này.
+```text
+[S] Bếp xem: thực đơn đã duyệt, số suất CONFIRMED, định lượng, dị ứng cần lưu ý (theo campus)
+[S] Bếp cập nhật: WAITING_TO_COOK → COOKING                                    (NUT-14)
+[B] Bếp nấu / chuẩn bị
+[S] Bếp cập nhật READY_FOR_HANDOVER; tùy chọn chụp ảnh món (NUT-16)
+[S] Hệ thống hiển thị số suất cần chia cho từng lớp
+[B] Bếp chia suất, mang tới lớp
+[S] GV xác nhận số suất nhận                                                    (NUT-15)
+      ├─ đúng số  → hệ thống ghi HANDED_OVER cho lớp
+      └─ thiếu/sai → bếp bổ sung [B] → bàn giao lại → GV xác nhận lại
+```
+
+Còn mở: số suất của lớp lấy từ MealCount CONFIRMED (campus) chia theo MealParticipation của lớp; trẻ đến muộn sau chốt ⇒ P-04.
+
+## Kho thực phẩm — OPEN (ADR-0009)
+
+BP-BT-03 có luồng kho (kiểm tồn → nhập từ NCC → PHT duyệt xuất → bếp nhận → đối soát). Chưa chốt có làm hay không ⇒ không tự thêm entity kho/NCC; gặp yêu cầu kho ⇒ dừng, hỏi.

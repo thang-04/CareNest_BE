@@ -19,4 +19,4 @@ Team 5 người, SEP490, thời gian giới hạn; nhiều nghiệp vụ liên k
 | Microservices | Độc lập deploy | Quá tải vận hành |
 
 ## Hệ quả
-Service feature A không dùng repository feature B; không tạo vòng phụ thuộc giữa feature. Có thể bổ sung test kiến trúc (ArchUnit) sau nếu nhóm đồng ý — không tự thêm dependency.
+Service feature A không dùng repository feature B; không tạo vòng phụ thuộc giữa feature. Có thể bổ sung test kiến trúc (ArchUnit) sau nếu nhóm đồng ý — không tự thêm dependency. → Đã làm: ADR-0012 (`ArchitectureRulesTest`).

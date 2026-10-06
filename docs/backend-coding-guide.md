@@ -18,7 +18,7 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 
 | Trong v1 | Không thuộc v1 |
 | --- | --- |
-| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay thế PMS/GoKids; soạn và duyệt giáo án; tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
+| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; soạn và duyệt giáo án (GoKids giữ); kho/NCC (OPEN — ADR-0009); tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
 
 ## 2. Tech stack
 
@@ -42,14 +42,13 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 ```text
 CareNest_BE/
 ├── README.md                 # Cách chạy, cấu hình, test
-├── CONTRIBUTING.md           # Quy tắc Git và coding convention
 ├── pom.xml
 ├── Dockerfile
 ├── compose.yaml              # API + PostgreSQL cho dev/demo
 ├── .env.example              # Tên biến môi trường, KHÔNG chứa secret
 ├── docs/
-│   ├── architecture/         # Sơ đồ và quyết định kiến trúc
-│   └── api/                  # OpenAPI export / ví dụ request
+│   ├── INDEX.md              # Bản đồ tài liệu (nghiệp vụ, kiến trúc, ADR ở decisions/, memory ở knowledge/)
+│   └── api/                  # openapi.yaml: snapshot hợp đồng, khóa bởi OpenApiSnapshotTest
 └── src/
     ├── main/
     │   ├── java/.../carenest/
@@ -63,7 +62,7 @@ CareNest_BE/
     │   │   ├── security/     # Xác thực và kiểm tra quyền
     │   │   ├── config/       # Cấu hình Spring, OpenAPI, WebMvc
     │   │   ├── exception/    # GlobalException, GlobalExceptionHandler
-    │   │   ├── utils/        # ApiCode, ResponseJson, CommonUtils; hàm stateless
+    │   │   ├── utils/        # ApiCode, ResponseJson; hàm stateless
     │   │   └── common/       # Thành phần dùng chung khác
     │   └── resources/
     │       ├── application.yml
@@ -227,9 +226,6 @@ carenest:
 ### 8.2. Ví dụ
 
 ```json
-// 200 — có dữ liệu
-{ "code": 200, "desc": "Get child profile success", "data": { "id": 123, "name": "Example" } }
-
 // 200 — không có dữ liệu
 { "code": 200, "desc": "Update success", "data": null }
 
@@ -251,7 +247,7 @@ File nguồn là chuẩn; guide không chép lại code.
 
 | File | Vai trò |
 | --- | --- |
-| `src/main/java/com/carenest/utils/ApiCode.java` | Enum mã: `SUCCESSFUL 200`, `CREATED 201`, `BAD_REQUEST 400` (alias `UNSUCCESSFUL`), `UNAUTHORIZED 401`, `FORBIDDEN 403`, `NOT_FOUND 404`, `METHOD_NOT_ALLOWED 405`, `CONFLICT 409`, `PAYLOAD_TOO_LARGE 413`, `UNSUPPORTED_MEDIA_TYPE 415`, `INTERNAL_ERROR 500`, `SERVICE_UNAVAILABLE 503` (AI/storage), `GATEWAY_TIMEOUT 504` (AI timeout). `getCode()` = HTTP status |
+| `src/main/java/com/carenest/utils/ApiCode.java` | Enum mã; `getCode()` = HTTP status. Danh sách + dùng theo tình huống nghiệp vụ: `docs/contracts/ERROR_CONTRACT.md` |
 | `src/main/java/com/carenest/utils/ResponseJson.java` | `toJsonWithData(ApiCode, desc, data)`, `toJson(ApiCode, desc)` trả `ResponseEntity` với HTTP status từ `ApiCode`; `of(...)` chỉ tạo body (dùng khi tự ghi response, vd. filter). `@JsonInclude(ALWAYS)` giữ `data: null` |
 | `src/main/java/com/carenest/dto/common/PageResponse.java` | `PageResponse.from(page)` hoặc `PageResponse.from(page, mapper::toResponse)` |
 | `src/test/java/com/carenest/exception/ResponseContractTest.java` | Test hợp đồng response; chạy lại khi sửa các file trên |
@@ -373,14 +369,7 @@ try {
 - pgvector chỉ bật khi làm semantic search/RAG; migration bật extension tách riêng.
 - Ràng buộc nghiệp vụ quan trọng NÊN có ràng buộc DB tương ứng (unique, foreign key, not null).
 
-Nhóm entity khởi đầu (nháp để vẽ ERD; PHẢI chốt theo use case trước khi tạo migration):
-
-| Nhóm | Entity |
-| --- | --- |
-| Tổ chức & truy cập | Campus, Class, User, Role, StaffAssignment, Child, GuardianChildLink |
-| Điểm danh & bữa ăn | AttendanceSession, AttendanceRecord, MealPlan, MealCount, MealConfirmation |
-| Hồ sơ trẻ | HealthRecord, Observation, DevelopmentAssessment, SharedChildUpdate |
-| Tệp & vận hành | MediaAsset, FacilityReport, Notification, AuditEvent |
+Entity và quan hệ: `docs/business/DOMAIN_MODEL.md` (tên chuẩn, vd. `Classroom`, `UserAccount`). Chốt theo use case trước khi tạo migration.
 
 ## 13. Quy tắc nghiệp vụ PHẢI giữ trong code
 
@@ -414,7 +403,7 @@ Nhóm entity khởi đầu (nháp để vẽ ERD; PHẢI chốt theo use case tr
 - Repository/migration/luồng tích hợp: Testcontainers với PostgreSQL thật.
 - Controller NÊN có test kiểm tra dạng response `{code, desc, data}` và HTTP status cho thành công + lỗi.
 - Test KHÔNG dùng dữ liệu thật của trẻ/phụ huynh; dùng dữ liệu giả.
-- Docker Compose (API + PostgreSQL) cho dev/demo; CI chạy build + test.
+- Docker Compose (API + PostgreSQL) cho dev/demo. Chưa có CI: cổng local `node scripts/verify.mjs` (= `./mvnw verify`: test + ArchUnit + snapshot OpenAPI + Spotless) — ADR-0012.
 - Secret qua biến môi trường; `.env.example` chỉ chứa tên biến.
 
 ## 15. Thứ tự triển khai
@@ -449,6 +438,7 @@ Chạy trên diff trước khi tạo PR hoặc báo task xong. Mục không áp 
 - [ ] Không gọi SDK AI/storage/notification trực tiếp ngoài `integration/`.
 - [ ] Quy tắc nghiệp vụ ở mục 13 liên quan được giữ (idempotent điểm danh, suất ăn từ trẻ có mặt + đăng ký ăn, AI không quyết định cuối...).
 - [ ] Có test cho hành vi chính, lỗi quan trọng và trường hợp bị từ chối quyền.
-- [ ] OpenAPI cập nhật nếu đổi endpoint/DTO; đã nêu tác động FE/APP.
+- [ ] Snapshot `docs/api/openapi.yaml` cập nhật nếu đổi endpoint/DTO; đã nêu consumer FE/APP cụ thể.
+- [ ] Có dòng `VERIFY PASS` theo làn trong lượt (`docs/quality/VERIFICATION.md`); test tích hợp/snapshot không bị skip.
 - [ ] Comment chỉ ở logic chính và ngắn (mục 6.2); không code comment-out, không thông tin AI.
 - [ ] Không commit secret, `.env`, dữ liệu thật.

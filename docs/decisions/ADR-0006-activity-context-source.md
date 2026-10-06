@@ -5,7 +5,7 @@
 - Liên quan: OBS-07, OBS-08, module learning-observation
 
 ## Bối cảnh
-GoKids giữ soạn/nộp/duyệt giáo án (CONFIRMED). Feedback review 24/09: nếu đánh giá/AI không biết hoạt động dự kiến, nội dung đã dạy, mục tiêu ⇒ phân tích thiếu ngữ cảnh. CareNest **không** clone GoKids.
+GoKids giữ soạn/nộp/duyệt giáo án (OBS-08, team chốt 02/10). Review 24/09: nếu đánh giá/AI không biết hoạt động dự kiến, nội dung đã dạy, mục tiêu ⇒ phân tích thiếu ngữ cảnh; giảng viên nghiêng về import nội dung bài/kế hoạch tuần từ GoKids (API) để GV không phải làm 2 nơi, phương án "chỉ mô tả ngắn" được coi là tạm được. Import về chỉ là dữ liệu tham chiếu, quản lý theo năm học, không duyệt lại trong CareNest.
 
 ## Phương án
 | Phương án | Mô tả | Ưu | Nhược |

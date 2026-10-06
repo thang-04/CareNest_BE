@@ -1,0 +1,41 @@
+#!/bin/sh
+# Trước push: kiểm lại message mọi commit sắp push (bắt commit tạo bằng --no-verify), chặn force push,
+# tùy chọn chạy verify (git config carenest.verifyOnPush true) vì chưa có CI. ADR-0012.
+. "$(dirname "$0")/lib.sh"
+zero=0000000000000000000000000000000000000000
+tmp=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/carenest-msg.$$")
+
+while read -r lref lsha rref rsha; do
+  [ -n "$lsha" ] || continue
+  case "$lsha" in *[!0]*) ;; *) cn_warn "xóa ref $rref trên remote"; continue ;; esac
+
+  if [ "$rsha" = "$zero" ] || ! git cat-file -e "$rsha" 2>/dev/null; then
+    range=$(git rev-list "$lsha" --not --remotes)
+  else
+    if ! git merge-base --is-ancestor "$rsha" "$lsha"; then
+      if [ "${CARENEST_ALLOW_FORCE_PUSH:-0}" = 1 ]; then
+        cn_warn "force push $rref (đã được cho phép)"
+      else
+        cn_err "force push $rref viết lại lịch sử remote — cần user cho phép (CARENEST_ALLOW_FORCE_PUSH=1)"
+      fi
+    fi
+    range=$(git rev-list "$rsha..$lsha")
+  fi
+
+  for sha in $range; do
+    git log -1 --format=%B "$sha" > "$tmp"
+    before=$CN_ERRORS
+    CN_QUIET_WARN=1 cn_validate_msg "$tmp"
+    [ "$CN_ERRORS" -eq "$before" ] || echo "[CareNest]   ↑ commit $(git log -1 --format='%h %s' "$sha")" >&2
+  done
+done
+rm -f "$tmp"
+
+if [ "$CN_ERRORS" -eq 0 ] && [ "$(git config --bool carenest.verifyOnPush)" = true ]; then
+  if [ -f scripts/verify.mjs ] && command -v node >/dev/null 2>&1; then
+    node scripts/verify.mjs || cn_err "verify fail — sửa trước khi push"
+  fi
+fi
+
+[ "$CN_ERRORS" -eq 0 ] || { echo "[CareNest] Push bị chặn ($CN_ERRORS lỗi)." >&2; exit 1; }
+exit 0

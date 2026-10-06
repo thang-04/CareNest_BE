@@ -12,4 +12,4 @@ Nguồn chuẩn: guide mục 5, 7, 8.
 - `@Valid` request DTO; trả `ResponseJson.toJsonWithData(ApiCode.X, desc, data)` / `ResponseJson.toJson(...)`. Lỗi ⇒ để service ném `GlobalException`.
 - Danh sách: phân trang, `data` = `PageResponse`.
 - Xác nhận/duyệt: `POST /{id}/confirm|approve`. DTO phụ huynh riêng, chỉ field được phép (ADR-0010).
-- Đổi endpoint/DTO ⇒ hỏi nhóm, cập nhật OpenAPI, nêu tác động FE/APP (`.ai/workflows/update-api.md`).
+- Đổi endpoint/DTO ⇒ hỏi nhóm, cập nhật snapshot `docs/api/openapi.yaml`, nêu tác động FE/APP (`.ai/workflows/update-api.md`).

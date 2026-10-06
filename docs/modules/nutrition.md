@@ -3,16 +3,16 @@
 Feature: `meals` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thiết kế
 
 ## Mục đích
-Pipeline dinh dưỡng xác định: thực phẩm → món → thực đơn → số suất đã chốt → định lượng; màn hình bếp.
+Pipeline dinh dưỡng xác định: thực phẩm → món → thực đơn → số suất đã chốt → định lượng; màn hình bếp, trạng thái chuẩn bị và bàn giao suất (PROPOSED).
 
 ## Owns
-Food, NutrientValue (source, sourceVersion), Dish, Recipe, MealPlan (nháp/duyệt), MealCount, MealConfirmation (lịch sử xác nhận), FoodQuantityPlan, phân loại Fresh/Stored. Tên entity theo guide mục 12 (nháp).
+Food, NutrientValue (source, sourceVersion), Dish, Recipe, MealPlan (nháp/duyệt), MealCount, MealConfirmation (lịch sử xác nhận), FoodQuantityPlan, phân loại Fresh/Stored; MealPreparation, MealHandover (PROPOSED). Tên entity: `docs/business/DOMAIN_MODEL.md`.
 
 ## KHÔNG owns
-Điểm danh/báo ăn (attendance), dị ứng gốc (child), tồn kho/NCC (ngoài V1 — ADR-0009).
+Điểm danh/báo ăn (attendance), dị ứng gốc (child), tồn kho/NCC (OPEN — ADR-0009, chưa làm).
 
 ## Rules
-NUT-01..13, AI-01..06. Flow: `docs/business/flows/meal-management.md`, `docs/business/flows/attendance.md`.
+NUT-01..16, AI-01..06. Flow: `docs/business/flows/meal-management.md`, `docs/business/flows/attendance.md`.
 
 ## Phụ thuộc
 - Dùng: service `attendance` (MealParticipation), service `child` (allergySummary), service `organization`, `AiClient` (`integration/`).
@@ -36,4 +36,4 @@ P-04, P-05, P-06, P-07, P-08, P-09, P-10.
 Chưa có. Rủi ro dự kiến: CMR-01, CMR-02.
 
 ## Đọc thêm khi
-Đụng AI menu ⇒ card ai-assistance + ADR-0007/0008. Đụng kho/NCC ⇒ dừng, hỏi (ngoài V1).
+Đụng AI menu ⇒ card ai-assistance + ADR-0007/0008. Đụng kho/NCC ⇒ dừng, hỏi (ADR-0009 OPEN).

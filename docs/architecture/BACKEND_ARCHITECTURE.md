@@ -24,7 +24,7 @@ Nguồn chuẩn cho code: `docs/backend-coding-guide.md` (từ `CareNest_Backend
 
 | Dẫn xuất | Chiến lược |
 | --- | --- |
-| Số suất ăn | Tính từ trẻ **có mặt + đăng ký ăn**; BGH xác nhận; thay đổi sau xác nhận ⇒ lưu lịch sử, đánh dấu đã thay đổi, yêu cầu xác nhận lại; bếp chỉ thấy số đã xác nhận (guide 13.1) |
+| Số suất ăn | NUT-01, NUT-02, NUT-03 (ADR-0005, guide 13.1) |
 | Định lượng thực phẩm | Từ số suất đã xác nhận × định lượng thực đơn đã duyệt |
 | Hồ sơ phát triển, báo cáo | Query lúc đọc, không lưu bản sao |
 | Trend sức khỏe | Tính lúc đọc |

@@ -1,3 +1,15 @@
+---
+title: Keycloak + Spring Security Resource Server + Domain Authorization
+status: in-progress
+owner: thangnd
+jira: G94-60
+branch: feature/authentication
+modules: [identity-access, school-structure, child]
+rules: [AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-06, AUTH-07]
+risk: high
+created: 2026-10-04
+updated: 2026-10-06
+---
 # CareNest BE — Keycloak + Spring Security Resource Server + Domain Authorization
 
 ## Context

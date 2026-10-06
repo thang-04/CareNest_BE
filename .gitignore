@@ -6,6 +6,9 @@ target/
 .env
 *.env.local
 
+# Claude Code (cấu hình cá nhân)
+.claude/settings.local.json
+
 # IDE
 .idea/
 *.iml

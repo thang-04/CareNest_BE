@@ -1,9 +1,9 @@
 ---
-id: BUG-000            # BUG-xxx | CASE-xxx | ENV-xxx
+id: BUG-YYMMDD-slug    # BUG- | CASE- | ENV- ; tên file = <id>.md
 type: bug              # bug | edge-case | env
 modules: [attendance, nutrition]
 rules: [ATT-07, NUT-03]
-status: fixed          # fixed | workaround | open
+status: open           # open (đang điều tra, root cause có thể chưa rõ) | workaround | fixed
 date: YYYY-MM-DD
 keywords: [đến muộn, meal count, stale]
 similar_to: []         # ID incident liên quan
@@ -20,13 +20,13 @@ Hiện tượng quan sát được. Chuỗi lỗi **nguyên văn** (dòng quyế
 ## Điều kiện tái hiện
 Dữ liệu tối thiểu, bước, môi trường. Không dùng dữ liệu trẻ thật.
 
-## Attempts — đã thử
+## Attempts — đã thử (cập nhật mỗi phiên điều tra, để phiên sau không lặp lại)
 | # | Cách thử | Kết quả | Vì sao không đúng / bài học |
 | --- | --- | --- | --- |
 | 1 | | | |
 
 ## Root cause
-Nguyên nhân + **bằng chứng** (file:line, log, test chứng minh).
+Nguyên nhân + **bằng chứng** (file:line, log, test chứng minh). Chưa chứng minh ⇒ ghi `Chưa rõ` + giả thuyết hiện tại.
 
 ## Fix
 Thay đổi gì, ở đâu (file/PR/commit). Vì sao cách này đúng.
