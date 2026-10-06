@@ -26,6 +26,8 @@ carenest:
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}
+  # Múi giờ trường: xác định "hôm nay" khi xét phân công/enrollment còn hiệu lực
+  time-zone: ${CARENEST_TIME_ZONE:Asia/Ho_Chi_Minh}
   security:
     jwt:
       # iss phải khớp tuyệt đối với token Keycloak phát hành (KC_HOSTNAME); JWKS có thể lấy qua địa chỉ nội bộ
