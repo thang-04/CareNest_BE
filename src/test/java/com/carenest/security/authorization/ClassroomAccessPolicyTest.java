@@ -28,8 +28,11 @@ class ClassroomAccessPolicyTest {
 
     private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
     private final ClassroomService classroomService = mock(ClassroomService.class);
-    private final ClassroomAccessPolicy policy = new ClassroomAccessPolicy(staffAssignmentService, classroomService,
-            new CampusAccessPolicy(staffAssignmentService, FIXED_CLOCK), FIXED_CLOCK);
+    private final ClassroomAccessPolicy policy = new ClassroomAccessPolicy(
+            staffAssignmentService,
+            classroomService,
+            new CampusAccessPolicy(staffAssignmentService, FIXED_CLOCK),
+            FIXED_CLOCK);
 
     @BeforeEach
     void setUpClassrooms() {
@@ -40,7 +43,8 @@ class ClassroomAccessPolicyTest {
     @Test
     void teacherCanViewAssignedClassroom() {
         CurrentUser teacher = user(CareNestRole.TEACHER);
-        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), CLASS_A1, TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), CLASS_A1, TODAY))
+                .willReturn(true);
 
         assertThat(policy.canViewClassroom(teacher, CLASS_A1)).isTrue();
         // ngày xét là "hôm nay" theo Clock (múi giờ trường), không phải tham số client gửi
@@ -50,7 +54,8 @@ class ClassroomAccessPolicyTest {
     @Test
     void teacherCannotViewUnassignedClassroom() {
         CurrentUser teacher = user(CareNestRole.TEACHER);
-        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), CLASS_A1, TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), CLASS_A1, TODAY))
+                .willReturn(true);
 
         assertThat(policy.canViewClassroom(teacher, CLASS_B1)).isFalse();
     }
@@ -58,7 +63,8 @@ class ClassroomAccessPolicyTest {
     @Test
     void teacherWithEndedAssignmentIsDenied() {
         CurrentUser teacher = user(CareNestRole.TEACHER);
-        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), CLASS_A1, TODAY)).willReturn(false);
+        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), CLASS_A1, TODAY))
+                .willReturn(false);
 
         assertThat(policy.canViewClassroom(teacher, CLASS_A1)).isFalse();
     }
@@ -66,8 +72,9 @@ class ClassroomAccessPolicyTest {
     @Test
     void vicePrincipalCanViewClassroomsOfAssignedCampusOnly() {
         CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
-        given(staffAssignmentService.hasActiveCampusAssignment(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL,
-                CAMPUS_A, TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
 
         assertThat(policy.canViewClassroom(vicePrincipal, CLASS_A1)).isTrue();
         assertThat(policy.canViewClassroom(vicePrincipal, CLASS_B1)).isFalse();
@@ -76,7 +83,8 @@ class ClassroomAccessPolicyTest {
     @Test
     void unknownClassroomIsDeniedLikeOutOfScope() {
         CurrentUser principal = user(CareNestRole.PRINCIPAL);
-        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY))
+                .willReturn(true);
         given(classroomService.findCampusId(999L)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> policy.checkCanViewClassroom(principal, 999L))

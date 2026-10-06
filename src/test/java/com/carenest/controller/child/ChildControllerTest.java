@@ -88,8 +88,8 @@ class ChildControllerTest {
     @Test
     void teacherInScopeGetsChildProfile() throws Exception {
         CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
-        given(childService.getChildProfile(teacher, 101L)).willReturn(
-                new ChildProfileResponse(101L, "Trẻ Demo A1-01", LocalDate.of(2022, 3, 15), 11L));
+        given(childService.getChildProfile(teacher, 101L))
+                .willReturn(new ChildProfileResponse(101L, "Trẻ Demo A1-01", LocalDate.of(2022, 3, 15), 11L));
 
         mockMvc.perform(get(CHILD_URL, 101).with(tokenWithRole(CareNestRole.TEACHER)))
                 .andExpect(status().isOk())
@@ -102,8 +102,8 @@ class ChildControllerTest {
     @Test
     void parentRoleIsAllowedThroughToScopeCheck() throws Exception {
         CurrentUser parent = authenticateAs(CareNestRole.PARENT);
-        given(childService.getChildProfile(eq(parent), eq(101L))).willReturn(
-                new ChildProfileResponse(101L, "Trẻ Demo A1-01", LocalDate.of(2022, 3, 15), 11L));
+        given(childService.getChildProfile(eq(parent), eq(101L)))
+                .willReturn(new ChildProfileResponse(101L, "Trẻ Demo A1-01", LocalDate.of(2022, 3, 15), 11L));
 
         mockMvc.perform(get(CHILD_URL, 101).with(tokenWithRole(CareNestRole.PARENT)))
                 .andExpect(status().isOk());

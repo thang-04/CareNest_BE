@@ -5,9 +5,9 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -69,13 +69,19 @@ class AccountControllerTest {
 
     @Test
     void shouldReturnProfileRolesAndScopeSummaryOfCurrentUser() throws Exception {
-        CurrentUser currentUser = new CurrentUser(10L, "kc-1", "teacher.a", "Giáo viên Demo", null,
-                Set.of(CareNestRole.TEACHER, CareNestRole.PARENT));
+        CurrentUser currentUser = new CurrentUser(
+                10L, "kc-1", "teacher.a", "Giáo viên Demo", null, Set.of(CareNestRole.TEACHER, CareNestRole.PARENT));
         given(currentUserService.getCurrentUser()).willReturn(currentUser);
-        given(accountService.getMyAccount(any())).willReturn(new MyAccountResponse(10L, "teacher.a", "Giáo viên Demo",
-                null, List.of(CareNestRole.TEACHER, CareNestRole.PARENT),
-                List.of(new StaffAssignmentSummaryResponse(StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 9, 1), null)),
-                List.of(101L)));
+        given(accountService.getMyAccount(any()))
+                .willReturn(new MyAccountResponse(
+                        10L,
+                        "teacher.a",
+                        "Giáo viên Demo",
+                        null,
+                        List.of(CareNestRole.TEACHER, CareNestRole.PARENT),
+                        List.of(new StaffAssignmentSummaryResponse(
+                                StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 9, 1), null)),
+                        List.of(101L)));
 
         mockMvc.perform(get(MY_ACCOUNT).with(jwt()))
                 .andExpect(status().isOk())
@@ -109,10 +115,19 @@ class AccountControllerTest {
     @Test
     void adminCreatesAccount() throws Exception {
         CurrentUser admin = authenticateAs(CareNestRole.ADMIN);
-        given(accountProvisioningService.createAccount(eq(admin), any())).willReturn(new CreateAccountResponse(42L,
-                "teacher.c", "Giáo viên C", "teacher.c@example.test", CareNestRole.TEACHER, UserStatus.ACTIVE, false));
+        given(accountProvisioningService.createAccount(eq(admin), any()))
+                .willReturn(new CreateAccountResponse(
+                        42L,
+                        "teacher.c",
+                        "Giáo viên C",
+                        "teacher.c@example.test",
+                        CareNestRole.TEACHER,
+                        UserStatus.ACTIVE,
+                        false));
 
-        mockMvc.perform(post("/api/accounts").with(adminToken()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/accounts")
+                        .with(adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content(CREATE_TEACHER_JSON))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value(201))
@@ -126,8 +141,10 @@ class AccountControllerTest {
     void nonAdminCannotCreateAccount() throws Exception {
         authenticateAs(CareNestRole.PRINCIPAL);
 
-        mockMvc.perform(post("/api/accounts").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
-                        .contentType(MediaType.APPLICATION_JSON).content(CREATE_TEACHER_JSON))
+        mockMvc.perform(post("/api/accounts")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(CREATE_TEACHER_JSON))
                 .andExpect(status().isForbidden());
         verify(accountProvisioningService, never()).createAccount(any(), any());
     }
@@ -136,7 +153,9 @@ class AccountControllerTest {
     void invalidCreateRequestReturnsFieldErrors() throws Exception {
         authenticateAs(CareNestRole.ADMIN);
 
-        mockMvc.perform(post("/api/accounts").with(adminToken()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(post("/api/accounts")
+                        .with(adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"username\":\"bad name!\",\"fullName\":\"\",\"temporaryPassword\":\"short\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
@@ -150,10 +169,12 @@ class AccountControllerTest {
     @Test
     void adminDeactivatesAccount() throws Exception {
         CurrentUser admin = authenticateAs(CareNestRole.ADMIN);
-        given(accountProvisioningService.updateAccountStatus(admin, 42L, UserStatus.INACTIVE)).willReturn(
-                new AccountResponse(42L, "teacher.c", "Giáo viên C", null, UserStatus.INACTIVE));
+        given(accountProvisioningService.updateAccountStatus(admin, 42L, UserStatus.INACTIVE))
+                .willReturn(new AccountResponse(42L, "teacher.c", "Giáo viên C", null, UserStatus.INACTIVE));
 
-        mockMvc.perform(patch("/api/accounts/42/status").with(adminToken()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(patch("/api/accounts/42/status")
+                        .with(adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"INACTIVE\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("INACTIVE"));
@@ -163,7 +184,9 @@ class AccountControllerTest {
     void unknownStatusValueIsRejected() throws Exception {
         authenticateAs(CareNestRole.ADMIN);
 
-        mockMvc.perform(patch("/api/accounts/42/status").with(adminToken()).contentType(MediaType.APPLICATION_JSON)
+        mockMvc.perform(patch("/api/accounts/42/status")
+                        .with(adminToken())
+                        .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"BLOCKED\"}"))
                 .andExpect(status().isBadRequest());
     }
@@ -182,8 +205,10 @@ class AccountControllerTest {
     void nonAdminCannotChangeAccountStatus() throws Exception {
         authenticateAs(CareNestRole.PRINCIPAL);
 
-        mockMvc.perform(patch("/api/accounts/42/status").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"INACTIVE\"}"))
+        mockMvc.perform(patch("/api/accounts/42/status")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"INACTIVE\"}"))
                 .andExpect(status().isForbidden());
         verify(accountProvisioningService, never()).updateAccountStatus(any(), any(), any());
     }
@@ -191,10 +216,12 @@ class AccountControllerTest {
     @Test
     void currentUserCannotBeSpoofedThroughRequestParameters() throws Exception {
         CurrentUser fromToken = authenticateAs(CareNestRole.TEACHER);
-        given(accountService.getMyAccount(eq(fromToken))).willReturn(new MyAccountResponse(1L, "demo.user", "Demo",
-                null, List.of(CareNestRole.TEACHER), List.of(), List.of()));
+        given(accountService.getMyAccount(eq(fromToken)))
+                .willReturn(new MyAccountResponse(
+                        1L, "demo.user", "Demo", null, List.of(CareNestRole.TEACHER), List.of(), List.of()));
 
-        mockMvc.perform(get(MY_ACCOUNT + "?userId=999&keycloakUserId=kc-admin&roles=ADMIN").with(jwt()))
+        mockMvc.perform(get(MY_ACCOUNT + "?userId=999&keycloakUserId=kc-admin&roles=ADMIN")
+                        .with(jwt()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.userId").value(1));
         verify(accountService).getMyAccount(eq(fromToken));

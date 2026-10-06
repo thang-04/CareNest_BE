@@ -11,6 +11,4 @@ public record CreateAccountResponse(
         String email,
         CareNestRole role,
         UserStatus status,
-        boolean setupEmailSent
-) {
-}
+        boolean setupEmailSent) {}

@@ -33,24 +33,29 @@ public class AccountController {
     @GetMapping("/me")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ResponseJson<MyAccountResponse>> getMyAccount(CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get my account success",
-                accountService.getMyAccount(currentUser));
+        return ResponseJson.toJsonWithData(
+                ApiCode.SUCCESSFUL, "Get my account success", accountService.getMyAccount(currentUser));
     }
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseJson<CreateAccountResponse>> createAccount(
             @Valid @RequestBody CreateAccountRequest request, CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create account success",
+        return ResponseJson.toJsonWithData(
+                ApiCode.CREATED,
+                "Create account success",
                 accountProvisioningService.createAccount(currentUser, request));
     }
 
     @PatchMapping("/{userId}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ResponseJson<AccountResponse>> updateAccountStatus(
-            @PathVariable Long userId, @Valid @RequestBody UpdateAccountStatusRequest request,
+            @PathVariable Long userId,
+            @Valid @RequestBody UpdateAccountStatusRequest request,
             CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update account status success",
+        return ResponseJson.toJsonWithData(
+                ApiCode.SUCCESSFUL,
+                "Update account status success",
                 accountProvisioningService.updateAccountStatus(currentUser, userId, request.status()));
     }
 }

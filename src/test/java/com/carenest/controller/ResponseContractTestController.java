@@ -20,8 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/response-contract")
 public class ResponseContractTestController {
 
-    record SampleRequest(@NotBlank String name, @NotNull Long classId) {
-    }
+    record SampleRequest(@NotBlank String name, @NotNull Long classId) {}
 
     @GetMapping("/data")
     ResponseEntity<ResponseJson<Map<String, Object>>> getData() {

@@ -12,12 +12,13 @@ import jakarta.validation.constraints.Size;
  * thẳng sang Keycloak (bắt đổi ở lần đăng nhập đầu), CareNest không lưu/log.
  */
 public record CreateAccountRequest(
-        @NotBlank @Size(min = 3, max = 100) @Pattern(regexp = "^[A-Za-z0-9._-]+$") String username,
+        @NotBlank @Size(min = 3, max = 100) @Pattern(regexp = "^[A-Za-z0-9._-]+$")
+        String username,
+
         @NotBlank @Size(max = 150) String fullName,
         @Email @Size(max = 255) String email,
         @NotNull CareNestRole role,
-        @Size(min = 8, max = 128) String temporaryPassword
-) {
+        @Size(min = 8, max = 128) String temporaryPassword) {
 
     @Override
     public String toString() {

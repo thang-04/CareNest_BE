@@ -8,7 +8,11 @@ import org.springframework.stereotype.Component;
 public class StaffAssignmentMapper {
 
     public StaffAssignmentSummaryResponse toSummaryResponse(StaffAssignment assignment) {
-        return new StaffAssignmentSummaryResponse(assignment.getStaffRole(), assignment.getCampusId(),
-                assignment.getClassroomId(), assignment.getValidFrom(), assignment.getValidTo());
+        return new StaffAssignmentSummaryResponse(
+                assignment.getStaffRole(),
+                assignment.getCampusId(),
+                assignment.getClassroomId(),
+                assignment.getValidFrom(),
+                assignment.getValidTo());
     }
 }

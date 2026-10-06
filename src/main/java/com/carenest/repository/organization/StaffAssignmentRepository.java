@@ -16,16 +16,19 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             where a.userId = :userId and a.staffRole = :staffRole
               and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
             """)
-    boolean existsActiveByRole(@Param("userId") Long userId, @Param("staffRole") StaffRole staffRole,
-                               @Param("date") LocalDate date);
+    boolean existsActiveByRole(
+            @Param("userId") Long userId, @Param("staffRole") StaffRole staffRole, @Param("date") LocalDate date);
 
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
             where a.userId = :userId and a.staffRole = :staffRole and a.campusId = :campusId
               and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
             """)
-    boolean existsActiveForCampus(@Param("userId") Long userId, @Param("staffRole") StaffRole staffRole,
-                                  @Param("campusId") Long campusId, @Param("date") LocalDate date);
+    boolean existsActiveForCampus(
+            @Param("userId") Long userId,
+            @Param("staffRole") StaffRole staffRole,
+            @Param("campusId") Long campusId,
+            @Param("date") LocalDate date);
 
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
@@ -33,8 +36,8 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
               and a.classroomId = :classroomId
               and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
             """)
-    boolean existsActiveTeacherForClassroom(@Param("userId") Long userId, @Param("classroomId") Long classroomId,
-                                            @Param("date") LocalDate date);
+    boolean existsActiveTeacherForClassroom(
+            @Param("userId") Long userId, @Param("classroomId") Long classroomId, @Param("date") LocalDate date);
 
     @Query("select a from StaffAssignment a where a.userId = :userId"
             + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date) order by a.staffRole, a.id")

@@ -63,7 +63,8 @@ class CurrentUserServiceTest {
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
                 .hasMessage("Account is not provisioned")
-                .extracting("apiCode").isEqualTo(ApiCode.FORBIDDEN);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.FORBIDDEN);
     }
 
     @Test
@@ -75,7 +76,8 @@ class CurrentUserServiceTest {
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
                 .hasMessage("Account is inactive")
-                .extracting("apiCode").isEqualTo(ApiCode.FORBIDDEN);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.FORBIDDEN);
     }
 
     @Test
@@ -84,13 +86,17 @@ class CurrentUserServiceTest {
 
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.UNAUTHORIZED);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.UNAUTHORIZED);
     }
 
     private static void authenticateWithJwt(String... authorities) {
-        Jwt jwt = Jwt.withTokenValue("token").header("alg", "RS256").subject(KEYCLOAK_USER_ID).build();
-        List<SimpleGrantedAuthority> grantedAuthorities = Arrays.stream(authorities)
-                .map(SimpleGrantedAuthority::new).toList();
+        Jwt jwt = Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .subject(KEYCLOAK_USER_ID)
+                .build();
+        List<SimpleGrantedAuthority> grantedAuthorities =
+                Arrays.stream(authorities).map(SimpleGrantedAuthority::new).toList();
         SecurityContextHolder.getContext().setAuthentication(new JwtAuthenticationToken(jwt, grantedAuthorities));
     }
 

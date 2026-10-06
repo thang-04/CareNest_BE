@@ -25,8 +25,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
     private final String apiPrefix;
     private final ObjectProvider<CurrentUserService> currentUserService;
 
-    public WebMvcConfig(@Value("${carenest.api.prefix}") String apiPrefix,
-                        ObjectProvider<CurrentUserService> currentUserService) {
+    public WebMvcConfig(
+            @Value("${carenest.api.prefix}") String apiPrefix, ObjectProvider<CurrentUserService> currentUserService) {
         this.apiPrefix = apiPrefix;
         this.currentUserService = currentUserService;
     }
@@ -44,6 +44,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
     // Chặn tài khoản chưa cấp/bị khóa ở mọi API, không chỉ endpoint có tham số CurrentUser
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(new ActiveAccountInterceptor(currentUserService)).addPathPatterns(apiPrefix + "/**");
+        registry.addInterceptor(new ActiveAccountInterceptor(currentUserService))
+                .addPathPatterns(apiPrefix + "/**");
     }
 }

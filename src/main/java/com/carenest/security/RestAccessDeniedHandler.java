@@ -20,9 +20,13 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
     private final ObjectMapper objectMapper;
 
     @Override
-    public void handle(HttpServletRequest request, HttpServletResponse response,
-                       AccessDeniedException accessDeniedException) throws IOException {
-        log.warn("[handle]|path={}|type={}", request.getRequestURI(), accessDeniedException.getClass().getSimpleName());
+    public void handle(
+            HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException)
+            throws IOException {
+        log.warn(
+                "[handle]|path={}|type={}",
+                request.getRequestURI(),
+                accessDeniedException.getClass().getSimpleName());
         SecurityResponseWriter.write(response, objectMapper, ApiCode.FORBIDDEN, "Forbidden");
     }
 }

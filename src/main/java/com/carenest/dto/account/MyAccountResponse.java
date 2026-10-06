@@ -12,6 +12,4 @@ public record MyAccountResponse(
         String email,
         List<CareNestRole> roles,
         List<StaffAssignmentSummaryResponse> assignments,
-        List<Long> childIds
-) {
-}
+        List<Long> childIds) {}

@@ -28,10 +28,13 @@ public class OpenApiConfig {
                         .title("CareNest API")
                         .version("v1")
                         .description("REST API dùng chung cho CareNest web và mobile"))
-                .components(new Components().addSecuritySchemes(BEARER_AUTH, new SecurityScheme()
-                        .type(SecurityScheme.Type.HTTP)
-                        .scheme("bearer")
-                        .bearerFormat("JWT")))
+                .components(new Components()
+                        .addSecuritySchemes(
+                                BEARER_AUTH,
+                                new SecurityScheme()
+                                        .type(SecurityScheme.Type.HTTP)
+                                        .scheme("bearer")
+                                        .bearerFormat("JWT")))
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_AUTH));
     }
 }

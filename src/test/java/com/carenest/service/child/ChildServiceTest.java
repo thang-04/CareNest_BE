@@ -40,8 +40,8 @@ class ChildServiceTest {
     private final ChildRepository childRepository = mock(ChildRepository.class);
     private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
     private final ChildAccessPolicy childAccessPolicy = mock(ChildAccessPolicy.class);
-    private final ChildService childService = new ChildService(childRepository, enrollmentService, childAccessPolicy,
-            new ChildMapper(), FIXED_CLOCK);
+    private final ChildService childService =
+            new ChildService(childRepository, enrollmentService, childAccessPolicy, new ChildMapper(), FIXED_CLOCK);
 
     @Test
     void shouldReturnProfileWithCurrentClassroomWhenInScope() {
@@ -58,11 +58,13 @@ class ChildServiceTest {
     @Test
     void shouldNotLoadChildWhenOutOfScope() {
         willThrow(new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this child"))
-                .given(childAccessPolicy).checkCanViewChild(TEACHER, 201L);
+                .given(childAccessPolicy)
+                .checkCanViewChild(TEACHER, 201L);
 
         assertThatThrownBy(() -> childService.getChildProfile(TEACHER, 201L))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.FORBIDDEN);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.FORBIDDEN);
         verify(childRepository, never()).findById(anyLong());
     }
 
@@ -72,7 +74,8 @@ class ChildServiceTest {
 
         assertThatThrownBy(() -> childService.getChildProfile(TEACHER, 101L))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.NOT_FOUND);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.NOT_FOUND);
     }
 
     private static Child child(long id) {

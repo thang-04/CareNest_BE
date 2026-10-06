@@ -40,9 +40,14 @@ class ChildAccessPolicyTest {
     private final ClassroomService classroomService = mock(ClassroomService.class);
     private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
     private final GuardianChildLinkService guardianChildLinkService = mock(GuardianChildLinkService.class);
-    private final ChildAccessPolicy policy = new ChildAccessPolicy(enrollmentService, guardianChildLinkService,
-            new ClassroomAccessPolicy(staffAssignmentService, classroomService,
-                    new CampusAccessPolicy(staffAssignmentService, FIXED_CLOCK), FIXED_CLOCK),
+    private final ChildAccessPolicy policy = new ChildAccessPolicy(
+            enrollmentService,
+            guardianChildLinkService,
+            new ClassroomAccessPolicy(
+                    staffAssignmentService,
+                    classroomService,
+                    new CampusAccessPolicy(staffAssignmentService, FIXED_CLOCK),
+                    FIXED_CLOCK),
             FIXED_CLOCK);
 
     @BeforeEach
@@ -51,7 +56,8 @@ class ChildAccessPolicyTest {
         given(classroomService.findCampusId(CLASS_B1)).willReturn(Optional.of(CAMPUS_B));
         given(enrollmentService.findActiveClassroomIds(CHILD_IN_A1, TODAY)).willReturn(List.of(CLASS_A1));
         given(enrollmentService.findActiveClassroomIds(CHILD_IN_B1, TODAY)).willReturn(List.of(CLASS_B1));
-        given(enrollmentService.findActiveClassroomIds(CHILD_WITHOUT_ENROLLMENT, TODAY)).willReturn(List.of());
+        given(enrollmentService.findActiveClassroomIds(CHILD_WITHOUT_ENROLLMENT, TODAY))
+                .willReturn(List.of());
     }
 
     @Test
@@ -71,7 +77,8 @@ class ChildAccessPolicyTest {
     @Test
     void parentCanViewOwnLinkedChild() {
         CurrentUser parent = user(CareNestRole.PARENT);
-        given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1)).willReturn(true);
+        given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1))
+                .willReturn(true);
 
         assertThat(policy.canViewChild(parent, CHILD_IN_A1)).isTrue();
     }
@@ -79,7 +86,8 @@ class ChildAccessPolicyTest {
     @Test
     void parentCannotViewAnotherParentsChildAndNoStaffLookupIsMade() {
         CurrentUser parent = user(CareNestRole.PARENT);
-        given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1)).willReturn(true);
+        given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1))
+                .willReturn(true);
 
         assertThat(policy.canViewChild(parent, CHILD_IN_B1)).isFalse();
         verifyNoInteractions(staffAssignmentService);
@@ -88,8 +96,9 @@ class ChildAccessPolicyTest {
     @Test
     void vicePrincipalCanViewChildrenOnlyInAssignedCampus() {
         CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
-        given(staffAssignmentService.hasActiveCampusAssignment(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL,
-                CAMPUS_A, TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
 
         assertThat(policy.canViewChild(vicePrincipal, CHILD_IN_A1)).isTrue();
         assertThat(policy.canViewChild(vicePrincipal, CHILD_IN_B1)).isFalse();
@@ -98,7 +107,8 @@ class ChildAccessPolicyTest {
     @Test
     void principalWithActiveAssignmentCanViewEveryEnrolledChild() {
         CurrentUser principal = user(CareNestRole.PRINCIPAL);
-        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY))
+                .willReturn(true);
 
         assertThat(policy.canViewChild(principal, CHILD_IN_A1)).isTrue();
         assertThat(policy.canViewChild(principal, CHILD_IN_B1)).isTrue();
@@ -129,9 +139,10 @@ class ChildAccessPolicyTest {
 
     @Test
     void userWhoIsBothTeacherAndParentGetsUnionOfBothScopes() {
-        CurrentUser teacherParent = new CurrentUser(7L, "kc-7", "teacher.parent", "Demo", null,
-                Set.of(CareNestRole.TEACHER, CareNestRole.PARENT));
-        given(staffAssignmentService.hasActiveTeacherAssignment(7L, CLASS_A1, TODAY)).willReturn(true);
+        CurrentUser teacherParent = new CurrentUser(
+                7L, "kc-7", "teacher.parent", "Demo", null, Set.of(CareNestRole.TEACHER, CareNestRole.PARENT));
+        given(staffAssignmentService.hasActiveTeacherAssignment(7L, CLASS_A1, TODAY))
+                .willReturn(true);
         given(guardianChildLinkService.isGuardianOf(7L, CHILD_IN_B1)).willReturn(true);
 
         assertThat(policy.canViewChild(teacherParent, CHILD_IN_A1)).isTrue();
@@ -142,17 +153,20 @@ class ChildAccessPolicyTest {
     @Test
     void childWithoutCurrentEnrollmentAndUnknownIdGiveSameForbiddenResult() {
         CurrentUser principal = user(CareNestRole.PRINCIPAL);
-        given(staffAssignmentService.hasActivePrincipalAssignment(anyLong(), any())).willReturn(true);
+        given(staffAssignmentService.hasActivePrincipalAssignment(anyLong(), any()))
+                .willReturn(true);
 
         assertThatThrownBy(() -> policy.checkCanViewChild(principal, CHILD_WITHOUT_ENROLLMENT))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage("You do not have access to this child")
-                .extracting("apiCode").isEqualTo(ApiCode.FORBIDDEN);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.FORBIDDEN);
     }
 
     private CurrentUser teacherOf(long classroomId) {
         CurrentUser teacher = user(CareNestRole.TEACHER);
-        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), classroomId, TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), classroomId, TODAY))
+                .willReturn(true);
         return teacher;
     }
 }

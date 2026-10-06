@@ -36,7 +36,8 @@ class UserAccountRepositoryIntegrationTest {
     void shouldFindAccountByKeycloakSubject() {
         userAccountRepository.save(UserAccount.create("kc-sub-1", "teacher.a", null, "Giáo viên Demo"));
 
-        UserAccount found = userAccountRepository.findByKeycloakUserId("kc-sub-1").orElseThrow();
+        UserAccount found =
+                userAccountRepository.findByKeycloakUserId("kc-sub-1").orElseThrow();
 
         assertThat(found.getId()).isNotNull();
         assertThat(found.getStatus()).isEqualTo(UserStatus.ACTIVE);
@@ -49,7 +50,7 @@ class UserAccountRepositoryIntegrationTest {
         userAccountRepository.saveAndFlush(UserAccount.create("kc-sub-1", "teacher.a", null, "Giáo viên Demo"));
 
         assertThatThrownBy(() -> userAccountRepository.saveAndFlush(
-                UserAccount.create("kc-sub-1", "teacher.b", null, "Giáo viên Khác")))
+                        UserAccount.create("kc-sub-1", "teacher.b", null, "Giáo viên Khác")))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 }

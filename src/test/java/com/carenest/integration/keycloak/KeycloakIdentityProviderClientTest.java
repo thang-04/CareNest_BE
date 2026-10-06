@@ -33,7 +33,8 @@ class KeycloakIdentityProviderClientTest {
     private static final String BASE = "http://keycloak.test";
     private static final String TOKEN_URL = BASE + "/realms/carenest/protocol/openid-connect/token";
     private static final String USERS_URL = BASE + "/admin/realms/carenest/users";
-    private static final String TOKEN_JSON = "{\"access_token\":\"admin-token\",\"expires_in\":300,\"token_type\":\"Bearer\"}";
+    private static final String TOKEN_JSON =
+            "{\"access_token\":\"admin-token\",\"expires_in\":300,\"token_type\":\"Bearer\"}";
 
     private MockRestServiceServer server;
     private KeycloakIdentityProviderClient client;
@@ -42,8 +43,10 @@ class KeycloakIdentityProviderClientTest {
     void setUp() {
         RestClient.Builder builder = RestClient.builder();
         server = MockRestServiceServer.bindTo(builder).build();
-        client = new KeycloakIdentityProviderClient(properties("backend-secret"),
-                Clock.fixed(Instant.parse("2026-10-05T03:00:00Z"), ZoneOffset.UTC), builder);
+        client = new KeycloakIdentityProviderClient(
+                properties("backend-secret"),
+                Clock.fixed(Instant.parse("2026-10-05T03:00:00Z"), ZoneOffset.UTC),
+                builder);
     }
 
     @Test
@@ -83,7 +86,8 @@ class KeycloakIdentityProviderClientTest {
 
         assertThatThrownBy(() -> client.createUser(new NewIdentityUser("teacher.a", null, "Demo", "Temp-Pass-1")))
                 .isInstanceOf(IdentityProviderException.class)
-                .extracting("reason").isEqualTo(Reason.CONFLICT);
+                .extracting("reason")
+                .isEqualTo(Reason.CONFLICT);
     }
 
     @Test
@@ -93,7 +97,8 @@ class KeycloakIdentityProviderClientTest {
 
         assertThatThrownBy(() -> client.deleteUser("kc-1"))
                 .isInstanceOf(IdentityProviderException.class)
-                .extracting("reason").isEqualTo(Reason.UNAVAILABLE);
+                .extracting("reason")
+                .isEqualTo(Reason.UNAVAILABLE);
     }
 
     @Test
@@ -101,8 +106,10 @@ class KeycloakIdentityProviderClientTest {
         expectAdminToken();
         server.expect(requestTo(USERS_URL + "/kc-1/role-mappings/realm/available"))
                 .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("[{\"id\":\"r-parent\",\"name\":\"PARENT\"},{\"id\":\"r-teacher\",\"name\":\"TEACHER\","
-                        + "\"composite\":false}]", MediaType.APPLICATION_JSON));
+                .andRespond(withSuccess(
+                        "[{\"id\":\"r-parent\",\"name\":\"PARENT\"},{\"id\":\"r-teacher\",\"name\":\"TEACHER\","
+                                + "\"composite\":false}]",
+                        MediaType.APPLICATION_JSON));
         server.expect(requestTo(USERS_URL + "/kc-1/role-mappings/realm"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(jsonPath("$[0].id").value("r-teacher"))
@@ -117,10 +124,13 @@ class KeycloakIdentityProviderClientTest {
     @Test
     void disablingUserKeepsOtherAttributes() {
         expectAdminToken();
-        server.expect(requestTo(USERS_URL + "/kc-1")).andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("{\"id\":\"kc-1\",\"username\":\"teacher.c\",\"firstName\":\"Demo\",\"enabled\":true}",
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"id\":\"kc-1\",\"username\":\"teacher.c\",\"firstName\":\"Demo\",\"enabled\":true}",
                         MediaType.APPLICATION_JSON));
-        server.expect(requestTo(USERS_URL + "/kc-1")).andExpect(method(HttpMethod.PUT))
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.PUT))
                 .andExpect(jsonPath("$.enabled").value(false))
                 .andExpect(jsonPath("$.firstName").value("Demo"))
                 .andRespond(withStatus(HttpStatus.NO_CONTENT));
@@ -133,27 +143,35 @@ class KeycloakIdentityProviderClientTest {
     @Test
     void missingAdminSecretFailsWithoutCallingKeycloak() {
         RestClient.Builder builder = RestClient.builder();
-        MockRestServiceServer noCallsServer = MockRestServiceServer.bindTo(builder).build();
-        KeycloakIdentityProviderClient unconfigured = new KeycloakIdentityProviderClient(properties(""),
-                Clock.systemUTC(), builder);
+        MockRestServiceServer noCallsServer =
+                MockRestServiceServer.bindTo(builder).build();
+        KeycloakIdentityProviderClient unconfigured =
+                new KeycloakIdentityProviderClient(properties(""), Clock.systemUTC(), builder);
 
         assertThatThrownBy(() -> unconfigured.deleteUser("kc-1"))
                 .isInstanceOf(IdentityProviderException.class)
-                .extracting("reason").isEqualTo(Reason.UNAVAILABLE);
+                .extracting("reason")
+                .isEqualTo(Reason.UNAVAILABLE);
         noCallsServer.verify();
     }
 
     private void expectAdminToken() {
         server.expect(once(), requestTo(TOKEN_URL))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(content().formDataContains(Map.of("grant_type", "client_credentials",
-                        "client_id", "carenest-backend", "client_secret", "backend-secret")))
+                .andExpect(content()
+                        .formDataContains(Map.of(
+                                "grant_type",
+                                "client_credentials",
+                                "client_id",
+                                "carenest-backend",
+                                "client_secret",
+                                "backend-secret")))
                 .andRespond(withSuccess(TOKEN_JSON, MediaType.APPLICATION_JSON));
     }
 
     private static KeycloakProperties properties(String secret) {
-        return new KeycloakProperties(BASE, "carenest", "carenest-backend", secret, false, Duration.ofSeconds(3),
-                Duration.ofSeconds(5));
+        return new KeycloakProperties(
+                BASE, "carenest", "carenest-backend", secret, false, Duration.ofSeconds(3), Duration.ofSeconds(5));
     }
 
     @Test
@@ -163,7 +181,8 @@ class KeycloakIdentityProviderClientTest {
 
         assertThatThrownBy(() -> client.createUser(new NewIdentityUser("teacher.c", null, "Demo", "teacher.c")))
                 .isInstanceOf(IdentityProviderException.class)
-                .extracting("reason").isEqualTo(Reason.REJECTED);
+                .extracting("reason")
+                .isEqualTo(Reason.REJECTED);
     }
 
     @Test

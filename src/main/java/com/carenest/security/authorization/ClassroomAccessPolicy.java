@@ -26,10 +26,12 @@ public class ClassroomAccessPolicy {
     public boolean canViewClassroom(CurrentUser user, Long classroomId) {
         // AUTH-03: GV chỉ lớp được phân công; phân công năm/kỳ trước không còn quyền (chưa có rule xem lịch sử)
         if (user.hasRole(CareNestRole.TEACHER)
-                && staffAssignmentService.hasActiveTeacherAssignment(user.userId(), classroomId, LocalDate.now(clock))) {
+                && staffAssignmentService.hasActiveTeacherAssignment(
+                        user.userId(), classroomId, LocalDate.now(clock))) {
             return true;
         }
-        return classroomService.findCampusId(classroomId)
+        return classroomService
+                .findCampusId(classroomId)
                 .map(campusId -> campusAccessPolicy.canViewCampus(user, campusId))
                 .orElse(false);
     }

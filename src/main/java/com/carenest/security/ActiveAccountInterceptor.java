@@ -28,7 +28,8 @@ public class ActiveAccountInterceptor implements HandlerInterceptor {
         boolean authenticatedWithToken =
                 SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken;
         if (handler instanceof HandlerMethod && authenticatedWithToken) {
-            request.setAttribute(CURRENT_USER_ATTRIBUTE, currentUserService.getObject().getCurrentUser());
+            request.setAttribute(
+                    CURRENT_USER_ATTRIBUTE, currentUserService.getObject().getCurrentUser());
         }
         return true;
     }

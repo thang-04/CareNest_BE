@@ -10,13 +10,19 @@ import org.springframework.stereotype.Component;
 public class AccountMapper {
 
     public AccountResponse toAccountResponse(UserAccount account) {
-        return new AccountResponse(account.getId(), account.getUsername(), account.getFullName(), account.getEmail(),
-                account.getStatus());
+        return new AccountResponse(
+                account.getId(), account.getUsername(), account.getFullName(), account.getEmail(), account.getStatus());
     }
 
-    public CreateAccountResponse toCreateAccountResponse(UserAccount account, CareNestRole role,
-                                                         boolean setupEmailSent) {
-        return new CreateAccountResponse(account.getId(), account.getUsername(), account.getFullName(),
-                account.getEmail(), role, account.getStatus(), setupEmailSent);
+    public CreateAccountResponse toCreateAccountResponse(
+            UserAccount account, CareNestRole role, boolean setupEmailSent) {
+        return new CreateAccountResponse(
+                account.getId(),
+                account.getUsername(),
+                account.getFullName(),
+                account.getEmail(),
+                role,
+                account.getStatus(),
+                setupEmailSent);
     }
 }

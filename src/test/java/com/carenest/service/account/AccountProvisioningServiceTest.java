@@ -61,8 +61,8 @@ class AccountProvisioningServiceTest {
     void createsKeycloakUserAssignsRoleThenSavesAccount() {
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
 
-        CreateAccountResponse response = service.createAccount(ADMIN,
-                request(" Teacher.C ", "Teacher.C@Example.TEST", CareNestRole.TEACHER, "Temp-Pass-1"));
+        CreateAccountResponse response = service.createAccount(
+                ADMIN, request(" Teacher.C ", "Teacher.C@Example.TEST", CareNestRole.TEACHER, "Temp-Pass-1"));
 
         ArgumentCaptor<NewIdentityUser> identity = ArgumentCaptor.forClass(NewIdentityUser.class);
         InOrder order = inOrder(identityProviderClient, userAccountRepository);
@@ -84,8 +84,8 @@ class AccountProvisioningServiceTest {
         given(identityProviderClient.canSendSetupEmail()).willReturn(true);
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
 
-        CreateAccountResponse response = service.createAccount(ADMIN,
-                request("parent.c", "parent.c@example.test", CareNestRole.PARENT, null));
+        CreateAccountResponse response =
+                service.createAccount(ADMIN, request("parent.c", "parent.c@example.test", CareNestRole.PARENT, null));
 
         verify(identityProviderClient).sendSetupEmail(KC_ID);
         assertThat(response.setupEmailSent()).isTrue();
@@ -95,13 +95,15 @@ class AccountProvisioningServiceTest {
     void requiresTemporaryPasswordWhenNoSetupEmailCanBeSent() {
         assertThatThrownBy(() -> service.createAccount(ADMIN, request("parent.c", null, CareNestRole.PARENT, null)))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.BAD_REQUEST);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
         verifyNoInteractions(identityProviderClient);
     }
 
     @Test
     void refusesToCreateAdminAccounts() {
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("admin.2", null, CareNestRole.ADMIN, "Temp-Pass-1")))
+        assertThatThrownBy(
+                        () -> service.createAccount(ADMIN, request("admin.2", null, CareNestRole.ADMIN, "Temp-Pass-1")))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage("This role cannot be created via API");
         verifyNoInteractions(identityProviderClient);
@@ -111,9 +113,11 @@ class AccountProvisioningServiceTest {
     void rejectsExistingUsernameBeforeCallingKeycloak() {
         given(userAccountRepository.existsByUsername("teacher.a")).willReturn(true);
 
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("teacher.a", null, CareNestRole.TEACHER, "Temp-Pass-1")))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("teacher.a", null, CareNestRole.TEACHER, "Temp-Pass-1")))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.CONFLICT);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CONFLICT);
         verify(identityProviderClient, never()).createUser(any());
     }
 
@@ -122,9 +126,11 @@ class AccountProvisioningServiceTest {
         given(identityProviderClient.createUser(any()))
                 .willThrow(new IdentityProviderException(Reason.CONFLICT, "exists", null));
 
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.CONFLICT);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CONFLICT);
         verify(identityProviderClient, never()).deleteUser(anyString());
     }
 
@@ -133,20 +139,25 @@ class AccountProvisioningServiceTest {
         given(identityProviderClient.createUser(any()))
                 .willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "down", null));
 
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.SERVICE_UNAVAILABLE);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.SERVICE_UNAVAILABLE);
     }
 
     @Test
     void roleAssignmentFailureDeletesCreatedKeycloakUser() {
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
         willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "role", null))
-                .given(identityProviderClient).assignRealmRole(KC_ID, "TEACHER");
+                .given(identityProviderClient)
+                .assignRealmRole(KC_ID, "TEACHER");
 
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.SERVICE_UNAVAILABLE);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.SERVICE_UNAVAILABLE);
         verify(identityProviderClient).deleteUser(KC_ID);
         verify(userAccountRepository, never()).saveAndFlush(any());
     }
@@ -154,24 +165,33 @@ class AccountProvisioningServiceTest {
     @Test
     void databaseFailureDeletesCreatedKeycloakUser() {
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
-        willThrow(new DataIntegrityViolationException("duplicate")).given(userAccountRepository).saveAndFlush(any());
+        willThrow(new DataIntegrityViolationException("duplicate"))
+                .given(userAccountRepository)
+                .saveAndFlush(any());
 
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.CONFLICT);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CONFLICT);
         verify(identityProviderClient).deleteUser(KC_ID);
     }
 
     @Test
     void failedCompensationStillReportsOriginalError() {
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
-        willThrow(new DataIntegrityViolationException("duplicate")).given(userAccountRepository).saveAndFlush(any());
+        willThrow(new DataIntegrityViolationException("duplicate"))
+                .given(userAccountRepository)
+                .saveAndFlush(any());
         willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "down", null))
-                .given(identityProviderClient).deleteUser(KC_ID);
+                .given(identityProviderClient)
+                .deleteUser(KC_ID);
 
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.CONFLICT);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CONFLICT);
     }
 
     @Test
@@ -179,10 +199,11 @@ class AccountProvisioningServiceTest {
         given(identityProviderClient.canSendSetupEmail()).willReturn(true);
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
         willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "smtp", null))
-                .given(identityProviderClient).sendSetupEmail(KC_ID);
+                .given(identityProviderClient)
+                .sendSetupEmail(KC_ID);
 
-        CreateAccountResponse response = service.createAccount(ADMIN,
-                request("teacher.c", "teacher.c@example.test", CareNestRole.TEACHER, "Temp-Pass-1"));
+        CreateAccountResponse response = service.createAccount(
+                ADMIN, request("teacher.c", "teacher.c@example.test", CareNestRole.TEACHER, "Temp-Pass-1"));
 
         assertThat(response.setupEmailSent()).isFalse();
         verify(identityProviderClient, never()).deleteUser(anyString());
@@ -219,11 +240,13 @@ class AccountProvisioningServiceTest {
         UserAccount account = existingAccount();
         given(userAccountRepository.findById(42L)).willReturn(Optional.of(account));
         willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "down", null))
-                .given(identityProviderClient).setUserEnabled(KC_ID, false);
+                .given(identityProviderClient)
+                .setUserEnabled(KC_ID, false);
 
         assertThatThrownBy(() -> service.updateAccountStatus(ADMIN, 42L, UserStatus.INACTIVE))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.SERVICE_UNAVAILABLE);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.SERVICE_UNAVAILABLE);
         verify(userAccountRepository).saveAndFlush(account);
         assertThat(account.getStatus()).isEqualTo(UserStatus.INACTIVE);
     }
@@ -234,7 +257,8 @@ class AccountProvisioningServiceTest {
 
         assertThatThrownBy(() -> service.updateAccountStatus(ADMIN, 99L, UserStatus.INACTIVE))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.NOT_FOUND);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.NOT_FOUND);
         verifyNoInteractions(identityProviderClient);
     }
 
@@ -252,9 +276,11 @@ class AccountProvisioningServiceTest {
     void unexpectedDatabaseFailureStillDeletesCreatedKeycloakUser() {
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
         willThrow(new DataAccessResourceFailureException("connection lost"))
-                .given(userAccountRepository).saveAndFlush(any());
+                .given(userAccountRepository)
+                .saveAndFlush(any());
 
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
                 .isInstanceOf(DataAccessResourceFailureException.class);
         verify(identityProviderClient).deleteUser(KC_ID);
     }
@@ -264,9 +290,11 @@ class AccountProvisioningServiceTest {
         given(identityProviderClient.createUser(any()))
                 .willThrow(new IdentityProviderException(Reason.REJECTED, "password policy", null));
 
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "teacher.c")))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "teacher.c")))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode").isEqualTo(ApiCode.BAD_REQUEST);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
         verify(identityProviderClient, never()).deleteUser(anyString());
     }
 }

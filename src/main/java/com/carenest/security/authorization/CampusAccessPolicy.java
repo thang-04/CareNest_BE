@@ -33,8 +33,8 @@ public class CampusAccessPolicy {
         }
         // AUTH-02: Hiệu phó chỉ campus được phân công
         return user.hasRole(CareNestRole.VICE_PRINCIPAL)
-                && staffAssignmentService.hasActiveCampusAssignment(user.userId(), StaffRole.VICE_PRINCIPAL, campusId,
-                today);
+                && staffAssignmentService.hasActiveCampusAssignment(
+                        user.userId(), StaffRole.VICE_PRINCIPAL, campusId, today);
     }
 
     public void checkCanViewCampus(CurrentUser user, Long campusId) {

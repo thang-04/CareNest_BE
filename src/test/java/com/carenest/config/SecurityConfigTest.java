@@ -67,15 +67,13 @@ class SecurityConfigTest {
 
     @Test
     void shouldRequireAuthenticationForUnknownPathByDefault() throws Exception {
-        mockMvc.perform(get("/api/not-declared-anywhere"))
-                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/not-declared-anywhere")).andExpect(status().isUnauthorized());
     }
 
     @Test
     void shouldNotRequireTokenForPublicHealthPath() throws Exception {
         // Actuator không nạp trong WebMvcTest nên trả 404, nhưng không bị chặn 401
-        mockMvc.perform(get("/actuator/health"))
-                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/actuator/health")).andExpect(status().isNotFound());
     }
 
     @Test

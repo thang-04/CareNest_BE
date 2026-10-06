@@ -14,7 +14,8 @@ class KeycloakRealmRoleConverterTest {
 
     @Test
     void shouldMapCareNestRealmRolesToSpringAuthorities() {
-        Jwt jwt = jwtWithClaim("realm_access",
+        Jwt jwt = jwtWithClaim(
+                "realm_access",
                 Map.of("roles", List.of("TEACHER", "PARENT", "offline_access", "default-roles-carenest")));
 
         assertThat(converter.convert(jwt))
@@ -37,6 +38,10 @@ class KeycloakRealmRoleConverterTest {
     }
 
     private static Jwt jwtWithClaim(String name, Object value) {
-        return Jwt.withTokenValue("token").header("alg", "RS256").subject("kc-user-1").claim(name, value).build();
+        return Jwt.withTokenValue("token")
+                .header("alg", "RS256")
+                .subject("kc-user-1")
+                .claim(name, value)
+                .build();
     }
 }

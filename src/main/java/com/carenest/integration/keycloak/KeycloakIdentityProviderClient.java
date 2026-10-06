@@ -69,17 +69,21 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
         }
         body.put("requiredActions", List.of(UPDATE_PASSWORD));
         if (user.temporaryPassword() != null) {
-            body.put("credentials", List.of(Map.of("type", "password", "value", user.temporaryPassword(),
-                    "temporary", true)));
+            body.put(
+                    "credentials",
+                    List.of(Map.of("type", "password", "value", user.temporaryPassword(), "temporary", true)));
         }
 
-        ResponseEntity<Void> response = call("createUser", () -> restClient.post()
-                .uri("/admin/realms/{realm}/users", properties.realm())
-                .headers(headers -> headers.setBearerAuth(adminToken()))
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .toBodilessEntity());
+        ResponseEntity<Void> response = call(
+                "createUser",
+                () -> restClient
+                        .post()
+                        .uri("/admin/realms/{realm}/users", properties.realm())
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .toBodilessEntity());
         URI location = response.getHeaders().getLocation();
         if (location == null) {
             throw new IdentityProviderException(Reason.UNAVAILABLE, "Keycloak did not return created user id", null);
@@ -91,76 +95,101 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
     @Override
     public void assignRealmRole(String userId, String roleName) {
         // Lấy role qua danh sách "available" vì service account chỉ có manage-users, không có view-realm
-        RoleRepresentation[] available = call("assignRealmRole", () -> restClient.get()
-                .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm/available", properties.realm(), userId)
-                .headers(headers -> headers.setBearerAuth(adminToken()))
-                .retrieve()
-                .body(RoleRepresentation[].class));
-        RoleRepresentation role = available == null ? null : Arrays.stream(available)
-                .filter(candidate -> roleName.equals(candidate.name()))
-                .findFirst()
-                .orElse(null);
+        RoleRepresentation[] available = call(
+                "assignRealmRole",
+                () -> restClient
+                        .get()
+                        .uri(
+                                "/admin/realms/{realm}/users/{id}/role-mappings/realm/available",
+                                properties.realm(),
+                                userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .retrieve()
+                        .body(RoleRepresentation[].class));
+        RoleRepresentation role = available == null
+                ? null
+                : Arrays.stream(available)
+                        .filter(candidate -> roleName.equals(candidate.name()))
+                        .findFirst()
+                        .orElse(null);
         if (role == null) {
             throw new IdentityProviderException(Reason.UNAVAILABLE, "Realm role not available: " + roleName, null);
         }
-        call("assignRealmRole", () -> restClient.post()
-                .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", properties.realm(), userId)
-                .headers(headers -> headers.setBearerAuth(adminToken()))
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(List.of(Map.of("id", role.id(), "name", role.name())))
-                .retrieve()
-                .toBodilessEntity());
+        call(
+                "assignRealmRole",
+                () -> restClient
+                        .post()
+                        .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(List.of(Map.of("id", role.id(), "name", role.name())))
+                        .retrieve()
+                        .toBodilessEntity());
     }
 
     @Override
     public void deleteUser(String userId) {
-        call("deleteUser", () -> restClient.delete()
-                .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
-                .headers(headers -> headers.setBearerAuth(adminToken()))
-                .retrieve()
-                .toBodilessEntity());
+        call(
+                "deleteUser",
+                () -> restClient
+                        .delete()
+                        .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .retrieve()
+                        .toBodilessEntity());
     }
 
     @Override
     public void setUserEnabled(String userId, boolean enabled) {
         // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
-        Map<String, Object> user = call("setUserEnabled", () -> restClient.get()
-                .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
-                .headers(headers -> headers.setBearerAuth(adminToken()))
-                .retrieve()
-                .body(new ParameterizedTypeReference<Map<String, Object>>() {
-                }));
+        Map<String, Object> user = call(
+                "setUserEnabled",
+                () -> restClient
+                        .get()
+                        .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .retrieve()
+                        .body(new ParameterizedTypeReference<Map<String, Object>>() {}));
         if (user == null) {
             throw new IdentityProviderException(Reason.UNAVAILABLE, "Keycloak returned empty user", null);
         }
         user.put("enabled", enabled);
-        call("setUserEnabled", () -> restClient.put()
-                .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
-                .headers(headers -> headers.setBearerAuth(adminToken()))
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(user)
-                .retrieve()
-                .toBodilessEntity());
+        call(
+                "setUserEnabled",
+                () -> restClient
+                        .put()
+                        .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(user)
+                        .retrieve()
+                        .toBodilessEntity());
     }
 
     @Override
     public void logoutUser(String userId) {
-        call("logoutUser", () -> restClient.post()
-                .uri("/admin/realms/{realm}/users/{id}/logout", properties.realm(), userId)
-                .headers(headers -> headers.setBearerAuth(adminToken()))
-                .retrieve()
-                .toBodilessEntity());
+        call(
+                "logoutUser",
+                () -> restClient
+                        .post()
+                        .uri("/admin/realms/{realm}/users/{id}/logout", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .retrieve()
+                        .toBodilessEntity());
     }
 
     @Override
     public void sendSetupEmail(String userId) {
-        call("sendSetupEmail", () -> restClient.put()
-                .uri("/admin/realms/{realm}/users/{id}/execute-actions-email", properties.realm(), userId)
-                .headers(headers -> headers.setBearerAuth(adminToken()))
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(List.of(UPDATE_PASSWORD))
-                .retrieve()
-                .toBodilessEntity());
+        call(
+                "sendSetupEmail",
+                () -> restClient
+                        .put()
+                        .uri("/admin/realms/{realm}/users/{id}/execute-actions-email", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(List.of(UPDATE_PASSWORD))
+                        .retrieve()
+                        .toBodilessEntity());
     }
 
     @Override
@@ -174,15 +203,16 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
             return cachedAdminToken;
         }
         if (!StringUtils.hasText(properties.adminClientSecret())) {
-            throw new IdentityProviderException(Reason.UNAVAILABLE, "Keycloak admin client secret is not configured",
-                    null);
+            throw new IdentityProviderException(
+                    Reason.UNAVAILABLE, "Keycloak admin client secret is not configured", null);
         }
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
         form.add("client_id", properties.adminClientId());
         form.add("client_secret", properties.adminClientSecret());
 
-        TokenResponse token = restClient.post()
+        TokenResponse token = restClient
+                .post()
                 .uri("/realms/{realm}/protocol/openid-connect/token", properties.realm())
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(form)
@@ -205,10 +235,11 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
                 // Token admin bị thu hồi/secret đổi: bỏ cache để lần gọi sau lấy token mới
                 clearAdminToken();
             }
-            throw new IdentityProviderException(reasonOf(ex.getStatusCode().value()), "Keycloak " + operation + " failed",
-                    ex);
+            throw new IdentityProviderException(
+                    reasonOf(ex.getStatusCode().value()), "Keycloak " + operation + " failed", ex);
         } catch (RestClientException ex) {
-            log.warn("[{}]|keycloakUnreachable|type={}", operation, ex.getClass().getSimpleName());
+            log.warn(
+                    "[{}]|keycloakUnreachable|type={}", operation, ex.getClass().getSimpleName());
             throw new IdentityProviderException(Reason.UNAVAILABLE, "Keycloak " + operation + " failed", ex);
         }
     }
@@ -233,11 +264,10 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record TokenResponse(@JsonProperty("access_token") String accessToken,
-                         @JsonProperty("expires_in") long expiresIn) {
-    }
+    record TokenResponse(
+            @JsonProperty("access_token") String accessToken,
+            @JsonProperty("expires_in") long expiresIn) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record RoleRepresentation(String id, String name) {
-    }
+    record RoleRepresentation(String id, String name) {}
 }

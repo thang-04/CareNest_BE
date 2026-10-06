@@ -40,14 +40,17 @@ class JwtValidatorTest {
         trustedKey = generator.generateKeyPair();
         untrustedKey = generator.generateKeyPair();
 
-        NimbusJwtDecoder nimbusDecoder = NimbusJwtDecoder.withPublicKey((RSAPublicKey) trustedKey.getPublic()).build();
+        NimbusJwtDecoder nimbusDecoder = NimbusJwtDecoder.withPublicKey((RSAPublicKey) trustedKey.getPublic())
+                .build();
         nimbusDecoder.setJwtValidator(SecurityConfig.jwtValidator(ISSUER, AUDIENCE));
         decoder = nimbusDecoder;
     }
 
     @Test
     void shouldAcceptValidKeycloakAccessToken() throws Exception {
-        String token = sign(trustedKey, claims(ISSUER, List.of(AUDIENCE, "account"), Instant.now().plusSeconds(300)));
+        String token = sign(
+                trustedKey,
+                claims(ISSUER, List.of(AUDIENCE, "account"), Instant.now().plusSeconds(300)));
 
         Jwt jwt = decoder.decode(token);
 
@@ -56,22 +59,28 @@ class JwtValidatorTest {
 
     @Test
     void shouldRejectExpiredToken() throws Exception {
-        String token = sign(trustedKey, claims(ISSUER, List.of(AUDIENCE), Instant.now().minusSeconds(120)));
+        String token =
+                sign(trustedKey, claims(ISSUER, List.of(AUDIENCE), Instant.now().minusSeconds(120)));
 
         assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(JwtValidationException.class);
     }
 
     @Test
     void shouldRejectTokenFromAnotherIssuer() throws Exception {
-        String token = sign(trustedKey,
-                claims("http://localhost:8180/realms/other", List.of(AUDIENCE), Instant.now().plusSeconds(300)));
+        String token = sign(
+                trustedKey,
+                claims(
+                        "http://localhost:8180/realms/other",
+                        List.of(AUDIENCE),
+                        Instant.now().plusSeconds(300)));
 
         assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(JwtValidationException.class);
     }
 
     @Test
     void shouldRejectTokenIssuedForAnotherAudience() throws Exception {
-        String token = sign(trustedKey, claims(ISSUER, List.of("account"), Instant.now().plusSeconds(300)));
+        String token = sign(
+                trustedKey, claims(ISSUER, List.of("account"), Instant.now().plusSeconds(300)));
 
         assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(JwtValidationException.class);
     }
@@ -85,7 +94,8 @@ class JwtValidatorTest {
 
     @Test
     void shouldRejectTokenSignedByUntrustedKey() throws Exception {
-        String token = sign(untrustedKey, claims(ISSUER, List.of(AUDIENCE), Instant.now().plusSeconds(300)));
+        String token = sign(
+                untrustedKey, claims(ISSUER, List.of(AUDIENCE), Instant.now().plusSeconds(300)));
 
         assertThatThrownBy(() -> decoder.decode(token)).isInstanceOf(BadJwtException.class);
     }
@@ -102,7 +112,9 @@ class JwtValidatorTest {
     }
 
     private static String sign(KeyPair keyPair, JWTClaimsSet claims) throws Exception {
-        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256).type(JOSEObjectType.JWT).build();
+        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256)
+                .type(JOSEObjectType.JWT)
+                .build();
         SignedJWT jwt = new SignedJWT(header, claims);
         jwt.sign(new RSASSASigner(keyPair.getPrivate()));
         return jwt.serialize();

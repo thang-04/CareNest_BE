@@ -11,8 +11,7 @@ public record KeycloakProperties(
         String adminClientSecret,
         boolean actionsEmailEnabled,
         Duration connectTimeout,
-        Duration readTimeout
-) {
+        Duration readTimeout) {
 
     // Không để secret lọt vào log khi record bị in ra
     @Override

@@ -33,7 +33,8 @@ public class ChildService {
 
         // Kiểm phạm vi TRƯỚC khi load: id ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id)
         childAccessPolicy.checkCanViewChild(currentUser, childId);
-        Child child = childRepository.findById(childId)
+        Child child = childRepository
+                .findById(childId)
                 .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"));
         Long currentClassroomId = enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock)).stream()
                 .findFirst()

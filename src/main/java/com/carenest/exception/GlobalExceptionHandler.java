@@ -55,7 +55,8 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ResponseJson<List<FieldErrorResponse>>> handleConstraintViolation(
             ConstraintViolationException ex) {
         List<FieldErrorResponse> errors = ex.getConstraintViolations().stream()
-                .map(violation -> new FieldErrorResponse(violation.getPropertyPath().toString(), violation.getMessage()))
+                .map(violation ->
+                        new FieldErrorResponse(violation.getPropertyPath().toString(), violation.getMessage()))
                 .toList();
         return ResponseJson.toJsonWithData(ApiCode.BAD_REQUEST, INVALID_REQUEST_DATA, errors);
     }
@@ -71,9 +72,11 @@ public class GlobalExceptionHandler {
         return ResponseJson.toJsonWithData(ApiCode.BAD_REQUEST, INVALID_REQUEST_DATA, errors);
     }
 
-    @ExceptionHandler({HttpMessageNotReadableException.class,
-            MissingServletRequestParameterException.class,
-            MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({
+        HttpMessageNotReadableException.class,
+        MissingServletRequestParameterException.class,
+        MethodArgumentTypeMismatchException.class
+    })
     public ResponseEntity<ResponseJson<Void>> handleMalformedRequest(Exception ex) {
         log.warn("[handleMalformedRequest]|type={}", ex.getClass().getSimpleName());
         return ResponseJson.toJson(ApiCode.BAD_REQUEST, "Malformed request");

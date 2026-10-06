@@ -27,10 +27,15 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
     }
 
     @Override
-    public CurrentUser resolveArgument(MethodParameter parameter, ModelAndViewContainer mavContainer,
-                                       NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
-        Object resolved = webRequest.getAttribute(ActiveAccountInterceptor.CURRENT_USER_ATTRIBUTE,
-                RequestAttributes.SCOPE_REQUEST);
-        return resolved instanceof CurrentUser currentUser ? currentUser : currentUserService.getObject().getCurrentUser();
+    public CurrentUser resolveArgument(
+            MethodParameter parameter,
+            ModelAndViewContainer mavContainer,
+            NativeWebRequest webRequest,
+            WebDataBinderFactory binderFactory) {
+        Object resolved = webRequest.getAttribute(
+                ActiveAccountInterceptor.CURRENT_USER_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+        return resolved instanceof CurrentUser currentUser
+                ? currentUser
+                : currentUserService.getObject().getCurrentUser();
     }
 }

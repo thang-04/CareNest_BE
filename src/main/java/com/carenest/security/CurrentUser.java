@@ -7,13 +7,7 @@ import java.util.Set;
  * Controller nhận tham số kiểu này (CurrentUserArgumentResolver) rồi truyền xuống service.
  */
 public record CurrentUser(
-        Long userId,
-        String keycloakUserId,
-        String username,
-        String fullName,
-        String email,
-        Set<CareNestRole> roles
-) {
+        Long userId, String keycloakUserId, String username, String fullName, String email, Set<CareNestRole> roles) {
 
     public CurrentUser {
         roles = Set.copyOf(roles);

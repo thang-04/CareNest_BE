@@ -23,9 +23,9 @@ public class ChildController {
     // Role chỉ là lớp 1; ChildService kiểm phạm vi lớp/liên kết của đúng trẻ này (lớp 2)
     @GetMapping("/{childId}")
     @PreAuthorize("hasAnyRole('TEACHER', 'VICE_PRINCIPAL', 'PRINCIPAL', 'PARENT')")
-    public ResponseEntity<ResponseJson<ChildProfileResponse>> getChildProfile(@PathVariable Long childId,
-                                                                              CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child profile success",
-                childService.getChildProfile(currentUser, childId));
+    public ResponseEntity<ResponseJson<ChildProfileResponse>> getChildProfile(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        return ResponseJson.toJsonWithData(
+                ApiCode.SUCCESSFUL, "Get child profile success", childService.getChildProfile(currentUser, childId));
     }
 }

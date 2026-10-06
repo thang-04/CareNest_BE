@@ -11,8 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 /** Lỗi 401/403 ở filter xảy ra trước controller nên phải tự ghi ResponseJson tại đây. */
 final class SecurityResponseWriter {
 
-    private SecurityResponseWriter() {
-    }
+    private SecurityResponseWriter() {}
 
     static void write(HttpServletResponse response, ObjectMapper objectMapper, ApiCode apiCode, String desc)
             throws IOException {

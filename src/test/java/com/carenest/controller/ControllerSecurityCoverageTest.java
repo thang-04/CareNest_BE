@@ -49,7 +49,8 @@ class ControllerSecurityCoverageTest {
         List<Class<?>> controllers = new ArrayList<>();
         for (BeanDefinition definition : scanner.findCandidateComponents(CONTROLLER_PACKAGE)) {
             Class<?> type = ClassUtils.forName(definition.getBeanClassName(), null);
-            String location = type.getProtectionDomain().getCodeSource().getLocation().toString();
+            String location =
+                    type.getProtectionDomain().getCodeSource().getLocation().toString();
             if (!location.contains("test-classes")) {
                 controllers.add(type);
             }
@@ -59,7 +60,8 @@ class ControllerSecurityCoverageTest {
 
     @Test
     void scannerSeesKnownControllers() throws ClassNotFoundException {
-        assertThat(findProductionControllers()).extracting(Class::getSimpleName)
+        assertThat(findProductionControllers())
+                .extracting(Class::getSimpleName)
                 .contains("AccountController", "ChildController")
                 .doesNotContain("ResponseContractTestController", "SecurityTestController");
     }

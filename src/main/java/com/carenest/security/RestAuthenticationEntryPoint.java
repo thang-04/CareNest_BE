@@ -25,15 +25,19 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
     private final ObjectMapper objectMapper;
 
     @Override
-    public void commence(HttpServletRequest request, HttpServletResponse response,
-                         AuthenticationException authException) throws IOException {
+    public void commence(
+            HttpServletRequest request, HttpServletResponse response, AuthenticationException authException)
+            throws IOException {
         if (authException instanceof AuthenticationServiceException) {
             log.error("[commence]|path={}|tokenVerificationUnavailable", request.getRequestURI(), authException);
-            SecurityResponseWriter.write(response, objectMapper, ApiCode.SERVICE_UNAVAILABLE,
-                    "Authentication service unavailable");
+            SecurityResponseWriter.write(
+                    response, objectMapper, ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
             return;
         }
-        log.warn("[commence]|path={}|type={}", request.getRequestURI(), authException.getClass().getSimpleName());
+        log.warn(
+                "[commence]|path={}|type={}",
+                request.getRequestURI(),
+                authException.getClass().getSimpleName());
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
         SecurityResponseWriter.write(response, objectMapper, ApiCode.UNAUTHORIZED, "Unauthorized");
     }

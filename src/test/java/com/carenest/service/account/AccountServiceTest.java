@@ -34,14 +34,17 @@ class AccountServiceTest {
     @Test
     void scopeSummaryKeepsOnlyAssignmentsMatchingTokenRoles() {
         CurrentUser teacher = user(CareNestRole.TEACHER);
-        given(staffAssignmentService.findActiveAssignments(teacher.userId(), TODAY)).willReturn(List.of(
-                new StaffAssignmentSummaryResponse(StaffRole.TEACHER, null, 11L, TODAY.minusMonths(1), null),
-                // phân công bếp còn trong DB nhưng token không có role KITCHEN_STAFF ⇒ không có hiệu lực
-                new StaffAssignmentSummaryResponse(StaffRole.KITCHEN_STAFF, 1L, null, TODAY.minusMonths(1), null)));
+        given(staffAssignmentService.findActiveAssignments(teacher.userId(), TODAY))
+                .willReturn(List.of(
+                        new StaffAssignmentSummaryResponse(StaffRole.TEACHER, null, 11L, TODAY.minusMonths(1), null),
+                        // phân công bếp còn trong DB nhưng token không có role KITCHEN_STAFF ⇒ không có hiệu lực
+                        new StaffAssignmentSummaryResponse(
+                                StaffRole.KITCHEN_STAFF, 1L, null, TODAY.minusMonths(1), null)));
 
         MyAccountResponse response = accountService.getMyAccount(teacher);
 
-        assertThat(response.assignments()).extracting(StaffAssignmentSummaryResponse::staffRole)
+        assertThat(response.assignments())
+                .extracting(StaffAssignmentSummaryResponse::staffRole)
                 .containsExactly(StaffRole.TEACHER);
         assertThat(response.childIds()).isEmpty();
         verifyNoInteractions(guardianChildLinkService);
@@ -50,7 +53,8 @@ class AccountServiceTest {
     @Test
     void parentSeesLinkedChildIds() {
         CurrentUser parent = user(CareNestRole.PARENT);
-        given(staffAssignmentService.findActiveAssignments(parent.userId(), TODAY)).willReturn(List.of());
+        given(staffAssignmentService.findActiveAssignments(parent.userId(), TODAY))
+                .willReturn(List.of());
         given(guardianChildLinkService.findChildIdsOfGuardian(parent.userId())).willReturn(List.of(101L));
 
         MyAccountResponse response = accountService.getMyAccount(parent);

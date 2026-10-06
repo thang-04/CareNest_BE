@@ -22,7 +22,9 @@ public enum CareNestRole {
     }
 
     public static Optional<CareNestRole> fromKeycloakRole(String roleName) {
-        return Arrays.stream(values()).filter(role -> role.name().equals(roleName)).findFirst();
+        return Arrays.stream(values())
+                .filter(role -> role.name().equals(roleName))
+                .findFirst();
     }
 
     public static Optional<CareNestRole> fromAuthority(String authority) {

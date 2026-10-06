@@ -64,8 +64,10 @@ class ResponseContractTest {
 
     @Test
     void createdUsesStatus201() throws Exception {
-        mockMvc.perform(post(BASE + "/validate").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"An\",\"classId\":5}").with(jwt()))
+        mockMvc.perform(post(BASE + "/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"An\",\"classId\":5}")
+                        .with(jwt()))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value(201))
                 .andExpect(jsonPath("$.data.classId").value(5));
@@ -73,8 +75,10 @@ class ResponseContractTest {
 
     @Test
     void validationErrorReturnsFieldErrors() throws Exception {
-        mockMvc.perform(post(BASE + "/validate").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"\"}").with(jwt()))
+        mockMvc.perform(post(BASE + "/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"\"}")
+                        .with(jwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.desc").value("Invalid request data"))
@@ -85,7 +89,9 @@ class ResponseContractTest {
 
     @Test
     void malformedJsonReturns400() throws Exception {
-        mockMvc.perform(post(BASE + "/validate").contentType(MediaType.APPLICATION_JSON).content("{bad json")
+        mockMvc.perform(post(BASE + "/validate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{bad json")
                         .with(jwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
@@ -94,7 +100,10 @@ class ResponseContractTest {
 
     @Test
     void unsupportedMediaTypeReturns415() throws Exception {
-        mockMvc.perform(post(BASE + "/validate").contentType(MediaType.TEXT_PLAIN).content("x").with(jwt()))
+        mockMvc.perform(post(BASE + "/validate")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("x")
+                        .with(jwt()))
                 .andExpect(status().isUnsupportedMediaType())
                 .andExpect(jsonPath("$.code").value(415));
     }

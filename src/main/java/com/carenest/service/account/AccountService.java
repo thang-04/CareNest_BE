@@ -27,15 +27,22 @@ public class AccountService {
     public MyAccountResponse getMyAccount(CurrentUser currentUser) {
         log.info("[getMyAccount]|userId={}", currentUser.userId());
         // Tóm tắt phạm vi tính giống policy: phân công/liên kết chỉ có hiệu lực khi role tương ứng có trong token
-        List<StaffAssignmentSummaryResponse> assignments = staffAssignmentService
-                .findActiveAssignments(currentUser.userId(), LocalDate.now(clock)).stream()
-                .filter(assignment -> currentUser.hasRole(CareNestRole.valueOf(assignment.staffRole().name())))
-                .toList();
+        List<StaffAssignmentSummaryResponse> assignments =
+                staffAssignmentService.findActiveAssignments(currentUser.userId(), LocalDate.now(clock)).stream()
+                        .filter(assignment -> currentUser.hasRole(
+                                CareNestRole.valueOf(assignment.staffRole().name())))
+                        .toList();
         List<Long> childIds = currentUser.hasRole(CareNestRole.PARENT)
                 ? guardianChildLinkService.findChildIdsOfGuardian(currentUser.userId())
                 : List.of();
 
-        return new MyAccountResponse(currentUser.userId(), currentUser.username(), currentUser.fullName(),
-                currentUser.email(), currentUser.roles().stream().sorted().toList(), assignments, childIds);
+        return new MyAccountResponse(
+                currentUser.userId(),
+                currentUser.username(),
+                currentUser.fullName(),
+                currentUser.email(),
+                currentUser.roles().stream().sorted().toList(),
+                assignments,
+                childIds);
     }
 }

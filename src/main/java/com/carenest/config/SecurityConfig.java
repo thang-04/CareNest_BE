@@ -40,9 +40,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 public class SecurityConfig {
 
     private static final String[] PUBLIC_PATHS = {
-            "/actuator/health", "/actuator/health/**",
-            "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html",
-            "/error"
+        "/actuator/health", "/actuator/health/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/error"
     };
 
     private final RestAuthenticationEntryPoint restAuthenticationEntryPoint;
@@ -51,21 +49,24 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Chỉ xác thực bằng header Bearer, không cookie/session nên CSRF không áp dụng; dùng cookie (BFF) thì phải bật lại
+                // Chỉ xác thực bằng header Bearer, không cookie/session nên CSRF không áp dụng; dùng cookie (BFF) thì
+                // phải bật lại
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(PUBLIC_PATHS).permitAll()
-                        .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth2 -> oauth2
-                        .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                .authorizeHttpRequests(auth -> auth.requestMatchers(PUBLIC_PATHS)
+                        .permitAll()
+                        .anyRequest()
+                        .authenticated())
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(
+                                jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
                         .accessDeniedHandler(restAccessDeniedHandler)
-                        // Mặc định lỗi không lấy được JWKS bị ném tiếp thành 500; đưa về entry point để trả 503 ResponseJson
+                        // Mặc định lỗi không lấy được JWKS bị ném tiếp thành 500; đưa về entry point để trả 503
+                        // ResponseJson
                         .withObjectPostProcessor(new ObjectPostProcessor<BearerTokenAuthenticationFilter>() {
                             @Override
                             public <O extends BearerTokenAuthenticationFilter> O postProcess(O filter) {
@@ -73,17 +74,17 @@ public class SecurityConfig {
                                 return filter;
                             }
                         }))
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(restAuthenticationEntryPoint)
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(restAuthenticationEntryPoint)
                         .accessDeniedHandler(restAccessDeniedHandler));
         return http.build();
     }
 
     /** Kiểm chữ ký bằng JWKS (fetch lazy, có cache, tự lấy key mới khi Keycloak xoay key); không gọi Keycloak mỗi request. */
     @Bean
-    public JwtDecoder jwtDecoder(@Value("${carenest.security.jwt.jwk-set-uri}") String jwkSetUri,
-                                 @Value("${carenest.security.jwt.issuer-uri}") String issuerUri,
-                                 @Value("${carenest.security.jwt.audience}") String audience) {
+    public JwtDecoder jwtDecoder(
+            @Value("${carenest.security.jwt.jwk-set-uri}") String jwkSetUri,
+            @Value("${carenest.security.jwt.issuer-uri}") String issuerUri,
+            @Value("${carenest.security.jwt.audience}") String audience) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
         decoder.setJwtValidator(jwtValidator(issuerUri, audience));
         return decoder;

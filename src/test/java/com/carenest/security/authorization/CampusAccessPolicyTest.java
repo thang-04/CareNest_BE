@@ -34,7 +34,8 @@ class CampusAccessPolicyTest {
     @Test
     void principalWithActiveAssignmentCanViewEveryCampus() {
         CurrentUser principal = user(CareNestRole.PRINCIPAL);
-        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY))
+                .willReturn(true);
 
         assertThat(policy.canViewCampus(principal, CAMPUS_A)).isTrue();
         assertThat(policy.canViewCampus(principal, CAMPUS_B)).isTrue();
@@ -43,7 +44,8 @@ class CampusAccessPolicyTest {
     @Test
     void principalRoleWithoutActiveAssignmentIsDenied() {
         CurrentUser principal = user(CareNestRole.PRINCIPAL);
-        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY)).willReturn(false);
+        given(staffAssignmentService.hasActivePrincipalAssignment(principal.userId(), TODAY))
+                .willReturn(false);
 
         assertThat(policy.canViewCampus(principal, CAMPUS_A)).isFalse();
     }
@@ -51,8 +53,9 @@ class CampusAccessPolicyTest {
     @Test
     void vicePrincipalCanViewOnlyAssignedCampus() {
         CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
-        given(staffAssignmentService.hasActiveCampusAssignment(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL,
-                CAMPUS_A, TODAY)).willReturn(true);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
 
         assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_A)).isTrue();
         assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isFalse();
@@ -69,7 +72,8 @@ class CampusAccessPolicyTest {
     @Test
     void assignmentWithoutMatchingTokenRoleIsIgnored() {
         CurrentUser teacher = user(CareNestRole.TEACHER);
-        given(staffAssignmentService.hasActiveCampusAssignment(anyLong(), any(), anyLong(), any())).willReturn(true);
+        given(staffAssignmentService.hasActiveCampusAssignment(anyLong(), any(), anyLong(), any()))
+                .willReturn(true);
 
         assertThat(policy.canViewCampus(teacher, CAMPUS_A)).isFalse();
     }
@@ -81,7 +85,8 @@ class CampusAccessPolicyTest {
         assertThatThrownBy(() -> policy.checkCanViewCampus(admin, CAMPUS_A))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage("You do not have access to this campus")
-                .extracting("apiCode").isEqualTo(ApiCode.FORBIDDEN);
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.FORBIDDEN);
     }
 
     static CurrentUser user(CareNestRole... roles) {

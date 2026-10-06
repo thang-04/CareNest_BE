@@ -33,7 +33,8 @@ public class CurrentUserService {
 
         // Danh tính chỉ lấy từ "sub" đã được kiểm chữ ký, không lấy từ id client gửi
         String keycloakUserId = jwtAuthentication.getToken().getSubject();
-        UserAccount account = userAccountRepository.findByKeycloakUserId(keycloakUserId)
+        UserAccount account = userAccountRepository
+                .findByKeycloakUserId(keycloakUserId)
                 .orElseThrow(() -> {
                     log.warn("[getCurrentUser]|keycloakUserId={}|reason=notProvisioned", keycloakUserId);
                     return new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned");
@@ -44,8 +45,13 @@ public class CurrentUserService {
             throw new GlobalException(ApiCode.FORBIDDEN, "Account is inactive");
         }
 
-        return new CurrentUser(account.getId(), keycloakUserId, account.getUsername(), account.getFullName(),
-                account.getEmail(), rolesOf(authentication));
+        return new CurrentUser(
+                account.getId(),
+                keycloakUserId,
+                account.getUsername(),
+                account.getFullName(),
+                account.getEmail(),
+                rolesOf(authentication));
     }
 
     private static Set<CareNestRole> rolesOf(Authentication authentication) {

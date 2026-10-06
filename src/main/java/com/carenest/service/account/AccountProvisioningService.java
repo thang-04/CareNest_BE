@@ -34,8 +34,12 @@ import org.springframework.util.StringUtils;
 public class AccountProvisioningService {
 
     // Tài khoản ADMIN chỉ tạo trực tiếp trên Keycloak (bootstrap), không mở qua API
-    private static final Set<CareNestRole> PROVISIONABLE_ROLES = EnumSet.of(CareNestRole.PRINCIPAL,
-            CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF, CareNestRole.PARENT);
+    private static final Set<CareNestRole> PROVISIONABLE_ROLES = EnumSet.of(
+            CareNestRole.PRINCIPAL,
+            CareNestRole.VICE_PRINCIPAL,
+            CareNestRole.TEACHER,
+            CareNestRole.KITCHEN_STAFF,
+            CareNestRole.PARENT);
 
     private final UserAccountRepository userAccountRepository;
     private final IdentityProviderClient identityProviderClient;
@@ -49,11 +53,12 @@ public class AccountProvisioningService {
             throw new GlobalException(ApiCode.BAD_REQUEST, "This role cannot be created via API");
         }
         String username = request.username().trim().toLowerCase(Locale.ROOT);
-        String email = StringUtils.hasText(request.email()) ? request.email().trim().toLowerCase(Locale.ROOT) : null;
+        String email =
+                StringUtils.hasText(request.email()) ? request.email().trim().toLowerCase(Locale.ROOT) : null;
         boolean sendSetupEmail = email != null && identityProviderClient.canSendSetupEmail();
         if (request.temporaryPassword() == null && !sendSetupEmail) {
-            throw new GlobalException(ApiCode.BAD_REQUEST,
-                    "Temporary password is required when a setup email cannot be sent");
+            throw new GlobalException(
+                    ApiCode.BAD_REQUEST, "Temporary password is required when a setup email cannot be sent");
         }
         if (userAccountRepository.existsByUsername(username)) {
             throw new GlobalException(ApiCode.CONFLICT, "Username already exists");
@@ -69,9 +74,10 @@ public class AccountProvisioningService {
 
         UserAccount account;
         try {
-            identityProviderClient.assignRealmRole(keycloakUserId, request.role().name());
-            account = userAccountRepository.saveAndFlush(
-                    UserAccount.create(keycloakUserId, username, email, request.fullName().trim()));
+            identityProviderClient.assignRealmRole(
+                    keycloakUserId, request.role().name());
+            account = userAccountRepository.saveAndFlush(UserAccount.create(
+                    keycloakUserId, username, email, request.fullName().trim()));
         } catch (RuntimeException ex) {
             // Mọi lỗi sau khi đã tạo user Keycloak (kể cả DB mất kết nối) đều phải bù trừ, không để user mồ côi
             deleteIdentityQuietly(prefix, keycloakUserId);
@@ -85,16 +91,22 @@ public class AccountProvisioningService {
         }
 
         boolean setupEmailSent = sendSetupEmail && sendSetupEmailQuietly(prefix, keycloakUserId);
-        log.info("{}|userId={}|keycloakUserId={}|setupEmailSent={}|END", prefix, account.getId(), keycloakUserId,
+        log.info(
+                "{}|userId={}|keycloakUserId={}|setupEmailSent={}|END",
+                prefix,
+                account.getId(),
+                keycloakUserId,
                 setupEmailSent);
         return accountMapper.toCreateAccountResponse(account, request.role(), setupEmailSent);
     }
 
     public AccountResponse updateAccountStatus(CurrentUser actor, Long userId, UserStatus status) {
-        String prefix = "[updateAccountStatus]|actorUserId=" + actor.userId() + "|userId=" + userId + "|status=" + status;
+        String prefix =
+                "[updateAccountStatus]|actorUserId=" + actor.userId() + "|userId=" + userId + "|status=" + status;
         log.info("{}|START", prefix);
 
-        UserAccount account = userAccountRepository.findById(userId)
+        UserAccount account = userAccountRepository
+                .findById(userId)
                 .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Account not found"));
         // Ghi DB trước: CurrentUserService chặn ngay từ request kế tiếp kể cả khi bước Keycloak lỗi
         account.changeStatus(status);
@@ -106,8 +118,10 @@ public class AccountProvisioningService {
             }
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderSyncFailed", prefix, ex);
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE,
-                    "Account status saved but identity provider sync failed, please retry", ex);
+            throw new GlobalException(
+                    ApiCode.SERVICE_UNAVAILABLE,
+                    "Account status saved but identity provider sync failed, please retry",
+                    ex);
         }
 
         log.info("{}|END", prefix);
@@ -139,8 +153,11 @@ public class AccountProvisioningService {
     private static GlobalException toGlobalException(IdentityProviderException ex) {
         return switch (ex.getReason()) {
             case CONFLICT -> new GlobalException(ApiCode.CONFLICT, "Username or email already exists", ex);
-            case REJECTED -> new GlobalException(ApiCode.BAD_REQUEST,
-                    "Account data rejected by identity provider (check password policy and full name)", ex);
+            case REJECTED ->
+                new GlobalException(
+                        ApiCode.BAD_REQUEST,
+                        "Account data rejected by identity provider (check password policy and full name)",
+                        ex);
             case UNAVAILABLE -> new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Identity provider unavailable", ex);
         };
     }
