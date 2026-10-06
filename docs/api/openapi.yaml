@@ -1,0 +1,10 @@
+openapi: 3.1.0
+info:
+  description: REST API dùng chung cho CareNest web và mobile
+  title: CareNest API
+  version: v1
+servers:
+- description: Generated server url
+  url: http://localhost
+paths: {}
+components: {}
