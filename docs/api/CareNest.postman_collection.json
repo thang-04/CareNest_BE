@@ -1,0 +1,2101 @@
+{
+  "info": {
+    "_postman_id": "448e264f-2a22-5e60-954c-26c00b43a41e",
+    "name": "CareNest BE — Auth & phân quyền",
+    "description": "API hiện có của CareNest BE (Keycloak + Spring Security Resource Server + phân quyền theo phạm vi).\n\n**Chuẩn bị**\n1. `docker compose up --build` (profile `dev`: có 8 user dev + dữ liệu giả).\n2. Import kèm environment `CareNest-local.postman_environment.json`, chọn environment đó.\n3. Điền `devPassword` = giá trị `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` (để trống `newAccountTempPassword` thì tự sinh).\n4. Chạy folder **0. Đăng nhập** trước (token sống 5 phút — hết hạn thì chạy lại). Có thể Run cả collection theo thứ tự.\n\n**API hiện có**\n| API | Role | Xử lý |\n| --- | --- | --- |\n| GET /api/accounts/me | mọi user đã đăng nhập | Profile, roles, phân công đang hiệu lực, id con (PH) |\n| GET /api/children/{childId} | TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT | Hồ sơ cơ bản trẻ, kiểm phạm vi lớp/campus/liên kết |\n| POST /api/accounts | ADMIN | Cấp tài khoản (Keycloak + CareNest, bù trừ khi lỗi) |\n| PATCH /api/accounts/{userId}/status | ADMIN | Khóa/mở khóa (CareNest chặn ngay + Keycloak disable/logout) |\n| GET /actuator/health, /v3/api-docs | public | Health, OpenAPI |\n\nMọi response API (trừ Actuator/OpenAPI) dạng `{code, desc, data}` với `code` = HTTP status. Đăng nhập/refresh/logout là của Keycloak, CareNest không có endpoint login.\n\nChi tiết: `docs/contracts/AUTH_CONTRACT.md`, `docs/system/KEYCLOAK.md`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "item": [
+    {
+      "name": "0. Đăng nhập (Keycloak, chỉ dev)",
+      "description": "Lấy access token cho 8 user dev qua password grant (client `carenest-dev`). Chạy đầu tiên.",
+      "item": [
+        {
+          "name": "Login admin.dev",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Keycloak thành công', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_admin', body.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "admin.dev"
+                },
+                {
+                  "key": "password",
+                  "value": "{{devPassword}}"
+                }
+              ]
+            },
+            "description": "Lấy access token (5 phút) cho `admin.dev` — ADMIN — chỉ quản lý tài khoản, không có phạm vi dữ liệu trẻ.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_admin`."
+          }
+        },
+        {
+          "name": "Login principal.dev",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Keycloak thành công', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_principal', body.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "principal.dev"
+                },
+                {
+                  "key": "password",
+                  "value": "{{devPassword}}"
+                }
+              ]
+            },
+            "description": "Lấy access token (5 phút) cho `principal.dev` — PRINCIPAL — toàn trường.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_principal`."
+          }
+        },
+        {
+          "name": "Login viceprincipal.a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Keycloak thành công', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_vp_a', body.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "viceprincipal.a"
+                },
+                {
+                  "key": "password",
+                  "value": "{{devPassword}}"
+                }
+              ]
+            },
+            "description": "Lấy access token (5 phút) cho `viceprincipal.a` — VICE_PRINCIPAL — Cơ sở A.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_vp_a`."
+          }
+        },
+        {
+          "name": "Login teacher.a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Keycloak thành công', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_teacher_a', body.access_token);",
+                  "pm.collectionVariables.set('refresh_teacher_a', body.refresh_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "teacher.a"
+                },
+                {
+                  "key": "password",
+                  "value": "{{devPassword}}"
+                }
+              ]
+            },
+            "description": "Lấy access token (5 phút) cho `teacher.a` — TEACHER — Lớp A1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_a`."
+          }
+        },
+        {
+          "name": "Login teacher.b",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Keycloak thành công', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_teacher_b', body.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "teacher.b"
+                },
+                {
+                  "key": "password",
+                  "value": "{{devPassword}}"
+                }
+              ]
+            },
+            "description": "Lấy access token (5 phút) cho `teacher.b` — TEACHER — Lớp A1 đã hết hạn (tới 30/09/2026), đang dạy Lớp B1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_b`."
+          }
+        },
+        {
+          "name": "Login parent.a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Keycloak thành công', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_parent_a', body.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "parent.a"
+                },
+                {
+                  "key": "password",
+                  "value": "{{devPassword}}"
+                }
+              ]
+            },
+            "description": "Lấy access token (5 phút) cho `parent.a` — PARENT — con: Trẻ Demo A1-01.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_a`."
+          }
+        },
+        {
+          "name": "Login parent.b",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Keycloak thành công', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_parent_b', body.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "parent.b"
+                },
+                {
+                  "key": "password",
+                  "value": "{{devPassword}}"
+                }
+              ]
+            },
+            "description": "Lấy access token (5 phút) cho `parent.b` — PARENT — con: Trẻ Demo B1-01.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_b`."
+          }
+        },
+        {
+          "name": "Login kitchen.a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Đăng nhập Keycloak thành công', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_kitchen_a', body.access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "kitchen.a"
+                },
+                {
+                  "key": "password",
+                  "value": "{{devPassword}}"
+                }
+              ]
+            },
+            "description": "Lấy access token (5 phút) cho `kitchen.a` — KITCHEN_STAFF — bếp Cơ sở A.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_kitchen_a`."
+          }
+        },
+        {
+          "name": "OIDC discovery",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{keycloakUrl}}/realms/{{realm}}/.well-known/openid-configuration",
+            "description": "Cấu hình OIDC của realm (endpoint authorize/token/logout/JWKS). FE/APP dùng URL này để cấu hình thư viện OIDC.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. Public",
+      "description": "Endpoint không cần token.",
+      "item": [
+        {
+          "name": "Health (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health",
+            "description": "Không cần token. Trả trạng thái ứng dụng (không theo dạng ResponseJson vì là Actuator).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "OpenAPI docs (public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/v3/api-docs",
+            "description": "Không cần token. Tài liệu OpenAPI (Swagger UI: {{baseUrl}}/swagger-ui/index.html, nút Authorize để dán token).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1b. Chặn mặc định",
+      "description": "Mọi path ngoài danh sách public cần token; lỗi 401/404 dạng ResponseJson.",
+      "item": [
+        {
+          "name": "Path không tồn tại, không token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/khong-ton-tai",
+            "description": "Mặc định chặn: mọi path ngoài danh sách public đều cần token, kể cả path không tồn tại.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('desc = \"Unauthorized\"', () => pm.expect(pm.response.json().desc).to.eql(\"Unauthorized\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Path không tồn tại, có token → 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/khong-ton-tai",
+            "description": "Đã xác thực nhưng không có endpoint ⇒ 404 dạng ResponseJson.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "pm.test('desc = \"Resource not found\"', () => pm.expect(pm.response.json().desc).to.eql(\"Resource not found\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Token rác → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
+            "description": "Token sai định dạng/chữ ký/hết hạn/sai issuer/sai audience đều trả 401 (kèm header WWW-Authenticate: Bearer).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{invalidToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('desc = \"Unauthorized\"', () => pm.expect(pm.response.json().desc).to.eql(\"Unauthorized\"));",
+                  "pm.test('Có WWW-Authenticate: Bearer', () => pm.response.to.have.header('WWW-Authenticate', 'Bearer'));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Response của Keycloak (token endpoint) không theo envelope CareNest",
+              "if (pm.request.url.toString().includes('/protocol/openid-connect/')) { return; }",
+              "pm.test('Envelope {code, desc, data} và code = HTTP status', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body).to.have.all.keys('code', 'desc', 'data');",
+              "    pm.expect(body.code).to.eql(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Tài khoản hiện tại — GET /accounts/me",
+      "description": "Chạy trước folder 3 (lưu id con của parent.a/parent.b vào biến).",
+      "item": [
+        {
+          "name": "me — teacher.a (TEACHER, Lớp A1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
+            "description": "Thông tin user hiện tại: profile, roles (từ token), assignments (phân công đang hiệu lực, khớp role), childIds (chỉ PARENT). Client dùng để ẩn/hiện menu; quyền thật kiểm ở từng API.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('roles = [TEACHER]', () => pm.expect(d.roles).to.eql(['TEACHER']));",
+                  "pm.test('1 phân công TEACHER đang hiệu lực', () => {",
+                  "    pm.expect(d.assignments).to.have.lengthOf(1);",
+                  "    pm.expect(d.assignments[0].staffRole).to.eql('TEACHER');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "me — teacher.b (phân công A1 đã hết hạn)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
+            "description": "teacher.b từng dạy A1 tới 30/09/2026 rồi chuyển B1 ⇒ chỉ còn 1 phân công đang hiệu lực.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('teacherBUserId', d.userId);",
+                  "pm.test('Chỉ còn phân công B1', () => pm.expect(d.assignments).to.have.lengthOf(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "me — parent.a (lấy id con A1-01)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
+            "description": "PARENT: childIds = trẻ có liên kết. Lưu id con vào biến `childA1_01` cho các request sau.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_parent_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('Có đúng 1 con', () => pm.expect(d.childIds).to.have.lengthOf(1));",
+                  "pm.collectionVariables.set('childA1_01', d.childIds[0]);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "me — parent.b (lấy id con B1-01)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
+            "description": "Lưu id con vào biến `childB1_01`.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_parent_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('childB1_01', d.childIds[0]);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "me — kitchen.a (KITCHEN_STAFF)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
+            "description": "Bếp có phân công campus (cho dữ liệu bếp sau này) nhưng không có quyền xem hồ sơ trẻ.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_kitchen_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Phân công KITCHEN_STAFF', () => pm.expect(pm.response.json().data.assignments[0].staffRole).to.eql('KITCHEN_STAFF'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "me — không token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
+            "description": "Thiếu token ⇒ 401.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('desc = \"Unauthorized\"', () => pm.expect(pm.response.json().desc).to.eql(\"Unauthorized\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Response của Keycloak (token endpoint) không theo envelope CareNest",
+              "if (pm.request.url.toString().includes('/protocol/openid-connect/')) { return; }",
+              "pm.test('Envelope {code, desc, data} và code = HTTP status', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body).to.have.all.keys('code', 'desc', 'data');",
+              "    pm.expect(body.code).to.eql(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Hồ sơ trẻ — ma trận phân quyền",
+      "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+      "item": [
+        {
+          "name": "teacher.a → A1-01 (lớp mình) → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childA1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('Có id, fullName, dateOfBirth, classroomId', () => pm.expect(d).to.have.all.keys('id', 'fullName', 'dateOfBirth', 'classroomId'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "teacher.a → B1-01 (lớp khác) → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childB1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"You do not have access to this child\"', () => pm.expect(pm.response.json().desc).to.eql(\"You do not have access to this child\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "teacher.a → id không tồn tại → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/99999",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"You do not have access to this child\"', () => pm.expect(pm.response.json().desc).to.eql(\"You do not have access to this child\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "teacher.b → A1-01 (phân công đã hết hạn) → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childA1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"You do not have access to this child\"', () => pm.expect(pm.response.json().desc).to.eql(\"You do not have access to this child\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "teacher.b → B1-01 (lớp hiện tại) → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childB1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "viceprincipal.a → A1-01 (campus mình) → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childA1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "viceprincipal.a → B1-01 (campus khác) → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childB1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"You do not have access to this child\"', () => pm.expect(pm.response.json().desc).to.eql(\"You do not have access to this child\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "principal.dev → A1-01 → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childA1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "principal.dev → B1-01 → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childB1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "parent.a → con mình (A1-01) → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childA1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_parent_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "parent.a → con người khác (B1-01) → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childB1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_parent_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"You do not have access to this child\"', () => pm.expect(pm.response.json().desc).to.eql(\"You do not have access to this child\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "parent.b → con mình (B1-01) → 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childB1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_parent_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "kitchen.a → A1-01 → 403 (role bị chặn)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childA1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_kitchen_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"Forbidden\"', () => pm.expect(pm.response.json().desc).to.eql(\"Forbidden\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "admin.dev → A1-01 → 403 (Admin không bypass)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childA1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"Forbidden\"', () => pm.expect(pm.response.json().desc).to.eql(\"Forbidden\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "không token → 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/{{childA1_01}}",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 401', () => pm.response.to.have.status(401));",
+                  "pm.test('desc = \"Unauthorized\"', () => pm.expect(pm.response.json().desc).to.eql(\"Unauthorized\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "childId không phải số → 400",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/children/abc",
+            "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('desc = \"Malformed request\"', () => pm.expect(pm.response.json().desc).to.eql(\"Malformed request\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Response của Keycloak (token endpoint) không theo envelope CareNest",
+              "if (pm.request.url.toString().includes('/protocol/openid-connect/')) { return; }",
+              "pm.test('Envelope {code, desc, data} và code = HTTP status', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body).to.have.all.keys('code', 'desc', 'data');",
+              "    pm.expect(body.code).to.eql(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Cấp / khóa tài khoản (ADMIN)",
+      "description": "Tạo tài khoản mới (username tự sinh mỗi lần chạy) và khóa/mở teacher.b.",
+      "item": [
+        {
+          "name": "create — PRINCIPAL gọi → 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts",
+            "description": "POST /accounts — chỉ ADMIN. Tạo user Keycloak (bắt đổi mật khẩu lần đầu, họ tên ở firstName), gán realm role, tạo hồ sơ user_accounts; lỗi bước sau thì xóa user Keycloak vừa tạo.\n\n- role ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT (không tạo ADMIN).\n- temporaryPassword bắt buộc trừ khi có email và server bật gửi email đặt mật khẩu (compose bật sẵn, xem email ở Mailpit http://localhost:8025).\n- Response có setupEmailSent.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{newUsername}}\",\n  \"fullName\": \"Giáo viên Postman\",\n  \"email\": \"{{newUsername}}@example.test\",\n  \"role\": \"TEACHER\",\n  \"temporaryPassword\": \"{{tempPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Username mới mỗi lần chạy để chạy lại không bị 409; mật khẩu tạm lấy từ environment hoặc sinh ngẫu nhiên",
+                  "if (!pm.collectionVariables.get('createdThisRun')) {",
+                  "    pm.collectionVariables.set('newUsername', 'pm.' + Date.now());",
+                  "    const pw = pm.environment.get('newAccountTempPassword') || ('Tmp-' + Math.random().toString(36).slice(2, 12) + '-9');",
+                  "    pm.collectionVariables.set('tempPassword', pw);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"Forbidden\"', () => pm.expect(pm.response.json().desc).to.eql(\"Forbidden\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "create — role ADMIN → 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts",
+            "description": "POST /accounts — chỉ ADMIN. Tạo user Keycloak (bắt đổi mật khẩu lần đầu, họ tên ở firstName), gán realm role, tạo hồ sơ user_accounts; lỗi bước sau thì xóa user Keycloak vừa tạo.\n\n- role ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT (không tạo ADMIN).\n- temporaryPassword bắt buộc trừ khi có email và server bật gửi email đặt mật khẩu (compose bật sẵn, xem email ở Mailpit http://localhost:8025).\n- Response có setupEmailSent.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{newUsername}}\",\n  \"fullName\": \"Giáo viên Postman\",\n  \"email\": \"{{newUsername}}@example.test\",\n  \"role\": \"ADMIN\",\n  \"temporaryPassword\": \"{{tempPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Username mới mỗi lần chạy để chạy lại không bị 409; mật khẩu tạm lấy từ environment hoặc sinh ngẫu nhiên",
+                  "if (!pm.collectionVariables.get('createdThisRun')) {",
+                  "    pm.collectionVariables.set('newUsername', 'pm.' + Date.now());",
+                  "    const pw = pm.environment.get('newAccountTempPassword') || ('Tmp-' + Math.random().toString(36).slice(2, 12) + '-9');",
+                  "    pm.collectionVariables.set('tempPassword', pw);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('desc = \"This role cannot be created via API\"', () => pm.expect(pm.response.json().desc).to.eql(\"This role cannot be created via API\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "create — body sai → 400 + lỗi theo field",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts",
+            "description": "POST /accounts — chỉ ADMIN. Tạo user Keycloak (bắt đổi mật khẩu lần đầu, họ tên ở firstName), gán realm role, tạo hồ sơ user_accounts; lỗi bước sau thì xóa user Keycloak vừa tạo.\n\n- role ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT (không tạo ADMIN).\n- temporaryPassword bắt buộc trừ khi có email và server bật gửi email đặt mật khẩu (compose bật sẵn, xem email ở Mailpit http://localhost:8025).\n- Response có setupEmailSent.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"bad name!\",\n  \"fullName\": \"\",\n  \"temporaryPassword\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('desc = \"Invalid request data\"', () => pm.expect(pm.response.json().desc).to.eql(\"Invalid request data\"));",
+                  "const fields = pm.response.json().data.map(e => e.field);",
+                  "pm.test('Báo lỗi username, fullName, role, temporaryPassword', () => pm.expect(fields).to.include.members(['username', 'fullName', 'role', 'temporaryPassword']));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "create — ADMIN tạo TEACHER → 201",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts",
+            "description": "POST /accounts — chỉ ADMIN. Tạo user Keycloak (bắt đổi mật khẩu lần đầu, họ tên ở firstName), gán realm role, tạo hồ sơ user_accounts; lỗi bước sau thì xóa user Keycloak vừa tạo.\n\n- role ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT (không tạo ADMIN).\n- temporaryPassword bắt buộc trừ khi có email và server bật gửi email đặt mật khẩu (compose bật sẵn, xem email ở Mailpit http://localhost:8025).\n- Response có setupEmailSent.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{newUsername}}\",\n  \"fullName\": \"Giáo viên Postman\",\n  \"email\": \"{{newUsername}}@example.test\",\n  \"role\": \"TEACHER\",\n  \"temporaryPassword\": \"{{tempPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Username mới mỗi lần chạy để chạy lại không bị 409; mật khẩu tạm lấy từ environment hoặc sinh ngẫu nhiên",
+                  "if (!pm.collectionVariables.get('createdThisRun')) {",
+                  "    pm.collectionVariables.set('newUsername', 'pm.' + Date.now());",
+                  "    const pw = pm.environment.get('newAccountTempPassword') || ('Tmp-' + Math.random().toString(36).slice(2, 12) + '-9');",
+                  "    pm.collectionVariables.set('tempPassword', pw);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('desc = \"Create account success\"', () => pm.expect(pm.response.json().desc).to.eql(\"Create account success\"));",
+                  "const d = pm.response.json().data;",
+                  "pm.collectionVariables.set('createdUserId', d.userId);",
+                  "pm.collectionVariables.set('createdThisRun', 'true');",
+                  "pm.test('role TEACHER, ACTIVE', () => { pm.expect(d.role).to.eql('TEACHER'); pm.expect(d.status).to.eql('ACTIVE'); });",
+                  "pm.test('Response không chứa mật khẩu tạm', () => pm.expect(pm.response.text()).to.not.include(pm.collectionVariables.get('tempPassword')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "create — trùng username → 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts",
+            "description": "POST /accounts — chỉ ADMIN. Tạo user Keycloak (bắt đổi mật khẩu lần đầu, họ tên ở firstName), gán realm role, tạo hồ sơ user_accounts; lỗi bước sau thì xóa user Keycloak vừa tạo.\n\n- role ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT (không tạo ADMIN).\n- temporaryPassword bắt buộc trừ khi có email và server bật gửi email đặt mật khẩu (compose bật sẵn, xem email ở Mailpit http://localhost:8025).\n- Response có setupEmailSent.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{newUsername}}\",\n  \"fullName\": \"Giáo viên Postman\",\n  \"email\": \"{{newUsername}}@example.test\",\n  \"role\": \"TEACHER\",\n  \"temporaryPassword\": \"{{tempPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Username mới mỗi lần chạy để chạy lại không bị 409; mật khẩu tạm lấy từ environment hoặc sinh ngẫu nhiên",
+                  "if (!pm.collectionVariables.get('createdThisRun')) {",
+                  "    pm.collectionVariables.set('newUsername', 'pm.' + Date.now());",
+                  "    const pw = pm.environment.get('newAccountTempPassword') || ('Tmp-' + Math.random().toString(36).slice(2, 12) + '-9');",
+                  "    pm.collectionVariables.set('tempPassword', pw);",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('desc = \"Username already exists\"', () => pm.expect(pm.response.json().desc).to.eql(\"Username already exists\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Keycloak — user mới đăng nhập bằng mật khẩu tạm → bị chặn",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400 invalid_grant', () => pm.response.to.have.status(400));",
+                  "pm.test('Account is not fully set up (phải đổi mật khẩu qua trình duyệt)', () => pm.expect(pm.response.json().error_description).to.eql('Account is not fully set up'));",
+                  "pm.collectionVariables.unset('createdThisRun');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "password"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "username",
+                  "value": "{{newUsername}}"
+                },
+                {
+                  "key": "password",
+                  "value": "{{tempPassword}}"
+                }
+              ]
+            },
+            "description": "Tài khoản mới có required action UPDATE_PASSWORD: phải đăng nhập qua trình duyệt (web/app hoặc Account Console {{keycloakUrl}}/realms/{{realm}}/account) để đặt mật khẩu mới."
+          }
+        },
+        {
+          "name": "status — khóa teacher.b (INACTIVE) → 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/{{teacherBUserId}}/status",
+            "description": "PATCH /accounts/{userId}/status — chỉ ADMIN. INACTIVE: ghi DB trước (CareNest chặn ngay), rồi disable + logout mọi session bên Keycloak. Bước Keycloak lỗi ⇒ 503 nhưng CareNest đã chặn.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('desc = \"Update account status success\"', () => pm.expect(pm.response.json().desc).to.eql(\"Update account status success\"));",
+                  "pm.test('status INACTIVE', () => pm.expect(pm.response.json().data.status).to.eql('INACTIVE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "me — teacher.b dùng token cũ (còn hạn) → 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
+            "description": "Khóa có hiệu lực ngay: access token chưa hết hạn vẫn bị chặn.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_b}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"Account is inactive\"', () => pm.expect(pm.response.json().desc).to.eql(\"Account is inactive\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "status — mở khóa teacher.b (ACTIVE) → 200",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/{{teacherBUserId}}/status",
+            "description": "ACTIVE: mở lại ở CareNest và enable user bên Keycloak (session cũ đã bị hủy khi khóa).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('desc = \"Update account status success\"', () => pm.expect(pm.response.json().desc).to.eql(\"Update account status success\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "status — userId không tồn tại → 404",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/99999/status",
+            "description": "Khóa tài khoản không tồn tại ⇒ 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "pm.test('desc = \"Account not found\"', () => pm.expect(pm.response.json().desc).to.eql(\"Account not found\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "status — giá trị sai → 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/{{teacherBUserId}}/status",
+            "description": "status chỉ nhận ACTIVE | INACTIVE.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_admin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BLOCKED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "status — TEACHER gọi → 403",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/accounts/{{teacherBUserId}}/status",
+            "description": "Chỉ ADMIN.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('desc = \"Forbidden\"', () => pm.expect(pm.response.json().desc).to.eql(\"Forbidden\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Response của Keycloak (token endpoint) không theo envelope CareNest",
+              "if (pm.request.url.toString().includes('/protocol/openid-connect/')) { return; }",
+              "pm.test('Envelope {code, desc, data} và code = HTTP status', () => {",
+              "    const body = pm.response.json();",
+              "    pm.expect(body).to.have.all.keys('code', 'desc', 'data');",
+              "    pm.expect(body.code).to.eql(pm.response.code);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Keycloak — refresh & logout (chạy cuối)",
+      "description": "Vòng đời token phía Keycloak. Chạy cuối vì logout hủy session của teacher.a.",
+      "item": [
+        {
+          "name": "Refresh token teacher.a",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('token_teacher_a', body.access_token);",
+                  "pm.collectionVariables.set('refresh_teacher_a', body.refresh_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "refresh_token"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{refresh_teacher_a}}"
+                }
+              ]
+            },
+            "description": "Đổi refresh token lấy access token mới (xoay vòng: refresh token cũ hết dùng được). Client gọi khi gặp 401 hoặc token sắp hết hạn."
+          }
+        },
+        {
+          "name": "Logout teacher.a (hủy session)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/logout",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{refresh_teacher_a}}"
+                }
+              ]
+            },
+            "description": "Logout là việc của Keycloak (CareNest không có endpoint logout). Access token đã cấp vẫn dùng được tới khi hết hạn (≤ 5 phút)."
+          }
+        },
+        {
+          "name": "Refresh sau logout → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400 invalid_grant', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "noauth"
+            },
+            "url": "{{keycloakUrl}}/realms/{{realm}}/protocol/openid-connect/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "grant_type",
+                  "value": "refresh_token"
+                },
+                {
+                  "key": "client_id",
+                  "value": "{{clientId}}"
+                },
+                {
+                  "key": "refresh_token",
+                  "value": "{{refresh_teacher_a}}"
+                }
+              ]
+            },
+            "description": "Session đã hủy ⇒ refresh token không dùng được nữa."
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "token_admin",
+      "value": ""
+    },
+    {
+      "key": "token_principal",
+      "value": ""
+    },
+    {
+      "key": "token_vp_a",
+      "value": ""
+    },
+    {
+      "key": "token_teacher_a",
+      "value": ""
+    },
+    {
+      "key": "token_teacher_b",
+      "value": ""
+    },
+    {
+      "key": "token_parent_a",
+      "value": ""
+    },
+    {
+      "key": "token_parent_b",
+      "value": ""
+    },
+    {
+      "key": "token_kitchen_a",
+      "value": ""
+    },
+    {
+      "key": "refresh_teacher_a",
+      "value": ""
+    },
+    {
+      "key": "childA1_01",
+      "value": ""
+    },
+    {
+      "key": "childB1_01",
+      "value": ""
+    },
+    {
+      "key": "teacherBUserId",
+      "value": ""
+    },
+    {
+      "key": "createdUserId",
+      "value": ""
+    },
+    {
+      "key": "newUsername",
+      "value": ""
+    },
+    {
+      "key": "tempPassword",
+      "value": ""
+    },
+    {
+      "key": "createdThisRun",
+      "value": ""
+    },
+    {
+      "key": "invalidToken",
+      "value": "not.a.valid.jwt"
+    }
+  ]
+}

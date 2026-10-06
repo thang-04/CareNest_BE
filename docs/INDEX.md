@@ -25,7 +25,7 @@ Không đọc hết. Task thường: `.ai/ROUTER.md` → module card. Status: **
 | contracts | `contracts/API_CONVENTIONS.md` | URL, prefix, pagination (tóm tắt guide) | FULL |
 | | `contracts/ERROR_CONTRACT.md` | `{code, desc, data}` + ApiCode | FULL |
 | | `contracts/AUTH_CONTRACT.md` | Auth: Keycloak, Bearer token, 401/403 | ĐANG TRIỂN KHAI |
-| api | `api/` | OpenAPI export (springdoc) | chưa có |
+| api | `api/CareNest.postman_collection.json` + `CareNest-local.postman_environment.json` | Postman: mọi API hiện có + ma trận phân quyền (kiểm bằng newman) | FULL |
 | database | `database/DATABASE.md` | Nguyên tắc DB | FULL |
 | | `database/ERD.md`, `database/DATA_DICTIONARY.md` | Schema | SKELETON |
 | knowledge | `knowledge/ISSUE_INDEX.md` | **Search đầu tiên khi debug** | FULL (chưa có issue) |

@@ -23,4 +23,5 @@ ID: `BUG-xxx` (bug code) · `CASE-xxx` (edge case nghiệp vụ) · `ENV-xxx` (m
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu) | Status | File |
 | --- | --- | --- | --- | --- | --- |
+| BUG-001 | identity-access | Keycloak tắt, API chưa cache JWKS ⇒ 500 body Boot `AuthenticationServiceException` `Couldn't retrieve remote JWK set` | Failure handler mặc định của `BearerTokenAuthenticationFilter` ném lại lỗi thay vì gọi entry point | fixed | `incidents/BUG-001-jwks-unavailable-returns-500.md` |
 | ENV-001 | identity-access | Keycloak `invalid_grant` `Account is not fully set up`, user không có email/lastName | User profile mặc định Keycloak 26 bắt buộc email + lastName | fixed | `incidents/ENV-001-keycloak-user-profile-account-not-fully-set-up.md` |

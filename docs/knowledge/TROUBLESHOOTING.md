@@ -10,6 +10,14 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Đã thử không hiệu quả: kiểm `requiredActions` (rỗng).
 - Incident: ENV-001
 
+### `make mountpoint ... read-only file system` khi `docker compose up keycloak`
+- Nguyên nhân: mount một file vào bên trong thư mục đã bind mount `:ro` (Docker không tạo được mountpoint con).
+- Xử lý: mount từng file vào thư mục đích (như `compose.yaml` hiện tại), không mount cả thư mục rồi lồng file.
+
+### `docker exec ... psql -f /tmp/x.sql` báo `C:/Users/.../Temp/x.sql: No such file` (Git Bash trên Windows)
+- Nguyên nhân: Git Bash tự đổi đường dẫn dạng `/tmp/...` thành đường dẫn Windows.
+- Xử lý: đưa file qua stdin: `docker exec -i <container> psql -U carenest -d carenest < file.sql`, hoặc đặt `MSYS_NO_PATHCONV=1`.
+
 ## Format
 
 ```markdown

@@ -11,6 +11,11 @@ Dữ liệu cần bảo vệ: thông tin trẻ em, sức khỏe, quan hệ phụ
 - Keycloak: đăng nhập (Authorization Code + PKCE), băm mật khẩu, password policy, reset mật khẩu, khóa tạm khi sai 5 lần (PROPOSED), session, access token 5 phút + refresh token xoay vòng, realm role toàn cục.
 - BE: kiểm JWT tại chỗ bằng JWKS có cache (chữ ký, `iss`, `aud=carenest-api`, `exp`/`nbf`), map `realm_access.roles` → `ROLE_*`, `@PreAuthorize`; 401/403 dạng `ResponseJson`. Stateless, tắt CSRF (chỉ xác thực bằng header Bearer, không cookie), CORS theo danh sách origin.
 - BE **không** có login/refresh, không lưu mật khẩu hay refresh token, không tự ký JWT, không log token/header `Authorization`.
+- `ActiveAccountInterceptor`: **mọi** request API có token phải thuộc tài khoản `user_accounts` ACTIVE (403 `Account is not provisioned` / `Account is inactive`), không phụ thuộc controller có khai báo `CurrentUser` hay không.
+- Keycloak tắt khi API chưa cache JWKS ⇒ 503 `Authentication service unavailable` (BUG-001); đã cache thì token còn hạn vẫn kiểm được.
+- Client `carenest-dev` (password grant) chỉ bật khi `CARENEST_DEV_CLIENT_ENABLED=true` (compose dev); realm import mặc định tắt.
+- `logging.level.org.springframework.web.client: INFO` cố định để bật DEBUG không in body RestClient (client_secret, mật khẩu tạm).
+- Giới hạn còn mở: `docs/knowledge/KNOWN_ISSUES.md` KI-003..KI-009.
 - Yêu cầu tối thiểu (ACCEPTED) vẫn giữ: HTTPS khi lên server, không log token/mật khẩu.
 
 ## Authorization (ADR-0003)
@@ -20,6 +25,22 @@ Dữ liệu cần bảo vệ: thông tin trẻ em, sức khỏe, quan hệ phụ
 - Truy cập theo ID (vd. `/children/{id}`) phải kiểm tra ID thuộc scope — chống IDOR.
 - Parent: default-deny với dữ liệu chưa được công bố (ADR-0010).
 - System Admin không mặc định có quyền đọc dữ liệu trẻ (AUTH-06, PENDING P-16).
+
+### Hai lớp phân quyền (đã implement)
+
+1. **Role** — `@PreAuthorize` ở controller (role toàn cục từ token Keycloak). Đúng role KHÔNG có nghĩa được xem mọi dữ liệu.
+2. **Scope** — policy trong `security/authorization/`, gọi ở service với `CurrentUser`. Quyền chỉ có khi **role trong token VÀ phân công/liên kết còn hiệu lực hôm nay** (theo `carenest.time-zone`) cùng khớp.
+
+| Policy | Cho phép khi | Không bao giờ |
+| --- | --- | --- |
+| `CampusAccessPolicy.canViewCampus` | PRINCIPAL + phân công PRINCIPAL còn hiệu lực (mọi campus); VICE_PRINCIPAL + phân công VP tại campus đó | Bếp (phân công campus của bếp chỉ cho dữ liệu bếp), GV, PH, Admin |
+| `ClassroomAccessPolicy.canViewClassroom` | TEACHER + phân công lớp đó còn hiệu lực; hoặc `canViewCampus(campus của lớp)` | Phân công lớp đã kết thúc/năm trước |
+| `ChildAccessPolicy.canViewChild` | PARENT + liên kết với trẻ; hoặc TEACHER/VP/PRINCIPAL có `canViewClassroom(lớp trẻ đang học hôm nay)` | Bếp, Admin (không bypass), trẻ không có enrollment hiện tại |
+
+- Mỗi policy có `canXxx` (boolean) và `checkCanXxx` (ném `GlobalException(FORBIDDEN, ...)`, log warn kèm id — không log dữ liệu cá nhân).
+- **403 thay vì 404:** service gọi `checkCanXxx` **trước** khi load resource ⇒ id không tồn tại và id ngoài scope cùng trả 403 cùng `desc` (không lộ id để dò). Chỉ người có scope mới có thể nhận 404.
+- Quyền xem lịch sử (lớp năm trước, trẻ đã chuyển lớp) chưa có rule ⇒ từ chối; logic gói trong policy để đổi sau.
+- Policy đọc dữ liệu qua service của `organization`/`child`; các service đó không gọi ngược policy (MODULE_MAP). Test: `security/authorization/*PolicyTest` (case GV/PH/VP/bếp/Admin/hết hạn/đa role).
 
 ## Dữ liệu trẻ & AI (ADR-0007)
 

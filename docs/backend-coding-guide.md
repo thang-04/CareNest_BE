@@ -147,7 +147,7 @@ public class ChildService {
 }
 ```
 
-`CurrentUser` đã có (`security/CurrentUser.java`): controller khai báo tham số `CurrentUser` (resolve bởi `CurrentUserArgumentResolver` từ JWT `sub` → `user_accounts`, chặn tài khoản chưa cấp/INACTIVE) rồi truyền xuống service; service KHÔNG tự đọc `SecurityContextHolder`/`Jwt`. `AccessScopeService` là tên minh họa — kiểm tra scope nằm ở `security/authorization/` (policy theo campus/lớp/trẻ).
+`CurrentUser` đã có (`security/CurrentUser.java`): controller khai báo tham số `CurrentUser` (resolve bởi `CurrentUserArgumentResolver` từ JWT `sub` → `user_accounts`; `ActiveAccountInterceptor` chặn tài khoản chưa cấp/INACTIVE cho mọi API kể cả endpoint không khai báo `CurrentUser`) rồi truyền xuống service; service KHÔNG tự đọc `SecurityContextHolder`/`Jwt`. `AccessScopeService` là tên minh họa — kiểm tra scope nằm ở `security/authorization/` (policy theo campus/lớp/trẻ).
 
 ## 6. Quy ước đặt tên và comment
 
@@ -315,6 +315,7 @@ Lỗi PHẢI ném exception (mục 11) để handler trả thống nhất. Chỉ
 | Quản trị viên | Quản lý tài khoản/cấu hình; không mặc định được xem dữ liệu trẻ |
 
 - Truy cập ngoài phạm vi: ném `GlobalException(ApiCode.FORBIDDEN, ...)`.
+- Kiểm tra scope dùng policy trong `security/authorization/` (`CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy`): service gọi `checkCanXxx(currentUser, id)` **trước** khi load dữ liệu (id không tồn tại cũng trả 403, không lộ id). KHÔNG viết `if (role == TEACHER)` rải rác trong service; thêm rule mới vào policy và test policy trực tiếp. Chi tiết: `docs/architecture/SECURITY.md`.
 - NÊN có test cho trường hợp bị từ chối (lớp khác, cơ sở khác, phụ huynh không liên kết).
 
 ## 10. Logging

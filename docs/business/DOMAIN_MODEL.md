@@ -24,7 +24,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | --- | --- | --- | --- |
 | identity-access | UserAccount, Role, Permission | SYSTEM | Không chứa assignment |
 | school-structure | School, Campus, SchoolYear, Classroom | SCHOOL/CAMPUS | 1 School duy nhất |
-| school-structure | StaffAssignment (userId, scopeType, scopeId, from, to) | — | Nguồn scope nhân sự |
+| school-structure | StaffAssignment (userId, staffRole, campusId hoặc classroomId, validFrom, validTo) | — | Nguồn scope nhân sự; vai trò quyết định cột scope (PRINCIPAL: toàn trường, VP/bếp: campus, GV: lớp) |
 | child | Child, Enrollment (childId, classroomId, from, to) | CLASS | Campus suy từ classroom |
 | child | GuardianChildLink (childId, userId, relation) | CHILD | Nguồn scope phụ huynh |
 | child | ChildAllergy / basic info | CHILD | Nguồn khai báo PENDING P-17 |

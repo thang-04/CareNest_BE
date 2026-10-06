@@ -1,15 +1,15 @@
 # User Roles
 
-Quyền = **Role → Permission (hành động)** ∩ **Access scope (dữ liệu)**. Scope lấy từ StaffAssignment (school-structure) hoặc GuardianChildLink (child). Rule ID: `BUSINESS_RULES.md` nhóm AUTH.
+Quyền = **Role → Permission (hành động)** ∩ **Access scope (dữ liệu)**. Role toàn cục nằm ở Keycloak (ADR-0011); scope chỉ có hiệu lực khi role trong token VÀ phân công/liên kết còn hiệu lực trong DB cùng khớp. Scope lấy từ StaffAssignment (school-structure) hoặc GuardianChildLink (child). Rule ID: `BUSINESS_RULES.md` nhóm AUTH.
 
 ## Scope hierarchy
 
 ```text
-SCHOOL                 Principal          StaffAssignment(scope=SCHOOL)
-  └ CAMPUS             Vice Principal     StaffAssignment(scope=CAMPUS, hiệu lực từ–đến)
-      └ CLASS          Teacher            StaffAssignment(scope=CLASS)
+SCHOOL                 Principal          StaffAssignment(staff_role=PRINCIPAL)
+  └ CAMPUS             Vice Principal     StaffAssignment(staff_role=VICE_PRINCIPAL, campus, hiệu lực từ–đến)
+      └ CLASS          Teacher            StaffAssignment(staff_role=TEACHER, classroom)
           └ CHILD      Parent             GuardianChildLink(child)
-CAMPUS (bếp)           Kitchen Staff      StaffAssignment(scope=CAMPUS) — chỉ dữ liệu nutrition
+CAMPUS (bếp)           Kitchen Staff      StaffAssignment(staff_role=KITCHEN_STAFF, campus) — chỉ dữ liệu nutrition
 SYSTEM                 System Admin       Tài khoản/role/cấu hình — không mặc định xem dữ liệu trẻ
 ```
 

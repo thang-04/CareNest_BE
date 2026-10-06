@@ -29,7 +29,7 @@ docker compose up --build
 
 ```bash
 docker compose up -d postgres keycloak mailpit
-./mvnw spring-boot:run          # Windows: mvnw.cmd spring-boot:run
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # Windows: mvnw.cmd ...; profile dev nạp dữ liệu giả
 ```
 
 Biến môi trường (xem `.env.example`): DB (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`), `SERVER_PORT`, `API_PREFIX`, xác thực (`KEYCLOAK_ISSUER_URI`, `KEYCLOAK_JWK_SET_URI`, `KEYCLOAK_AUDIENCE`, `CARENEST_CORS_ALLOWED_ORIGINS`), Keycloak compose (`KC_BOOTSTRAP_ADMIN_*`, `KEYCLOAK_DB_PASSWORD`, `KEYCLOAK_ADMIN_CLIENT_SECRET`, ...). Volume postgres tạo trước khi có Keycloak ⇒ tạo DB `keycloak` bằng tay theo `docs/system/KEYCLOAK.md` mục 2.
@@ -43,6 +43,8 @@ Biến môi trường (xem `.env.example`): DB (`DB_URL`, `DB_USERNAME`, `DB_PAS
 | Health | `http://localhost:8080/actuator/health` |
 | Keycloak Admin Console | `http://localhost:8180/admin` (realm `carenest`) |
 | Mailpit (email dev) | `http://localhost:8025` |
+
+Compose chạy profile `dev`: có 8 user dev (`admin.dev`, `teacher.a`, `parent.a`, ...) và dữ liệu giả — bảng user/phạm vi ở `docs/system/KEYCLOAK.md` mục 5.
 
 Mọi API dưới `{API_PREFIX}` cần `Authorization: Bearer <access token Keycloak>`; cách lấy token dev và dùng Swagger *Authorize*: `docs/system/KEYCLOAK.md` mục 5.
 

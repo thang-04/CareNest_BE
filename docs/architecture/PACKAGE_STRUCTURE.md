@@ -28,7 +28,7 @@ Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (
 
 | Module (docs) | Feature sub-package | Ghi chú |
 | --- | --- | --- |
-| identity-access | `account` (PROPOSED) + `security/` | Auth: Keycloak + Resource Server (ADR-0011) |
+| identity-access | `account` + `security/` + `integration/keycloak/` | Auth: Keycloak + Resource Server (ADR-0011); cấp tài khoản qua Keycloak Admin API |
 | school-structure | `organization` (PROPOSED) | Campus, Class, StaffAssignment |
 | child | `child` | |
 | attendance | `attendance` | Gồm đơn nghỉ |

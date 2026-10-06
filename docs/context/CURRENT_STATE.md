@@ -11,8 +11,8 @@ Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắ
 | Prefix API cấu hình được | **Có** — `carenest.api.prefix` (`WebMvcConfig`), mặc định `/api` |
 | Coding guide | **Có** — `docs/backend-coding-guide.md` |
 | Docs nghiệp vụ / kiến trúc / memory | Bản đầu |
-| Authentication/authorization | **Đang làm** — Keycloak + Resource Server (ADR-0011). Xong: kiểm JWT, role, 401/403, realm import dev, `user_accounts` + CurrentUser + `GET /accounts/me`. Tiếp: bảng scope, policy, cấp tài khoản (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
-| Schema/migration nghiệp vụ | Bắt đầu — `V1__create_user_accounts.sql` |
+| Authentication/authorization | **Đang làm** — Keycloak + Resource Server (ADR-0011). Xong: kiểm JWT, role, 401/403, realm import dev, `user_accounts` + CurrentUser + `GET /accounts/me`, bảng scope (V2/V3) + seed dev + 8 user dev, policy scope campus/lớp/trẻ, `GET /children/{childId}`, `/accounts/me` có tóm tắt phạm vi, cấp/khóa tài khoản qua Keycloak Admin API, rà security + sửa (Phase 8). Tiếp: docs cuối (Phase 9) (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
+| Schema/migration nghiệp vụ | Bắt đầu — V1 `user_accounts`, V2 campus/năm học/lớp/phân công, V3 trẻ/enrollment/liên kết PH; seed dev `db/dev` |
 | OpenAPI export (`docs/api/`) | Chưa |
 | AI provider | OPEN (ADR-0007) |
 | Hạ tầng deploy | Chưa chốt (có Dockerfile, compose dev/demo: API + PostgreSQL + Keycloak + Mailpit) |
@@ -21,9 +21,9 @@ Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắ
 
 | Module (feature) | Thiết kế | Code | Ghi chú |
 | --- | --- | --- | --- |
-| identity-access (`account`, `security/`) | Có | Đang làm | Nền Resource Server xong; CurrentUser/policy/cấp tài khoản tiếp theo |
-| school-structure (`organization`) | Có | — | |
-| child (`child`) | Có | — | |
+| identity-access (`account`, `security/`) | Có | Gần xong | Resource Server, CurrentUser, policy, cấp/khóa tài khoản xong; chưa có API phân công/liên kết |
+| school-structure (`organization`) | Có | Bảng scope | Chưa có API quản lý |
+| child (`child`) | Có | Bảng scope + `GET /children/{childId}` | Mới có hồ sơ cơ bản |
 | attendance (`attendance`) | Có | — | Giờ chốt, xử lý đến muộn PENDING |
 | nutrition (`meals`) | Có | — | Bếp/thực đơn theo campus PENDING |
 | health (`health`) | Có | — | Ngưỡng tham chiếu PENDING |

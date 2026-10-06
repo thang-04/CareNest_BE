@@ -427,3 +427,44 @@ Khác plan, đã kiểm thực tế trên Keycloak 26.8.0:
 - `GET /accounts/me` (`AccountController` → `AccountService`); Swagger ẩn tham số `CurrentUser` (`SpringDocUtils.addRequestWrapperToIgnore`).
 - Phát hiện: `@WebMvcTest` không ghi controller ⇒ quét mọi controller ⇒ thiếu bean service. Đã ghi rule vào `.claude/rules/testing.md`; test cũ giới hạn controller (test controller đổi sang `public`).
 - Kiểm e2e với Keycloak thật: chưa cấp ⇒ 403, cấp ⇒ 200 (roles đúng, tên tiếng Việt), INACTIVE + token cũ ⇒ 403; Swagger không lộ tham số; log không có token.
+
+### Phase 4 — xong 2026-10-05 (chờ user review)
+
+- `V2__create_school_structure.sql` (campuses, school_years, classrooms, staff_assignments + CHECK scope theo vai trò), `V3__create_children.sql` (children, enrollments, guardian_child_links).
+- Entity chỉ tạo khi dùng: `Classroom`, `StaffAssignment`, `StaffRole`, `Child`, `Enrollment`, `GuardianChildLink` (chưa cần `Campus`, `SchoolYear` — YAGNI). Repository query lọc theo ngày, cận tính cả hai đầu.
+- Service scope: `StaffAssignmentService`, `ClassroomService`, `EnrollmentService`, `GuardianChildLinkService` (không gọi ngược policy).
+- Seed dev: `db/dev/R__dev_seed.sql` (repeatable, idempotent) qua profile `dev` (`application-dev.yml`); compose đặt `SPRING_PROFILES_ACTIVE=dev`. User dev Keycloak: `docker/keycloak/dev/carenest-users-0.json` (id cố định, mật khẩu `${KEYCLOAK_DEV_USER_PASSWORD}`) — import file users tách riêng chạy được trên KC 26.8.0.
+- Khác plan: compose mount từng file realm/users (mount lồng vào thư mục `:ro` bị Docker từ chối).
+- Kiểm: 48/48 test (gồm `ScopeQueryIntegrationTest` 8 case trên PostgreSQL thật); e2e 8 user dev đăng nhập, `sub` khớp id cố định, `/accounts/me` 200 đúng role; seed chạy lại không tạo trùng.
+
+### Phase 5 — xong 2026-10-05 (chờ user review)
+
+- `config/ClockConfig` (`carenest.time-zone`, mặc định `Asia/Ho_Chi_Minh`) — "hôm nay" theo múi giờ trường; test dùng `Clock.fixed`.
+- `security/authorization/`: `CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy` (`canXxx` + `checkCanXxx` → 403). Quyền = role trong token ∧ phân công/liên kết còn hiệu lực; bếp/Admin không xem hồ sơ trẻ; id không tồn tại ⇒ cùng 403.
+- Test: 22 unit test policy (chuỗi policy thật, mock service): GV lớp mình/lớp khác, trẻ lớp mình/lớp khác, PH trẻ mình/trẻ khác, VP campus mình/campus khác, Hiệu trưởng thiếu phân công, phân công hết hạn, bếp, Admin không bypass, role không khớp phân công, user đa role, trẻ không có enrollment. Tổng 70/70 pass.
+- Docs: SECURITY.md (bảng quy tắc, chiến lược 403), guide §9, card identity-access.
+
+### Phase 6 — xong 2026-10-05 (chờ user review)
+
+- `GET /children/{childId}` (`ChildController` → `ChildService`: `checkCanViewChild` trước khi load, DTO `ChildProfileResponse` + `ChildMapper`), `@PreAuthorize` TEACHER/VP/PRINCIPAL/PARENT.
+- `/accounts/me` thêm `assignments` (phân công hiệu lực hôm nay, lọc theo role trong token) và `childIds` (PH); `StaffAssignmentService.findActiveAssignments` + `StaffAssignmentMapper`, `GuardianChildLinkService.findChildIdsOfGuardian`.
+- `ControllerSecurityCoverageTest`: mọi handler của controller thật phải có `@PreAuthorize` (bỏ qua controller trong src/test).
+- Test: 86/86 (thêm `ChildControllerTest` ma trận role, `ChildServiceTest` không load khi ngoài phạm vi, `AccountServiceTest`, query mới trong `ScopeQueryIntegrationTest`).
+- E2E với Keycloak thật + seed dev: ma trận 8 user × 4 trẻ (gồm id không tồn tại) đúng 32/32; `/me` của teacher.b chỉ còn phân công B1; log không có token, log từ chối chỉ có id.
+
+### Phase 7 — xong 2026-10-06 (chờ user review)
+
+- `integration/keycloak/`: `IdentityProviderClient` (interface), `KeycloakIdentityProviderClient` (RestClient của spring-web — Boot 4 không tự cấu hình `RestClient.Builder` khi thiếu `spring-boot-restclient`, không thêm dependency; token client_credentials cache tới `expires_in − 30s`; timeout 3s/5s; lỗi HTTP ⇒ `IdentityProviderException` CONFLICT/UNAVAILABLE; không log body), `KeycloakProperties` (`@ConfigurationPropertiesScan`), `NewIdentityUser`.
+- Gán role qua `/role-mappings/realm/available` (không cần `view-realm`); disable = GET rồi PUT cả representation (không mất họ tên/email).
+- `AccountProvisioningService`: `createAccount` (chặn ADMIN, mật khẩu tạm bắt buộc trừ khi gửi được email, 409 username trùng, tạo Keycloak → gán role → ghi DB, lỗi ⇒ xóa user Keycloak, email lỗi không hủy tài khoản), `updateAccountStatus` (ghi DB trước rồi disable + logout Keycloak; Keycloak lỗi ⇒ 503 nhưng CareNest đã chặn). Không `@Transactional` quanh HTTP.
+- `POST /accounts`, `PATCH /accounts/{userId}/status` (`@PreAuthorize("hasRole('ADMIN')")`); DTO che mật khẩu trong `toString`.
+- Test: 113/113 (thêm `AccountProvisioningServiceTest` 15 case gồm bù trừ, `KeycloakIdentityProviderClientTest` MockRestServiceServer 7 case, `AccountControllerTest` +5).
+- E2E Keycloak thật + Mailpit: 16/16 (PRINCIPAL 403, ADMIN role 400, tạo TEACHER 201 + email trong Mailpit, trùng 409, mật khẩu tạm bị chặn, form Keycloak bắt đổi mật khẩu, đăng nhập mật khẩu mới ⇒ /me 200, khóa ⇒ token cũ 403 + refresh bị thu hồi + không đăng nhập được, mở khóa OK, 404). Thêm: user chỉ có bên Keycloak ⇒ 409 không tạo bản ghi mồ côi; disable/enable giữ họ tên/email. Log không có mật khẩu/secret.
+
+### Phase 8 — xong 2026-10-06 (chờ user review)
+
+- Review độc lập (agent, report `plans/reports/code-review-261006-1617-keycloak-auth-security-report.md`): 0 Critical/High, 4 Medium, 12 Low. Tự kiểm thêm: Keycloak tắt khi API chưa cache JWKS ⇒ 500 (BUG-001).
+- Đã sửa: BUG-001 (503 `ResponseJson`, `withObjectPostProcessor` cho `BearerTokenAuthenticationFilter`); M1 `ActiveAccountInterceptor` chặn chưa cấp/INACTIVE cho mọi `/api/**` (resolver dùng lại kết quả, không query thêm); M2 bù trừ mọi `RuntimeException`; M3 Keycloak 400 ⇒ `REJECTED` ⇒ 400; M4 client `carenest-dev` bật bằng `CARENEST_DEV_CLIENT_ENABLED` (mặc định tắt) + SMTP qua env; L2 khóa log RestClient ở INFO; L4 xóa cache admin token khi 401; L9 `ignore-migration-patterns: *:future,repeatable:missing`; L10 init script dùng biến psql; L12 `order by` enrollment; L5 sửa comment.
+- Ghi lại (KNOWN_ISSUES KI-003..KI-009): L1, L3, L5, L6, L7 (chờ chốt), quyền service account + ADMIN tạo PRINCIPAL, Swagger public khi deploy.
+- Test: 122/122 (thêm 503, interceptor chặn endpoint không có `CurrentUser`, non-ADMIN PATCH 403, `CurrentUser` không giả được qua query param, M2/M3, client 400/401, policy + PostgreSQL thật với Clock cố định).
+- E2E: realm `CARENEST_DEV_CLIENT_ENABLED=false` ⇒ client dev tắt (`invalid_client`); mật khẩu DB có `' " ;` khởi tạo OK; newman 123/123; API không profile dev trên DB đã seed khởi động OK; Keycloak tắt + API mới ⇒ 503; Keycloak từ chối dữ liệu ⇒ 400 không để user mồ côi; log không có mật khẩu/secret.

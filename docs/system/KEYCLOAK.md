@@ -134,7 +134,36 @@ TOKEN=$(curl -s -X POST "http://localhost:8180/realms/carenest/protocol/openid-c
 curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/accounts/me
 ```
 
-User dev (`admin.dev`, `teacher.a`, `parent.a`, …) có từ khi seed dữ liệu scope; trước đó dùng user thử ở mục 4 bước 10 và thêm hồ sơ CareNest cho user đó (nếu không, `/api/accounts/me` trả 403 `Account is not provisioned`):
+### User dev và dữ liệu giả
+
+Compose mount `docker/keycloak/dev/carenest-users-0.json` (8 user, id cố định, mật khẩu chung `KEYCLOAK_DEV_USER_PASSWORD` trong `.env`) và API chạy profile `dev` nạp `db/dev/R__dev_seed.sql` (hồ sơ `user_accounts` cùng id, 2 campus, 2 lớp, 3 trẻ, phân công, liên kết). Chạy API ngoài compose thì bật profile: `mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev`.
+
+| User | Role | Phạm vi trong seed (năm học 2026-2027) |
+| --- | --- | --- |
+| `admin.dev` | ADMIN | Không có phạm vi dữ liệu trẻ |
+| `principal.dev` | PRINCIPAL | Toàn trường |
+| `viceprincipal.a` | VICE_PRINCIPAL | Cơ sở A |
+| `teacher.a` | TEACHER | Lớp A1 |
+| `teacher.b` | TEACHER | Lớp A1 tới 30/09/2026 (đã hết), Lớp B1 từ 01/10/2026 |
+| `parent.a` | PARENT | Trẻ Demo A1-01 |
+| `parent.b` | PARENT | Trẻ Demo B1-01 (user không có email) |
+| `kitchen.a` | KITCHEN_STAFF | Bếp Cơ sở A |
+
+Lớp A1 có `Trẻ Demo A1-01`, `Trẻ Demo A1-02`; lớp B1 có `Trẻ Demo B1-01`. Tất cả là dữ liệu giả.
+
+Thử phân quyền với `GET /api/children/{id}` (id thật xem bằng `docker compose exec postgres psql -U carenest -d carenest -c "select id, full_name from children"`) — kết quả đã kiểm e2e:
+
+| User | A1-01 | A1-02 | B1-01 | id không tồn tại |
+| --- | --- | --- | --- | --- |
+| `teacher.a` | 200 | 200 | 403 | 403 |
+| `teacher.b` (A1 đã hết hạn) | 403 | 403 | 200 | 403 |
+| `viceprincipal.a` | 200 | 200 | 403 | 403 |
+| `principal.dev` | 200 | 200 | 200 | 403 |
+| `parent.a` | 200 | 403 | 403 | 403 |
+| `parent.b` | 403 | 403 | 200 | 403 |
+| `kitchen.a`, `admin.dev` | 403 | 403 | 403 | 403 |
+
+User tạo tay trên console (mục 4 bước 10) chưa có hồ sơ CareNest ⇒ `/api/accounts/me` trả 403 `Account is not provisioned`; thêm tay khi cần thử:
 
 ```bash
 docker compose exec postgres psql -U carenest -d carenest -c "INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('<ID user Keycloak>', 'try.teacher', 'Giáo viên thử');"
@@ -147,14 +176,38 @@ docker compose exec postgres psql -U carenest -d carenest -c "INSERT INTO user_a
 
 ## 6. Cấp tài khoản qua CareNest
 
-> Có từ phase "Cấp tài khoản" (ADR-0011). Mục này sẽ ghi endpoint, body và cách xem email trong Mailpit khi implement.
+Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo tay trên console: một lệnh tạo cả user Keycloak lẫn hồ sơ `user_accounts`. Contract đầy đủ: `docs/contracts/AUTH_CONTRACT.md`.
 
-Nguyên tắc: tài khoản thật tạo qua API CareNest (Admin). CareNest tạo user Keycloak (họ tên ở `firstName`, mật khẩu tạm + `UPDATE_PASSWORD`), gán realm role, rồi tạo `user_accounts`; nếu bước sau lỗi thì xóa user Keycloak vừa tạo.
+1. Lấy token `admin.dev` (mục 5).
+2. Tạo tài khoản:
+
+   ```powershell
+   $body = @{ username="teacher.c"; fullName="Giáo viên C"; email="teacher.c@example.test"; role="TEACHER"; temporaryPassword="<mật khẩu tạm>" } | ConvertTo-Json
+   Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/accounts" -Headers @{Authorization="Bearer $t"} -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+   ```
+
+   - Role tạo được: PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT (ADMIN thì không).
+   - `temporaryPassword` bắt buộc, trừ khi có `email` và `KEYCLOAK_ACTIONS_EMAIL_ENABLED=true` (compose bật sẵn vì có Mailpit).
+   - BE tạo user Keycloak (họ tên ở `firstName`, required action `UPDATE_PASSWORD`), gán realm role, ghi `user_accounts`. Bước sau lỗi thì xóa user Keycloak vừa tạo (bù trừ). Xóa cũng lỗi thì log ERROR `compensationFailed|manualCleanupRequired` kèm `keycloakUserId` để dọn tay.
+   - Có email: Keycloak gửi email "Update Your Account" — xem ở Mailpit `http://localhost:8025`. Response `setupEmailSent` cho biết đã gửi chưa.
+3. Người dùng đăng nhập lần đầu qua trình duyệt (web/app hoặc Account Console) bằng mật khẩu tạm ⇒ Keycloak bắt đặt mật khẩu mới. Trước bước này, password grant trả `Account is not fully set up`.
+4. Khóa / mở khóa:
+
+   ```powershell
+   Invoke-RestMethod -Method Patch -Uri "http://localhost:8080/api/accounts/<userId>/status" -Headers @{Authorization="Bearer $t"} -ContentType "application/json" -Body '{"status":"INACTIVE"}'
+   ```
+
+   `INACTIVE`: CareNest chặn ngay (access token còn hạn cũng nhận 403 `Account is inactive`), Keycloak disable user và hủy mọi session (refresh token hết dùng được, không đăng nhập lại được). `ACTIVE` mở lại. Bước Keycloak lỗi ⇒ 503 nhưng trạng thái CareNest đã lưu; gọi lại để đồng bộ.
+5. Phân công lớp/campus hoặc liên kết phụ huynh–trẻ cho tài khoản mới: **chưa có API** (module organization/child, đợt sau). Dev dùng seed hoặc SQL.
+
+Đổi secret của `carenest-backend` (tab *Credentials* → *Regenerate*) thì cập nhật `KEYCLOAK_ADMIN_CLIENT_SECRET` trong `.env` rồi khởi động lại API.
 
 ## 7. Sửa cấu hình realm và giữ trong git
 
 - `docker/keycloak/import/carenest-realm.json` là **nguồn chuẩn** cấu hình realm ở dev. Muốn đổi thì sửa file này rồi kiểm lại trên console.
-- Secret và giá trị theo môi trường dùng placeholder `${TEN_BIEN}` (Keycloak thay bằng biến môi trường của container lúc import): `KEYCLOAK_ADMIN_CLIENT_SECRET`, `CARENEST_WEB_ORIGIN`, `CARENEST_MOBILE_REDIRECT_URI`.
+- User dev nằm riêng ở `docker/keycloak/dev/carenest-users-0.json` (cùng thư mục import với file realm trong container); server thật không mount file này. Đổi user dev thì sửa cả file này và `db/dev/R__dev_seed.sql` (cùng `id` ↔ `keycloak_user_id`).
+- Client `carenest-dev` trong realm có `"enabled": "${CARENEST_DEV_CLIENT_ENABLED:false}"`: mặc định **tắt**, compose dev đặt `true`. SMTP lấy từ `CARENEST_SMTP_HOST`/`CARENEST_SMTP_PORT` (mặc định `mailpit:1025`). Placeholder dạng `${TEN_BIEN:mac_dinh}` đã kiểm chạy được trên KC 26.8.0.
+- Secret và giá trị theo môi trường dùng placeholder `${TEN_BIEN}` (Keycloak thay bằng biến môi trường của container lúc import): `KEYCLOAK_ADMIN_CLIENT_SECRET`, `CARENEST_WEB_ORIGIN`, `CARENEST_MOBILE_REDIRECT_URI`, `KEYCLOAK_DEV_USER_PASSWORD`.
 - Tránh thêm mảng `clientScopes` ở cấp realm trong file import: Keycloak chỉ tự tạo bộ client scope mặc định (`profile`, `email`, `roles`, `basic`…) khi file không khai báo mảng này, nên khai báo thiếu có thể làm token mất `sub`/role (chưa thử thực tế, tránh cho an toàn). Vì vậy audience mapper đặt trên từng client.
 - `--import-realm` **bỏ qua realm đã tồn tại**. Muốn áp lại file ở dev, reset DB Keycloak (mất user tạo tay/tạo qua API; các `user_accounts` tương ứng thành mồ côi):
 
@@ -186,14 +239,18 @@ Nguyên tắc: tài khoản thật tạo qua API CareNest (Admin). CareNest tạ
 | Lỗi CORS trên web | Origin không có trong `CARENEST_CORS_ALLOWED_ORIGINS` (API) hoặc *Web origins* (Keycloak) | Thêm origin ở cả hai nơi |
 | Keycloak không khởi động, lỗi kết nối DB | Chưa có DB `keycloak` (volume postgres cũ) | Tạo tay (mục 2 bước 5) |
 | `required variable ... is missing a value` khi `docker compose up` | Thiếu `.env` | Copy `.env.example` → `.env` |
-| Backend gọi Admin API bị 401/403 | Sai `KEYCLOAK_ADMIN_CLIENT_SECRET` hoặc thiếu service account role | Kiểm tab *Credentials* / *Service account roles* của `carenest-backend` |
+| Mọi API trả 503 `Authentication service unavailable` | API mới khởi động mà không lấy được JWKS (Keycloak tắt / sai `KEYCLOAK_JWK_SET_URI`) | Bật Keycloak, kiểm URL JWKS; token đã cấp dùng lại được ngay khi lấy được key |
+| Tạo tài khoản trả 400 `Account data rejected by identity provider` | Mật khẩu tạm vi phạm policy (vd. trùng username, < 8 ký tự) hoặc họ tên có ký tự Keycloak cấm (`( ) < > & /`...) | Đổi mật khẩu tạm / bỏ ký tự đặc biệt khỏi họ tên |
+| Password grant `invalid_client` với `carenest-dev` | Client dev đang tắt (`CARENEST_DEV_CLIENT_ENABLED` không phải `true` lúc import realm) | Đặt `true` trong `.env` rồi reset DB Keycloak (mục 7) |
+| Tạo/khóa tài khoản trả 503 `Identity provider unavailable` | Thiếu/sai `KEYCLOAK_ADMIN_CLIENT_SECRET`, sai `KEYCLOAK_BASE_URL`, Keycloak tắt, hoặc thiếu service account role | Kiểm `.env`, log API (`keycloakStatus=...`), tab *Credentials* / *Service account roles* của `carenest-backend` |
+| Tạo tài khoản trả 409 dù DB chưa có username | User đã có bên Keycloak (tạo tay trên console) | Xóa user đó trên console rồi tạo lại qua API |
 
 ## 9. Khi đưa lên server
 
 Chưa chốt hạ tầng (`docs/system/DEPLOYMENT.md`). Khi làm:
 
 - Chạy `start` (không `start-dev`) sau reverse proxy có HTTPS: `KC_HOSTNAME=https://<auth-domain>`, `KC_PROXY_HEADERS=xforwarded`, `KC_HEALTH_ENABLED=true`.
-- Realm trên server **không có** client `carenest-dev` và user dev; redirect URI/web origin theo domain thật; secret, mật khẩu admin, mật khẩu DB sinh mới và để trong secret store.
+- Server: `CARENEST_DEV_CLIENT_ENABLED=false` (hoặc không đặt — mặc định tắt) và **không** mount file user dev; redirect URI/web origin theo domain thật; secret, mật khẩu admin, mật khẩu DB sinh mới và để trong secret store.
 - Tạo admin Keycloak cố định rồi xóa bootstrap admin. Hạn chế truy cập Admin Console (IP/VPN).
 - Backup DB `keycloak` cùng lịch với DB `carenest`.
 - API: `KEYCLOAK_ISSUER_URI=https://<auth-domain>/realms/carenest`, `KEYCLOAK_JWK_SET_URI` theo địa chỉ nội bộ API gọi được.

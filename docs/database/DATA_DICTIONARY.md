@@ -26,3 +26,80 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Không có cột mật khẩu/role: Keycloak quản lý.
 Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`.
+
+## campuses  (module: school-structure, scope: CAMPUS)
+Mục đích: điểm trường của trường duy nhất (ADR-0002). Migration: `V2__create_school_structure.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| code | VARCHAR(30) | không | Mã campus; UNIQUE | — |
+| name | VARCHAR(150) | không | Tên hiển thị | — |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+
+## school_years  (module: school-structure, scope: SCHOOL)
+Mục đích: năm học; lớp gắn với 1 năm học. Migration: V2.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| name | VARCHAR(20) | không | Vd. `2026-2027`; UNIQUE | — |
+| start_date, end_date | DATE | không | CHECK `end_date > start_date` | — |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+
+## classrooms  (module: school-structure, scope: CLASS)
+Mục đích: lớp của một campus trong một năm học (năm sau là lớp khác ⇒ phân công cũ không tự áp). Migration: V2.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| campus_id | BIGINT FK campuses | không | Campus của lớp | AUTH-02 |
+| school_year_id | BIGINT FK school_years | không | Năm học | — |
+| name | VARCHAR(100) | không | UNIQUE cùng `(school_year_id, campus_id)` | — |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `idx_classrooms_campus_id`.
+
+## staff_assignments  (module: school-structure, scope: theo `staff_role`)
+Mục đích: phân công nhân sự — nguồn scope của BGH/GV/bếp (ADR-0003). Migration: V2.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| user_id | BIGINT FK user_accounts | không | Nhân sự được phân công | — |
+| staff_role | VARCHAR(20) | không | `PRINCIPAL` / `VICE_PRINCIPAL` / `TEACHER` / `KITCHEN_STAFF` | AUTH-01..03, 05 |
+| campus_id | BIGINT FK campuses | có | Bắt buộc với VICE_PRINCIPAL/KITCHEN_STAFF, NULL với vai trò khác | AUTH-02, AUTH-05 |
+| classroom_id | BIGINT FK classrooms | có | Bắt buộc với TEACHER, NULL với vai trò khác | AUTH-03 |
+| valid_from | DATE | không | Ngày bắt đầu hiệu lực (tính cả ngày này) | — |
+| valid_to | DATE | có | Ngày kết thúc (tính cả ngày này); NULL = đang hiệu lực | — |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Ràng buộc: `ck_staff_assignments_scope` (đúng cột scope theo vai trò), `ck_staff_assignments_valid_range`. Kết thúc phân công = đặt `valid_to`, không xóa (giữ lịch sử).
+Index: `user_id`, `campus_id`, `classroom_id`.
+
+## children  (module: child, scope: CHILD)
+Mục đích: hồ sơ gốc của trẻ (khung tối thiểu; cột nghiệp vụ thêm sau). Migration: `V3__create_children.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| full_name | VARCHAR(150) | không | Họ tên | — |
+| date_of_birth | DATE | không | Ngày sinh | — |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+
+## enrollments  (module: child, scope: CLASS)
+Mục đích: trẻ học lớp nào theo thời gian; campus của trẻ suy từ lớp tại ngày cần xét. Migration: V3.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | | — |
+| classroom_id | BIGINT FK classrooms | không | | — |
+| valid_from | DATE | không | Tính cả ngày này | — |
+| valid_to | DATE | có | Tính cả ngày này; NULL = đang học | — |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Chưa có ràng buộc DB chống enrollment chồng thời gian — service phải kiểm khi làm module child.
+Index: `child_id`, `classroom_id`.
+
+## guardian_child_links  (module: child, scope: CHILD)
+Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh. Migration: V3.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh | AUTH-04 |
+| child_id | BIGINT FK children | không | | AUTH-04 |
+| relationship | VARCHAR(30) | không | Quan hệ (vd. MOTHER, FATHER) — chưa chốt danh sách | — |
+| created_at | TIMESTAMPTZ | không | | — |
+Index: `uk_guardian_child_links_user_child`, `idx_guardian_child_links_child_id`.
