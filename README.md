@@ -112,13 +112,22 @@ docker compose up -d postgres keycloak mailpit
 | Keycloak Admin Console | `http://localhost:8180/admin` (realm `carenest`) |
 | Mailpit (email dev) | `http://localhost:8025` |
 
-Compose chạy profile `dev`: 8 user dev (`admin.dev`, `teacher.a`, `parent.a`, ...) và dữ liệu giả — `docs/system/KEYCLOAK.md` mục 5. Mọi API dưới `{API_PREFIX}` cần `Authorization: Bearer <access token Keycloak>`; Postman: `docs/api/CareNest.postman_collection.json`.
-| Keycloak Admin Console | `http://localhost:8180/admin` (realm `carenest`) |
-| Mailpit (email dev) | `http://localhost:8025` |
-
 Compose chạy profile `dev`: có 8 user dev (`admin.dev`, `teacher.a`, `parent.a`, ...) và dữ liệu giả — bảng user/phạm vi ở `docs/system/KEYCLOAK.md` mục 5.
 
-Mọi API dưới `{API_PREFIX}` cần `Authorization: Bearer <access token Keycloak>`; cách lấy token dev và dùng Swagger *Authorize*: `docs/system/KEYCLOAK.md` mục 5.
+### Gọi API có bảo vệ
+
+Mọi API dưới `{API_PREFIX}` cần `Authorization: Bearer <access token Keycloak>`. CareNest không có endpoint login; dev lấy token qua client `carenest-dev` (chỉ bật khi `CARENEST_DEV_CLIENT_ENABLED=true`, compose dev đã bật):
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8180/realms/carenest/protocol/openid-connect/token" \
+  -d grant_type=password -d client_id=carenest-dev -d username=teacher.a \
+  -d "password=$KEYCLOAK_DEV_USER_PASSWORD" | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/accounts/me
+```
+
+- Swagger UI: bấm *Authorize*, dán access token (không kèm chữ `Bearer`).
+- Postman: import `docs/api/CareNest.postman_collection.json` + `CareNest-local.postman_environment.json`, chạy folder *0. Đăng nhập* trước.
+- Token sống 5 phút. Cấu hình realm, xử lý lỗi: [`docs/system/KEYCLOAK.md`](docs/system/KEYCLOAK.md); contract: [`docs/contracts/AUTH_CONTRACT.md`](docs/contracts/AUTH_CONTRACT.md).
 
 ## Cấu hình
 
@@ -147,6 +156,8 @@ Cấu hình cố định khác:
 
 - `CareNestApplicationTests` khởi động toàn bộ context với PostgreSQL thật qua Testcontainers; tự skip khi Docker không chạy.
 - `ResponseContractTest` khóa format response `{code, desc, data}` cho thành công, validation, 404/405/415/500.
+- `security/authorization/*PolicyTest`, `ScopeQueryIntegrationTest` (PostgreSQL thật): phân quyền theo campus/lớp/trẻ; `ControllerSecurityCoverageTest` bắt mọi handler có `@PreAuthorize`.
+- Cổng đầy đủ trước khi báo xong: `node scripts/verify.mjs` (test + ArchUnit + snapshot OpenAPI + Spotless).
 
 Chiến lược test và các kịch bản bắt buộc: [`docs/quality/TEST_STRATEGY.md`](docs/quality/TEST_STRATEGY.md).
 
@@ -222,12 +233,12 @@ Theo [`docs/context/CURRENT_STATE.md`](docs/context/CURRENT_STATE.md):
 
 - **Đã có:** cấu trúc package, response/exception chuẩn, prefix API cấu hình được, OpenAPI, Docker Compose, tài liệu nghiệp vụ và kiến trúc bản đầu.
 - **Đã có thêm:** xác thực Keycloak (ADR-0011), phạm vi campus/lớp/trẻ, cấp/khóa tài khoản, migration V1–V3, snapshot OpenAPI `docs/api/openapi.yaml`.
-- **Chưa có:** API phân công/liên kết phụ huynh, nghiệp vụ điểm danh trở đi, hạ tầng deploy.
+- **Chưa có:** API quản lý phân công/liên kết phụ huynh (hiện chỉ có seed dev), nghiệp vụ điểm danh trở đi, hạ tầng deploy.
 
 Thứ tự triển khai:
 
 1. Nền móng: **xong**.
-2. Đăng nhập và phạm vi: user/role, phân công điểm trường/lớp, liên kết phụ huynh–trẻ: **đang làm** (`feature/authentication`).
+2. Đăng nhập và phạm vi: user/role, phân công điểm trường/lớp, liên kết phụ huynh–trẻ: xác thực + phạm vi **xong** (`feature/authentication`, chờ merge); API quản lý phân công/liên kết chưa làm.
 3. Điểm danh → BGH xác nhận số suất → bếp.
 4. Hồ sơ trẻ: quan sát, sức khỏe, chia sẻ phụ huynh, audit, lịch sử.
 5. Mở rộng: sự cố cơ sở vật chất, thông báo, thực đơn; AI sau khi dữ liệu nền sẵn sàng.

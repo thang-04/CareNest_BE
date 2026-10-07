@@ -1,5 +1,5 @@
 ---
-id: BUG-001
+id: BUG-261006-jwks-unavailable-returns-500
 type: bug
 modules: [identity-access]
 rules: []
@@ -9,7 +9,7 @@ keywords: [keycloak down, JWKS, AuthenticationServiceException, 500, 503, Bearer
 similar_to: []
 ---
 
-# BUG-001 — Keycloak tắt khi API chưa cache JWKS ⇒ 500 body mặc định của Boot (không phải ResponseJson)
+# BUG-261006-jwks-unavailable-returns-500 — Keycloak tắt khi API chưa cache JWKS ⇒ 500 body mặc định của Boot (không phải ResponseJson)
 
 ## Symptom
 API vừa khởi động (chưa cache JWKS), Keycloak tắt, request có Bearer token hợp lệ:

@@ -99,6 +99,18 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: role (`@PreAuthorize`) r�
 | Khóa: `userId` không tồn tại | 404 | `Account not found` |
 | Khóa: đã lưu CareNest nhưng Keycloak lỗi | 503 | `Account status saved but identity provider sync failed, please retry` |
 
+## Tác động FE/APP (BE không sửa repo khác)
+
+Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
+
+- Đăng nhập qua Keycloak: Web client `carenest-web`, Mobile `carenest-mobile` (public + PKCE S256), issuer `{KEYCLOAK}/realms/carenest`. CareNest không có endpoint login.
+- Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.
+- 403 `Account is not provisioned` / `Account is inactive` ⇒ báo liên hệ nhà trường, không retry. 403 khác ⇒ báo không có quyền. 503 `Authentication service unavailable` ⇒ báo thử lại sau.
+- Sau đăng nhập gọi `GET /accounts/me` lấy `roles`, `assignments`, `childIds` để dựng menu/màn hình; ẩn nút ở UI không phải phân quyền (AUTH-07).
+- Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
+- Logout: Web gọi `end_session` của Keycloak; Mobile gọi `logout` + xóa token trong secure storage.
+- Types: sinh lại từ `docs/api/openapi.yaml`.
+
 ## Còn chờ
 
 - Phụ huynh đăng nhập bằng gì (username trường cấp / SĐT / email).

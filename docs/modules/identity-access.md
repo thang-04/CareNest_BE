@@ -39,10 +39,10 @@ P-14 (scope Hiệu phó), P-16 (Admin xem dữ liệu trẻ).
 - Gọi `checkCanXxx` trước khi load resource theo id; load trước rồi kiểm sẽ lộ id tồn tại (404 vs 403).
 - Cấp tài khoản không có transaction chung Keycloak ↔ DB: giữ thứ tự tạo Keycloak → gán role → ghi DB, lỗi thì xóa user Keycloak. Không đặt `@Transactional` bao quanh lời gọi HTTP.
 - Không log request/DTO chứa mật khẩu tạm (`CreateAccountRequest`, `NewIdentityUser` đã che trong `toString`).
-- User Keycloak thiếu email/lastName bị chặn đăng nhập nếu realm dùng user profile mặc định (ENV-001).
+- User Keycloak thiếu email/lastName bị chặn đăng nhập nếu realm dùng user profile mặc định (ENV-261004-keycloak-user-profile-account-not-fully-set-up).
 
 ## Related issues
-ENV-001 (user profile Keycloak).
+ENV-261004-keycloak-user-profile-account-not-fully-set-up (user profile Keycloak).
 
 ## Đọc thêm khi
 Đổi model quyền/scope ⇒ ADR-0002, ADR-0003, `docs/architecture/SECURITY.md` (mức L4).

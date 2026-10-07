@@ -62,7 +62,7 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("username", user.username());
         body.put("enabled", true);
-        // Họ tên đầy đủ để ở firstName: tên tiếng Việt không tách họ/tên tin cậy (ENV-001)
+        // Họ tên đầy đủ để ở firstName: tên tiếng Việt không tách họ/tên tin cậy; realm bỏ bắt buộc lastName
         body.put("firstName", user.fullName());
         if (user.email() != null) {
             body.put("email", user.email());

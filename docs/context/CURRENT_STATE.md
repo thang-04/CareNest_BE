@@ -11,7 +11,7 @@ Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắ
 | Prefix API cấu hình được | **Có** — `carenest.api.prefix` (`WebMvcConfig`), mặc định `/api` |
 | Coding guide | **Có** — `docs/backend-coding-guide.md` |
 | Docs nghiệp vụ / kiến trúc / memory | Bản đầu |
-| Authentication/authorization | **Đang làm** — Keycloak + Resource Server (ADR-0011). Xong: kiểm JWT, role, 401/403, realm import dev, `user_accounts` + CurrentUser + `GET /accounts/me`, bảng scope (V2/V3) + seed dev + 8 user dev, policy scope campus/lớp/trẻ, `GET /children/{childId}`, `/accounts/me` có tóm tắt phạm vi, cấp/khóa tài khoản qua Keycloak Admin API, rà security + sửa (Phase 8). Tiếp: docs cuối (Phase 9) (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
+| Authentication/authorization | **Xong trên `feature/authentication`, chờ merge** — Keycloak + Resource Server (ADR-0011): kiểm JWT, role, 401/403/503, `user_accounts` + `GET /accounts/me`, bảng scope (V2/V3) + seed dev, policy campus/lớp/trẻ, `GET /children/{childId}`, cấp/khóa tài khoản qua Keycloak Admin API (Admin không tự khóa mình — AUTH-09). Chưa có: API quản lý phân công/liên kết phụ huynh. Giới hạn: KI-003..KI-009 (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
 | Schema/migration nghiệp vụ | Bắt đầu — V1 `user_accounts`, V2 campus/năm học/lớp/phân công, V3 trẻ/enrollment/liên kết PH; seed dev `db/dev` |
 | OpenAPI export (`docs/api/`) | Chưa |
 | AI provider | OPEN (ADR-0007) |
@@ -36,12 +36,12 @@ Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắ
 
 ## Giới hạn hiện tại
 
-Mới có scaffold: chưa auth, chưa nghiệp vụ. Mọi rule PENDING (P-xx trong `BUSINESS_RULES.md`) chưa có hành vi chốt ⇒ làm cấu hình được, không hard-code.
+Có xác thực Keycloak, phạm vi campus/lớp/trẻ và cấp/khóa tài khoản; chưa có nghiệp vụ điểm danh trở đi. Mọi rule PENDING (P-xx trong `BUSINESS_RULES.md`) chưa có hành vi chốt ⇒ làm cấu hình được, không hard-code.
 
 ## Thứ tự triển khai (guide mục 15)
 
 1. Nền móng — **xong**.
-2. Đăng nhập và phạm vi: user/role, campus/class assignment, liên kết phụ huynh–trẻ, test quyền — **đang làm** (ADR-0011).
+2. Đăng nhập và phạm vi: user/role, campus/class assignment, liên kết phụ huynh–trẻ, test quyền — xác thực + phạm vi **xong** (ADR-0011, chờ merge); API quản lý phân công/liên kết chưa làm.
 3. Điểm danh → BGH xác nhận số ăn → bếp xem.
 4. Hồ sơ trẻ: quan sát/sức khỏe, chia sẻ phụ huynh, audit, lịch sử.
 5. Mở rộng: sự cố CSVC, thông báo, thực đơn; AI sau khi dữ liệu + baseline sẵn sàng.

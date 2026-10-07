@@ -8,7 +8,7 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Nguyên nhân: user còn required action (mật khẩu tạm) hoặc thiếu field bắt buộc của user profile.
 - Xử lý: đăng nhập trình duyệt một lần; kiểm *Realm settings → User profile* (`email`, `lastName` không bắt buộc).
 - Đã thử không hiệu quả: kiểm `requiredActions` (rỗng).
-- Incident: ENV-001
+- Incident: ENV-261004-keycloak-user-profile-account-not-fully-set-up
 
 ### `make mountpoint ... read-only file system` khi `docker compose up keycloak`
 - Nguyên nhân: mount một file vào bên trong thư mục đã bind mount `:ro` (Docker không tạo được mountpoint con).

@@ -91,7 +91,7 @@ Dùng để hiểu cấu hình, hoặc dựng môi trường không có file imp
    - `lastName`: tắt *Required field*, chỉ admin sửa.
    - `firstName`: giữ *Required field*, chỉ admin sửa.
 
-   Lý do: mặc định Keycloak 26 bắt buộc `email` + `lastName`; user thiếu chúng bị chặn với lỗi `Account is not fully set up` (phụ huynh có thể không có email, tên tiếng Việt không tách họ/tên tin cậy). Xem `docs/knowledge/incidents/ENV-001-keycloak-user-profile-account-not-fully-set-up.md`.
+   Lý do: mặc định Keycloak 26 bắt buộc `email` + `lastName`; user thiếu chúng bị chặn với lỗi `Account is not fully set up` (phụ huynh có thể không có email, tên tiếng Việt không tách họ/tên tin cậy). Xem `docs/knowledge/incidents/ENV-261004-keycloak-user-profile-account-not-fully-set-up.md`.
 4. **Password policy**: *Authentication → Policies → Password policy* → Add policy `Minimum length` = 8 và `Not username` → Save.
 5. **Realm roles**: *Realm roles → Create role*, tạo lần lượt 6 role (viết hoa đúng như mục 1).
 6. **Client `carenest-web`**: *Clients → Create client*:
@@ -231,7 +231,7 @@ Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo 
 | --- | --- | --- |
 | API trả 401 dù token "trông đúng" | `iss` khác `KEYCLOAK_ISSUER_URI` (vd. token lấy qua IP LAN hoặc port khác) | Lấy token qua `http://localhost:8180`; test bằng điện thoại thật thì đặt `KEYCLOAK_HOSTNAME` = `http://<IP-LAN>:8180` và API dùng cùng issuer đó |
 | 401, token không có `aud: carenest-api` | Client thiếu audience mapper | Thêm mapper (mục 4 bước 6), lấy token mới |
-| `invalid_grant` / `Account is not fully set up` | User còn required action (đổi mật khẩu tạm) hoặc thiếu field bắt buộc của user profile | Đăng nhập qua trình duyệt một lần (Account Console); kiểm *User profile* như mục 3 — ENV-001 |
+| `invalid_grant` / `Account is not fully set up` | User còn required action (đổi mật khẩu tạm) hoặc thiếu field bắt buộc của user profile | Đăng nhập qua trình duyệt một lần (Account Console); kiểm *User profile* như mục 3 — ENV-261004-keycloak-user-profile-account-not-fully-set-up |
 | `invalid_grant` / `Invalid user credentials` | Sai mật khẩu, hoặc bị khóa tạm sau 5 lần sai | Đợi hết thời gian khóa hoặc admin mở khóa (Users → user → tắt *Temporarily locked*) |
 | 403 `Account is not provisioned` | `sub` chưa có trong `user_accounts` | Tạo tài khoản qua API CareNest hoặc kiểm seed dev |
 | 403 sau khi vừa gán role | Token cũ chưa có role mới | Lấy token mới |

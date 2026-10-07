@@ -420,14 +420,14 @@ docker compose up -d keycloak
 
 ---
 
-## Nhật ký triển khai
+## Progress log
 
 ### Phase 2 — xong 2026-10-04 (chờ user review)
 
 Khác plan, đã kiểm thực tế trên Keycloak 26.8.0:
 - Audience mapper đặt **trên từng client** (`<client>-dedicated`), không dùng realm client scope `carenest-api-audience`: tránh khai báo `clientScopes` ở cấp realm (có thể làm mất scope mặc định).
 - Service account `carenest-backend` **không cần `view-realm`**: `GET /roles/{name}` trả 403, nhưng `GET /users/{id}/role-mappings/realm/available` trả 200 với `manage-users` ⇒ Phase 7 lấy role representation qua endpoint này.
-- User profile mặc định KC 26 bắt buộc `email` + `lastName` ⇒ lỗi `Account is not fully set up` (ENV-001). Realm import bỏ bắt buộc 2 field này; `email/firstName/lastName` chỉ admin sửa.
+- User profile mặc định KC 26 bắt buộc `email` + `lastName` ⇒ lỗi `Account is not fully set up` (ENV-261004-keycloak-user-profile-account-not-fully-set-up). Realm import bỏ bắt buộc 2 field này; `email/firstName/lastName` chỉ admin sửa.
 - Image pin: `quay.io/keycloak/keycloak:26.8.0`, `axllent/mailpit:v1.31.4`. Thêm `.gitattributes` (`*.sh`, `mvnw` giữ LF) vì init script postgres chạy trong container Linux.
 - Compose bắt buộc `.env` (`:?` cho mật khẩu Keycloak/secret), `.env.example` có giá trị giả để copy chạy ngay.
 - Kiểm e2e (compose project tạm, đã xóa): token thật ⇒ 404 (đã xác thực), không token / sửa chữ ký / token client khác (sai `aud`) ⇒ 401; Keycloak tắt vẫn kiểm được token nhờ JWKS cache.
@@ -475,8 +475,20 @@ Khác plan, đã kiểm thực tế trên Keycloak 26.8.0:
 
 ### Phase 8 — xong 2026-10-06 (chờ user review)
 
-- Review độc lập (agent, report `plans/reports/code-review-261006-1617-keycloak-auth-security-report.md`): 0 Critical/High, 4 Medium, 12 Low. Tự kiểm thêm: Keycloak tắt khi API chưa cache JWKS ⇒ 500 (BUG-001).
-- Đã sửa: BUG-001 (503 `ResponseJson`, `withObjectPostProcessor` cho `BearerTokenAuthenticationFilter`); M1 `ActiveAccountInterceptor` chặn chưa cấp/INACTIVE cho mọi `/api/**` (resolver dùng lại kết quả, không query thêm); M2 bù trừ mọi `RuntimeException`; M3 Keycloak 400 ⇒ `REJECTED` ⇒ 400; M4 client `carenest-dev` bật bằng `CARENEST_DEV_CLIENT_ENABLED` (mặc định tắt) + SMTP qua env; L2 khóa log RestClient ở INFO; L4 xóa cache admin token khi 401; L9 `ignore-migration-patterns: *:future,repeatable:missing`; L10 init script dùng biến psql; L12 `order by` enrollment; L5 sửa comment.
+- Review độc lập (agent, report `plans/reports/code-review-261006-1617-keycloak-auth-security-report.md`): 0 Critical/High, 4 Medium, 12 Low. Tự kiểm thêm: Keycloak tắt khi API chưa cache JWKS ⇒ 500 (BUG-261006-jwks-unavailable-returns-500).
+- Đã sửa: BUG-261006-jwks-unavailable-returns-500 (503 `ResponseJson`, `withObjectPostProcessor` cho `BearerTokenAuthenticationFilter`); M1 `ActiveAccountInterceptor` chặn chưa cấp/INACTIVE cho mọi `/api/**` (resolver dùng lại kết quả, không query thêm); M2 bù trừ mọi `RuntimeException`; M3 Keycloak 400 ⇒ `REJECTED` ⇒ 400; M4 client `carenest-dev` bật bằng `CARENEST_DEV_CLIENT_ENABLED` (mặc định tắt) + SMTP qua env; L2 khóa log RestClient ở INFO; L4 xóa cache admin token khi 401; L9 `ignore-migration-patterns: *:future,repeatable:missing`; L10 init script dùng biến psql; L12 `order by` enrollment; L5 sửa comment.
 - Ghi lại (KNOWN_ISSUES KI-003..KI-009): L1, L3, L5, L6, L7 (chờ chốt), quyền service account + ADMIN tạo PRINCIPAL, Swagger public khi deploy.
 - Test: 122/122 (thêm 503, interceptor chặn endpoint không có `CurrentUser`, non-ADMIN PATCH 403, `CurrentUser` không giả được qua query param, M2/M3, client 400/401, policy + PostgreSQL thật với Clock cố định).
 - E2E: realm `CARENEST_DEV_CLIENT_ENABLED=false` ⇒ client dev tắt (`invalid_client`); mật khẩu DB có `' " ;` khởi tạo OK; newman 123/123; API không profile dev trên DB đã seed khởi động OK; Keycloak tắt + API mới ⇒ 503; Keycloak từ chối dữ liệu ⇒ 400 không để user mồ côi; log không có mật khẩu/secret.
+
+### Sau Phase 8 — 2026-10-06 (team chốt)
+
+- KI-007 ⇒ AUTH-09: Admin không tự đổi trạng thái tài khoản của mình (400), vẫn khóa được Admin khác. KI-008 chấp nhận cho V1, ghi cách giữ secret ở SECURITY.md. `.claude/agent-memory/` vào `.gitignore`.
+
+### Phase 9 — xong 2026-10-06 (chờ user review)
+
+- SECURITY.md: thay thiết kế tham khảo 401/403 (đã lỗi thời) bằng sơ đồ luồng thực tế, bảng 401/403/503, vòng đời token/phiên, trade-off.
+- README: bỏ đoạn trùng sau merge, thêm "Gọi API có bảo vệ" (curl token qua `carenest-dev`, Swagger Authorize, Postman), test phân quyền + `verify.mjs`, trạng thái.
+- AUTH_CONTRACT: mục "Tác động FE/APP" (danh sách việc cần làm ở repo FE/APP, không sửa repo khác). CURRENT_STATE: auth xong trên branch, chờ merge.
+- Đổi ID incident sang dạng chuẩn: `BUG-261006-jwks-unavailable-returns-500`, `ENV-261004-keycloak-user-profile-account-not-fully-set-up` (cập nhật mọi tham chiếu).
+- Còn lại ngoài phạm vi plan: API quản lý phân công/liên kết phụ huynh; các câu hỏi mục "Còn chờ" của AUTH_CONTRACT.

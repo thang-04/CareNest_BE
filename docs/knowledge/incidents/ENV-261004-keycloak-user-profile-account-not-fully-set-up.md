@@ -1,5 +1,5 @@
 ---
-id: ENV-001
+id: ENV-261004-keycloak-user-profile-account-not-fully-set-up
 type: env
 modules: [identity-access]
 rules: [AUTH-04]
@@ -9,7 +9,7 @@ keywords: [keycloak, user profile, Account is not fully set up, invalid_grant, l
 similar_to: []
 ---
 
-# ENV-001 — Keycloak 26 chặn user thiếu email/lastName: "Account is not fully set up"
+# ENV-261004-keycloak-user-profile-account-not-fully-set-up — Keycloak 26 chặn user thiếu email/lastName: "Account is not fully set up"
 
 ## Symptom
 User tạo qua Admin API chỉ có `username` + `firstName` (họ tên đầy đủ) + mật khẩu không tạm, không có required action nào, vẫn không lấy được token:
