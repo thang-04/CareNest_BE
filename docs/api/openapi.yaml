@@ -19,12 +19,12 @@ paths:
               $ref: "#/components/schemas/CreateAccountRequest"
         required: true
       responses:
-        "200":
+        "201":
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonCreateAccountResponse"
-          description: OK
+          description: Created
       tags:
       - account-controller
   /api/accounts/me:

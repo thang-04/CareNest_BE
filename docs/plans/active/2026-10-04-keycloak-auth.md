@@ -8,7 +8,7 @@ modules: [identity-access, school-structure, child]
 rules: [AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-06, AUTH-07]
 risk: high
 created: 2026-10-04
-updated: 2026-10-06
+updated: 2026-10-07
 ---
 # CareNest BE — Keycloak + Spring Security Resource Server + Domain Authorization
 
@@ -492,3 +492,8 @@ Khác plan, đã kiểm thực tế trên Keycloak 26.8.0:
 - AUTH_CONTRACT: mục "Tác động FE/APP" (danh sách việc cần làm ở repo FE/APP, không sửa repo khác). CURRENT_STATE: auth xong trên branch, chờ merge.
 - Đổi ID incident sang dạng chuẩn: `BUG-261006-jwks-unavailable-returns-500`, `ENV-261004-keycloak-user-profile-account-not-fully-set-up` (cập nhật mọi tham chiếu).
 - Còn lại ngoài phạm vi plan: API quản lý phân công/liên kết phụ huynh; các câu hỏi mục "Còn chờ" của AUTH_CONTRACT.
+
+### Sau Phase 9 — 2026-10-07
+
+- BUG-261007-openapi-create-account-status: snapshot OpenAPI ghi `POST /accounts` trả 200, runtime trả 201 (springdoc mặc định 200 khi thiếu `@ResponseStatus`). Sửa: `@ResponseStatus(HttpStatus.CREATED)`, snapshot `"201"`, test `createAccountIsDocumentedWithActualCreatedStatus` (fail trước/pass sau). Mẫu guide §7 + `.claude/rules/controller.md` thêm quy tắc này. Hành vi API không đổi; FE/APP sinh lại client từ snapshot.
+- Verify đầy đủ có Docker: 136 test, 0 skip.

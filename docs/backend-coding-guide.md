@@ -262,6 +262,7 @@ public ResponseEntity<ResponseJson<ChildProfileResponse>> getChildProfile(@PathV
 }
 
 @PostMapping
+@ResponseStatus(HttpStatus.CREATED) // OpenAPI ghi 201; thiếu thì springdoc ghi 200 (BUG-261007-openapi-create-account-status)
 public ResponseEntity<ResponseJson<AttendanceRecordResponse>> createAttendanceRecord(
         @Valid @RequestBody CreateAttendanceRecordRequest request) {
     return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create attendance record success",

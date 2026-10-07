@@ -12,6 +12,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -39,6 +41,8 @@ public class AccountController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    // Để OpenAPI ghi 201 khớp ApiCode.CREATED; springdoc mặc định suy ra 200 với ResponseEntity
+    @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<CreateAccountResponse>> createAccount(
             @Valid @RequestBody CreateAccountRequest request, CurrentUser currentUser) {
         return ResponseJson.toJsonWithData(

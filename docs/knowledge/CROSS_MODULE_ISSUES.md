@@ -20,4 +20,4 @@ Dùng làm checklist khi implement/review. Khi xảy ra thật ⇒ tạo inciden
 
 | ID | Module | Tóm tắt | Incident |
 | --- | --- | --- | --- |
-| — | — | Chưa có | — |
+| BUG-261007-openapi-create-account-status | BE → FE/APP | OpenAPI tạo tài khoản mô tả 200, source trả 201 | [Incident](incidents/BUG-261007-openapi-create-account-status.md) |

@@ -6,5 +6,6 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| BUG-261007-openapi-create-account-status | identity-access | OpenAPI POST /api/accounts ghi 200, controller trả 201; FE handoff | Springdoc mặc định 200 cho method trả `ResponseEntity` khi thiếu `@ResponseStatus` | fixed |
 | BUG-261006-jwks-unavailable-returns-500 | identity-access | Keycloak tắt, API chưa cache JWKS ⇒ 500 body Boot `AuthenticationServiceException` `Couldn't retrieve remote JWK set` | Failure handler mặc định của `BearerTokenAuthenticationFilter` ném lại lỗi thay vì gọi entry point | fixed |
 | ENV-261004-keycloak-user-profile-account-not-fully-set-up | identity-access | Keycloak `invalid_grant` `Account is not fully set up`, user không có email/lastName | User profile mặc định Keycloak 26 bắt buộc email + lastName | fixed |
