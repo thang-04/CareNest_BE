@@ -1,7 +1,7 @@
 // PreToolUse: chặn đọc/ghi secret, hỏi user trước các thay đổi "Hỏi trước khi làm" (AGENTS.md) và vùng rủi ro chưa có plan.
 // Không in gì = để luồng xin quyền bình thường của Claude Code quyết định (không bao giờ tự "allow").
-import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { matchAny } from "../../scripts/ai-layer/lib.mjs";
 import { classify } from "./lib/commands.mjs";
 import { isFreeZone, normPath, preToolUse, run, toRel, tryGit } from "./lib/hook-io.mjs";
@@ -13,6 +13,16 @@ const SHELL_TOOLS = new Set(["Bash", "PowerShell"]);
 const SHELL_FAST_PATH = /\bgit\b|\bgh\b|\.env|\.pem|\.key|\.p12|\.pfx|\.jks|id_rsa|id_ed25519/;
 
 const isSecret = (guard, rel) => matchAny(guard.denyRead, rel) && !matchAny(guard.denyReadExcept, rel);
+
+// File message của `git commit -F <file>` (tương đối theo cwd của lệnh); không đọc được ⇒ null
+function readMessageFile(ctx, file) {
+  if (isSecret(ctx.config.guard, normPath(file).split("/").pop())) return null;
+  try {
+    return readFileSync(resolve(ctx.cwd, file), "utf8");
+  } catch {
+    return null;
+  }
+}
 const existsInHead = (ctx, rel) => tryGit(["cat-file", "-e", `HEAD:${rel}`], ctx.root, null) !== null;
 
 // User đã duyệt (rule, path) trong session này ⇒ có event edit sau event ask ⇒ không hỏi lại
@@ -46,7 +56,8 @@ run("guard-edits", (input, ctx) => {
   if (SHELL_TOOLS.has(tool)) {
     const command = String(toolInput.command ?? "");
     if (!SHELL_FAST_PATH.test(command)) return;
-    const { decision, reasons } = classify(command);
+    const env = { branch: tryGit(["branch", "--show-current"], ctx.root), readFile: (p) => readMessageFile(ctx, p) };
+    const { decision, reasons } = classify(command, env);
     if (decision) preToolUse(decision, `[CareNest] ${reasons.join("; ")}`);
     return;
   }

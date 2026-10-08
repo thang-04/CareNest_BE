@@ -110,14 +110,33 @@ test("guard: user đã duyệt (ask rồi edit thành công) ⇒ không hỏi l�
   assert.equal(decisionOf(hook("guard-edits", root, { session_id: "khac", tool_name: "Edit", tool_input: { file_path: join(root, "pom.xml") } })), "ask");
 });
 
-test("orient: repo sạch im lặng; có plan cùng branch thì in 1 dòng; sau compact nhắc xác nhận lại", () => {
+test("orient: luôn nêu mã task của nhánh; có plan cùng branch thì in thêm; sau compact nhắc xác nhận lại", () => {
   const root = makeGitRepo();
-  assert.equal(hook("session-orient", root, { session_id: "o1", source: "startup" }), null);
+  const start = hook("session-orient", root, { session_id: "o1", source: "startup" }).hookSpecificOutput.additionalContext;
+  assert.match(start, /Nhánh main không chứa mã task — user bảo commit\/tạo PR ⇒ hỏi mã Jira \+ mã công việc/);
+  assert.doesNotMatch(start, /Plan đang làm/);
   write(root, { "docs/plans/active/p.md": "---\nstatus: in-progress\nbranch: main\n---\n## Progress log\n### 2026-10-06 — Phase 1 (chờ review)\n" });
   const out = hook("session-orient", root, { session_id: "o1", source: "resume" });
   assert.match(out.hookSpecificOutput.additionalContext, /Plan đang làm trên main: docs\/plans\/active\/p.md \[in-progress\] — log cuối: 2026-10-06 — Phase 1/);
   const compact = hook("session-orient", root, { session_id: "o1", source: "compact" });
   assert.match(compact.hookSpecificOutput.additionalContext, /Sau compact: chưa verify trong phiên/);
+});
+
+test("orient + guard: nhánh task ⇒ nêu mã; commit sai/lệch mã ⇒ deny kèm hướng dẫn, đúng mã ⇒ ask", () => {
+  const root = makeGitRepo();
+  git(root, "checkout", "-q", "-b", "feature/G94-181-FE-FEAT-44-lesson-plan");
+  const orient = hook("session-orient", root, { session_id: "t1", source: "startup" }).hookSpecificOutput.additionalContext;
+  assert.match(orient, /thuộc task \[FE-FEAT-44\] G94-181/);
+
+  const bash = (command) => hook("guard-edits", root, { session_id: "t1", tool_name: "Bash", tool_input: { command } });
+  const bad = bash('git commit -m "feat(plan): add form"');
+  assert.equal(decisionOf(bad), "deny");
+  assert.match(bad.hookSpecificOutput.permissionDecisionReason, /nhánh thuộc task \[FE-FEAT-44\] G94-181/);
+  assert.equal(decisionOf(bash('git commit -m "[FE-FEAT-44] G94-181: add lesson plan form"')), "ask");
+  write(root, { "msg.txt": "[FE-FEAT-45] G94-182: add lesson plan list\n" });
+  assert.equal(decisionOf(bash("git commit -F msg.txt")), "deny");
+  write(root, { ".env": "A=1\n" });
+  assert.doesNotMatch(JSON.stringify(bash("git commit -F .env")), /A=1/, "không đọc file bí mật làm message");
 });
 
 test("stop: làn S — chặn 1 lần khi chưa verify, nhận quick PASS, đổi code sau verify thì chặn lại", () => {
@@ -211,7 +230,8 @@ test("orient: tự bật core.hooksPath khi repo có .githooks; không ghi đè 
   const first = hook("session-orient", root, { session_id: "h1", source: "startup" });
   assert.match(first.hookSpecificOutput.additionalContext, /Đã tự bật git hook/);
   assert.equal(git(root, "config", "--get", "core.hooksPath").trim(), ".githooks");
-  assert.equal(hook("session-orient", root, { session_id: "h2", source: "startup" }), null, "đã bật ⇒ im lặng");
+  const again = hook("session-orient", root, { session_id: "h2", source: "startup" }).hookSpecificOutput.additionalContext;
+  assert.doesNotMatch(again, /git hook|hooksPath/, "đã bật ⇒ không nhắc lại");
 
   const other = makeGitRepo({ ".githooks/commit-msg": "#!/bin/sh\nexit 0\n" });
   git(other, "config", "core.hooksPath", ".husky");

@@ -2,7 +2,7 @@
 title: <Tiêu đề>
 status: draft        # draft → approved (chỉ user duyệt) → in-progress → done | blocked | cancelled
 owner: <người chịu trách nhiệm>
-jira: none           # CN-123 hoặc none (user xác nhận)
+jira: <mã-jira> / <mã-công-việc>   # vd. G94-181 / FE-FEAT-44 — mỗi việc phải có task Jira
 branch: <branch làm việc>   # plan gate so với branch hiện tại
 modules: []          # module id trong .ai/CONTEXT_MAP.yaml
 rules: []            # rule ID dùng trong plan

@@ -1,7 +1,8 @@
-// SessionStart: định hướng đầu phiên, chỉ in khi có điều đáng nói (0–3 dòng) để không tốn token.
+// SessionStart: định hướng đầu phiên (1–4 dòng: mã task của nhánh + điều đáng nói) để không tốn token.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ensureGitHooks } from "../../scripts/ai-layer/lib.mjs";
+import { branchTask } from "./lib/commands.mjs";
 import { addContext, cleanOldState, run, tryGit } from "./lib/hook-io.mjs";
 import { activePlans, ensureBaseline, readEvents } from "./lib/session.mjs";
 
@@ -10,6 +11,14 @@ const AI_LAYER = ["AGENTS.md", "CLAUDE.md", ".ai", ".claude", ".agents", "docs"]
 function orientLines(ctx, source) {
   const lines = [];
   const branch = tryGit(["branch", "--show-current"], ctx.root);
+
+  // Mã task cho commit/PR (AGENTS.md › Git): lấy từ tên nhánh, không có thì phải hỏi user
+  const task = branchTask(branch);
+  lines.push(
+    task
+      ? `[CareNest] Nhánh ${branch} thuộc task ${task} — commit/PR dùng đúng mã này.`
+      : `[CareNest] Nhánh ${branch || "?"} không chứa mã task — user bảo commit/tạo PR ⇒ hỏi mã Jira + mã công việc (vd. G94-181 / FE-FEAT-44) trước, không tự đoán.`,
+  );
 
   const plans = activePlans(ctx).filter((p) => p.branch === branch && ctx.config.plans.gateStatuses.includes(p.status));
   for (const p of plans.slice(0, 1)) {
@@ -43,7 +52,7 @@ function orientLines(ctx, source) {
     const count = readFileSync(errorLog, "utf8").split("\n").filter(Boolean).length;
     if (count) lines.push(`[CareNest] Hook có ${count} lỗi nội bộ (${errorLog}) — báo user nếu hook hành xử lạ.`);
   }
-  return lines.slice(0, 3);
+  return lines.slice(0, 4);
 }
 
 run("session-orient", (input, ctx) => {

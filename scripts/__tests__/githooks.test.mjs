@@ -54,25 +54,36 @@ const commit = (root, message, files = { [`f${Math.random()}.txt`]: "x\n" }, env
   return git(root, ["commit", "-q", "-m", message], env);
 };
 
-test("commit-msg: chấp nhận Conventional Commits; Refs thiếu chỉ cảnh báo", () => {
+test("commit-msg: chấp nhận '[<mã-công-việc>] <mã-jira>: <mô tả>' cho cả 4 loại", () => {
   const root = makeRepo();
-  const ok = commit(root, "feat(child): add child profile endpoint");
-  assert.ok(ok.ok, ok.out);
-  assert.match(ok.out, /thiếu footer 'Refs/);
-  assert.ok(commit(root, "fix: handle null campus\n\n- reason\n\nRefs: CN-12").ok);
+  for (const msg of [
+    "[FE-FEAT-44] G94-181: complete half of the lesson plan UI",
+    "[BE-FEAT-7] G94-120: add child profile endpoint",
+    "[FE-FIX-12] G94-200: keep campus filter after reload",
+    "[BE-FIX-03] G94-190: correct meal-count validation\n\n- Reject counts below zero",
+    `[FE-FEAT-44] G94-181: ${"a".repeat(50)}`,
+  ]) {
+    const r = commit(root, msg);
+    assert.ok(r.ok, `${msg}\n${r.out}`);
+  }
 });
 
-test("commit-msg: chặn sai định dạng, tiếng Việt, quá dài, dấu chấm, Refs sai, AI attribution", () => {
+test("commit-msg: chặn sai định dạng, tiếng Việt, quá dài, dấu chấm, AI attribution", () => {
   const root = makeRepo();
   const cases = [
     ["update code", /dòng đầu phải dạng/],
-    ["feat: thêm chức năng", /ASCII/],
-    [`feat: ${"a".repeat(70)}`, /tối đa 72/],
-    ["feat: add x.", /dấu chấm/],
-    ["feat: add x\nbody liền dòng 2", /dòng 2 phải để trống/],
-    ["feat: add x\n\nRefs: cn-1", /Refs: CN-123/],
-    ["feat: add x\n\nRefs: CN-1\nRefs: CN-2", /chỉ 1 dòng/],
-    ["feat: add x\n\nCo-Authored-By: Claude <noreply@anthropic.com>", /AI attribution/],
+    ["feat(child): add child profile endpoint", /dòng đầu phải dạng/],
+    ["[FE-FEAT-44] add lesson plan form", /dòng đầu phải dạng/],
+    ["G94-181 [FE-FEAT-44]: add lesson plan form", /dòng đầu phải dạng/],
+    ["[FE-FEAT-44] g94-181: add lesson plan form", /dòng đầu phải dạng/],
+    ["[UI-FEAT-1] G94-181: add lesson plan form", /dòng đầu phải dạng/],
+    ["[Module-01] G94-181: add lesson plan form", /dòng đầu phải dạng/],
+    ["[FE-FEAT-44] G94-181:add lesson plan form", /dòng đầu phải dạng/],
+    ["[FE-FEAT-44] G94-181: thêm chức năng", /ASCII/],
+    [`[FE-FEAT-44] G94-181: ${"a".repeat(51)}`, /tối đa 72/],
+    ["[FE-FEAT-44] G94-181: add x.", /dấu chấm/],
+    ["[FE-FEAT-44] G94-181: add x\nbody liền dòng 2", /dòng 2 phải để trống/],
+    ["[FE-FEAT-44] G94-181: add x\n\nCo-Authored-By: Claude <noreply@anthropic.com>", /AI attribution/],
   ];
   for (const [msg, expected] of cases) {
     const r = commit(root, msg);
@@ -81,38 +92,65 @@ test("commit-msg: chặn sai định dạng, tiếng Việt, quá dài, dấu ch
   }
 });
 
+test("commit-msg: nhánh sai định dạng, commit thẳng main/dev, mã lệch nhánh chỉ cảnh báo", () => {
+  const root = makeRepo();
+  const onMain = commit(root, "[FE-FEAT-44] G94-181: add lesson plan form");
+  assert.ok(onMain.ok, onMain.out);
+  assert.match(onMain.out, /commit thẳng lên 'main'/);
+
+  git(root, ["checkout", "-q", "-b", "feature/G94-181-FE-FEAT-44-lesson-plan"]);
+  const match = commit(root, "[FE-FEAT-44] G94-181: add lesson plan form");
+  assert.ok(match.ok, match.out);
+  assert.doesNotMatch(match.out, /cảnh báo/);
+  const other = commit(root, "[FE-FEAT-45] G94-182: add lesson plan list");
+  assert.ok(other.ok, other.out);
+  assert.match(other.out, /mong đợi '\[FE-FEAT-44\] G94-181: \.\.\.'/);
+
+  for (const branch of ["feat/lesson-plan", "fix/G94-181-FE-FEAT-44-lesson-plan", "feature/G94-181-FE-FEAT-44-Lesson_Plan"]) {
+    git(root, ["checkout", "-q", "-b", branch]);
+    const r = commit(root, "[FE-FEAT-44] G94-181: add lesson plan form");
+    assert.ok(r.ok, r.out);
+    assert.match(r.out, /tên nhánh phải dạng/, branch);
+  }
+
+  git(root, ["checkout", "-q", "-b", "release/1.0"]);
+  const release = commit(root, "[BE-FIX-03] G94-190: correct meal-count validation");
+  assert.ok(release.ok, release.out);
+  assert.doesNotMatch(release.out, /cảnh báo/);
+});
+
 test("pre-commit: chặn .env, khóa, secret; cho .env.example và placeholder", () => {
   const root = makeRepo();
-  assert.match(commit(root, "chore: env", { ".env": "A=1\n" }).out, /không commit file bí mật: .env/);
+  assert.match(commit(root, "[BE-FEAT-1] G94-1: add env", { ".env": "A=1\n" }).out, /không commit file bí mật: .env/);
   discard(root, ".env");
 
-  assert.ok(commit(root, "chore: env example", { ".env.example": "DB_PASSWORD=\n" }).ok);
+  assert.ok(commit(root, "[BE-FEAT-1] G94-1: add env example", { ".env.example": "DB_PASSWORD=\n" }).ok);
   // carenest:allow-secret — mật khẩu giả để kiểm pre-commit chặn secret
-  const leaked = commit(root, "feat: config", { "src/main/resources/application-x.yml": "db:\n  password: SuperSecret123\n" }); // carenest:allow-secret
+  const leaked = commit(root, "[BE-FEAT-1] G94-1: add config", { "src/main/resources/application-x.yml": "db:\n  password: SuperSecret123\n" }); // carenest:allow-secret
   assert.equal(leaked.ok, false);
   assert.match(leaked.out, /có thể chứa secret: src\/main\/resources\/application-x.yml/);
   discard(root, "src/main/resources/application-x.yml");
-  assert.ok(commit(root, "feat: config", { "src/main/resources/application-y.yml": "db:\n  password: ${DB_PASSWORD}\n" }).ok, "giá trị ${...} hợp lệ");
-  const key = commit(root, "feat: key", { "certs/server.pem": "x\n" });
+  assert.ok(commit(root, "[BE-FEAT-1] G94-1: add config", { "src/main/resources/application-y.yml": "db:\n  password: ${DB_PASSWORD}\n" }).ok, "giá trị ${...} hợp lệ");
+  const key = commit(root, "[BE-FEAT-1] G94-1: add key", { "certs/server.pem": "x\n" });
   assert.match(key.out, /file bí mật: certs\/server.pem/);
 });
 
 test("pre-commit: migration đã commit bất biến (trừ khi được cho phép), trùng version bị chặn", () => {
   const root = makeRepo();
-  const edit = commit(root, "fix: tweak", { "src/main/resources/db/migration/V1__init.sql": "create table t(id bigint);\n" });
+  const edit = commit(root, "[BE-FIX-1] G94-2: tweak migration", { "src/main/resources/db/migration/V1__init.sql": "create table t(id bigint);\n" });
   assert.equal(edit.ok, false);
   assert.match(edit.out, /migration đã commit là bất biến/);
-  const allowed = git(root, ["commit", "-q", "-m", "fix(db): tweak unreleased migration"], { CARENEST_ALLOW_MIGRATION_EDIT: "1" });
+  const allowed = git(root, ["commit", "-q", "-m", "[BE-FIX-1] G94-2: tweak unreleased migration"], { CARENEST_ALLOW_MIGRATION_EDIT: "1" });
   assert.ok(allowed.ok, allowed.out);
-  const dup = commit(root, "feat(db): add table", { "src/main/resources/db/migration/V1__other.sql": "select 1;\n" });
+  const dup = commit(root, "[BE-FEAT-2] G94-3: add table", { "src/main/resources/db/migration/V1__other.sql": "select 1;\n" });
   assert.match(dup.out, /trùng version migration/);
   discard(root, "src/main/resources/db/migration/V1__other.sql");
-  assert.ok(commit(root, "feat(db): add table", { "src/main/resources/db/migration/V2__add_table.sql": "select 1;\n" }).ok);
+  assert.ok(commit(root, "[BE-FEAT-2] G94-3: add table", { "src/main/resources/db/migration/V2__add_table.sql": "select 1;\n" }).ok);
 });
 
 test("pre-commit: conflict marker bị chặn", () => {
   const root = makeRepo();
-  const r = commit(root, "fix: merge", { "a.txt": "<<<<<<< HEAD\nx\n>>>>>>> other\n" });
+  const r = commit(root, "[BE-FIX-1] G94-2: resolve merge", { "a.txt": "<<<<<<< HEAD\nx\n>>>>>>> other\n" });
   assert.match(r.out, /conflict marker/);
 });
 
@@ -125,9 +163,9 @@ test("pre-push: commit tạo bằng --no-verify vẫn bị bắt; force push b�
   assert.equal(bad.ok, false);
   assert.match(bad.out, /dòng đầu phải dạng/);
 
-  git(root, ["commit", "-q", "--amend", "-m", "feat: add a"]);
+  git(root, ["commit", "-q", "--amend", "-m", "[BE-FEAT-1] G94-1: add a"]);
   assert.ok(git(root, ["push", "-q", "origin", "main"]).ok);
-  git(root, ["commit", "-q", "--amend", "-m", "feat: add a again"]);
+  git(root, ["commit", "-q", "--amend", "-m", "[BE-FEAT-1] G94-1: add a again"]);
   const forced = git(root, ["push", "-q", "--force", "origin", "main"]);
   assert.equal(forced.ok, false);
   assert.match(forced.out, /force push/);

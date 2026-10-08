@@ -35,24 +35,35 @@ Java 21, Spring Boot 4.1.1, Maven (`mvnw`), PostgreSQL 17, Spring Data JPA, Flyw
 
 Khối này giống nhau ở cả ba repo `CareNest_BE`, `CareNest_FE`, `CareNest_APP`; chỉ mục "Hỏi trước khi làm" và "Phạm vi" khác theo repo. Sửa ở một repo thì đồng bộ sang hai repo còn lại.
 
-### Git — commit, push, pull request
+### Git — nhánh và mã công việc
 
-- KHÔNG tự `git commit` / `git push` / tạo-merge-đóng PR / tạo branch khi user chưa cho phép rõ **trong tin nhắn hiện tại** (được phép một lần ≠ lần sau). Branch khi được phép: `feature/<KEY>-<mo-ta>`, `fix/<KEY>-<mo-ta>`, `chore/<mo-ta>`; làm trên branch khác `main` ⇒ hỏi trước.
-- KHÔNG lệnh git phá hủy khi chưa hỏi (`reset --hard`, `push --force`, `rebase`, `branch -D`, `clean -fd`, `checkout -- .`, `restore .`, `stash drop`); KHÔNG `--no-verify`/bỏ qua hook.
+- Repo GitHub riêng tư, chỉ thành viên được cấp quyền. Nhánh: `main` = bản phát hành đã duyệt; `dev` = tích hợp; `release/*` = kiểm thử bản phát hành và sửa lỗi; mỗi task Jira làm trên 1 nhánh riêng, tạo từ `dev`.
+- **Mã công việc:** mỗi việc có 1 task Jira với 2 định danh — mã Jira (vd. `G94-181`, để Jira gắn nhánh/commit/PR vào task) và mã công việc trong tên task = loại + số thứ tự (vd. `FE-FEAT-44`, để nhìn là biết loại việc). Loại: `FE-FEAT` (tính năng giao diện web/app), `BE-FEAT` (tính năng back-end), `FE-FIX`, `BE-FIX` (sửa lỗi). Số thứ tự tăng dần theo từng loại, không dùng lại. `CareNest_BE` dùng `BE-*`; `CareNest_FE`, `CareNest_APP` dùng `FE-*`.
+- **Tên nhánh:** `<tiền-tố>/<mã-jira>-<mã-công-việc>-<tên-luồng>`; tiền tố `feature` cho `FE-FEAT`/`BE-FEAT`, `fix` cho `FE-FIX`/`BE-FIX`; tên luồng = tên ngắn của luồng nghiệp vụ, chữ thường, nối bằng `-`, lập trình viên chọn. Vd. `feature/G94-181-FE-FEAT-44-lesson-plan`, `fix/G94-190-BE-FIX-03-meal-count-validation`. Không dùng `[` `]` trong tên nhánh (Git không chấp nhận).
+- KHÔNG tự `git commit` / `git push` / tạo-merge-đóng PR / tạo branch khi user chưa cho phép rõ **trong tin nhắn hiện tại** (được phép một lần ≠ lần sau). Cần commit mà đang ở `main`/`dev`/`release/*` hoặc nhánh sai định dạng ⇒ hỏi user dùng nhánh nào, không tự tạo.
+- Cấm push trực tiếp lên `main`. KHÔNG lệnh git phá hủy khi chưa hỏi (`reset --hard`, `push --force`, `rebase`, `branch -D`, `clean -fd`, `checkout -- .`, `restore .`, `stash drop`); KHÔNG `--no-verify`/bỏ qua hook.
 
 ### Commit message
 
-- Conventional Commits tiếng Anh `<type>(<scope>): <subject>`, `type` ∈ `feat|fix|refactor|test|docs|chore|build|ci`; subject ≤72 ký tự, mệnh lệnh, không dấu chấm cuối; body tùy chọn ≤~5 gạch đầu dòng nói lý do/tác động (không liệt kê file, không kể quá trình). 1 commit = 1 thay đổi logic.
-- **Jira:** user bảo commit mà chưa nêu task ⇒ hỏi "Thay đổi này thuộc task Jira nào (vd. `CN-123`)?". 1 commit = đúng 1 key ở footer `Refs: <KEY>`; nhiều task ⇒ tách commit; user xác nhận không có task ⇒ commit không key và nói rõ. Không đoán/bịa key.
+- Dòng đầu: `[<mã-công-việc>] <mã-jira>: <mô tả ngắn>` — mô tả tiếng Anh, mệnh lệnh, không dấu chấm cuối; cả dòng ≤72 ký tự. Body tùy chọn (cách 1 dòng trống) ≤~5 gạch đầu dòng nói lý do/tác động (không liệt kê file, không kể quá trình). 1 commit = 1 thay đổi logic.
+- Mỗi commit chỉ thuộc 1 task; nhiều task ⇒ tách commit. Task cha dạng `[Module-NN]` không dùng để commit — dùng mã công việc của task con `FE-FEAT`/`BE-FEAT`.
+- **User bảo commit/tạo PR:** (1) mã lấy từ tên nhánh nếu đúng định dạng (hook đầu phiên nêu sẵn); (2) nhánh không có mã và user chưa nêu ⇒ hỏi "Thay đổi này thuộc task Jira nào (mã Jira + mã công việc, vd. `G94-181` / `FE-FEAT-44`)?" rồi dừng chờ trả lời; (3) mã user nêu khác mã nhánh ⇒ hỏi lại. Không đoán/bịa mã; việc chưa có task ⇒ đề nghị tạo task trước khi commit. Claude hook chặn commit/PR sai định dạng, lệch mã nhánh hoặc PR không vào `dev`; git hook chặn message sai định dạng.
 - KHÔNG ghi tên model/công cụ AI, `Co-Authored-By` AI, "Generated with ..." trong commit, PR hay comment code (ghi đè attribution mặc định của công cụ).
 
 ```text
-feat(response): add PageResponse for paginated APIs
-
-- Avoid exposing Spring Page structure to clients
-
-Refs: CN-123
+[FE-FEAT-44] G94-181: complete half of the lesson plan UI
+[BE-FIX-03] G94-190: correct meal-count validation
 ```
+
+### Pull request
+
+- Tiêu đề PR cùng định dạng commit: `[<mã-công-việc>] <mã-jira>: <mô tả ngắn>`. Mô tả PR gồm: link task Jira, các thay đổi, phần kiểm thử đã làm (lệnh + kết quả thật; chưa chạy ⇒ ghi rõ).
+- PR của nhánh task gộp vào `dev`. Chỉ nhánh `release/*` được gộp vào `main`. Nhóm kiểm tra cài đặt bảo vệ nhánh và ghi lại giới hạn thực tế nếu có.
+- Điều kiện gộp: ≥1 thành viên khác tác giả duyệt, mọi kiểm tra bắt buộc đạt, mọi góp ý chặn đã xử lý.
+
+### Thông tin nhạy cảm
+
+- KHÔNG commit thông tin nhạy cảm (secret, token, mật khẩu, khóa, thông tin xác thực, dữ liệu thật). Repo chỉ chứa mẫu cấu hình không nhạy cảm (vd. `.env.example`); thông tin xác thực thật quản lý qua cấu hình môi trường có kiểm soát truy cập hoặc dịch vụ lưu trữ bí mật.
 
 ### Comment trong code
 

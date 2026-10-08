@@ -1,6 +1,7 @@
 #!/bin/sh
-# Kiểm commit message (Conventional Commits, không AI attribution, Refs chỉ cảnh báo). ADR-0012.
+# Kiểm commit message ([<mã-công-việc>] <mã-jira>: <mô tả>, không AI attribution); nhánh/mã lệch chỉ cảnh báo. ADR-0012.
 . "$(dirname "$0")/lib.sh"
 cn_validate_msg "$1"
 [ "$CN_ERRORS" -eq 0 ] || { echo "[CareNest] Commit bị chặn: sửa message rồi commit lại (xem AGENTS.md › Commit message)." >&2; exit 1; }
+cn_check_branch "$1"
 exit 0

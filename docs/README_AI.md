@@ -229,7 +229,7 @@ Task đổi hành vi nghiệp vụ mà rule chưa có / PENDING / OPEN / yêu c�
 | --- | --- | --- |
 | Chữ | Mọi agent (Claude, Codex) | `AGENTS.md`, `.ai/workflows/`, `docs/quality/VERIFICATION.md`, DoD |
 | Claude hooks | Mở Claude **bên trong** repo (không phải thư mục `CareNest_CODE/`) | Đầu phiên: plan đang làm, branch thiếu commit AI-layer của main, git hook chưa bật. Khi sửa: chặn đọc/ghi `.env`; hỏi xác nhận khi sửa migration đã commit, `pom.xml`/Docker, `ResponseJson`/`ApiCode`, vùng rủi ro chưa có plan duyệt; hỏi trước commit/push/tạo branch; cấm `--no-verify`. Khi dừng: chưa có verify sau lần sửa cuối; gợi ý ghi memory khi có dấu hiệu bug khó |
-| Git hooks | Mọi người sau khi bật | Commit message (Conventional Commits, cấm AI attribution, thiếu `Refs:` chỉ cảnh báo); chặn `.env`, secret, sửa migration cũ; chạy check-ai-layer; pre-push kiểm lại message, chặn force push |
+| Git hooks | Mọi người sau khi bật | Commit message (`[<mã-công-việc>] <mã-jira>: <mô tả>`, cấm AI attribution; nhánh sai định dạng hoặc mã lệch nhánh chỉ cảnh báo); chặn `.env`, secret, sửa migration cũ; chạy check-ai-layer; pre-push kiểm lại message, chặn force push |
 | Kiểm chứng | Chạy tay hoặc hook gọi | `node scripts/verify.mjs [--quick]` (tóm tắt ≤10 dòng, log đầy đủ ghi ra file), `node scripts/check-ai-layer.mjs` |
 
 ### Thiết lập 1 lần mỗi máy

@@ -184,16 +184,17 @@ CareNest_BE/
 
 ## Quy trình đóng góp
 
-- **Branch:** `feature/<KEY>-<mo-ta>`, `fix/<KEY>-<mo-ta>`, `chore/<mo-ta>`; `KEY` là mã Jira, ví dụ `CN-123`.
-- **Commit:** Conventional Commits bằng tiếng Anh, `<type>(<scope>): <subject>` với `type` thuộc `feat|fix|refactor|test|docs|chore|build|ci`; subject ≤ 72 ký tự. Mỗi commit một thay đổi logic, gắn đúng một mã Jira ở footer:
+- **Nhánh:** `main` chứa bản phát hành đã duyệt, `dev` để tích hợp, `release/*` để kiểm thử bản phát hành và sửa lỗi. Mỗi task Jira làm trên một nhánh riêng tạo từ `dev`.
+- **Mã công việc:** mỗi task Jira có mã Jira (ví dụ `G94-181`) và mã công việc trong tên task (ví dụ `BE-FEAT-12`). Loại: `FE-FEAT`, `BE-FEAT`, `FE-FIX`, `BE-FIX`; số thứ tự tăng dần theo từng loại, không dùng lại.
+- **Tên nhánh:** `<tiền-tố>/<mã-jira>-<mã-công-việc>-<tên-luồng>`, tiền tố `feature` cho `*-FEAT`, `fix` cho `*-FIX`, tên luồng viết thường nối bằng `-`. Ví dụ `fix/G94-190-BE-FIX-03-meal-count-validation`.
+- **Commit:** `[<mã-công-việc>] <mã-jira>: <mô tả ngắn>`, mô tả tiếng Anh, cả dòng ≤ 72 ký tự. Mỗi commit một thay đổi logic và chỉ thuộc một task; task cha `[Module-NN]` không dùng để commit.
 
   ```text
-  feat(response): add PageResponse for paginated APIs
-
-  - Avoid exposing Spring Page structure to clients
-
-  Refs: CN-123
+  [BE-FIX-03] G94-190: correct meal-count validation
   ```
+
+- **Pull request:** tiêu đề cùng định dạng commit; mô tả ghi link task Jira, các thay đổi và phần kiểm thử đã làm. PR gộp vào `dev`; chỉ `release/*` được gộp vào `main`; cấm push trực tiếp lên `main`. Cần ít nhất một thành viên khác tác giả duyệt, mọi kiểm tra bắt buộc đạt và mọi góp ý chặn đã xử lý.
+- **Thông tin nhạy cảm:** không commit secret; repo chỉ chứa mẫu cấu hình không nhạy cảm (`.env.example`), thông tin xác thực thật quản lý qua cấu hình môi trường có kiểm soát truy cập hoặc dịch vụ lưu trữ bí mật.
 
 - **Trao đổi với team trước khi:** thêm/nâng dependency hoặc đổi version (`pom.xml`, `Dockerfile`, `compose.yaml`); đổi API contract (endpoint, DTO, `ResponseJson`, `ApiCode`, prefix) kèm danh sách tác động FE/APP; thêm hạ tầng mới chưa chốt.
 - **Trước khi mở PR:** `./mvnw test` pass, đối chiếu Checklist mục 17 của coding guide và [Definition of Done](docs/quality/DEFINITION_OF_DONE.md).
