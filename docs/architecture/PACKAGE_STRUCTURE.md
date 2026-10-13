@@ -7,8 +7,9 @@
 ```text
 com.carenest
 ├── controller/<feature>/   # REST, @Valid, gọi service, trả ResponseJson
-├── service/<feature>/      # nghiệp vụ, @Transactional, kiểm tra quyền theo scope
-├── repository/<feature>/   # Spring Data JPA
+├── service/<feature>/      # XxxService (interface) — contract cho controller/service khác
+│   └── impl/               # XxxServiceImpl: nghiệp vụ, @Transactional, kiểm tra quyền theo scope (ADR-0014)
+├── repository/<feature>/   # Spring Data JPA (interface)
 ├── entity/<feature>/       # JPA entity — không trả qua API
 ├── dto/<feature>/          # request/response DTO (dto/common: PageResponse, FieldErrorResponse)
 ├── mapper/<feature>/       # Entity <-> DTO
@@ -16,7 +17,7 @@ com.carenest
 ├── security/               # xác thực, kiểm tra quyền (chưa triển khai — auth chưa chốt)
 ├── config/                 # WebMvcConfig (prefix API), OpenApiConfig
 ├── exception/              # GlobalException, GlobalExceptionHandler
-├── utils/                  # ApiCode, ResponseJson
+├── utils/                  # ApiCode, ResponseJson, Constants (hằng dùng chung), enums/ (enum dùng chung)
 └── common/
 ```
 

@@ -6,6 +6,7 @@ Nguồn chuẩn cho code: `docs/backend-coding-guide.md` (từ `CareNest_Backend
 
 - **Layered monolith**: 1 Spring Boot app (Java 21, Boot 4.1.1), 1 PostgreSQL 17, `controller → service → repository` (guide mục 1, 4).
 - Ranh giới nghiệp vụ = **feature sub-package** trong mỗi lớp (`service/attendance`, `service/meals`...). Ánh xạ module → feature: `PACKAGE_STRUCTURE.md`. Dependency giữa feature: `docs/system/MODULE_MAP.md`.
+- Service = interface `XxxService` + `impl/XxxServiceImpl`; enum/hằng dùng chung ở `utils/enums/`, `utils/Constants.java` (ADR-0014, guide mục 3, 6.3).
 - Không microservice, không message broker, không Redis/Keycloak khi chưa có use case và nhóm chưa đồng ý (guide mục 2).
 
 ## Giao tiếp giữa feature (ADR-0004)
