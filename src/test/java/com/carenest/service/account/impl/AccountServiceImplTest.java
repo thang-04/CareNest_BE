@@ -1,4 +1,4 @@
-package com.carenest.service.account;
+package com.carenest.service.account.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
@@ -7,11 +7,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.carenest.dto.account.MyAccountResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
-import com.carenest.entity.organization.StaffRole;
-import com.carenest.security.CareNestRole;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.StaffAssignmentService;
+import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-class AccountServiceTest {
+class AccountServiceImplTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 5);
     private static final Clock FIXED_CLOCK =
@@ -28,8 +28,8 @@ class AccountServiceTest {
 
     private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
     private final GuardianChildLinkService guardianChildLinkService = mock(GuardianChildLinkService.class);
-    private final AccountService accountService =
-            new AccountService(staffAssignmentService, guardianChildLinkService, FIXED_CLOCK);
+    private final AccountServiceImpl accountService =
+            new AccountServiceImpl(staffAssignmentService, guardianChildLinkService, FIXED_CLOCK);
 
     @Test
     void scopeSummaryKeepsOnlyAssignmentsMatchingTokenRoles() {

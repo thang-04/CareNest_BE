@@ -20,6 +20,8 @@ Mọi response (thành công hay lỗi):
 
 Không tự đặt mã số riêng; chỉ thêm `ApiCode` khi cần HTTP status chưa có — đổi contract ⇒ hỏi nhóm + nêu tác động FE/APP.
 
+ADR-0013 bổ sung `PRECONDITION_REQUIRED 428` cho Web gateway: mật khẩu tạm đã xác minh cần đổi lần đầu; `data` chỉ chứa challenge opaque và hạn dùng, không có access/refresh token. FE xử lý 428 bằng màn hình đổi mật khẩu; Mobile PKCE không dùng endpoint này.
+
 ## Dùng theo tình huống nghiệp vụ
 
 | Tình huống | ApiCode | Rule |

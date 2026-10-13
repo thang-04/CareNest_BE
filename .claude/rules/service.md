@@ -7,6 +7,7 @@ paths:
 
 Nguồn chuẩn: guide mục 5, 9, 13.
 
+- Interface `XxxService` (chỉ chữ ký + nested type thuộc contract) + `impl/XxxServiceImpl` mang `@Service`, `@Transactional`, `@Override` (ADR-0014). Test unit: `impl/XxxServiceImplTest`.
 - `@Transactional` (đọc: `readOnly = true`). Không dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`.
 - Thứ tự: kiểm tra quyền theo campus/class/child (đối chiếu assignment, không tin id client gửi) → rule nghiệp vụ (dẫn rule ID trong `docs/business/BUSINESS_RULES.md`) → lưu → trả DTO.
 - Cần dữ liệu feature khác ⇒ gọi service của nó; phản ứng ngược chiều phụ thuộc ⇒ Spring event sau commit (ADR-0004), không gọi vòng.

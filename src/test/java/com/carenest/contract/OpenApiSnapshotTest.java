@@ -83,4 +83,15 @@ class OpenApiSnapshotTest {
     private static String normalize(String yaml) {
         return yaml.replace("\r\n", "\n").stripTrailing() + "\n";
     }
+
+    @Test
+    void gatewayDocumentationDoesNotRequireBearerOrExposeInternalCsrfArgument() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.security").isArray())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.security").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/auth/csrf'].get.parameters").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['428']")
+                        .exists());
+    }
 }

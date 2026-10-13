@@ -3,12 +3,15 @@ package com.carenest.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.when;
 
 import com.carenest.entity.account.UserAccount;
-import com.carenest.entity.account.UserStatus;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.UserStatus;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -39,6 +42,24 @@ class CurrentUserServiceTest {
     @AfterEach
     void clearSecurityContext() {
         SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    void resolvesProvisionedActiveAccountFromJwtReturnedByVerifiedDecoder() {
+        UserAccount account = UserAccount.create("kc-web-user", "teacher.web", "web@example.test", "Giáo viên Web");
+        ReflectionTestUtils.setField(account, "id", 47L);
+        when(userAccountRepository.findByKeycloakUserId("kc-web-user")).thenReturn(Optional.of(account));
+        Jwt jwt = Jwt.withTokenValue("validated-web-token")
+                .header("alg", "RS256")
+                .subject("kc-web-user")
+                .issuedAt(Instant.parse("2026-10-12T01:00:00Z"))
+                .expiresAt(Instant.parse("2026-10-12T01:05:00Z"))
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("TEACHER")))
+                .build();
+        var currentUser = currentUserService.getCurrentUser(jwt);
+        assertThat(currentUser.userId()).isEqualTo(47L);
+        assertThat(currentUser.roles()).containsExactly(CareNestRole.TEACHER);
+        assertThat(currentUser.fullName()).isEqualTo("Giáo viên Web");
     }
 
     @Test

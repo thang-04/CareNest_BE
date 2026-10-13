@@ -4,6 +4,7 @@ import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -12,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,8 +33,23 @@ public class CurrentUserService {
             throw new GlobalException(ApiCode.UNAUTHORIZED, "Unauthorized");
         }
 
+        return getCurrentUser(jwtAuthentication.getToken(), rolesOf(authentication));
+    }
+
+    /** Chỉ gọi sau JwtDecoder đã kiểm chữ ký, issuer, audience và thời hạn. */
+    @Transactional(readOnly = true)
+    public CurrentUser getCurrentUser(Jwt validatedToken) {
+        if (validatedToken == null || validatedToken.getSubject() == null) {
+            throw new GlobalException(ApiCode.UNAUTHORIZED, "Unauthorized");
+        }
+        JwtAuthenticationToken verifiedAuthentication =
+                new JwtAuthenticationToken(validatedToken, new KeycloakRealmRoleConverter().convert(validatedToken));
+        return getCurrentUser(validatedToken, rolesOf(verifiedAuthentication));
+    }
+
+    private CurrentUser getCurrentUser(Jwt validatedToken, Set<CareNestRole> roles) {
         // Danh tính chỉ lấy từ "sub" đã được kiểm chữ ký, không lấy từ id client gửi
-        String keycloakUserId = jwtAuthentication.getToken().getSubject();
+        String keycloakUserId = validatedToken.getSubject();
         UserAccount account = userAccountRepository
                 .findByKeycloakUserId(keycloakUserId)
                 .orElseThrow(() -> {
@@ -51,7 +68,7 @@ public class CurrentUserService {
                 account.getUsername(),
                 account.getFullName(),
                 account.getEmail(),
-                rolesOf(authentication));
+                roles);
     }
 
     private static Set<CareNestRole> rolesOf(Authentication authentication) {

@@ -1,6 +1,6 @@
 package com.carenest.integration.keycloak;
 
-import com.carenest.integration.keycloak.IdentityProviderException.Reason;
+import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.net.URI;
@@ -86,7 +86,8 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
                         .toBodilessEntity());
         URI location = response.getHeaders().getLocation();
         if (location == null) {
-            throw new IdentityProviderException(Reason.UNAVAILABLE, "Keycloak did not return created user id", null);
+            throw new IdentityProviderException(
+                    IdentityProviderErrorReason.UNAVAILABLE, "Keycloak did not return created user id", null);
         }
         String path = location.getPath();
         return path.substring(path.lastIndexOf('/') + 1);
@@ -113,7 +114,8 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
                         .findFirst()
                         .orElse(null);
         if (role == null) {
-            throw new IdentityProviderException(Reason.UNAVAILABLE, "Realm role not available: " + roleName, null);
+            throw new IdentityProviderException(
+                    IdentityProviderErrorReason.UNAVAILABLE, "Realm role not available: " + roleName, null);
         }
         call(
                 "assignRealmRole",
@@ -151,7 +153,8 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
                         .retrieve()
                         .body(new ParameterizedTypeReference<Map<String, Object>>() {}));
         if (user == null) {
-            throw new IdentityProviderException(Reason.UNAVAILABLE, "Keycloak returned empty user", null);
+            throw new IdentityProviderException(
+                    IdentityProviderErrorReason.UNAVAILABLE, "Keycloak returned empty user", null);
         }
         user.put("enabled", enabled);
         call(
@@ -204,7 +207,7 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
         }
         if (!StringUtils.hasText(properties.adminClientSecret())) {
             throw new IdentityProviderException(
-                    Reason.UNAVAILABLE, "Keycloak admin client secret is not configured", null);
+                    IdentityProviderErrorReason.UNAVAILABLE, "Keycloak admin client secret is not configured", null);
         }
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", "client_credentials");
@@ -219,7 +222,8 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
                 .retrieve()
                 .body(TokenResponse.class);
         if (token == null || token.accessToken() == null) {
-            throw new IdentityProviderException(Reason.UNAVAILABLE, "Keycloak returned empty admin token", null);
+            throw new IdentityProviderException(
+                    IdentityProviderErrorReason.UNAVAILABLE, "Keycloak returned empty admin token", null);
         }
         cachedAdminToken = token.accessToken();
         adminTokenExpiresAt = now.plusSeconds(token.expiresIn()).minus(TOKEN_EXPIRY_MARGIN);
@@ -240,15 +244,18 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
         } catch (RestClientException ex) {
             log.warn(
                     "[{}]|keycloakUnreachable|type={}", operation, ex.getClass().getSimpleName());
-            throw new IdentityProviderException(Reason.UNAVAILABLE, "Keycloak " + operation + " failed", ex);
+            throw new IdentityProviderException(
+                    IdentityProviderErrorReason.UNAVAILABLE, "Keycloak " + operation + " failed", ex);
         }
     }
 
-    private static Reason reasonOf(int status) {
+    private static IdentityProviderErrorReason reasonOf(int status) {
         if (status == HttpStatus.CONFLICT.value()) {
-            return Reason.CONFLICT;
+            return IdentityProviderErrorReason.CONFLICT;
         }
-        return status == HttpStatus.BAD_REQUEST.value() ? Reason.REJECTED : Reason.UNAVAILABLE;
+        return status == HttpStatus.BAD_REQUEST.value()
+                ? IdentityProviderErrorReason.REJECTED
+                : IdentityProviderErrorReason.UNAVAILABLE;
     }
 
     private synchronized void clearAdminToken() {

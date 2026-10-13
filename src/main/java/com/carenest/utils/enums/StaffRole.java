@@ -1,4 +1,4 @@
-package com.carenest.entity.organization;
+package com.carenest.utils.enums;
 
 /** Vai trò của một phân công; quyết định phạm vi: PRINCIPAL toàn trường, VP/bếp theo campus, GV theo lớp. */
 public enum StaffRole {

@@ -13,7 +13,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.carenest.integration.keycloak.IdentityProviderException.Reason;
+import com.carenest.utils.enums.IdentityProviderErrorReason;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
@@ -87,7 +87,7 @@ class KeycloakIdentityProviderClientTest {
         assertThatThrownBy(() -> client.createUser(new NewIdentityUser("teacher.a", null, "Demo", "Temp-Pass-1")))
                 .isInstanceOf(IdentityProviderException.class)
                 .extracting("reason")
-                .isEqualTo(Reason.CONFLICT);
+                .isEqualTo(IdentityProviderErrorReason.CONFLICT);
     }
 
     @Test
@@ -98,7 +98,7 @@ class KeycloakIdentityProviderClientTest {
         assertThatThrownBy(() -> client.deleteUser("kc-1"))
                 .isInstanceOf(IdentityProviderException.class)
                 .extracting("reason")
-                .isEqualTo(Reason.UNAVAILABLE);
+                .isEqualTo(IdentityProviderErrorReason.UNAVAILABLE);
     }
 
     @Test
@@ -151,7 +151,7 @@ class KeycloakIdentityProviderClientTest {
         assertThatThrownBy(() -> unconfigured.deleteUser("kc-1"))
                 .isInstanceOf(IdentityProviderException.class)
                 .extracting("reason")
-                .isEqualTo(Reason.UNAVAILABLE);
+                .isEqualTo(IdentityProviderErrorReason.UNAVAILABLE);
         noCallsServer.verify();
     }
 
@@ -182,7 +182,7 @@ class KeycloakIdentityProviderClientTest {
         assertThatThrownBy(() -> client.createUser(new NewIdentityUser("teacher.c", null, "Demo", "teacher.c")))
                 .isInstanceOf(IdentityProviderException.class)
                 .extracting("reason")
-                .isEqualTo(Reason.REJECTED);
+                .isEqualTo(IdentityProviderErrorReason.REJECTED);
     }
 
     @Test

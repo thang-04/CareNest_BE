@@ -1,5 +1,6 @@
 package com.carenest.entity.organization;
 
+import com.carenest.utils.enums.StaffRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

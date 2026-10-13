@@ -13,6 +13,7 @@ paths:
 Nguồn chuẩn: guide mục 2 (Auth), 8.5, 9, 10; `docs/architecture/SECURITY.md`; ADR-0011; `docs/system/KEYCLOAK.md`.
 
 - Auth = **Keycloak + Spring Security Resource Server** (ADR-0011). KHÔNG viết login/refresh/`JwtService`/filter JWT tự chế, KHÔNG lưu mật khẩu hay refresh token, KHÔNG tự ký JWT, KHÔNG gọi Keycloak để kiểm token mỗi request.
+- Ngoại lệ Web đã duyệt: ADR-0013 cho gateway opt-in dùng confidential Direct Grant, token mã hóa tại server và cookie opaque + CSRF; Keycloak vẫn xác minh mật khẩu/ký access JWT. Mobile giữ PKCE. Không mở rộng ngoại lệ sang API nghiệp vụ hay lưu mật khẩu.
 - Danh tính hiện tại lấy từ JWT `sub` (= `user_accounts.keycloak_user_id`); KHÔNG tin `userId`/`parentId`/`teacherId` client gửi.
 - Role Keycloak chỉ là role toàn cục; KHÔNG tạo role theo lớp/campus/trẻ, KHÔNG đưa phân công/danh sách trẻ vào JWT.
 - Mọi controller method có `@PreAuthorize` (lớp 1). Quyền = role + scope campus/class/child kiểm ở service/policy (lớp 2) — đúng role không có nghĩa được xem mọi dữ liệu. Truy cập theo id ⇒ xác minh thuộc scope (IDOR).

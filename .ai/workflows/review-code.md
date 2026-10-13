@@ -8,7 +8,7 @@ Kiểm tra theo thứ tự ưu tiên:
 
 1. **Logic nghiệp vụ:** đúng rule ID? implement rule PENDING như đã chốt? bước [B] bị biến thành chức năng? Code theo rule chưa CONFIRMED/ACCEPTED hoặc lệch tài liệu mà không có Q&A/T1 ⇒ **High**.
 2. **Security & privacy:** quyền + scope kiểm tra ở service/security; endpoint mới có `@PreAuthorize` + policy scope ở service; IDOR (truy cập theo id ⇒ kiểm scope **trước** khi load); request DTO không nhận field server sở hữu (`id`, `campusId`, `status`, `createdBy`); dữ liệu trẻ trong log/prompt/response; secret.
-3. **Architecture:** `ArchitectureRulesTest` đã tự kiểm layer, repository chéo feature, HTTP client ngoài `integration/`, field injection — chỉ review phần nó không thấy: chiều phụ thuộc MODULE_MAP, event phản ứng chéo chạy trước commit, gọi HTTP trong `@Transactional`. Đối chiếu Checklist mục 17 của `docs/backend-coding-guide.md`.
+3. **Architecture:** `ArchitectureRulesTest` đã tự kiểm layer, repository chéo feature, HTTP client ngoài `integration/`, field injection, service interface + `Impl`, enum top-level ở `utils/` — chỉ review phần nó không thấy (hằng dùng chung nằm ngoài `utils/Constants.java`), chiều phụ thuộc MODULE_MAP, event phản ứng chéo chạy trước commit, gọi HTTP trong `@Transactional`. Đối chiếu Checklist mục 17 của `docs/backend-coding-guide.md`.
 4. **Dữ liệu dẫn xuất:** sửa ngầm số suất đã xác nhận; bếp thấy số chưa xác nhận (CMR-01, CMR-02).
 5. **AI:** gọi SDK trực tiếp; output không qua bản nháp chờ duyệt; thiếu baseline khi AI tắt.
 6. **Test:** có test rule chính, scope, regression? List có phân trang; lỗi qua `GlobalException`; không N+1.

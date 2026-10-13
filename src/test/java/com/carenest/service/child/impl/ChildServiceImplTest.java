@@ -1,4 +1,4 @@
-package com.carenest.service.child;
+package com.carenest.service.child.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -14,10 +14,11 @@ import com.carenest.entity.child.Child;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.child.ChildMapper;
 import com.carenest.repository.child.ChildRepository;
-import com.carenest.security.CareNestRole;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
+import com.carenest.service.child.EnrollmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -29,7 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.BeanUtils;
 import org.springframework.test.util.ReflectionTestUtils;
 
-class ChildServiceTest {
+class ChildServiceImplTest {
 
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 5);
     private static final Clock FIXED_CLOCK =
@@ -40,8 +41,8 @@ class ChildServiceTest {
     private final ChildRepository childRepository = mock(ChildRepository.class);
     private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
     private final ChildAccessPolicy childAccessPolicy = mock(ChildAccessPolicy.class);
-    private final ChildService childService =
-            new ChildService(childRepository, enrollmentService, childAccessPolicy, new ChildMapper(), FIXED_CLOCK);
+    private final ChildServiceImpl childService =
+            new ChildServiceImpl(childRepository, enrollmentService, childAccessPolicy, new ChildMapper(), FIXED_CLOCK);
 
     @Test
     void shouldReturnProfileWithCurrentClassroomWhenInScope() {

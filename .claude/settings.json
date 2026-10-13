@@ -7,7 +7,14 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/session-orient.mjs"], "timeout": 15 }
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/session-orient.mjs"
+            ],
+            "timeout": 15
+          }
         ]
       }
     ],
@@ -15,7 +22,14 @@
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit|Read|Bash|PowerShell",
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-edits.mjs"], "timeout": 10 }
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/guard-edits.mjs"
+            ],
+            "timeout": 10
+          }
         ]
       }
     ],
@@ -23,7 +37,14 @@
       {
         "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/track-activity.mjs"], "timeout": 30 }
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/track-activity.mjs"
+            ],
+            "timeout": 30
+          }
         ]
       }
     ],
@@ -31,16 +52,33 @@
       {
         "matcher": "Bash|PowerShell",
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/track-activity.mjs"], "timeout": 30 }
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/track-activity.mjs"
+            ],
+            "timeout": 30
+          }
         ]
       }
     ],
     "Stop": [
       {
         "hooks": [
-          { "type": "command", "command": "node", "args": ["${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-gate.mjs"], "timeout": 60 }
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.claude/hooks/stop-gate.mjs"
+            ],
+            "timeout": 60
+          }
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "evon@evondevkit": true
   }
 }

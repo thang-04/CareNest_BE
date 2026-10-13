@@ -1,6 +1,6 @@
 package com.carenest.dto.organization;
 
-import com.carenest.entity.organization.StaffRole;
+import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 
 public record StaffAssignmentSummaryResponse(

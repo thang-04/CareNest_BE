@@ -3,7 +3,7 @@ package com.carenest.mapper.account;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.entity.account.UserAccount;
-import com.carenest.security.CareNestRole;
+import com.carenest.utils.enums.CareNestRole;
 import org.springframework.stereotype.Component;
 
 @Component

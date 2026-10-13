@@ -1,7 +1,7 @@
 package com.carenest.repository.organization;
 
 import com.carenest.entity.organization.StaffAssignment;
-import com.carenest.entity.organization.StaffRole;
+import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -32,7 +32,7 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
 
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
-            where a.userId = :userId and a.staffRole = com.carenest.entity.organization.StaffRole.TEACHER
+            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER
               and a.classroomId = :classroomId
               and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
             """)

@@ -1,11 +1,11 @@
 package com.carenest.security.authorization;
 
 import com.carenest.exception.GlobalException;
-import com.carenest.security.CareNestRole;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;

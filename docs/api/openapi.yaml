@@ -64,6 +64,188 @@ paths:
           description: OK
       tags:
       - account-controller
+  /api/auth/csrf:
+    get:
+      operationId: csrf
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCsrf"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/login:
+    post:
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Login"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLoginData"
+          description: Login successful
+        "428":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLoginData"
+          description: Verified temporary password requires first-login setup
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/logout:
+    post:
+      operationId: logout
+      parameters:
+      - in: cookie
+        name: CARENEST_SESSION
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/password/forgot:
+    post:
+      operationId: forgot
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Forgot"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonOtpRequest"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/password/otp/{requestId}:
+    get:
+      operationId: otpMetadata
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonOtpRequest"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/password/otp/{requestId}/resend:
+    post:
+      operationId: resend
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonOtpRequest"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/password/otp/{requestId}/verify:
+    post:
+      operationId: verifyOtp
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtp"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResetToken"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/password/reset:
+    post:
+      operationId: setPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Reset"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
+  /api/auth/refresh:
+    post:
+      operationId: refresh
+      parameters:
+      - in: cookie
+        name: CARENEST_SESSION
+        required: false
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Refresh"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccessToken"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
   /api/children/{childId}:
     get:
       operationId: getChildProfile
@@ -83,8 +265,34 @@ paths:
           description: OK
       tags:
       - child-controller
+  /api/me/password:
+    put:
+      operationId: changePassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePassword"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - password-controller
 components:
   schemas:
+    AccessToken:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
     AccountResponse:
       type: object
       properties:
@@ -102,6 +310,25 @@ components:
           format: int64
         username:
           type: string
+    ChangePassword:
+      type: object
+      properties:
+        confirmPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+        currentPassword:
+          type: string
+          maxLength: 128
+          minLength: 1
+        newPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+      required:
+      - confirmPassword
+      - currentPassword
+      - newPassword
     ChildProfileResponse:
       type: object
       properties:
@@ -178,6 +405,53 @@ components:
           format: int64
         username:
           type: string
+    Csrf:
+      type: object
+      properties:
+        headerName:
+          type: string
+        token:
+          type: string
+    Forgot:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+      required:
+      - email
+    Login:
+      type: object
+      properties:
+        identifier:
+          type: string
+          maxLength: 255
+          minLength: 0
+        password:
+          type: string
+          maxLength: 128
+          minLength: 1
+        remember:
+          type: boolean
+      required:
+      - identifier
+      - password
+    LoginData:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        account:
+          $ref: "#/components/schemas/MyAccountResponse"
+        changeToken:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        passwordChangeRequired:
+          type: boolean
     MyAccountResponse:
       type: object
       properties:
@@ -210,6 +484,58 @@ components:
           format: int64
         username:
           type: string
+    OtpRequest:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        requestId:
+          type: string
+        resendAvailableAt:
+          type: string
+          format: date-time
+    Refresh:
+      type: object
+      properties:
+        force:
+          type: boolean
+    Reset:
+      type: object
+      properties:
+        confirmPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+        newPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+        token:
+          type: string
+          pattern: "[A-Za-z0-9_-]{43}"
+      required:
+      - confirmPassword
+      - newPassword
+      - token
+    ResetToken:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        resetToken:
+          type: string
+    ResponseJsonAccessToken:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AccessToken"
+        desc:
+          type: string
     ResponseJsonAccountResponse:
       type: object
       properties:
@@ -240,6 +566,26 @@ components:
           $ref: "#/components/schemas/CreateAccountResponse"
         desc:
           type: string
+    ResponseJsonCsrf:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/Csrf"
+        desc:
+          type: string
+    ResponseJsonLoginData:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/LoginData"
+        desc:
+          type: string
     ResponseJsonMyAccountResponse:
       type: object
       properties:
@@ -248,6 +594,35 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/MyAccountResponse"
+        desc:
+          type: string
+    ResponseJsonOtpRequest:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/OtpRequest"
+        desc:
+          type: string
+    ResponseJsonResetToken:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ResetToken"
+        desc:
+          type: string
+    ResponseJsonVoid:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data: {}
         desc:
           type: string
     StaffAssignmentSummaryResponse:
@@ -282,6 +657,14 @@ components:
           - INACTIVE
       required:
       - status
+    VerifyOtp:
+      type: object
+      properties:
+        otp:
+          type: string
+          pattern: "[0-9]{6}"
+      required:
+      - otp
   securitySchemes:
     bearerAuth:
       bearerFormat: JWT

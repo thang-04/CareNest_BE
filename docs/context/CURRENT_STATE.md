@@ -4,6 +4,8 @@ Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắ
 
 ## Tổng quan
 
+Auth React cập nhật2026-10-12: extension Phase1 và backend gateway Phase2 opt-in đã có source, V4/session/OTP/cookie-CSRF; FE Phase3 chưa triển khai. Bằng chứng/lưu ý: `docs/quality/reports/2026-10-12-react-auth-phase2.md`. Không thay trạng thái merge hay triển khai thật của phần Resource Server bên dưới.
+
 | Hạng mục | Trạng thái |
 | --- | --- |
 | Scaffold BE | **Có** — Java 21, Spring Boot 4.1.1, Maven, PostgreSQL 17, Flyway, springdoc, Docker Compose |

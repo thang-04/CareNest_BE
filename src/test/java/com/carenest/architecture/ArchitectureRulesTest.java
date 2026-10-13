@@ -20,6 +20,7 @@ import jakarta.persistence.Entity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -81,7 +82,7 @@ class ArchitectureRulesTest {
             .allowEmptyShould(true)
             .because("guide mục 5: service ném GlobalException(ApiCode, desc)");
 
-    // Enum nằm trong entity/ (vd. UserStatus) được dùng trong DTO; chỉ cấm class @Entity
+    // Enum dùng chung (utils/enums) được dùng trong DTO; chỉ cấm class @Entity
     @ArchTest
     static final ArchRule apiDoesNotExposeEntities = noClasses()
             .that()
@@ -100,6 +101,43 @@ class ArchitectureRulesTest {
             .resideInAPackage(BASE + "controller..")
             .allowEmptyShould(true)
             .because("guide mục 7: prefix API chỉ gắn cho com.carenest.controller");
+
+    @ArchTest
+    static final ArchRule serviceImplementationsInImplPackage = classes()
+            .that()
+            .resideInAPackage(BASE + "service..")
+            .and()
+            .areAnnotatedWith(Service.class)
+            .should()
+            .resideInAPackage(BASE + "service..impl..")
+            .andShould()
+            .haveSimpleNameEndingWith("Impl")
+            .allowEmptyShould(true)
+            .because("ADR-0014: service tách interface + impl/XxxServiceImpl");
+
+    @ArchTest
+    static final ArchRule serviceContractsAreInterfaces = classes()
+            .that()
+            .resideInAPackage(BASE + "service..")
+            .and()
+            .resideOutsideOfPackage(BASE + "service..impl..")
+            .and()
+            .areTopLevelClasses()
+            .should()
+            .beInterfaces()
+            .allowEmptyShould(true)
+            .because("ADR-0014: caller chỉ phụ thuộc interface XxxService");
+
+    @ArchTest
+    static final ArchRule sharedEnumsInUtils = classes()
+            .that()
+            .areEnums()
+            .and()
+            .areTopLevelClasses()
+            .should()
+            .resideInAPackage(BASE + "utils..")
+            .allowEmptyShould(true)
+            .because("ADR-0014: enum dùng chung tập trung ở utils/enums");
 
     @ArchTest
     static final ArchRule externalCallsOnlyInIntegration = noClasses()

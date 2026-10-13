@@ -53,8 +53,8 @@ CareNest_BE/
     ├── main/
     │   ├── java/.../carenest/
     │   │   ├── controller/   # REST endpoints và validation
-    │   │   ├── service/      # Nghiệp vụ và transaction
-    │   │   ├── repository/   # Spring Data JPA
+    │   │   ├── service/      # Nghiệp vụ: <feature>/XxxService (interface) + <feature>/impl/XxxServiceImpl
+    │   │   ├── repository/   # Spring Data JPA (interface)
     │   │   ├── entity/       # JPA entities; KHÔNG trả trực tiếp qua API
     │   │   ├── dto/          # Request và response DTO
     │   │   ├── mapper/       # Entity <-> DTO
@@ -62,7 +62,7 @@ CareNest_BE/
     │   │   ├── security/     # Xác thực và kiểm tra quyền
     │   │   ├── config/       # Cấu hình Spring, OpenAPI, WebMvc
     │   │   ├── exception/    # GlobalException, GlobalExceptionHandler
-    │   │   ├── utils/        # ApiCode, ResponseJson; hàm stateless
+    │   │   ├── utils/        # ApiCode, ResponseJson, Constants, enums/; hàm stateless
     │   │   └── common/       # Thành phần dùng chung khác
     │   └── resources/
     │       ├── application.yml
@@ -72,6 +72,8 @@ CareNest_BE/
 
 - Mỗi package lớp NÊN chia tiếp theo chức năng: `controller/attendance/`, `service/attendance/`, `dto/attendance/`, ... (attendance, child, meals, facilities, ...).
 - KHÔNG tạo package `domain/` hay tách module theo DDD.
+- Service PHẢI tách interface + implementation (ADR-0014): `service/child/ChildService.java` (interface) và `service/child/impl/ChildServiceImpl.java`. Interface giữ tên gốc để caller và mock không phụ thuộc implementation.
+- Enum và hằng dùng chung PHẢI tập trung ở `utils/` (ADR-0014): mục 6.3.
 
 ## 4. Luồng request và quy tắc phụ thuộc
 
@@ -90,12 +92,12 @@ HTTP Request → Controller → Service → Repository → PostgreSQL
 | Package | PHẢI | KHÔNG ĐƯỢC |
 | --- | --- | --- |
 | `controller/` | Nhận request, `@Valid` dữ liệu đầu vào, lấy user hiện tại, gọi service, trả `ResponseJson` | Chứa logic/tính toán nghiệp vụ; gọi repository; trả entity |
-| `service/` | Xử lý nghiệp vụ, `@Transactional`, kiểm tra quyền theo scope, ném `GlobalException(ApiCode, desc)` khi lỗi nghiệp vụ, trả DTO hoặc dữ liệu nghiệp vụ | Dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; trả chuỗi lỗi để controller xử lý |
-| `repository/` | Spring Data JPA, query | Nghiệp vụ |
+| `service/` | Interface `XxxService` khai báo contract; `impl/XxxServiceImpl` xử lý nghiệp vụ, `@Transactional`, kiểm tra quyền theo scope, ném `GlobalException(ApiCode, desc)` khi lỗi nghiệp vụ, trả DTO hoặc dữ liệu nghiệp vụ | Dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; trả chuỗi lỗi để controller xử lý; inject `XxxServiceImpl` thay vì interface |
+| `repository/` | Interface Spring Data JPA, query; `XxxRepositoryCustom` + `XxxRepositoryImpl` chỉ khi cần query custom | Nghiệp vụ |
 | `entity/` | Ánh xạ bảng | Bị trả qua API; dùng làm request body |
 | `dto/`, `mapper/` | DTO request/response; mapper chuyển Entity ↔ DTO | Chứa nghiệp vụ |
-| `utils/` | `ApiCode`, `ResponseJson`, `CommonUtils`; hàm stateless dùng chung | Logic riêng của một nghiệp vụ |
-| `integration/` | Interface + adapter cho AI, storage, notification | Quy tắc nghiệp vụ |
+| `utils/` | `ApiCode`, `ResponseJson`, `CommonUtils`; `Constants` (hằng dùng chung); `enums/` (enum dùng chung); hàm stateless dùng chung | Logic riêng của một nghiệp vụ |
+| `integration/` | Interface trung lập + adapter theo provider cho AI, storage, notification, identity | Quy tắc nghiệp vụ; client không có interface |
 
 Ví dụ một luồng đầy đủ (mẫu):
 
@@ -120,16 +122,25 @@ public class ChildController {
 ```
 
 ```java
-// service/child/ChildService.java
+// service/child/ChildService.java — contract; controller và service khác inject interface này
+public interface ChildService {
+
+    ChildProfileResponse getChildProfile(CurrentUser currentUser, Long childId);
+}
+```
+
+```java
+// service/child/impl/ChildServiceImpl.java
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class ChildService {
+public class ChildServiceImpl implements ChildService {
 
     private final ChildRepository childRepository;
     private final AccessScopeService accessScopeService;
     private final ChildMapper childMapper;
 
+    @Override
     @Transactional(readOnly = true)
     public ChildProfileResponse getChildProfile(CurrentUser currentUser, Long childId) {
         String prefix = "[getChildProfile]|childId=" + childId;
@@ -155,7 +166,7 @@ public class ChildService {
 - Class: `PascalCase` — `ChildController`, `AttendanceService`, `MealCountRepository`, `ChildProfileResponse`, `CreateAttendanceRecordRequest`.
 - Biến, method: `camelCase`. Hằng số: `UPPER_SNAKE_CASE`.
 - Method PHẢI nêu rõ nghiệp vụ: `getChildProfile`, `createAttendanceRecord`, `approveMealPlan`, `confirmMealCount`. KHÔNG dùng `doIt`, `process`, `getData`, `handle`.
-- Hậu tố theo lớp: `XxxController`, `XxxService`, `XxxRepository`, `XxxMapper`, `XxxRequest`, `XxxResponse`.
+- Hậu tố theo lớp: `XxxController`, `XxxService` (interface), `XxxServiceImpl` (trong `impl/`), `XxxRepository`, `XxxMapper`, `XxxRequest`, `XxxResponse`. KHÔNG dùng tiền tố `IXxx`.
 - Bảng/cột DB: `snake_case`. Migration Flyway: `V{n}__{mo_ta_ngan}.sql` (vd. `V3__create_attendance_record.sql`).
 
 ### 6.2. Comment trong code
@@ -169,6 +180,27 @@ public class ChildService {
 ```java
 // Suất ăn chỉ tính trẻ có mặt và có đăng ký ăn, không tính theo sĩ số lớp
 long mealCount = records.stream().filter(r -> r.isPresent() && r.isMealRegistered()).count();
+```
+
+### 6.3. Enum và hằng dùng chung (ADR-0014)
+
+- Enum top-level, và enum lồng được class khác tham chiếu, PHẢI là 1 file trong `utils/enums/` (vd. `utils/enums/UserStatus.java`). Enum chỉ dùng trong chính class chứa nó NÊN để lồng tại chỗ. `ApiCode` giữ ở `utils/`.
+- Hằng dùng ≥2 class hoặc là giá trị hệ thống (tên cookie/header, thời hạn phiên/OTP, ngưỡng rate limit) PHẢI ở `utils/Constants.java`, nhóm bằng nested class. Hằng `private` chỉ một class dùng NÊN giữ tại chỗ.
+- Giá trị nghiệp vụ PENDING (giờ chốt suất, chu kỳ đo...) KHÔNG đưa vào `Constants`; dùng cấu hình (mục 13).
+- Entity lưu enum bằng `@Enumerated(EnumType.STRING)` ⇒ đổi package enum không đổi dữ liệu DB/JSON; KHÔNG đổi tên giá trị enum khi chưa có migration.
+
+```java
+// utils/Constants.java
+public final class Constants {
+
+    private Constants() {}
+
+    public static final class Auth {
+        public static final String SESSION_COOKIE = "CARENEST_SESSION";
+
+        private Auth() {}
+    }
+}
 ```
 
 ## 7. Quy ước API
@@ -427,6 +459,7 @@ Chạy trên diff trước khi tạo PR hoặc báo task xong. Mục không áp 
 
 - [ ] Controller không inject/gọi repository; không chứa logic nghiệp vụ.
 - [ ] Không trả entity qua API; dùng DTO + mapper.
+- [ ] Service mới có interface `XxxService` + `impl/XxxServiceImpl`; enum/hằng dùng chung ở `utils/enums/` / `utils/Constants.java` (ADR-0014).
 - [ ] Service không dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; lỗi nghiệp vụ ném `GlobalException(ApiCode, desc)`.
 - [ ] Controller không hardcode prefix API; prefix lấy từ `carenest.api.prefix`.
 - [ ] Mọi response (kể cả lỗi mới thêm) có dạng `{code, desc, data}`, `code` = HTTP status, lấy từ `ApiCode`.

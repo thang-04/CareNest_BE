@@ -20,7 +20,7 @@ AUTH-01..03, AUTH-05. ADR-0002 (campus scoping), ADR-0003.
 
 ## API & bảng
 - Bảng: `campuses`, `school_years`, `classrooms`, `staff_assignments` (`V2__create_school_structure.sql`, `docs/database/DATA_DICTIONARY.md`).
-- Entity hiện có: `Classroom`, `StaffAssignment`, `StaffRole` (Campus/SchoolYear chưa cần entity).
+- Entity hiện có: `Classroom`, `StaffAssignment` (Campus/SchoolYear chưa cần entity); enum `StaffRole` ở `utils/enums/` (ADR-0014).
 - Service cho kiểm tra scope: `StaffAssignmentService` (`hasActivePrincipalAssignment`, `hasActiveCampusAssignment`, `hasActiveTeacherAssignment` — lọc theo ngày, tính cả hai đầu), `ClassroomService.findCampusId`. Không gọi ngược `security/authorization`.
 - Chưa có API quản lý campus/lớp/phân công (dev dùng seed `db/dev/R__dev_seed.sql`).
 

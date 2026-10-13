@@ -1,5 +1,6 @@
 package com.carenest.security;
 
+import com.carenest.utils.Constants.Security;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.core.MethodParameter;
 import org.springframework.web.bind.support.WebDataBinderFactory;
@@ -32,8 +33,7 @@ public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolve
             ModelAndViewContainer mavContainer,
             NativeWebRequest webRequest,
             WebDataBinderFactory binderFactory) {
-        Object resolved = webRequest.getAttribute(
-                ActiveAccountInterceptor.CURRENT_USER_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+        Object resolved = webRequest.getAttribute(Security.CURRENT_USER_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
         return resolved instanceof CurrentUser currentUser
                 ? currentUser
                 : currentUserService.getObject().getCurrentUser();

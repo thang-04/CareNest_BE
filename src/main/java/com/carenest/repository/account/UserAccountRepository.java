@@ -9,4 +9,6 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
     Optional<UserAccount> findByKeycloakUserId(String keycloakUserId);
 
     boolean existsByUsername(String username);
+
+    java.util.List<UserAccount> findByEmailIgnoreCase(String email);
 }

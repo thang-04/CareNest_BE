@@ -1,7 +1,7 @@
 package com.carenest.dto.account;
 
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
-import com.carenest.security.CareNestRole;
+import com.carenest.utils.enums.CareNestRole;
 import java.util.List;
 
 /** Thông tin để client ẩn/hiện menu; quyền thật vẫn kiểm ở từng API. */

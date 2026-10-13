@@ -1,7 +1,7 @@
 package com.carenest.dto.account;
 
-import com.carenest.entity.account.UserStatus;
-import com.carenest.security.CareNestRole;
+import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.UserStatus;
 
 /** setupEmailSent = false: Admin phải giao mật khẩu tạm cho người dùng. */
 public record CreateAccountResponse(

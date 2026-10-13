@@ -1,5 +1,6 @@
 package com.carenest.security;
 
+import com.carenest.utils.Constants.Security;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.ObjectProvider;
@@ -15,8 +16,6 @@ import org.springframework.web.servlet.HandlerInterceptor;
  */
 public class ActiveAccountInterceptor implements HandlerInterceptor {
 
-    static final String CURRENT_USER_ATTRIBUTE = CurrentUser.class.getName();
-
     private final ObjectProvider<CurrentUserService> currentUserService;
 
     public ActiveAccountInterceptor(ObjectProvider<CurrentUserService> currentUserService) {
@@ -29,7 +28,8 @@ public class ActiveAccountInterceptor implements HandlerInterceptor {
                 SecurityContextHolder.getContext().getAuthentication() instanceof JwtAuthenticationToken;
         if (handler instanceof HandlerMethod && authenticatedWithToken) {
             request.setAttribute(
-                    CURRENT_USER_ATTRIBUTE, currentUserService.getObject().getCurrentUser());
+                    Security.CURRENT_USER_ATTRIBUTE,
+                    currentUserService.getObject().getCurrentUser());
         }
         return true;
     }

@@ -1,6 +1,6 @@
 package com.carenest.dto.account;
 
-import com.carenest.security.CareNestRole;
+import com.carenest.utils.enums.CareNestRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

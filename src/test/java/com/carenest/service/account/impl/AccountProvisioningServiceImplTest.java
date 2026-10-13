@@ -1,4 +1,4 @@
-package com.carenest.service.account;
+package com.carenest.service.account.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,21 +12,24 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.carenest.config.AuthProperties;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.entity.account.UserAccount;
-import com.carenest.entity.account.UserStatus;
 import com.carenest.exception.GlobalException;
+import com.carenest.integration.keycloak.AuthGatewayClient;
 import com.carenest.integration.keycloak.IdentityProviderClient;
 import com.carenest.integration.keycloak.IdentityProviderException;
-import com.carenest.integration.keycloak.IdentityProviderException.Reason;
 import com.carenest.integration.keycloak.NewIdentityUser;
 import com.carenest.mapper.account.AccountMapper;
 import com.carenest.repository.account.UserAccountRepository;
-import com.carenest.security.CareNestRole;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.IdentityProviderErrorReason;
+import com.carenest.utils.enums.UserStatus;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,7 +40,7 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
-class AccountProvisioningServiceTest {
+class AccountProvisioningServiceImplTest {
 
     private static final CurrentUser ADMIN =
             new CurrentUser(1L, "kc-admin", "admin.dev", "Admin", null, Set.of(CareNestRole.ADMIN));
@@ -45,8 +48,16 @@ class AccountProvisioningServiceTest {
 
     private final UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
     private final IdentityProviderClient identityProviderClient = mock(IdentityProviderClient.class);
-    private final AccountProvisioningService service =
-            new AccountProvisioningService(userAccountRepository, identityProviderClient, new AccountMapper());
+    private final AuthProperties authProperties = mock(AuthProperties.class);
+    private final AuthGatewayClient authGatewayClient = mock(AuthGatewayClient.class);
+    private final AuthStateStore authState = mock(AuthStateStore.class);
+    private final AccountProvisioningServiceImpl service = new AccountProvisioningServiceImpl(
+            userAccountRepository,
+            identityProviderClient,
+            new AccountMapper(),
+            authProperties,
+            authGatewayClient,
+            authState);
 
     @BeforeEach
     void setUpRepository() {
@@ -92,6 +103,18 @@ class AccountProvisioningServiceTest {
     }
 
     @Test
+    void enabledGatewaySendsReactSetupEmail() {
+        given(authProperties.enabled()).willReturn(true);
+        given(identityProviderClient.canSendSetupEmail()).willReturn(true);
+        given(identityProviderClient.createUser(any())).willReturn(KC_ID);
+        CreateAccountResponse response =
+                service.createAccount(ADMIN, request("parent.c", "parent.c@example.test", CareNestRole.PARENT, null));
+        verify(authGatewayClient).sendReactSetupEmail(KC_ID);
+        verify(identityProviderClient, never()).sendSetupEmail(anyString());
+        assertThat(response.setupEmailSent()).isTrue();
+    }
+
+    @Test
     void requiresTemporaryPasswordWhenNoSetupEmailCanBeSent() {
         assertThatThrownBy(() -> service.createAccount(ADMIN, request("parent.c", null, CareNestRole.PARENT, null)))
                 .isInstanceOf(GlobalException.class)
@@ -124,7 +147,7 @@ class AccountProvisioningServiceTest {
     @Test
     void keycloakConflictBecomes409WithoutCompensation() {
         given(identityProviderClient.createUser(any()))
-                .willThrow(new IdentityProviderException(Reason.CONFLICT, "exists", null));
+                .willThrow(new IdentityProviderException(IdentityProviderErrorReason.CONFLICT, "exists", null));
 
         assertThatThrownBy(() ->
                         service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
@@ -137,7 +160,7 @@ class AccountProvisioningServiceTest {
     @Test
     void keycloakDownBecomes503() {
         given(identityProviderClient.createUser(any()))
-                .willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "down", null));
+                .willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null));
 
         assertThatThrownBy(() ->
                         service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
@@ -149,7 +172,7 @@ class AccountProvisioningServiceTest {
     @Test
     void roleAssignmentFailureDeletesCreatedKeycloakUser() {
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
-        willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "role", null))
+        willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "role", null))
                 .given(identityProviderClient)
                 .assignRealmRole(KC_ID, "TEACHER");
 
@@ -183,7 +206,7 @@ class AccountProvisioningServiceTest {
         willThrow(new DataIntegrityViolationException("duplicate"))
                 .given(userAccountRepository)
                 .saveAndFlush(any());
-        willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "down", null))
+        willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null))
                 .given(identityProviderClient)
                 .deleteUser(KC_ID);
 
@@ -198,7 +221,7 @@ class AccountProvisioningServiceTest {
     void setupEmailFailureKeepsCreatedAccount() {
         given(identityProviderClient.canSendSetupEmail()).willReturn(true);
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
-        willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "smtp", null))
+        willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "smtp", null))
                 .given(identityProviderClient)
                 .sendSetupEmail(KC_ID);
 
@@ -216,8 +239,9 @@ class AccountProvisioningServiceTest {
 
         AccountResponse response = service.updateAccountStatus(ADMIN, 42L, UserStatus.INACTIVE);
 
-        InOrder order = inOrder(userAccountRepository, identityProviderClient);
+        InOrder order = inOrder(userAccountRepository, authState, identityProviderClient);
         order.verify(userAccountRepository).saveAndFlush(account);
+        order.verify(authState).revokeAccountAuth(42L);
         order.verify(identityProviderClient).setUserEnabled(KC_ID, false);
         order.verify(identityProviderClient).logoutUser(KC_ID);
         assertThat(response.status()).isEqualTo(UserStatus.INACTIVE);
@@ -239,7 +263,7 @@ class AccountProvisioningServiceTest {
     void keycloakSyncFailureReturns503ButCareNestStatusIsAlreadySaved() {
         UserAccount account = existingAccount();
         given(userAccountRepository.findById(42L)).willReturn(Optional.of(account));
-        willThrow(new IdentityProviderException(Reason.UNAVAILABLE, "down", null))
+        willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null))
                 .given(identityProviderClient)
                 .setUserEnabled(KC_ID, false);
 
@@ -297,7 +321,8 @@ class AccountProvisioningServiceTest {
     @Test
     void keycloakRejectingAccountDataBecomes400() {
         given(identityProviderClient.createUser(any()))
-                .willThrow(new IdentityProviderException(Reason.REJECTED, "password policy", null));
+                .willThrow(
+                        new IdentityProviderException(IdentityProviderErrorReason.REJECTED, "password policy", null));
 
         assertThatThrownBy(() ->
                         service.createAccount(ADMIN, request("teacher.c", null, CareNestRole.TEACHER, "teacher.c")))

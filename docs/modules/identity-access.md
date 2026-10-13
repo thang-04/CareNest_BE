@@ -24,13 +24,16 @@ AUTH-01..08 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business
 - Bảng: `user_accounts` (`docs/database/DATA_DICTIONARY.md`).
 - API cấp/khóa tài khoản (ADMIN): `POST /accounts`, `PATCH /accounts/{userId}/status` — `AccountProvisioningService` → `integration/keycloak/IdentityProviderClient` (adapter `KeycloakIdentityProviderClient`, RestClient + service account, token cache) với bù trừ khi lỗi.
 - API: `GET /accounts/me` — profile, roles, tóm tắt phạm vi (phân công đang hiệu lực khớp role trong token, id trẻ liên kết). `AccountService` đọc `StaffAssignmentService`/`GuardianChildLinkService` (như `security/authorization`).
-- Code: `security/CurrentUser`, `CurrentUserService` (JWT `sub` → `user_accounts`, chặn chưa cấp/INACTIVE), `CurrentUserArgumentResolver`; `controller|service/account/`.
+- Code: `security/CurrentUser`, `CurrentUserService` (JWT `sub` → `user_accounts`, chặn chưa cấp/INACTIVE), `CurrentUserArgumentResolver`; `controller|service/account/` (interface + `impl/*Impl`, ADR-0014). Web auth gateway: `AuthController`/`PasswordController` → `AuthService` → `integration/keycloak/AuthGatewayClient` (adapter `KeycloakAuthGatewayClient`); cấu hình `carenest.auth.*` (`AuthProperties`, env `CARENEST_AUTH_*`); cookie/TTL/rate limit ở `utils/Constants.Auth`; enum `CareNestRole`, `UserStatus` ở `utils/enums/`.
 - Kiểm tra scope: `security/authorization/` — `CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy` (role trong token ∧ phân công/liên kết còn hiệu lực; bảng quy tắc ở `docs/architecture/SECURITY.md`). Đây là tên thật thay cho `AccessScopeService` (tên minh họa trong docs cũ).
 
 ## PENDING
 P-14 (scope Hiệu phó), P-16 (Admin xem dữ liệu trẻ).
 
 ## Known pitfalls
+- Auth React: ADR-0013 là ngoại lệ Web dùng gateway/extension, không phải PKCE. Phase 2 có source API/session/OTP opt-in và V4; FE thuộc Phase3. Provider setup chỉ qua capability một lần; recovery/current-password exchange đòi assertion HMAC60s sau xác minh.
+- Phiên Web (ADR-0015): refresh token mã hóa trong cookie, không bảng phiên; refresh đồng thời gộp trong bộ nhớ (`AuthRefreshCoalescer`, 1 instance), không gọi provider lần hai. OTP resend giữ attempts và quota chung; cleanup60s khi feature bật. Regression incidents: web-auth-client-bean, web-auth-oauth-error-mapping, web-auth-session-otp-boundaries.
+- MockMvc `jwt()` tự bỏ qua CsrfFilter; test CSRF kèm Bearer phải dùng header thật. Đừng kế thừa global Bearer trong Swagger auth public hoặc để CsrfToken thành query parameter.
 - Kiểm tra quyền chỉ ở UI/controller annotation mà quên lọc scope trong query ⇒ lộ dữ liệu campus khác. Scope phải áp ở service/query.
 - Không hard-code role→campus; dùng assignment có hiệu lực theo thời gian.
 - Service không tự đọc `SecurityContextHolder`/`Jwt`; nhận `CurrentUser` từ controller.

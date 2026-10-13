@@ -28,6 +28,13 @@ carenest:
     prefix: ${API_PREFIX:/api}
   # Múi giờ trường: xác định "hôm nay" khi xét phân công/enrollment còn hiệu lực
   time-zone: ${CARENEST_TIME_ZONE:Asia/Ho_Chi_Minh}
+  auth:
+    enabled: ${CARENEST_AUTH_ENABLED:false}
+    encryption-key: ${CARENEST_AUTH_ENCRYPTION_KEY:}
+    assertion-secret: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET:}
+    client-secret: ${KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET:}
+    secure-cookies: ${CARENEST_AUTH_SECURE_COOKIES:true}
+    allowed-origins: ${CARENEST_AUTH_WEB_ORIGIN:http://localhost:5173}
   security:
     jwt:
       # iss phải khớp tuyệt đối với token Keycloak phát hành (KC_HOSTNAME); JWKS có thể lấy qua địa chỉ nội bộ
