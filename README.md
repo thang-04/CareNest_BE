@@ -184,16 +184,16 @@ CareNest_BE/
 
 ## Quy trình đóng góp
 
-- **Nhánh:** `main` chứa bản phát hành đã duyệt, `dev` để tích hợp, `release/*` để kiểm thử bản phát hành và sửa lỗi. Mỗi task Jira làm trên một nhánh riêng tạo từ `dev`.
-- **Mã công việc:** mỗi task Jira có mã Jira (ví dụ `G94-181`) và mã công việc trong tên task (ví dụ `BE-FEAT-12`). Loại: `FE-FEAT`, `BE-FEAT`, `FE-FIX`, `BE-FIX`; số thứ tự tăng dần theo từng loại, không dùng lại.
-- **Tên nhánh:** `<tiền-tố>/<mã-jira>-<mã-công-việc>-<tên-luồng>`, tiền tố `feature` cho `*-FEAT`, `fix` cho `*-FIX`, tên luồng viết thường nối bằng `-`. Ví dụ `fix/G94-190-BE-FIX-03-meal-count-validation`.
-- **Commit:** `[<mã-công-việc>] <mã-jira>: <mô tả ngắn>`, mô tả tiếng Anh, cả dòng ≤ 72 ký tự. Mỗi commit một thay đổi logic và chỉ thuộc một task; task cha `[Module-NN]` không dùng để commit.
+- **Nhánh:** `main` chứa bản phát hành đã duyệt, `dev` để tích hợp, `release/*` để kiểm thử bản phát hành và sửa lỗi; nhánh làm việc (tính năng, sửa lỗi) tạo từ `dev`.
+- **Mã Jira và mã công việc:** mỗi việc là một task Jira có mã Jira riêng (ví dụ `G94-181`). Các task liên quan thuộc cùng một luồng, đánh dấu bằng mã công việc (ví dụ `BE-FEAT-12`). Loại: `FE-FEAT`, `BE-FEAT`, `FE-FIX`, `BE-FIX`.
+- **Tên nhánh:** `<tiền-tố>/<mã-jira>-<mã-công-việc>-<tên-luồng>`, tiền tố `feature` cho tính năng mới, `fix` cho sửa lỗi, tên luồng viết thường nối bằng `-`. Ví dụ `fix/G94-190-BE-FIX-03-meal-count-validation`. Mã Jira trên nhánh là task chính của luồng; nhánh có thể chứa commit của nhiều task cùng luồng.
+- **Commit:** `<mã-jira>: <mô tả ngắn>`, mô tả tiếng Anh, cả dòng ≤ 72 ký tự; không ghi mã công việc (đã có ở tên nhánh). Mỗi commit một thay đổi logic, ứng với đúng một task Jira.
 
   ```text
-  [BE-FIX-03] G94-190: correct meal-count validation
+  G94-190: Fix meal-count validation
   ```
 
-- **Pull request:** tiêu đề cùng định dạng commit; mô tả ghi link task Jira, các thay đổi và phần kiểm thử đã làm. PR gộp vào `dev`; chỉ `release/*` được gộp vào `main`; cấm push trực tiếp lên `main`. Cần ít nhất một thành viên khác tác giả duyệt, mọi kiểm tra bắt buộc đạt và mọi góp ý chặn đã xử lý.
+- **Pull request:** tiêu đề cùng định dạng commit (mã Jira của task chính); mô tả ghi link các task Jira liên quan, các thay đổi và phần kiểm thử đã làm. PR gộp vào `dev`; chỉ `release/*` được gộp vào `main`; cấm push trực tiếp lên `main`. Cần ít nhất một thành viên khác tác giả duyệt, mọi kiểm tra bắt buộc đạt và mọi góp ý chặn đã xử lý.
 - **Thông tin nhạy cảm:** không commit secret; repo chỉ chứa mẫu cấu hình không nhạy cảm (`.env.example`), thông tin xác thực thật quản lý qua cấu hình môi trường có kiểm soát truy cập hoặc dịch vụ lưu trữ bí mật.
 
 - **Trao đổi với team trước khi:** thêm/nâng dependency hoặc đổi version (`pom.xml`, `Dockerfile`, `compose.yaml`); đổi API contract (endpoint, DTO, `ResponseJson`, `ApiCode`, prefix) kèm danh sách tác động FE/APP; thêm hạ tầng mới chưa chốt.

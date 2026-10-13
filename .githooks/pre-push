@@ -1,5 +1,5 @@
 #!/bin/sh
-# Trước push: kiểm lại message mọi commit sắp push (bắt commit tạo bằng --no-verify), chặn force push,
+# Trước push: kiểm lại message mọi commit sắp push (bắt commit tạo bằng --no-verify), chặn push lên main và force push,
 # tùy chọn chạy verify (git config carenest.verifyOnPush true) vì chưa có CI. ADR-0012.
 . "$(dirname "$0")/lib.sh"
 zero=0000000000000000000000000000000000000000
@@ -8,6 +8,14 @@ tmp=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/carenest-msg.$$")
 while read -r lref lsha rref rsha; do
   [ -n "$lsha" ] || continue
   case "$lsha" in *[!0]*) ;; *) cn_warn "xóa ref $rref trên remote"; continue ;; esac
+  # main chỉ nhận release/* qua PR
+  if [ "$rref" = refs/heads/main ]; then
+    if [ "${CARENEST_ALLOW_MAIN_PUSH:-0}" = 1 ]; then
+      cn_warn "push trực tiếp lên main (đã được cho phép)"
+    else
+      cn_err "cấm push trực tiếp lên main — mở PR từ release/* (ngoại lệ được user cho phép: CARENEST_ALLOW_MAIN_PUSH=1)"
+    fi
+  fi
 
   if [ "$rsha" = "$zero" ] || ! git cat-file -e "$rsha" 2>/dev/null; then
     range=$(git rev-list "$lsha" --not --remotes)

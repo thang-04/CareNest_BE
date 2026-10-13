@@ -27,10 +27,10 @@ test("classify: deny lách hook / đọc secret", () => {
 
 test("classify: ask cho commit/push/tạo branch/lệnh phá hủy", () => {
   for (const cmd of [
-    'git commit -m "[BE-FEAT-1] G94-1: add x"',
-    'git commit -m "[BE-FIX-1] G94-1: handle -n flag"',
-    'git add -A && git commit -m "[BE-FEAT-1] G94-1: add x"',
-    'git -C ../CareNest_FE commit -m "[FE-FEAT-1] G94-1: add x"',
+    'git commit -m "G94-1: Add x"',
+    'git commit -m "G94-1: Handle -n flag"',
+    'git add -A && git commit -m "G94-1: Add x"',
+    'git -C ../CareNest_FE commit -m "G94-1: Add x"',
     "FOO=1 git push",
     "git push --force origin main",
     "git checkout -b feature/x",
@@ -51,42 +51,46 @@ test("classify: ask cho commit/push/tạo branch/lệnh phá hủy", () => {
   }
 });
 
-test("classify: commit/PR theo mã task — sai định dạng hoặc lệch nhánh ⇒ deny, hợp lệ ⇒ ask kèm mã", () => {
+test("classify: commit/PR theo mã Jira — sai định dạng ⇒ deny, hợp lệ ⇒ ask kèm mã (task khác cùng luồng được phép)", () => {
   const onTask = { branch: "feature/G94-181-FE-FEAT-44-lesson-plan" };
   const reasons = (cmd, env) => classify(cmd, env).reasons.join(" | ");
 
   const heredoc = `git commit -m "$(cat <<'EOF'
-[FE-FEAT-44] G94-181: add lesson plan form
+G94-181: Implement lesson plan UI
 
 - Let teachers save drafts
 EOF
 )"`;
   assert.equal(classify(heredoc, onTask).decision, "ask");
-  assert.match(reasons(heredoc, onTask), /task \[FE-FEAT-44\] G94-181 \(khớp tên nhánh\)/);
+  assert.match(reasons(heredoc, onTask), /task G94-181 \(task chính của nhánh\)/);
 
-  const other = 'git commit -m "[FE-FEAT-45] G94-182: add lesson plan list"';
-  assert.equal(classify(other, onTask).decision, "deny");
-  assert.match(reasons(other, onTask), /khác task của nhánh/);
+  const other = 'git commit -m "G94-182: Add lesson plan validation"';
+  assert.equal(classify(other, onTask).decision, "ask");
+  assert.match(reasons(other, onTask), /G94-182 khác task chính G94-181.*luồng FE-FEAT-44/);
 
+  for (const bad of ['git commit -m "feat(plan): add form"', 'git commit -m "[FE-FEAT-44] G94-181: Add form"', 'git commit -m "FE-FEAT-44: Add form"']) {
+    assert.equal(classify(bad, onTask).decision, "deny", bad);
+  }
   const old = 'git commit -m "feat(plan): add form"';
-  assert.equal(classify(old, { branch: "dev" }).decision, "deny");
   assert.match(reasons(old, { branch: "dev" }), /hỏi user "Thay đổi này thuộc task Jira nào/);
-  assert.match(reasons(old, onTask), /nhánh thuộc task \[FE-FEAT-44\] G94-181/);
+  assert.match(reasons(old, onTask), /luồng FE-FEAT-44, task chính G94-181/);
 
-  const noTask = 'git commit -am "[BE-FIX-03] G94-190: correct meal-count validation"';
+  const noTask = 'git commit -am "G94-190: Fix meal-count validation"';
   assert.equal(classify(noTask, { branch: "dev" }).decision, "ask");
-  assert.match(reasons(noTask, { branch: "dev" }), /không có trong tên nhánh "dev".*đang ở "dev"/);
+  assert.match(reasons(noTask, { branch: "dev" }), /nhánh "dev" không chứa mã task.*đang ở "dev"/);
+  assert.match(reasons(noTask, { branch: "fix/G94-190-BE-FEAT-03-meal-count" }), /G94-190 \(task chính/);
 
   assert.equal(classify("git commit -F msg.txt", { branch: "dev", readFile: () => "update stuff\n" }).decision, "deny");
-  assert.equal(classify("git commit -F msg.txt", { ...onTask, readFile: () => "[FE-FEAT-44] G94-181: add form\n" }).decision, "ask");
-  assert.match(reasons("git commit", onTask), /nhánh thuộc task \[FE-FEAT-44\] G94-181/);
+  assert.equal(classify("git commit -F msg.txt", { ...onTask, readFile: () => "G94-181: Add form\n" }).decision, "ask");
+  assert.match(reasons("git commit", onTask), /luồng FE-FEAT-44, task chính G94-181/);
   assert.match(reasons("git commit --amend --no-edit", { branch: "dev" }), /hỏi user/);
   assert.equal(classify('git commit -m "Merge branch dev"', onTask).decision, "ask");
 
   assert.match(reasons("gh pr create --fill", onTask), /--base dev/);
   assert.equal(classify('gh pr create --base dev --title "feat: add form"', onTask).decision, "deny");
-  assert.match(reasons('gh pr create -B dev -t "[FE-FEAT-45] G94-182: add list"', onTask), /mã khác task/);
-  assert.equal(classify('gh pr create --base dev --title "[FE-FEAT-44] G94-181: add lesson plan form"', onTask).decision, "ask");
+  assert.match(reasons('gh pr create -B dev -t "[FE-FEAT-44] G94-181: Add list"', onTask), /dùng task chính G94-181/);
+  assert.equal(classify('gh pr create -B dev -t "G94-182: Add lesson plan validation"', onTask).decision, "ask");
+  assert.equal(classify('gh pr create --base dev --title "G94-181: Implement lesson plan UI"', onTask).decision, "ask");
   assert.equal(classify('gh pr create --base main --title "Release 1.0"', { branch: "release/1.0" }).decision, "ask");
 
   assert.match(reasons("git push origin main"), /cấm push trực tiếp lên main/);

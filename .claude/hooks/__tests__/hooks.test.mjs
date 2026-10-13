@@ -113,7 +113,7 @@ test("guard: user đã duyệt (ask rồi edit thành công) ⇒ không hỏi l�
 test("orient: luôn nêu mã task của nhánh; có plan cùng branch thì in thêm; sau compact nhắc xác nhận lại", () => {
   const root = makeGitRepo();
   const start = hook("session-orient", root, { session_id: "o1", source: "startup" }).hookSpecificOutput.additionalContext;
-  assert.match(start, /Nhánh main không chứa mã task — user bảo commit\/tạo PR ⇒ hỏi mã Jira \+ mã công việc/);
+  assert.match(start, /Nhánh main không chứa mã task — user bảo commit\/tạo PR ⇒ hỏi mã Jira/);
   assert.doesNotMatch(start, /Plan đang làm/);
   write(root, { "docs/plans/active/p.md": "---\nstatus: in-progress\nbranch: main\n---\n## Progress log\n### 2026-10-06 — Phase 1 (chờ review)\n" });
   const out = hook("session-orient", root, { session_id: "o1", source: "resume" });
@@ -122,19 +122,21 @@ test("orient: luôn nêu mã task của nhánh; có plan cùng branch thì in th
   assert.match(compact.hookSpecificOutput.additionalContext, /Sau compact: chưa verify trong phiên/);
 });
 
-test("orient + guard: nhánh task ⇒ nêu mã; commit sai/lệch mã ⇒ deny kèm hướng dẫn, đúng mã ⇒ ask", () => {
+test("orient + guard: nhánh task ⇒ nêu luồng + task chính; commit sai định dạng ⇒ deny kèm hướng dẫn, đúng ⇒ ask", () => {
   const root = makeGitRepo();
   git(root, "checkout", "-q", "-b", "feature/G94-181-FE-FEAT-44-lesson-plan");
   const orient = hook("session-orient", root, { session_id: "t1", source: "startup" }).hookSpecificOutput.additionalContext;
-  assert.match(orient, /thuộc task \[FE-FEAT-44\] G94-181/);
+  assert.match(orient, /luồng FE-FEAT-44, task chính G94-181/);
 
   const bash = (command) => hook("guard-edits", root, { session_id: "t1", tool_name: "Bash", tool_input: { command } });
   const bad = bash('git commit -m "feat(plan): add form"');
   assert.equal(decisionOf(bad), "deny");
-  assert.match(bad.hookSpecificOutput.permissionDecisionReason, /nhánh thuộc task \[FE-FEAT-44\] G94-181/);
-  assert.equal(decisionOf(bash('git commit -m "[FE-FEAT-44] G94-181: add lesson plan form"')), "ask");
-  write(root, { "msg.txt": "[FE-FEAT-45] G94-182: add lesson plan list\n" });
+  assert.match(bad.hookSpecificOutput.permissionDecisionReason, /luồng FE-FEAT-44, task chính G94-181/);
+  assert.equal(decisionOf(bash('git commit -m "G94-181: Implement lesson plan UI"')), "ask");
+  write(root, { "msg.txt": "[FE-FEAT-44] G94-181: add lesson plan list\n" });
   assert.equal(decisionOf(bash("git commit -F msg.txt")), "deny");
+  write(root, { "msg.txt": "G94-182: Add lesson plan validation\n" });
+  assert.equal(decisionOf(bash("git commit -F msg.txt")), "ask");
   write(root, { ".env": "A=1\n" });
   assert.doesNotMatch(JSON.stringify(bash("git commit -F .env")), /A=1/, "không đọc file bí mật làm message");
 });

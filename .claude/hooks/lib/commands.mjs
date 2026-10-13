@@ -74,18 +74,18 @@ function commitSkipsHooks(args) {
 
 const BRANCH_QUERY = /^-(a|r|l|v|vv|d|D|m|M|c|C)$|^--(list|all|remotes|show-current|contains|merged|no-merged|delete|move|copy|format|sort|points-at)/;
 
-// Mã task (AGENTS.md › Git): commit/PR `[<mã-công-việc>] <mã-jira>: <mô tả>`, nhánh `feature|fix/<mã-jira>-<mã-công-việc>-<tên-luồng>`
+// Mã task (AGENTS.md › Git): commit/PR `<mã-jira>: <mô tả>`, nhánh `feature|fix/<mã-jira>-<mã-công-việc>-<tên-luồng>`
 const JIRA = "[A-Z][A-Z0-9]+-\\d+";
-const TASK_HEADER = new RegExp(`^\\[((?:FE|BE)-(?:FEAT|FIX)-\\d+)\\] (${JIRA}): \\S`);
-const TASK_BRANCH = new RegExp(`^(?:feature/(${JIRA})-((?:FE|BE)-FEAT-\\d+)|fix/(${JIRA})-((?:FE|BE)-FIX-\\d+))-[a-z0-9]+(?:-[a-z0-9]+)*$`);
+const TASK_HEADER = new RegExp(`^(${JIRA}): \\S`);
+const TASK_BRANCH = new RegExp(`^(?:feature|fix)/(${JIRA})-((?:FE|BE)-(?:FEAT|FIX)-\\d+)-[a-z0-9]+(?:-[a-z0-9]+)*$`);
 const EXEMPT_HEADER = /^(Merge |Revert "|fixup! |squash! )/;
-const FORMAT = '"[<mã-công-việc>] <mã-jira>: <mô tả>"';
-const ASK_TASK = 'chưa có mã task ⇒ hỏi user "Thay đổi này thuộc task Jira nào (mã Jira + mã công việc, vd. G94-181 / FE-FEAT-44)?" rồi chờ trả lời, không tự đoán';
+const FORMAT = '"<mã-jira>: <mô tả>" (vd. "G94-181: Implement lesson plan UI", không ghi mã công việc)';
+const ASK_TASK = 'chưa có mã Jira ⇒ hỏi user "Thay đổi này thuộc task Jira nào (vd. G94-181)?" rồi chờ trả lời, không tự đoán';
 
-// "[FE-FEAT-44] G94-181" lấy từ tên nhánh task; nhánh khác ⇒ null
+// {jira: task chính, work: mã công việc của luồng} lấy từ tên nhánh task; nhánh khác ⇒ null
 export function branchTask(branch) {
   const m = TASK_BRANCH.exec(branch ?? "");
-  return m ? `[${m[2] ?? m[4]}] ${m[1] ?? m[3]}` : null;
+  return m ? { jira: m[1], work: m[2] } : null;
 }
 
 // Giá trị cờ: `--long x`, `--long=x`, `-s x`, cụm `-as x`; không có ⇒ null
@@ -104,10 +104,10 @@ function firstLine(message) {
   return (heredoc ? heredoc[2] : message).split("\n").map((l) => l.trim()).find(Boolean) ?? "";
 }
 
-// Agent không tự đoán mã task: sai định dạng/lệch nhánh ⇒ deny (agent phải hỏi user); hợp lệ ⇒ ask kèm mã để user soát
+// Agent không tự đoán mã Jira: sai định dạng ⇒ deny (agent phải hỏi user); hợp lệ ⇒ ask kèm mã để user soát
 function commitReasons(args, { branch, readFile }) {
   const task = branchTask(branch);
-  const source = task ? `nhánh thuộc task ${task}` : ASK_TASK;
+  const source = task ? `nhánh thuộc luồng ${task.work}, task chính ${task.jira}` : ASK_TASK;
   const where = ["main", "dev"].includes(branch) ? `; đang ở "${branch}" — task làm trên nhánh riêng tạo từ dev, xác nhận user muốn commit ở đây` : "";
   let message = flagValue(args, "--message", "-m");
   if (message === null) {
@@ -119,10 +119,11 @@ function commitReasons(args, { branch, readFile }) {
   if (EXEMPT_HEADER.test(header)) return { ask: [`git commit cần user cho phép rõ trong tin nhắn hiện tại${where}`] };
   const m = TASK_HEADER.exec(header);
   if (!m) return { deny: [`commit message phải dạng ${FORMAT} (AGENTS.md › Commit message), đang là "${header}" — ${source}`] };
-  const used = `[${m[1]}] ${m[2]}`;
-  if (task && used !== task) return { deny: [`mã ${used} khác task của nhánh (${task}) — mỗi commit chỉ thuộc task của nhánh; hỏi user trước khi commit`] };
-  if (task) return { ask: [`git commit cần user cho phép rõ — task ${used} (khớp tên nhánh)`] };
-  return { ask: [`git commit cần user cho phép rõ — mã ${used} không có trong tên nhánh "${branch || "?"}": chỉ commit khi user đã cung cấp đúng mã này${where}`] };
+  const used = m[1];
+  if (task && used === task.jira) return { ask: [`git commit cần user cho phép rõ — task ${used} (task chính của nhánh)`] };
+  // Nhánh được chứa commit của nhiều task cùng luồng; mã khác chỉ hợp lệ khi user đã nêu
+  if (task) return { ask: [`git commit cần user cho phép rõ — ${used} khác task chính ${task.jira}: chỉ commit khi user đã nêu ${used} và task thuộc luồng ${task.work}`] };
+  return { ask: [`git commit cần user cho phép rõ — nhánh "${branch || "?"}" không chứa mã task: chỉ commit khi user đã cung cấp ${used}${where}`] };
 }
 
 // PR nhánh task gộp vào dev (mặc định GitHub là main), chỉ release/* gộp vào main; tiêu đề cùng định dạng commit
@@ -133,13 +134,11 @@ function prCreateReasons(args, { branch }) {
   const task = branchTask(head);
   const deny = [];
   if (!head.startsWith("release/") && (base ?? "main") === "main") deny.push("PR của nhánh task gộp vào dev — thêm `--base dev`; chỉ release/* được gộp vào main");
-  if (title !== null && !head.startsWith("release/")) {
-    const m = TASK_HEADER.exec(title.trim());
-    if (!m) deny.push(`tiêu đề PR phải dạng ${FORMAT}, đang là "${title.trim()}" — ${task ? `nhánh thuộc task ${task}` : ASK_TASK}`);
-    else if (task && `[${m[1]}] ${m[2]}` !== task) deny.push(`tiêu đề PR mang mã khác task của nhánh (${task}) — hỏi user`);
+  if (title !== null && !head.startsWith("release/") && !TASK_HEADER.test(title.trim())) {
+    deny.push(`tiêu đề PR phải dạng ${FORMAT}, đang là "${title.trim()}" — ${task ? `dùng task chính ${task.jira}` : ASK_TASK}`);
   }
   if (deny.length) return { deny };
-  return { ask: ["gh pr create cần user cho phép; mô tả PR gồm link task Jira, các thay đổi, phần kiểm thử đã làm"] };
+  return { ask: ["gh pr create cần user cho phép; mô tả PR gồm link các task Jira liên quan, các thay đổi, phần kiểm thử đã làm"] };
 }
 
 // Đích push là main (refspec main/…:main, hoặc push nhánh hiện tại khi đang ở main)

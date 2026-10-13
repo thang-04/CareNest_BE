@@ -12,12 +12,12 @@ function orientLines(ctx, source) {
   const lines = [];
   const branch = tryGit(["branch", "--show-current"], ctx.root);
 
-  // Mã task cho commit/PR (AGENTS.md › Git): lấy từ tên nhánh, không có thì phải hỏi user
+  // Mã Jira cho commit/PR (AGENTS.md › Git): task chính lấy từ tên nhánh, task khác cùng luồng hoặc nhánh không mã thì hỏi user
   const task = branchTask(branch);
   lines.push(
     task
-      ? `[CareNest] Nhánh ${branch} thuộc task ${task} — commit/PR dùng đúng mã này.`
-      : `[CareNest] Nhánh ${branch || "?"} không chứa mã task — user bảo commit/tạo PR ⇒ hỏi mã Jira + mã công việc (vd. G94-181 / FE-FEAT-44) trước, không tự đoán.`,
+      ? `[CareNest] Nhánh ${branch}: luồng ${task.work}, task chính ${task.jira} — commit dạng "<mã-jira>: <mô tả>"; việc thuộc task khác cùng luồng ⇒ dùng mã Jira của task đó (chưa rõ thì hỏi user).`
+      : `[CareNest] Nhánh ${branch || "?"} không chứa mã task — user bảo commit/tạo PR ⇒ hỏi mã Jira (vd. G94-181) trước, không tự đoán.`,
   );
 
   const plans = activePlans(ctx).filter((p) => p.branch === branch && ctx.config.plans.gateStatuses.includes(p.status));
