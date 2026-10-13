@@ -33,7 +33,7 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | | `knowledge/incidents/_TEMPLATE.md` | Mẫu incident (status open/fixed, có Attempts) | FULL |
 | | `knowledge/CROSS_MODULE_ISSUES.md` | Rủi ro CMR + issue liên module | FULL |
 | | `knowledge/KNOWN_ISSUES.md`, `TROUBLESHOOTING.md`, `PATTERNS.md` | Giới hạn cố ý (không phải bug), lỗi môi trường/config, pattern | FULL |
-| decisions | `decisions/ADR-0001..0012`, `ADR-0014`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
+| decisions | `decisions/ADR-0001..0015`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
 | plans | `plans/_TEMPLATE.md`, `plans/active/`, `plans/completed/` | Plan làn L (template + đang làm + đã xong) | FULL |
 | quality | `quality/DEFINITION_OF_DONE.md`, `VERIFICATION.md`, `TEST_STRATEGY.md`, `NFR.md` | Tiêu chí hoàn thành theo làn, bằng chứng kiểm chứng, test, NFR | FULL |
 
@@ -53,4 +53,6 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | 0010 | Parent visibility default-deny | ACCEPTED (field pending) |
 | 0011 | Keycloak + Spring Security Resource Server; scope ở CareNest | ACCEPTED |
 | 0012 | Engineering harness: làn S/M/L, Iron Law, hook, cổng Maven | ACCEPTED |
+| 0013 | React-owned Web auth gateway (Direct Grant qua confidential client) | ACCEPTED |
 | 0014 | Service interface + Impl; enum/hằng dùng chung ở `utils/` | ACCEPTED |
+| 0015 | Phiên Web trong cookie mã hóa, Keycloak giữ phiên | ACCEPTED |
