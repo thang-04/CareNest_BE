@@ -20,6 +20,12 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Xử lý: chạy bootstrap theo `docker/keycloak/auth/README.md` mục Opt-in: preview `node docker/keycloak/auth/bootstrap.mjs` (cần `KC_BOOTSTRAP_ADMIN_*`, `KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET` trong env), duyệt rồi `--apply --enable` (chỉ môi trường local/test).
 - Kiểm: `docker logs carenest_be-keycloak-1 2>&1 | grep -E "Import skipped|client_not_found"`.
 
+### Dev user (`teacher.a`…) báo sai mật khẩu — Keycloak `user_not_found`
+- Nguyên nhân: realm `carenest` đã tồn tại trước khi mount `docker/keycloak/dev/carenest-users-0.json`; `--import-realm` dùng `IGNORE_EXISTING` nên log `Realm 'carenest' already exists. Import skipped` và user dev không bao giờ được tạo. DB app vẫn có seed `user_accounts` nên lệch hai bên. API map `invalid_grant` thành 401 sai mật khẩu (không lộ user tồn tại hay không).
+- Kiểm: `docker compose logs keycloak | grep LOGIN_ERROR` thấy `error="user_not_found"`; liệt kê user realm: `docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d keycloak -tAc "select username from user_entity u join realm r on r.id=u.realm_id where r.name=$carenest$"'`.
+- Xử lý (giữ realm, không xóa volume): partial import file user dev với `ifResourceExists=SKIP`, thay placeholder `${KEYCLOAK_DEV_USER_PASSWORD}` trước khi gửi (Admin REST `POST /admin/realms/carenest/partialImport`). Cách nặng hơn: xóa DB `keycloak` để import lại từ đầu — mất user/client tạo tay và cấu hình gateway đã bootstrap.
+- Incident: ENV-261013-keycloak-dev-users-missing
+
 ### `invalid_grant` — `Account is not fully set up` (Keycloak)
 - Nguyên nhân: user còn required action (mật khẩu tạm) hoặc thiếu field bắt buộc của user profile.
 - Xử lý: đăng nhập trình duyệt một lần; kiểm *Realm settings → User profile* (`email`, `lastName` không bắt buộc).
