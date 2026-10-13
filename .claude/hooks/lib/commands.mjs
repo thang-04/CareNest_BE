@@ -45,17 +45,19 @@ const isSecretPath = (t) => {
   return ENV_FILE.test(base) || KEY_FILE.test(base);
 };
 
-// Bỏ global option của git (`-C path`, `-c k=v`, ...) để lấy subcommand
+// Bỏ global option của git (`-C path`, `-c k=v`, ...) để lấy subcommand; `-C` ⇒ lệnh chạy ở repo khác
 function gitParts(toks) {
   let i = 1;
   const configs = [];
+  let otherRepo = false;
   while (i < toks.length && toks[i].startsWith("-")) {
     if (toks[i] === "-C" || toks[i] === "-c") {
       if (toks[i] === "-c") configs.push(toks[i + 1] ?? "");
+      else otherRepo = true;
       i += 2;
     } else i++;
   }
-  return { sub: toks[i], args: toks.slice(i + 1), configs };
+  return { sub: toks[i], args: toks.slice(i + 1), configs, otherRepo };
 }
 
 // `commit -nm "x"`: cụm cờ ngắn chứa n là --no-verify; token sau cụm kết thúc bằng m/F/c/C là giá trị
@@ -72,18 +74,98 @@ function commitSkipsHooks(args) {
 
 const BRANCH_QUERY = /^-(a|r|l|v|vv|d|D|m|M|c|C)$|^--(list|all|remotes|show-current|contains|merged|no-merged|delete|move|copy|format|sort|points-at)/;
 
-function classifyGit(toks) {
-  const { sub, args, configs } = gitParts(toks);
+// Mã task (AGENTS.md › Git): commit/PR `<mã-jira>: <mô tả>`, nhánh `feature|fix/<mã-jira>-<mã-công-việc>-<tên-luồng>`
+const JIRA = "[A-Z][A-Z0-9]+-\\d+";
+const TASK_HEADER = new RegExp(`^(${JIRA}): \\S`);
+const TASK_BRANCH = new RegExp(`^(?:feature|fix)/(${JIRA})-((?:FE|BE)-(?:FEAT|FIX)-\\d+)-[a-z0-9]+(?:-[a-z0-9]+)*$`);
+const EXEMPT_HEADER = /^(Merge |Revert "|fixup! |squash! )/;
+const FORMAT = '"<mã-jira>: <mô tả>" (vd. "G94-181: Implement lesson plan UI", không ghi mã công việc)';
+const ASK_TASK = 'chưa có mã Jira ⇒ hỏi user "Thay đổi này thuộc task Jira nào (vd. G94-181)?" rồi chờ trả lời, không tự đoán';
+
+// {jira: task chính, work: mã công việc của luồng} lấy từ tên nhánh task; nhánh khác ⇒ null
+export function branchTask(branch) {
+  const m = TASK_BRANCH.exec(branch ?? "");
+  return m ? { jira: m[1], work: m[2] } : null;
+}
+
+// Giá trị cờ: `--long x`, `--long=x`, `-s x`, cụm `-as x`; không có ⇒ null
+function flagValue(args, long, short) {
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === long || a === short || (/^-[a-zA-Z]+$/.test(a) && a.endsWith(short.slice(1)))) return args[i + 1] ?? "";
+    if (a.startsWith(`${long}=`)) return a.slice(long.length + 1);
+  }
+  return null;
+}
+
+// Dòng đầu message; heredoc `"$(cat <<'EOF' ... EOF)"` thì lấy phần thân
+function firstLine(message) {
+  const heredoc = /^\$\(cat <<-?\s*['"]?(\w+)['"]?\n([\s\S]*?)\n\s*\1\s*\)$/.exec(message.trim());
+  return (heredoc ? heredoc[2] : message).split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+}
+
+// Agent không tự đoán mã Jira: sai định dạng ⇒ deny (agent phải hỏi user); hợp lệ ⇒ ask kèm mã để user soát
+function commitReasons(args, { branch, readFile }) {
+  const task = branchTask(branch);
+  const source = task ? `nhánh thuộc luồng ${task.work}, task chính ${task.jira}` : ASK_TASK;
+  const where = ["main", "dev"].includes(branch) ? `; đang ở "${branch}" — task làm trên nhánh riêng tạo từ dev, xác nhận user muốn commit ở đây` : "";
+  let message = flagValue(args, "--message", "-m");
+  if (message === null) {
+    const file = flagValue(args, "--file", "-F");
+    message = file && readFile ? readFile(file) : null;
+  }
+  if (message === null) return { ask: [`git commit cần user cho phép rõ; message phải dạng ${FORMAT} — ${source}${where}`] };
+  const header = firstLine(message);
+  if (EXEMPT_HEADER.test(header)) return { ask: [`git commit cần user cho phép rõ trong tin nhắn hiện tại${where}`] };
+  const m = TASK_HEADER.exec(header);
+  if (!m) return { deny: [`commit message phải dạng ${FORMAT} (AGENTS.md › Commit message), đang là "${header}" — ${source}`] };
+  const used = m[1];
+  if (task && used === task.jira) return { ask: [`git commit cần user cho phép rõ — task ${used} (task chính của nhánh)`] };
+  // Nhánh được chứa commit của nhiều task cùng luồng; mã khác chỉ hợp lệ khi user đã nêu
+  if (task) return { ask: [`git commit cần user cho phép rõ — ${used} khác task chính ${task.jira}: chỉ commit khi user đã nêu ${used} và task thuộc luồng ${task.work}`] };
+  return { ask: [`git commit cần user cho phép rõ — nhánh "${branch || "?"}" không chứa mã task: chỉ commit khi user đã cung cấp ${used}${where}`] };
+}
+
+// PR nhánh task gộp vào dev (mặc định GitHub là main), chỉ release/* gộp vào main; tiêu đề cùng định dạng commit
+function prCreateReasons(args, { branch }) {
+  const head = flagValue(args, "--head", "-H") ?? branch ?? "";
+  const base = flagValue(args, "--base", "-B");
+  const title = flagValue(args, "--title", "-t");
+  const task = branchTask(head);
+  const deny = [];
+  if (!head.startsWith("release/") && (base ?? "main") === "main") deny.push("PR của nhánh task gộp vào dev — thêm `--base dev`; chỉ release/* được gộp vào main");
+  if (title !== null && !head.startsWith("release/") && !TASK_HEADER.test(title.trim())) {
+    deny.push(`tiêu đề PR phải dạng ${FORMAT}, đang là "${title.trim()}" — ${task ? `dùng task chính ${task.jira}` : ASK_TASK}`);
+  }
+  if (deny.length) return { deny };
+  return { ask: ["gh pr create cần user cho phép; mô tả PR gồm link các task Jira liên quan, các thay đổi, phần kiểm thử đã làm"] };
+}
+
+// Đích push là main (refspec main/…:main, hoặc push nhánh hiện tại khi đang ở main)
+function pushesMain(args, branch) {
+  const refspecs = args.filter((a) => !a.startsWith("-")).slice(1);
+  const dest = (r) => r.replace(/^\+/, "").split(":").pop().replace(/^refs\/heads\//, "");
+  return refspecs.some((r) => dest(r) === "main") || (branch === "main" && (refspecs.length === 0 || refspecs.includes("HEAD")));
+}
+
+function classifyGit(toks, repoEnv) {
+  const { sub, args, configs, otherRepo } = gitParts(toks);
+  // Nhánh/đường dẫn của repo hiện tại không áp cho `git -C <repo khác>`
+  const env = otherRepo ? {} : repoEnv;
   const reasons = { deny: [], ask: [] };
   if (args.includes("--no-verify") || (sub === "commit" && commitSkipsHooks(args))) reasons.deny.push("không bỏ qua hook (`--no-verify`/`-n`)");
   if (configs.some((c) => /^core\.hooksPath=/i.test(c))) reasons.deny.push("không đổi core.hooksPath để lách hook");
   const has = (...flags) => args.some((a) => flags.includes(a));
   switch (sub) {
-    case "commit":
-      reasons.ask.push("git commit cần user cho phép rõ trong tin nhắn hiện tại");
+    case "commit": {
+      const r = commitReasons(args, env);
+      reasons.deny.push(...(r.deny ?? []));
+      reasons.ask.push(...(r.ask ?? []));
       break;
+    }
     case "push":
       reasons.ask.push(has("--force", "-f", "--force-with-lease", "--delete") || args.some((a) => a.startsWith("+")) ? "push --force/--delete là lệnh phá hủy" : "git push cần user cho phép");
+      if (pushesMain(args, env.branch)) reasons.ask.push("cấm push trực tiếp lên main (AGENTS.md › Git) — chỉ làm khi user cho phép ngoại lệ rõ");
       break;
     case "checkout":
       if (has("-b", "-B")) reasons.ask.push("tạo branch cần user cho phép");
@@ -127,17 +209,22 @@ function classifyGit(toks) {
 }
 
 // Kết quả xấu nhất của mọi segment: {decision: "deny"|"ask"|null, reasons: [...]}
-export function classify(command) {
+// env: {branch: nhánh hiện tại, readFile(path): nội dung file message của `commit -F` hoặc null}
+export function classify(command, env = {}) {
   const deny = [];
   const ask = [];
   for (const seg of segments(String(command ?? ""))) {
     const toks = tokens(seg);
     const exe = exeName(toks[0]);
     if (exe === "git") {
-      const r = classifyGit(toks);
+      const r = classifyGit(toks, env);
       deny.push(...r.deny);
       ask.push(...r.ask);
-    } else if (exe === "gh" && toks[1] === "pr" && ["create", "merge", "close"].includes(toks[2])) {
+    } else if (exe === "gh" && toks[1] === "pr" && toks[2] === "create") {
+      const r = prCreateReasons(toks.slice(3), env);
+      deny.push(...(r.deny ?? []));
+      ask.push(...(r.ask ?? []));
+    } else if (exe === "gh" && toks[1] === "pr" && ["merge", "close"].includes(toks[2])) {
       ask.push(`gh pr ${toks[2]} cần user cho phép`);
     }
     const redirectsSecret = /<\s*\S*\.env\b(?!\.example)/.test(seg);
