@@ -12,7 +12,7 @@ Kiểm tra theo thứ tự ưu tiên:
 4. **Dữ liệu dẫn xuất:** sửa ngầm số suất đã xác nhận; bếp thấy số chưa xác nhận (CMR-01, CMR-02).
 5. **AI:** gọi SDK trực tiếp; output không qua bản nháp chờ duyệt; thiếu baseline khi AI tắt.
 6. **Test:** có test rule chính, scope, regression? List có phân trang; lỗi qua `GlobalException`; không N+1.
-7. **Convention:** `.claude/rules/`, API/error contract, snapshot `docs/api/openapi.yaml` đổi có chủ đích.
+7. **Convention:** `.claude/rules/`, API/error contract, snapshot `docs/api/openapi.yaml` đổi có chủ đích. Log theo ADR-0016: `LOG_PREFIX` đúng tên class, method public có START/END, controller không `try-catch`, catch ở service luôn `throw ex`, không log DTO/token/email.
 8. **Memory:** thay đổi fix bug không hiển nhiên có incident/ISSUE_INDEX chưa? Đối chiếu Known pitfalls + PATTERNS.
 
 ## Phát hiện

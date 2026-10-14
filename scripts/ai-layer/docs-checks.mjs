@@ -88,7 +88,18 @@ export function checkLinks(root, config, files, planned, report) {
   }
 }
 
-// E7 — rule path-scoped phải có `paths` hợp lệ, nếu không Claude nạp rule cho mọi file (tốn token)
+const ADR_0016 = "docs/decisions/ADR-0016-simple-start-end-logging.md";
+// Entrypoint và rule controller/service phải cùng mô tả quy ước log, tránh agent đọc bản lệch nhau
+const ADR_0016_REFERENCES = {
+  "AGENTS.md": ["LOG_PREFIX", "ADR-0016"],
+  "docs/backend-coding-guide.md": ["LOG_PREFIX", "RuntimeException"],
+  ".claude/rules/controller.md": ["LOG_PREFIX"],
+  ".claude/rules/service.md": ["LOG_PREFIX", "RuntimeException"],
+  ".claude/rules/java.md": ["LOG_PREFIX"],
+};
+
+// E7 — rule path-scoped phải có `paths` hợp lệ, nếu không Claude nạp rule cho mọi file (tốn token);
+// entrypoint và rule controller/service cùng tham chiếu quy ước log ADR-0016.
 export function checkRules(root, files, report) {
   for (const file of files.filter((f) => /^\.claude\/rules\/[^/]+\.md$/.test(f))) {
     const fm = parseFrontmatter(readText(root, file));
@@ -108,6 +119,17 @@ export function checkRules(root, files, report) {
       const base = glob.split(/[*?{]/)[0].replace(/\/[^/]*$/, "");
       const baseExists = base && existsSync(join(root, base)) && statSync(join(root, base)).isDirectory();
       if (baseExists && !files.some((f) => re.test(f))) report("warn", file, 1, `glob không khớp file nào: ${glob}`);
+    }
+  }
+  if (!files.includes(ADR_0016)) return;
+  for (const [file, markers] of Object.entries(ADR_0016_REFERENCES)) {
+    if (!files.includes(file)) {
+      report("error", file, 1, `thiếu entrypoint/rule cho ${ADR_0016}`);
+      continue;
+    }
+    const content = readText(root, file);
+    for (const marker of markers) {
+      if (!content.includes(marker)) report("error", file, 1, `thiếu tham chiếu quy ước ADR-0016: ${marker}`);
     }
   }
 }
