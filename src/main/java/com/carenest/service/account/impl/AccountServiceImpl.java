@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class AccountServiceImpl implements AccountService {
+    private static final String LOG_PREFIX = "[AccountServiceImpl]";
 
     private final StaffAssignmentService staffAssignmentService;
     private final GuardianChildLinkService guardianChildLinkService;
@@ -27,24 +28,32 @@ public class AccountServiceImpl implements AccountService {
     @Override
     @Transactional(readOnly = true)
     public MyAccountResponse getMyAccount(CurrentUser currentUser) {
-        log.info("[getMyAccount]|userId={}", currentUser.userId());
-        // Tóm tắt phạm vi tính giống policy: phân công/liên kết chỉ có hiệu lực khi role tương ứng có trong token
-        List<StaffAssignmentSummaryResponse> assignments =
-                staffAssignmentService.findActiveAssignments(currentUser.userId(), LocalDate.now(clock)).stream()
-                        .filter(assignment -> currentUser.hasRole(
-                                CareNestRole.valueOf(assignment.staffRole().name())))
-                        .toList();
-        List<Long> childIds = currentUser.hasRole(CareNestRole.PARENT)
-                ? guardianChildLinkService.findChildIdsOfGuardian(currentUser.userId())
-                : List.of();
+        String logPrefix = LOG_PREFIX + "|getMyAccount|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            // Tóm tắt phạm vi tính giống policy: phân công/liên kết chỉ có hiệu lực khi role tương ứng có trong token
+            List<StaffAssignmentSummaryResponse> assignments =
+                    staffAssignmentService.findActiveAssignments(currentUser.userId(), LocalDate.now(clock)).stream()
+                            .filter(assignment -> currentUser.hasRole(
+                                    CareNestRole.valueOf(assignment.staffRole().name())))
+                            .toList();
+            List<Long> childIds = currentUser.hasRole(CareNestRole.PARENT)
+                    ? guardianChildLinkService.findChildIdsOfGuardian(currentUser.userId())
+                    : List.of();
 
-        return new MyAccountResponse(
-                currentUser.userId(),
-                currentUser.username(),
-                currentUser.fullName(),
-                currentUser.email(),
-                currentUser.roles().stream().sorted().toList(),
-                assignments,
-                childIds);
+            MyAccountResponse account = new MyAccountResponse(
+                    currentUser.userId(),
+                    currentUser.username(),
+                    currentUser.fullName(),
+                    currentUser.email(),
+                    currentUser.roles().stream().sorted().toList(),
+                    assignments,
+                    childIds);
+            log.info("{}|END", logPrefix);
+            return account;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 }

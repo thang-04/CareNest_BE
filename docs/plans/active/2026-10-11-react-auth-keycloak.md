@@ -3,7 +3,7 @@ title: React-owned authentication with Keycloak
 status: in-progress
 owner: CareNest team
 jira: unassigned
-branch: feature/authentication
+branch: feature/G94-60-BE-FEAT-01-authentication
 modules: [identity-access]
 rules: [AUTH-07, AUTH-09]
 risk: high

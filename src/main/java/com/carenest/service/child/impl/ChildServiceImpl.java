@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class ChildServiceImpl implements ChildService {
+    private static final String LOG_PREFIX = "[ChildServiceImpl]";
 
     private final ChildRepository childRepository;
     private final EnrollmentService enrollmentService;
@@ -31,20 +32,24 @@ public class ChildServiceImpl implements ChildService {
     @Override
     @Transactional(readOnly = true)
     public ChildProfileResponse getChildProfile(CurrentUser currentUser, Long childId) {
-        String prefix = "[getChildProfile]|userId=" + currentUser.userId() + "|childId=" + childId;
-        log.info("{}|START", prefix);
+        String logPrefix = LOG_PREFIX + "|getChildProfile|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            // Kiểm phạm vi TRƯỚC khi load: id ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id)
+            childAccessPolicy.checkCanViewChild(currentUser, childId);
+            Child child = childRepository
+                    .findById(childId)
+                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"));
+            Long currentClassroomId = enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock)).stream()
+                    .findFirst()
+                    .orElse(null);
 
-        // Kiểm phạm vi TRƯỚC khi load: id ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id)
-        childAccessPolicy.checkCanViewChild(currentUser, childId);
-        Child child = childRepository
-                .findById(childId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"));
-        Long currentClassroomId = enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock)).stream()
-                .findFirst()
-                .orElse(null);
-
-        ChildProfileResponse response = childMapper.toProfileResponse(child, currentClassroomId);
-        log.info("{}|END", prefix);
-        return response;
+            ChildProfileResponse profile = childMapper.toProfileResponse(child, currentClassroomId);
+            log.info("{}|END", logPrefix);
+            return profile;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 }

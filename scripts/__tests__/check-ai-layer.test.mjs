@@ -183,6 +183,24 @@ test("E7: rule phải có frontmatter paths", () => {
   assert.deepEqual(errorsOf(result).map((f) => f.file), [".claude/rules/bad.md"]);
 });
 
+test("E7: entrypoint và rule controller/service phải cùng tham chiếu quy ước log ADR-0016", () => {
+  const rule = (body) => `---\npaths:\n  - "src/**"\n---\n${body}\n`;
+  const aligned = {
+    "docs/decisions/ADR-0016-simple-start-end-logging.md": "# ADR-0016\n",
+    "AGENTS.md": "LOG_PREFIX ADR-0016\n",
+    "docs/backend-coding-guide.md": "LOG_PREFIX RuntimeException\n",
+    ".claude/rules/controller.md": rule("LOG_PREFIX"),
+    ".claude/rules/service.md": rule("LOG_PREFIX RuntimeException"),
+    ".claude/rules/java.md": rule("LOG_PREFIX"),
+    "src/a.java": "class A {}\n",
+  };
+  assert.equal(errorsOf(run(makeRepo(aligned), { only: ["E7"] })).length, 0);
+
+  const drift = makeRepo({ ...aligned, ".claude/rules/service.md": rule("RuntimeException") });
+  const findings = errorsOf(run(drift, { only: ["E7"] }));
+  assert.ok(findings.some((f) => f.file === ".claude/rules/service.md" && f.msg.includes("LOG_PREFIX")));
+});
+
 test("CLI: --only sai ⇒ exit 2; --json in JSON hợp lệ", () => {
   const bad = spawnSync(process.execPath, [SCRIPT, "--only", "E9"], { encoding: "utf8" });
   assert.equal(bad.status, 2);

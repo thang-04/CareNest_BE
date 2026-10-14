@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
@@ -26,7 +27,10 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/auth")
 @PreAuthorize("permitAll()")
 @SecurityRequirements
+@Slf4j
 public class AuthController {
+    private static final String LOG_PREFIX = "[AuthController]";
+
     private final AuthService service;
     private final AuthProperties properties;
     private final String cookiePath;
@@ -40,7 +44,11 @@ public class AuthController {
 
     @GetMapping("/csrf")
     public ResponseEntity<ResponseJson<AuthResponses.Csrf>> csrf(@Parameter(hidden = true) CsrfToken csrf) {
-        return response(ApiCode.SUCCESSFUL, "CSRF token", service.csrf(csrf == null ? null : csrf.getToken()));
+        String logPrefix = LOG_PREFIX + "|csrf";
+        log.info("{}|START", logPrefix);
+        AuthResponses.Csrf issued = service.csrf(csrf == null ? null : csrf.getToken());
+        log.info("{}|END", logPrefix);
+        return response(ApiCode.SUCCESSFUL, "CSRF token", issued);
     }
 
     @PostMapping("/login")
@@ -48,12 +56,16 @@ public class AuthController {
     @ApiResponse(responseCode = "200", description = "Login successful")
     public ResponseEntity<ResponseJson<AuthResponses.LoginData>> login(
             @Valid @RequestBody AuthRequests.Login request, HttpServletResponse servletResponse) {
+        String logPrefix = LOG_PREFIX + "|login";
+        log.info("{}|START", logPrefix);
         var result = service.login(request);
         if (result.data().passwordChangeRequired()) {
+            log.info("{}|passwordChangeRequired|END", logPrefix);
             return response(ApiCode.PRECONDITION_REQUIRED, "Password change required", result.data());
         }
         setSessionCookie(
                 servletResponse, result.cookie().value(), result.cookie().maxAgeSeconds());
+        log.info("{}|END", logPrefix);
         return response(ApiCode.SUCCESSFUL, "Login successful", result.data());
     }
 
@@ -62,6 +74,8 @@ public class AuthController {
             @CookieValue(name = Auth.SESSION_COOKIE, required = false) String cookie,
             @Valid @RequestBody(required = false) AuthRequests.Refresh request,
             HttpServletResponse servletResponse) {
+        String logPrefix = LOG_PREFIX + "|refresh";
+        log.info("{}|START", logPrefix);
         AuthService.RefreshResult result;
         try {
             result = service.refresh(cookie);
@@ -72,6 +86,7 @@ public class AuthController {
         }
         setSessionCookie(
                 servletResponse, result.cookie().value(), result.cookie().maxAgeSeconds());
+        log.info("{}|END", logPrefix);
         return response(ApiCode.SUCCESSFUL, "Session refreshed", result.data());
     }
 
@@ -79,45 +94,62 @@ public class AuthController {
     public ResponseEntity<ResponseJson<Void>> logout(
             @CookieValue(name = Auth.SESSION_COOKIE, required = false) String cookie,
             HttpServletResponse servletResponse) {
+        String logPrefix = LOG_PREFIX + "|logout";
+        log.info("{}|START", logPrefix);
         try {
             service.logout(cookie);
         } finally {
+            // Luôn xóa cookie phiên kể cả khi revoke ở Keycloak lỗi
             setSessionCookie(servletResponse, "", 0);
         }
+        log.info("{}|END", logPrefix);
         return response(ApiCode.SUCCESSFUL, "Logged out", null);
     }
 
     @PostMapping("/password/forgot")
     public ResponseEntity<ResponseJson<AuthResponses.OtpRequest>> forgot(
             @Valid @RequestBody AuthRequests.Forgot request) {
-        return response(
-                ApiCode.SUCCESSFUL,
-                "If the account is eligible, a recovery code has been sent",
-                service.forgot(request));
+        String logPrefix = LOG_PREFIX + "|forgot";
+        log.info("{}|START", logPrefix);
+        AuthResponses.OtpRequest accepted = service.forgot(request);
+        log.info("{}|END", logPrefix);
+        return response(ApiCode.SUCCESSFUL, "If the account is eligible, a recovery code has been sent", accepted);
     }
 
     @GetMapping("/password/otp/{requestId}")
     public ResponseEntity<ResponseJson<AuthResponses.OtpRequest>> otpMetadata(@PathVariable String requestId) {
-        return response(ApiCode.SUCCESSFUL, "Recovery request", service.otpMetadata(requestId));
+        String logPrefix = LOG_PREFIX + "|otpMetadata";
+        log.info("{}|START", logPrefix);
+        AuthResponses.OtpRequest metadata = service.otpMetadata(requestId);
+        log.info("{}|END", logPrefix);
+        return response(ApiCode.SUCCESSFUL, "Recovery request", metadata);
     }
 
     @PostMapping("/password/otp/{requestId}/resend")
     public ResponseEntity<ResponseJson<AuthResponses.OtpRequest>> resend(@PathVariable String requestId) {
-        return response(
-                ApiCode.SUCCESSFUL,
-                "If the account is eligible, a recovery code has been sent",
-                service.resend(requestId));
+        String logPrefix = LOG_PREFIX + "|resend";
+        log.info("{}|START", logPrefix);
+        AuthResponses.OtpRequest accepted = service.resend(requestId);
+        log.info("{}|END", logPrefix);
+        return response(ApiCode.SUCCESSFUL, "If the account is eligible, a recovery code has been sent", accepted);
     }
 
     @PostMapping("/password/otp/{requestId}/verify")
     public ResponseEntity<ResponseJson<AuthResponses.ResetToken>> verifyOtp(
             @PathVariable String requestId, @Valid @RequestBody AuthRequests.VerifyOtp request) {
-        return response(ApiCode.SUCCESSFUL, "Recovery code verified", service.verifyOtp(request, requestId));
+        String logPrefix = LOG_PREFIX + "|verifyOtp";
+        log.info("{}|START", logPrefix);
+        AuthResponses.ResetToken verified = service.verifyOtp(request, requestId);
+        log.info("{}|END", logPrefix);
+        return response(ApiCode.SUCCESSFUL, "Recovery code verified", verified);
     }
 
     @PostMapping("/password/reset")
     public ResponseEntity<ResponseJson<Void>> setPassword(@Valid @RequestBody AuthRequests.Reset request) {
+        String logPrefix = LOG_PREFIX + "|setPassword";
+        log.info("{}|START", logPrefix);
         service.setPassword(request);
+        log.info("{}|END", logPrefix);
         return response(ApiCode.SUCCESSFUL, "Password updated; sign in again", null);
     }
 

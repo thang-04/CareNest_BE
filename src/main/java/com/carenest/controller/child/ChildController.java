@@ -6,6 +6,7 @@ import com.carenest.service.child.ChildService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,7 +17,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/children")
 @RequiredArgsConstructor
+@Slf4j
 public class ChildController {
+    private static final String LOG_PREFIX = "[ChildController]";
 
     private final ChildService childService;
 
@@ -25,7 +28,10 @@ public class ChildController {
     @PreAuthorize("hasAnyRole('TEACHER', 'VICE_PRINCIPAL', 'PRINCIPAL', 'PARENT')")
     public ResponseEntity<ResponseJson<ChildProfileResponse>> getChildProfile(
             @PathVariable Long childId, CurrentUser currentUser) {
-        return ResponseJson.toJsonWithData(
-                ApiCode.SUCCESSFUL, "Get child profile success", childService.getChildProfile(currentUser, childId));
+        String logPrefix = LOG_PREFIX + "|getChildProfile|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildProfileResponse profile = childService.getChildProfile(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child profile success", profile);
     }
 }

@@ -31,6 +31,11 @@ Repo này là **source of truth** của CareNest: business rule, domain, kiến 
 
 Java 21, Spring Boot 4.1.1, Maven (`mvnw`), PostgreSQL 17, Spring Data JPA, Flyway, springdoc. Auth: Keycloak + Resource Server (ADR-0011). Chi tiết: guide mục 2; chạy/test: `README.md`.
 
+## Quy ước log controller/service (chỉ Backend)
+
+- Controller và `XxxServiceImpl` có `private static final String LOG_PREFIX = "[TênClass]"`; method public log `logPrefix|START` và `logPrefix|END` mức INFO, `logPrefix = LOG_PREFIX + "|tênMethod|id=..."` chỉ chứa id/role/status. Private helper không log.
+- Controller không `try-catch`, lỗi do `GlobalExceptionHandler` trả. Service bọc thân method `try-catch (RuntimeException)`: `log.warn` `ERROR|type=` rồi `throw ex`. Không dùng `finally`, `requestId`, `durationMs` cho log (guide mục 10–11, ADR-0016).
+
 ## Quy tắc chung CareNest (bắt buộc)
 
 Khối này giống nhau ở cả ba repo `CareNest_BE`, `CareNest_FE`, `CareNest_APP`; chỉ mục "Hỏi trước khi làm" và "Phạm vi" khác theo repo. Sửa ở một repo thì đồng bộ sang hai repo còn lại.

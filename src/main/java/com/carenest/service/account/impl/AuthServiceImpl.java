@@ -24,12 +24,15 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.stereotype.Service;
 
+@Slf4j
 @Service
 public class AuthServiceImpl implements AuthService {
+    private static final String LOG_PREFIX = "[AuthServiceImpl]";
     private static final String COOKIE_CONTEXT = "session-cookie";
     private static final String COOKIE_VERSION = "s1";
     private static final int MAX_COOKIE_LENGTH = 4096;
@@ -73,67 +76,94 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponses.Csrf csrf(String token) {
-        ensureEnabled();
-        if (token == null || token.isBlank())
-            throw new GlobalException(ApiCode.INTERNAL_ERROR, "CSRF token unavailable");
-        return new AuthResponses.Csrf(token, "X-XSRF-TOKEN");
+        String logPrefix = LOG_PREFIX + "|csrf";
+        log.info("{}|START", logPrefix);
+        try {
+            ensureEnabled();
+            if (token == null || token.isBlank())
+                throw new GlobalException(ApiCode.INTERNAL_ERROR, "CSRF token unavailable");
+            log.info("{}|END", logPrefix);
+            return new AuthResponses.Csrf(token, "X-XSRF-TOKEN");
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     @Override
     public LoginResult login(AuthRequests.Login request) {
-        ensureEnabled();
-        if (request == null) throw malformed();
-        AuthGatewayClient.Tokens tokens = null;
-        boolean issued = false;
+        String logPrefix = LOG_PREFIX + "|login";
+        log.info("{}|START", logPrefix);
         try {
-            tokens = keycloak.login(request.identifier().trim(), request.password());
-            Jwt jwt = decode(tokens.accessToken());
-            CurrentUser current = currentUsers.getCurrentUser(jwt);
-            MyAccountResponse profile = accountService.getMyAccount(current);
-            if (tokens.refreshToken() == null) throw invalidSession();
-            Instant now = clock.instant();
-            SessionCookie cookie = sessionCookie(tokens.refreshToken(), request.remember(), now, now);
-            issued = true;
-            return new LoginResult(
-                    new AuthResponses.LoginData(
-                            tokens.accessToken(), now.plusSeconds(tokens.expiresIn()), false, null, profile),
-                    cookie);
-        } catch (AuthGatewayClient.FirstLoginRequired challenge) {
-            UserAccount account = accounts.findByKeycloakUserId(challenge.userId())
-                    .orElseThrow(() -> new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned"));
-            if (!account.isActive()) throw new GlobalException(ApiCode.FORBIDDEN, "Account is inactive");
-            String handle = crypto.randomToken();
-            String hash = crypto.hash(handle);
-            Instant now = clock.instant();
-            long ttl = Math.min(Auth.SETUP_TOKEN_SECONDS, challenge.expiresIn());
-            state.savePasswordToken(PasswordToken.create(
-                    hash,
-                    PasswordTokenPurpose.FIRST_LOGIN,
-                    account.getId(),
-                    account.getKeycloakUserId(),
-                    null,
-                    crypto.seal(challenge.setupToken(), hash + ":provider"),
-                    null,
-                    now,
-                    now.plusSeconds(ttl),
-                    now));
-            return new LoginResult(new AuthResponses.LoginData(null, now.plusSeconds(ttl), true, handle, null), null);
-        } catch (AuthGatewayClient.InvalidCredentials ex) {
-            throw new GlobalException(ApiCode.UNAUTHORIZED, "Email hoặc mật khẩu không đúng");
-        } catch (AuthGatewayClient.ProviderUnavailable ex) {
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
-        } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
-        } finally {
-            if (!issued && tokens != null && tokens.refreshToken() != null) keycloak.logout(tokens.refreshToken());
+            ensureEnabled();
+            if (request == null) throw malformed();
+            AuthGatewayClient.Tokens tokens = null;
+            boolean issued = false;
+            try {
+                tokens = keycloak.login(request.identifier().trim(), request.password());
+                Jwt jwt = decode(tokens.accessToken());
+                CurrentUser current = currentUsers.getCurrentUser(jwt);
+                MyAccountResponse profile = accountService.getMyAccount(current);
+                if (tokens.refreshToken() == null) throw invalidSession();
+                Instant now = clock.instant();
+                SessionCookie cookie = sessionCookie(tokens.refreshToken(), request.remember(), now, now);
+                issued = true;
+                log.info("{}|END", logPrefix);
+                return new LoginResult(
+                        new AuthResponses.LoginData(
+                                tokens.accessToken(), now.plusSeconds(tokens.expiresIn()), false, null, profile),
+                        cookie);
+            } catch (AuthGatewayClient.FirstLoginRequired challenge) {
+                UserAccount account = accounts.findByKeycloakUserId(challenge.userId())
+                        .orElseThrow(() -> new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned"));
+                if (!account.isActive()) throw new GlobalException(ApiCode.FORBIDDEN, "Account is inactive");
+                String handle = crypto.randomToken();
+                String hash = crypto.hash(handle);
+                Instant now = clock.instant();
+                long ttl = Math.min(Auth.SETUP_TOKEN_SECONDS, challenge.expiresIn());
+                state.savePasswordToken(PasswordToken.create(
+                        hash,
+                        PasswordTokenPurpose.FIRST_LOGIN,
+                        account.getId(),
+                        account.getKeycloakUserId(),
+                        null,
+                        crypto.seal(challenge.setupToken(), hash + ":provider"),
+                        null,
+                        now,
+                        now.plusSeconds(ttl),
+                        now));
+                log.info("{}|END", logPrefix);
+                return new LoginResult(
+                        new AuthResponses.LoginData(null, now.plusSeconds(ttl), true, handle, null), null);
+            } catch (AuthGatewayClient.InvalidCredentials ex) {
+                throw new GlobalException(ApiCode.UNAUTHORIZED, "Email hoặc mật khẩu không đúng");
+            } catch (AuthGatewayClient.ProviderUnavailable ex) {
+                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
+                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            } finally {
+                if (!issued && tokens != null && tokens.refreshToken() != null) keycloak.logout(tokens.refreshToken());
+            }
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
         }
     }
 
     @Override
     public RefreshResult refresh(String cookie) {
-        ensureEnabled();
-        if (cookie == null || cookie.isBlank() || cookie.length() > MAX_COOKIE_LENGTH) throw invalidSession();
-        return refreshes.run(crypto.hash(cookie), () -> rotate(openSession(cookie)));
+        String logPrefix = LOG_PREFIX + "|refresh";
+        log.info("{}|START", logPrefix);
+        try {
+            ensureEnabled();
+            if (cookie == null || cookie.isBlank() || cookie.length() > MAX_COOKIE_LENGTH) throw invalidSession();
+            RefreshResult result = refreshes.run(crypto.hash(cookie), () -> rotate(openSession(cookie)));
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     // Idle 30' và trần 10h do Keycloak áp; BE chỉ chặn thêm trần 10h tính từ lúc login ghi trong cookie.
@@ -167,15 +197,27 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String cookie) {
-        ensureEnabled();
-        if (cookie == null || cookie.isBlank() || cookie.length() > MAX_COOKIE_LENGTH) return;
-        SessionPayload session;
+        String logPrefix = LOG_PREFIX + "|logout";
+        log.info("{}|START", logPrefix);
         try {
-            session = openSession(cookie);
-        } catch (GlobalException ex) {
-            return;
+            ensureEnabled();
+            if (cookie == null || cookie.isBlank() || cookie.length() > MAX_COOKIE_LENGTH) {
+                log.info("{}|END", logPrefix);
+                return;
+            }
+            SessionPayload session;
+            try {
+                session = openSession(cookie);
+            } catch (GlobalException ex) {
+                log.info("{}|END", logPrefix);
+                return;
+            }
+            keycloak.logout(session.refreshToken());
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
         }
-        keycloak.logout(session.refreshToken());
     }
 
     private SessionCookie sessionCookie(String refreshToken, boolean remember, Instant loginAt, Instant now) {
@@ -211,170 +253,219 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public AuthResponses.OtpRequest forgot(AuthRequests.Forgot request) {
-        ensureEnabled();
-        if (request == null) throw malformed();
-        Instant now = clock.instant();
-        String email = request.email().trim().toLowerCase(Locale.ROOT);
-        String lookup = crypto.keyedHash("email:" + email);
-        long window = now.getEpochSecond() / 1800;
-        boolean allowed = state.takeRate(
-                crypto.keyedHash("recovery-rate:" + lookup + ":" + window),
-                Auth.RATE_LIMIT,
-                Instant.ofEpochSecond((window + 1) * 1800));
-        List<UserAccount> matches = accounts.findByEmailIgnoreCase(email).stream()
-                .filter(UserAccount::isActive)
-                .toList();
-        UserAccount account = matches.size() == 1 && allowed ? matches.getFirst() : null;
-        String requestId = crypto.randomToken();
-        String hash = crypto.hash(requestId);
-        String code = crypto.randomOtp();
-        state.savePasswordToken(PasswordToken.create(
-                hash,
-                PasswordTokenPurpose.OTP,
-                account == null ? null : account.getId(),
-                account == null ? null : account.getKeycloakUserId(),
-                lookup,
-                null,
-                crypto.otpDigest(requestId, code),
-                now,
-                now.plusSeconds(Auth.OTP_SECONDS),
-                now.plusSeconds(Auth.OTP_RESEND_SECONDS)));
-        if (account != null) sendOtpQuietly(account.getKeycloakUserId(), code);
-        return new AuthResponses.OtpRequest(
-                requestId, now.plusSeconds(Auth.OTP_SECONDS), now.plusSeconds(Auth.OTP_RESEND_SECONDS));
+        String logPrefix = LOG_PREFIX + "|forgot";
+        log.info("{}|START", logPrefix);
+        try {
+            ensureEnabled();
+            if (request == null) throw malformed();
+            Instant now = clock.instant();
+            String email = request.email().trim().toLowerCase(Locale.ROOT);
+            String lookup = crypto.keyedHash("email:" + email);
+            long window = now.getEpochSecond() / 1800;
+            boolean allowed = state.takeRate(
+                    crypto.keyedHash("recovery-rate:" + lookup + ":" + window),
+                    Auth.RATE_LIMIT,
+                    Instant.ofEpochSecond((window + 1) * 1800));
+            List<UserAccount> matches = accounts.findByEmailIgnoreCase(email).stream()
+                    .filter(UserAccount::isActive)
+                    .toList();
+            UserAccount account = matches.size() == 1 && allowed ? matches.getFirst() : null;
+            String requestId = crypto.randomToken();
+            String hash = crypto.hash(requestId);
+            String code = crypto.randomOtp();
+            state.savePasswordToken(PasswordToken.create(
+                    hash,
+                    PasswordTokenPurpose.OTP,
+                    account == null ? null : account.getId(),
+                    account == null ? null : account.getKeycloakUserId(),
+                    lookup,
+                    null,
+                    crypto.otpDigest(requestId, code),
+                    now,
+                    now.plusSeconds(Auth.OTP_SECONDS),
+                    now.plusSeconds(Auth.OTP_RESEND_SECONDS)));
+            if (account != null) sendOtpQuietly(account.getKeycloakUserId(), code);
+            log.info("{}|END", logPrefix);
+            return new AuthResponses.OtpRequest(
+                    requestId, now.plusSeconds(Auth.OTP_SECONDS), now.plusSeconds(Auth.OTP_RESEND_SECONDS));
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     @Override
     public AuthResponses.OtpRequest otpMetadata(String requestId) {
-        ensureEnabled();
-        String hash = crypto.hash(validOpaque(requestId));
-        var result = state.metadata(hash, clock.instant());
-        if (result.status() != AuthStateStore.Status.READY) throw notFound();
-        return otpResponse(requestId, result.data());
+        String logPrefix = LOG_PREFIX + "|otpMetadata";
+        log.info("{}|START", logPrefix);
+        try {
+            ensureEnabled();
+            String hash = crypto.hash(validOpaque(requestId));
+            var result = state.metadata(hash, clock.instant());
+            if (result.status() != AuthStateStore.Status.READY) throw notFound();
+            log.info("{}|END", logPrefix);
+            return otpResponse(requestId, result.data());
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     @Override
     public AuthResponses.OtpRequest resend(String requestId) {
-        ensureEnabled();
-        String raw = validOpaque(requestId);
-        Instant now = clock.instant();
-        var pending = state.metadata(crypto.hash(raw), now);
-        if (pending.status() != AuthStateStore.Status.READY) throw notFound();
-        String code = crypto.randomOtp();
-        long window = now.getEpochSecond() / 1800;
-        var changed = state.resend(
-                crypto.hash(raw),
-                crypto.otpDigest(raw, code),
-                now,
-                crypto.keyedHash("recovery-rate:" + pending.data().lookupHash() + ":" + window),
-                Instant.ofEpochSecond((window + 1) * 1800));
-        if (changed.status() == AuthStateStore.Status.THROTTLED)
-            throw new GlobalException(ApiCode.CONFLICT, "Wait before requesting another code");
-        if (changed.status() != AuthStateStore.Status.READY) throw notFound();
-        if (changed.data().userId() != null) sendOtpQuietly(changed.data().subject(), code);
-        return otpResponse(raw, changed.data());
+        String logPrefix = LOG_PREFIX + "|resend";
+        log.info("{}|START", logPrefix);
+        try {
+            ensureEnabled();
+            String raw = validOpaque(requestId);
+            Instant now = clock.instant();
+            var pending = state.metadata(crypto.hash(raw), now);
+            if (pending.status() != AuthStateStore.Status.READY) throw notFound();
+            String code = crypto.randomOtp();
+            long window = now.getEpochSecond() / 1800;
+            var changed = state.resend(
+                    crypto.hash(raw),
+                    crypto.otpDigest(raw, code),
+                    now,
+                    crypto.keyedHash("recovery-rate:" + pending.data().lookupHash() + ":" + window),
+                    Instant.ofEpochSecond((window + 1) * 1800));
+            if (changed.status() == AuthStateStore.Status.THROTTLED)
+                throw new GlobalException(ApiCode.CONFLICT, "Wait before requesting another code");
+            if (changed.status() != AuthStateStore.Status.READY) throw notFound();
+            if (changed.data().userId() != null) sendOtpQuietly(changed.data().subject(), code);
+            log.info("{}|END", logPrefix);
+            return otpResponse(raw, changed.data());
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     @Override
     public AuthResponses.ResetToken verifyOtp(AuthRequests.VerifyOtp requestIdAndOtp, String requestId) {
-        ensureEnabled();
-        if (requestIdAndOtp == null) throw malformed();
-        String raw = validOpaque(requestId);
-        var result = state.verifyOtp(crypto.hash(raw), crypto.otpDigest(raw, requestIdAndOtp.otp()), clock.instant());
-        if (result.status() == AuthStateStore.Status.THROTTLED)
-            throw new GlobalException(ApiCode.CONFLICT, "This recovery request is no longer available");
-        if (result.status() != AuthStateStore.Status.READY || result.data().userId() == null)
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Code is invalid or expired");
-        var otp = result.data();
-        Instant now = clock.instant();
-        String handle = crypto.randomToken();
-        String hash = crypto.hash(handle);
-        String assertion = crypto.assertion(otp.subject(), identity.realm(), "RECOVERY_VERIFIED", now);
+        String logPrefix = LOG_PREFIX + "|verifyOtp";
+        log.info("{}|START", logPrefix);
         try {
-            String providerToken = keycloak.verifiedCapability(assertion);
-            state.savePasswordToken(PasswordToken.create(
-                    hash,
-                    PasswordTokenPurpose.RESET,
-                    otp.userId(),
-                    otp.subject(),
-                    null,
-                    crypto.seal(providerToken, hash + ":provider"),
-                    null,
-                    now,
-                    now.plusSeconds(Auth.OTP_SECONDS * 2),
-                    now));
-        } catch (AuthGatewayClient.ProviderUnavailable ex) {
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            ensureEnabled();
+            if (requestIdAndOtp == null) throw malformed();
+            String raw = validOpaque(requestId);
+            var result =
+                    state.verifyOtp(crypto.hash(raw), crypto.otpDigest(raw, requestIdAndOtp.otp()), clock.instant());
+            if (result.status() == AuthStateStore.Status.THROTTLED)
+                throw new GlobalException(ApiCode.CONFLICT, "This recovery request is no longer available");
+            if (result.status() != AuthStateStore.Status.READY || result.data().userId() == null)
+                throw new GlobalException(ApiCode.BAD_REQUEST, "Code is invalid or expired");
+            var otp = result.data();
+            Instant now = clock.instant();
+            String handle = crypto.randomToken();
+            String hash = crypto.hash(handle);
+            String assertion = crypto.assertion(otp.subject(), identity.realm(), "RECOVERY_VERIFIED", now);
+            try {
+                String providerToken = keycloak.verifiedCapability(assertion);
+                state.savePasswordToken(PasswordToken.create(
+                        hash,
+                        PasswordTokenPurpose.RESET,
+                        otp.userId(),
+                        otp.subject(),
+                        null,
+                        crypto.seal(providerToken, hash + ":provider"),
+                        null,
+                        now,
+                        now.plusSeconds(Auth.OTP_SECONDS * 2),
+                        now));
+            } catch (AuthGatewayClient.ProviderUnavailable ex) {
+                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            }
+            log.info("{}|END", logPrefix);
+            return new AuthResponses.ResetToken(handle, now.plusSeconds(Auth.OTP_SECONDS * 2));
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
         }
-        return new AuthResponses.ResetToken(handle, now.plusSeconds(Auth.OTP_SECONDS * 2));
     }
 
     @Override
     public void setPassword(AuthRequests.Reset request) {
-        ensureEnabled();
-        if (request == null || !request.newPassword().equals(request.confirmPassword())) throw malformed();
-        String token = validOpaque(request.token());
-        String hash = crypto.hash(token);
-        String owner = crypto.randomToken();
-        Instant now = clock.instant();
-        var claim = state.claimPassword(hash, owner, now);
-        if (claim.status() != AuthStateStore.Status.CLAIMED) throw notFound();
+        String logPrefix = LOG_PREFIX + "|setPassword";
+        log.info("{}|START", logPrefix);
         try {
-            keycloak.changePassword(
-                    claim.data().providerCipher() == null
-                            ? null
-                            : crypto.open(claim.data().providerCipher(), hash + ":provider"),
-                    request.newPassword(),
-                    request.confirmPassword());
-            state.finishPassword(hash, owner, clock.instant(), true);
-            if (claim.data().userId() != null)
-                state.revokeAccountAuth(claim.data().userId());
-        } catch (AuthGatewayClient.PasswordRejected ex) {
-            state.finishPassword(hash, owner, clock.instant(), false);
-            throw new GlobalException(ApiCode.BAD_REQUEST, "New password does not meet policy");
-        } catch (AuthGatewayClient.CapabilityRejected ex) {
-            state.finishPassword(hash, owner, clock.instant(), true);
-            throw notFound();
-        } catch (AuthGatewayClient.ProviderUnavailable ex) {
-            state.finishPassword(hash, owner, clock.instant(), true);
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            ensureEnabled();
+            if (request == null || !request.newPassword().equals(request.confirmPassword())) throw malformed();
+            String token = validOpaque(request.token());
+            String hash = crypto.hash(token);
+            String owner = crypto.randomToken();
+            Instant now = clock.instant();
+            var claim = state.claimPassword(hash, owner, now);
+            if (claim.status() != AuthStateStore.Status.CLAIMED) throw notFound();
+            try {
+                keycloak.changePassword(
+                        claim.data().providerCipher() == null
+                                ? null
+                                : crypto.open(claim.data().providerCipher(), hash + ":provider"),
+                        request.newPassword(),
+                        request.confirmPassword());
+                state.finishPassword(hash, owner, clock.instant(), true);
+                if (claim.data().userId() != null)
+                    state.revokeAccountAuth(claim.data().userId());
+            } catch (AuthGatewayClient.PasswordRejected ex) {
+                state.finishPassword(hash, owner, clock.instant(), false);
+                throw new GlobalException(ApiCode.BAD_REQUEST, "New password does not meet policy");
+            } catch (AuthGatewayClient.CapabilityRejected ex) {
+                state.finishPassword(hash, owner, clock.instant(), true);
+                throw notFound();
+            } catch (AuthGatewayClient.ProviderUnavailable ex) {
+                state.finishPassword(hash, owner, clock.instant(), true);
+                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            } catch (RuntimeException ex) {
+                state.finishPassword(hash, owner, clock.instant(), true);
+                throw ex;
+            }
+            log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
-            state.finishPassword(hash, owner, clock.instant(), true);
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
     }
 
     @Override
     public void changePassword(CurrentUser current, AuthRequests.ChangePassword request) {
-        ensureEnabled();
-        if (current == null || request == null || !request.newPassword().equals(request.confirmPassword()))
-            throw malformed();
-        AuthGatewayClient.Tokens verified = null;
+        String logPrefix = LOG_PREFIX + "|changePassword|userId=" + (current == null ? null : current.userId());
+        log.info("{}|START", logPrefix);
         try {
-            verified = keycloak.login(current.username(), request.currentPassword());
-            Jwt jwt = decode(verified.accessToken());
-            CurrentUser checked = currentUsers.getCurrentUser(jwt);
-            if (!current.keycloakUserId().equals(checked.keycloakUserId())) throw invalidCredentials();
-            Instant now = clock.instant();
-            String assertion =
-                    crypto.assertion(current.keycloakUserId(), identity.realm(), "CURRENT_PASSWORD_VERIFIED", now);
-            String proof = keycloak.verifiedCapability(assertion);
-            keycloak.changePassword(proof, request.newPassword(), request.confirmPassword());
-            state.revokeAccountAuth(current.userId());
-        } catch (AuthGatewayClient.InvalidCredentials | AuthGatewayClient.FirstLoginRequired ex) {
-            throw invalidCredentials();
-        } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
-        } catch (AuthGatewayClient.PasswordRejected ex) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "New password does not meet policy");
-        } catch (AuthGatewayClient.CapabilityRejected ex) {
-            throw new GlobalException(ApiCode.UNAUTHORIZED, "Invalid credentials");
-        } catch (AuthGatewayClient.ProviderUnavailable ex) {
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
-        } finally {
-            // This direct-grant result proves the old password only; tokens stay server-side and are immediately
-            // revoked.
-            if (verified != null && verified.refreshToken() != null) keycloak.logout(verified.refreshToken());
+            ensureEnabled();
+            if (current == null || request == null || !request.newPassword().equals(request.confirmPassword()))
+                throw malformed();
+            AuthGatewayClient.Tokens verified = null;
+            try {
+                verified = keycloak.login(current.username(), request.currentPassword());
+                Jwt jwt = decode(verified.accessToken());
+                CurrentUser checked = currentUsers.getCurrentUser(jwt);
+                if (!current.keycloakUserId().equals(checked.keycloakUserId())) throw invalidCredentials();
+                Instant now = clock.instant();
+                String assertion =
+                        crypto.assertion(current.keycloakUserId(), identity.realm(), "CURRENT_PASSWORD_VERIFIED", now);
+                String proof = keycloak.verifiedCapability(assertion);
+                keycloak.changePassword(proof, request.newPassword(), request.confirmPassword());
+                state.revokeAccountAuth(current.userId());
+            } catch (AuthGatewayClient.InvalidCredentials | AuthGatewayClient.FirstLoginRequired ex) {
+                throw invalidCredentials();
+            } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
+                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            } catch (AuthGatewayClient.PasswordRejected ex) {
+                throw new GlobalException(ApiCode.BAD_REQUEST, "New password does not meet policy");
+            } catch (AuthGatewayClient.CapabilityRejected ex) {
+                throw new GlobalException(ApiCode.UNAUTHORIZED, "Invalid credentials");
+            } catch (AuthGatewayClient.ProviderUnavailable ex) {
+                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            } finally {
+                // This direct-grant result proves the old password only; tokens stay server-side and are immediately
+                // revoked.
+                if (verified != null && verified.refreshToken() != null) keycloak.logout(verified.refreshToken());
+            }
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
         }
     }
 

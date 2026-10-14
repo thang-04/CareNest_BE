@@ -1,7 +1,7 @@
 # CareNest Backend — Coding Guide
 
 > **Nguồn:** `CareNest_Backend_Architecture_v2.docx` (thiết kế kiến trúc Backend CareNest), cộng hai quyết định nhóm đã chốt: prefix API cấu hình được, `code` trong response trùng HTTP status.
-> **Trạng thái:** quyết định v1. Đã có skeleton nền móng (cấu trúc package, response/exception chuẩn, prefix API, OpenAPI, Docker) và nền xác thực Keycloak + Resource Server (ADR-0011). Phân quyền theo scope và nghiệp vụ đang làm. Phần đã implement thì **file nguồn là chuẩn**; code trong guide chỉ là ví dụ cách dùng (tên như `ChildService`, `AccessScopeService` là minh họa).
+> **Trạng thái:** quyết định v1. Đã có skeleton nền móng (cấu trúc package, response/exception chuẩn, prefix API, OpenAPI, Docker) và nền xác thực Keycloak + Resource Server (ADR-0011). Phân quyền theo scope và nghiệp vụ đang làm. Phần đã implement thì **file nguồn là chuẩn**; code trong guide chỉ là ví dụ cách dùng.
 > **Áp dụng cho:** mọi thành viên và mọi AI agent viết/review code trong `CareNest_BE`. Khi source thực tế khác guide: báo xung đột, thống nhất, rồi cập nhật guide cùng commit với code.
 
 Quy ước đọc: **PHẢI** = bắt buộc; **KHÔNG ĐƯỢC** = cấm; **NÊN** = mặc định, được lệch nếu có lý do ghi rõ trong PR.
@@ -99,65 +99,9 @@ HTTP Request → Controller → Service → Repository → PostgreSQL
 | `utils/` | `ApiCode`, `ResponseJson`, `CommonUtils`; `Constants` (hằng dùng chung); `enums/` (enum dùng chung); hàm stateless dùng chung | Logic riêng của một nghiệp vụ |
 | `integration/` | Interface trung lập + adapter theo provider cho AI, storage, notification, identity | Quy tắc nghiệp vụ; client không có interface |
 
-Ví dụ một luồng đầy đủ (mẫu):
+Mẫu một luồng đầy đủ đọc trực tiếp ở `controller/child/ChildController.java` → `service/child/ChildService.java` (interface, nơi controller và service khác inject) → `service/child/impl/ChildServiceImpl.java`. Service kiểm tra quyền qua `ChildAccessPolicy` **trước** khi load trẻ để không lộ ID ngoài scope (mục 9); format log và `try-catch` theo mục 10.
 
-```java
-// controller/child/ChildController.java
-@Slf4j
-@RestController
-@RequestMapping("/children")              // KHÔNG ghi prefix API ở đây — xem mục 7
-@RequiredArgsConstructor
-public class ChildController {
-
-    private final ChildService childService;
-
-    @GetMapping("/{childId}")
-    public ResponseEntity<ResponseJson<ChildProfileResponse>> getChildProfile(
-            @PathVariable Long childId,
-            CurrentUser currentUser) {
-        ChildProfileResponse response = childService.getChildProfile(currentUser, childId);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child profile success", response);
-    }
-}
-```
-
-```java
-// service/child/ChildService.java — contract; controller và service khác inject interface này
-public interface ChildService {
-
-    ChildProfileResponse getChildProfile(CurrentUser currentUser, Long childId);
-}
-```
-
-```java
-// service/child/impl/ChildServiceImpl.java
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class ChildServiceImpl implements ChildService {
-
-    private final ChildRepository childRepository;
-    private final AccessScopeService accessScopeService;
-    private final ChildMapper childMapper;
-
-    @Override
-    @Transactional(readOnly = true)
-    public ChildProfileResponse getChildProfile(CurrentUser currentUser, Long childId) {
-        String prefix = "[getChildProfile]|childId=" + childId;
-        log.info("{}|START", prefix);
-
-        Child child = childRepository.findById(childId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"));
-        accessScopeService.assertCanViewChild(currentUser, child);   // kiểm tra quyền ở server — mục 9
-
-        ChildProfileResponse response = childMapper.toProfileResponse(child);
-        log.info("{}|END", prefix);
-        return response;
-    }
-}
-```
-
-`CurrentUser` đã có (`security/CurrentUser.java`): controller khai báo tham số `CurrentUser` (resolve bởi `CurrentUserArgumentResolver` từ JWT `sub` → `user_accounts`; `ActiveAccountInterceptor` chặn tài khoản chưa cấp/INACTIVE cho mọi API kể cả endpoint không khai báo `CurrentUser`) rồi truyền xuống service; service KHÔNG tự đọc `SecurityContextHolder`/`Jwt`. `AccessScopeService` là tên minh họa — kiểm tra scope nằm ở `security/authorization/` (policy theo campus/lớp/trẻ).
+`CurrentUser` đã có (`security/CurrentUser.java`): controller khai báo tham số `CurrentUser` (resolve bởi `CurrentUserArgumentResolver` từ JWT `sub` → `user_accounts`; `ActiveAccountInterceptor` chặn tài khoản chưa cấp/INACTIVE cho mọi API kể cả endpoint không khai báo `CurrentUser`) rồi truyền xuống service; service KHÔNG tự đọc `SecurityContextHolder`/`Jwt`. Kiểm tra scope nằm ở `security/authorization/` (policy theo campus/lớp/trẻ).
 
 ## 6. Quy ước đặt tên và comment
 
@@ -349,22 +293,38 @@ Lỗi PHẢI ném exception (mục 11) để handler trả thống nhất. Chỉ
 
 ## 10. Logging
 
-- Dùng `@Slf4j`. Format tìm kiếm được: `[MethodName]|param=value|...`.
-- Ghi điểm `START`/`END` cho method service quan trọng và thông tin đủ để truy vết (id, ngày, lớp).
+- Dùng `@Slf4j`. Mỗi controller và `XxxServiceImpl` có `private static final String LOG_PREFIX = "[TênClass]"`.
+- Mọi method public của controller và `XxxServiceImpl` ghi `START` và `END` mức `info`; `logPrefix = LOG_PREFIX + "|tênMethod|id=value..."` chỉ chứa id/role/status. Private helper không log.
+- Không dùng `finally`, `requestId`, `durationMs` cho log. Service bọc thân method bằng `try-catch (RuntimeException)`: log `ERROR` kèm loại lỗi rồi ném lại chính exception; controller không `try-catch`.
 
 ```java
-String prefix = "[confirmMealCount]|mealCountId=" + mealCountId + "|userId=" + currentUser.getId();
-log.info("{}|START", prefix);
-// xử lý nghiệp vụ
-log.info("{}|END", prefix);
+// controller
+String logPrefix = LOG_PREFIX + "|getChildProfile|userId=" + currentUser.userId() + "|childId=" + childId;
+log.info("{}|START", logPrefix);
+ChildProfileResponse profile = childService.getChildProfile(currentUser, childId);
+log.info("{}|END", logPrefix);
+return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child profile success", profile);
+
+// service impl
+String logPrefix = LOG_PREFIX + "|getChildProfile|userId=" + currentUser.userId() + "|childId=" + childId;
+log.info("{}|START", logPrefix);
+try {
+    // xử lý nghiệp vụ
+    log.info("{}|END", logPrefix);
+    return profile;
+} catch (RuntimeException ex) {
+    log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+    throw ex;
+}
 ```
 
 - KHÔNG ĐƯỢC log: password, token/JWT, refresh token, secret, thông tin sức khỏe, dị ứng, quan sát/đánh giá trẻ, họ tên/địa chỉ/SĐT, nội dung request gửi AI có dữ liệu trẻ. Log id thay vì dữ liệu cá nhân.
-- Mức log: `info` cho luồng chính; `warn` cho lỗi nghiệp vụ dự kiến (`GlobalException`); `error` kèm stack trace cho lỗi không dự kiến.
+- Auth/OTP/reset: `logPrefix` chỉ có tên method (và `userId` nếu đã đăng nhập); không log username, email, cookie, OTP request id, token.
+- Mức log: `info` cho START/END; `warn` cho `ERROR` ở service và lỗi nghiệp vụ dự kiến (`GlobalException`); `error` kèm stack trace cho lỗi không dự kiến ở `GlobalExceptionHandler`.
 
 ## 11. Xử lý exception
 
-- KHÔNG ĐƯỢC nuốt exception, KHÔNG có catch block rỗng.
+- KHÔNG ĐƯỢC nuốt exception, KHÔNG có catch block rỗng. `try-catch` log ở service luôn `throw ex` để giữ rollback và mã lỗi.
 - Bắt exception để thêm ngữ cảnh thì PHẢI giữ nguyên cause khi ném lại.
 - Lỗi nghiệp vụ dùng `GlobalException` kèm `ApiCode` phù hợp.
 - `GlobalExceptionHandler` là nơi duy nhất chuyển exception thành `ResponseJson` (trừ lỗi security ở mục 8.5).
@@ -466,7 +426,7 @@ Chạy trên diff trước khi tạo PR hoặc báo task xong. Mục không áp 
 - [ ] Exception mới được `GlobalExceptionHandler` map đúng `ApiCode`, không rơi vào 500 ngoài ý muốn.
 - [ ] Request body/param có `@Valid` / constraint phù hợp.
 - [ ] Quyền theo campus/class/child được kiểm tra ở server, đối chiếu assignment.
-- [ ] Log theo format `[MethodName]|param=value|...`; không có password, token, dữ liệu sức khỏe/cá nhân trẻ.
+- [ ] Method public của controller/`XxxServiceImpl` log `LOG_PREFIX|tênMethod|id=...|START/END` (mục 10); service `try-catch` log `ERROR` rồi `throw ex`; không có password, token, dữ liệu sức khỏe/cá nhân trẻ.
 - [ ] Không có catch rỗng; khi ném lại có giữ cause.
 - [ ] Đổi schema bằng migration Flyway mới; không sửa migration đã chạy.
 - [ ] Không gọi SDK AI/storage/notification trực tiếp ngoài `integration/`.
