@@ -36,7 +36,8 @@ import org.springframework.web.client.RestClientResponseException;
 public class KeycloakIdentityProviderClient implements IdentityProviderClient {
 
     private static final Duration TOKEN_EXPIRY_MARGIN = Duration.ofSeconds(30);
-    private static final String UPDATE_PASSWORD = "UPDATE_PASSWORD"; // carenest:allow-secret: tên required action Keycloak
+    private static final String UPDATE_PASSWORD =
+            "UPDATE_PASSWORD"; // carenest:allow-secret: tên required action Keycloak
 
     private final KeycloakProperties properties;
     private final Clock clock;
