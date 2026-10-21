@@ -31,7 +31,7 @@ public class StaffAssignment {
     private Long userId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "staff_role", nullable = false, length = 20)
+    @Column(name = "staff_role", nullable = false, length = 30)
     private StaffRole staffRole;
 
     @Column(name = "campus_id")
@@ -39,6 +39,9 @@ public class StaffAssignment {
 
     @Column(name = "classroom_id")
     private Long classroomId;
+
+    @Column(name = "age_group_id")
+    private Long ageGroupId;
 
     @Column(name = "valid_from", nullable = false)
     private LocalDate validFrom;

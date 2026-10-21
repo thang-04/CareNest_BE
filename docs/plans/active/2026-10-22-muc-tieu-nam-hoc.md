@@ -142,3 +142,9 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Verify: `node scripts/check-ai-layer.mjs` → `0 lỗi, 0 cảnh báo`; `node scripts/verify.mjs` → `VERIFY PASS full | tests 204 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`
 - Khác plan: không
 - Tiếp: Phase 1 sau khi Tiền review.
+
+### 2026-10-22 — Phase 1 (chờ review)
+- Commit: chưa commit
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 211 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; `EduYearPlanSchemaIntegrationTest` 7/7 trên PostgreSQL thật
+- Khác plan: snapshot OpenAPI đổi 1 dòng (`StaffAssignmentSummaryResponse.staffRole` thêm `AGE_GROUP_TEAM_LEADER`, consumer FE `GET /accounts/me`); thêm `sort_order` cho `edu_breaks`; cột audit theo chuẩn repo (`created_at`/`updated_at`)
+- Tiếp: Phase 2 sau khi Tiền review.

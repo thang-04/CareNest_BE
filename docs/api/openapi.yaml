@@ -641,6 +641,7 @@ components:
           - VICE_PRINCIPAL
           - TEACHER
           - KITCHEN_STAFF
+          - AGE_GROUP_TEAM_LEADER
         validFrom:
           type: string
           format: date

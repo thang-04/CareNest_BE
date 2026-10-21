@@ -32,6 +32,9 @@ public class Classroom {
     @Column(nullable = false, length = 100)
     private String name;
 
+    @Column(name = "age_group_id")
+    private Long ageGroupId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

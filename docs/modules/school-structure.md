@@ -6,7 +6,7 @@ Feature: `organization` (trong `controller/`, `service/`, `repository/`, ... —
 Mô hình tổ chức 1 trường / nhiều campus / lớp theo năm học, và phân công nhân sự (nguồn scope nhân sự).
 
 ## Owns
-School (duy nhất — chưa cần bảng vì chỉ 1 trường), Campus, SchoolYear, Classroom, StaffAssignment (userId, staffRole, campusId hoặc classroomId, validFrom, validTo).
+School (duy nhất — chưa cần bảng vì chỉ 1 trường), Campus, SchoolYear, AgeGroup, Classroom (+ageGroupId), StaffAssignment (userId, staffRole, campusId hoặc classroomId hoặc ageGroupId, validFrom, validTo).
 
 ## KHÔNG owns
 UserAccount/role (identity-access), trẻ (child).
@@ -16,11 +16,11 @@ AUTH-01..03, AUTH-05. ADR-0002 (campus scoping), ADR-0003.
 
 ## Phụ thuộc
 - Dùng: common/utils. Tham chiếu userId bằng ID, không import identity.
-- Được dùng bởi: child, attendance, nutrition, health, learning-observation, facility-issue, reporting, kiểm tra scope (`security/`).
+- Được dùng bởi: education-plan, child, attendance, nutrition, health, learning-observation, facility-issue, reporting, kiểm tra scope (`security/`).
 
 ## API & bảng
-- Bảng: `campuses`, `school_years`, `classrooms`, `staff_assignments` (`V2__create_school_structure.sql`, `docs/database/DATA_DICTIONARY.md`).
-- Entity hiện có: `Classroom`, `StaffAssignment` (Campus/SchoolYear chưa cần entity); enum `StaffRole` ở `utils/enums/` (ADR-0014).
+- Bảng: `campuses`, `school_years`, `classrooms`, `staff_assignments` (`V2__create_school_structure.sql`), `age_groups` + cột nhóm tuổi của lớp/phân công Tổ trưởng (`V7__create_age_groups.sql`); xem `docs/database/DATA_DICTIONARY.md`.
+- Entity hiện có: `Classroom`, `StaffAssignment`, `SchoolYear`, `AgeGroup` (Campus chưa cần entity); enum `StaffRole` ở `utils/enums/` (ADR-0014).
 - Service cho kiểm tra scope: `StaffAssignmentService` (`hasActivePrincipalAssignment`, `hasActiveCampusAssignment`, `hasActiveTeacherAssignment` — lọc theo ngày, tính cả hai đầu), `ClassroomService.findCampusId`. Không gọi ngược `security/authorization`.
 - Chưa có API quản lý campus/lớp/phân công (dev dùng seed `db/dev/R__dev_seed.sql`).
 
