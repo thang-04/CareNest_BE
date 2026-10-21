@@ -14,7 +14,7 @@ Auth React cập nhật2026-10-12: extension Phase1 và backend gateway Phase2 o
 | Coding guide | **Có** — `docs/backend-coding-guide.md` |
 | Docs nghiệp vụ / kiến trúc / memory | Bản đầu |
 | Authentication/authorization | **Xong trên `feature/authentication`, chờ merge** — Keycloak + Resource Server (ADR-0011): kiểm JWT, role, 401/403/503, `user_accounts` + `GET /accounts/me`, bảng scope (V2/V3) + seed dev, policy campus/lớp/trẻ, `GET /children/{childId}`, cấp/khóa tài khoản qua Keycloak Admin API (Admin không tự khóa mình — AUTH-09). Chưa có: API quản lý phân công/liên kết phụ huynh. Giới hạn: KI-003..KI-009 (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
-| Schema/migration nghiệp vụ | Bắt đầu — V1 `user_accounts`, V2 campus/năm học/lớp/phân công, V3 trẻ/enrollment/liên kết PH; seed dev `db/dev` |
+| Schema/migration nghiệp vụ | Bắt đầu — V1 `user_accounts`, V2 campus/năm học/lớp/phân công, V3 trẻ/enrollment/liên kết PH, V7 nhóm tuổi + phân công Tổ trưởng, V8–V9 kế hoạch năm học `edu_*`; seed dev `db/dev` |
 | OpenAPI export (`docs/api/`) | Chưa |
 | AI provider | OPEN (ADR-0007) |
 | Hạ tầng deploy | Chưa chốt (có Dockerfile, compose dev/demo: API + PostgreSQL + Keycloak + Mailpit) |
@@ -27,6 +27,7 @@ Auth React cập nhật2026-10-12: extension Phase1 và backend gateway Phase2 o
 | school-structure (`organization`) | Có | Bảng scope | Chưa có API quản lý |
 | child (`child`) | Có | Bảng scope + `GET /children/{childId}` | Mới có hồ sơ cơ bản |
 | attendance (`attendance`) | Có | — | Giờ chốt, xử lý đến muộn PENDING; đơn nghỉ đã chốt 02/10: thông báo, không duyệt (ATT-05) |
+| education-plan (`eduplan`) | Có (ADR-0017, EDU) | Mục tiêu năm học: API + service + test (G94-226) | Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày chưa làm; FE `educationPlanApi.js` đã nối phần mục tiêu năm (chạy khi `VITE_USE_MOCK=false`, cần đăng nhập thật của FE) |
 | nutrition (`meals`) | Có | — | Bếp/thực đơn theo campus PENDING |
 | health (`health`) | Có | — | Ngưỡng tham chiếu PENDING |
 | learning-observation (`observation`) | Có | — | Activity context OPEN (ADR-0006) |

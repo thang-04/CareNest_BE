@@ -15,7 +15,7 @@ Tổng quan dependency (L3/L4). Chi tiết từng module: `docs/modules/`.
  health           ──► child, ai-assistance
  learning-obs     ──► child, attendance, nutrition, health, ai-assistance
  facility-issue   ──► school-structure
- education-plan   ──► school-structure
+ education-plan   ──► school-structure, identity-access (tên người dùng)
  reporting        ──► mọi module domain (query only)
 
  Mọi module domain ──► identity-access (CurrentUser, permission, policy trong security/authorization)

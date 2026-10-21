@@ -18,8 +18,8 @@ Lỗi liên quan contract/nghiệp vụ phát hiện ở FE/APP ⇒ ghi ở BE `
 | Actor | Client | Module BE chính |
 | --- | --- | --- |
 | System Admin | Web | identity-access, school-structure, child (cấu hình) |
-| Principal / Vice Principal | Web (App: sau, nếu có yêu cầu) | reporting, nutrition (xác nhận/duyệt), learning-observation, health, facility-issue |
-| Teacher | Web + App | attendance, learning-observation, health, facility-issue |
+| Principal / Vice Principal | Web (App: sau, nếu có yêu cầu) | reporting, nutrition (xác nhận/duyệt), learning-observation, education-plan, health, facility-issue |
+| Teacher (kể cả Tổ trưởng khối) | Web + App | attendance, learning-observation, education-plan, health, facility-issue |
 | Parent | App | attendance (gửi báo nghỉ — ATT-05), đọc: attendance, nutrition, health, learning (theo PAR-*) |
 | Kitchen Staff | App (+Web) | nutrition (suất đã chốt, thực đơn, định lượng) |
 
@@ -38,3 +38,12 @@ Repo URL: CareNest_FE `https://github.com/thang-04/CareNest_FE.git`, CareNest_AP
 ## React auth gateway — Phase 2
 
 BE bổ sung `/auth/**`, PUT `/me/password`, mã HTTP 428, cookie phiên mã hóa/CSRF theo ADR-0013 và ADR-0015 (`/auth/refresh` trả `Set-Cookie` mới; FE dùng `withCredentials`, không cần sửa); chi tiết `docs/contracts/AUTH_CONTRACT.md`. Consumer FE: các form login/forgot/OTP/reset/change-password, AuthContext và HTTP client; tích hợp ở Phase 3, chưa sửa FE trong Phase 2. APP tiếp tục PKCE S256, issuer/audience, role/scope và `/accounts/me` hiện có; không chuyển APP sang Direct Grant. Regenerate types từ OpenAPI sau khi snapshot được kiểm chứng.
+
+## Consumer của API kế hoạch giáo dục (G94-226)
+
+| API BE | Consumer FE |
+| --- | --- |
+| `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST …/{planId}/submit\|issue\|return` | `CareNest_FE/src/services/education-plan/api/educationPlanApi.js` (`getAll`, `saveGoal`, `deleteGoal`), `src/hooks/education-plan/useEducationPlan.jsx` |
+| `GET /education-plans/config`, `GET /education-plans/expected-results` | `educationPlanApi.js` (`getEduConfig`), `src/models/education-plan/expectedResults.js` (hiện là hằng FE) |
+| `GET /accounts/me` (`assignments[].staffRole = AGE_GROUP_TEAM_LEADER`, `ageGroupId`) | FE lấy nhóm tuổi của Tổ trưởng (hiện đọc `user.ageGroupId`) |
+

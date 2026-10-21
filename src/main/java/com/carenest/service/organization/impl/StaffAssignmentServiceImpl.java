@@ -7,6 +7,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -76,6 +77,34 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                             .toList();
             log.info("{}|END", logPrefix);
             return assignments;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderAgeGroupIds|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> ageGroupIds = Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderAgeGroupIds(userId, date));
+            log.info("{}|END", logPrefix);
+            return ageGroupIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findActiveTeacherAgeGroupIds(Long userId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveTeacherAgeGroupIds|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> ageGroupIds = Set.copyOf(staffAssignmentRepository.findActiveTeacherAgeGroupIds(userId, date));
+            log.info("{}|END", logPrefix);
+            return ageGroupIds;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

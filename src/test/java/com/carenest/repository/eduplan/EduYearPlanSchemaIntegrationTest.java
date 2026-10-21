@@ -167,16 +167,18 @@ class EduYearPlanSchemaIntegrationTest {
     }
 
     @Test
-    void themeAbbrIsUniqueIgnoringCaseWithinPlan() {
+    @DisplayName("EDU-04: bản nháp lưu được chủ đề trùng viết tắt; kiểm khi gửi duyệt")
+    void draftThemesMayShareAbbr() {
         EduYearPlan plan = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
         EduTheme first = EduTheme.create(plan.getId());
         first.update((short) 0, "Trường mầm non", "TMN", null, null, "", "");
-        themeRepository.saveAndFlush(first);
         EduTheme second = EduTheme.create(plan.getId());
         second.update((short) 1, "Thế giới mới", "tmn", null, null, "", "");
 
-        assertThatThrownBy(() -> themeRepository.saveAndFlush(second))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        themeRepository.saveAllAndFlush(List.of(first, second));
+
+        assertThat(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()))
+                .hasSize(2);
     }
 
     @Test
@@ -187,19 +189,18 @@ class EduYearPlanSchemaIntegrationTest {
         issued4.issue(owner, NOW);
         yearPlanRepository.saveAndFlush(issued4);
 
-        Page<EduYearPlan> approvedOnly = yearPlanRepository.search(
-                schoolYear, null, true, List.of(), Set.of(EduPlanStatus.APPROVED), null, PageRequest.of(0, 20));
-        assertThat(approvedOnly.getContent()).extracting(EduYearPlan::getId).containsExactly(issued4.getId());
+        Page<EduYearPlan> principalView = yearPlanRepository.search(
+                schoolYear, null, Set.of(EduPlanStatus.APPROVED), Set.of(), Set.of(), null, PageRequest.of(0, 20));
+        assertThat(principalView.getContent()).extracting(EduYearPlan::getId).containsExactly(issued4.getId());
 
-        Page<EduYearPlan> ownGroup = yearPlanRepository.search(
-                schoolYear,
-                null,
-                false,
-                List.of(ageGroup3),
-                Set.of(EduPlanStatus.values()),
-                "%mgb%",
-                PageRequest.of(0, 20));
-        assertThat(ownGroup.getContent()).extracting(EduYearPlan::getId).containsExactly(draft3.getId());
+        Page<EduYearPlan> leaderView = yearPlanRepository.search(
+                schoolYear, null, Set.of(), Set.of(ageGroup3), Set.of(), "%mgb%", PageRequest.of(0, 20));
+        assertThat(leaderView.getContent()).extracting(EduYearPlan::getId).containsExactly(draft3.getId());
+
+        // GV dạy cả 2 nhóm tuổi chỉ thấy bản đã ban hành
+        Page<EduYearPlan> teacherView = yearPlanRepository.search(
+                schoolYear, null, Set.of(), Set.of(), Set.of(ageGroup3, ageGroup4), null, PageRequest.of(0, 20));
+        assertThat(teacherView.getContent()).extracting(EduYearPlan::getId).containsExactly(issued4.getId());
     }
 
     private EduYearPlan draft(String code, long ageGroupId) {

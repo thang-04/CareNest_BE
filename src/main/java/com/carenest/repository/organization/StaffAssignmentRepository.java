@@ -39,6 +39,22 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     boolean existsActiveTeacherForClassroom(
             @Param("userId") Long userId, @Param("classroomId") Long classroomId, @Param("date") LocalDate date);
 
+    @Query("""
+            select distinct a.ageGroupId from StaffAssignment a
+            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER
+              and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
+            """)
+    List<Long> findActiveTeamLeaderAgeGroupIds(@Param("userId") Long userId, @Param("date") LocalDate date);
+
+    // Nhóm tuổi của các lớp GV đang dạy; lớp chưa gán nhóm tuổi thì bỏ qua
+    @Query("""
+            select distinct c.ageGroupId from StaffAssignment a, Classroom c
+            where a.classroomId = c.id and a.userId = :userId
+              and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER and c.ageGroupId is not null
+              and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
+            """)
+    List<Long> findActiveTeacherAgeGroupIds(@Param("userId") Long userId, @Param("date") LocalDate date);
+
     @Query("select a from StaffAssignment a where a.userId = :userId"
             + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date) order by a.staffRole, a.id")
     List<StaffAssignment> findActiveByUserId(@Param("userId") Long userId, @Param("date") LocalDate date);

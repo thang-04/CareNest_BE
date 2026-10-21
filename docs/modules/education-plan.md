@@ -25,11 +25,13 @@ EDU-01..09 (`docs/business/BUSINESS_RULES.md`), AUTH-03. ADR-0017, ADR-0003.
 Sequence SD-01..SD-10 (thư mục nghiệp vụ của team: `huong_dan_nghiep_vu/sequence/muc_tieu_nam_hoc_sequence.drawio`, ngoài repo).
 
 ## Phụ thuộc
-- Dùng: school-structure (service, không đọc repository của module khác), `security/authorization`.
+- Dùng: school-structure (`SchoolStructureService`, `StaffAssignmentService`), identity-access (`AccountService.findFullNames` lấy tên người soạn/gửi/ban hành), `security/authorization`; không đọc repository của module khác.
 - Được dùng bởi: learning-observation (đọc MT đã ban hành).
 
 ## API & bảng
-- API dưới `/education-plans` (plan `docs/plans/active/2026-10-22-muc-tieu-nam-hoc.md`).
+- API: `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST /education-plans/goals/{planId}/submit|issue|return`, `GET /education-plans/config`, `GET /education-plans/expected-results` (`docs/api/openapi.yaml`).
+- Code: `EduYearPlanController`, `EduYearPlanService(Impl)`, `EduConfigService(Impl)`, quyền ở `security/authorization/EduPlanAccessPolicy` (EDU-06, EDU-08).
+- PUT gửi cả cây: dòng/nội dung/chủ đề có id thì cập nhật, không id thì thêm, vắng thì xóa; nội dung tích chủ đề qua `themeKeys` trỏ `themes[].key` (chủ đề mới chưa có id).
 - Bảng `edu_*`; schema ở `docs/database/DATA_DICTIONARY.md` khi có migration.
 
 ## PENDING

@@ -80,7 +80,7 @@ class AccountControllerTest {
                         null,
                         List.of(CareNestRole.TEACHER, CareNestRole.PARENT),
                         List.of(new StaffAssignmentSummaryResponse(
-                                StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 9, 1), null)),
+                                StaffRole.TEACHER, null, 11L, null, LocalDate.of(2026, 9, 1), null)),
                         List.of(101L)));
 
         mockMvc.perform(get(MY_ACCOUNT).with(jwt()))

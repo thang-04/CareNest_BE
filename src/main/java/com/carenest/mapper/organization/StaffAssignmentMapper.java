@@ -12,6 +12,7 @@ public class StaffAssignmentMapper {
                 assignment.getStaffRole(),
                 assignment.getCampusId(),
                 assignment.getClassroomId(),
+                assignment.getAgeGroupId(),
                 assignment.getValidFrom(),
                 assignment.getValidTo());
     }

@@ -31,7 +31,8 @@ updated: 2026-10-22
 5. BE cấp id BIGINT. Chỉ xóa được bản DRAFT.
 6. Về các bảng: tạo bảng `age_groups`, bỏ 2 cột `updated_at` thừa, `description` cho phép rỗng, giữ `attachment_key`, `kind` ∈ {sub, group, goal}, lưu `goal_no` khi lưu. Seed 5 lĩnh vực chuẩn.
 7. Luồng duyệt kế hoạch năm cố định TT → PHT. `edu_approval_steps` chỉ dùng cho chữ ký khi in.
-8. Chưa làm thông báo. Tự lưu theo kiểu bản sau ghi đè bản trước (không có version).
+8. Chưa làm thông báo. Bản lưu sau ghi đè bản trước (không có version).
+11. Bỏ tự lưu: lưu bằng nút Lưu hoặc Ctrl+S, rời trang/đóng tab khi chưa lưu thì hỏi; áp dụng cho Mục tiêu năm học, Kế hoạch chủ đề, Giáo án tuần (Tiền 22/10).
 9. Quyền theo mã `goals.view|edit|approve`, tạm gán theo role tại một chỗ, sẽ thay bằng phân quyền động (EDU-08, cách A).
 10. Sửa FE trên nhánh G94-178 hiện tại. Thêm cột `classrooms.age_group_id`. `config` chỉ làm lĩnh vực và `signers.year`. PHT có quyền (bất kể campus) thì duyệt được.
 
@@ -76,7 +77,7 @@ updated: 2026-10-22
 | --- | --- | --- | --- |
 | Module | Tạo module mới `education-plan` và ADR-0017 | Nhét vào learning-observation | Card learning-observation cấm mở rộng thành giáo án |
 | API | Mỗi hành động một endpoint (`/submit`, `/issue`, `/return`) | Giữ PUT upsert có status | BE phải tự quyết trạng thái (guide §7) |
-| Lưu cây | PUT gửi cả cây. Dòng có id thì update, không có thì insert, dòng bị bỏ thì delete | Tách nhiều endpoint con | Khớp với cách FE tự lưu cả văn bản |
+| Lưu cây | PUT gửi cả cây. Dòng có id thì update, không có thì insert, dòng bị bỏ thì delete | Tách nhiều endpoint con | Khớp với cách FE lưu cả văn bản (nút Lưu / Ctrl+S) |
 
 ## Phases
 Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm thành plan hoặc task FE riêng.
@@ -148,3 +149,21 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 211 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; `EduYearPlanSchemaIntegrationTest` 7/7 trên PostgreSQL thật
 - Khác plan: snapshot OpenAPI đổi 1 dòng (`StaffAssignmentSummaryResponse.staffRole` thêm `AGE_GROUP_TEAM_LEADER`, consumer FE `GET /accounts/me`); thêm `sort_order` cho `edu_breaks`; cột audit theo chuẩn repo (`created_at`/`updated_at`)
 - Tiếp: Phase 2 sau khi Tiền review.
+
+### 2026-10-22 — Phase 2 (chờ review)
+- Commit: chưa commit
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 230 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; `EduYearPlanServiceIntegrationTest` 9/9 (AC-1..AC-8, PostgreSQL thật), `EduYearPlanControllerTest` 9/9
+- Khác plan:
+  - `V9` bỏ unique viết tắt + CHECK ngày của chủ đề/đợt nghỉ: bản nháp lưu được khi còn soạn dở; kiểm ở service khi gửi/ban hành.
+  - `GET /education-plans/config` trả thêm `schoolYears`, `ageGroups` để FE đổi hằng số sang dữ liệu BE.
+  - `StaffAssignmentSummaryResponse` thêm `ageGroupId`; `/accounts/me` tính phân công Tổ trưởng theo role TEACHER.
+  - Không ghi lịch sử khi lập (UI không ghi); "Phó hiệu trưởng chỉnh sửa" ghi 1 lần cho tới thao tác kế tiếp.
+  - Test service dạng tích hợp (service + policy + DB thật) thay cho Mockito.
+- Tiếp: Phase 3 (FE lớp gọi API) sau khi Tiền review.
+
+### 2026-10-22 — Phase 3 (chờ review)
+- Commit: chưa commit (BE Phase 2 + FE nhánh G94-178)
+- FE: `api/educationPlanApi.js` + `api/yearPlanMapper.js` nối các API mục tiêu năm; `axiosClient` bóc envelope, lỗi lấy `desc`; trang chi tiết dùng `permissions` của BE; trang lập kế hoạch dùng tiếp id BE cấp. Bỏ tự lưu ở 5 trang kế hoạch giáo dục (Lưu / Ctrl+S, hỏi khi rời trang).
+- Verify: FE `node scripts/verify.mjs` → `VERIFY PASS full`, `tests/education-plan/year-plan-api.test.mjs` 4/4; BE xem dòng verify cuối báo cáo.
+- Chưa kiểm chứng: FE chạy với BE thật (FE chưa có đăng nhập Keycloak, `/auth/login` vẫn PROPOSED); `PUT /education-plans/config` chưa có ở BE.
+
