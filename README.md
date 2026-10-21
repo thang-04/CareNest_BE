@@ -10,7 +10,7 @@ Repo này là **nguồn chuẩn (source of truth)** của toàn dự án: nghi�
 | `CareNest_FE` | Web | System Admin, Hiệu trưởng, Hiệu phó, Giáo viên |
 | `CareNest_APP` | Mobile | Phụ huynh, Giáo viên, Bếp |
 
-> **Trạng thái:** mới có nền móng (scaffold). Chưa có authentication/authorization và chưa có API nghiệp vụ. Xem [Trạng thái và lộ trình](#trạng-thái-và-lộ-trình).
+> **Trạng thái:** đã có xác thực Keycloak, phân quyền theo phạm vi campus/lớp/trẻ và cấp tài khoản; API nghiệp vụ khác chưa có. Xem [Trạng thái và lộ trình](#trạng-thái-và-lộ-trình).
 
 ## CareNest giải quyết gì
 
@@ -29,6 +29,7 @@ Ngoài phạm vi V1: multi-school / multi-tenant, chat thay Zalo, chẩn đoán 
 | Ngôn ngữ | Java 21 (LTS) |
 | Framework | Spring Boot 4.1.1: Web MVC, Validation, Data JPA, Actuator |
 | Database | PostgreSQL 17, Flyway |
+| Xác thực | Keycloak 26 + Spring Security OAuth2 Resource Server ([ADR-0011](docs/decisions/ADR-0011-keycloak-authentication.md), [`docs/system/KEYCLOAK.md`](docs/system/KEYCLOAK.md)) |
 | API docs | springdoc-openapi 3.1.1 (Swagger UI) |
 | Build | Maven Wrapper (`mvnw`), Lombok |
 | Test | JUnit, Spring Boot Test, Testcontainers (PostgreSQL) |
@@ -57,7 +58,7 @@ src/main/java/com/carenest/
 ├── dto/<feature>/          request/response DTO (dto/common: PageResponse, FieldErrorResponse)
 ├── mapper/<feature>/       Entity ↔ DTO
 ├── integration/            adapter dịch vụ ngoài: AI, storage, notification
-├── security/               xác thực, phân quyền (chưa triển khai)
+├── security/               JWT Keycloak, CurrentUser, policy phạm vi campus/lớp/trẻ
 ├── config/                 WebMvcConfig (prefix API), OpenApiConfig
 ├── exception/              GlobalException, GlobalExceptionHandler
 ├── utils/                  ApiCode, ResponseJson
@@ -79,12 +80,12 @@ Không cần cài Maven, repo đã có wrapper `./mvnw` (Windows: `mvnw.cmd`).
 ### Chuẩn bị
 
 ```bash
-cp .env.example .env    # đổi POSTGRES_PASSWORD; cách 2 cần thêm DB_PASSWORD khớp
+cp .env.example .env    # bắt buộc (compose báo lỗi nếu thiếu mật khẩu Keycloak); đổi các giá trị change-me
 ```
 
 `.env` đã có trong `.gitignore`, không commit file này.
 
-### Cách 1: Docker Compose (API + PostgreSQL)
+### Cách 1: Docker Compose (API + PostgreSQL + Keycloak + Mailpit)
 
 ```bash
 docker compose up --build
@@ -95,8 +96,8 @@ docker compose up --build
 Dùng khi cần debug trong IDE.
 
 ```bash
-docker compose up -d postgres
-./mvnw spring-boot:run          # Windows: mvnw.cmd spring-boot:run
+docker compose up -d postgres keycloak mailpit
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # Windows: mvnw.cmd ...; profile dev nạp dữ liệu giả
 ```
 
 **Spring không đọc file `.env`.** Biến `DB_*` phải export trong shell hoặc khai báo trong run config của IDE, và `DB_PASSWORD` phải khớp `POSTGRES_PASSWORD`. Ví dụ: `export DB_PASSWORD=...` (bash) hoặc `$env:DB_PASSWORD="..."` (PowerShell).
@@ -108,10 +109,29 @@ docker compose up -d postgres
 | API | `http://localhost:8080{API_PREFIX}/...` (mặc định `/api`) |
 | Swagger UI | `http://localhost:8080/swagger-ui/index.html` |
 | Health | `http://localhost:8080/actuator/health` |
+| Keycloak Admin Console | `http://localhost:8180/admin` (realm `carenest`) |
+| Mailpit (email dev) | `http://localhost:8025` |
+
+Compose chạy profile `dev`: có 8 user dev (`admin.dev`, `teacher.a`, `parent.a`, ...) và dữ liệu giả — bảng user/phạm vi ở `docs/system/KEYCLOAK.md` mục 5.
+
+### Gọi API có bảo vệ
+
+Mọi API dưới `{API_PREFIX}` cần `Authorization: Bearer <access token Keycloak>`. CareNest không có endpoint login; dev lấy token qua client `carenest-dev` (chỉ bật khi `CARENEST_DEV_CLIENT_ENABLED=true`, compose dev đã bật):
+
+```bash
+TOKEN=$(curl -s -X POST "http://localhost:8180/realms/carenest/protocol/openid-connect/token" \
+  -d grant_type=password -d client_id=carenest-dev -d username=teacher.a \
+  -d "password=$KEYCLOAK_DEV_USER_PASSWORD" | jq -r .access_token)
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/accounts/me
+```
+
+- Swagger UI: bấm *Authorize*, dán access token (không kèm chữ `Bearer`).
+- Postman: import `docs/api/CareNest.postman_collection.json` + `CareNest-local.postman_environment.json`, chạy folder *0. Đăng nhập* trước.
+- Token sống 5 phút. Cấu hình realm, xử lý lỗi: [`docs/system/KEYCLOAK.md`](docs/system/KEYCLOAK.md); contract: [`docs/contracts/AUTH_CONTRACT.md`](docs/contracts/AUTH_CONTRACT.md).
 
 ## Cấu hình
 
-Không dùng Spring profile. Mọi cấu hình đi qua biến môi trường, giá trị mặc định nằm trong [`application.yml`](src/main/resources/application.yml). File `.env` chỉ dùng cho `docker compose`.
+Profile `dev` (compose) thêm dữ liệu seed `db/dev`. Mọi cấu hình đi qua biến môi trường, giá trị mặc định nằm trong [`application.yml`](src/main/resources/application.yml). File `.env` chỉ dùng cho `docker compose`.
 
 | Biến | Dùng bởi | Mặc định | Ghi chú |
 | --- | --- | --- | --- |
@@ -120,10 +140,11 @@ Không dùng Spring profile. Mọi cấu hình đi qua biến môi trường, gi
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | app (cách 2) | `jdbc:postgresql://localhost:5432/carenest`, `carenest`, `carenest` | Phải khớp với `POSTGRES_*` |
 | `SERVER_PORT` | compose: port host · cách 2: port app | `8080` | Cùng tên nhưng hai nghĩa khác nhau |
 | `API_PREFIX` | app | `/api` | Map vào `carenest.api.prefix` (`WebMvcConfig`) |
+| `KEYCLOAK_*`, `KC_BOOTSTRAP_ADMIN_*`, `CARENEST_CORS_ALLOWED_ORIGINS` | app + compose | xem `.env.example` | Issuer/JWKS/audience, admin client cấp tài khoản — `docs/system/KEYCLOAK.md` |
 
 Cấu hình cố định khác:
 
-- `ddl-auto: validate`: schema chỉ đổi qua Flyway migration trong `src/main/resources/db/migration` (hiện trống). Migration đã commit thì không sửa, tạo migration mới.
+- `ddl-auto: validate`: schema chỉ đổi qua Flyway migration trong `src/main/resources/db/migration` (V1–V3: tài khoản, cơ cấu trường, trẻ). Migration đã commit thì không sửa, tạo migration mới.
 - Actuator chỉ mở endpoint `health`.
 - Upload tối đa 5MB/file, 10MB/request.
 
@@ -135,6 +156,8 @@ Cấu hình cố định khác:
 
 - `CareNestApplicationTests` khởi động toàn bộ context với PostgreSQL thật qua Testcontainers; tự skip khi Docker không chạy.
 - `ResponseContractTest` khóa format response `{code, desc, data}` cho thành công, validation, 404/405/415/500.
+- `security/authorization/*PolicyTest`, `ScopeQueryIntegrationTest` (PostgreSQL thật): phân quyền theo campus/lớp/trẻ; `ControllerSecurityCoverageTest` bắt mọi handler có `@PreAuthorize`.
+- Cổng đầy đủ trước khi báo xong: `node scripts/verify.mjs` (test + ArchUnit + snapshot OpenAPI + Spotless).
 
 Chiến lược test và các kịch bản bắt buộc: [`docs/quality/TEST_STRATEGY.md`](docs/quality/TEST_STRATEGY.md).
 
@@ -210,12 +233,13 @@ Repo có bộ tài liệu riêng cho Claude Code và Codex. Agent bắt đầu t
 Theo [`docs/context/CURRENT_STATE.md`](docs/context/CURRENT_STATE.md):
 
 - **Đã có:** cấu trúc package, response/exception chuẩn, prefix API cấu hình được, OpenAPI, Docker Compose, tài liệu nghiệp vụ và kiến trúc bản đầu.
-- **Chưa có:** authentication/authorization (team đang chốt phương án), schema/migration nghiệp vụ, OpenAPI export, hạ tầng deploy.
+- **Đã có thêm:** xác thực Keycloak (ADR-0011), phạm vi campus/lớp/trẻ, cấp/khóa tài khoản, migration V1–V3, snapshot OpenAPI `docs/api/openapi.yaml`.
+- **Chưa có:** API quản lý phân công/liên kết phụ huynh (hiện chỉ có seed dev), nghiệp vụ điểm danh trở đi, hạ tầng deploy.
 
 Thứ tự triển khai:
 
 1. Nền móng: **xong**.
-2. Đăng nhập và phạm vi: user/role, phân công điểm trường/lớp, liên kết phụ huynh–trẻ: **kế tiếp**.
+2. Đăng nhập và phạm vi: user/role, phân công điểm trường/lớp, liên kết phụ huynh–trẻ: xác thực + phạm vi **xong** (`feature/authentication`, chờ merge); API quản lý phân công/liên kết chưa làm.
 3. Điểm danh → BGH xác nhận số suất → bếp.
 4. Hồ sơ trẻ: quan sát, sức khỏe, chia sẻ phụ huynh, audit, lịch sử.
 5. Mở rộng: sự cố cơ sở vật chất, thông báo, thực đơn; AI sau khi dữ liệu nền sẵn sàng.

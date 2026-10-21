@@ -22,6 +22,7 @@ public enum ApiCode {
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed"),
     /** Trùng dữ liệu hoặc sai trạng thái nghiệp vụ (vd. số suất ăn đã được xác nhận). */
     CONFLICT(HttpStatus.CONFLICT, "Conflict"),
+    PRECONDITION_REQUIRED(HttpStatus.PRECONDITION_REQUIRED, "Password change required"),
     PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "File too large"),
     UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type"),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error"),

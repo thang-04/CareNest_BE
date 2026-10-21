@@ -1,13 +1,151 @@
 # Auth Contract
 
-> **Status: CHƯA CÓ NỘI DUNG — không dùng làm nguồn.** Cơ chế xác thực chưa chốt. Agent không tự chọn JWT/session; hỏi hoặc đề xuất ADR.
+> Status: **ĐANG TRIỂN KHAI** (ADR-0011). Phần "Đã có" dùng được làm nguồn; phần "Sắp có" sẽ chốt khi endpoint được implement. Hướng dẫn vận hành Keycloak: `docs/system/KEYCLOAK.md`.
 
-Đã biết: RBAC + access scope (`docs/architecture/SECURITY.md`, ADR-0003); client Web + Mobile cùng dùng.
+## Cơ chế (đã chốt)
 
-Điền khi chốt:
+Web React dùng gateway opt-in theo ADR-0013 (`docs/decisions/ADR-0013-react-auth-gateway.md`). Backend Phase 2 đã có source API/session/OTP; xem trạng thái kiểm chứng trong plan. Tích hợp FE thuộc Phase 3, chưa thực hiện. Mobile và Web legacy tiếp tục PKCE. Hướng dẫn extension: `docker/keycloak/auth/README.md`.
 
-- [ ] Cơ chế: session cookie / JWT access + refresh
-- [ ] Endpoint: login, refresh, logout, me (thông tin user + role + scope tóm tắt)
-- [ ] Thời hạn token, thu hồi
-- [ ] Đăng nhập phụ huynh (tài khoản cấp bởi trường? SĐT?)
-- [ ] Lưu token phía Web/Mobile (ghi ở FE/APP `AUTH_FLOW.md`)
+- **Keycloak** (realm `carenest`) xác minh mật khẩu và phát token. Mobile/Web legacy dùng **OAuth2 Authorization Code + PKCE (S256)**; gateway React nhận mật khẩu tại backend qua confidential client riêng, không đưa client secret ra browser.
+- Client gửi `Authorization: Bearer <access_token>` cho mọi API (trừ `/actuator/health`, Swagger).
+- Access token: JWT RS256, thời hạn 5 phút, `aud` chứa `carenest-api`, `sub` = id user Keycloak, role ở `realm_access.roles`.
+- Refresh token PKCE do client giữ. Riêng Web gateway (ADR-0015): refresh token Keycloak mã hóa AES-GCM nằm trong cookie HttpOnly, DB không lưu phiên; Keycloak giữ phiên. Refresh token xoay vòng, JavaScript không đọc được.
+- Logout: client gọi `end_session` của Keycloak (Web) / `logout` + xóa token (Mobile). Access token đã cấp còn hiệu lực tới khi hết hạn (≤ 5 phút).
+
+| Client Keycloak | Dùng cho | Loại | Redirect |
+| --- | --- | --- | --- |
+| `carenest-web` | CareNest_FE | public + PKCE | `${CARENEST_WEB_ORIGIN}/*` |
+| `carenest-mobile` | CareNest_APP | public + PKCE | `${CARENEST_MOBILE_REDIRECT_URI}` (mặc định `carenest://oauth/callback`) |
+
+Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-known/openid-configuration`.
+
+## API React auth gateway (opt-in, Phase 2)
+
+`CARENEST_AUTH_ENABLED=false` là mặc định. Khi bật, backend yêu cầu đủ gateway secret, hai khóa base64 độc lập 32 byte, origin chính xác và cấu hình cookie phù hợp HTTPS. React gửi `credentials: include` cho `/auth/**`, không gửi Bearer tại các route này. API nghiệp vụ vẫn dùng Bearer và không xác thực bằng cookie.
+
+1. Gọi `GET {API_PREFIX}/auth/csrf` lấy `data.token` và `data.headerName=X-XSRF-TOKEN`. Browser giữ cookie `XSRF-TOKEN` path `{API_PREFIX}/auth`; React giữ token CSRF từ response body vì cookie path này không đọc được từ route React `/`.
+2. Mọi POST `/auth/**` bên dưới phải gửi header `X-XSRF-TOKEN` khớp cookie, kể cả request có thêm Bearer. Thiếu/sai CSRF trả 403 envelope.
+3. Sau login/refresh, access token chỉ lưu trong bộ nhớ React; gửi Bearer cho `/accounts/me`, `/me/password` và API nghiệp vụ. Không lưu access/refresh token vào localStorage/sessionStorage.
+
+| Method/path (sau API prefix) | Body | Response data / kết quả |
+| --- | --- | --- |
+| GET `/auth/csrf` | — | `{token,headerName}` |
+| POST `/auth/login` | `{identifier,password,remember}` | 200 `{accessToken,expiresAt,passwordChangeRequired:false,account}` + cookie phiên; identifier là username hoặc email |
+| POST `/auth/login` (mật khẩu tạm đã xác minh) | như trên | 428 `{expiresAt,passwordChangeRequired:true,changeToken}`; không phát cookie phiên/access/refresh token |
+| POST `/auth/refresh` | tùy chọn `{force:false}` | `{accessToken,expiresAt}` + `Set-Cookie` mới; đọc cookie `CARENEST_SESSION`, gộp request đồng thời; 401 kèm xóa cookie; `force` không còn tác dụng |
+| POST `/auth/logout` | — | 200, xóa cookie, best-effort logout Keycloak; cookie thiếu/hỏng vẫn 200 |
+| POST `/auth/password/forgot` | `{email}` | `{requestId,expiresAt,resendAvailableAt}`; cùng status/shape cho email không tồn tại, inactive hoặc bị giới hạn |
+| GET `/auth/password/otp/{requestId}` | — | metadata cùng shape, không chứa email/OTP |
+| POST `/auth/password/otp/{requestId}/resend` | — | metadata; khoảng cách 60 giây |
+| POST `/auth/password/otp/{requestId}/verify` | `{otp}` | `{resetToken,expiresAt}`; OTP một lần |
+| POST `/auth/password/reset` | `{token,newPassword,confirmPassword}` | token = `changeToken` hoặc `resetToken`; thành công 200, đăng nhập lại |
+| PUT `/me/password` (Bearer bắt buộc) | `{currentPassword,newPassword,confirmPassword}` | 200; xác minh mật khẩu hiện tại + đúng JWT subject; thu hồi session |
+
+Mọi response thành công dùng `{code,desc,data}` và `Cache-Control: no-store`. Cookie phiên `CARENEST_SESSION`: HttpOnly, SameSite=Lax, path `{API_PREFIX}/auth`, Secure theo cấu hình; remember bật thì Max-Age tối đa 10 giờ, tắt thì session cookie. Idle 30 phút và trần 10 giờ do Keycloak áp (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`); server chặn thêm absolute 10 giờ từ `loginAt` trong cookie. Refresh trả 503 khi provider tạm lỗi thì cookie được giữ, client thử lại được.
+
+OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
+
+Recovery/current-password dùng assertion HMAC hạn 60 giây, nonce một lần, ràng buộc realm/subject/issuer/audience/purpose để đổi lấy capability provider 10 phút. Không có API đổi mật khẩu chỉ bằng userId. Native MFA/required actions không được bỏ qua; gateway hiện chưa có UI nhận TOTP, tài khoản yêu cầu TOTP sẽ bị từ chối.
+
+Khi gateway bật, cleanup chạy mỗi60 giây: xóa session/quota hết hạn; challenge được dọn sau1 giờ kể từ expiresAt để vẫn giữ metadata/cooldown trong cửa sổ recovery. Tắt feature dừng cleanup; cần bật lại hoặc vận hành retention riêng nếu ngừng gateway lâu dài.
+
+Lỗi gateway: 401 sai credentials/phiên hết hạn; 403 chưa provision/inactive/CSRF; 404 challenge không hợp lệ; 409 cooldown/hết lượt; 428 đổi mật khẩu lần đầu; 503 provider/storage không khả dụng. Không trả OTP, provider proof, refresh token hoặc lỗi nội bộ ra client. Access JWT đã cấp có thể còn hiệu lực tối đa 5 phút sau logout/đổi mật khẩu; ACTIVE check tại server tiếp tục áp dụng.
+
+## Lỗi (đã có)
+
+| Tình huống | HTTP / `code` | `desc` |
+| --- | --- | --- |
+| Thiếu token, sai chữ ký, hết hạn, sai issuer/audience | 401 | `Unauthorized` (kèm header `WWW-Authenticate: Bearer`) |
+| Role không đủ (`@PreAuthorize`) | 403 | `Forbidden` |
+| Không kiểm được token vì Keycloak tạm không khả dụng | 503 | `Authentication service unavailable` — báo thử lại, **không** về màn hình đăng nhập |
+
+Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất bại ⇒ về màn hình đăng nhập.
+
+## Tài khoản hiện tại (đã có)
+
+`GET {API_PREFIX}/accounts/me` — mọi user đã đăng nhập:
+
+```json
+{ "code": 200, "desc": "Get my account success",
+  "data": { "userId": 12, "username": "teacher.a", "fullName": "...", "email": null, "roles": ["TEACHER"],
+            "assignments": [ { "staffRole": "TEACHER", "campusId": null, "classroomId": 3,
+                               "validFrom": "2026-09-01", "validTo": null } ],
+            "childIds": [] } }
+```
+
+- `assignments`: phân công **đang hiệu lực hôm nay** và khớp role trong token (`staffRole` PRINCIPAL: cả hai id null; VICE_PRINCIPAL/KITCHEN_STAFF: `campusId`; TEACHER: `classroomId`).
+- `childIds`: trẻ liên kết với tài khoản (chỉ khi có role PARENT).
+
+| Tình huống | HTTP / `code` | `desc` |
+| --- | --- | --- |
+| Có tài khoản Keycloak nhưng chưa có hồ sơ CareNest | 403 | `Account is not provisioned` |
+| Tài khoản CareNest bị khóa (token còn hạn vẫn bị chặn) | 403 | `Account is inactive` |
+
+Hai lỗi trên áp dụng cho **mọi** API dưới `{API_PREFIX}` (không riêng `/accounts/me`).
+
+`roles` là role toàn cục (dùng ẩn/hiện menu). FE/APP không tự quyết quyền: BE kiểm scope ở từng API.
+
+## Phân quyền theo phạm vi (đã có)
+
+API nhận id (trẻ, lớp, campus) kiểm hai lớp: role (`@PreAuthorize`) rồi phạm vi (phân công/liên kết còn hiệu lực). **Ngoài phạm vi và id không tồn tại cùng trả 403 với cùng `desc`** — client không phân biệt được hai trường hợp (chống dò id). 404 chỉ xảy ra với người có phạm vi.
+
+`GET {API_PREFIX}/children/{childId}` — role TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT:
+
+```json
+{ "code": 200, "desc": "Get child profile success",
+  "data": { "id": 2, "fullName": "...", "dateOfBirth": "2022-03-15", "classroomId": 1 } }
+```
+
+| Tình huống | HTTP / `code` | `desc` |
+| --- | --- | --- |
+| Role KITCHEN_STAFF, ADMIN | 403 | `Forbidden` |
+| Trẻ ngoài phạm vi hoặc id không tồn tại | 403 | `You do not have access to this child` |
+| `childId` không phải số | 400 | `Malformed request` |
+
+`classroomId` = lớp trẻ đang học hôm nay (`null` nếu không có enrollment hiện tại — khi đó chỉ phụ huynh liên kết xem được).
+
+## Cấp / khóa tài khoản (đã có, chỉ ADMIN)
+
+`POST {API_PREFIX}/accounts`
+
+```json
+{ "username": "teacher.c", "fullName": "Giáo viên C", "email": "teacher.c@example.test",
+  "role": "TEACHER", "temporaryPassword": "..." }
+```
+
+- `username`: 3–100 ký tự `[A-Za-z0-9._-]`, lưu chữ thường; `fullName` bắt buộc; `email` tùy chọn; `role` ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT.
+- `temporaryPassword` (8–128 ký tự): bắt buộc trừ khi có `email` và server bật gửi email đặt mật khẩu. Người dùng phải đổi ở lần đăng nhập đầu. CareNest không lưu/log mật khẩu.
+- 201: `{ userId, username, fullName, email, role, status: "ACTIVE", setupEmailSent }`.
+
+`PATCH {API_PREFIX}/accounts/{userId}/status` — body `{ "status": "INACTIVE" | "ACTIVE" }` ⇒ 200 `{ userId, username, fullName, email, status }`. INACTIVE có hiệu lực ngay (kể cả token còn hạn) và hủy session Keycloak.
+
+| Tình huống | HTTP / `code` | `desc` |
+| --- | --- | --- |
+| Không phải ADMIN | 403 | `Forbidden` |
+| Body sai | 400 | `Invalid request data` (+ lỗi theo field) |
+| `role` = ADMIN | 400 | `This role cannot be created via API` |
+| Thiếu mật khẩu tạm khi không gửi được email | 400 | `Temporary password is required when a setup email cannot be sent` |
+| Username đã có trong CareNest | 409 | `Username already exists` |
+| Username/email đã có bên Keycloak | 409 | `Username or email already exists` |
+| Keycloak từ chối dữ liệu (mật khẩu vi phạm policy, vd. trùng username; họ tên có ký tự như `( ) < > & /`) | 400 | `Account data rejected by identity provider (check password policy and full name)` |
+| Keycloak không khả dụng / chưa cấu hình | 503 | `Identity provider unavailable` |
+| Khóa: `userId` là chính người gọi (AUTH-09) | 400 | `You cannot change the status of your own account` |
+| Khóa: `userId` không tồn tại | 404 | `Account not found` |
+| Khóa: đã lưu CareNest nhưng Keycloak lỗi | 503 | `Account status saved but identity provider sync failed, please retry` |
+
+## Tác động FE/APP (BE không sửa repo khác)
+
+Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
+
+- Web Phase 3: ghép các màn hình login/forgot-password/verify-otp/reset-password/change-password và AuthContext/HTTP client vào gateway phía trên. Public client `carenest-web` vẫn giữ PKCE cho legacy; Mobile `carenest-mobile` tiếp tục public + PKCE S256, cùng issuer/audience.
+- Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.
+- 403 `Account is not provisioned` / `Account is inactive` ⇒ báo liên hệ nhà trường, không retry. 403 khác ⇒ báo không có quyền. 503 `Authentication service unavailable` ⇒ báo thử lại sau.
+- Sau đăng nhập gọi `GET /accounts/me` lấy `roles`, `assignments`, `childIds` để dựng menu/màn hình; ẩn nút ở UI không phải phân quyền (AUTH-07).
+- Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
+- Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
+- Types: sinh lại từ `docs/api/openapi.yaml`.
+
+## Còn chờ
+
+- Phụ huynh đăng nhập bằng gì (username trường cấp / SĐT / email).
+- Mobile có dùng `offline_access` (phiên dài) không; lưu token ở secure storage (APP `AUTH_FLOW.md`).

@@ -8,6 +8,7 @@ target/
 
 # Claude Code (cấu hình cá nhân)
 .claude/settings.local.json
+.claude/agent-memory/
 
 # IDE
 .idea/
@@ -24,3 +25,4 @@ Thumbs.db
 
 # Logs
 *.log
+*.txt

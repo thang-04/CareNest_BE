@@ -1,6 +1,6 @@
 # Module — child
 
-Feature: `child` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thiết kế
+Feature: `child` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đang làm (bảng scope)
 
 ## Mục đích
 Hồ sơ gốc của trẻ: thông tin cơ bản, lớp đang học theo thời gian, phụ huynh, dị ứng.
@@ -20,13 +20,17 @@ AUTH-04, HLT-06, NUT-09.
 - **Không** đọc ngược health/learning (tránh cycle).
 
 ## API & bảng
-Chưa có. Query cần thiết: `childrenInClass(classroomId, date)`, `campusOfChild(childId, date)`, `guardiansOf(childId)`, `childrenOfGuardian(userId)`, `allergySummary(campusId|classroomId)`.
+- Bảng: `children` (khung tối thiểu), `enrollments`, `guardian_child_links` (`V3__create_children.sql`, `docs/database/DATA_DICTIONARY.md`).
+- API: `GET /children/{childId}` (`ChildController` → `ChildService.getChildProfile`: `ChildAccessPolicy.checkCanViewChild` trước khi load; DTO `ChildProfileResponse` chỉ id, họ tên, ngày sinh, lớp hiện tại).
+- Service cho kiểm tra scope: `EnrollmentService.findActiveClassroomIds(childId, date)`, `GuardianChildLinkService.isGuardianOf(userId, childId)`, `findChildIdsOfGuardian(userId)`. Không gọi ngược `security/authorization`.
+- Query còn cần khi làm nghiệp vụ: `childrenInClass(classroomId, date)`, `guardiansOf(childId)`, `childrenOfGuardian(userId)`, `allergySummary(campusId|classroomId)`.
 
 ## PENDING
 P-17 (ai khai báo/xác nhận dị ứng).
 
 ## Known pitfalls
 - Campus của trẻ suy từ Enrollment tại ngày cụ thể; trẻ chuyển lớp/campus giữa năm ⇒ dữ liệu lịch sử phải theo enrollment tại ngày đó.
+- DB chưa chặn enrollment chồng thời gian; khi viết API ghi enrollment phải kiểm ở service.
 - Dữ liệu trẻ là nhạy cảm: không đưa vào log/test fixture thật.
 
 ## Related issues

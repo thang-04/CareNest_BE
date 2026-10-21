@@ -29,7 +29,7 @@ Repo này là **source of truth** của CareNest: business rule, domain, kiến 
 
 ## Stack
 
-Java 21, Spring Boot 4.1.1, Maven (`mvnw`), PostgreSQL 17, Spring Data JPA, Flyway, springdoc. Auth chưa chốt. Chi tiết: guide mục 2; chạy/test: `README.md`.
+Java 21, Spring Boot 4.1.1, Maven (`mvnw`), PostgreSQL 17, Spring Data JPA, Flyway, springdoc. Auth: Keycloak + Resource Server (ADR-0011). Chi tiết: guide mục 2; chạy/test: `README.md`.
 
 ## Quy ước log controller/service (chỉ Backend)
 
@@ -91,7 +91,7 @@ G94-182: Add lesson plan validation
 
 - Chỉ sửa trong phạm vi task; KHÔNG xóa/đổi tên/di chuyển file ngoài phạm vi khi chưa hỏi.
 - KHÔNG sửa repo `CareNest_FE`, `CareNest_APP` trừ khi user cho phép rõ trong tin nhắn hiện tại (vd. đồng bộ tri thức theo `update-knowledge.md`).
-- KHÔNG tự thêm thư viện/hạ tầng mới khi team chưa chốt (vd. Spring Security/JWT, Redis, message broker).
+- KHÔNG tự thêm thư viện/hạ tầng mới khi team chưa chốt (vd. Redis, message broker).
 
 ### Giao tiếp
 

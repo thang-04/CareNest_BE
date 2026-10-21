@@ -4,10 +4,6 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Getter;
 import org.springframework.http.ResponseEntity;
 
-/**
- * Response chung {@code {code, desc, data}}: HTTP status lấy từ {@link ApiCode}, {@code data} luôn có mặt kể cả null.
- * Service không dùng class này; chỉ controller và GlobalExceptionHandler.
- */
 @Getter
 @JsonInclude(JsonInclude.Include.ALWAYS)
 public class ResponseJson<T> {

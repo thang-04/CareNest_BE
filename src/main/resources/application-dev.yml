@@ -1,0 +1,4 @@
+# Profile dev/demo: nạp thêm dữ liệu giả (user dev khớp Keycloak realm import, campus, lớp, trẻ, phân công).
+spring:
+  flyway:
+    locations: classpath:db/migration,classpath:db/dev

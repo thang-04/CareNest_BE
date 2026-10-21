@@ -1,0 +1,21 @@
+# Opt-in; base Compose and its existing realm/volumes remain unchanged.
+services:
+  keycloak:
+    image: carenest-keycloak-auth:26.8.0
+    build:
+      context: ./docker/keycloak
+      dockerfile: auth/Dockerfile
+    environment:
+      KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET: ${KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET:?Set a random gateway secret before using compose.auth.yaml}
+      KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET:-}
+      CARENEST_AUTH_WEB_ORIGIN: ${CARENEST_AUTH_WEB_ORIGIN:-http://localhost:5173}
+    volumes:
+      - ./docker/keycloak/auth/generated/carenest-realm.json:/opt/keycloak/data/import/carenest-realm.json:ro
+  api:
+    environment:
+      CARENEST_AUTH_ENABLED: ${CARENEST_AUTH_ENABLED:-false}
+      CARENEST_AUTH_ENCRYPTION_KEY: ${CARENEST_AUTH_ENCRYPTION_KEY:-}
+      KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET:-}
+      KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET: ${KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET}
+      CARENEST_AUTH_SECURE_COOKIES: ${CARENEST_AUTH_SECURE_COOKIES:-true}
+      CARENEST_AUTH_WEB_ORIGIN: ${CARENEST_AUTH_WEB_ORIGIN:-http://localhost:5173}

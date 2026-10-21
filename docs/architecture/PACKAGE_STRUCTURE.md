@@ -13,8 +13,8 @@ com.carenest
 ├── entity/<feature>/       # JPA entity — không trả qua API
 ├── dto/<feature>/          # request/response DTO (dto/common: PageResponse, FieldErrorResponse)
 ├── mapper/<feature>/       # Entity <-> DTO
-├── integration/            # interface + adapter AI (AiClient), storage (StorageService), notification
-├── security/               # xác thực, kiểm tra quyền (chưa triển khai — auth chưa chốt)
+├── integration/            # interface + adapter AI (AiClient), storage (StorageService), notification, keycloak (Admin API)
+├── security/               # Resource Server Keycloak (ADR-0011): role converter, 401/403 handler; authorization/ = policy scope
 ├── config/                 # WebMvcConfig (prefix API), OpenApiConfig
 ├── exception/              # GlobalException, GlobalExceptionHandler
 ├── utils/                  # ApiCode, ResponseJson, Constants (hằng dùng chung), enums/ (enum dùng chung)
@@ -29,7 +29,7 @@ Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (
 
 | Module (docs) | Feature sub-package | Ghi chú |
 | --- | --- | --- |
-| identity-access | `account` (PROPOSED) + `security/` | Auth chưa chốt |
+| identity-access | `account` + `security/` + `integration/keycloak/` | Auth: Keycloak + Resource Server (ADR-0011); cấp tài khoản qua Keycloak Admin API |
 | school-structure | `organization` (PROPOSED) | Campus, Class, StaffAssignment |
 | child | `child` | |
 | attendance | `attendance` | Gồm đơn nghỉ |

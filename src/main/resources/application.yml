@@ -12,6 +12,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+    # Seed dev (R__ trong db/dev) không có khi chạy không profile dev: không coi là lỗi validate
+    ignore-migration-patterns: "*:future,repeatable:missing"
   servlet:
     multipart:
       max-file-size: 5MB
@@ -24,9 +26,43 @@ carenest:
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}
+  # Múi giờ trường: xác định "hôm nay" khi xét phân công/enrollment còn hiệu lực
+  time-zone: ${CARENEST_TIME_ZONE:Asia/Ho_Chi_Minh}
+  auth:
+    enabled: ${CARENEST_AUTH_ENABLED:false}
+    encryption-key: ${CARENEST_AUTH_ENCRYPTION_KEY:}
+    assertion-secret: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET:}
+    client-secret: ${KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET:}
+    secure-cookies: ${CARENEST_AUTH_SECURE_COOKIES:true}
+    allowed-origins: ${CARENEST_AUTH_WEB_ORIGIN:http://localhost:5173}
+  security:
+    jwt:
+      # iss phải khớp tuyệt đối với token Keycloak phát hành (KC_HOSTNAME); JWKS có thể lấy qua địa chỉ nội bộ
+      issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/carenest}
+      jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/carenest/protocol/openid-connect/certs}
+      audience: ${KEYCLOAK_AUDIENCE:carenest-api}
+    cors:
+      # Danh sách origin, phân tách bằng dấu phẩy; không dùng "*"
+      allowed-origins: ${CARENEST_CORS_ALLOWED_ORIGINS:http://localhost:3000}
+  keycloak:
+    # Keycloak Admin REST API (cấp/khóa tài khoản) qua service account của client carenest-backend
+    base-url: ${KEYCLOAK_BASE_URL:http://localhost:8180}
+    realm: ${KEYCLOAK_REALM:carenest}
+    admin-client-id: ${KEYCLOAK_ADMIN_CLIENT_ID:carenest-backend}
+    # Không có giá trị mặc định: thiếu secret thì API cấp tài khoản trả 503, các API khác vẫn chạy
+    admin-client-secret: ${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+    # Bật khi đã cấu hình SMTP cho realm: gửi email đặt mật khẩu cho tài khoản mới có email
+    actions-email-enabled: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:false}
+    connect-timeout: 3s
+    read-timeout: 5s
 
 management:
   endpoints:
     web:
       exposure:
         include: health
+
+logging:
+  level:
+    # RestClient ở DEBUG in cả body (client_secret, mật khẩu tạm): giữ INFO kể cả khi bật DEBUG cho org.springframework.web
+    org.springframework.web.client: INFO

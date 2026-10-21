@@ -2,6 +2,7 @@ package com.carenest.contract;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.nio.charset.StandardCharsets;
@@ -68,7 +69,29 @@ class OpenApiSnapshotTest {
                 .isEqualTo(normalize(Files.readString(SNAPSHOT, StandardCharsets.UTF_8)));
     }
 
+    // Snapshot bằng nhau chưa chứng minh status đúng: FE sinh client theo mã thành công trong OpenAPI
+    @Test
+    void createAccountIsDocumentedWithActualCreatedStatus() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/accounts'].post.responses['201']")
+                        .exists())
+                .andExpect(jsonPath("$.paths['/api/accounts'].post.responses['200']")
+                        .doesNotExist());
+    }
+
     private static String normalize(String yaml) {
         return yaml.replace("\r\n", "\n").stripTrailing() + "\n";
+    }
+
+    @Test
+    void gatewayDocumentationDoesNotRequireBearerOrExposeInternalCsrfArgument() throws Exception {
+        mockMvc.perform(get("/v3/api-docs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.security").isArray())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.security").isEmpty())
+                .andExpect(jsonPath("$.paths['/api/auth/csrf'].get.parameters").doesNotExist())
+                .andExpect(jsonPath("$.paths['/api/auth/login'].post.responses['428']")
+                        .exists());
     }
 }

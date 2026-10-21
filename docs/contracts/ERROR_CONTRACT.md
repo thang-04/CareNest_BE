@@ -20,6 +20,8 @@ Mọi response (thành công hay lỗi):
 
 Không tự đặt mã số riêng; chỉ thêm `ApiCode` khi cần HTTP status chưa có — đổi contract ⇒ hỏi nhóm + nêu tác động FE/APP.
 
+ADR-0013 bổ sung `PRECONDITION_REQUIRED 428` cho Web gateway: mật khẩu tạm đã xác minh cần đổi lần đầu; `data` chỉ chứa challenge opaque và hạn dùng, không có access/refresh token. FE xử lý 428 bằng màn hình đổi mật khẩu; Mobile PKCE không dùng endpoint này.
+
 ## Dùng theo tình huống nghiệp vụ
 
 | Tình huống | ApiCode | Rule |
@@ -29,4 +31,4 @@ Không tự đặt mã số riêng; chỉ thêm `ApiCode` khi cần HTTP status 
 | AI không khả dụng / quá thời gian | SERVICE_UNAVAILABLE / GATEWAY_TIMEOUT | AI-03 |
 | Upload quá cỡ / sai loại | PAYLOAD_TOO_LARGE / UNSUPPORTED_MEDIA_TYPE | — |
 
-Không trả stack trace, tên class, SQL. 401/403 từ Spring Security dùng handler riêng ghi cùng format (guide 8.5, khi có auth).
+Không trả stack trace, tên class, SQL. 401 (`desc` `Unauthorized`, kèm `WWW-Authenticate: Bearer`), 403 (`Forbidden`) và 503 (`Authentication service unavailable` — không lấy được key kiểm token từ Keycloak) từ Spring Security ghi cùng format (guide 8.5, `docs/contracts/AUTH_CONTRACT.md`).
