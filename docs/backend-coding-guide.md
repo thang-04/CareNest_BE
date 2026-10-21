@@ -18,7 +18,7 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 
 | Trong v1 | Không thuộc v1 |
 | --- | --- |
-| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; soạn và duyệt giáo án (GoKids giữ); kho/NCC (OPEN — ADR-0009); tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
+| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; kho/NCC (OPEN — ADR-0009); tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
 
 ## 2. Tech stack
 

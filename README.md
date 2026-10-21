@@ -20,7 +20,7 @@ Trường đang dùng song song PMS, GoKids, Zalo, sổ giấy và hệ thống 
 - **Hồ sơ trẻ:** sức khỏe định kỳ, quan sát và đánh giá hằng ngày, hồ sơ phát triển, chia sẻ thông tin được phép cho phụ huynh.
 - **AI chỉ hỗ trợ:** gợi ý thực đơn, diễn giải xu hướng sức khỏe, nháp nhận xét. AI tạo bản nháp, con người duyệt; hệ thống vẫn chạy đủ khi tắt AI.
 
-Ngoài phạm vi V1: multi-school / multi-tenant, chat thay Zalo, chẩn đoán y tế hoặc tâm lý, kế toán / payroll, quản lý vòng đời tài sản, soạn và duyệt giáo án. Scope đầy đủ: [`docs/context/PROJECT_CONTEXT.md`](docs/context/PROJECT_CONTEXT.md).
+Ngoài phạm vi V1: multi-school / multi-tenant, chat thay Zalo, chẩn đoán y tế hoặc tâm lý, kế toán / payroll, quản lý vòng đời tài sản. Scope đầy đủ: [`docs/context/PROJECT_CONTEXT.md`](docs/context/PROJECT_CONTEXT.md).
 
 ## Tech stack
 

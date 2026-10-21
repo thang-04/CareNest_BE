@@ -56,3 +56,4 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | 0013 | React-owned Web auth gateway (Direct Grant qua confidential client) | ACCEPTED |
 | 0014 | Service interface + Impl; enum/hằng dùng chung ở `utils/` | ACCEPTED |
 | 0015 | Phiên Web trong cookie mã hóa, Keycloak giữ phiên | ACCEPTED |
+| 0017 | Module education-plan: CareNest soạn/duyệt kế hoạch giáo dục | ACCEPTED |

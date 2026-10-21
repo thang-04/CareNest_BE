@@ -14,7 +14,7 @@ Module: learning-observation (đọc attendance, nutrition, health; dùng ai-ass
 
 AI/nhận xét thiếu ngữ cảnh nếu không biết hoạt động dự kiến, nội dung đã dạy, mục tiêu. Nguồn ActivityContext chưa chốt:
 A) CareNest quản lý tối thiểu lịch hoạt động tuần · B) import/sync từ GoKids · C) GV/admin nhập metadata cần thiết.
-Model `ActivityContext` thiết kế **không phụ thuộc nguồn** (`source = MANUAL | IMPORT | GOKIDS`). Không implement soạn/duyệt giáo án (OBS-08).
+Model `ActivityContext` thiết kế **không phụ thuộc nguồn** (`source = MANUAL | IMPORT | GOKIDS`). Soạn/duyệt kế hoạch giáo dục thuộc module education-plan (ADR-0017).
 
 ## Hồ sơ phát triển
 

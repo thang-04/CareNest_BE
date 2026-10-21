@@ -77,10 +77,26 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | OBS-05 | Summary: DRAFT → GV review/sửa → GV APPROVED → BGH xem. AI draft không tự thành đánh giá chính thức | CONFIRMED | Report 1 |
 | OBS-06 | Summary theo trẻ hằng **tuần** và **cuối kỳ** (GV soạn/duyệt → gửi BGH); tóm tắt lớp hằng ngày (FE-09). Có gửi phụ huynh không: PENDING P-12 | CONFIRMED (tuần + kỳ); phụ huynh: PENDING | Review 24/09 L102-107 (chỉ đạo giảng viên), Report 1 FE-09 |
 | OBS-07 | Nguồn ngữ cảnh hoạt động (nhập tối thiểu / import / GoKids) | OPEN (ADR-0006) | Review 24/09 |
-| OBS-08 | CareNest không soạn/nộp/duyệt giáo án (GoKids giữ) | CONFIRMED | Report 1 |
+| OBS-08 | ~~CareNest không soạn/nộp/duyệt giáo án (GoKids giữ)~~ — CareNest soạn và duyệt kế hoạch giáo dục, giáo án (nhóm EDU) | SUPERSEDED bởi EDU | Report 1; Tiền 22/10 |
 | OBS-09 | Biểu mẫu/chu kỳ assessment & follow-up | PENDING P-16b | — |
 | OBS-10 | Khen thưởng "phiếu bé ngoan" (tuần/tháng) và "bé ngoan toàn diện" dựa trên đánh giá hằng ngày; hệ thống chỉ gợi ý từ dữ liệu, GV/BGH quyết định | PROPOSED; tiêu chí PENDING P-11 | Review 24/09 L101, L310; Roadmap (Must) |
 | OBS-11 | Thuật ngữ: dùng "đánh giá" (assessment), không dùng "feedback" cho nhận xét trẻ | CONFIRMED | Review 24/09 L311-313 |
+
+## EDU — Kế hoạch giáo dục: mục tiêu năm học (module: education-plan)
+
+Kế hoạch năm làm theo nhóm tuổi, áp dụng toàn trường; luồng theo mẫu MN Thái Dương, không ký ảnh trong hệ thống (duyệt trong hệ thống, in ra ký tay).
+
+| ID | Rule | Status | Nguồn |
+| --- | --- | --- | --- |
+| EDU-01 | Mỗi (năm học, nhóm tuổi) có đúng 1 kế hoạch năm học | CONFIRMED | Tiền 22/10 |
+| EDU-02 | Người lập là Phó HT, hoặc Tổ trưởng của đúng nhóm tuổi đó; người lập là người soạn (owner) | CONFIRMED | Tiền 22/10 |
+| EDU-03 | Chỉ người soạn sửa khi Nháp/Bị trả lại; Phó HT sửa được khi Chờ Phó HT duyệt; đã ban hành thì khóa sửa | CONFIRMED | Tiền 22/10 |
+| EDU-04 | Tổ trưởng người soạn gửi Phó HT duyệt khi Nháp/Bị trả lại và có ≥1 mục tiêu (MT) | CONFIRMED | Tiền 22/10 |
+| EDU-05 | Phó HT ban hành kế hoạch đang chờ duyệt, hoặc ban hành luôn bản nháp do chính mình soạn; trả lại chỉ khi chờ duyệt và bắt buộc lý do | CONFIRMED | Tiền 22/10 |
+| EDU-06 | Xem: Phó HT, Hiệu trưởng toàn trường (Hiệu trưởng không xem Nháp); Tổ trưởng nhóm tuổi của mình; Giáo viên chỉ bản đã ban hành của nhóm tuổi các lớp mình dạy | CONFIRMED | Tiền 22/10 |
+| EDU-07 | Chỉ người soạn xóa được, và chỉ khi Nháp | CONFIRMED | Tiền 22/10 |
+| EDU-08 | Quyền kiểm tra theo mã `goals.view`, `goals.edit`, `goals.approve`; tạm gán theo role tại một chỗ, thay bằng phân quyền động khi BE có | CONFIRMED | Tiền 22/10 |
+| EDU-09 | MT đánh số 1..n liên tục cả năm theo thứ tự lĩnh vực và dòng; nội dung giáo dục được tích vào chủ đề | CONFIRMED | Tiền 14/10, 20/10 |
 
 ## FAC — Sự cố cơ sở vật chất (module: facility-issue)
 

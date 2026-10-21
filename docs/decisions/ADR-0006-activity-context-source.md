@@ -2,10 +2,10 @@
 
 - Status: **OPEN** — chờ khảo sát P-01
 - Date: 2026-10-03
-- Liên quan: OBS-07, OBS-08, module learning-observation
+- Liên quan: OBS-07, OBS-08 (SUPERSEDED), ADR-0017, module learning-observation
 
 ## Bối cảnh
-GoKids giữ soạn/nộp/duyệt giáo án (OBS-08, team chốt 02/10). Review 24/09: nếu đánh giá/AI không biết hoạt động dự kiến, nội dung đã dạy, mục tiêu ⇒ phân tích thiếu ngữ cảnh; giảng viên nghiêng về import nội dung bài/kế hoạch tuần từ GoKids (API) để GV không phải làm 2 nơi, phương án "chỉ mô tả ngắn" được coi là tạm được. Import về chỉ là dữ liệu tham chiếu, quản lý theo năm học, không duyệt lại trong CareNest.
+~~GoKids giữ soạn/nộp/duyệt giáo án (OBS-08, team chốt 02/10).~~ Từ 22/10 CareNest soạn và duyệt kế hoạch giáo dục (ADR-0017); ADR này chỉ còn câu hỏi ngữ cảnh hoạt động cho quan sát. Review 24/09: nếu đánh giá/AI không biết hoạt động dự kiến, nội dung đã dạy, mục tiêu ⇒ phân tích thiếu ngữ cảnh; giảng viên nghiêng về import nội dung bài/kế hoạch tuần từ GoKids (API) để GV không phải làm 2 nơi, phương án "chỉ mô tả ngắn" được coi là tạm được. Import về chỉ là dữ liệu tham chiếu, quản lý theo năm học, không duyệt lại trong CareNest.
 
 ## Phương án
 | Phương án | Mô tả | Ưu | Nhược |
@@ -16,7 +16,7 @@ GoKids giữ soạn/nộp/duyệt giáo án (OBS-08, team chốt 02/10). Review 
 
 ## Hướng thiết kế an toàn trong khi OPEN
 - Entity `ActivityContext` không phụ thuộc nguồn: `source = MANUAL | IMPORT | GOKIDS`, trường tối thiểu (lớp/nhóm tuổi, ngày/tuần, mô tả, mục tiêu).
-- Không xây chức năng soạn/duyệt giáo án dưới bất kỳ phương án nào.
+- ~~Không xây chức năng soạn/duyệt giáo án dưới bất kỳ phương án nào.~~ Bỏ 22/10: soạn/duyệt thuộc module education-plan (ADR-0017).
 - Đề xuất (chưa quyết): bắt đầu C, chuyển B nếu GoKids có export. Chỉ chốt sau P-01.
 
 ## Còn chờ
