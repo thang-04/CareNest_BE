@@ -167,3 +167,8 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Verify: FE `node scripts/verify.mjs` → `VERIFY PASS full`, `tests/education-plan/year-plan-api.test.mjs` 4/4; BE xem dòng verify cuối báo cáo.
 - Chưa kiểm chứng: FE chạy với BE thật (FE chưa có đăng nhập Keycloak, `/auth/login` vẫn PROPOSED); `PUT /education-plans/config` chưa có ở BE.
 
+### 2026-10-22 — Thu gọn schema (V10, Tiền chọn A)
+- Bỏ `edu_plan_approvals`, `edu_approval_steps`, cột `edu_year_plans.attachment_key`; `GET /education-plans/config` bỏ `yearSigners` (FE dùng người ký mặc định).
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 230 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; FE `VERIFY PASS full`
+- Commit: chưa commit
+

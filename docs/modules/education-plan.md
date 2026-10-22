@@ -11,8 +11,8 @@ Kế hoạch giáo dục theo mẫu MN Thái Dương. Phần đang làm là kế
 
 ## Owns
 - Kế hoạch năm: `EduYearPlan`, `EduGoalRow`, `EduGoalContent`, `EduTheme`, `EduBreak`, `EduContentThemeTick`.
-- Lịch sử và duyệt: `EduPlanEvent`, `EduPlanApproval`.
-- Danh mục: `EduDomain`, `EduExpectedResult`, `EduApprovalStep`.
+- Lịch sử: `EduPlanEvent` (người, thời điểm ban hành lưu ở `EduYearPlan.issuedBy/issuedAt`).
+- Danh mục: `EduDomain`, `EduExpectedResult`.
 - Sau này thêm: chủ đề nhánh, kế hoạch chủ đề, kế hoạch tuần/ngày.
 
 ## KHÔNG owns

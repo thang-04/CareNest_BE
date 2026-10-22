@@ -63,9 +63,6 @@ public class EduYearPlan {
     @Column(name = "issued_at")
     private Instant issuedAt;
 
-    @Column(name = "attachment_key")
-    private String attachmentKey;
-
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

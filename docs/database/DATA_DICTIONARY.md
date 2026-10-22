@@ -124,25 +124,24 @@ Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi m�
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
 
 ## Kế hoạch giáo dục năm học  (module: education-plan, scope: SCHOOL theo nhóm tuổi)
-Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
+Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V10__drop_unused_edu_plan_tables.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| edu_year_plans | code VARCHAR(30), school_year_id, age_group_id, title VARCHAR(150), description VARCHAR(500) (rỗng được), status, owner_id/owner_title, sent_by/sent_at, issued_by/issued_at, attachment_key, created_at, updated_at | UNIQUE code; UNIQUE (school_year_id, age_group_id); status ∈ DRAFT/PENDING_VP/REJECTED/APPROVED; FK user_accounts | EDU-01..05 |
+| edu_year_plans | code VARCHAR(30), school_year_id, age_group_id, title VARCHAR(150), description VARCHAR(500) (rỗng được), status, owner_id/owner_title, sent_by/sent_at, issued_by/issued_at (người, thời điểm ban hành), created_at, updated_at | UNIQUE code; UNIQUE (school_year_id, age_group_id); status ∈ DRAFT/PENDING_VP/REJECTED/APPROVED; FK user_accounts | EDU-01..05 |
 | edu_goal_rows | year_plan_id, domain_id, sort_order, kind, text, goal_no | kind ∈ sub/group/goal; `goal_no` có ⇔ kind = goal; xóa theo kế hoạch | EDU-09 |
 | edu_goal_contents | goal_row_id, sort_order, text | xóa theo dòng | — |
 | edu_themes | year_plan_id, sort_order, name VARCHAR(150), abbr VARCHAR(20) mặc định rỗng, start_date, end_date, festivals, note | Không ràng buộc viết tắt/ngày ở DB (V9): bản nháp lưu được khi còn soạn dở; service kiểm khi gửi/ban hành | EDU-04, EDU-05 |
 | edu_breaks | year_plan_id, sort_order, label VARCHAR(150), start_date, end_date | Không CHECK ngày (V9), như chủ đề | — |
 | edu_content_theme_ticks | content_id, theme_id | PK 2 cột; xóa theo nội dung/chủ đề | EDU-09 |
 | edu_plan_events | year_plan_id, action, action_label, actor_id, actor_name, actor_role_label, tone, note, occurred_at | tone ∈ '' / ok / warn / err (theo UI) | — |
-| edu_plan_approvals | year_plan_id, approver_id, approver_role, approver_title, approved_at, note | FK user_accounts | EDU-05 |
 | edu_domains | name VARCHAR(150), display_label, short_label, sort_order, active | UNIQUE name; seed 5 lĩnh vực chuẩn | EDU-09 |
 | edu_expected_results | age_group_id, domain_id, sub_domain, text, sort_order | chưa seed dữ liệu | — |
-| edu_approval_steps | PK (doc_type, step_order), approver_role | doc_type ∈ year/branch/theme_dossier; seed year: AGE_GROUP_TEAM_LEADER → VICE_PRINCIPAL (chỉ để in khối chữ ký) | — |
 
 Lệch so với CAN_DB (đã chốt 22/10):
 - Bỏ 2 cột `updated_at` lặp.
 - `users` → `user_accounts`.
 - Cột audit dùng `created_at`/`updated_at` như các bảng khác, thay cho `createdDate`/`updatedDate`/`createdBy`/`updatedBy`.
 - Thêm `sort_order` cho `edu_breaks`.
-- `edu_plan_events`/`edu_plan_approvals` chưa có cột `branch_plan_id`/`theme_plan_id`/`week_plan_id` (thêm khi có các bảng đó).
+- `edu_plan_events` chưa có cột `branch_plan_id`/`theme_plan_id`/`week_plan_id` (thêm khi có các bảng đó).
+- V10 (Tiền chốt 22/10): bỏ `edu_plan_approvals` (trùng `issued_by`/`issued_at` + sự kiện `ISSUE`), bỏ `edu_approval_steps` (thứ tự người ký khi in làm ở task Cấu hình kế hoạch), bỏ cột `attachment_key` (UI không có đính kèm).

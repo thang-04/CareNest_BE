@@ -711,10 +711,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolYearResponse"
-        yearSigners:
-          type: array
-          items:
-            type: string
     ExpectedResultResponse:
       type: object
       properties:

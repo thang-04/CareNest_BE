@@ -185,8 +185,7 @@ class EduYearPlanServiceIntegrationTest {
         YearPlanDetailResponse issued = service.issueYearPlan(vicePrincipal, plan.id(), "Đạt");
         assertThat(issued.status()).isEqualTo(EduPlanStatus.APPROVED);
         assertThat(issued.issued().userId()).isEqualTo(vicePrincipal.userId());
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_plan_approvals", Integer.class))
-                .isEqualTo(1);
+        assertThat(issued.issued().at()).isNotNull();
         assertApiError(() -> service.updateYearPlan(vicePrincipal, plan.id(), sampleRequest()), ApiCode.FORBIDDEN);
     }
 
