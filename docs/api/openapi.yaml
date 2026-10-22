@@ -64,6 +64,238 @@ paths:
           description: OK
       tags:
       - account-controller
+  /api/age-groups:
+    get:
+      operationId: getAgeGroups
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAgeGroupDetailResponse"
+          description: OK
+      tags:
+      - age-group-controller
+    post:
+      operationId: createAgeGroup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgeGroupRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAgeGroupDetailResponse"
+          description: Created
+      tags:
+      - age-group-controller
+  /api/age-groups/{ageGroupId}:
+    delete:
+      operationId: deleteAgeGroup
+      parameters:
+      - in: path
+        name: ageGroupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - age-group-controller
+    put:
+      operationId: updateAgeGroup
+      parameters:
+      - in: path
+        name: ageGroupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgeGroupRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAgeGroupDetailResponse"
+          description: OK
+      tags:
+      - age-group-controller
+  /api/age-groups/{ageGroupId}/team-leader-assignments/history:
+    get:
+      operationId: getTeamLeaderHistory
+      parameters:
+      - in: path
+        name: ageGroupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAssignmentHistoryResponse"
+          description: OK
+      tags:
+      - teacher-assignment-controller
+  /api/attendance/classes:
+    get:
+      operationId: getClasses
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAttendanceClassResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/attendance/day-info:
+    get:
+      operationId: getDayInfo
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayInfoResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/attendance/day-unlocks:
+    get:
+      operationId: getUnlocks
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListDayUnlockResponse"
+          description: OK
+      tags:
+      - attendance-controller
+    post:
+      operationId: unlockDay
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DayUnlockRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayUnlockResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/attendance/day-unlocks/{unlockId}/revoke:
+    post:
+      operationId: revokeUnlock
+      parameters:
+      - in: path
+        name: unlockId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayUnlockResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/attendance/summary:
+    get:
+      operationId: getSummary
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMultiSummary"
+          description: OK
+      tags:
+      - attendance-controller
   /api/auth/csrf:
     get:
       operationId: csrf
@@ -246,6 +478,121 @@ paths:
       security: []
       tags:
       - auth-controller
+  /api/campuses:
+    get:
+      operationId: getCampuses
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListCampusResponse"
+          description: OK
+      tags:
+      - campus-controller
+    post:
+      operationId: createCampus
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampusRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCampusResponse"
+          description: Created
+      tags:
+      - campus-controller
+  /api/campuses/{campusId}:
+    delete:
+      operationId: deleteCampus
+      parameters:
+      - in: path
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - campus-controller
+    get:
+      operationId: getCampusDetail
+      parameters:
+      - in: path
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCampusDetailResponse"
+          description: OK
+      tags:
+      - campus-controller
+    put:
+      operationId: updateCampus
+      parameters:
+      - in: path
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCampusResponse"
+          description: OK
+      tags:
+      - campus-controller
   /api/children/{childId}:
     get:
       operationId: getChildProfile
@@ -265,6 +612,308 @@ paths:
           description: OK
       tags:
       - child-controller
+  /api/children/{childId}/daily-health:
+    get:
+      operationId: getChildHistory
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildDay"
+          description: OK
+      tags:
+      - daily-health-controller
+  /api/classes:
+    post:
+      operationId: createClass
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassResponse"
+          description: Created
+      tags:
+      - class-controller
+  /api/classes/{classId}:
+    delete:
+      operationId: deleteClass
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - class-controller
+    put:
+      operationId: updateClass
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassResponse"
+          description: OK
+      tags:
+      - class-controller
+  /api/classes/{classId}/attendance:
+    get:
+      operationId: getClassAttendance
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
+    put:
+      operationId: saveClassAttendance
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveAttendanceRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveAttendanceResponse"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/classes/{classId}/attendance/summary:
+    get:
+      operationId: getClassSummary
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassSummary"
+          description: OK
+      tags:
+      - attendance-controller
+  /api/classes/{classId}/children/{childId}/daily-health:
+    get:
+      operationId: getClassChildHealth
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildDay"
+          description: OK
+      tags:
+      - daily-health-controller
+  /api/classes/{classId}/teacher-assignments/history:
+    get:
+      operationId: getClassTeacherHistory
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAssignmentHistoryResponse"
+          description: OK
+      tags:
+      - teacher-assignment-controller
+  /api/classes/{classId}/teachers:
+    put:
+      operationId: assignClassTeachers
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassTeachersRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassTeachersResponse"
+          description: OK
+      tags:
+      - teacher-assignment-controller
+  /api/daily-health-entries:
+    post:
+      operationId: addEntry
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DailyHealthRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDailyHealthEntryResponse"
+          description: Created
+      tags:
+      - daily-health-controller
+  /api/daily-health/overview:
+    get:
+      operationId: getOverview
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: ageGroupId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonOverview"
+          description: OK
+      tags:
+      - daily-health-controller
   /api/education-plans/config:
     get:
       operationId: getEduConfig
@@ -494,6 +1143,122 @@ paths:
           description: OK
       tags:
       - edu-year-plan-controller
+  /api/locations:
+    get:
+      operationId: getRooms
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListRoomResponse"
+          description: OK
+      tags:
+      - room-controller
+    post:
+      operationId: createRoom
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonRoomResponse"
+          description: Created
+      tags:
+      - room-controller
+  /api/locations/{roomId}:
+    delete:
+      operationId: deleteRoom
+      parameters:
+      - in: path
+        name: roomId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - room-controller
+    put:
+      operationId: updateRoom
+      parameters:
+      - in: path
+        name: roomId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonRoomResponse"
+          description: OK
+      tags:
+      - room-controller
+  /api/locations/{roomId}/status:
+    patch:
+      operationId: changeRoomStatus
+      parameters:
+      - in: path
+        name: roomId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoomStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonRoomResponse"
+          description: OK
+      tags:
+      - room-controller
   /api/me/password:
     put:
       operationId: changePassword
@@ -512,6 +1277,407 @@ paths:
           description: OK
       tags:
       - password-controller
+  /api/school-structure:
+    get:
+      operationId: getSchoolStructure
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSchoolStructureResponse"
+          description: OK
+      tags:
+      - class-controller
+  /api/school-years:
+    get:
+      operationId: getSchoolYears
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - PLANNED
+          - ACTIVE
+          - CLOSED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - school-year-controller
+    post:
+      operationId: createSchoolYear
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchoolYearRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: Created
+      tags:
+      - school-year-controller
+  /api/school-years/{schoolYearId}:
+    delete:
+      operationId: deleteSchoolYear
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - school-year-controller
+    get:
+      operationId: getSchoolYear
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - school-year-controller
+    put:
+      operationId: updateSchoolYear
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchoolYearRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - school-year-controller
+  /api/school-years/{schoolYearId}/activate:
+    post:
+      operationId: activateSchoolYear
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivateSchoolYearRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - year-transition-controller
+  /api/school-years/{schoolYearId}/classes/copy:
+    post:
+      operationId: copyClasses
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CopyClassesRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCopyClassesResponse"
+          description: OK
+      tags:
+      - class-controller
+  /api/school-years/{schoolYearId}/close:
+    post:
+      operationId: closeSchoolYear
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - school-year-controller
+  /api/school-years/{schoolYearId}/cutoff:
+    get:
+      operationId: getCutoff
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCutoffResponse"
+          description: OK
+      tags:
+      - attendance-cutoff-controller
+    put:
+      operationId: saveCutoff
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CutoffRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCutoffResponse"
+          description: OK
+      tags:
+      - attendance-cutoff-controller
+  /api/school-years/{schoolYearId}/placements:
+    get:
+      operationId: getPlacements
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPlacementBoardResponse"
+          description: OK
+      tags:
+      - year-transition-controller
+    put:
+      operationId: savePlacements
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SavePlacementsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMapStringInteger"
+          description: OK
+      tags:
+      - year-transition-controller
+  /api/school-years/{schoolYearId}/placements/auto:
+    post:
+      operationId: autoPlace
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AutoPlaceRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAutoPlaceResponse"
+          description: OK
+      tags:
+      - year-transition-controller
+  /api/school-years/{schoolYearId}/readiness:
+    get:
+      operationId: getReadiness
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearReadinessResponse"
+          description: OK
+      tags:
+      - year-transition-controller
+  /api/teacher-assignments:
+    get:
+      operationId: getTeacherAssignments
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonTeacherAssignmentResponse"
+          description: OK
+      tags:
+      - teacher-assignment-controller
+  /api/team-leader-assignments:
+    get:
+      operationId: getTeamLeaders
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonTeamLeaderResponse"
+          description: OK
+      tags:
+      - teacher-assignment-controller
+    put:
+      operationId: assignTeamLeader
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamLeaderRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonTeamLeaderResponse"
+          description: OK
+      tags:
+      - teacher-assignment-controller
 components:
   schemas:
     AccessToken:
@@ -539,6 +1705,105 @@ components:
           format: int64
         username:
           type: string
+    ActivateSchoolYearRequest:
+      type: object
+      properties:
+        confirmName:
+          type: string
+          minLength: 1
+      required:
+      - confirmName
+    AgeGroupBrief:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        shortName:
+          type: string
+    AgeGroupDetailResponse:
+      type: object
+      properties:
+        ageFromMonths:
+          type: integer
+          format: int32
+        ageToMonths:
+          type: integer
+          format: int32
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        maxClassSize:
+          type: integer
+          format: int32
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        mealsPerDay:
+          type: integer
+          format: int32
+        name:
+          type: string
+        nutritionNote:
+          type: string
+        shortName:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+    AgeGroupRequest:
+      type: object
+      properties:
+        ageFromMonths:
+          type: integer
+          format: int32
+          maximum: 72
+          minimum: 0
+        ageToMonths:
+          type: integer
+          format: int32
+          maximum: 72
+          minimum: 1
+        maxClassSize:
+          type: integer
+          format: int32
+          maximum: 32767
+          minimum: 1
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+          minItems: 1
+        name:
+          type: string
+          maxLength: 50
+          minLength: 0
+        nutritionNote:
+          type: string
+          maxLength: 500
+          minLength: 0
+        shortName:
+          type: string
+          maxLength: 50
+          minLength: 0
+      required:
+      - ageFromMonths
+      - ageToMonths
+      - maxClassSize
+      - mealSessions
+      - name
+      - shortName
     AgeGroupResponse:
       type: object
       properties:
@@ -554,6 +1819,107 @@ components:
         sortOrder:
           type: integer
           format: int32
+    AssignmentHistoryResponse:
+      type: object
+      properties:
+        assignedAt:
+          type: string
+          format: date-time
+        assignedBy:
+          type: integer
+          format: int64
+        assignedByName:
+          type: string
+        current:
+          type: boolean
+        fullName:
+          type: string
+        homeroom:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+    AttendanceClassResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        canRecord:
+          type: boolean
+        canUnlock:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        name:
+          type: string
+        teaches:
+          type: boolean
+    Attention:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        latest:
+          $ref: "#/components/schemas/DailyHealthEntryResponse"
+        readings:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyHealthEntryResponse"
+    AutoPlaceRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+    AutoPlaceResponse:
+      type: object
+      properties:
+        graduated:
+          type: integer
+          format: int32
+        promoted:
+          type: integer
+          format: int32
+        unplaced:
+          type: array
+          items:
+            $ref: "#/components/schemas/Unplaced"
     Break:
       type: object
       properties:
@@ -570,6 +1936,120 @@ components:
         startDate:
           type: string
           format: date
+    CampusBrief:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    CampusDetailResponse:
+      type: object
+      properties:
+        ageGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupDetailResponse"
+        campus:
+          $ref: "#/components/schemas/CampusResponse"
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassBrief"
+        kitchen:
+          $ref: "#/components/schemas/Kitchen"
+        schoolYearId:
+          type: integer
+          format: int64
+        teachers:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffBriefResponse"
+        vicePrincipals:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffBriefResponse"
+    CampusRequest:
+      type: object
+      properties:
+        address:
+          type: string
+          maxLength: 255
+          minLength: 0
+        code:
+          type: string
+          maxLength: 30
+          minLength: 0
+        isMain:
+          type: boolean
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+        phone:
+          type: string
+          pattern: "\\s*((\\+?84|0)[\\s.\\-]*([35789]([\\s.\\-]?\\d){8}|2([\\s.\\\
+            -]?\\d){9}))?\\s*"
+        shortName:
+          type: string
+          maxLength: 50
+          minLength: 0
+      required:
+      - address
+      - code
+      - name
+      - shortName
+    CampusResponse:
+      type: object
+      properties:
+        address:
+          type: string
+        childCount:
+          type: integer
+          format: int64
+        classCount:
+          type: integer
+          format: int64
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        isMain:
+          type: boolean
+        name:
+          type: string
+        phone:
+          type: string
+        shortName:
+          type: string
+        vicePrincipals:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffBriefResponse"
+    Candidate:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        campusIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          uniqueItems: true
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        leadsAgeGroupId:
+          type: integer
+          format: int64
+        leadsGroup:
+          type: string
     ChangePassword:
       type: object
       properties:
@@ -589,6 +2069,56 @@ components:
       - confirmPassword
       - currentPassword
       - newPassword
+    ChildBrief:
+      type: object
+      properties:
+        dateOfBirth:
+          type: string
+          format: date
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+    ChildDay:
+      type: object
+      properties:
+        canRecord:
+          type: boolean
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyHealthEntryResponse"
+    ChildPlacement:
+      type: object
+      properties:
+        birthDate:
+          type: string
+          format: date
+        code:
+          type: string
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        photoUrl:
+          type: string
+        placement:
+          $ref: "#/components/schemas/Placement"
     ChildProfileResponse:
       type: object
       properties:
@@ -603,6 +2133,316 @@ components:
         id:
           type: integer
           format: int64
+    ChildRow:
+      type: object
+      properties:
+        child:
+          $ref: "#/components/schemas/ChildBrief"
+        record:
+          $ref: "#/components/schemas/RecordView"
+    ChildTotal:
+      type: object
+      properties:
+        child:
+          $ref: "#/components/schemas/ChildBrief"
+        excused:
+          type: integer
+          format: int32
+        meals:
+          type: integer
+          format: int32
+        present:
+          type: integer
+          format: int32
+        unexcused:
+          type: integer
+          format: int32
+    ClassAttendanceResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canRecord:
+          type: boolean
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildRow"
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        day:
+          $ref: "#/components/schemas/DayInfoResponse"
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+    ClassBrief:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+        childCount:
+          type: integer
+          format: int64
+        homeroomTeacherId:
+          type: integer
+          format: int64
+        homeroomTeacherName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        locationId:
+          type: integer
+          format: int64
+        name:
+          type: string
+    ClassOption:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    ClassRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+          maximum: 32767
+          minimum: 1
+        locationId:
+          type: integer
+          format: int64
+        name:
+          type: string
+          maxLength: 50
+          minLength: 0
+        schoolYearId:
+          type: integer
+          format: int64
+      required:
+      - ageGroupId
+      - campusId
+      - capacity
+      - locationId
+      - name
+      - schoolYearId
+    ClassResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+        childCount:
+          type: integer
+          format: int64
+        fill:
+          type: string
+        homeroomTeacherId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        locationId:
+          type: integer
+          format: int64
+        missingTeachers:
+          type: integer
+          format: int32
+        name:
+          type: string
+        noRoom:
+          type: boolean
+        plannedCount:
+          type: integer
+          format: int64
+        roomCode:
+          type: string
+        roomName:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - CLOSED
+        teacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        teachers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Teacher"
+    ClassRow:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        checked:
+          type: integer
+          format: int32
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        noted:
+          type: integer
+          format: int32
+        present:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+    ClassSummary:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildTotal"
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayRow"
+        from:
+          type: string
+          format: date
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        size:
+          type: integer
+          format: int32
+        to:
+          type: string
+          format: date
+    ClassTeachersRequest:
+      type: object
+      properties:
+        homeroomTeacherId:
+          type: integer
+          format: int64
+        teacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 2
+          minItems: 0
+      required:
+      - teacherIds
+    ClassTeachersResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+        childCount:
+          type: integer
+          format: int64
+        homeroomTeacherId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        teacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        teachers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Teacher"
+    ClassTotal:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        excused:
+          type: integer
+          format: int32
+        meals:
+          type: integer
+          format: int32
+        present:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        unexcused:
+          type: integer
+          format: int32
     Content:
       type: object
       properties:
@@ -612,6 +2452,34 @@ components:
         text:
           type: string
         themeKeys:
+          type: array
+          items:
+            type: string
+    CopyClassesRequest:
+      type: object
+      properties:
+        classIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        sourceYearId:
+          type: integer
+          format: int64
+      required:
+      - sourceYearId
+    CopyClassesResponse:
+      type: object
+      properties:
+        copied:
+          type: array
+          items:
+            type: string
+        skipped:
+          type: array
+          items:
+            $ref: "#/components/schemas/Skipped"
+        withoutRoom:
           type: array
           items:
             type: string
@@ -684,6 +2552,264 @@ components:
           type: string
         token:
           type: string
+    CutoffRequest:
+      type: object
+      properties:
+        effectiveFrom:
+          type: string
+          format: date
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        time:
+          type: string
+          format: time-local
+      required:
+      - effectiveFrom
+      - time
+    CutoffResponse:
+      type: object
+      properties:
+        setting:
+          $ref: "#/components/schemas/Setting"
+        todayTime:
+          type: string
+          format: time-local
+        year:
+          $ref: "#/components/schemas/Year"
+    DailyHealthEntryResponse:
+      type: object
+      properties:
+        actions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MONITOR
+            - MEDICAL_ROOM
+            - PARENT_INFORMED
+            - EARLY_PICKUP
+            - REFERRAL
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        note:
+          type: string
+        notificationStatus:
+          type: string
+        observation:
+          type: string
+          enum:
+          - NO_CONCERN
+          - NOTED
+        recordedAt:
+          type: string
+          format: date-time
+        recordedBy:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+        referral:
+          $ref: "#/components/schemas/Referral"
+        requestId:
+          type: string
+        symptoms:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        temperature:
+          type: number
+    DailyHealthRequest:
+      type: object
+      properties:
+        actions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MONITOR
+            - MEDICAL_ROOM
+            - PARENT_INFORMED
+            - EARLY_PICKUP
+            - REFERRAL
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        observation:
+          type: string
+          enum:
+          - NO_CONCERN
+          - NOTED
+        referral:
+          $ref: "#/components/schemas/Referral"
+        requestId:
+          type: string
+          maxLength: 64
+          minLength: 0
+        symptoms:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        temperature:
+          type: number
+          maximum: 99.9
+          minimum: 10.0
+      required:
+      - childId
+      - classId
+      - date
+      - observation
+      - requestId
+    DayInfoResponse:
+      type: object
+      properties:
+        baseLocked:
+          type: boolean
+        cutoff:
+          type: string
+        date:
+          type: string
+          format: date
+        locked:
+          type: boolean
+        now:
+          type: string
+        schoolDay:
+          type: boolean
+        serverTime:
+          type: string
+          format: date-time
+        today:
+          type: string
+          format: date
+        unlock:
+          $ref: "#/components/schemas/DayUnlockResponse"
+        yearEnd:
+          type: string
+          format: date
+        yearStart:
+          type: string
+          format: date
+    DayRow:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        excused:
+          type: integer
+          format: int32
+        mealTotal:
+          type: integer
+          format: int32
+        meals:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        missing:
+          type: integer
+          format: int32
+        present:
+          type: integer
+          format: int32
+        unexcused:
+          type: integer
+          format: int32
+    DayUnlockRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+        validUntil:
+          type: string
+          format: date-time
+      required:
+      - classId
+      - date
+      - reason
+      - validUntil
+    DayUnlockResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: integer
+          format: int64
+        revokedByName:
+          type: string
+        unlockedAt:
+          type: string
+          format: date-time
+        unlockedBy:
+          type: integer
+          format: int64
+        unlockedByName:
+          type: string
+        validUntil:
+          type: string
+          format: date-time
     Domain:
       type: object
       properties:
@@ -711,6 +2837,31 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolYearResponse"
+    Entry:
+      type: object
+      properties:
+        at:
+          type: string
+          format: date-time
+        effectiveFrom:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        note:
+          type: string
+        previousTime:
+          type: string
+          format: time-local
+        time:
+          type: string
+          format: time-local
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
     ExpectedResultResponse:
       type: object
       properties:
@@ -734,6 +2885,21 @@ components:
           minLength: 0
       required:
       - email
+    GroupStat:
+      type: object
+      properties:
+        capacity:
+          type: integer
+          format: int64
+        classCount:
+          type: integer
+          format: int64
+        enrolled:
+          type: integer
+          format: int64
+        planned:
+          type: integer
+          format: int64
     History:
       type: object
       properties:
@@ -751,6 +2917,110 @@ components:
         note:
           type: string
         tone:
+          type: string
+    Impact:
+      type: object
+      properties:
+        leave:
+          type: integer
+          format: int64
+        move:
+          type: integer
+          format: int64
+    Item:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+          - PROMOTE
+          - STAY
+          - LEAVE
+          - GRADUATE
+        childId:
+          type: integer
+          format: int64
+        toClassId:
+          type: integer
+          format: int64
+      required:
+      - action
+      - childId
+    Kitchen:
+      type: object
+      properties:
+        locations:
+          type: array
+          items:
+            $ref: "#/components/schemas/KitchenRoom"
+        staff:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffBriefResponse"
+    KitchenRoom:
+      type: object
+      properties:
+        capacity:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        room:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - DELETED
+    Leader:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+    LeaderGroup:
+      type: object
+      properties:
+        ageFromMonths:
+          type: integer
+          format: int32
+        ageToMonths:
+          type: integer
+          format: int32
+        classCount:
+          type: integer
+          format: int64
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        maxClassSize:
+          type: integer
+          format: int32
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        name:
+          type: string
+        shortName:
           type: string
     Login:
       type: object
@@ -782,6 +3052,29 @@ components:
           format: date-time
         passwordChangeRequired:
           type: boolean
+    MultiSummary:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassTotal"
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayRow"
+        from:
+          type: string
+          format: date
+        size:
+          type: integer
+          format: int32
+        to:
+          type: string
+          format: date
     MyAccountResponse:
       type: object
       properties:
@@ -821,6 +3114,25 @@ components:
           type: string
           maxLength: 2000
           minLength: 0
+    Option:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    Options:
+      type: object
+      properties:
+        ageGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Option"
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassOption"
     OtpRequest:
       type: object
       properties:
@@ -832,6 +3144,29 @@ components:
         resendAvailableAt:
           type: string
           format: date-time
+    Overview:
+      type: object
+      properties:
+        attention:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attention"
+        campusId:
+          type: integer
+          format: int64
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassRow"
+        date:
+          type: string
+          format: date
+        options:
+          $ref: "#/components/schemas/Options"
+        schoolDay:
+          type: boolean
+        totals:
+          $ref: "#/components/schemas/Totals"
     PageResponseYearPlanSummaryResponse:
       type: object
       properties:
@@ -864,6 +3199,59 @@ components:
           type: boolean
         canSubmit:
           type: boolean
+    Placement:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+          - PROMOTE
+          - STAY
+          - LEAVE
+          - GRADUATE
+        childId:
+          type: integer
+          format: int64
+        fromClassId:
+          type: integer
+          format: int64
+        schoolYear:
+          type: integer
+          format: int64
+        toClassId:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: integer
+          format: int64
+    PlacementBoardResponse:
+      type: object
+      properties:
+        ageGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupBrief"
+        campuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampusBrief"
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SourceClass"
+        editable:
+          type: boolean
+        sourceYear:
+          $ref: "#/components/schemas/YearBrief"
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/TargetClass"
+        year:
+          $ref: "#/components/schemas/YearBrief"
     PlanActorResponse:
       type: object
       properties:
@@ -877,6 +3265,44 @@ components:
         userId:
           type: integer
           format: int64
+    RecordView:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        meals:
+          type: object
+          additionalProperties:
+            type: boolean
+        recordedAt:
+          type: string
+          format: date-time
+        recordedBy:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+        status:
+          type: string
+          enum:
+          - PRESENT
+          - EXCUSED
+          - UNEXCUSED
+    Referral:
+      type: object
+      properties:
+        escort:
+          type: string
+          maxLength: 100
+          minLength: 0
+        place:
+          type: string
+          maxLength: 150
+          minLength: 0
+        time:
+          type: string
+          format: time-local
     Refresh:
       type: object
       properties:
@@ -937,6 +3363,56 @@ components:
           $ref: "#/components/schemas/AccountResponse"
         desc:
           type: string
+    ResponseJsonAgeGroupDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AgeGroupDetailResponse"
+        desc:
+          type: string
+    ResponseJsonAutoPlaceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AutoPlaceResponse"
+        desc:
+          type: string
+    ResponseJsonCampusDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/CampusDetailResponse"
+        desc:
+          type: string
+    ResponseJsonCampusResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/CampusResponse"
+        desc:
+          type: string
+    ResponseJsonChildDay:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildDay"
+        desc:
+          type: string
     ResponseJsonChildProfileResponse:
       type: object
       properties:
@@ -945,6 +3421,56 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ChildProfileResponse"
+        desc:
+          type: string
+    ResponseJsonClassAttendanceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassAttendanceResponse"
+        desc:
+          type: string
+    ResponseJsonClassResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassResponse"
+        desc:
+          type: string
+    ResponseJsonClassSummary:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassSummary"
+        desc:
+          type: string
+    ResponseJsonClassTeachersResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassTeachersResponse"
+        desc:
+          type: string
+    ResponseJsonCopyClassesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/CopyClassesResponse"
         desc:
           type: string
     ResponseJsonCreateAccountResponse:
@@ -967,6 +3493,46 @@ components:
           $ref: "#/components/schemas/Csrf"
         desc:
           type: string
+    ResponseJsonCutoffResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/CutoffResponse"
+        desc:
+          type: string
+    ResponseJsonDailyHealthEntryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DailyHealthEntryResponse"
+        desc:
+          type: string
+    ResponseJsonDayInfoResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayInfoResponse"
+        desc:
+          type: string
+    ResponseJsonDayUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayUnlockResponse"
+        desc:
+          type: string
     ResponseJsonEduConfigResponse:
       type: object
       properties:
@@ -975,6 +3541,66 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EduConfigResponse"
+        desc:
+          type: string
+    ResponseJsonListAgeGroupDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupDetailResponse"
+        desc:
+          type: string
+    ResponseJsonListAssignmentHistoryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssignmentHistoryResponse"
+        desc:
+          type: string
+    ResponseJsonListAttendanceClassResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttendanceClassResponse"
+        desc:
+          type: string
+    ResponseJsonListCampusResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampusResponse"
+        desc:
+          type: string
+    ResponseJsonListDayUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayUnlockResponse"
         desc:
           type: string
     ResponseJsonListExpectedResultResponse:
@@ -989,6 +3615,30 @@ components:
             $ref: "#/components/schemas/ExpectedResultResponse"
         desc:
           type: string
+    ResponseJsonListRoomResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoomResponse"
+        desc:
+          type: string
+    ResponseJsonListSchoolYearDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchoolYearDetailResponse"
+        desc:
+          type: string
     ResponseJsonLoginData:
       type: object
       properties:
@@ -997,6 +3647,29 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/LoginData"
+        desc:
+          type: string
+    ResponseJsonMapStringInteger:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        desc:
+          type: string
+    ResponseJsonMultiSummary:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MultiSummary"
         desc:
           type: string
     ResponseJsonMyAccountResponse:
@@ -1019,6 +3692,16 @@ components:
           $ref: "#/components/schemas/OtpRequest"
         desc:
           type: string
+    ResponseJsonOverview:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/Overview"
+        desc:
+          type: string
     ResponseJsonPageResponseYearPlanSummaryResponse:
       type: object
       properties:
@@ -1029,6 +3712,16 @@ components:
           $ref: "#/components/schemas/PageResponseYearPlanSummaryResponse"
         desc:
           type: string
+    ResponseJsonPlacementBoardResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PlacementBoardResponse"
+        desc:
+          type: string
     ResponseJsonResetToken:
       type: object
       properties:
@@ -1037,6 +3730,66 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ResetToken"
+        desc:
+          type: string
+    ResponseJsonRoomResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/RoomResponse"
+        desc:
+          type: string
+    ResponseJsonSaveAttendanceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SaveAttendanceResponse"
+        desc:
+          type: string
+    ResponseJsonSchoolStructureResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SchoolStructureResponse"
+        desc:
+          type: string
+    ResponseJsonSchoolYearDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SchoolYearDetailResponse"
+        desc:
+          type: string
+    ResponseJsonTeacherAssignmentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/TeacherAssignmentResponse"
+        desc:
+          type: string
+    ResponseJsonTeamLeaderResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/TeamLeaderResponse"
         desc:
           type: string
     ResponseJsonVoid:
@@ -1058,6 +3811,119 @@ components:
           $ref: "#/components/schemas/YearPlanDetailResponse"
         desc:
           type: string
+    ResponseJsonYearReadinessResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/YearReadinessResponse"
+        desc:
+          type: string
+    RoomRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+          maximum: 32767
+          minimum: 1
+        managerUserId:
+          type: integer
+          format: int64
+        name:
+          type: string
+          maxLength: 50
+          minLength: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        room:
+          type: string
+          maxLength: 20
+          minLength: 0
+        type:
+          type: string
+          enum:
+          - CLASS
+          - KITCHEN
+          - FUNCTION_ROOM
+          - DEPARTMENT
+          - STORAGE
+      required:
+      - campusId
+      - name
+      - room
+      - type
+    RoomResponse:
+      type: object
+      properties:
+        blockers:
+          type: array
+          items:
+            type: string
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        managerName:
+          type: string
+        managerUserId:
+          type: integer
+          format: int64
+        minCapacity:
+          type: integer
+          format: int32
+        name:
+          type: string
+        note:
+          type: string
+        room:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - DELETED
+        type:
+          type: string
+          enum:
+          - CLASS
+          - KITCHEN
+          - FUNCTION_ROOM
+          - DEPARTMENT
+          - STORAGE
+        usage:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int64
+        yearClasses:
+          type: array
+          items:
+            type: string
+    RoomStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+          - DELETED
+      required:
+      - status
     Row:
       type: object
       properties:
@@ -1076,6 +3942,121 @@ components:
           type: string
       required:
       - kind
+    SaveAttendanceRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Entry"
+          minItems: 1
+      required:
+      - date
+      - entries
+    SaveAttendanceResponse:
+      type: object
+      properties:
+        changed:
+          type: integer
+          format: int32
+        count:
+          type: integer
+          format: int32
+        savedAt:
+          type: string
+          format: date-time
+    SavePlacementsRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Item"
+          minItems: 1
+      required:
+      - items
+    SchoolStructureResponse:
+      type: object
+      properties:
+        ageGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupDetailResponse"
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassResponse"
+        groupStats:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/GroupStat"
+        teamLeaders:
+          type: array
+          items:
+            $ref: "#/components/schemas/TeamLeader"
+        year:
+          $ref: "#/components/schemas/SchoolYearDetailResponse"
+    SchoolYearDetailResponse:
+      type: object
+      properties:
+        activatedAt:
+          type: string
+          format: date-time
+        activatedBy:
+          type: integer
+          format: int64
+        classCount:
+          type: integer
+          format: int64
+        closedAt:
+          type: string
+          format: date-time
+        closedBy:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - PLANNED
+          - ACTIVE
+          - CLOSED
+        updatedAt:
+          type: string
+          format: date-time
+    SchoolYearRequest:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        name:
+          type: string
+          minLength: 1
+          pattern: "\\s*\\d{4}-\\d{4}\\s*"
+        startDate:
+          type: string
+          format: date
+      required:
+      - endDate
+      - name
+      - startDate
     SchoolYearResponse:
       type: object
       properties:
@@ -1090,6 +4071,65 @@ components:
         startDate:
           type: string
           format: date
+    Setting:
+      type: object
+      properties:
+        effectiveFrom:
+          type: string
+          format: date
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/Entry"
+        note:
+          type: string
+        schoolYear:
+          type: integer
+          format: int64
+        time:
+          type: string
+          format: time-local
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: integer
+          format: int64
+        updatedByName:
+          type: string
+    Skipped:
+      type: object
+      properties:
+        name:
+          type: string
+        reason:
+          type: string
+    SourceClass:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildPlacement"
+        graduating:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        nextAgeGroupId:
+          type: integer
+          format: int64
+        suggestedTargetId:
+          type: integer
+          format: int64
     StaffAssignmentSummaryResponse:
       type: object
       properties:
@@ -1116,6 +4156,138 @@ components:
         validTo:
           type: string
           format: date
+    StaffBriefResponse:
+      type: object
+      properties:
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+    Step:
+      type: object
+      properties:
+        detail:
+          type: string
+        key:
+          type: string
+        label:
+          type: string
+        ok:
+          type: boolean
+        required:
+          type: boolean
+        warning:
+          type: boolean
+    TargetClass:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        taken:
+          type: integer
+          format: int64
+    Teacher:
+      type: object
+      properties:
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+    TeacherAssignmentResponse:
+      type: object
+      properties:
+        ageGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupDetailResponse"
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassTeachersResponse"
+        teachers:
+          type: array
+          items:
+            $ref: "#/components/schemas/TeacherCandidateResponse"
+        year:
+          $ref: "#/components/schemas/SchoolYearDetailResponse"
+    TeacherCandidateResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        campusIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          uniqueItems: true
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+    TeamLeader:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+    TeamLeaderRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        schoolYearId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+      required:
+      - ageGroupId
+      - schoolYearId
+    TeamLeaderResponse:
+      type: object
+      properties:
+        leaderCandidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Candidate"
+        leaderGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaderGroup"
+        schoolYearId:
+          type: integer
+          format: int64
+        teamLeaders:
+          type: array
+          items:
+            $ref: "#/components/schemas/Leader"
     Theme:
       type: object
       properties:
@@ -1146,6 +4318,29 @@ components:
           format: date
       required:
       - key
+    Totals:
+      type: object
+      properties:
+        checked:
+          type: integer
+          format: int32
+        noted:
+          type: integer
+          format: int32
+        notified:
+          type: integer
+          format: int32
+        present:
+          type: integer
+          format: int32
+    Unplaced:
+      type: object
+      properties:
+        className:
+          type: string
+        count:
+          type: integer
+          format: int32
     UpdateAccountStatusRequest:
       type: object
       properties:
@@ -1164,6 +4359,34 @@ components:
           pattern: "[0-9]{6}"
       required:
       - otp
+    Year:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - PLANNED
+          - ACTIVE
+          - CLOSED
+    YearBrief:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     YearPlanDetailResponse:
       type: object
       properties:
@@ -1301,6 +4524,29 @@ components:
         updatedAt:
           type: string
           format: date-time
+    YearReadinessResponse:
+      type: object
+      properties:
+        blockers:
+          type: array
+          items:
+            type: string
+        canActivate:
+          type: boolean
+        impact:
+          $ref: "#/components/schemas/Impact"
+        openFrom:
+          type: string
+          format: date
+        sourceYear:
+          $ref: "#/components/schemas/YearBrief"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/Step"
+        yearId:
+          type: integer
+          format: int64
   securitySchemes:
     bearerAuth:
       bearerFormat: JWT

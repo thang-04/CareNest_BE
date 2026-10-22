@@ -1,5 +1,6 @@
 package com.carenest.service.child;
 
+import com.carenest.dto.child.ClassChildResponse;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -7,4 +8,7 @@ import java.util.List;
 public interface EnrollmentService {
 
     List<Long> findActiveClassroomIds(Long childId, LocalDate date);
+
+    /** Trẻ đang học lớp tại ngày date, sắp theo họ tên. */
+    List<ClassChildResponse> findChildrenInClassroom(Long classroomId, LocalDate date);
 }

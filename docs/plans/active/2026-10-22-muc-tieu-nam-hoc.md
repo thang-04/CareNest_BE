@@ -202,3 +202,8 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Sau góp ý (Tiền): `LeaveConfirmModal` (chuyển tab và rời trang, mọi trang kế hoạch giáo dục) đổi nút thành Hủy · Không lưu · Lưu; bỏ prop nhãn tùy biến. Kiểm chứng trình duyệt: modal có đúng 3 nút, Hủy đóng modal và giữ tab. FE `VERIFY PASS full`.
 - Sau góp ý (Tiền): chuyển tab chọn "Không lưu" ⇒ bỏ thay đổi của tab đang rời, trở về bản đã lưu gần nhất (`useManualSave.cleanDoc()`; tab Chủ đề: themes + breaks, bỏ dấu tích trỏ tới chủ đề không còn; tab Mục tiêu: domains); thông tin chung không đổi. Chỉ hỏi khi chính tab đang rời có thay đổi. Kiểm chứng trình duyệt: sửa tên + thêm chủ đề → Không lưu ⇒ tên về cũ, 10→9 chủ đề, hết "Có thay đổi chưa lưu". FE `VERIFY PASS full`.
 - Sau góp ý (Tiền): ô kết quả mong đợi và ô lĩnh vực con — Backspace khi đã hết chữ không xóa dòng nữa (ô trống, như ô mục tiêu/chủ đề), xóa dòng bằng thùng rác (có xác nhận). Kiểm chứng trình duyệt (không lưu): xóa hết + Backspace ×3 vẫn còn dòng ở cả 2 loại ô. FE `VERIFY PASS full`.
+
+### 2026-10-23 — Merge nhánh điểm danh G94-236 (Tiền yêu cầu)
+- Merge `origin/feature/G94-236-BE-FEAT-29-daily-attendance` (kèm cấu hình trường G94-235, migration V10–V19).
+- Trùng version: `V10__drop_unused_edu_plan_tables` của nhánh này đổi thành `V20__…` (nội dung không đổi, độc lập với V10–V19). DB local đã chạy V10 cũ ⇒ cần dựng lại DB dev (Flyway báo lệch checksum/version).
+- `docs/api/openapi.yaml` xung đột ⇒ sinh lại từ code sau merge: giống nhánh kia, chỉ bỏ `EduConfigResponse.yearSigners` (đã bỏ ở `3438e72`).

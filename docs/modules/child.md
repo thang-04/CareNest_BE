@@ -20,8 +20,9 @@ AUTH-04, HLT-06, NUT-09.
 - **Không** đọc ngược health/learning (tránh cycle).
 
 ## API & bảng
-- Bảng: `children` (khung tối thiểu), `enrollments`, `guardian_child_links` (`V3__create_children.sql`, `docs/database/DATA_DICTIONARY.md`).
+- Bảng: `children` (khung tối thiểu), `enrollments`, `guardian_child_links`, `class_placements` (V16) (`V3__create_children.sql`, `docs/database/DATA_DICTIONARY.md`).
 - API: `GET /children/{childId}` (`ChildController` → `ChildService.getChildProfile`: `ChildAccessPolicy.checkCanViewChild` trước khi load; DTO `ChildProfileResponse` chỉ id, họ tên, ngày sinh, lớp hiện tại).
+- Chuyển năm học (PROPOSED — chờ nhóm/ADR, ghi trong plan `2026-10-22-cau-hinh-truong.md`): bảng `class_placements` (V16), API `/school-years/{id}/placements` (GET/PUT), `/placements/auto`, `/readiness`, `/activate` — `YearTransitionController`, `YearTransitionService`. Đặt ở child vì kích hoạt năm phải ghi `enrollments`; đọc cấu hình năm qua `YearSetupService` và kích hoạt qua `SchoolYearService` (school-structure) trong cùng transaction.
 - Service cho kiểm tra scope: `EnrollmentService.findActiveClassroomIds(childId, date)`, `GuardianChildLinkService.isGuardianOf(userId, childId)`, `findChildIdsOfGuardian(userId)`. Không gọi ngược `security/authorization`.
 - Query còn cần khi làm nghiệp vụ: `childrenInClass(classroomId, date)`, `guardiansOf(childId)`, `childrenOfGuardian(userId)`, `allergySummary(campusId|classroomId)`.
 

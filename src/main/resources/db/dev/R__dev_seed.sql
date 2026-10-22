@@ -13,13 +13,22 @@ INSERT INTO user_accounts (keycloak_user_id, username, email, full_name) VALUES
     ('00000000-0000-4000-a000-000000000008', 'kitchen.a', 'kitchen.a@carenest.test', 'Nhà bếp Cơ sở A Demo')
 ON CONFLICT (keycloak_user_id) DO NOTHING;
 
-INSERT INTO campuses (code, name) VALUES
-    ('CS-A', 'Cơ sở A (demo)'),
-    ('CS-B', 'Cơ sở B (demo)')
+INSERT INTO campuses (code, name, short_name, address) VALUES
+    ('CS-A', 'Cơ sở A (demo)', 'Cơ sở A', 'Địa chỉ demo A'),
+    ('CS-B', 'Cơ sở B (demo)', 'Cơ sở B', 'Địa chỉ demo B')
 ON CONFLICT (code) DO NOTHING;
+
+-- Điểm trường chính (V11): CS-A, trừ khi đã có điểm chính
+UPDATE campuses SET is_main = TRUE
+WHERE code = 'CS-A' AND NOT EXISTS (SELECT 1 FROM campuses WHERE is_main);
 
 INSERT INTO school_years (name, start_date, end_date) VALUES ('2026-2027', '2026-09-01', '2027-05-31')
 ON CONFLICT (name) DO NOTHING;
+
+-- Năm demo là năm đang hoạt động (V10), trừ khi đã có năm ACTIVE khác
+UPDATE school_years SET status = 'ACTIVE', activated_at = now()
+WHERE name = '2026-2027' AND status = 'PLANNED'
+  AND NOT EXISTS (SELECT 1 FROM school_years WHERE status = 'ACTIVE');
 
 INSERT INTO classrooms (campus_id, school_year_id, name)
 SELECT c.id, y.id, v.name

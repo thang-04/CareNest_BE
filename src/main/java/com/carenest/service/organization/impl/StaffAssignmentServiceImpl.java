@@ -67,6 +67,20 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public boolean hasTeacherAssignmentHistory(Long userId, Long classroomId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|hasTeacherAssignmentHistory|userId=" + userId + "|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean taught = staffAssignmentRepository.existsPastTeacherForClassroom(userId, classroomId, date);
+            log.info("{}|END", logPrefix);
+            return taught;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public List<StaffAssignmentSummaryResponse> findActiveAssignments(Long userId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveAssignments|userId=" + userId;
         log.info("{}|START", logPrefix);
