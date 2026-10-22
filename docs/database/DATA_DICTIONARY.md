@@ -23,9 +23,10 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | email | VARCHAR(255) | có | Phụ huynh có thể không có email | — |
 | full_name | VARCHAR(150) | không | Họ tên đầy đủ (= `firstName` bên Keycloak) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
+| primary_role | VARCHAR(20) | có | Bản sao role Keycloak khi CareNest tạo tài khoản (V8); lọc danh sách + kiểm phạm vi quản lý nhân sự; quyền người gọi vẫn theo token. NULL = chưa rõ (chỉ Admin quản lý) | AUTH-15..17 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
-Không có cột mật khẩu/role: Keycloak quản lý.
-Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`.
+Không có cột mật khẩu: Keycloak quản lý. Role gốc ở Keycloak (`primary_role` chỉ là bản sao).
+Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`, `idx_user_accounts_primary_role`.
 
 ## campuses  (module: school-structure, scope: CAMPUS)
 Mục đích: điểm trường của trường duy nhất (ADR-0002). Migration: `V2__create_school_structure.sql`.
@@ -94,13 +95,13 @@ Chưa có ràng buộc DB chống enrollment chồng thời gian — service ph�
 Index: `child_id`, `classroom_id`.
 
 ## guardian_child_links  (module: child, scope: CHILD)
-Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh. Migration: V3.
+Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/gỡ qua `/children/{id}/guardians` (AUTH-18, AUTH-19). Migration: V3, V9 (CHECK quan hệ).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh | AUTH-04 |
 | child_id | BIGINT FK children | không | | AUTH-04 |
-| relationship | VARCHAR(30) | không | Quan hệ (vd. MOTHER, FATHER) — chưa chốt danh sách | — |
+| relationship | VARCHAR(30) | không | `MOTHER` / `FATHER` / `GUARDIAN` / `OTHER` (CHECK `ck_guardian_child_links_relationship`, V9) | AUTH-18 |
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `uk_guardian_child_links_user_child`, `idx_guardian_child_links_child_id`.
 
@@ -109,3 +110,41 @@ Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi m�
 
 ## otp_send_limits (module: identity-access, scope: SYSTEM)
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
+
+## role_permissions  (module: identity-access, scope: SYSTEM)
+Mục đích: ma trận quyền theo role do Hiệu trưởng bật/tắt (ADR-0017); có dòng = role có quyền. Migration: `V7__create_permissions.sql` (seed = quyền mặc định của enum `Permission`).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| role | VARCHAR(20) | không | Chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF` (CHECK); role khác cố định trong code | AUTH-11 |
+| permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
+| updated_by | BIGINT | có | FK `user_accounts`; null với dòng seed | AUTH-14 |
+| updated_at | TIMESTAMPTZ | không | Thời điểm bật | — |
+Index: `uk_role_permissions_role_permission` (role, permission_code).
+
+## user_permission_overrides  (module: identity-access, scope: SYSTEM)
+Mục đích: ngoại lệ quyền của từng người so với ma trận role (ADR-0017). Migration: V7.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| user_id | BIGINT | không | FK `user_accounts`, người được cấp/thu quyền | AUTH-10 |
+| permission_code | VARCHAR(64) | không | Mã enum `Permission` | AUTH-10 |
+| effect | VARCHAR(10) | không | `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định) | AUTH-10, AUTH-13 |
+| reason | VARCHAR(500) | không | Lý do | AUTH-14 |
+| created_by | BIGINT | không | FK `user_accounts`, người sửa gần nhất; CHECK `created_by <> user_id` | AUTH-12 |
+| created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
+Index: `uk_user_permission_overrides_user_permission` (user_id, permission_code).
+
+## permission_change_log  (module: identity-access, scope: SYSTEM)
+Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| batch_id | UUID | không | Các dòng của cùng một lần lưu | AUTH-14 |
+| actor_user_id | BIGINT | không | FK `user_accounts`, người đổi | AUTH-14 |
+| target_role / target_user_id | VARCHAR(20) / BIGINT | có | Đúng một trong hai (CHECK): ô ma trận của role hoặc ngoại lệ của người | AUTH-14 |
+| permission_code | VARCHAR(64) | không | Mã quyền đã đổi | — |
+| before_state, after_state | VARCHAR(10) | không | `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ) | AUTH-14 |
+| reason | VARCHAR(500) | không | Lý do bắt buộc | AUTH-14 |
+| changed_at | TIMESTAMPTZ | không | Thời điểm đổi | — |
+Index: `idx_permission_change_log_changed_at`, `idx_permission_change_log_target_role`, `idx_permission_change_log_target_user` (kèm `changed_at DESC`).

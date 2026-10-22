@@ -21,3 +21,4 @@ Dùng làm checklist khi implement/review. Khi xảy ra thật ⇒ tạo inciden
 | ID | Module | Tóm tắt | Incident |
 | --- | --- | --- | --- |
 | BUG-261007-openapi-create-account-status | BE → FE/APP | OpenAPI tạo tài khoản mô tả 200, source trả 201 | [Incident](incidents/BUG-261007-openapi-create-account-status.md) |
+| GAP-261022-fe-auth-not-integrated | BE → FE | FE `dev` chưa ghép auth BE: gọi `/auth/me`, `/users`, `/me/profile` (BE không có), không CSRF/refresh; gateway FE chỉ ở nhánh G94-209 | [Report](../quality/reports/2026-10-22-auth-fe-integration-gap.md) |

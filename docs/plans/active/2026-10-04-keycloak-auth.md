@@ -234,7 +234,7 @@ Không có. Repo chưa có auth cũ.
 ## 12. Giả định (đánh dấu rõ, không chặn triển khai)
 
 - Principal cần assignment PRINCIPAL còn hiệu lực, theo docs USER_ROLES.
-- Chỉ ADMIN cấp tài khoản (USER_ROLES `admin:accounts`), Principal không. Không tạo ADMIN qua API.
+- ~~Chỉ ADMIN cấp tài khoản (USER_ROLES `admin:accounts`), Principal không.~~ Thay bởi AUTH-06 (team chốt 2026-10-16): HT cấp tài khoản nghiệp vụ, Admin tạo PRINCIPAL — plan `2026-10-16-permission-management.md`. Không tạo ADMIN qua API.
 - Phụ huynh xem được profile cơ bản (họ tên, ngày sinh, lớp) của con mình. Dữ liệu khác vẫn default-deny theo PAR-02.
 - Giá trị cấu hình realm (thời hạn token, ngưỡng brute-force, password policy) là PROPOSED, ghi vào ADR-0011.
 - Khi tạo user Keycloak, ghi `firstName=fullName` (tên tiếng Việt không tách họ/tên đáng tin cậy).

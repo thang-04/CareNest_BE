@@ -22,13 +22,15 @@ AUTH-04, HLT-06, NUT-09.
 ## API & bảng
 - Bảng: `children` (khung tối thiểu), `enrollments`, `guardian_child_links` (`V3__create_children.sql`, `docs/database/DATA_DICTIONARY.md`).
 - API: `GET /children/{childId}` (`ChildController` → `ChildService.getChildProfile`: `ChildAccessPolicy.checkCanViewChild` trước khi load; DTO `ChildProfileResponse` chỉ id, họ tên, ngày sinh, lớp hiện tại).
+- API phụ huynh (AUTH-18, AUTH-19; quyền `PARENT_ACCOUNT_MANAGE`, phạm vi `StaffAccessPolicy`): `GET /children` (`ChildService.searchChildren` — HT mọi trẻ, PHT trẻ đang học trong lớp thuộc campus mình), `GET|POST /children/{id}/guardians`, `DELETE /children/{id}/guardians/{userId}` (`GuardianController` → `GuardianAccountService` của feature account; ghi liên kết qua `GuardianChildLinkService.createLink/deleteLink`). Quan hệ: enum `GuardianRelationship` + CHECK V9.
 - Service cho kiểm tra scope: `EnrollmentService.findActiveClassroomIds(childId, date)`, `GuardianChildLinkService.isGuardianOf(userId, childId)`, `findChildIdsOfGuardian(userId)`. Không gọi ngược `security/authorization`.
-- Query còn cần khi làm nghiệp vụ: `childrenInClass(classroomId, date)`, `guardiansOf(childId)`, `childrenOfGuardian(userId)`, `allergySummary(campusId|classroomId)`.
+- Query còn cần khi làm nghiệp vụ: `childrenInClass(classroomId, date)`, `allergySummary(campusId|classroomId)` (`guardiansOf`, `childrenOfGuardian` đã có).
 
 ## PENDING
 P-17 (ai khai báo/xác nhận dị ứng).
 
 ## Known pitfalls
+- Danh sách trẻ cho PHT lọc theo enrollment **hôm nay**: trẻ chưa có lớp hoặc đã rời lớp không hiện với PHT (chỉ HT thấy mọi trẻ). Gỡ liên kết phụ huynh không xóa tài khoản.
 - Campus của trẻ suy từ Enrollment tại ngày cụ thể; trẻ chuyển lớp/campus giữa năm ⇒ dữ liệu lịch sử phải theo enrollment tại ngày đó.
 - DB chưa chặn enrollment chồng thời gian; khi viết API ghi enrollment phải kiểm ở service.
 - Dữ liệu trẻ là nhạy cảm: không đưa vào log/test fixture thật.

@@ -32,6 +32,7 @@ keywords:
 
 tech_keywords:
   # lỗi/kỹ thuật không thuộc module nghiệp vụ -> file đọc trước
+  "permissionguard|ma trận quyền|role_permissions|ngoại lệ quyền|permission override": [docs/decisions/ADR-0017-configurable-permissions.md, docs/contracts/AUTH_CONTRACT.md, docs/business/USER_ROLES.md]
   "keycloak|jwt|jwks|bearer|oauth|resource server|401|403|realm|provisioning|cấp tài khoản": [docs/system/KEYCLOAK.md, docs/decisions/ADR-0011-keycloak-authentication.md, docs/contracts/AUTH_CONTRACT.md, docs/architecture/SECURITY.md]
   "apicode|responsejson|globalexception|exception handler|response format|desc": [docs/contracts/ERROR_CONTRACT.md, "docs/backend-coding-guide.md#8 #11"]
   "prefix|api_prefix|webmvcconfig|endpoint|swagger|openapi|springdoc": [docs/contracts/API_CONVENTIONS.md]
@@ -67,7 +68,7 @@ topics:
   project:        [docs/context/PROJECT_CONTEXT.md, docs/context/GLOSSARY.md, docs/context/CURRENT_STATE.md]
   business:       [docs/business/BUSINESS_RULES.md, docs/business/USER_ROLES.md, docs/business/DOMAIN_MODEL.md]
   architecture:   [docs/system/SYSTEM_ARCHITECTURE.md, docs/system/MODULE_MAP.md, docs/architecture/BACKEND_ARCHITECTURE.md, docs/architecture/PACKAGE_STRUCTURE.md, docs/architecture/DATA_FLOW.md]
-  security:       [docs/architecture/SECURITY.md, docs/business/USER_ROLES.md, docs/decisions/ADR-0003-access-scope-model.md]
+  security:       [docs/architecture/SECURITY.md, docs/business/USER_ROLES.md, docs/decisions/ADR-0003-access-scope-model.md, docs/decisions/ADR-0017-configurable-permissions.md]
   api:            [docs/contracts/API_CONVENTIONS.md, docs/contracts/ERROR_CONTRACT.md, docs/contracts/AUTH_CONTRACT.md]
   database:       [docs/database/DATABASE.md, docs/business/DOMAIN_MODEL.md, docs/database/ERD.md, docs/database/DATA_DICTIONARY.md]
   cross-repo:     [docs/system/CROSS_REPO_MAP.md]

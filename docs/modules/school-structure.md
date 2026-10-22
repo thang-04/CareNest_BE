@@ -12,7 +12,7 @@ School (duy nhất — chưa cần bảng vì chỉ 1 trường), Campus, School
 UserAccount/role (identity-access), trẻ (child).
 
 ## Rules
-AUTH-01..03, AUTH-05. ADR-0002 (campus scoping), ADR-0003.
+AUTH-01..03, AUTH-05, AUTH-15, AUTH-16. ADR-0002 (campus scoping), ADR-0003, ADR-0017.
 
 ## Phụ thuộc
 - Dùng: common/utils. Tham chiếu userId bằng ID, không import identity.
@@ -22,7 +22,7 @@ AUTH-01..03, AUTH-05. ADR-0002 (campus scoping), ADR-0003.
 - Bảng: `campuses`, `school_years`, `classrooms`, `staff_assignments` (`V2__create_school_structure.sql`, `docs/database/DATA_DICTIONARY.md`).
 - Entity hiện có: `Classroom`, `StaffAssignment` (Campus/SchoolYear chưa cần entity); enum `StaffRole` ở `utils/enums/` (ADR-0014).
 - Service cho kiểm tra scope: `StaffAssignmentService` (`hasActivePrincipalAssignment`, `hasActiveCampusAssignment`, `hasActiveTeacherAssignment` — lọc theo ngày, tính cả hai đầu), `ClassroomService.findCampusId`. Không gọi ngược `security/authorization`.
-- Chưa có API quản lý campus/lớp/phân công (dev dùng seed `db/dev/R__dev_seed.sql`).
+- API đọc: `GET /campuses`, `GET /classrooms?campusId=` (lớp của năm học đang diễn ra) — `SchoolStructureService`, lọc theo `StaffAccessPolicy`. Ghi phân công: `StaffAssignmentService.createAssignment/endAssignment` (kiểm hình dạng theo V2 CHECK, campus/lớp tồn tại, trùng phân công mở ⇒ 409), gọi từ `StaffingService` (feature account — kiểm quyền ở đó). Chưa có API tạo/sửa campus/lớp/năm học (dev dùng seed `db/dev/R__dev_seed.sql`).
 
 ## PENDING
 P-06 (bếp theo campus), P-14 (Hiệu phó).

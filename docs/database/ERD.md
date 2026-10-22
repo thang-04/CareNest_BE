@@ -67,3 +67,32 @@ erDiagram
         VARCHAR relationship
     }
 ```
+
+## identity-access — phân quyền (V7, ADR-0017)
+
+```mermaid
+erDiagram
+    user_accounts ||--o{ user_permission_overrides : "có ngoại lệ"
+    user_accounts |o--o{ role_permissions : "updated_by"
+    user_accounts ||--o{ permission_change_log : "actor / target_user"
+
+    role_permissions {
+        BIGINT id PK
+        VARCHAR role "VICE_PRINCIPAL|TEACHER|KITCHEN_STAFF"
+        VARCHAR permission_code
+    }
+    user_permission_overrides {
+        BIGINT id PK
+        BIGINT user_id FK
+        VARCHAR permission_code
+        VARCHAR effect "GRANT|REVOKE"
+        BIGINT created_by FK "khác user_id"
+    }
+    permission_change_log {
+        BIGINT id PK
+        UUID batch_id
+        VARCHAR target_role "hoặc target_user_id"
+        VARCHAR before_state
+        VARCHAR after_state
+    }
+```

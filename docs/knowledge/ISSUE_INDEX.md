@@ -6,6 +6,8 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| ENV-261017-maven-incremental-test-compile-stale | deployment | Đổi constructor ở main, `mvnw test-compile` không báo lỗi; chạy test mới lộ `cannot be applied to given types` | Biên dịch tăng dần không biên dịch lại test không đổi ⇒ `clean test-compile` | workaround |
+| ENV-261016-flyway-duplicate-version-stale-target | deployment/identity-access | Sau khi đổi nhánh/stash, mọi `@SpringBootTest` lỗi `Found more than one migration with version 7` | `target/classes` còn migration của nhánh khác; Maven không xóa resource đã bỏ ⇒ `mvnw clean` | workaround |
 | ENV-261013-docker-desktop-init-timeout | deployment/identity-access | FE localhost:5173 lên, API:8080/Keycloak:8180/PG:5432 không nghe; `docker start`/`docker pull` treo | ? Docker Desktop `starting`, init control API `/ping` timeout; nguyên nhân sâu chưa rõ | open |
 | BUG-261013-web-auth-session-absolute-expiry | identity-access | Phiên web gateway hết hạn sau ~30 phút dù remember; refresh 503 rồi retry 401 | `expiresAt` lấy từ `refresh_expires_in` (hạn idle) không gia hạn; `ProviderUnavailable` xóa phiên | fixed |
 | BUG-261012-web-auth-client-bean | identity-access | 25 context errors: `No qualifying bean of type WebAuthKeycloakClient` | Client draft thiếu component và constructor injection annotations | fixed |

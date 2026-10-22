@@ -15,10 +15,20 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | AUTH-03 | Teacher chỉ truy cập lớp được phân công | CONFIRMED | Report 1 |
 | AUTH-04 | Parent chỉ truy cập trẻ có GuardianChildLink với mình, và chỉ dữ liệu được phép hiển thị cho phụ huynh | CONFIRMED | Report 1 |
 | AUTH-05 | Kitchen Staff truy cập dữ liệu bếp (suất đã chốt, thực đơn, định lượng) của campus liên quan; không xem hồ sơ trẻ ngoài thông tin dị ứng cần cho nấu | CONFIRMED (hướng); phạm vi bếp PENDING P-06 | Khảo sát |
-| AUTH-06 | System Admin quản lý tài khoản/role/cấu hình; mặc định **không** xem dữ liệu trẻ trừ khi được gán thêm role nghiệp vụ | PROPOSED; PENDING P-16 | Thiết kế |
+| AUTH-06 | Hiệu trưởng cấp tài khoản và phân quyền nghiệp vụ (PHT, GV, bếp, phụ huynh); System Admin giữ phần kỹ thuật: tạo tài khoản PRINCIPAL, khóa/mở tài khoản, xử lý sự cố. Admin mặc định **không** xem dữ liệu trẻ trừ khi được gán thêm role nghiệp vụ | CONFIRMED (phân vai HT/Admin); Admin xem dữ liệu trẻ: PENDING P-16 | Team chốt 2026-10-16 (thay bản PROPOSED "Admin quản lý tài khoản/role") |
 | AUTH-07 | Mọi kiểm tra quyền thực hiện ở BE; UI ẩn nút không phải biện pháp phân quyền | ACCEPTED | ADR-0003 |
 | AUTH-08 | Báo cáo/tổng hợp chỉ tính dữ liệu trong scope người xem | ACCEPTED | ADR-0002 |
 | AUTH-09 | Admin không tự đổi trạng thái (khóa/mở) tài khoản của chính mình qua API; khóa Admin khác vẫn được | CONFIRMED | Team chốt 2026-10-06 |
+| AUTH-10 | Hiệu trưởng bật/tắt quyền theo role (ma trận) cho PHT, GV, bếp và tạo ngoại lệ cấp thêm/thu hồi cho từng người; quyền hiệu lực = phần cố định của role ∪ (ma trận ∪ cấp thêm − thu hồi), có hiệu lực ngay ở request kế tiếp | CONFIRMED | Team chốt 2026-10-16, ADR-0017 |
+| AUTH-11 | Quyền phân quyền chỉ Hiệu trưởng có, không giao được; quyền của PRINCIPAL, ADMIN, PARENT cố định trong hệ thống, không sửa qua ma trận | CONFIRMED | Team chốt 2026-10-16 |
+| AUTH-12 | Không ai tự sửa quyền, trạng thái hoặc role của chính mình (mở rộng AUTH-09) | CONFIRMED | Team chốt 2026-10-16 |
+| AUTH-13 | Quyền chỉ quyết định được làm hành động hay không; phạm vi campus/lớp/trẻ (AUTH-01..05) luôn áp dụng, quyền không vượt scope | CONFIRMED | Team chốt 2026-10-16 |
+| AUTH-14 | Mọi thay đổi ma trận/ngoại lệ lưu lịch sử: người đổi, thời điểm, trước/sau, lý do bắt buộc | CONFIRMED | Team chốt 2026-10-16 |
+| AUTH-15 | Tạo tài khoản nhân sự một bước kèm phân công (PHT/bếp → campus, GV → lớp). Admin chỉ tạo tài khoản Hiệu trưởng (tự có phân công toàn trường); HT tạo PHT/GV/bếp, phân công có thể bổ sung sau; PHT (khi HT bật quyền) chỉ tạo GV/bếp và bắt buộc phân công vào campus mình | CONFIRMED | User chốt 2026-10-17 |
+| AUTH-16 | HT phân công PHT/bếp → campus, GV → lớp toàn trường; PHT có quyền phân công (mặc định bật, HT tắt được) chỉ phân công GV/bếp trong campus mình, không phân công PHT. Kết thúc phân công bằng ngày cuối, không xóa; không ai tự phân công cho mình | CONFIRMED | User chốt 2026-10-17 |
+| AUTH-17 | HT khóa/mở, cấp lại mật khẩu tạm, xem danh sách PHT/GV/bếp toàn trường; PHT (khi HT bật quyền) chỉ với GV/bếp đang phân công trong campus mình. Không ai thao tác tài khoản HT/Admin (trừ Admin) hay chính mình. Cấp lại mật khẩu tạm hủy mọi phiên đang mở | CONFIRMED | User chốt 2026-10-17 |
+| AUTH-18 | Tài khoản phụ huynh tạo kèm liên kết trẻ (không tạo rời): tên đăng nhập = SĐT chuẩn hóa (10 số bắt đầu 0), mật khẩu tạm hệ thống sinh, chỉ hiện một lần để in phiếu, bắt đổi lần đầu, không gửi SMS. SĐT đã là phụ huynh ⇒ chỉ thêm liên kết (giữ mật khẩu); SĐT của nhân sự ⇒ từ chối. HT làm cho mọi trẻ; PHT có quyền (mặc định bật, HT tắt được) chỉ cho trẻ đang học trong campus mình. Quan hệ: Mẹ / Bố / Người giám hộ / Khác | CONFIRMED | User chốt 2026-10-16, 2026-10-17 |
+| AUTH-19 | Gỡ liên kết phụ huynh–trẻ giữ nguyên tài khoản, phụ huynh mất quyền xem trẻ ngay. Khóa/mở, cấp lại mật khẩu tạm (hệ thống sinh, hủy mọi phiên) cho phụ huynh khi người làm phụ trách campus của ít nhất một trẻ đang liên kết với họ | CONFIRMED | User chốt 2026-10-17 |
 
 ## ATT — Điểm danh, báo ăn, đơn nghỉ (module: attendance)
 

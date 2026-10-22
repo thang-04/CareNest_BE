@@ -10,22 +10,30 @@ SCHOOL                 Principal          StaffAssignment(staff_role=PRINCIPAL)
       └ CLASS          Teacher            StaffAssignment(staff_role=TEACHER, classroom)
           └ CHILD      Parent             GuardianChildLink(child)
 CAMPUS (bếp)           Kitchen Staff      StaffAssignment(staff_role=KITCHEN_STAFF, campus) — chỉ dữ liệu nutrition
-SYSTEM                 System Admin       Tài khoản/role/cấu hình — không mặc định xem dữ liệu trẻ
+SYSTEM                 System Admin       Kỹ thuật (tài khoản PRINCIPAL, khóa/mở, cấu hình) — không mặc định xem dữ liệu trẻ
 ```
 
 ## Actor
 
 | Role | Client chính | Trách nhiệm trong CareNest | Không làm |
 | --- | --- | --- | --- |
-| Principal | Web | Xem tổng hợp 2 campus, duyệt/xác nhận trong quyền, theo dõi sự cố, xem hồ sơ phát triển | Quản trị tài khoản kỹ thuật |
+| Principal | Web | Xem tổng hợp 2 campus, duyệt/xác nhận trong quyền, theo dõi sự cố, xem hồ sơ phát triển; cấp tài khoản và phân quyền nghiệp vụ cho PHT/GV/bếp/phụ huynh (AUTH-06, AUTH-10) | Quản trị kỹ thuật (Keycloak, tạo tài khoản PRINCIPAL/ADMIN); giao quyền phân quyền cho người khác (AUTH-11) |
 | Vice Principal | Web | Như Principal nhưng trong campus được phân công (AUTH-02) | Xem campus khác (trừ khi được phân công) |
 | Teacher | Web + App | Điểm danh, báo ăn, quan sát hằng ngày, duyệt summary của lớp, báo sự cố CSVC, nhập đo sức khỏe (người nhập: PENDING) | Xem lớp không được phân công |
 | Parent | App | Xem thông tin được phép của con (PAR-*); gửi báo nghỉ, không cần duyệt (ATT-05) | Chat thay Zalo; xem trẻ khác |
 | Kitchen Staff | App (+Web nếu cần) | Xem suất đã chốt, thực đơn đã duyệt, định lượng, dị ứng cần cho nấu | Sửa điểm danh; xem hồ sơ trẻ |
-| System Admin | Web | Tài khoản, role, phân công, cấu hình hệ thống, master data kỹ thuật | Ra quyết định nghiệp vụ; mặc định không xem dữ liệu trẻ (AUTH-06) |
+| System Admin | Web | Kỹ thuật: tạo tài khoản PRINCIPAL, khóa/mở tài khoản, cấu hình hệ thống, master data kỹ thuật, xử lý sự cố (AUTH-06) | Ra quyết định nghiệp vụ; phân quyền nghiệp vụ; mặc định không xem dữ liệu trẻ (AUTH-06, P-16) |
 
-## Hành động cần permission riêng (danh sách khởi đầu)
+## Permission (ADR-0017)
 
-`attendance:record` · `leave:create` · `meal-count:confirm` · `menu:approve` · `food-master:manage` · `health:record` · `health-interpretation:approve` · `observation:record` · `summary:approve` · `facility-issue:report` · `facility-issue:manage` · `report:view` · `admin:accounts`
+Danh mục chính thức là enum `utils/enums/Permission`; BE kiểm bằng `@permissionGuard.has(...)`. Quyền ADMIN/PRINCIPAL/PARENT cố định trong code; PHT/GV/bếp theo ma trận do Hiệu trưởng bật/tắt + ngoại lệ từng người (AUTH-10..14). Quyền không vượt scope (AUTH-13).
 
-Gán permission cho role nào ở các hành động có người thực hiện PENDING (meal-count:confirm, health:record) ⇒ cấu hình, không hard-code.
+| Quyền | Mặc định | HT cấu hình được cho |
+| --- | --- | --- |
+| `CHILD_PROFILE_VIEW` | PRINCIPAL, VICE_PRINCIPAL, TEACHER, PARENT | VICE_PRINCIPAL, TEACHER (không bếp — AUTH-05) |
+| `ACCOUNT_MANAGE` (tạo tài khoản, cấp lại mật khẩu tạm), `ACCOUNT_STATUS_MANAGE` (khóa/mở) | ADMIN, PRINCIPAL | VICE_PRINCIPAL (mặc định tắt; chỉ GV/bếp campus mình — AUTH-15, AUTH-17) |
+| `STAFF_ASSIGNMENT_MANAGE` (phân công) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; chỉ GV/bếp campus mình — AUTH-16) |
+| `PARENT_ACCOUNT_MANAGE` (tài khoản phụ huynh gắn trẻ, khóa/mở, mật khẩu tạm) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; chỉ trẻ đang học trong campus mình — AUTH-18, AUTH-19) |
+| `PERMISSION_MANAGE` | PRINCIPAL | không giao được (AUTH-11) |
+
+Định hướng cho module chưa làm (mỗi module tự thêm quyền khi có API): `attendance:record` · `leave:create` · `meal-count:confirm` · `menu:approve` · `food-master:manage` · `health:record` · `health-interpretation:approve` · `observation:record` · `summary:approve` · `facility-issue:report` · `facility-issue:manage` · `report:view` · `admin:accounts`. Hành động có người thực hiện PENDING (meal-count:confirm, health:record) ⇒ để cấu hình được, không hard-code.

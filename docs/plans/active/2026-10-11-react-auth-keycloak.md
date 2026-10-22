@@ -251,3 +251,7 @@ Thay đề xuất Phase 4 cũ (chỉ bỏ cột `remember`); đề xuất cũ b�
 ### 2026-10-13 — Phase 4 done
 - User review và xác nhận Phase 4 (4a–4c) xong trong chat. Verify cuối: `VERIFY PASS full | tests 204 fail 0 err 0 skip 0`.
 - Còn mở ngoài Phase 4: browser review Phase 3 với Keycloak thật (gồm login/refresh/logout sau đổi env `CARENEST_AUTH_*`). Plan giữ `in-progress`. Commit: none.
+
+### 2026-10-22 — Đối chiếu tích hợp FE
+- FE `dev` @ `000c7bb` chưa có gateway auth: vẫn mock, gọi `/auth/me`, `/users`, `/me/profile`, không CSRF/refresh. Source Phase 3 (FE `24a3a8a`) chỉ ở nhánh FE `feature/G94-209-FE-FEAT-53-permission-management`; plan merge FE chốt không nhận gateway auth.
+- Report: `docs/quality/reports/2026-10-22-auth-fe-integration-gap.md`. Phase 3 vẫn mở, chờ team quyết có đưa gateway vào FE `dev`. Commit: none.

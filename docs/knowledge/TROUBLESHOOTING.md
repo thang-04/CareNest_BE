@@ -15,6 +15,11 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Xử lý: `.env` BE đặt `CARENEST_AUTH_ENABLED=true`; chạy HTTP localhost thì `CARENEST_AUTH_SECURE_COOKIES=false`; tạo lại API: `docker compose -f compose.yaml -f compose.auth.yaml up -d api`. Kiểm: `curl -i -H "Origin: http://localhost:5173" http://localhost:8080/api/auth/csrf` phải 200 + `Set-Cookie: XSRF-TOKEN`.
 - Kiểm nhanh không lộ secret: `docker inspect carenest_be-api-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep CARENEST_AUTH_ENABLED`.
 
+### FE `:5173` báo "Không thể kết nối máy chủ" ngay sau khi build lại API; `GET /api/auth/csrf` trả 401, preflight CORS 403 không có `Access-Control-Allow-Origin`
+- Nguyên nhân: build/recreate API chỉ với `compose.yaml` (`docker compose up -d --build api`) trong khi stack đang chạy overlay `compose.auth.yaml` ⇒ container API mới mất `CARENEST_AUTH_ENABLED=true`, secret gateway và origin `http://localhost:5173` (mặc định `application.yml`: auth tắt, CORS chỉ `:3000`). Endpoint `/auth/*` không còn `permitAll` nên trả 401.
+- Kiểm: `docker inspect carenest_be-keycloak-1 --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}'` thấy cả `compose.auth.yaml`; `docker inspect carenest_be-api-1 --format '{{range .Config.Env}}{{println .}}{{end}}' | grep CARENEST_AUTH_ENABLED` không có dòng nào.
+- Xử lý: luôn dùng cùng bộ file: `docker compose -f compose.yaml -f compose.auth.yaml up -d --build --no-deps api`; kiểm lại `curl -H "Origin: http://localhost:5173" http://localhost:8080/api/auth/csrf` trả 200.
+
 ### `POST /api/auth/login` trả 503 `Authentication service unavailable`; Keycloak log `client_not_found` cho `carenest-auth-gateway`
 - Nguyên nhân: realm `carenest` đã có trong DB Keycloak từ base Compose ⇒ `compose.auth.yaml` import bị bỏ qua (`Realm 'carenest' already exists. Import skipped`), client gateway + flow chưa từng được tạo. Token endpoint trả 401 `invalid_client` ⇒ BE map 503.
 - Xử lý: chạy bootstrap theo `docker/keycloak/auth/README.md` mục Opt-in: preview `node docker/keycloak/auth/bootstrap.mjs` (cần `KC_BOOTSTRAP_ADMIN_*`, `KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET` trong env), duyệt rồi `--apply --enable` (chỉ môi trường local/test).
@@ -39,6 +44,11 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 ### `docker exec ... psql -f /tmp/x.sql` báo `C:/Users/.../Temp/x.sql: No such file` (Git Bash trên Windows)
 - Nguyên nhân: Git Bash tự đổi đường dẫn dạng `/tmp/...` thành đường dẫn Windows.
 - Xử lý: đưa file qua stdin: `docker exec -i <container> psql -U carenest -d carenest < file.sql`, hoặc đặt `MSYS_NO_PATHCONV=1`.
+
+### `Found more than one migration with version N` sau khi đổi nhánh
+- Nguyên nhân: `target/classes/db/migration` còn migration của nhánh trước (Maven không xóa resource đã bỏ khỏi source).
+- Xử lý: `mvnw clean` rồi chạy lại test/app. Không sửa/đổi tên migration trong source khi source chỉ có 1 file version đó.
+- Incident: ENV-261016-flyway-duplicate-version-stale-target
 
 ### `FATAL: password authentication failed for user "carenest"`
 - Nguyên nhân:
