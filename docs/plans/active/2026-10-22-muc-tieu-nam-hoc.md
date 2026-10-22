@@ -207,3 +207,4 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Merge `origin/feature/G94-236-BE-FEAT-29-daily-attendance` (kèm cấu hình trường G94-235, migration V10–V19).
 - Trùng version: `V10__drop_unused_edu_plan_tables` của nhánh này đổi thành `V20__…` (nội dung không đổi, độc lập với V10–V19). DB local đã chạy V10 cũ ⇒ cần dựng lại DB dev (Flyway báo lệch checksum/version).
 - `docs/api/openapi.yaml` xung đột ⇒ sinh lại từ code sau merge: giống nhánh kia, chỉ bỏ `EduConfigResponse.yearSigners` (đã bỏ ở `3438e72`).
+- Sau merge FE G94-179: màn Mục tiêu năm học sập ("Hệ thống gặp sự cố", `id.replace is not a function` ở `toEduYear`). Nguyên nhân: header (`SchoolYearContext`) nối BE thật giữ id năm dạng số, module kế hoạch giáo dục cần tên năm `2026-2027`. Sửa FE `useEducationPlan.jsx`: đổi id → tên năm qua `label` của lựa chọn năm (chưa commit).
