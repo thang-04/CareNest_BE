@@ -167,3 +167,38 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Verify: FE `node scripts/verify.mjs` → `VERIFY PASS full`, `tests/education-plan/year-plan-api.test.mjs` 4/4; BE xem dòng verify cuối báo cáo.
 - Chưa kiểm chứng: FE chạy với BE thật (FE chưa có đăng nhập Keycloak, `/auth/login` vẫn PROPOSED); `PUT /education-plans/config` chưa có ở BE.
 
+### 2026-10-22 — Thu gọn schema (V20, trước là V10; Tiền chọn A)
+- Bỏ `edu_plan_approvals`, `edu_approval_steps`, cột `edu_year_plans.attachment_key`; `GET /education-plans/config` bỏ `yearSigners` (FE dùng người ký mặc định).
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 230 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; FE `VERIFY PASS full`
+- Commit: chưa commit
+
+
+### 2026-10-23 — Bảng chủ đề: xác nhận xóa + đổi thứ tự (Tiền yêu cầu)
+- FE `GoalTables.jsx` `ThemeEventTable`: thùng rác chủ đề/đợt nghỉ mở `ConfirmationModal` (báo số MT đã tích); cột "Sắp xếp" có tay nắm kéo-thả (`useSortableList`, cả bàn phím) và 2 nút lên/xuống. Không đổi API: thứ tự = thứ tự mảng PUT.
+- BE: sửa `saveContent` lưu dấu tích theo chênh lệch ([BUG-261023-edu-theme-tick-lost-on-resave](../../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)); test `reordersThemesAndBreaksKeepingIdsAndTicks`.
+- Verify: BE `VERIFY PASS full | tests 231 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; FE `VERIFY PASS full` (`tests/education-plan/theme-order.test.mjs` 4/4); E2E Playwright (FE thật, API giả lập theo DTO BE) PASS 12 bước.
+- Chưa kiểm chứng: E2E với Keycloak/BE thật (mật khẩu user dev ở `.env`, hook chặn đọc).
+- Commit: chưa commit
+
+### 2026-10-23 — Kéo-thả chủ đề rõ hơn (Tiền yêu cầu)
+- FE `useSortableList`: hiệu ứng trượt (FLIP) khi đổi chỗ bằng kéo/bàn phím/nút lên-xuống (`sort.move`), dòng vừa chuyển nháy sáng, ảnh kéo là thẻ "↕ STT. tên" thay ảnh cả dòng; tôn trọng `prefers-reduced-motion`.
+- Icon tay nắm `DragHandle` (Tabler `IconArrowsMoveVertical`) thay ⋮⋮ ở bảng chủ đề/đợt nghỉ và trang cấu hình (người ký, tuần); tay nắm có viền + nền xanh nhạt; vạch thả 3px; dòng đang kéo viền nét đứt.
+- Giả định (chế độ tự chạy): áp kiểu mới cho mọi danh sách dùng `useSortableList` để thống nhất.
+- Sau góp ý: kéo qua dòng nào thì cả dòng tô xanh (`sortable-item--over`); thả là chiếm vị trí dòng đó (bỏ chia nửa trên/dưới), vạch cạnh trên/dưới báo hướng.
+- Verify: FE `VERIFY PASS full`. Chưa kiểm chứng bằng mắt trên trình duyệt.
+- Commit: chưa commit
+
+### 2026-10-23 — Kéo-thả chuẩn dnd-kit (Tiền yêu cầu "chuẩn như các web lớn")
+- FE thêm dependency `@dnd-kit/core 6.3.1`, `@dnd-kit/sortable 10.0.0`, `@dnd-kit/utilities 3.2.2`, `@dnd-kit/modifiers 9.0.0` (ghim bản, cài `--legacy-peer-deps` vì xung đột peer vite 8 ↔ `@vitejs/plugin-react` 4 có sẵn, không đổi gói cũ). Lý do: thư viện sortable phổ biến nhất của React (kiểu Notion/Linear: dòng dạt ra nhường chỗ).
+- `src/components/ui/Sortable.jsx` thay hook HTML5 cũ (`useSortableList.js` chỉ còn `moveItem`): chỗ sẽ thả tô xanh cả dòng, STT đổi ngay khi đang kéo (`SortIndex`), nút ↑↓ trượt mượt (`animateLayoutChanges`), bàn phím + thông báo đọc màn hình tiếng Việt. Áp cho bảng chủ đề, đợt nghỉ, trang cấu hình (người ký, dòng tuần). `DESIGN.md` cập nhật; baseline check-design +1 inline style (transform động của dnd-kit).
+- Kiểm chứng trình duyệt (FE mock, port 5174): kéo bằng PointerEvent từng bước → dòng dạt, STT 1–4 cập nhật lúc kéo, thả đúng thứ tự; bàn phím Space/↑/Space đúng; nút ↑↓ đúng; console không lỗi.
+- Attempts: `left_click_drag` của Claude in Chrome không kích hoạt dnd-kit (gửi quá ít pointermove) ⇒ test bằng chuỗi PointerEvent; chưa thử bằng chuột người dùng thật.
+- Verify: FE `VERIFY PASS full`. Commit: chưa commit
+- Sau góp ý (Tiền): STT không tự đánh lại khi kéo/xóa; dòng mới lấy số lớn nhất + 1; nút "Đánh số lại" (icon danh sách số) ở tiêu đề cột STT bảng chủ đề, đợt nghỉ, dòng tuần. Giả định: STT chỉ là hiển thị phía FE (BE lưu thứ tự mảng), mở lại kế hoạch hiện 1..n; danh sách người ký giữ số theo vị trí (là thứ tự ký). Kiểm chứng trình duyệt: kéo ⇒ STT 2,3,1,4 + nút bật; bấm ⇒ 1..4, nút tắt. FE `VERIFY PASS full`.
+- Sau góp ý (Tiền): nút "Đánh số lại" xếp dưới chữ STT (hết tràn cột). Dòng vừa đổi chỗ bằng ↑↓/bàn phím/thả: tô xanh cả dòng + khung xanh ~1,1 giây bằng class tĩnh (JS gỡ). Attempts: bản dùng `@keyframes` không hiện vì `base.css` ép `animation-duration: 0.01ms !important` khi máy bật `prefers-reduced-motion` (Windows tắt hiệu ứng) ⇒ đổi sang class tĩnh. Kiểm chứng: computed style dòng vừa chuyển nền `rgb(197,229,252)` + outline `rgb(11,114,188)`. FE `VERIFY PASS full`.
+- Sau góp ý (Tiền): ô tên chủ đề/đợt nghỉ — Enter vẫn thêm dòng dưới; Backspace khi đã hết chữ không xóa dòng nữa (ô trống, giống ô mục tiêu), xóa dòng chỉ bằng thùng rác. Kiểm chứng trình duyệt: Enter 1→2 dòng, focus dòng mới; xóa hết + Backspace vẫn 2 dòng. FE `VERIFY PASS full`.
+- Sau góp ý (Tiền): tab "Mục tiêu, nội dung giáo dục" — 4 nút xóa (mục tiêu, nội dung, lĩnh vực con, nhóm kết quả mong đợi) mở `ConfirmationModal` nêu tên + những gì bị xóa kèm (nội dung, dấu tích chủ đề, mục tiêu trong nhóm); nút đổi sang `icon-btn--danger`. Backspace ở ô trống của tầng nhóm/lĩnh vực con vẫn xóa ngay như cũ (chưa được yêu cầu đổi). Kiểm chứng trình duyệt: modal hiện đúng câu, Quay lại giữ dữ liệu, Xóa thì xóa. FE `VERIFY PASS full`.
+- Sau góp ý (Tiền): trang lập/sửa kế hoạch năm — chuyển tab Mục tiêu ↔ Chủ đề khi còn thay đổi chưa lưu ⇒ hiện ngay `LeaveConfirmModal` (thêm prop `message`/`discardLabel`/`saveLabel`, mặc định giữ như cũ): "Ở lại" / "Chuyển, lưu sau" (giữ dữ liệu trên trang) / "Lưu và chuyển". Kiểm chứng trình duyệt: hỏi khi có thay đổi, Lưu và chuyển ⇒ "Đã lưu" + sang tab, Chuyển lưu sau giữ chủ đề vừa nhập, Ở lại giữ tab. Ghi chú: kiểm thử đã lưu 1 kế hoạch nháp nhóm Mẫu giáo lớn trong mock localStorage. FE `VERIFY PASS full`.
+- Sau góp ý (Tiền): `LeaveConfirmModal` (chuyển tab và rời trang, mọi trang kế hoạch giáo dục) đổi nút thành Hủy · Không lưu · Lưu; bỏ prop nhãn tùy biến. Kiểm chứng trình duyệt: modal có đúng 3 nút, Hủy đóng modal và giữ tab. FE `VERIFY PASS full`.
+- Sau góp ý (Tiền): chuyển tab chọn "Không lưu" ⇒ bỏ thay đổi của tab đang rời, trở về bản đã lưu gần nhất (`useManualSave.cleanDoc()`; tab Chủ đề: themes + breaks, bỏ dấu tích trỏ tới chủ đề không còn; tab Mục tiêu: domains); thông tin chung không đổi. Chỉ hỏi khi chính tab đang rời có thay đổi. Kiểm chứng trình duyệt: sửa tên + thêm chủ đề → Không lưu ⇒ tên về cũ, 10→9 chủ đề, hết "Có thay đổi chưa lưu". FE `VERIFY PASS full`.
+- Sau góp ý (Tiền): ô kết quả mong đợi và ô lĩnh vực con — Backspace khi đã hết chữ không xóa dòng nữa (ô trống, như ô mục tiêu/chủ đề), xóa dòng bằng thùng rác (có xác nhận). Kiểm chứng trình duyệt (không lưu): xóa hết + Backspace ×3 vẫn còn dòng ở cả 2 loại ô. FE `VERIFY PASS full`.

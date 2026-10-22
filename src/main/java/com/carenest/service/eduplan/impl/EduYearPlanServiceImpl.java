@@ -11,7 +11,6 @@ import com.carenest.entity.eduplan.EduContentThemeTick;
 import com.carenest.entity.eduplan.EduDomain;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
-import com.carenest.entity.eduplan.EduPlanApproval;
 import com.carenest.entity.eduplan.EduPlanEvent;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.entity.eduplan.EduYearPlan;
@@ -22,7 +21,6 @@ import com.carenest.repository.eduplan.EduContentThemeTickRepository;
 import com.carenest.repository.eduplan.EduDomainRepository;
 import com.carenest.repository.eduplan.EduGoalContentRepository;
 import com.carenest.repository.eduplan.EduGoalRowRepository;
-import com.carenest.repository.eduplan.EduPlanApprovalRepository;
 import com.carenest.repository.eduplan.EduPlanEventRepository;
 import com.carenest.repository.eduplan.EduThemeRepository;
 import com.carenest.repository.eduplan.EduYearPlanRepository;
@@ -85,7 +83,6 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private final EduContentThemeTickRepository tickRepository;
     private final EduDomainRepository domainRepository;
     private final EduPlanEventRepository eventRepository;
-    private final EduPlanApprovalRepository approvalRepository;
     private final EduPlanAccessPolicy accessPolicy;
     private final SchoolStructureService schoolStructureService;
     private final AccountService accountService;
@@ -296,11 +293,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             requireReadyForReview(plan);
 
             Instant now = clock.instant();
-            String cleanNote = trimToEmpty(note);
             plan.issue(currentUser.userId(), now);
             yearPlanRepository.save(plan);
-            approvalRepository.save(EduPlanApproval.of(
-                    plan.getId(), currentUser.userId(), "VICE_PRINCIPAL", TITLE_VICE_PRINCIPAL, now, cleanNote));
             recordEvent(plan, ACTION_ISSUE, "Ban hành", currentUser, TITLE_VICE_PRINCIPAL, TONE_OK, note, now);
 
             YearPlanDetailResponse response = toDetail(currentUser, plan);
@@ -498,17 +492,27 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
         goalContentRepository.flush();
 
+        // Chỉ xóa tick bị bỏ, thêm tick mới: xóa JPQL rồi merge lại sẽ bỏ sót tick còn trong persistence context
+        Set<EduContentThemeTick.Key> wanted =
+                ticks.stream().map(EduContentThemeTick::key).collect(Collectors.toSet());
         Set<Long> planThemeIds = new HashSet<>(themeIdByKey.values());
-        if (!planThemeIds.isEmpty()) {
-            tickRepository.deleteByThemeIds(planThemeIds);
-        }
+        List<EduContentThemeTick> existingTicks =
+                planThemeIds.isEmpty() ? List.of() : tickRepository.findAllByThemeIdIn(planThemeIds);
+        Set<EduContentThemeTick.Key> existingKeys =
+                existingTicks.stream().map(EduContentThemeTick::key).collect(Collectors.toSet());
+        tickRepository.deleteAll(existingTicks.stream()
+                .filter(tick -> !wanted.contains(tick.key()))
+                .toList());
+        tickRepository.flush();
         goalContentRepository.deleteAllInBatch(existingContents.values().stream()
                 .filter(content -> !keptContentIds.contains(content.getId()))
                 .toList());
         goalRowRepository.deleteAllInBatch(existingRows.values().stream()
                 .filter(row -> !keptRowIds.contains(row.getId()))
                 .toList());
-        tickRepository.saveAll(ticks);
+        tickRepository.saveAll(ticks.stream()
+                .filter(tick -> !existingKeys.contains(tick.key()))
+                .toList());
     }
 
     private Map<String, Long> saveThemes(Long planId, List<YearPlanRequest.Theme> requestThemes) {

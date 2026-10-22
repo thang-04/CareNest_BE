@@ -2837,10 +2837,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolYearResponse"
-        yearSigners:
-          type: array
-          items:
-            type: string
     Entry:
       type: object
       properties:

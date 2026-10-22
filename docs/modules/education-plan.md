@@ -11,8 +11,8 @@ Kế hoạch giáo dục theo mẫu MN Thái Dương. Phần đang làm là kế
 
 ## Owns
 - Kế hoạch năm: `EduYearPlan`, `EduGoalRow`, `EduGoalContent`, `EduTheme`, `EduBreak`, `EduContentThemeTick`.
-- Lịch sử và duyệt: `EduPlanEvent`, `EduPlanApproval`.
-- Danh mục: `EduDomain`, `EduExpectedResult`, `EduApprovalStep`.
+- Lịch sử: `EduPlanEvent` (người, thời điểm ban hành lưu ở `EduYearPlan.issuedBy/issuedAt`).
+- Danh mục: `EduDomain`, `EduExpectedResult`.
 - Sau này thêm: chủ đề nhánh, kế hoạch chủ đề, kế hoạch tuần/ngày.
 
 ## KHÔNG owns
@@ -41,9 +41,10 @@ Không có (các câu hỏi đã chốt 22/10).
 - Status do BE quyết định. Không nhận status từ client.
 - MT đánh số lại khi xóa hoặc chèn dòng; module khác tham chiếu MT qua id dòng, không qua số.
 - Kế hoạch đã ban hành bị khóa sửa, vì lớp dùng chủ đề và đợt nghỉ của nó.
+- Thứ tự chủ đề, đợt nghỉ = thứ tự mảng trong PUT (`sort_order`); dấu tích lưu theo chênh lệch, không xóa JPQL rồi ghi lại ([BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)).
 
 ## Related issues
-Chưa có.
+- [BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)
 
 ## Đọc thêm khi
 Đổi quyền hoặc phân công Tổ trưởng ⇒ `docs/business/USER_ROLES.md`, ADR-0003.

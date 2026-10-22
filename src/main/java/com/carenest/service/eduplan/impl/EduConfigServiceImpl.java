@@ -2,9 +2,7 @@ package com.carenest.service.eduplan.impl;
 
 import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.dto.eduplan.ExpectedResultResponse;
-import com.carenest.entity.eduplan.EduApprovalStep;
 import com.carenest.mapper.eduplan.EduYearPlanMapper;
-import com.carenest.repository.eduplan.EduApprovalStepRepository;
 import com.carenest.repository.eduplan.EduDomainRepository;
 import com.carenest.repository.eduplan.EduExpectedResultRepository;
 import com.carenest.service.eduplan.EduConfigService;
@@ -21,10 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class EduConfigServiceImpl implements EduConfigService {
     private static final String LOG_PREFIX = "[EduConfigServiceImpl]";
-    private static final String DOC_TYPE_YEAR = "year";
 
     private final EduDomainRepository domainRepository;
-    private final EduApprovalStepRepository approvalStepRepository;
     private final EduExpectedResultRepository expectedResultRepository;
     private final SchoolStructureService schoolStructureService;
     private final EduYearPlanMapper mapper;
@@ -37,9 +33,6 @@ public class EduConfigServiceImpl implements EduConfigService {
             EduConfigResponse config = new EduConfigResponse(
                     domainRepository.findAllByActiveTrueOrderBySortOrderAsc().stream()
                             .map(mapper::toConfigDomain)
-                            .toList(),
-                    approvalStepRepository.findAllByDocTypeOrderByStepOrderAsc(DOC_TYPE_YEAR).stream()
-                            .map(EduApprovalStep::getApproverRole)
                             .toList(),
                     schoolStructureService.findSchoolYears(),
                     schoolStructureService.findAgeGroups());
