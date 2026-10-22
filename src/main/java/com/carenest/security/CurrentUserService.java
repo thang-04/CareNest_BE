@@ -2,9 +2,14 @@ package com.carenest.security;
 
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.account.RolePermissionRepository;
 import com.carenest.repository.account.UserAccountRepository;
+import com.carenest.repository.account.UserPermissionOverrideRepository;
+import com.carenest.security.authorization.EffectivePermissionResolver;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -25,6 +30,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class CurrentUserService {
 
     private final UserAccountRepository userAccountRepository;
+    private final RolePermissionRepository rolePermissionRepository;
+    private final UserPermissionOverrideRepository userPermissionOverrideRepository;
 
     @Transactional(readOnly = true)
     public CurrentUser getCurrentUser() {
@@ -68,7 +75,21 @@ public class CurrentUserService {
                 account.getUsername(),
                 account.getFullName(),
                 account.getEmail(),
-                roles);
+                roles,
+                resolvePermissions(account.getId(), roles));
+    }
+
+    // Đọc DB mỗi request nên HT đổi quyền là có hiệu lực ngay, không chờ token mới (ADR-0017)
+    private Set<Permission> resolvePermissions(Long userId, Set<CareNestRole> roles) {
+        Set<CareNestRole> configurableRoles =
+                roles.stream().filter(Permission::isConfigurableRole).collect(Collectors.toSet());
+        if (configurableRoles.isEmpty()) {
+            return EffectivePermissionResolver.resolve(roles, List.of(), List.of());
+        }
+        return EffectivePermissionResolver.resolve(
+                roles,
+                rolePermissionRepository.findByRoleIn(configurableRoles),
+                userPermissionOverrideRepository.findByUserId(userId));
     }
 
     private static Set<CareNestRole> rolesOf(Authentication authentication) {

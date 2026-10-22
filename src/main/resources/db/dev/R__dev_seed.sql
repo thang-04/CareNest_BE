@@ -13,6 +13,13 @@ INSERT INTO user_accounts (keycloak_user_id, username, email, full_name) VALUES
     ('00000000-0000-4000-a000-000000000008', 'kitchen.a', 'kitchen.a@carenest.test', 'Nhà bếp Cơ sở A Demo')
 ON CONFLICT (keycloak_user_id) DO NOTHING;
 
+-- primary_role khớp realm role trong docker/keycloak/dev/carenest-users-0.json (V8)
+UPDATE user_accounts u SET primary_role = v.role
+FROM (VALUES ('admin.dev', 'ADMIN'), ('principal.dev', 'PRINCIPAL'), ('viceprincipal.a', 'VICE_PRINCIPAL'),
+             ('teacher.a', 'TEACHER'), ('teacher.b', 'TEACHER'), ('parent.a', 'PARENT'), ('parent.b', 'PARENT'),
+             ('kitchen.a', 'KITCHEN_STAFF')) AS v (username, role)
+WHERE u.username = v.username AND u.primary_role IS NULL;
+
 INSERT INTO campuses (code, name) VALUES
     ('CS-A', 'Cơ sở A (demo)'),
     ('CS-B', 'Cơ sở B (demo)')

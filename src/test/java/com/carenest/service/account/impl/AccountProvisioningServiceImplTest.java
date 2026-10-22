@@ -16,6 +16,9 @@ import com.carenest.config.AuthProperties;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
+import com.carenest.dto.account.StaffAssignmentScopeRequest;
+import com.carenest.dto.organization.NewStaffAssignment;
+import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.AuthGatewayClient;
@@ -25,20 +28,30 @@ import com.carenest.integration.keycloak.NewIdentityUser;
 import com.carenest.mapper.account.AccountMapper;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.AuthStateStore;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
+import com.carenest.utils.enums.StaffRole;
 import com.carenest.utils.enums.UserStatus;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 class AccountProvisioningServiceImplTest {
 
@@ -51,13 +64,23 @@ class AccountProvisioningServiceImplTest {
     private final AuthProperties authProperties = mock(AuthProperties.class);
     private final AuthGatewayClient authGatewayClient = mock(AuthGatewayClient.class);
     private final AuthStateStore authState = mock(AuthStateStore.class);
+    private final StaffAccessPolicy staffAccessPolicy = mock(StaffAccessPolicy.class);
+    private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
     private final AccountProvisioningServiceImpl service = new AccountProvisioningServiceImpl(
             userAccountRepository,
             identityProviderClient,
             new AccountMapper(),
             authProperties,
             authGatewayClient,
-            authState);
+            staffAccessPolicy,
+            staffAssignmentService,
+            new ManagedAccountLoader(userAccountRepository, staffAccessPolicy),
+            new AccountLifecycleOperations(
+                    userAccountRepository,
+                    identityProviderClient,
+                    authState,
+                    new TransactionTemplate(mock(PlatformTransactionManager.class))),
+            Clock.fixed(Instant.parse("2026-10-17T03:00:00Z"), ZoneOffset.UTC));
 
     @BeforeEach
     void setUpRepository() {
@@ -95,8 +118,8 @@ class AccountProvisioningServiceImplTest {
         given(identityProviderClient.canSendSetupEmail()).willReturn(true);
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
 
-        CreateAccountResponse response =
-                service.createAccount(ADMIN, request("parent.c", "parent.c@example.test", CareNestRole.PARENT, null));
+        CreateAccountResponse response = service.createAccount(
+                ADMIN, request("kitchen.c", "kitchen.c@example.test", CareNestRole.KITCHEN_STAFF, null));
 
         verify(identityProviderClient).sendSetupEmail(KC_ID);
         assertThat(response.setupEmailSent()).isTrue();
@@ -107,8 +130,8 @@ class AccountProvisioningServiceImplTest {
         given(authProperties.enabled()).willReturn(true);
         given(identityProviderClient.canSendSetupEmail()).willReturn(true);
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
-        CreateAccountResponse response =
-                service.createAccount(ADMIN, request("parent.c", "parent.c@example.test", CareNestRole.PARENT, null));
+        CreateAccountResponse response = service.createAccount(
+                ADMIN, request("kitchen.c", "kitchen.c@example.test", CareNestRole.KITCHEN_STAFF, null));
         verify(authGatewayClient).sendReactSetupEmail(KC_ID);
         verify(identityProviderClient, never()).sendSetupEmail(anyString());
         assertThat(response.setupEmailSent()).isTrue();
@@ -116,7 +139,8 @@ class AccountProvisioningServiceImplTest {
 
     @Test
     void requiresTemporaryPasswordWhenNoSetupEmailCanBeSent() {
-        assertThatThrownBy(() -> service.createAccount(ADMIN, request("parent.c", null, CareNestRole.PARENT, null)))
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("kitchen.c", null, CareNestRole.KITCHEN_STAFF, null)))
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.BAD_REQUEST);
@@ -129,6 +153,16 @@ class AccountProvisioningServiceImplTest {
                         () -> service.createAccount(ADMIN, request("admin.2", null, CareNestRole.ADMIN, "Temp-Pass-1")))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage("This role cannot be created via API");
+        verifyNoInteractions(identityProviderClient);
+    }
+
+    @Test
+    @DisplayName("AUTH-18: tài khoản phụ huynh chỉ tạo qua luồng gắn trẻ, không qua POST /accounts")
+    void refusesToCreateParentWithoutChild() {
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request("0912345678", null, CareNestRole.PARENT, "Temp-Pass-1")))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
         verifyNoInteractions(identityProviderClient);
     }
 
@@ -296,7 +330,7 @@ class AccountProvisioningServiceImplTest {
     }
 
     private static CreateAccountRequest request(String username, String email, CareNestRole role, String password) {
-        return new CreateAccountRequest(username, "Giáo viên Demo", email, role, password);
+        return new CreateAccountRequest(username, "Giáo viên Demo", email, role, password, null);
     }
 
     private static UserAccount existingAccount() {
@@ -330,5 +364,144 @@ class AccountProvisioningServiceImplTest {
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.BAD_REQUEST);
         verify(identityProviderClient, never()).deleteUser(anyString());
+    }
+
+    private static final CurrentUser PRINCIPAL =
+            new CurrentUser(2L, "kc-p", "principal.dev", "HT", null, Set.of(CareNestRole.PRINCIPAL));
+    private static final LocalDate TODAY = LocalDate.of(2026, 10, 17);
+
+    @Test
+    @DisplayName("AUTH-15: tạo GV kèm lớp ⇒ kiểm phạm vi theo campus của lớp, lưu phân công cùng tài khoản")
+    void createsTeacherTogetherWithClassroomAssignment() {
+        given(identityProviderClient.createUser(any())).willReturn(KC_ID);
+        given(staffAssignmentService.resolveCampusId(StaffRole.TEACHER, null, 11L))
+                .willReturn(5L);
+        StaffAssignmentResponse assignment =
+                new StaffAssignmentResponse(7L, 42L, StaffRole.TEACHER, null, 11L, TODAY, null);
+        given(staffAssignmentService.createAssignment(any())).willReturn(assignment);
+
+        CreateAccountResponse response = service.createAccount(
+                PRINCIPAL,
+                new CreateAccountRequest(
+                        "teacher.c",
+                        "GV C",
+                        null,
+                        CareNestRole.TEACHER,
+                        "Temp-Pass-1",
+                        new StaffAssignmentScopeRequest(null, 11L, null)));
+
+        verify(staffAccessPolicy).checkCanCreate(PRINCIPAL, CareNestRole.TEACHER, 5L);
+        ArgumentCaptor<NewStaffAssignment> created = ArgumentCaptor.forClass(NewStaffAssignment.class);
+        verify(staffAssignmentService).createAssignment(created.capture());
+        assertThat(created.getValue())
+                .isEqualTo(new NewStaffAssignment(42L, StaffRole.TEACHER, null, 11L, TODAY, null));
+        assertThat(response.assignment()).isEqualTo(assignment);
+        ArgumentCaptor<UserAccount> saved = ArgumentCaptor.forClass(UserAccount.class);
+        verify(userAccountRepository).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getPrimaryRole()).isEqualTo(CareNestRole.TEACHER);
+    }
+
+    @Test
+    @DisplayName("AUTH-01: tài khoản Hiệu trưởng tự có phân công toàn trường")
+    void principalAccountGetsWholeSchoolAssignment() {
+        given(identityProviderClient.createUser(any())).willReturn(KC_ID);
+
+        service.createAccount(ADMIN, request("principal.b", null, CareNestRole.PRINCIPAL, "Temp-Pass-1"));
+
+        verify(staffAccessPolicy).checkCanCreate(ADMIN, CareNestRole.PRINCIPAL, null);
+        verify(staffAssignmentService, never()).resolveCampusId(any(), any(), any());
+        verify(staffAssignmentService)
+                .createAssignment(new NewStaffAssignment(42L, StaffRole.PRINCIPAL, null, null, TODAY, null));
+    }
+
+    @Test
+    @DisplayName("AUTH-15: người tạo ngoài phạm vi bị từ chối trước khi gọi Keycloak")
+    void deniedCreatorNeverReachesKeycloak() {
+        willThrow(new GlobalException(ApiCode.FORBIDDEN, "You cannot create an account with this role"))
+                .given(staffAccessPolicy)
+                .checkCanCreate(any(), any(), any());
+
+        assertThatThrownBy(() -> service.createAccount(
+                        PRINCIPAL, request("teacher.c", null, CareNestRole.TEACHER, "Temp-Pass-1")))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.FORBIDDEN);
+        verifyNoInteractions(identityProviderClient);
+    }
+
+    @Test
+    void principalRequestWithScopeIsRejected() {
+        assertThatThrownBy(() -> service.createAccount(
+                        ADMIN,
+                        new CreateAccountRequest(
+                                "principal.b",
+                                "HT B",
+                                null,
+                                CareNestRole.PRINCIPAL,
+                                "Temp-Pass-1",
+                                new StaffAssignmentScopeRequest(3L, null, null))))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
+        verifyNoInteractions(identityProviderClient);
+    }
+
+    @Test
+    void assignmentFailureDeletesCreatedKeycloakUser() {
+        given(identityProviderClient.createUser(any())).willReturn(KC_ID);
+        given(staffAssignmentService.resolveCampusId(StaffRole.KITCHEN_STAFF, 3L, null))
+                .willReturn(3L);
+        given(staffAssignmentService.createAssignment(any()))
+                .willThrow(new GlobalException(ApiCode.CONFLICT, "overlap"));
+
+        assertThatThrownBy(() -> service.createAccount(
+                        PRINCIPAL,
+                        new CreateAccountRequest(
+                                "kitchen.c",
+                                "Bếp C",
+                                null,
+                                CareNestRole.KITCHEN_STAFF,
+                                "Temp-Pass-1",
+                                new StaffAssignmentScopeRequest(3L, null, null))))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CONFLICT);
+        verify(identityProviderClient).deleteUser(KC_ID);
+    }
+
+    @Test
+    @DisplayName("AUTH-17: cấp lại mật khẩu tạm đặt mật khẩu Keycloak rồi hủy mọi phiên")
+    void resetTemporaryPasswordRevokesSessions() {
+        UserAccount teacher = UserAccount.create("kc-t", "teacher.a", null, "GV A", CareNestRole.TEACHER);
+        ReflectionTestUtils.setField(teacher, "id", 42L);
+        given(userAccountRepository.findById(42L)).willReturn(Optional.of(teacher));
+
+        service.resetTemporaryPassword(PRINCIPAL, 42L, "New-Temp-1");
+
+        verify(staffAccessPolicy).checkCanManageAccount(PRINCIPAL, 42L, CareNestRole.TEACHER);
+        InOrder order = inOrder(identityProviderClient, authState);
+        order.verify(identityProviderClient).resetTemporaryPassword("kc-t", "New-Temp-1");
+        order.verify(authState).revokeAccountAuth(42L);
+        order.verify(identityProviderClient).logoutUser("kc-t");
+    }
+
+    @Test
+    @DisplayName("AUTH-12: không cấp lại mật khẩu tạm cho chính mình")
+    void cannotResetOwnTemporaryPassword() {
+        assertThatThrownBy(() -> service.resetTemporaryPassword(PRINCIPAL, 2L, "New-Temp-1"))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
+        verifyNoInteractions(identityProviderClient);
+    }
+
+    @Test
+    void sessionRevokeFailureAfterResetReturns503() {
+        UserAccount teacher = UserAccount.create("kc-t", "teacher.a", null, "GV A", CareNestRole.TEACHER);
+        ReflectionTestUtils.setField(teacher, "id", 42L);
+        given(userAccountRepository.findById(42L)).willReturn(Optional.of(teacher));
+        willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null))
+                .given(identityProviderClient)
+                .logoutUser("kc-t");
+
+        assertThatThrownBy(() -> service.resetTemporaryPassword(PRINCIPAL, 42L, "New-Temp-1"))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.SERVICE_UNAVAILABLE);
     }
 }

@@ -11,4 +11,7 @@ public interface AccountProvisioningService {
     CreateAccountResponse createAccount(CurrentUser actor, CreateAccountRequest request);
 
     AccountResponse updateAccountStatus(CurrentUser actor, Long userId, UserStatus status);
+
+    /** Đặt mật khẩu tạm mới và hủy mọi phiên đang mở của tài khoản (AUTH-17). */
+    AccountResponse resetTemporaryPassword(CurrentUser actor, Long userId, String temporaryPassword);
 }

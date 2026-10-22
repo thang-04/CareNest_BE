@@ -18,11 +18,13 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.security.TestPermissions;
 import com.carenest.service.child.ChildService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.LocalDate;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -75,6 +77,19 @@ class ChildControllerTest {
     }
 
     @Test
+    @DisplayName("AUTH-10: giáo viên bị thu hồi CHILD_PROFILE_VIEW bị chặn ngay ở lớp 1")
+    void teacherWithRevokedChildViewIsRejectedBeforeReachingService() throws Exception {
+        CurrentUser revokedTeacher =
+                new CurrentUser(7L, "kc-7", "demo.user", "Demo", null, Set.of(CareNestRole.TEACHER), Set.of());
+        given(currentUserService.getCurrentUser()).willReturn(revokedTeacher);
+
+        mockMvc.perform(get(CHILD_URL, 101).with(tokenWithRole(CareNestRole.TEACHER)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(childService, never()).getChildProfile(any(), any());
+    }
+
+    @Test
     void teacherOutsideScopeGets403FromService() throws Exception {
         CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
         given(childService.getChildProfile(teacher, 201L))
@@ -119,7 +134,7 @@ class ChildControllerTest {
     }
 
     private CurrentUser authenticateAs(CareNestRole role) {
-        CurrentUser user = new CurrentUser(7L, "kc-7", "demo.user", "Demo", null, Set.of(role));
+        CurrentUser user = TestPermissions.userWithDefaults(7L, role);
         given(currentUserService.getCurrentUser()).willReturn(user);
         return user;
     }

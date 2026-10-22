@@ -130,6 +130,21 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
     }
 
     @Override
+    public List<String> getRealmRoleNames(String userId) {
+        RoleRepresentation[] assigned = call(
+                "getRealmRoleNames",
+                () -> restClient
+                        .get()
+                        .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .retrieve()
+                        .body(RoleRepresentation[].class));
+        return assigned == null
+                ? List.of()
+                : Arrays.stream(assigned).map(RoleRepresentation::name).toList();
+    }
+
+    @Override
     public void deleteUser(String userId) {
         call(
                 "deleteUser",
@@ -165,6 +180,20 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
                         .headers(headers -> headers.setBearerAuth(adminToken()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(user)
+                        .retrieve()
+                        .toBodilessEntity());
+    }
+
+    @Override
+    public void resetTemporaryPassword(String userId, String temporaryPassword) {
+        call(
+                "resetTemporaryPassword",
+                () -> restClient
+                        .put()
+                        .uri("/admin/realms/{realm}/users/{id}/reset-password", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Map.of("type", "password", "value", temporaryPassword, "temporary", true))
                         .retrieve()
                         .toBodilessEntity());
     }
