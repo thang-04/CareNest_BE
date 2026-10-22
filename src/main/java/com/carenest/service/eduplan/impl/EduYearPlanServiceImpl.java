@@ -492,17 +492,27 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
         goalContentRepository.flush();
 
+        // Chỉ xóa tick bị bỏ, thêm tick mới: xóa JPQL rồi merge lại sẽ bỏ sót tick còn trong persistence context
+        Set<EduContentThemeTick.Key> wanted =
+                ticks.stream().map(EduContentThemeTick::key).collect(Collectors.toSet());
         Set<Long> planThemeIds = new HashSet<>(themeIdByKey.values());
-        if (!planThemeIds.isEmpty()) {
-            tickRepository.deleteByThemeIds(planThemeIds);
-        }
+        List<EduContentThemeTick> existingTicks =
+                planThemeIds.isEmpty() ? List.of() : tickRepository.findAllByThemeIdIn(planThemeIds);
+        Set<EduContentThemeTick.Key> existingKeys =
+                existingTicks.stream().map(EduContentThemeTick::key).collect(Collectors.toSet());
+        tickRepository.deleteAll(existingTicks.stream()
+                .filter(tick -> !wanted.contains(tick.key()))
+                .toList());
+        tickRepository.flush();
         goalContentRepository.deleteAllInBatch(existingContents.values().stream()
                 .filter(content -> !keptContentIds.contains(content.getId()))
                 .toList());
         goalRowRepository.deleteAllInBatch(existingRows.values().stream()
                 .filter(row -> !keptRowIds.contains(row.getId()))
                 .toList());
-        tickRepository.saveAll(ticks);
+        tickRepository.saveAll(ticks.stream()
+                .filter(tick -> !existingKeys.contains(tick.key()))
+                .toList());
     }
 
     private Map<String, Long> saveThemes(Long planId, List<YearPlanRequest.Theme> requestThemes) {

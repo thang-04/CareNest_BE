@@ -7,6 +7,7 @@ import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 import java.io.Serializable;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -34,8 +35,13 @@ public class EduContentThemeTick {
         return tick;
     }
 
+    public Key key() {
+        return new Key(contentId, themeId);
+    }
+
     @EqualsAndHashCode
     @NoArgsConstructor
+    @AllArgsConstructor
     public static class Key implements Serializable {
         private Long contentId;
         private Long themeId;

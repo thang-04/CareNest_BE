@@ -167,6 +167,87 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("EDU-09: đổi thứ tự hoặc xóa chủ đề, đợt nghỉ thì lưu theo thứ tự gửi lên, giữ id và dấu tích")
+    void reordersThemesAndBreaksKeepingIdsAndTicks() {
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3,
+                new YearPlanRequest(
+                        schoolYear,
+                        ageGroup3,
+                        "Kế hoạch MGB",
+                        "",
+                        List.of(goalTickedTo("t-3", null, null)),
+                        List.of(
+                                namedTheme("t-1", null, "Trường mầm non", "TMN"),
+                                namedTheme("t-2", null, "Bản thân", "BT"),
+                                namedTheme("t-3", null, "Gia đình", "GĐ")),
+                        List.of(
+                                new YearPlanRequest.Break(null, "Tết", null, null),
+                                new YearPlanRequest.Break(null, "Ôn tập", null, null))));
+        List<Long> themeIds =
+                created.themes().stream().map(YearPlanDetailResponse.Theme::id).toList();
+        List<Long> breakIds =
+                created.breaks().stream().map(YearPlanDetailResponse.Break::id).toList();
+        YearPlanDetailResponse.Row goal = domain(created, domainPhysical).rows().get(0);
+        Long contentId = goal.contents().get(0).id();
+
+        // Chủ đề "Gia đình" chuyển lên đầu, đợt nghỉ đảo chỗ; dấu tích gửi theo key là id cũ
+        String family = String.valueOf(themeIds.get(2));
+        YearPlanDetailResponse reordered = service.updateYearPlan(
+                leader3,
+                created.id(),
+                new YearPlanRequest(
+                        null,
+                        null,
+                        "Kế hoạch MGB",
+                        "",
+                        List.of(goalTickedTo(family, goal.id(), contentId)),
+                        List.of(
+                                namedTheme(family, themeIds.get(2), "Gia đình", "GĐ"),
+                                namedTheme(String.valueOf(themeIds.get(0)), themeIds.get(0), "Trường mầm non", "TMN"),
+                                namedTheme(String.valueOf(themeIds.get(1)), themeIds.get(1), "Bản thân", "BT")),
+                        List.of(
+                                new YearPlanRequest.Break(breakIds.get(1), "Ôn tập", null, null),
+                                new YearPlanRequest.Break(breakIds.get(0), "Tết", null, null))));
+
+        assertThat(reordered.themes())
+                .extracting(YearPlanDetailResponse.Theme::id)
+                .containsExactly(themeIds.get(2), themeIds.get(0), themeIds.get(1));
+        assertThat(reordered.breaks())
+                .extracting(YearPlanDetailResponse.Break::label)
+                .containsExactly("Ôn tập", "Tết");
+        assertThat(domain(reordered, domainPhysical)
+                        .rows()
+                        .get(0)
+                        .contents()
+                        .get(0)
+                        .themeIds())
+                .containsExactly(themeIds.get(2));
+
+        // Xóa chủ đề giữa: chủ đề sau dồn lên, vẫn giữ id
+        YearPlanDetailResponse removed = service.updateYearPlan(
+                leader3,
+                created.id(),
+                new YearPlanRequest(
+                        null,
+                        null,
+                        "Kế hoạch MGB",
+                        "",
+                        List.of(goalTickedTo(family, goal.id(), contentId)),
+                        List.of(
+                                namedTheme(family, themeIds.get(2), "Gia đình", "GĐ"),
+                                namedTheme(String.valueOf(themeIds.get(1)), themeIds.get(1), "Bản thân", "BT")),
+                        List.of()));
+
+        assertThat(removed.themes())
+                .extracting(YearPlanDetailResponse.Theme::id)
+                .containsExactly(themeIds.get(2), themeIds.get(1));
+        assertThat(service.getYearPlan(leader3, created.id()).themes())
+                .extracting(YearPlanDetailResponse.Theme::name)
+                .containsExactly("Gia đình", "Bản thân");
+    }
+
+    @Test
     @DisplayName("EDU-03, EDU-04, EDU-05: gửi, Phó HT sửa khi chờ duyệt, ban hành rồi khóa")
     void submitEditIssueFlow() {
         YearPlanDetailResponse plan = service.createYearPlan(leader3, sampleRequest());
@@ -294,6 +375,20 @@ class EduYearPlanServiceIntegrationTest {
     private static YearPlanRequest.Theme theme(String key, Long id) {
         return new YearPlanRequest.Theme(
                 key, id, "Trường mầm non", "TMN", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "");
+    }
+
+    private static YearPlanRequest.Theme namedTheme(String key, Long id, String name, String abbr) {
+        return new YearPlanRequest.Theme(key, id, name, abbr, null, null, "", "");
+    }
+
+    private YearPlanRequest.Domain goalTickedTo(String themeKey, Long rowId, Long contentId) {
+        return new YearPlanRequest.Domain(
+                domainPhysical,
+                List.of(new YearPlanRequest.Row(
+                        rowId,
+                        "goal",
+                        "Trẻ thực hiện đủ động tác",
+                        List.of(new YearPlanRequest.Content(contentId, "Hô hấp", List.of(themeKey))))));
     }
 
     private PageResponse<YearPlanSummaryResponse> list(CurrentUser user) {
