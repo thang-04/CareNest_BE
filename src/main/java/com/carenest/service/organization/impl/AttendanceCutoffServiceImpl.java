@@ -11,7 +11,6 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -59,9 +58,7 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
             SchoolYear year = findYear(schoolYearId);
-            if (year.getStatus() == SchoolYearStatus.CLOSED) {
-                throw new GlobalException(ApiCode.CONFLICT, "School year " + year.getName() + " is closed");
-            }
+            SchoolYearRules.checkOpen(year);
             if (request.effectiveFrom().isBefore(year.getStartDate())
                     || request.effectiveFrom().isAfter(year.getEndDate())) {
                 throw new GlobalException(

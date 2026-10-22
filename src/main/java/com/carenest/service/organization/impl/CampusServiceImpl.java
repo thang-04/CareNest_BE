@@ -9,6 +9,7 @@ import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.Campus;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
+import com.carenest.entity.organization.StaffAssignment;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.CampusMapper;
 import com.carenest.mapper.organization.SchoolStructureMapper;
@@ -17,6 +18,7 @@ import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
+import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -50,6 +52,7 @@ public class CampusServiceImpl implements CampusService {
     private final ClassroomRepository classroomRepository;
     private final SchoolYearRepository schoolYearRepository;
     private final RoomRepository roomRepository;
+    private final StaffAssignmentRepository staffAssignmentRepository;
     private final AgeGroupRepository ageGroupRepository;
     private final SchoolStructureMapper schoolStructureMapper;
     private final StaffAssignmentService staffAssignmentService;
@@ -113,6 +116,21 @@ public class CampusServiceImpl implements CampusService {
                             .collect(Collectors.toMap(
                                     ClassroomRepository.ClassroomCount::getClassroomId,
                                     ClassroomRepository.ClassroomCount::getTotal));
+            // Chủ nhiệm từng lớp (kèm tên, để năm đã kết thúc vẫn hiện đúng người)
+            Map<Long, Long> homerooms = yearClasses.isEmpty()
+                    ? Map.of()
+                    : staffAssignmentRepository
+                            .findCurrentTeachers(
+                                    yearClasses.stream().map(Classroom::getId).toList(), today)
+                            .stream()
+                            .filter(StaffAssignment::isHomeroom)
+                            .collect(Collectors.toMap(
+                                    StaffAssignment::getClassroomId, StaffAssignment::getUserId, (a, b) -> a));
+            Map<Long, String> homeroomNames = homerooms.isEmpty()
+                    ? Map.of()
+                    : roomRepository.findUserNames(Set.copyOf(homerooms.values())).stream()
+                            .collect(Collectors.toMap(
+                                    RoomRepository.UserName::getUserId, RoomRepository.UserName::getFullName));
             List<CampusDetailResponse.ClassBrief> classes = yearClasses.stream()
                     .map(c -> new CampusDetailResponse.ClassBrief(
                             c.getId(),
@@ -120,7 +138,9 @@ public class CampusServiceImpl implements CampusService {
                             c.getAgeGroupId(),
                             c.getCapacity() == null ? null : c.getCapacity().intValue(),
                             c.getRoomId(),
-                            classChildren.getOrDefault(c.getId(), 0L)))
+                            classChildren.getOrDefault(c.getId(), 0L),
+                            homerooms.get(c.getId()),
+                            homerooms.containsKey(c.getId()) ? homeroomNames.get(homerooms.get(c.getId())) : null))
                     .toList();
             List<CampusDetailResponse.KitchenRoom> kitchenRooms = roomRepository
                     .findAllByCampusIdInAndStatusNotOrderByCampusIdAscCodeAsc(Set.of(campusId), RoomStatus.DELETED)
@@ -348,7 +368,7 @@ public class CampusServiceImpl implements CampusService {
     private static CampusRequest normalize(CampusRequest request) {
         String phone = request.phone() == null || request.phone().isBlank()
                 ? null
-                : request.phone().trim();
+                : request.phone().replaceAll("[\\s.\\-]", "").replaceFirst("^\\+?84", "0");
         return new CampusRequest(
                 request.code().trim(),
                 request.name().trim(),

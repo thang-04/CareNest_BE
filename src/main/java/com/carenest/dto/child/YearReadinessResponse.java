@@ -16,7 +16,8 @@ public record YearReadinessResponse(
         List<String> blockers,
         boolean canActivate) {
 
-    public record Step(String key, String label, boolean required, boolean ok, String detail) {}
+    /** warning = đã đạt (không chặn kích hoạt) nhưng còn việc nên làm, FE hiện màu vàng. */
+    public record Step(String key, String label, boolean required, boolean ok, boolean warning, String detail) {}
 
     public record Impact(long move, long leave) {}
 }

@@ -12,7 +12,7 @@ School (duy nhất — chưa cần bảng vì chỉ 1 trường), Campus, School
 UserAccount/role (identity-access), trẻ (child).
 
 ## Rules
-AUTH-01..03, AUTH-05. ADR-0002 (campus scoping), ADR-0003.
+AUTH-01..03, AUTH-05, CFG-YR-01..03. ADR-0002 (campus scoping), ADR-0003.
 
 ## Phụ thuộc
 - Dùng: common/utils. Tham chiếu userId bằng ID, không import identity.
@@ -38,6 +38,7 @@ P-06 (bếp theo campus), P-14 (Hiệu phó).
 - Assignment có hiệu lực theo thời gian: luôn lọc theo ngày khi resolve scope.
 - Kết thúc phân công bằng `valid_to`, không xóa dòng (giữ lịch sử ai từng có quyền).
 - Campus assignment phải lọc theo `staff_role`: bếp và HP cùng campus là hai phạm vi khác nhau.
+- Ghi dữ liệu gắn năm/lớp/ngày: gọi `SchoolYearService#checkYearOpen` / `checkClassYearOpen` / `checkDateYearOpen` (CFG-YR-01), không tự viết lại kiểm tra năm đã kết thúc.
 
 ## Related issues
 Chưa có.

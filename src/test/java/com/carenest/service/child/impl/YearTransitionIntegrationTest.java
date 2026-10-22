@@ -18,6 +18,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.SchoolYearStatus;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -69,6 +70,9 @@ class YearTransitionIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private CurrentUser principal;
     private long oldYear;
@@ -152,6 +156,39 @@ class YearTransitionIntegrationTest {
         YearReadinessResponse after = service.getReadiness(principal, newYear);
         assertThat(after.canActivate()).isTrue();
         assertThat(after.impact().move()).isEqualTo(2);
+    }
+
+    @Test
+    void teacherStepWarnsForShortClassAndBlocksWithoutHomeroomOrTeacher() {
+        // Lớp bé còn 1 giáo viên, chưa có chủ nhiệm ⇒ chặn
+        jdbc.update("DELETE FROM staff_assignments WHERE classroom_id = ? AND is_homeroom", newClass3);
+        YearReadinessResponse noHomeroom = service.getReadiness(principal, newYear);
+        assertThat(teacherStep(noHomeroom).ok()).isFalse();
+        assertThat(teacherStep(noHomeroom).detail()).isEqualTo("1 lớp chưa có chủ nhiệm");
+        assertThat(noHomeroom.blockers()).anyMatch(b -> b.startsWith("Giáo viên lớp"));
+
+        // Người còn lại làm chủ nhiệm ⇒ chỉ cảnh báo thiếu 1 GV
+        jdbc.update("UPDATE staff_assignments SET is_homeroom = TRUE WHERE classroom_id = ?", newClass3);
+        // Bỏ entity đã nạp trong transaction test để đọc lại giá trị vừa sửa bằng SQL
+        entityManager.clear();
+        YearReadinessResponse.Step warn = teacherStep(service.getReadiness(principal, newYear));
+        assertThat(warn.ok()).isTrue();
+        assertThat(warn.warning()).isTrue();
+        assertThat(warn.detail()).isEqualTo("Tất cả lớp có GV và chủ nhiệm · 1 lớp thiếu 1 GV");
+
+        // Lớp không còn giáo viên ⇒ chặn
+        jdbc.update("DELETE FROM staff_assignments WHERE classroom_id = ?", newClass3);
+        entityManager.clear();
+        YearReadinessResponse.Step blocked = teacherStep(service.getReadiness(principal, newYear));
+        assertThat(blocked.ok()).isFalse();
+        assertThat(blocked.detail()).isEqualTo("1 lớp chưa có giáo viên");
+    }
+
+    private static YearReadinessResponse.Step teacherStep(YearReadinessResponse readiness) {
+        return readiness.steps().stream()
+                .filter(s -> s.key().equals("teachers"))
+                .findFirst()
+                .orElseThrow();
     }
 
     @Test

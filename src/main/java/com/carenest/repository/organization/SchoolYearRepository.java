@@ -15,6 +15,11 @@ public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
 
     Optional<SchoolYear> findFirstByStatus(SchoolYearStatus status);
 
+    Optional<SchoolYear> findFirstByStatusOrderByStartDateAsc(SchoolYearStatus status);
+
+    @Query("select y from SchoolYear y where y.startDate <= :date and y.endDate >= :date")
+    Optional<SchoolYear> findContaining(@Param("date") LocalDate date);
+
     boolean existsByName(String name);
 
     boolean existsByNameAndIdNot(String name, Long id);

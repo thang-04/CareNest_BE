@@ -20,6 +20,7 @@ import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
+import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
@@ -56,6 +57,7 @@ class CampusServiceImplTest {
             classroomRepository,
             schoolYearRepository,
             mock(RoomRepository.class),
+            mock(StaffAssignmentRepository.class),
             mock(AgeGroupRepository.class),
             new SchoolStructureMapper(),
             staffAssignmentService,
@@ -83,6 +85,15 @@ class CampusServiceImplTest {
 
         assertThat(created.isMain()).isTrue();
         assertThat(created.code()).isEqualTo("CS-C");
+    }
+
+    @Test
+    void phoneIsStoredNormalized() {
+        given(campusRepository.findFirstByMainTrue()).willReturn(Optional.empty());
+
+        CampusResponse created = service.createCampus(PRINCIPAL, request("CS-C", "Cơ sở C", false));
+
+        assertThat(created.phone()).isEqualTo("0912345678");
     }
 
     @Test
@@ -152,7 +163,7 @@ class CampusServiceImplTest {
     }
 
     private static CampusRequest request(String code, String name, boolean main) {
-        return new CampusRequest(code, name, name, "Địa chỉ demo", "0241234567", main);
+        return new CampusRequest(code, name, name, "Địa chỉ demo", "+84 912.345-678", main);
     }
 
     private static Campus campus(Long id, String code, boolean main) {

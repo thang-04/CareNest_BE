@@ -3,6 +3,7 @@ package com.carenest.service.organization.impl;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassRequest;
 import com.carenest.dto.organization.ClassResponse;
+import com.carenest.dto.organization.ClassTeachersResponse;
 import com.carenest.dto.organization.CopyClassesRequest;
 import com.carenest.dto.organization.CopyClassesResponse;
 import com.carenest.dto.organization.SchoolStructureResponse;
@@ -11,6 +12,7 @@ import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.Room;
 import com.carenest.entity.organization.SchoolYear;
+import com.carenest.entity.organization.StaffAssignment;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
 import com.carenest.repository.organization.AgeGroupRepository;
@@ -150,7 +152,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         log.info("{}|START", logPrefix);
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
-            checkOpenYear(findYear(request.schoolYearId()));
+            SchoolYearRules.checkOpen(findYear(request.schoolYearId()));
             String name = validate(request, null, 0);
             Classroom classroom = Classroom.create(request.schoolYearId(), request.campusId());
             classroom.changeInfo(
@@ -179,7 +181,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             if (!classroom.getSchoolYearId().equals(request.schoolYearId())) {
                 throw new GlobalException(ApiCode.BAD_REQUEST, "A class cannot move to another school year");
             }
-            checkOpenYear(findYear(classroom.getSchoolYearId()));
+            SchoolYearRules.checkOpen(findYear(classroom.getSchoolYearId()));
             long enrolled = activeChildren(List.of(classId)).getOrDefault(classId, 0L);
             long teachers = activeTeachers(List.of(classId)).getOrDefault(classId, 0L);
             // Lớp đã có trẻ: không đổi nhóm tuổi/điểm trường; lưu lớp không xếp hay chuyển trẻ
@@ -214,7 +216,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
             Classroom classroom = findClass(classId);
-            checkOpenYear(findYear(classroom.getSchoolYearId()));
+            SchoolYearRules.checkOpen(findYear(classroom.getSchoolYearId()));
             if (classroomRepository.countAllEnrollments(classId) > 0) {
                 throw new GlobalException(ApiCode.CONFLICT, "Class already has children and cannot be deleted");
             }
@@ -241,7 +243,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
             SchoolYear target = findYear(targetYearId);
-            checkOpenYear(target);
+            SchoolYearRules.checkOpen(target);
             SchoolYear source = findYear(request.sourceYearId());
             if (source.getId().equals(target.getId())) {
                 throw new GlobalException(ApiCode.BAD_REQUEST, "Choose another school year to copy from");
@@ -367,7 +369,9 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         }
         List<Long> ids = classes.stream().map(Classroom::getId).toList();
         Map<Long, Long> children = activeChildren(ids);
-        Map<Long, Long> teachers = activeTeachers(ids);
+        Map<Long, List<StaffAssignment>> teachers =
+                staffAssignmentRepository.findCurrentTeachers(ids, schoolConfigAccess.today()).stream()
+                        .collect(Collectors.groupingBy(StaffAssignment::getClassroomId));
         Map<Long, Long> planned = classroomRepository.countPlannedChildren(ids).stream()
                 .collect(Collectors.toMap(
                         ClassroomRepository.ClassroomCount::getClassroomId,
@@ -380,9 +384,26 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                         .filter(y -> y.getStatus() == SchoolYearStatus.PLANNED)
                         .map(SchoolYear::getId)
                         .collect(Collectors.toSet());
+        Set<Long> teacherUserIds = teachers.values().stream()
+                .flatMap(List::stream)
+                .map(StaffAssignment::getUserId)
+                .collect(Collectors.toSet());
+        Map<Long, String> teacherNames = teacherUserIds.isEmpty()
+                ? Map.of()
+                : roomRepository.findUserNames(teacherUserIds).stream()
+                        .collect(Collectors.toMap(
+                                RoomRepository.UserName::getUserId, RoomRepository.UserName::getFullName));
+        Map<Long, Room> rooms = roomRepository
+                .findAllById(classes.stream()
+                        .map(Classroom::getRoomId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(Room::getId, r -> r));
         return classes.stream()
                 .map(c -> {
                     long childCount = children.getOrDefault(c.getId(), 0L);
+                    Room room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
                     // Năm sắp diễn ra: trẻ đã xếp lớp chỉ là dự kiến, vào lớp khi kích hoạt năm học
                     Long plannedCount =
                             plannedYears.contains(c.getSchoolYearId()) ? planned.getOrDefault(c.getId(), 0L) : null;
@@ -395,14 +416,35 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                             c.getCampusId(),
                             c.getAgeGroupId(),
                             c.getRoomId(),
+                            room == null ? null : room.getCode(),
+                            room == null ? null : room.getName(),
                             capacity,
                             c.getStatus(),
                             childCount,
                             plannedCount,
-                            (int) Math.max(0, TEACHERS_PER_CLASS - teachers.getOrDefault(c.getId(), 0L)),
+                            (int) Math.max(
+                                    0,
+                                    TEACHERS_PER_CLASS
+                                            - teacherIds(teachers, c.getId()).size()),
+                            teacherIds(teachers, c.getId()),
+                            teachers.getOrDefault(c.getId(), List.of()).stream()
+                                    .filter(StaffAssignment::isHomeroom)
+                                    .map(StaffAssignment::getUserId)
+                                    .findFirst()
+                                    .orElse(null),
                             c.getRoomId() == null,
-                            fill(childCount + (plannedCount == null ? 0 : plannedCount), capacity));
+                            fill(childCount + (plannedCount == null ? 0 : plannedCount), capacity),
+                            teacherIds(teachers, c.getId()).stream()
+                                    .map(id -> new ClassTeachersResponse.Teacher(id, teacherNames.get(id)))
+                                    .toList());
                 })
+                .toList();
+    }
+
+    private static List<Long> teacherIds(Map<Long, List<StaffAssignment>> teachers, Long classId) {
+        return teachers.getOrDefault(classId, List.of()).stream()
+                .map(StaffAssignment::getUserId)
+                .distinct()
                 .toList();
     }
 
@@ -428,12 +470,6 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                 .collect(Collectors.toMap(
                         ClassroomRepository.ClassroomCount::getClassroomId,
                         ClassroomRepository.ClassroomCount::getTotal));
-    }
-
-    private static void checkOpenYear(SchoolYear year) {
-        if (year.getStatus() == SchoolYearStatus.CLOSED) {
-            throw new GlobalException(ApiCode.CONFLICT, "School year " + year.getName() + " is closed");
-        }
     }
 
     private SchoolYear findYear(Long schoolYearId) {

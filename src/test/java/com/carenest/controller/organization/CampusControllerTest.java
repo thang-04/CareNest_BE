@@ -23,6 +23,8 @@ import com.carenest.utils.enums.CareNestRole;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -79,20 +81,22 @@ class CampusControllerTest {
                         .with(token(CareNestRole.PRINCIPAL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"code\":\"CS-C\",\"name\":\"Cơ sở C\",\"shortName\":\"CS C\","
-                                + "\"address\":\"Hà Nội\",\"phone\":\"0241234567\",\"isMain\":false}"))
+                                + "\"address\":\"Hà Nội\",\"phone\":\"+84 912 345 678\",\"isMain\":false}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value(201));
     }
 
-    @Test
-    void invalidPhoneIs400() throws Exception {
+    @ParameterizedTest
+    // Chữ, số cố định cũ 10 số, di động sai đầu số, thiếu số
+    @ValueSource(strings = {"abc", "0241234567", "0112345678", "091234567"})
+    void invalidPhoneIs400(String phone) throws Exception {
         authenticateAs(CareNestRole.PRINCIPAL);
 
         mockMvc.perform(post(CAMPUSES)
                         .with(token(CareNestRole.PRINCIPAL))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"code\":\"CS-C\",\"name\":\"Cơ sở C\",\"shortName\":\"CS C\","
-                                + "\"address\":\"Hà Nội\",\"phone\":\"abc\"}"))
+                                + "\"address\":\"Hà Nội\",\"phone\":\"" + phone + "\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.data[0].field").value("phone"));
         verify(campusService, never()).createCampus(any(), any());

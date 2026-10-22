@@ -136,6 +136,37 @@ paths:
           description: OK
       tags:
       - age-group-controller
+  /api/age-groups/{ageGroupId}/team-leader-assignments/history:
+    get:
+      operationId: getTeamLeaderHistory
+      parameters:
+      - in: path
+        name: ageGroupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAssignmentHistoryResponse"
+          description: OK
+      tags:
+      - teacher-assignment-controller
   /api/auth/csrf:
     get:
       operationId: csrf
@@ -513,6 +544,25 @@ paths:
           description: OK
       tags:
       - class-controller
+  /api/classes/{classId}/teacher-assignments/history:
+    get:
+      operationId: getClassTeacherHistory
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAssignmentHistoryResponse"
+          description: OK
+      tags:
+      - teacher-assignment-controller
   /api/classes/{classId}/teachers:
     put:
       operationId: assignClassTeachers
@@ -1443,6 +1493,35 @@ components:
         sortOrder:
           type: integer
           format: int32
+    AssignmentHistoryResponse:
+      type: object
+      properties:
+        assignedAt:
+          type: string
+          format: date-time
+        assignedBy:
+          type: integer
+          format: int64
+        assignedByName:
+          type: string
+        current:
+          type: boolean
+        fullName:
+          type: string
+        homeroom:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
     AutoPlaceRequest:
       type: object
       properties:
@@ -1534,7 +1613,8 @@ components:
           minLength: 0
         phone:
           type: string
-          pattern: "\\s*(\\d{8,20})?\\s*"
+          pattern: "\\s*((\\+?84|0)[\\s.\\-]*([35789]([\\s.\\-]?\\d){8}|2([\\s.\\\
+            -]?\\d){9}))?\\s*"
         shortName:
           type: string
           maxLength: 50
@@ -1656,6 +1736,11 @@ components:
         childCount:
           type: integer
           format: int64
+        homeroomTeacherId:
+          type: integer
+          format: int64
+        homeroomTeacherName:
+          type: string
         id:
           type: integer
           format: int64
@@ -1712,6 +1797,9 @@ components:
           format: int64
         fill:
           type: string
+        homeroomTeacherId:
+          type: integer
+          format: int64
         id:
           type: integer
           format: int64
@@ -1728,6 +1816,10 @@ components:
         plannedCount:
           type: integer
           format: int64
+        roomCode:
+          type: string
+        roomName:
+          type: string
         schoolYearId:
           type: integer
           format: int64
@@ -1736,6 +1828,15 @@ components:
           enum:
           - ACTIVE
           - CLOSED
+        teacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        teachers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Teacher"
     ClassTeachersRequest:
       type: object
       properties:
@@ -1748,9 +1849,8 @@ components:
             type: integer
             format: int64
           maxItems: 2
-          minItems: 2
+          minItems: 0
       required:
-      - homeroomTeacherId
       - teacherIds
     ClassTeachersResponse:
       type: object
@@ -1761,6 +1861,9 @@ components:
         campusId:
           type: integer
           format: int64
+        capacity:
+          type: integer
+          format: int32
         childCount:
           type: integer
           format: int64
@@ -1777,6 +1880,10 @@ components:
           items:
             type: integer
             format: int64
+        teachers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Teacher"
     Content:
       type: object
       properties:
@@ -2498,6 +2605,18 @@ components:
             $ref: "#/components/schemas/AgeGroupDetailResponse"
         desc:
           type: string
+    ResponseJsonListAssignmentHistoryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssignmentHistoryResponse"
+        desc:
+          type: string
     ResponseJsonListCampusResponse:
       type: object
       properties:
@@ -3028,6 +3147,8 @@ components:
           type: boolean
         required:
           type: boolean
+        warning:
+          type: boolean
     TargetClass:
       type: object
       properties:
@@ -3046,6 +3167,14 @@ components:
         name:
           type: string
         taken:
+          type: integer
+          format: int64
+    Teacher:
+      type: object
+      properties:
+        fullName:
+          type: string
+        id:
           type: integer
           format: int64
     TeacherAssignmentResponse:

@@ -1,7 +1,9 @@
 package com.carenest.service.organization.impl;
 
+import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
+import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
@@ -44,6 +46,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final StaffAssignmentService staffAssignmentService;
     private final SchoolStructureMapper schoolStructureMapper;
     private final Clock clock;
+    private final DevActivationProperties devActivation;
 
     @Override
     @Transactional(readOnly = true)
@@ -116,7 +119,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         try {
             checkCanManage(currentUser);
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
-            checkNotClosed(schoolYear);
+            SchoolYearRules.checkOpen(schoolYear);
             String name = validateYearInfo(request, schoolYearId);
             long classCount = classroomRepository.countBySchoolYearId(schoolYearId);
             // Tên năm học dùng ở lớp, kế hoạch, bộ chọn năm: chỉ đổi khi năm chưa bắt đầu và chưa có lớp
@@ -180,18 +183,25 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             if (schoolYear.getStatus() != SchoolYearStatus.PLANNED) {
                 throw new GlobalException(ApiCode.CONFLICT, "Only a planned school year can be activated");
             }
+            // Kích hoạt theo thứ tự: chỉ năm PLANNED sớm nhất (năm liền sau năm đang chạy)
+            SchoolYear next = schoolYearRepository
+                    .findFirstByStatusOrderByStartDateAsc(SchoolYearStatus.PLANNED)
+                    .orElse(schoolYear);
+            if (!next.getId().equals(schoolYear.getId())) {
+                throw new GlobalException(ApiCode.CONFLICT, "Activate school year " + next.getName() + " first");
+            }
             if (confirmName == null || !confirmName.trim().equals(schoolYear.getName())) {
                 throw new GlobalException(
                         ApiCode.BAD_REQUEST, "Type the school year name exactly to confirm activation");
             }
             LocalDate today = LocalDate.now(clock);
-            if (today.isBefore(schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS))) {
+            if (!devActivation.skipDateWindow()
+                    && today.isBefore(schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS))) {
                 throw new GlobalException(
                         ApiCode.CONFLICT,
                         "School year can be activated from "
                                 + schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS));
             }
-            // TODO(Cần): kiểm tra readiness (lớp, phòng, phân công, xếp lớp) khi có các API đó
             Instant now = clock.instant();
             // Chỉ một năm ACTIVE: đóng năm đang chạy trước (flush) rồi mới mở năm mới, cùng transaction
             schoolYearRepository.findFirstByStatus(SchoolYearStatus.ACTIVE).ifPresent(current -> {
@@ -222,6 +232,12 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             if (schoolYear.getStatus() != SchoolYearStatus.ACTIVE) {
                 throw new GlobalException(ApiCode.CONFLICT, "Only the active school year can be closed");
             }
+            // Kết thúc tay chỉ sau ngày kết thúc năm học; trước đó năm cũ tự đóng khi kích hoạt năm mới
+            if (!devActivation.skipCloseEndDate() && !LocalDate.now(clock).isAfter(schoolYear.getEndDate())) {
+                throw new GlobalException(
+                        ApiCode.CONFLICT,
+                        "School year can only be closed after its end date " + schoolYear.getEndDate());
+            }
             schoolYear.close(currentUser.userId(), clock.instant());
             classroomRepository.closeAllBySchoolYearId(schoolYearId);
             schoolYearRepository.flush();
@@ -234,17 +250,32 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public void checkYearOpen(Long schoolYearId) {
+        SchoolYearRules.checkOpen(findSchoolYear(schoolYearId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkClassYearOpen(Long classroomId) {
+        Classroom classroom = classroomRepository
+                .findById(classroomId)
+                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+        SchoolYearRules.checkOpen(findSchoolYear(classroom.getSchoolYearId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void checkDateYearOpen(LocalDate date) {
+        schoolYearRepository.findContaining(date).ifPresent(SchoolYearRules::checkOpen);
+    }
+
     // AUTH-01: cấu hình toàn trường cần role Hiệu trưởng VÀ phân công Hiệu trưởng còn hiệu lực
     private void checkCanManage(CurrentUser currentUser) {
         if (!currentUser.hasRole(CareNestRole.PRINCIPAL)
                 || !staffAssignmentService.hasActivePrincipalAssignment(currentUser.userId(), LocalDate.now(clock))) {
             throw new GlobalException(ApiCode.FORBIDDEN, "Only the principal can manage school years");
-        }
-    }
-
-    private static void checkNotClosed(SchoolYear schoolYear) {
-        if (schoolYear.getStatus() == SchoolYearStatus.CLOSED) {
-            throw new GlobalException(ApiCode.CONFLICT, "School year " + schoolYear.getName() + " is closed");
         }
     }
 

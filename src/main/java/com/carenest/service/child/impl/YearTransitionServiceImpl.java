@@ -1,5 +1,6 @@
 package com.carenest.service.child.impl;
 
+import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.child.AutoPlaceRequest;
 import com.carenest.dto.child.AutoPlaceResponse;
 import com.carenest.dto.child.PlacementBoardResponse;
@@ -28,6 +29,7 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -37,6 +39,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,6 +54,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     // Đề xuất FE 13/10/2026 (ACTIVATION_LEAD_DAYS): được kích hoạt từ 7 ngày trước ngày bắt đầu
     private static final int ACTIVATION_LEAD_DAYS = 7;
     private static final int TEACHERS_PER_CLASS = 2;
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final ClassPlacementRepository classPlacementRepository;
     private final EnrollmentRepository enrollmentRepository;
@@ -59,6 +63,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     private final SchoolYearService schoolYearService;
     private final StaffAssignmentService staffAssignmentService;
     private final Clock clock;
+    private final DevActivationProperties devActivation;
 
     @Override
     @Transactional(readOnly = true)
@@ -325,11 +330,20 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 "info",
                 true,
                 true,
-                setup.year().startDate() + " – " + setup.year().endDate()));
+                DISPLAY_DATE.format(setup.year().startDate()) + " – "
+                        + DISPLAY_DATE.format(setup.year().endDate())));
+        Set<Long> groupsWithClasses = classes.stream()
+                .map(YearSetupResponse.SetupClass::ageGroupId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
         boolean ageGroupsOk = !setup.ageGroups().isEmpty()
                 && setup.ageGroups().stream()
                         .allMatch(g -> !g.mealSessions().isEmpty() && g.maxClassSize() != null && g.maxClassSize() > 0);
-        steps.add(step("ageGroups", true, ageGroupsOk, setup.ageGroups().size() + " nhóm tuổi"));
+        steps.add(step(
+                "ageGroups",
+                true,
+                ageGroupsOk,
+                setup.ageGroups().size() + " nhóm tuổi · " + groupsWithClasses.size() + " nhóm có lớp"));
         steps.add(step("classes", true, hasClasses, hasClasses ? classes.size() + " lớp" : "Chưa có lớp nào"));
         long noRoom = classes.stream().filter(c -> c.roomId() == null).count();
         long overRoom = classes.stream()
@@ -342,18 +356,19 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 noRoom > 0
                         ? noRoom + " lớp chưa có phòng"
                         : overRoom > 0 ? overRoom + " lớp vượt sức chứa phòng" : classes.size() + " lớp có phòng"));
-        steps.add(step(
+        boolean vpOk = setup.campusesWithoutVicePrincipal().isEmpty();
+        String vpDetail = vpOk
+                ? "Đủ các điểm trường"
+                : "Chưa phân công " + setup.campusesWithoutVicePrincipal().size() + " điểm trường";
+        // Dev: bỏ qua bước này (màn Phân công PHT chưa có BE), hiện vàng
+        boolean vpSkipped = !vpOk && devActivation.skipVicePrincipalStep();
+        steps.add(new YearReadinessResponse.Step(
                 "vicePrincipals",
+                STEP_LABELS.get("vicePrincipals"),
                 true,
-                setup.campusesWithoutVicePrincipal().isEmpty(),
-                setup.campusesWithoutVicePrincipal().isEmpty()
-                        ? "Đủ các điểm trường"
-                        : "Chưa phân công "
-                                + setup.campusesWithoutVicePrincipal().size() + " điểm trường"));
-        Set<Long> groupsWithClasses = classes.stream()
-                .map(YearSetupResponse.SetupClass::ageGroupId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+                vpOk || vpSkipped,
+                vpSkipped,
+                vpSkipped ? vpDetail + " (bỏ qua ở dev)" : vpDetail));
         long leaderMissing = groupsWithClasses.stream()
                 .filter(g -> !setup.ageGroupsWithTeamLeader().contains(g))
                 .count();
@@ -361,16 +376,35 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 "teamLeaders",
                 false,
                 !groupsWithClasses.isEmpty() && leaderMissing == 0,
-                (groupsWithClasses.size() - leaderMissing) + "/" + groupsWithClasses.size()
-                        + " nhóm tuổi có tổ trưởng"));
-        long fullyStaffed = classes.stream()
-                .filter(c -> c.teacherCount() >= TEACHERS_PER_CLASS && c.hasHomeroom())
+                groupsWithClasses.isEmpty()
+                        ? "Chưa có lớp"
+                        : (groupsWithClasses.size() - leaderMissing) + "/" + groupsWithClasses.size()
+                                + " nhóm tuổi có tổ trưởng (toàn trường)"));
+        // Lớp chưa có giáo viên hoặc chưa có chủ nhiệm chặn kích hoạt; lớp thiếu 1 GV chỉ cảnh báo (Cần chốt
+        // 22/10/2026)
+        long noTeacher = classes.stream().filter(c -> c.teacherCount() == 0).count();
+        long shortOne = classes.stream()
+                .filter(c -> c.teacherCount() > 0 && c.teacherCount() < TEACHERS_PER_CLASS)
                 .count();
-        steps.add(step(
-                "teachers",
-                true,
-                hasClasses && fullyStaffed == classes.size(),
-                fullyStaffed + "/" + classes.size() + " lớp đủ GV"));
+        long noHomeroom = classes.stream()
+                .filter(c -> c.teacherCount() > 0 && !c.hasHomeroom())
+                .count();
+        boolean teachersOk = hasClasses && noTeacher == 0 && noHomeroom == 0;
+        String teachersDetail;
+        if (!hasClasses) {
+            teachersDetail = "Chưa có lớp";
+        } else if (!teachersOk) {
+            teachersDetail = Stream.of(
+                            noTeacher > 0 ? noTeacher + " lớp chưa có giáo viên" : null,
+                            noHomeroom > 0 ? noHomeroom + " lớp chưa có chủ nhiệm" : null)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.joining(" · "));
+        } else {
+            teachersDetail =
+                    "Tất cả lớp có GV và chủ nhiệm" + (shortOne > 0 ? " · " + shortOne + " lớp thiếu 1 GV" : "");
+        }
+        steps.add(new YearReadinessResponse.Step(
+                "teachers", STEP_LABELS.get("teachers"), true, teachersOk, teachersOk && shortOne > 0, teachersDetail));
         long toPlace = board.childClass.size();
         long placed = board.childClass.keySet().stream()
                 .filter(board.placements::containsKey)
@@ -389,8 +423,9 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 .filter(s -> s.required() && !s.ok())
                 .map(s -> s.label() + ": " + s.detail())
                 .toList());
-        if (LocalDate.now(clock).isBefore(openFrom)) {
-            blockers.add("Chỉ kích hoạt được từ " + openFrom);
+        if (!devActivation.skipDateWindow() && LocalDate.now(clock).isBefore(openFrom)) {
+            blockers.add("Chỉ kích hoạt được từ " + DISPLAY_DATE.format(openFrom) + " (" + ACTIVATION_LEAD_DAYS
+                    + " ngày trước ngày bắt đầu)");
         }
         long move = board.placements.values().stream()
                 .filter(p -> p.getAction().keepsChildInClass())
@@ -477,12 +512,12 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             "rooms", "Phòng & sức chứa",
             "vicePrincipals", "Phó hiệu trưởng từng điểm trường",
             "teamLeaders", "Tổ trưởng nhóm tuổi",
-            "teachers", "Giáo viên lớp (2 giáo viên / lớp)",
+            "teachers", "Giáo viên lớp",
             "placement", "Xếp lớp trẻ năm mới",
             "cutoff", "Giờ chốt điểm danh");
 
     private static YearReadinessResponse.Step step(String key, boolean required, boolean ok, String detail) {
-        return new YearReadinessResponse.Step(key, STEP_LABELS.get(key), required, ok, detail);
+        return new YearReadinessResponse.Step(key, STEP_LABELS.get(key), required, ok, false, detail);
     }
 
     private static PlacementBoardResponse.YearBrief toBrief(YearSetupResponse.Year year) {

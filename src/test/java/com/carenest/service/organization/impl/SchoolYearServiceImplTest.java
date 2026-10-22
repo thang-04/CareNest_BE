@@ -9,6 +9,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
 import com.carenest.entity.organization.SchoolYear;
@@ -53,7 +54,8 @@ class SchoolYearServiceImplTest {
             mock(AttendanceCutoffRepository.class),
             staffAssignmentService,
             new SchoolStructureMapper(),
-            FIXED_CLOCK);
+            FIXED_CLOCK,
+            new DevActivationProperties(false, false, false));
 
     @BeforeEach
     void principalHasActiveAssignment() {
@@ -225,14 +227,56 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
-    void closesActiveYear() {
+    void closeBeforeEndDateIsConflict() {
+        // Năm 2026-2027 kết thúc 31/05/2027, hôm nay 22/10/2026
         given(schoolYearRepository.findById(1L))
                 .willReturn(Optional.of(year(1L, "2026-2027", SchoolYearStatus.ACTIVE, "2026-09-01")));
+
+        expectError(() -> service.closeSchoolYear(PRINCIPAL, 1L), ApiCode.CONFLICT);
+    }
+
+    @Test
+    void activationOutOfOrderIsConflict() {
+        SchoolYear first = year(4L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-05");
+        given(schoolYearRepository.findById(6L))
+                .willReturn(Optional.of(year(6L, "2029-2030", SchoolYearStatus.PLANNED, "2029-09-05")));
+        given(schoolYearRepository.findFirstByStatusOrderByStartDateAsc(SchoolYearStatus.PLANNED))
+                .willReturn(Optional.of(first));
+
+        expectError(() -> service.activateSchoolYear(PRINCIPAL, 6L, "2029-2030"), ApiCode.CONFLICT);
+        verify(schoolYearRepository, never()).findFirstByStatus(any());
+    }
+
+    @Test
+    void closesActiveYearAfterEndDate() {
+        given(schoolYearRepository.findById(1L))
+                .willReturn(Optional.of(year(1L, "2025-2026", SchoolYearStatus.ACTIVE, "2025-09-01")));
 
         SchoolYearDetailResponse closed = service.closeSchoolYear(PRINCIPAL, 1L);
 
         assertThat(closed.status()).isEqualTo(SchoolYearStatus.CLOSED);
         assertThat(closed.closedAt()).isEqualTo(FIXED_CLOCK.instant());
+    }
+
+    @Test
+    void closedYearIsReadOnlyForEveryModule() {
+        SchoolYear closed = year(1L, "2025-2026", SchoolYearStatus.CLOSED, "2025-09-01");
+        given(schoolYearRepository.findById(1L)).willReturn(Optional.of(closed));
+        given(schoolYearRepository.findContaining(LocalDate.parse("2026-01-05")))
+                .willReturn(Optional.of(closed));
+
+        expectError(() -> service.checkYearOpen(1L), ApiCode.CONFLICT);
+        expectError(() -> service.checkDateYearOpen(LocalDate.parse("2026-01-05")), ApiCode.CONFLICT);
+    }
+
+    @Test
+    void openYearAndDateOutsideYearsPassCheck() {
+        given(schoolYearRepository.findById(5L))
+                .willReturn(Optional.of(year(5L, "2026-2027", SchoolYearStatus.ACTIVE, "2026-09-01")));
+        given(schoolYearRepository.findContaining(any())).willReturn(Optional.empty());
+
+        service.checkYearOpen(5L);
+        service.checkDateYearOpen(LocalDate.parse("2026-07-01"));
     }
 
     @Test

@@ -14,7 +14,14 @@ public record CampusDetailResponse(
         Kitchen kitchen) {
 
     public record ClassBrief(
-            Long id, String name, Long ageGroupId, Integer capacity, Long locationId, long childCount) {}
+            Long id,
+            String name,
+            Long ageGroupId,
+            Integer capacity,
+            Long locationId,
+            long childCount,
+            Long homeroomTeacherId,
+            String homeroomTeacherName) {}
 
     public record Kitchen(List<KitchenRoom> locations, List<StaffBriefResponse> staff) {}
 
