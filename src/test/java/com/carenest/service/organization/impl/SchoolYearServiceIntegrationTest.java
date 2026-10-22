@@ -109,7 +109,7 @@ class SchoolYearServiceIntegrationTest {
     }
 
     @Test
-    void deleteBlockedByClassroom() {
+    void deletePlannedYearAlsoDeletesItsClasses() {
         SchoolYearDetailResponse planned = service.createSchoolYear(
                 principal, new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 5), LocalDate.of(2028, 5, 31)));
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-IT', 'Campus IT') RETURNING id");
@@ -118,10 +118,13 @@ class SchoolYearServiceIntegrationTest {
                 campus,
                 planned.id());
 
-        assertThatThrownBy(() -> service.deleteSchoolYear(principal, planned.id()))
-                .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.CONFLICT);
+        service.deleteSchoolYear(principal, planned.id());
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM classrooms WHERE school_year_id = ?", Long.class, planned.id()))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM school_years WHERE id = ?", Long.class, planned.id()))
+                .isZero();
     }
 
     @Test

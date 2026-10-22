@@ -152,11 +152,12 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             if (schoolYear.getStatus() != SchoolYearStatus.PLANNED) {
                 throw new GlobalException(ApiCode.CONFLICT, "Only a planned school year can be deleted");
             }
-            if (classroomRepository.countBySchoolYearId(schoolYearId) > 0) {
-                throw new GlobalException(ApiCode.CONFLICT, "School year already has classes and cannot be deleted");
-            }
             try {
-                // Giờ chốt chỉ là cấu hình của năm chưa bắt đầu: xóa cùng năm học
+                // Năm chưa bắt đầu chỉ có dữ liệu chuẩn bị: xóa cùng năm học (lớp, phân công, giờ chốt; xếp lớp
+                // xóa theo FK cascade). Trẻ chỉ vào lớp khi kích hoạt nên không có enrollment (Cần chốt 22/10/2026)
+                schoolYearRepository.deletePlannedYearAssignments(schoolYearId);
+                schoolYearRepository.deletePlannedYearPlacements(schoolYearId);
+                schoolYearRepository.deletePlannedYearClasses(schoolYearId);
                 attendanceCutoffRepository.deleteAllBySchoolYearId(schoolYearId);
                 schoolYearRepository.delete(schoolYear);
                 schoolYearRepository.flush();
@@ -209,6 +210,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 // Lớp đóng cùng năm học
                 classroomRepository.closeAllBySchoolYearId(current.getId());
                 schoolYearRepository.flush();
+                takeSnapshot(current.getId());
             });
             schoolYear.activate(currentUser.userId(), now);
             schoolYearRepository.flush();
@@ -241,6 +243,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             schoolYear.close(currentUser.userId(), clock.instant());
             classroomRepository.closeAllBySchoolYearId(schoolYearId);
             schoolYearRepository.flush();
+            takeSnapshot(schoolYearId);
             SchoolYearDetailResponse response = toDetail(schoolYear);
             log.info("{}|END", logPrefix);
             return response;
@@ -269,6 +272,16 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     @Transactional(readOnly = true)
     public void checkDateYearOpen(LocalDate date) {
         schoolYearRepository.findContaining(date).ifPresent(SchoolYearRules::checkOpen);
+    }
+
+    // CFG-YR-02: chụp phòng / điểm trường / nhóm tuổi lúc năm kết thúc; xem năm cũ đọc bản chụp này
+    private void takeSnapshot(Long schoolYearId) {
+        schoolYearRepository.deleteRoomSnapshot(schoolYearId);
+        schoolYearRepository.deleteCampusSnapshot(schoolYearId);
+        schoolYearRepository.deleteAgeGroupSnapshot(schoolYearId);
+        schoolYearRepository.snapshotRooms(schoolYearId);
+        schoolYearRepository.snapshotCampuses(schoolYearId);
+        schoolYearRepository.snapshotAgeGroups(schoolYearId);
     }
 
     // AUTH-01: cấu hình toàn trường cần role Hiệu trưởng VÀ phân công Hiệu trưởng còn hiệu lực

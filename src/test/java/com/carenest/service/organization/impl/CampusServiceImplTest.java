@@ -62,6 +62,7 @@ class CampusServiceImplTest {
             new SchoolStructureMapper(),
             staffAssignmentService,
             new CampusMapper(),
+            mock(YearSnapshotReader.class),
             FIXED_CLOCK);
 
     @BeforeEach

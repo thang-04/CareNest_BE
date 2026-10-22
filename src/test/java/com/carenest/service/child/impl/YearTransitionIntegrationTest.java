@@ -13,10 +13,12 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.YearTransitionService;
+import com.carenest.service.organization.RoomService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.PlacementAction;
+import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
@@ -70,6 +72,9 @@ class YearTransitionIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private RoomService roomService;
 
     @Autowired
     private EntityManager entityManager;
@@ -210,6 +215,19 @@ class YearTransitionIntegrationTest {
         assertThat(enrollmentService.findActiveClassroomIds(child1, firstDay.minusDays(1)))
                 .containsExactly(oldClass);
         assertThat(enrollmentService.findActiveClassroomIds(child2, firstDay)).isEmpty();
+
+        // CFG-YR-02: năm cũ giữ như lúc kết thúc dù năm mới đổi tên / xóa phòng
+        jdbc.update("UPDATE rooms SET name = 'Đổi tên', status = 'DELETED', deleted_at = now() WHERE code = 'P.1'");
+        entityManager.clear();
+        assertThat(roomService.getRooms(principal, null, oldYear))
+                .filteredOn(r -> r.room().equals("P.1"))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.name()).isEqualTo("Phòng P.1");
+                    assertThat(r.status()).isEqualTo(RoomStatus.ACTIVE);
+                });
+        assertThat(roomService.getRooms(principal, null, newYear))
+                .noneMatch(r -> r.room().equals("P.1"));
     }
 
     @Test

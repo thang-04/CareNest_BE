@@ -169,13 +169,16 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
-    void deleteBlockedWhenYearHasClasses() {
-        given(schoolYearRepository.findById(5L))
-                .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
+    void deletePlannedYearRemovesItsClassesAndAssignments() {
+        SchoolYear planned = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01");
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(planned));
         given(classroomRepository.countBySchoolYearId(5L)).willReturn(1L);
 
-        expectError(() -> service.deleteSchoolYear(PRINCIPAL, 5L), ApiCode.CONFLICT);
-        verify(schoolYearRepository, never()).delete(any());
+        service.deleteSchoolYear(PRINCIPAL, 5L);
+
+        verify(schoolYearRepository).deletePlannedYearAssignments(5L);
+        verify(schoolYearRepository).deletePlannedYearClasses(5L);
+        verify(schoolYearRepository).delete(planned);
     }
 
     @Test

@@ -133,6 +133,15 @@ Mục đích: nhóm tuổi (khối) dùng chung toàn trường. Migration: `V7_
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 V13 điền số liệu cho `ag-2`..`ag-5` theo dữ liệu mẫu FE. Tên UNIQUE theo `LOWER(name)`. Không xóa nhóm có lớp hoặc tổ trưởng.
 
+## school_year_rooms / school_year_campuses / school_year_age_groups  (module: school-structure, scope: SCHOOL)
+Mục đích: bản chụp phòng, điểm trường, nhóm tuổi lúc năm học kết thúc (CFG-YR-02). Xem năm đã kết thúc đọc bản chụp; sửa/xóa ở năm sau không đổi năm cũ. Migration: `V17__create_school_year_snapshots.sql` (tạo bản chụp cho năm đã kết thúc trước V17: phòng theo `created_at`/`deleted_at`, các trường khác lấy giá trị lúc chạy migration).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| school_year_id | BIGINT FK school_years (ON DELETE CASCADE) | không | Năm học được chụp; UNIQUE cùng id gốc | CFG-YR-02 |
+| room_id / campus_id / age_group_id | BIGINT | không | Id bản ghi gốc (không FK: gốc có thể bị xóa hẳn) | — |
+| các cột còn lại | như bảng gốc | | Giá trị lúc kết thúc năm (mã, tên, loại, sức chứa, người phụ trách, trạng thái, địa chỉ, bữa ăn, sĩ số tối đa…) | — |
+Ghi khi năm chuyển CLOSED (kết thúc tay hoặc tự đóng khi kích hoạt năm mới), trong cùng transaction.
+
 ## children  (module: child, scope: CHILD)
 Mục đích: hồ sơ gốc của trẻ (khung tối thiểu; cột nghiệp vụ thêm sau). Migration: `V3__create_children.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
 | Column | Type | Null | Ý nghĩa | Rule ID |

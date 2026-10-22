@@ -57,6 +57,7 @@ public class CampusServiceImpl implements CampusService {
     private final SchoolStructureMapper schoolStructureMapper;
     private final StaffAssignmentService staffAssignmentService;
     private final CampusMapper campusMapper;
+    private final YearSnapshotReader yearSnapshotReader;
     private final Clock clock;
 
     @Override
@@ -75,12 +76,17 @@ public class CampusServiceImpl implements CampusService {
             Map<Long, Long> childCounts =
                     yearId == null ? Map.of() : toMap(campusRepository.countChildrenByCampus(yearId, today));
             Map<Long, List<StaffBriefResponse>> vicePrincipals = campusStaff(today, StaffRole.VICE_PRINCIPAL);
+            Map<Long, SchoolYearRepository.CampusSnapshot> snapshot = campusSnapshot(yearId);
             List<CampusResponse> response = campuses.stream()
-                    .map(c -> campusMapper.toResponse(
-                            c,
-                            classCounts.getOrDefault(c.getId(), 0L),
-                            childCounts.getOrDefault(c.getId(), 0L),
-                            vicePrincipals.getOrDefault(c.getId(), List.of())))
+                    // Năm đã kết thúc: chỉ điểm trường có lúc kết thúc năm, thông tin như bản chụp
+                    .filter(c -> snapshot == null || snapshot.containsKey(c.getId()))
+                    .map(c -> withSnapshot(
+                            campusMapper.toResponse(
+                                    c,
+                                    classCounts.getOrDefault(c.getId(), 0L),
+                                    childCounts.getOrDefault(c.getId(), 0L),
+                                    vicePrincipals.getOrDefault(c.getId(), List.of())),
+                            snapshot))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -169,15 +175,20 @@ public class CampusServiceImpl implements CampusService {
                             .distinct()
                             .toList();
             CampusDetailResponse response = new CampusDetailResponse(
-                    campusMapper.toResponse(campus, classes.size(), childCount, vicePrincipals),
+                    withSnapshot(
+                            campusMapper.toResponse(campus, classes.size(), childCount, vicePrincipals),
+                            campusSnapshot(yearId)),
                     yearId,
                     classes,
-                    ageGroupRepository.findAll().stream()
-                            .sorted(Comparator.comparing((AgeGroup g) ->
-                                            g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
-                                    .thenComparing(AgeGroup::getSortOrder))
-                            .map(schoolStructureMapper::toDetailResponse)
-                            .toList(),
+                    yearSnapshotReader
+                            .ageGroups(yearId)
+                            .orElseGet(() -> ageGroupRepository.findAll().stream()
+                                    .sorted(Comparator.comparing((AgeGroup g) -> g.getAgeFromMonths() == null
+                                                    ? Short.MAX_VALUE
+                                                    : g.getAgeFromMonths())
+                                            .thenComparing(AgeGroup::getSortOrder))
+                                    .map(schoolStructureMapper::toDetailResponse)
+                                    .toList()),
                     vicePrincipals,
                     teachers,
                     new CampusDetailResponse.Kitchen(kitchenRooms, kitchenStaff));
@@ -308,6 +319,38 @@ public class CampusServiceImpl implements CampusService {
     }
 
     // Không truyền năm học ⇒ dùng năm đang hoạt động; chưa có năm nào ⇒ số liệu theo năm bằng 0
+    // CFG-YR-02: năm đã kết thúc ⇒ thông tin điểm trường theo bản chụp lúc kết thúc năm; null = năm còn mở
+    private Map<Long, SchoolYearRepository.CampusSnapshot> campusSnapshot(Long yearId) {
+        if (yearId == null
+                || schoolYearRepository
+                        .findById(yearId)
+                        .map(y -> y.getStatus() != SchoolYearStatus.CLOSED)
+                        .orElse(true)) {
+            return null;
+        }
+        return schoolYearRepository.findCampusSnapshot(yearId).stream()
+                .collect(Collectors.toMap(SchoolYearRepository.CampusSnapshot::getCampusId, s -> s));
+    }
+
+    private static CampusResponse withSnapshot(
+            CampusResponse r, Map<Long, SchoolYearRepository.CampusSnapshot> snapshot) {
+        SchoolYearRepository.CampusSnapshot s = snapshot == null ? null : snapshot.get(r.id());
+        if (s == null) {
+            return r;
+        }
+        return new CampusResponse(
+                r.id(),
+                s.getCode(),
+                s.getName(),
+                s.getShortName(),
+                s.getAddress(),
+                s.getPhone(),
+                Boolean.TRUE.equals(s.getMain()),
+                r.classCount(),
+                r.childCount(),
+                r.vicePrincipals());
+    }
+
     private Long resolveSchoolYearId(Long schoolYearId) {
         if (schoolYearId != null) {
             if (!schoolYearRepository.existsById(schoolYearId)) {

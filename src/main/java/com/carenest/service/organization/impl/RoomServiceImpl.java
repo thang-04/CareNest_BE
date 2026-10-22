@@ -53,11 +53,23 @@ public class RoomServiceImpl implements RoomService {
                 throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
             }
             Collection<Long> campusFilter = campusId != null ? Set.of(campusId) : viewable;
+            Long yearId = resolveSchoolYearId(schoolYearId);
+            boolean closed = yearId != null
+                    && schoolYearRepository
+                            .findById(yearId)
+                            .map(y -> y.getStatus() == SchoolYearStatus.CLOSED)
+                            .orElse(false);
+            if (closed) {
+                // CFG-YR-02: năm đã kết thúc ⇒ phòng đúng như bản chụp lúc kết thúc năm
+                List<RoomResponse> snapshot = snapshotRooms(yearId, campusFilter);
+                log.info("{}|snapshot|END", logPrefix);
+                return snapshot;
+            }
             List<Room> rooms = campusFilter == null
                     ? roomRepository.findAllByStatusNotOrderByCampusIdAscCodeAsc(RoomStatus.DELETED)
                     : roomRepository.findAllByCampusIdInAndStatusNotOrderByCampusIdAscCodeAsc(
                             campusFilter, RoomStatus.DELETED);
-            List<RoomResponse> response = toResponses(rooms, resolveSchoolYearId(schoolYearId));
+            List<RoomResponse> response = toResponses(rooms, yearId);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -213,6 +225,43 @@ public class RoomServiceImpl implements RoomService {
             String names = openClasses.stream().map(Classroom::getName).collect(Collectors.joining(", "));
             throw new GlobalException(ApiCode.CONFLICT, "Room cannot be " + action + ": it is the room of " + names);
         }
+    }
+
+    private List<RoomResponse> snapshotRooms(Long yearId, Collection<Long> campusFilter) {
+        List<SchoolYearRepository.RoomSnapshot> rows = schoolYearRepository.findRoomSnapshot(yearId).stream()
+                .filter(r -> campusFilter == null || campusFilter.contains(r.getCampusId()))
+                .toList();
+        Set<Long> managerIds = rows.stream()
+                .map(SchoolYearRepository.RoomSnapshot::getManagerUserId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, String> managerNames = managerIds.isEmpty()
+                ? Map.of()
+                : roomRepository.findUserNames(managerIds).stream()
+                        .collect(Collectors.toMap(
+                                RoomRepository.UserName::getUserId, RoomRepository.UserName::getFullName));
+        Map<Long, List<String>> yearClasses =
+                classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(yearId).stream()
+                        .filter(c -> c.getRoomId() != null)
+                        .collect(Collectors.groupingBy(
+                                Classroom::getRoomId, Collectors.mapping(Classroom::getName, Collectors.toList())));
+        return rows.stream()
+                .map(r -> new RoomResponse(
+                        r.getRoomId(),
+                        r.getCampusId(),
+                        r.getCode(),
+                        r.getName(),
+                        RoomType.valueOf(r.getRoomType()),
+                        r.getCapacity() == null ? null : r.getCapacity().intValue(),
+                        r.getManagerUserId(),
+                        r.getManagerUserId() == null ? null : managerNames.get(r.getManagerUserId()),
+                        RoomStatus.valueOf(r.getStatus()),
+                        r.getNote(),
+                        yearClasses.getOrDefault(r.getRoomId(), List.of()),
+                        Map.of(),
+                        List.of(),
+                        0))
+                .toList();
     }
 
     private List<RoomResponse> toResponses(List<Room> rooms, Long schoolYearId) {

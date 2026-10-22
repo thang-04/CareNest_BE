@@ -31,6 +31,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -61,6 +62,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     private final TeacherDirectory teacherDirectory;
     private final SchoolConfigAccess schoolConfigAccess;
     private final SchoolStructureMapper schoolStructureMapper;
+    private final YearSnapshotReader yearSnapshotReader;
 
     @Override
     @Transactional(readOnly = true)
@@ -82,12 +84,15 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                         .toList();
             }
             List<ClassResponse> classResponses = toResponses(classes);
-            List<AgeGroupDetailResponse> ageGroups = ageGroupRepository.findAll().stream()
-                    .sorted(Comparator.comparing((AgeGroup g) ->
-                                    g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
-                            .thenComparing(AgeGroup::getSortOrder))
-                    .map(schoolStructureMapper::toDetailResponse)
-                    .toList();
+            // CFG-YR-02: năm đã kết thúc ⇒ nhóm tuổi như lúc kết thúc năm
+            List<AgeGroupDetailResponse> ageGroups = yearSnapshotReader
+                    .ageGroups(year.getId())
+                    .orElseGet(() -> ageGroupRepository.findAll().stream()
+                            .sorted(Comparator.comparing((AgeGroup g) ->
+                                            g.getAgeFromMonths() == null ? Short.MAX_VALUE : g.getAgeFromMonths())
+                                    .thenComparing(AgeGroup::getSortOrder))
+                            .map(schoolStructureMapper::toDetailResponse)
+                            .toList());
             Map<Long, TeacherCandidateResponse> teachersById =
                     teacherDirectory.findTeachers(schoolConfigAccess.today()).stream()
                             .collect(Collectors.toMap(TeacherCandidateResponse::id, t -> t));
@@ -400,10 +405,20 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                         .collect(Collectors.toSet()))
                 .stream()
                 .collect(Collectors.toMap(Room::getId, r -> r));
+        // Năm đã kết thúc: mã/tên phòng theo bản chụp
+        Map<Long, Map<Long, SchoolYearRepository.RoomSnapshot>> roomSnapshots = new HashMap<>();
         return classes.stream()
                 .map(c -> {
                     long childCount = children.getOrDefault(c.getId(), 0L);
                     Room room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
+                    SchoolYearRepository.RoomSnapshot frozen = c.getRoomId() == null
+                            ? null
+                            : roomSnapshots
+                                    .computeIfAbsent(c.getSchoolYearId(), y -> {
+                                        Map<Long, SchoolYearRepository.RoomSnapshot> m = yearSnapshotReader.rooms(y);
+                                        return m == null ? Map.of() : m;
+                                    })
+                                    .get(c.getRoomId());
                     // Năm sắp diễn ra: trẻ đã xếp lớp chỉ là dự kiến, vào lớp khi kích hoạt năm học
                     Long plannedCount =
                             plannedYears.contains(c.getSchoolYearId()) ? planned.getOrDefault(c.getId(), 0L) : null;
@@ -416,8 +431,8 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                             c.getCampusId(),
                             c.getAgeGroupId(),
                             c.getRoomId(),
-                            room == null ? null : room.getCode(),
-                            room == null ? null : room.getName(),
+                            frozen != null ? frozen.getCode() : room == null ? null : room.getCode(),
+                            frozen != null ? frozen.getName() : room == null ? null : room.getName(),
                             capacity,
                             c.getStatus(),
                             childCount,

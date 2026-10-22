@@ -49,6 +49,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final AgeGroupRepository ageGroupRepository;
     private final RoomRepository roomRepository;
     private final TeacherDirectory teacherDirectory;
+    private final YearSnapshotReader yearSnapshotReader;
     private final SchoolConfigAccess schoolConfigAccess;
     private final SchoolStructureMapper schoolStructureMapper;
 
@@ -79,7 +80,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     .toList();
             TeacherAssignmentResponse response = new TeacherAssignmentResponse(
                     schoolStructureMapper.toDetailResponse(year, classroomRepository.countBySchoolYearId(year.getId())),
-                    ageGroups(),
+                    yearSnapshotReader.ageGroups(year.getId()).orElseGet(this::ageGroups),
                     toClassTeachers(classes, asOf(year)),
                     teachers);
             log.info("{}|END", logPrefix);
