@@ -47,3 +47,22 @@ So sánh API BE (nhánh làm việc của Cần, 22/10/2026) với lớp api + m
 | `GET /locations`, `/campuses`, `/campuses/{id}`, `/school-structure`, `/teacher-assignments` với năm CLOSED | năm cũ giữ như lúc kết thúc | dữ liệu hiện tại | phòng / điểm trường / nhóm tuổi đọc bản chụp lúc kết thúc năm (CFG-YR-02); `ClassResponse.roomCode/roomName` theo bản chụp | 9, 10, 13 |
 
 Không đổi vì đã khớp: body năm học, kích hoạt `{confirmName}`, điểm trường, nhóm tuổi (`mealSessions` MORNING/LUNCH/AFTERNOON, `mealsPerDay`), phòng (`room`, `type` CLASS/KITCHEN/FUNCTION_ROOM/DEPARTMENT/STORAGE), `PATCH /locations/{id}/status`, `PUT /classes/{id}/teachers`, `PUT /placements` `{items[{childId, action, toClassId}]}`, `POST /placements/auto`, sao chép lớp. Ngày `yyyy-MM-dd`, giờ `HH:mm`, thời điểm ISO-8601 UTC.
+
+## 3. Điểm danh & báo ăn — đợt 1 (23/10/2026)
+
+FE: `src/services/attendance/api/attendanceApi.js` + mock `attendanceMockRepository.js`. Lỗi nghiệp vụ dùng mã chung của BE (400/403/404/409), không có 422/423 như mock.
+
+| API | FE dùng ở | Khác mock |
+| --- | --- | --- |
+| `GET /attendance/classes?schoolYearId` | `useAttendanceClasses` | Mới: lớp của năm chọn ở header (không gửi = năm đang hoạt động) trong phạm vi + `teaches`, `canRecord`, `canUnlock` (năm khác năm hoạt động ⇒ chỉ xem) |
+| `GET /attendance/day-info?date&classId` | `getDayInfo` | Như mock; `now`, `cutoff` dạng `HH:mm`; không có `classId` ⇒ giờ chốt năm đang hoạt động |
+| `GET /classes/{id}/attendance?date` | `getClassAttendance` | Thông tin ngày nằm trong `day` (mock trải ra ngoài); trẻ `{id, fullName, dateOfBirth}` (chưa có mã, giới tính, dị ứng, ảnh); chưa có `leaveRequest`, `healthSummary`, `mealCountStatus` |
+| `PUT /classes/{id}/attendance` | `saveClassAttendance` | Body `{date, entries[{childId, status, meals{LUNCH:true}}]}`; trả `{savedAt, count, changed}`; khóa ⇒ 409 `Attendance is locked after HH:mm`; ngày khác hôm nay không có mở lại ⇒ 400 `Attendance can only be recorded for today` |
+| `GET/POST /attendance/day-unlocks`, `POST /attendance/day-unlocks/{id}/revoke` | màn Mở lại điểm danh | Như mock; chưa gửi thông báo cho GV |
+| `GET /classes/{id}/attendance/summary?from&to`, `GET /attendance/summary?from&to&campusId&schoolYearId` | màn Tổng hợp | Không có `scope`, `substitute` (FE tự thêm); trẻ tính theo lớp tại ngày `to` |
+| `GET /classes/{classId}/children/{childId}/daily-health?date` | `getDailyHealth` (khung Sức khỏe trong ngày) | `{classId, className, childId, childName, date, canRecord, entries[]}`; chưa có `contacts`, `healthSummary` (FE tự tính từ `entries`) |
+| `POST /daily-health-entries` | `addDailyHealth` | Như mock; trả 201; trẻ chưa lưu Có mặt hôm nay ⇒ 409 `Save the child as present today before recording health` |
+| — | `notifyDailyHealth` | Chưa có (chưa có module thông báo phụ huynh); `notificationStatus` luôn `PENDING` |
+| `GET /daily-health/overview?date&schoolYearId&campusId&ageGroupId&classId` | màn Tổng hợp sức khỏe | Trẻ cần chú ý: `{childId, childName, classId, className, campusId, latest, readings[]}` (FE tự trải `latest` và tính `actionsText`); `totals.notified` = 0 |
+| `GET /children/{childId}/daily-health?date` | lịch sử trong ngày của một trẻ | Như `GET` theo lớp, `canRecord` = false |
+

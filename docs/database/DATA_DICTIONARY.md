@@ -189,6 +189,59 @@ Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh. Migrat
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `uk_guardian_child_links_user_child`, `idx_guardian_child_links_child_id`.
 
+## attendance_records  (module: attendance, scope: CLASS)
+Mục đích: điểm danh và tham gia ăn của một trẻ trong một ngày (ATT-01, ATT-02). Migration: `V18__create_attendance.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | Trẻ; UNIQUE `(child_id, date)` — lưu lặp chỉ cập nhật | ATT-01b |
+| classroom_id / campus_id | BIGINT FK | không | Lớp, điểm trường lúc ghi (scope) | AUTH-03 |
+| date | DATE | không | Ngày điểm danh | — |
+| status | VARCHAR(20) | không | `PRESENT` / `EXCUSED` / `UNEXCUSED` | — |
+| meals | VARCHAR(40) | không | Bữa trẻ ăn, dạng `LUNCH,AFTERNOON`; vắng = rỗng; chỉ bữa của nhóm tuổi | ATT-02 |
+| recorded_by, recorded_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Lần ghi gần nhất | — |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `(classroom_id, date)`.
+
+## attendance_record_history  (module: attendance, scope: CLASS)
+Mục đích: lịch sử ghi/sửa từng bản ghi điểm danh (chỉ thêm). Migration: V18.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| record_id | BIGINT FK attendance_records (ON DELETE CASCADE) | không | | — |
+| action | VARCHAR(20) | không | `RECORDED` / `UPDATED` | — |
+| status, meals | như `attendance_records` | không | Giá trị sau lần ghi | — |
+| user_id, at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Ai ghi, lúc nào | — |
+| unlock_id | BIGINT FK attendance_day_unlocks | có | Ghi trong lần mở lại ngày | ATT-06 |
+
+## attendance_day_unlocks  (module: attendance, scope: CLASS)
+Mục đích: mở lại điểm danh một lớp/ngày đã khóa (HT mọi lớp, PHT lớp điểm trường mình). Migration: V18.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| classroom_id / campus_id | BIGINT FK | không | Lớp được mở lại | AUTH-01, AUTH-02 |
+| date | DATE | không | Ngày học được mở lại (từ đầu năm học tới hôm nay) | — |
+| valid_until | TIMESTAMPTZ | không | Hạn mở lại: sau lúc mở, không quá hết ngày kết thúc năm học; thu hồi ⇒ = lúc thu hồi | ATT-06 |
+| reason | VARCHAR(300) | không | Lý do | — |
+| unlocked_by, unlocked_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
+| revoked_by, revoked_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Kết thúc sớm | — |
+Mỗi lớp/ngày tối đa một lần mở còn hiệu lực (service kiểm). Index: `(classroom_id, date)`.
+
+## daily_health_entries  (module: attendance, scope: CHILD)
+Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nhận khi tiếp nhận trẻ đã lưu Có mặt (chỉ thêm, không sửa). Giáo viên quan sát, không chẩn đoán. Migration: `V19__create_daily_health_entries.sql`. Dữ liệu sức khỏe — không log.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| request_id | VARCHAR(64) | không | FE sinh mỗi lần bấm lưu; UNIQUE `(recorded_by, request_id)` — gửi lặp trả bản đã lưu | — |
+| child_id / classroom_id / campus_id | BIGINT FK | không | Trẻ, lớp, điểm trường lúc ghi (scope) | AUTH-03 |
+| date | DATE | không | Ngày ghi nhận (chỉ hôm nay) | — |
+| temperature | NUMERIC(3,1) | có | Thân nhiệt đúng giá trị nhập; không tự đánh giá ngưỡng | — |
+| observation | VARCHAR(20) | không | `NO_CONCERN` / `NOTED` | — |
+| symptoms | VARCHAR(100) | không | Biểu hiện khi NOTED, dạng `COUGH,TIRED` | — |
+| note | VARCHAR(500) | không | Ghi chú; NOTED cần biểu hiện hoặc ghi chú | — |
+| actions | VARCHAR(100) | không | Xử trí khi NOTED (`MONITOR`, `MEDICAL_ROOM`, `PARENT_INFORMED`, `EARLY_PICKUP`, `REFERRAL`) | — |
+| referral_place / referral_time / referral_escort | VARCHAR(150) / TIME / VARCHAR(100) | có | Bắt buộc nơi + giờ khi có `REFERRAL` | — |
+| notification_status | VARCHAR(20) | không | `PENDING` (chưa có module thông báo phụ huynh) | — |
+| recorded_by, recorded_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
+Index: `(child_id, date)`, `(classroom_id, date)`.
+
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
 

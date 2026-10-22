@@ -40,6 +40,16 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     boolean existsActiveTeacherForClassroom(
             @Param("userId") Long userId, @Param("classroomId") Long classroomId, @Param("date") LocalDate date);
 
+    // Đã từng dạy lớp tới ngày :date (bỏ phân công gỡ trước khi bắt đầu: validTo < validFrom)
+    @Query("""
+            select case when count(a) > 0 then true else false end from StaffAssignment a
+            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER
+              and a.classroomId = :classroomId
+              and a.validFrom <= :date and (a.validTo is null or a.validTo >= a.validFrom)
+            """)
+    boolean existsPastTeacherForClassroom(
+            @Param("userId") Long userId, @Param("classroomId") Long classroomId, @Param("date") LocalDate date);
+
     @Query("""
             select distinct a.ageGroupId from StaffAssignment a
             where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER

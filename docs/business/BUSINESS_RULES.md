@@ -12,7 +12,7 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | --- | --- | --- | --- |
 | AUTH-01 | Principal có scope toàn trường (mọi campus) | CONFIRMED | Khảo sát |
 | AUTH-02 | Vice Principal có scope theo campus được phân công qua StaffAssignment, không gắn cứng role→campus | CONFIRMED (hướng); cố định hay luân phiên: PENDING P-14 | Khảo sát |
-| AUTH-03 | Teacher chỉ truy cập lớp được phân công | CONFIRMED | Report 1 |
+| AUTH-03 | Teacher chỉ truy cập lớp được phân công. Năm học đã kết thúc: GV xem lại (chỉ xem) lớp mình từng dạy — đã áp cho điểm danh, sức khỏe trong ngày | CONFIRMED | Report 1; Cần 23/10/2026 (xem lại năm cũ) |
 | AUTH-04 | Parent chỉ truy cập trẻ có GuardianChildLink với mình, và chỉ dữ liệu được phép hiển thị cho phụ huynh | CONFIRMED | Report 1 |
 | AUTH-05 | Kitchen Staff truy cập dữ liệu bếp (suất đã chốt, thực đơn, định lượng) của campus liên quan; không xem hồ sơ trẻ ngoài thông tin dị ứng cần cho nấu | CONFIRMED (hướng); phạm vi bếp PENDING P-06 | Khảo sát |
 | AUTH-06 | System Admin quản lý tài khoản/role/cấu hình; mặc định **không** xem dữ liệu trẻ trừ khi được gán thêm role nghiệp vụ | PROPOSED; PENDING P-16 | Thiết kế |

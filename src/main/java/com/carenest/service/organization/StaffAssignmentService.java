@@ -15,6 +15,9 @@ public interface StaffAssignmentService {
 
     boolean hasActiveTeacherAssignment(Long userId, Long classroomId, LocalDate date);
 
+    /** Đã từng được phân công dạy lớp (tới ngày date), kể cả phân công đã kết thúc. */
+    boolean hasTeacherAssignmentHistory(Long userId, Long classroomId, LocalDate date);
+
     List<StaffAssignmentSummaryResponse> findActiveAssignments(Long userId, LocalDate date);
 
     /** Nhóm tuổi Tổ trưởng đang phụ trách (phân công AGE_GROUP_TEAM_LEADER còn hiệu lực). */
