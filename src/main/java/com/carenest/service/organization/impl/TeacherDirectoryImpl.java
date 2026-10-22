@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,24 +32,25 @@ public class TeacherDirectoryImpl implements TeacherDirectory {
         log.info("{}|START", logPrefix);
         try {
             Map<Long, List<StaffAssignmentRepository.TeacherRow>> byUser =
-                    staffAssignmentRepository.findTeacherRows(date).stream()
+                    staffAssignmentRepository.findTeacherRows().stream()
                             .collect(Collectors.groupingBy(
                                     StaffAssignmentRepository.TeacherRow::getUserId,
                                     LinkedHashMap::new,
                                     Collectors.toList()));
+            // Mỗi giáo viên thuộc một điểm trường: theo lớp của phân công gần nhất (có lớp)
             List<TeacherCandidateResponse> teachers = byUser.values().stream()
-                    .map(rows -> new TeacherCandidateResponse(
-                            rows.getFirst().getUserId(),
-                            rows.getFirst().getFullName(),
-                            rows.stream()
-                                    .map(StaffAssignmentRepository.TeacherRow::getCampusId)
-                                    .filter(Objects::nonNull)
-                                    .min(Long::compare)
-                                    .orElse(null),
-                            rows.stream()
-                                    .map(StaffAssignmentRepository.TeacherRow::getCampusId)
-                                    .filter(Objects::nonNull)
-                                    .collect(Collectors.toSet())))
+                    .map(rows -> {
+                        Long campusId = rows.stream()
+                                .map(StaffAssignmentRepository.TeacherRow::getCampusId)
+                                .filter(Objects::nonNull)
+                                .findFirst()
+                                .orElse(null);
+                        return new TeacherCandidateResponse(
+                                rows.getFirst().getUserId(),
+                                rows.getFirst().getFullName(),
+                                campusId,
+                                campusId == null ? Set.of() : Set.of(campusId));
+                    })
                     .sorted(Comparator.comparing(TeacherCandidateResponse::fullName))
                     .toList();
             log.info("{}|END", logPrefix);

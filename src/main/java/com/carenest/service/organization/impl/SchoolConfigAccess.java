@@ -9,6 +9,7 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,10 @@ class SchoolConfigAccess {
 
     LocalDate today() {
         return LocalDate.now(clock);
+    }
+
+    ZoneId zone() {
+        return clock.getZone();
     }
 
     boolean isPrincipal(CurrentUser user) {

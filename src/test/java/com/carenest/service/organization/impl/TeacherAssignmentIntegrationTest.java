@@ -119,6 +119,8 @@ class TeacherAssignmentIntegrationTest {
 
     @Test
     void replacingTeacherEndsOldAssignmentAndGrantsNewScope() {
+        // teacher3 phải được gỡ khỏi lớp A2 trước (mỗi giáo viên một lớp)
+        endAssignments(teacher3);
         ClassTeachersResponse result = service.assignClassTeachers(
                 principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher3), teacher3));
 
@@ -131,6 +133,151 @@ class TeacherAssignmentIntegrationTest {
                 .isTrue();
         assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher3, classA1, TODAY))
                 .isTrue();
+    }
+
+    @Test
+    void closedYearShowsTeachersAsOfClosingWithNames() {
+        // Năm kết thúc hôm qua; phân công của teacher2 kết thúc hôm nay (sau khi đóng năm) vẫn phải hiện
+        jdbc.update(
+                "UPDATE school_years SET status = 'CLOSED', closed_at = TIMESTAMPTZ '2026-10-21 10:00:00+07' WHERE id = ?",
+                year);
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_to = ? WHERE user_id = ? AND classroom_id = ?",
+                TODAY.minusDays(1),
+                teacher2,
+                classA1);
+
+        ClassTeachersResponse a1 = service.getTeacherAssignments(principal, year, null).classes().stream()
+                .filter(c -> c.id() == classA1)
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(a1.teacherIds()).containsExactlyInAnyOrder(teacher1, teacher2);
+        assertThat(a1.teachers())
+                .extracting(ClassTeachersResponse.Teacher::fullName)
+                .doesNotContainNull();
+    }
+
+    @Test
+    void removingAllTeachersOfActiveYearNeedsReplacement() {
+        expectError(
+                () -> service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(), null)),
+                ApiCode.BAD_REQUEST);
+    }
+
+    @Test
+    void emptyListRemovesAllTeachersOfPlannedYearAndKeepsHistory() {
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
+        ClassTeachersResponse result =
+                service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(), null));
+
+        assertThat(result.teacherIds()).isEmpty();
+        assertThat(result.homeroomTeacherId()).isNull();
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, classA1, TODAY))
+                .isFalse();
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, classA1, TODAY.minusDays(1)))
+                .isTrue();
+        // Giáo viên vừa gỡ vẫn chọn được để phân công lại
+        assertThat(service.getTeacherAssignments(principal, year, null).teachers())
+                .extracting(t -> t.id())
+                .contains(teacher1, teacher2);
+    }
+
+    @Test
+    void remainingTeacherBecomesHomeroomWhenNoneChosen() {
+        ClassTeachersResponse result =
+                service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(teacher2), null));
+
+        assertThat(result.teacherIds()).containsExactly(teacher2);
+        assertThat(result.homeroomTeacherId()).isEqualTo(teacher2);
+    }
+
+    @Test
+    void historyListsEndedAndCurrentAssignmentsNewestFirst() {
+        endAssignments(teacher3);
+        service.assignClassTeachers(
+                principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher3), teacher3));
+
+        var history = service.getClassTeacherHistory(principal, classA1);
+
+        // teacher3 mới phân công hôm nay (đang phụ trách), teacher2 kết thúc hôm qua, teacher1 giữ nguyên
+        assertThat(history.getFirst().userId()).isEqualTo(teacher3);
+        assertThat(history.getFirst().current()).isTrue();
+        assertThat(history.getFirst().homeroom()).isTrue();
+        assertThat(history)
+                .filteredOn(h -> h.userId() == teacher2)
+                .singleElement()
+                .satisfies(h -> assertThat(h.validTo()).isEqualTo(TODAY.minusDays(1)));
+    }
+
+    @Test
+    void lockedTeacherIsHiddenAndRejected() {
+        jdbc.update("UPDATE user_accounts SET status = 'INACTIVE' WHERE id = ?", teacher2);
+
+        assertThat(service.getTeacherAssignments(principal, year, null).teachers())
+                .extracting(t -> t.id())
+                .doesNotContain(teacher2);
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher1)),
+                ApiCode.BAD_REQUEST);
+        expectError(
+                () -> service.assignTeamLeader(principal, new TeamLeaderRequest(year, ageGroup3, teacher2)),
+                ApiCode.BAD_REQUEST);
+    }
+
+    @Test
+    void oneTeacherIsAllowedWithHomeroom() {
+        ClassTeachersResponse result =
+                service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(teacher1), teacher1));
+
+        assertThat(result.teacherIds()).containsExactly(teacher1);
+        assertThat(result.homeroomTeacherId()).isEqualTo(teacher1);
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher2, classA1, TODAY))
+                .isFalse();
+    }
+
+    @Test
+    void homeroomIsOptional() {
+        ClassTeachersResponse result = service.assignClassTeachers(
+                principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), null));
+
+        assertThat(result.teacherIds()).containsExactlyInAnyOrder(teacher1, teacher2);
+        assertThat(result.homeroomTeacherId()).isNull();
+    }
+
+    @Test
+    void teacherOfAnotherClassIsConflict() {
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher3), teacher1)),
+                ApiCode.CONFLICT);
+    }
+
+    @Test
+    void teacherCampusFollowsLatestAssignment() {
+        // teacherB từng dạy lớp A1 (cơ sở A) trước khi chuyển sang B1 ⇒ thuộc cơ sở B
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-08-01', '2026-08-31')",
+                teacherB,
+                classA1);
+
+        var candidate = service.getTeacherAssignments(principal, year, null).teachers().stream()
+                .filter(t -> t.id() == teacherB)
+                .findFirst()
+                .orElseThrow();
+        assertThat(candidate.campusIds()).containsExactly(candidate.campusId());
+        assertThat(service.getTeacherAssignments(principal, year, null).classes().stream()
+                        .filter(c -> c.id() == classA1)
+                        .findFirst()
+                        .orElseThrow()
+                        .campusId())
+                .isNotEqualTo(candidate.campusId());
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacherB), teacher1)),
+                ApiCode.BAD_REQUEST);
     }
 
     @Test
@@ -200,6 +347,11 @@ class TeacherAssignmentIntegrationTest {
     private long classroom(long campusId, String name) {
         return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
                 + campusId + ", " + year + ", '" + name + "', " + ageGroup3 + ", 25) RETURNING id");
+    }
+
+    // Kết thúc mọi phân công của giáo viên từ hôm qua (để phân công sang lớp khác)
+    private void endAssignments(long userId) {
+        jdbc.update("UPDATE staff_assignments SET valid_to = ? WHERE user_id = ?", TODAY.minusDays(1), userId);
     }
 
     private void teacherOf(long userId, long classroomId) {

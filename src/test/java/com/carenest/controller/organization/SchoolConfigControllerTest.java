@@ -63,13 +63,13 @@ class SchoolConfigControllerTest {
     private TeacherAssignmentService teacherAssignmentService;
 
     @Test
-    void classTeachersNeedExactlyTwo() throws Exception {
+    void classTeachersAtMostTwo() throws Exception {
         authenticateAs(CareNestRole.PRINCIPAL);
 
         mockMvc.perform(put("/api/classes/5/teachers")
                         .with(token(CareNestRole.PRINCIPAL))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"teacherIds\":[1],\"homeroomTeacherId\":1}"))
+                        .content("{\"teacherIds\":[1,2,3],\"homeroomTeacherId\":1}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.data[0].field").value("teacherIds"));
         verify(teacherAssignmentService, never()).assignClassTeachers(any(), any(), any());
@@ -159,7 +159,24 @@ class SchoolConfigControllerTest {
         authenticateAs(CareNestRole.PRINCIPAL);
         given(classManagementService.createClass(any(), any()))
                 .willReturn(new ClassResponse(
-                        9L, "Lớp A", 1L, 1L, 1L, 3L, 20, ClassroomStatus.ACTIVE, 0, null, 2, false, "OPEN"));
+                        9L,
+                        "Lớp A",
+                        1L,
+                        1L,
+                        1L,
+                        3L,
+                        "P.01",
+                        "Phòng 1",
+                        20,
+                        ClassroomStatus.ACTIVE,
+                        0,
+                        null,
+                        2,
+                        List.of(),
+                        null,
+                        false,
+                        "OPEN",
+                        List.of()));
 
         mockMvc.perform(post("/api/classes")
                         .with(token(CareNestRole.PRINCIPAL))

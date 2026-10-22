@@ -75,15 +75,36 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("yearEnd") LocalDate yearEnd,
             @Param("from") LocalDate from);
 
-    // Phương án C (tạm): ứng viên GV = người đang có phân công GV/tổ trưởng chưa kết thúc; điểm trường lấy theo lớp
+    // Phương án C (tạm): ứng viên GV = người từng có phân công GV/tổ trưởng (gồm GV vừa được gỡ, để phân công lại);
+    // điểm trường = điểm trường lớp của phân công gần nhất (dòng đầu theo valid_from giảm dần)
     @Query(
-            value = "select distinct u.id as userId, u.full_name as fullName, c.campus_id as campusId"
+            value = "select u.id as userId, u.full_name as fullName, c.campus_id as campusId"
                     + " from staff_assignments a join user_accounts u on u.id = a.user_id"
                     + " left join classrooms c on c.id = a.classroom_id"
-                    + " where a.staff_role in ('TEACHER', 'AGE_GROUP_TEAM_LEADER')"
-                    + " and (a.valid_to is null or a.valid_to >= :date) and u.status = 'ACTIVE'",
+                    + " where a.staff_role in ('TEACHER', 'AGE_GROUP_TEAM_LEADER') and u.status = 'ACTIVE'"
+                    + " order by u.id, a.valid_from desc, a.id desc",
             nativeQuery = true)
-    List<TeacherRow> findTeacherRows(@Param("date") LocalDate date);
+    List<TeacherRow> findTeacherRows();
+
+    @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
+            + " and a.classroomId = :classroomId order by a.validFrom desc, a.id desc")
+    List<StaffAssignment> findTeacherHistory(@Param("classroomId") Long classroomId);
+
+    @Query(
+            "select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER"
+                    + " and a.ageGroupId = :ageGroupId"
+                    + " and (a.schoolYearId = :schoolYearId or (a.schoolYearId is null and a.validFrom <= :yearEnd"
+                    + " and (a.validTo is null or a.validTo >= :yearStart)))"
+                    + " order by a.validFrom desc, a.id desc")
+    List<StaffAssignment> findTeamLeaderHistory(
+            @Param("ageGroupId") Long ageGroupId,
+            @Param("schoolYearId") Long schoolYearId,
+            @Param("yearStart") LocalDate yearStart,
+            @Param("yearEnd") LocalDate yearEnd);
+
+    // Tài khoản bị khóa / ngừng (đọc bảng user_accounts của module tài khoản, chỉ đọc)
+    @Query(value = "select u.id from user_accounts u where u.id in :ids and u.status <> 'ACTIVE'", nativeQuery = true)
+    List<Long> findInactiveUserIds(@Param("ids") Collection<Long> ids);
 
     interface TeacherRow {
         Long getUserId();

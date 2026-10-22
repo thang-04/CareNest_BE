@@ -1,5 +1,6 @@
 package com.carenest.controller.organization;
 
+import com.carenest.dto.organization.AssignmentHistoryResponse;
 import com.carenest.dto.organization.ClassTeachersRequest;
 import com.carenest.dto.organization.ClassTeachersResponse;
 import com.carenest.dto.organization.TeacherAssignmentResponse;
@@ -10,6 +11,7 @@ import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -46,6 +48,35 @@ public class TeacherAssignmentController {
                 teacherAssignmentService.getTeacherAssignments(currentUser, schoolYearId, campusId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get teacher assignments success", assignments);
+    }
+
+    @GetMapping("/classes/{classId}/teacher-assignments/history")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<AssignmentHistoryResponse>>> getClassTeacherHistory(
+            @PathVariable Long classId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getClassTeacherHistory|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        List<AssignmentHistoryResponse> history = teacherAssignmentService.getClassTeacherHistory(currentUser, classId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class teacher history success", history);
+    }
+
+    @GetMapping("/age-groups/{ageGroupId}/team-leader-assignments/history")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<AssignmentHistoryResponse>>> getTeamLeaderHistory(
+            @PathVariable Long ageGroupId,
+            @RequestParam(name = "schoolYearId", required = false) Long schoolYearIdParam,
+            @RequestParam(required = false) Long schoolYear,
+            CurrentUser currentUser) {
+        Long schoolYearId = schoolYearIdParam != null ? schoolYearIdParam : schoolYear;
+        String logPrefix = LOG_PREFIX + "|getTeamLeaderHistory|userId=" + currentUser.userId() + "|ageGroupId="
+                + ageGroupId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        List<AssignmentHistoryResponse> history =
+                teacherAssignmentService.getTeamLeaderHistory(currentUser, ageGroupId, schoolYearId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get team leader history success", history);
     }
 
     @PutMapping("/classes/{classId}/teachers")
