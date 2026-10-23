@@ -1,5 +1,6 @@
 package com.carenest.service.eduplan.impl;
 
+import com.carenest.config.EduPlanProperties;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanRequest;
@@ -87,6 +88,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private final SchoolStructureService schoolStructureService;
     private final AccountService accountService;
     private final EduYearPlanMapper mapper;
+    private final EduPlanProperties properties;
     private final Clock clock;
 
     @Override
@@ -117,7 +119,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             Map<Long, Long> themeCounts =
                     planIds.isEmpty() ? Map.of() : toCountMap(themeRepository.countByPlan(planIds));
             Map<Long, String> names = accountService.findFullNames(page.getContent().stream()
-                    .flatMap(p -> Stream.of(p.getOwnerId(), p.getSentBy(), p.getIssuedBy()))
+                    .flatMap(p -> Stream.of(p.getOwnerId(), p.getSentBy(), p.getIssuedBy(), p.getEditingBy()))
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet()));
             Map<Long, String> schoolYearNames = schoolStructureService.findSchoolYears().stream()
@@ -216,12 +218,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|updateYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadViewablePlan(currentUser, planId);
-            // EDU-03
-            if (!canEdit(currentUser, plan)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You cannot edit this plan");
-            }
+            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
+            requireEditable(currentUser, plan, now);
+            // EDU-10: lưu vẫn giữ "Đang sửa" (và gia hạn khóa); chỉ thoát trang soạn mới về Nháp
+            if (plan.getStatus() != EduPlanStatus.PENDING_VP) {
+                plan.startEditing(currentUser.userId(), now);
+            }
             plan.updateInfo(request.title().trim(), trimToEmpty(request.description()), now);
             saveContent(plan, request);
             if (plan.getStatus() == EduPlanStatus.PENDING_VP) {
@@ -243,17 +246,18 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|submitYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadViewablePlan(currentUser, planId);
-            // EDU-04: chỉ Tổ trưởng người soạn gửi; PHT tự soạn thì ban hành luôn
-            if (!isOwner(currentUser, plan) || !accessPolicy.isTeamLeaderOf(currentUser, plan.getAgeGroupId())) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Only the team leader who drafted the plan can submit it");
+            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            Instant now = clock.instant();
+            // EDU-04: Tổ trưởng của nhóm tuổi gửi; PHT tự soạn thì ban hành luôn
+            if (!accessPolicy.isTeamLeaderOf(currentUser, plan.getAgeGroupId())) {
+                throw new GlobalException(ApiCode.FORBIDDEN, "Only the team leader of this age group can submit it");
             }
             if (!isDraftLike(plan)) {
                 throw new GlobalException(ApiCode.CONFLICT, "Plan cannot be submitted in its current status");
             }
+            requireNotLockedByOther(currentUser, plan, now);
             requireReadyForReview(plan);
 
-            Instant now = clock.instant();
             plan.submit(currentUser.userId(), now);
             yearPlanRepository.save(plan);
             recordEvent(
@@ -281,7 +285,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|issueYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadViewablePlan(currentUser, planId);
+            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            Instant now = clock.instant();
             if (!accessPolicy.isVicePrincipal(currentUser)) {
                 throw new GlobalException(ApiCode.FORBIDDEN, "Only the vice principal can issue the plan");
             }
@@ -290,9 +295,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (!pending && !(isDraftLike(plan) && isOwner(currentUser, plan))) {
                 throw new GlobalException(ApiCode.CONFLICT, "Plan cannot be issued in its current status");
             }
+            requireNotLockedByOther(currentUser, plan, now);
             requireReadyForReview(plan);
 
-            Instant now = clock.instant();
             plan.issue(currentUser.userId(), now);
             yearPlanRepository.save(plan);
             recordEvent(plan, ACTION_ISSUE, "Ban hành", currentUser, TITLE_VICE_PRINCIPAL, TONE_OK, note, now);
@@ -312,7 +317,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|returnYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadViewablePlan(currentUser, planId);
+            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             if (!accessPolicy.isVicePrincipal(currentUser)) {
                 throw new GlobalException(ApiCode.FORBIDDEN, "Only the vice principal can return the plan");
             }
@@ -344,17 +349,79 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|deleteYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadViewablePlan(currentUser, planId);
-            // EDU-07
-            if (!isOwner(currentUser, plan) || !accessPolicy.hasPermission(currentUser, EduPermission.GOALS_EDIT)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Only the plan owner can delete it");
+            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            // EDU-07: chỉ Phó HT xóa, và chỉ khi Nháp (kể cả đang do chính mình sửa)
+            if (!canDeleteAsVicePrincipal(currentUser)) {
+                throw new GlobalException(ApiCode.FORBIDDEN, "Only the vice principal can delete a year plan");
             }
-            if (plan.getStatus() != EduPlanStatus.DRAFT) {
+            if (plan.baseStatus() != EduPlanStatus.DRAFT) {
                 throw new GlobalException(ApiCode.CONFLICT, "Only a draft plan can be deleted");
             }
+            requireNotLockedByOther(currentUser, plan, clock.instant());
             // Bảng con xóa theo ON DELETE CASCADE
             yearPlanRepository.delete(plan);
             log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public YearPlanDetailResponse startEditing(CurrentUser currentUser, Long planId) {
+        String logPrefix = LOG_PREFIX + "|startEditing|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        try {
+            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            Instant now = clock.instant();
+            requireEditable(currentUser, plan, now);
+            // EDU-10: chờ duyệt chỉ PHT sửa nên không cần khóa
+            if (plan.getStatus() != EduPlanStatus.PENDING_VP) {
+                plan.startEditing(currentUser.userId(), now);
+            }
+            YearPlanDetailResponse response = toDetail(currentUser, plan);
+            log.info("{}|status={}|END", logPrefix, plan.getStatus());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public YearPlanDetailResponse finishEditing(CurrentUser currentUser, Long planId) {
+        String logPrefix = LOG_PREFIX + "|finishEditing|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        try {
+            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            // Không giữ khóa thì bỏ qua: trang soạn gọi khi thoát, kể cả lúc khóa đã hết hạn
+            if (plan.isEditingBy(currentUser.userId())) {
+                plan.finishEditing();
+            }
+            YearPlanDetailResponse response = toDetail(currentUser, plan);
+            log.info("{}|status={}|END", logPrefix, plan.getStatus());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public int releaseExpiredEditLocks() {
+        String logPrefix = LOG_PREFIX + "|releaseExpiredEditLocks";
+        try {
+            Instant now = clock.instant();
+            List<EduYearPlan> expired = yearPlanRepository.findAllByStatusAndEditingAtLessThanEqual(
+                    EduPlanStatus.EDITING, now.minus(properties.editLockTtl()));
+            expired.forEach(EduYearPlan::finishEditing);
+            if (!expired.isEmpty()) {
+                log.info("{}|count={}|END", logPrefix, expired.size());
+            }
+            return expired.size();
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -379,21 +446,61 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         return plan;
     }
 
+    private EduYearPlan loadPlanForUpdate(CurrentUser user, Long planId) {
+        requirePermission(user, EduPermission.GOALS_VIEW);
+        EduYearPlan plan = yearPlanRepository
+                .findForUpdateById(planId)
+                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Year plan not found"));
+        if (!accessPolicy.viewScope(user).allows(plan.getAgeGroupId(), plan.getStatus())) {
+            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this plan");
+        }
+        return plan;
+    }
+
+    private void requireEditable(CurrentUser user, EduYearPlan plan, Instant now) {
+        requireNotLockedByOther(user, plan, now);
+        // EDU-03
+        if (!canEdit(user, plan, now)) {
+            throw new GlobalException(ApiCode.FORBIDDEN, "You cannot edit this plan");
+        }
+    }
+
+    private void requireNotLockedByOther(CurrentUser user, EduYearPlan plan, Instant now) {
+        if (isLockedByOther(user, plan, now)) {
+            throw new GlobalException(ApiCode.CONFLICT, "Plan is being edited by another user");
+        }
+    }
+
+    // EDU-10: khóa của người khác còn hạn thì người này chỉ xem
+    private boolean isLockedByOther(CurrentUser user, EduYearPlan plan, Instant now) {
+        return plan.getStatus() == EduPlanStatus.EDITING
+                && !plan.isEditingBy(user.userId())
+                && !plan.isEditLockExpired(now, properties.editLockTtl());
+    }
+
+    private boolean canDeleteAsVicePrincipal(CurrentUser user) {
+        return accessPolicy.isVicePrincipal(user) && accessPolicy.hasPermission(user, EduPermission.GOALS_EDIT);
+    }
+
     private boolean isOwner(CurrentUser user, EduYearPlan plan) {
         return plan.getOwnerId().equals(user.userId());
     }
 
+    // Nháp / bị trả lại, kể cả khi đang có người sửa
     private static boolean isDraftLike(EduYearPlan plan) {
-        return plan.getStatus() == EduPlanStatus.DRAFT || plan.getStatus() == EduPlanStatus.REJECTED;
+        EduPlanStatus base = plan.baseStatus();
+        return base == EduPlanStatus.DRAFT || base == EduPlanStatus.REJECTED;
     }
 
-    // EDU-03: người soạn khi nháp / bị trả lại; PHT khi chờ duyệt; đã ban hành thì khóa
-    private boolean canEdit(CurrentUser user, EduYearPlan plan) {
+    // EDU-03: PHT và Tổ trưởng nhóm tuổi cùng soạn khi nháp / bị trả lại (một người một lúc, EDU-10);
+    // PHT khi chờ duyệt; đã ban hành thì khóa
+    private boolean canEdit(CurrentUser user, EduYearPlan plan, Instant now) {
         return switch (plan.getStatus()) {
             case APPROVED -> false;
             case PENDING_VP -> accessPolicy.isVicePrincipal(user);
-            case DRAFT, REJECTED ->
-                isOwner(user, plan)
+            case DRAFT, REJECTED, EDITING ->
+                !isLockedByOther(user, plan, now)
+                        && accessPolicy.hasPermission(user, EduPermission.GOALS_EDIT)
                         && (accessPolicy.isVicePrincipal(user)
                                 || accessPolicy.isTeamLeaderOf(user, plan.getAgeGroupId()));
         };
@@ -639,15 +746,15 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 .toList();
 
         List<EduPlanEvent> events = eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(planId);
-        String lastReturnNote = plan.getStatus() != EduPlanStatus.REJECTED
+        String lastReturnNote = plan.baseStatus() != EduPlanStatus.REJECTED
                 ? null
                 : events.stream()
                         .filter(e -> ACTION_RETURN.equals(e.getAction()))
                         .reduce((first, second) -> second)
                         .map(EduPlanEvent::getNote)
                         .orElse(null);
-        Map<Long, String> names =
-                accountService.findFullNames(Stream.of(plan.getOwnerId(), plan.getSentBy(), plan.getIssuedBy())
+        Map<Long, String> names = accountService.findFullNames(
+                Stream.of(plan.getOwnerId(), plan.getSentBy(), plan.getIssuedBy(), plan.getEditingBy())
                         .filter(Objects::nonNull)
                         .collect(Collectors.toSet()));
         String schoolYearName = schoolStructureService
@@ -672,6 +779,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 mapper.toOwner(plan, names),
                 mapper.toActor(plan.getSentBy(), plan.getSentAt(), names),
                 mapper.toActor(plan.getIssuedBy(), plan.getIssuedAt(), names),
+                mapper.toActor(plan.getEditingBy(), plan.getEditingSince(), names),
                 plan.getCreatedAt(),
                 plan.getUpdatedAt(),
                 domains,
@@ -685,18 +793,17 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     private YearPlanDetailResponse.Permissions permissionsOf(CurrentUser user, EduYearPlan plan) {
+        Instant now = clock.instant();
         boolean vicePrincipal = accessPolicy.isVicePrincipal(user);
-        boolean owner = isOwner(user, plan);
+        boolean free = !isLockedByOther(user, plan, now);
         boolean draftLike = isDraftLike(plan);
         boolean pending = plan.getStatus() == EduPlanStatus.PENDING_VP;
         return new YearPlanDetailResponse.Permissions(
-                canEdit(user, plan),
-                draftLike && owner && accessPolicy.isTeamLeaderOf(user, plan.getAgeGroupId()),
-                vicePrincipal && (pending || (draftLike && owner)),
+                canEdit(user, plan, now),
+                free && draftLike && accessPolicy.isTeamLeaderOf(user, plan.getAgeGroupId()),
+                free && vicePrincipal && (pending || (draftLike && isOwner(user, plan))),
                 vicePrincipal && pending,
-                plan.getStatus() == EduPlanStatus.DRAFT
-                        && owner
-                        && accessPolicy.hasPermission(user, EduPermission.GOALS_EDIT));
+                free && plan.baseStatus() == EduPlanStatus.DRAFT && canDeleteAsVicePrincipal(user));
     }
 
     private String actorTitle(CurrentUser user) {

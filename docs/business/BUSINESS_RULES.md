@@ -97,14 +97,15 @@ Kế hoạch năm làm theo nhóm tuổi, áp dụng toàn trường; luồng th
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
 | EDU-01 | Mỗi (năm học, nhóm tuổi) có đúng 1 kế hoạch năm học | CONFIRMED | Tiền 22/10 |
-| EDU-02 | Người lập là Phó HT, hoặc Tổ trưởng của đúng nhóm tuổi đó; người lập là người soạn (owner) | CONFIRMED | Tiền 22/10 |
-| EDU-03 | Chỉ người soạn sửa khi Nháp/Bị trả lại; Phó HT sửa được khi Chờ Phó HT duyệt; đã ban hành thì khóa sửa | CONFIRMED | Tiền 22/10 |
-| EDU-04 | Tổ trưởng người soạn gửi Phó HT duyệt khi Nháp/Bị trả lại và có ≥1 mục tiêu (MT) | CONFIRMED | Tiền 22/10 |
+| EDU-02 | Người lập là Phó HT, hoặc Tổ trưởng của đúng nhóm tuổi đó; người lập ghi là người soạn (owner). Phó HT và Tổ trưởng nhóm tuổi cùng soạn một kế hoạch | CONFIRMED | Tiền 22/10, 23/10 |
+| EDU-03 | Nháp/Bị trả lại: Phó HT và Tổ trưởng nhóm tuổi đều sửa được, mỗi lúc một người (EDU-10); Chờ Phó HT duyệt: chỉ Phó HT sửa; đã ban hành thì khóa sửa | CONFIRMED | Tiền 23/10 |
+| EDU-04 | Tổ trưởng của nhóm tuổi (không cần là người tạo) gửi Phó HT duyệt khi Nháp/Bị trả lại, không bị người khác giữ khóa sửa, và có ≥1 mục tiêu (MT) | CONFIRMED | Tiền 23/10 |
 | EDU-05 | Phó HT ban hành kế hoạch đang chờ duyệt, hoặc ban hành luôn bản nháp do chính mình soạn; trả lại chỉ khi chờ duyệt và bắt buộc lý do | CONFIRMED | Tiền 22/10 |
-| EDU-06 | Xem: Phó HT, Hiệu trưởng toàn trường (Hiệu trưởng không xem Nháp); Tổ trưởng nhóm tuổi của mình; Giáo viên chỉ bản đã ban hành của nhóm tuổi các lớp mình dạy | CONFIRMED | Tiền 22/10 |
-| EDU-07 | Chỉ người soạn xóa được, và chỉ khi Nháp | CONFIRMED | Tiền 22/10 |
+| EDU-06 | Xem: Phó HT, Hiệu trưởng toàn trường (Hiệu trưởng không xem Nháp, Đang sửa); Tổ trưởng nhóm tuổi của mình; Giáo viên chỉ bản đã ban hành của nhóm tuổi các lớp mình dạy | CONFIRMED | Tiền 22/10 |
+| EDU-07 | Chỉ Phó HT xóa được, và chỉ khi Nháp (không xóa khi người khác đang sửa) | CONFIRMED | Tiền 23/10 |
 | EDU-08 | Quyền kiểm tra theo mã `goals.view`, `goals.edit`, `goals.approve`; tạm gán theo role tại một chỗ, thay bằng phân quyền động khi BE có | CONFIRMED | Tiền 22/10 |
 | EDU-09 | MT đánh số 1..n liên tục cả năm theo thứ tự lĩnh vực và dòng; nội dung giáo dục được tích vào chủ đề | CONFIRMED | Tiền 14/10, 20/10 |
+| EDU-10 | Vào trang soạn (hoặc lưu) bản Nháp/Bị trả lại ⇒ trạng thái "Đang sửa" (EDITING) khóa cho người đó; người còn lại chỉ xem, thấy tên người sửa và giờ bắt đầu. Lưu nhiều lần vẫn là Đang sửa; thoát trang soạn mới về Nháp/Bị trả lại như trước. Khóa tự nhả sau 30 phút không lưu (cấu hình `carenest.edu-plan.edit-lock-ttl`). Chờ duyệt không khóa. Hiệu trưởng không xem bản Đang sửa | CONFIRMED | Tiền 23/10 (khảo sát `huong_dan_nghiep_vu/1_muc_tieu_nam_hoc/khao_sat_quy_trinh_lap_ke_hoach_nam.md`) |
 
 ## FAC — Sự cố cơ sở vật chất (module: facility-issue)
 

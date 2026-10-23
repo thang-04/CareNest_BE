@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -63,6 +64,20 @@ public class EduYearPlan {
     @Column(name = "issued_at")
     private Instant issuedAt;
 
+    // EDU-10: khóa "Đang sửa"; editing_at = lần lưu cuối, quá hạn thì job trả về editing_from
+    @Column(name = "editing_by")
+    private Long editingBy;
+
+    @Column(name = "editing_since")
+    private Instant editingSince;
+
+    @Column(name = "editing_at")
+    private Instant editingAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "editing_from", length = 20)
+    private EduPlanStatus editingFrom;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -90,7 +105,56 @@ public class EduYearPlan {
         plan.ownerTitle = ownerTitle;
         plan.status = EduPlanStatus.DRAFT;
         plan.updatedAt = now;
+        plan.startEditing(ownerId, now);
         return plan;
+    }
+
+    /** Khóa cho {@code userId}; đang khóa bởi chính người đó thì chỉ gia hạn. */
+    public void startEditing(Long userId, Instant now) {
+        if (status == EduPlanStatus.EDITING && userId.equals(editingBy)) {
+            this.editingAt = now;
+            return;
+        }
+        // Khóa quá hạn của người khác: giữ trạng thái gốc của lượt sửa trước
+        EduPlanStatus from = status == EduPlanStatus.EDITING ? editingFrom : status;
+        this.status = EduPlanStatus.EDITING;
+        this.editingFrom = from;
+        this.editingBy = userId;
+        this.editingSince = now;
+        this.editingAt = now;
+    }
+
+    public void touchEditing(Instant now) {
+        this.editingAt = now;
+    }
+
+    /** Nhả khóa, trả về Nháp / Bị trả lại như trước khi sửa. */
+    public void finishEditing() {
+        if (status != EduPlanStatus.EDITING) {
+            return;
+        }
+        this.status = editingFrom;
+        clearEditing();
+    }
+
+    /** Trạng thái thật của nội dung: Đang sửa thì là trạng thái trước khi khóa. */
+    public EduPlanStatus baseStatus() {
+        return status == EduPlanStatus.EDITING ? editingFrom : status;
+    }
+
+    public boolean isEditingBy(Long userId) {
+        return status == EduPlanStatus.EDITING && userId.equals(editingBy);
+    }
+
+    public boolean isEditLockExpired(Instant now, Duration ttl) {
+        return status == EduPlanStatus.EDITING && !editingAt.plus(ttl).isAfter(now);
+    }
+
+    private void clearEditing() {
+        this.editingBy = null;
+        this.editingSince = null;
+        this.editingAt = null;
+        this.editingFrom = null;
     }
 
     public void updateInfo(String title, String description, Instant now) {
@@ -100,6 +164,7 @@ public class EduYearPlan {
     }
 
     public void submit(Long userId, Instant now) {
+        clearEditing();
         this.status = EduPlanStatus.PENDING_VP;
         this.sentBy = userId;
         this.sentAt = now;
@@ -107,6 +172,7 @@ public class EduYearPlan {
     }
 
     public void issue(Long userId, Instant now) {
+        clearEditing();
         this.status = EduPlanStatus.APPROVED;
         this.issuedBy = userId;
         this.issuedAt = now;

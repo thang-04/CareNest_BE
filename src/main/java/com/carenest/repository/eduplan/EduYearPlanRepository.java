@@ -2,10 +2,15 @@ package com.carenest.repository.eduplan;
 
 import com.carenest.entity.eduplan.EduYearPlan;
 import com.carenest.utils.enums.EduPlanStatus;
+import jakarta.persistence.LockModeType;
+import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -15,6 +20,14 @@ public interface EduYearPlanRepository extends JpaRepository<EduYearPlan, Long> 
     boolean existsBySchoolYearIdAndAgeGroupId(Long schoolYearId, Long ageGroupId);
 
     boolean existsByCode(String code);
+
+    // Mọi thao tác ghi khóa dòng: hai người cùng bấm sửa thì người sau thấy khóa của người trước (EDU-10)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from EduYearPlan p where p.id = :id")
+    Optional<EduYearPlan> findForUpdateById(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<EduYearPlan> findAllByStatusAndEditingAtLessThanEqual(EduPlanStatus status, Instant editingAt);
 
     // EDU-06: toàn trường theo trạng thái được xem, hoặc nhóm tuổi Tổ trưởng phụ trách, hoặc bản đã ban hành của GV
     @Query("""

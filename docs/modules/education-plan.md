@@ -19,7 +19,7 @@ Kế hoạch giáo dục theo mẫu MN Thái Dương. Phần đang làm là kế
 Năm học, nhóm tuổi, lớp, phân công (school-structure); tài khoản/role (identity-access); đánh giá trẻ theo MT (learning-observation).
 
 ## Rules (ID)
-EDU-01..09 (`docs/business/BUSINESS_RULES.md`), AUTH-03. ADR-0017, ADR-0003.
+EDU-01..10 (`docs/business/BUSINESS_RULES.md`), AUTH-03. ADR-0017, ADR-0003.
 
 ## Flows
 Sequence SD-01..SD-10 (thư mục nghiệp vụ của team: `huong_dan_nghiep_vu/sequence/muc_tieu_nam_hoc_sequence.drawio`, ngoài repo).
@@ -29,7 +29,7 @@ Sequence SD-01..SD-10 (thư mục nghiệp vụ của team: `huong_dan_nghiep_vu
 - Được dùng bởi: learning-observation (đọc MT đã ban hành).
 
 ## API & bảng
-- API: `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST /education-plans/goals/{planId}/submit|issue|return`, `GET /education-plans/config`, `GET /education-plans/expected-results` (`docs/api/openapi.yaml`).
+- API: `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST /education-plans/goals/{planId}/submit|issue|return|start-editing|finish-editing`, `GET /education-plans/config`, `GET /education-plans/expected-results` (`docs/api/openapi.yaml`).
 - Code: `EduYearPlanController`, `EduYearPlanService(Impl)`, `EduConfigService(Impl)`, quyền ở `security/authorization/EduPlanAccessPolicy` (EDU-06, EDU-08).
 - PUT gửi cả cây: dòng/nội dung/chủ đề có id thì cập nhật, không id thì thêm, vắng thì xóa; nội dung tích chủ đề qua `themeKeys` trỏ `themes[].key` (chủ đề mới chưa có id).
 - Bảng `edu_*`; schema ở `docs/database/DATA_DICTIONARY.md` khi có migration.
@@ -38,6 +38,8 @@ Sequence SD-01..SD-10 (thư mục nghiệp vụ của team: `huong_dan_nghiep_vu
 Không có (các câu hỏi đã chốt 22/10).
 
 ## Known pitfalls
+
+- Khóa Đang sửa (EDU-10): mọi thao tác ghi đọc kế hoạch bằng `findForUpdateById` (khóa dòng) để hai người bấm sửa cùng lúc không cùng lấy được khóa; khóa quá hạn coi như trống ngay cả khi job `EduPlanLockCleanupConfig` (1 phút/lần) chưa chạy.
 - Status do BE quyết định. Không nhận status từ client.
 - MT đánh số lại khi xóa hoặc chèn dòng; module khác tham chiếu MT qua id dòng, không qua số.
 - Kế hoạch đã ban hành bị khóa sửa, vì lớp dùng chủ đề và đợt nghỉ của nó.

@@ -18,5 +18,6 @@ public record YearPlanSummaryResponse(
         PlanActorResponse owner,
         PlanActorResponse sentBy,
         PlanActorResponse issued,
+        PlanActorResponse editing,
         Instant createdAt,
         Instant updatedAt) {}

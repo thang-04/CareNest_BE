@@ -1070,6 +1070,25 @@ paths:
           description: OK
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/finish-editing:
+    post:
+      operationId: finishEditing
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}/issue:
     post:
       operationId: issueYearPlan
@@ -1110,6 +1129,25 @@ paths:
             schema:
               $ref: "#/components/schemas/RequiredNote"
         required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/start-editing:
+    post:
+      operationId: startEditing
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -4410,6 +4448,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Domain"
+        editing:
+          $ref: "#/components/schemas/PlanActorResponse"
         history:
           type: array
           items:
@@ -4436,6 +4476,7 @@ components:
           type: string
           enum:
           - DRAFT
+          - EDITING
           - PENDING_VP
           - REJECTED
           - APPROVED
@@ -4492,6 +4533,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        editing:
+          $ref: "#/components/schemas/PlanActorResponse"
         goalCount:
           type: integer
           format: int64
@@ -4513,6 +4556,7 @@ components:
           type: string
           enum:
           - DRAFT
+          - EDITING
           - PENDING_VP
           - REJECTED
           - APPROVED

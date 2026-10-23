@@ -202,3 +202,14 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Sau góp ý (Tiền): `LeaveConfirmModal` (chuyển tab và rời trang, mọi trang kế hoạch giáo dục) đổi nút thành Hủy · Không lưu · Lưu; bỏ prop nhãn tùy biến. Kiểm chứng trình duyệt: modal có đúng 3 nút, Hủy đóng modal và giữ tab. FE `VERIFY PASS full`.
 - Sau góp ý (Tiền): chuyển tab chọn "Không lưu" ⇒ bỏ thay đổi của tab đang rời, trở về bản đã lưu gần nhất (`useManualSave.cleanDoc()`; tab Chủ đề: themes + breaks, bỏ dấu tích trỏ tới chủ đề không còn; tab Mục tiêu: domains); thông tin chung không đổi. Chỉ hỏi khi chính tab đang rời có thay đổi. Kiểm chứng trình duyệt: sửa tên + thêm chủ đề → Không lưu ⇒ tên về cũ, 10→9 chủ đề, hết "Có thay đổi chưa lưu". FE `VERIFY PASS full`.
 - Sau góp ý (Tiền): ô kết quả mong đợi và ô lĩnh vực con — Backspace khi đã hết chữ không xóa dòng nữa (ô trống, như ô mục tiêu/chủ đề), xóa dòng bằng thùng rác (có xác nhận). Kiểm chứng trình duyệt (không lưu): xóa hết + Backspace ×3 vẫn còn dòng ở cả 2 loại ô. FE `VERIFY PASS full`.
+
+### 2026-10-23 — Merge nhánh điểm danh G94-236 (Tiền yêu cầu)
+- Merge `origin/feature/G94-236-BE-FEAT-29-daily-attendance` (kèm cấu hình trường G94-235, migration V10–V19).
+- Trùng version: `V10__drop_unused_edu_plan_tables` của nhánh này đổi thành `V20__…` (nội dung không đổi, độc lập với V10–V19). DB local đã chạy V10 cũ ⇒ cần dựng lại DB dev (Flyway báo lệch checksum/version).
+- `docs/api/openapi.yaml` xung đột ⇒ sinh lại từ code sau merge: giống nhánh kia, chỉ bỏ `EduConfigResponse.yearSigners` (đã bỏ ở `3438e72`).
+- Sau merge FE G94-179: màn Mục tiêu năm học sập ("Hệ thống gặp sự cố", `id.replace is not a function` ở `toEduYear`). Nguyên nhân: header (`SchoolYearContext`) nối BE thật giữ id năm dạng số, module kế hoạch giáo dục cần tên năm `2026-2027`. Sửa FE `useEducationPlan.jsx`: đổi id → tên năm qua `label` của lựa chọn năm (chưa commit).
+
+### 2026-10-23 — Khóa "Đang sửa" (EDU-10, Tiền chốt sau khảo sát)
+- Tiền chốt: 1A (tự nhả sau 30 phút không lưu), 2A (chỉ Tổ trưởng gửi; PHT tự soạn vẫn ban hành thẳng), 3A (chỉ PHT xóa Nháp), 4 (giữ Bị trả lại, cả hai sửa), 5A (người kia xem được, thấy "Đang được [tên] sửa"). Khảo sát: `huong_dan_nghiep_vu/1_muc_tieu_nam_hoc/khao_sat_quy_trinh_lap_ke_hoach_nam.md`.
+- Sửa EDU-02/03/04/06/07, thêm EDU-10. V21 thêm `EDITING` + `editing_by/since/at/from`. API mới `POST /{planId}/start-editing|finish-editing`; `editing` (người, lúc bắt đầu) trong chi tiết và danh sách.
+- Giả định Claude tự chọn: lưu (PUT) tự lấy khóa nếu đang trống; chờ duyệt không khóa (chỉ PHT sửa); HT không xem bản Đang sửa (kể cả từ Bị trả lại); thao tác ghi khóa dòng (`SELECT … FOR UPDATE`); job nhả khóa chạy mỗi phút, khóa quá hạn coi như trống ngay.

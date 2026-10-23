@@ -5,7 +5,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Chi tiết kế hoạch năm học: bảng mục tiêu theo lĩnh vực, chủ đề, đợt nghỉ, lịch sử và quyền của người xem. */
+/**
+ * Chi tiết kế hoạch năm học: bảng mục tiêu theo lĩnh vực, chủ đề, đợt nghỉ, lịch sử và quyền của người xem.
+ * editing = người đang giữ khóa "Đang sửa" và lúc bắt đầu (EDU-10); null khi không ai sửa.
+ */
 public record YearPlanDetailResponse(
         Long id,
         String code,
@@ -19,6 +22,7 @@ public record YearPlanDetailResponse(
         PlanActorResponse owner,
         PlanActorResponse sentBy,
         PlanActorResponse issued,
+        PlanActorResponse editing,
         Instant createdAt,
         Instant updatedAt,
         List<Domain> domains,

@@ -55,12 +55,12 @@ public class EduPlanAccessPolicy {
         if (!hasPermission(user, EduPermission.GOALS_VIEW)) {
             return new ViewScope(Set.of(), Set.of(), Set.of());
         }
-        // EDU-06: PHT toàn trường mọi trạng thái; HT toàn trường trừ nháp
+        // EDU-06: PHT toàn trường mọi trạng thái; HT toàn trường trừ nháp và đang sửa (EDU-10)
         Set<EduPlanStatus> schoolWide = EnumSet.noneOf(EduPlanStatus.class);
         if (isVicePrincipal(user)) {
             schoolWide.addAll(EnumSet.allOf(EduPlanStatus.class));
         } else if (user.hasRole(CareNestRole.PRINCIPAL)) {
-            schoolWide.addAll(EnumSet.complementOf(EnumSet.of(EduPlanStatus.DRAFT)));
+            schoolWide.addAll(EnumSet.complementOf(EnumSet.of(EduPlanStatus.DRAFT, EduPlanStatus.EDITING)));
         }
         Set<Long> full = Set.of();
         Set<Long> approved = Set.of();
@@ -85,7 +85,7 @@ public class EduPlanAccessPolicy {
                         .contains(ageGroupId);
     }
 
-    /** EDU-02: Phó HT lập cho mọi nhóm tuổi; Tổ trưởng chỉ nhóm tuổi mình. */
+    /** EDU-02: Phó HT lập và cùng soạn cho mọi nhóm tuổi; Tổ trưởng chỉ nhóm tuổi mình. */
     public boolean canCreate(CurrentUser user, Long ageGroupId) {
         return (hasPermission(user, EduPermission.GOALS_EDIT) && isVicePrincipal(user))
                 || isTeamLeaderOf(user, ageGroupId);
