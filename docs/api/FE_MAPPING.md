@@ -61,6 +61,11 @@ FE: `src/services/attendance/api/attendanceApi.js` + mock `attendanceMockReposit
 | `PUT /classes/{id}/attendance` | `saveClassAttendance` | Body `{date, entries[{childId, status, meals{LUNCH:true}}]}`; trả `{savedAt, count, changed}`; khóa ⇒ 409 `Attendance is locked after HH:mm`; ngày khác hôm nay không có mở lại ⇒ 400 `Attendance can only be recorded for today` |
 | `GET/POST /attendance/day-unlocks`, `POST /attendance/day-unlocks/{id}/revoke` | màn Mở lại điểm danh | Như mock; chưa gửi thông báo cho GV |
 | `GET /classes/{id}/attendance/summary?from&to`, `GET /attendance/summary?from&to&campusId&schoolYearId` | màn Tổng hợp | Không có `scope`, `substitute` (FE tự thêm); trẻ tính theo lớp tại ngày `to` |
+| `GET /meal-counts?date&schoolYearId` | `getMealCounts` (Sổ báo ăn, dashboard HT/PHT) | `{date, today, cutoff, schoolDay, locked, counts[]}`; trước giờ chốt `id` null, `status` `OPEN` (chỉ HT/PHT); bếp chỉ thấy bữa đã xác nhận; có `canConfirm`, `canAdjust`, `confirmedByName`, `classes[].ageGroupId`, `adjustments[].userName` |
+| `POST /meal-counts/{id}/confirm` | `confirmMealCount` | Chỉ PHT điểm trường, HT chỉ xem (Cần chốt 24/10); đã xác nhận mà không có số chờ ⇒ 409 `Meal count is already confirmed` |
+| `POST /meal-counts/adjustments` | `adjustMealDay` | Chỉ PHT điểm trường. Body như mock `{campusId, date, session?, classId, normal, substitute, note}`; không đổi ⇒ 400 `Meal count is unchanged` |
+| — | `correctMealAfterLock` (GV hủy suất sau giờ khóa) | Bỏ: sau giờ chốt GV chỉ xem (ATT-08) |
+| — | Bàn giao suất (`getMealHandovers`, `confirmHandover`...) | Chưa có: phụ thuộc trạng thái chuẩn bị bữa của bếp (NUT-14, NUT-15 PROPOSED) |
 | `GET /classes/{classId}/children/{childId}/daily-health?date` | `getDailyHealth` (khung Sức khỏe trong ngày) | `{classId, className, childId, childName, date, canRecord, entries[]}`; chưa có `contacts`, `healthSummary` (FE tự tính từ `entries`) |
 | `POST /daily-health-entries` | `addDailyHealth` | Như mock; trả 201; trẻ chưa lưu Có mặt hôm nay ⇒ 409 `Save the child as present today before recording health` |
 | — | `notifyDailyHealth` | Chưa có (chưa có module thông báo phụ huynh); `notificationStatus` luôn `PENDING` |

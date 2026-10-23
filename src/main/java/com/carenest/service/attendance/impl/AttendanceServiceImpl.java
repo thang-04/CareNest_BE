@@ -320,6 +320,55 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClassMealTally> tallyMeals(LocalDate date, Long campusId, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|tallyMeals|campusId=" + campusId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ClassMealTally> tallies = classroomService.findYearClassrooms(schoolYearId).stream()
+                    .filter(c -> c.campusId().equals(campusId))
+                    .map(c -> tally(c, date))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return tallies;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // NUT-01: suất = trẻ có mặt và có báo ăn bữa đó; trẻ chưa điểm danh không tính suất
+    private ClassMealTally tally(ClassroomInfoResponse cls, LocalDate date) {
+        List<Long> childIds = enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
+                .map(ClassChildResponse::id)
+                .toList();
+        Map<Long, AttendanceRecord> records = recordRepository.findByChildIdInAndDate(childIds, date).stream()
+                .filter(r -> r.getClassroomId().equals(cls.id()))
+                .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+        int present = 0;
+        int absent = 0;
+        Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
+        cls.mealSessions().forEach(s -> meals.put(s, 0));
+        for (AttendanceRecord r : records.values()) {
+            if (r.getStatus().isAbsent()) {
+                absent++;
+                continue;
+            }
+            present++;
+            r.getMeals().stream().filter(meals::containsKey).forEach(s -> meals.merge(s, 1, Integer::sum));
+        }
+        return new ClassMealTally(
+                cls.id(),
+                cls.name(),
+                cls.campusId(),
+                cls.mealSessions(),
+                present,
+                absent,
+                childIds.size() - present - absent,
+                meals);
+    }
+
     private ClassroomInfoResponse findClass(Long classId) {
         return classroomService
                 .findClassroomInfo(classId)

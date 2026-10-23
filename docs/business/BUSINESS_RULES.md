@@ -42,13 +42,14 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | ATT-05b | Báo nghỉ/hủy báo nghỉ cho ngày đã qua cut-off (P-03) hoặc khi số suất đã xác nhận ⇒ xử lý như ATT-07 (đánh dấu thay đổi, xác nhận lại) | PROPOSED | Suy từ ATT-07 |
 | ATT-06 | Thời điểm khóa nhập điểm danh/báo ăn trong ngày (cut-off) | PENDING P-03 — để cấu hình, không hard-code | — |
 | ATT-07 | Thay đổi điểm danh/báo ăn sau khi số suất đã xác nhận ⇒ số suất bị đánh dấu thay đổi, cần xác nhận lại (NUT-03); attendance không tự sửa số suất | ACCEPTED | ADR-0004, ADR-0005 |
+| ATT-08 | Sau giờ chốt (ATT-06) điểm danh và cột tham gia ăn của GV chỉ xem; không có hủy suất sau giờ khóa. Thay đổi chỉ trong lần HT/PHT mở lại ngày ⇒ sổ báo ăn chờ PHT xác nhận lại (ATT-07). Sức khỏe trong ngày vẫn ghi sau giờ chốt | CONFIRMED | Cần chốt 24/10/2026 |
 
 ## NUT — Dinh dưỡng, suất ăn, bếp (module: nutrition)
 
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
 | NUT-01 | Số suất = trẻ **có mặt** và **có đăng ký ăn**; không tính từ sĩ số lớp | CONFIRMED | Report 1, guide 13.1 |
-| NUT-02 | MealCount có bước xác nhận bởi người có quyền trước khi chuyển bếp | CONFIRMED; ai xác nhận: PENDING P-05 | FE-01 |
+| NUT-02 | MealCount có bước xác nhận bởi người có quyền trước khi chuyển bếp; chỉ PHT điểm trường xác nhận và điều chỉnh, HT chỉ xem | CONFIRMED (P-05: Cần chốt 24/10/2026) | FE-01 |
 | NUT-03 | Thay đổi sau khi BGH xác nhận không sửa ngầm số đã xác nhận: lưu lịch sử, đánh dấu đã thay đổi, yêu cầu xác nhận lại, thông báo vai trò cần xử lý; bếp chỉ thấy số đã xác nhận | ACCEPTED | ADR-0005, guide 13.1 |
 | NUT-04 | Chi tiết xử lý thay đổi muộn: giờ chốt, ai nhận thông báo, bếp thêm/bớt suất thực tế thế nào | PENDING P-04 | — |
 | NUT-05 | Food master và NutrientValue phải có nguồn (`source`, `source_version`); AI không tạo/sửa dữ liệu này | CONFIRMED | Report 1 |

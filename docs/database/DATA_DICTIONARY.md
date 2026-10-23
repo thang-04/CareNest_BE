@@ -244,6 +244,37 @@ Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nh�
 | recorded_by, recorded_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
 Index: `(child_id, date)`, `(classroom_id, date)`.
 
+## meal_counts  (module: nutrition, feature `meals`, scope: CAMPUS)
+Mục đích: sổ báo ăn một bữa của một điểm trường trong ngày, tổng hợp từ điểm danh lúc qua giờ chốt (lần đầu mở sổ sau giờ chốt). Migration: `V23__create_meal_counts.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| campus_id / school_year_id | BIGINT FK | không | Điểm trường, năm học của sổ | AUTH-02 |
+| date, session | DATE, VARCHAR(20) | không | Ngày, bữa (`MORNING`/`LUNCH`/`AFTERNOON`); UNIQUE `(campus_id, date, session)` | — |
+| status | VARCHAR(30) | không | `PENDING_CONFIRMATION` / `CONFIRMED` | NUT-02 |
+| needs_reconfirmation | BOOLEAN | không | Số đã đổi sau xác nhận, chờ PHT xác nhận lại; bếp vẫn dùng số cũ | NUT-03, ATT-07 |
+| aggregated_at | TIMESTAMPTZ | không | Lúc tổng hợp | NUT-01 |
+| confirmed_by, confirmed_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | PHT điểm trường xác nhận lần gần nhất | NUT-02 |
+
+## meal_count_lines  (module: nutrition, scope: CLASS)
+Mục đích: số suất từng lớp của một bữa. `pending = true` là số mới chờ xác nhận lại; xác nhận ⇒ chép vào dòng `pending = false` rồi xóa dòng chờ. Migration: V23.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| meal_count_id | BIGINT FK meal_counts (ON DELETE CASCADE) | không | | — |
+| classroom_id | BIGINT FK classrooms | không | UNIQUE `(meal_count_id, classroom_id, pending)` | — |
+| present / absent / missing | INTEGER ≥ 0 | không | Sĩ số theo điểm danh lúc tổng hợp | — |
+| normal / substitute | INTEGER ≥ 0 | không | Suất thường / suất thay thế (chưa có dữ liệu dị ứng ⇒ thay thế = 0) | NUT-01 |
+
+## meal_count_history  (module: nutrition, scope: CAMPUS)
+Mục đích: lịch sử sổ báo ăn (chỉ thêm). Migration: V23.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| meal_count_id | BIGINT FK meal_counts (ON DELETE CASCADE) | không | | — |
+| action | VARCHAR(30) | không | `AGGREGATED` / `CONFIRMED` / `ADJUSTED` / `ATTENDANCE_CHANGED` | NUT-03 |
+| classroom_id | BIGINT FK | có | Lớp (điều chỉnh, điểm danh đổi) | — |
+| delta_normal, delta_substitute | INTEGER | không | Chênh lệch số suất | — |
+| note | VARCHAR(200) | có | Lý do (bắt buộc khi điều chỉnh) | NUT-03 |
+| user_id, at | BIGINT FK user_accounts (có thể null: tự động), TIMESTAMPTZ | | | — |
+
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
 

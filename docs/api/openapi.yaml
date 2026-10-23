@@ -1340,6 +1340,68 @@ paths:
           description: OK
       tags:
       - password-controller
+  /api/meal-counts:
+    get:
+      operationId: getMealCounts
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealCountDayResponse"
+          description: OK
+      tags:
+      - meal-count-controller
+  /api/meal-counts/adjustments:
+    post:
+      operationId: adjust
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealAdjustRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListMealCountResponse"
+          description: OK
+      tags:
+      - meal-count-controller
+  /api/meal-counts/{mealCountId}/confirm:
+    post:
+      operationId: confirm
+      parameters:
+      - in: path
+        name: mealCountId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealCountResponse"
+          description: OK
+      tags:
+      - meal-count-controller
   /api/school-structure:
     get:
       operationId: getSchoolStructure
@@ -1776,6 +1838,30 @@ components:
           minLength: 1
       required:
       - confirmName
+    Adjustment:
+      type: object
+      properties:
+        action:
+          type: string
+        at:
+          type: string
+          format: date-time
+        classId:
+          type: integer
+          format: int64
+        normal:
+          type: integer
+          format: int32
+        note:
+          type: string
+        substitute:
+          type: integer
+          format: int32
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
     AgeGroupBrief:
       type: object
       properties:
@@ -3100,6 +3186,32 @@ components:
           type: string
         shortName:
           type: string
+    Line:
+      type: object
+      properties:
+        absent:
+          type: integer
+          format: int32
+        ageGroupId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        missing:
+          type: integer
+          format: int32
+        normal:
+          type: integer
+          format: int32
+        present:
+          type: integer
+          format: int32
+        substitute:
+          type: integer
+          format: int32
     Login:
       type: object
       properties:
@@ -3130,6 +3242,114 @@ components:
           format: date-time
         passwordChangeRequired:
           type: boolean
+    MealAdjustRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        normal:
+          type: integer
+          format: int32
+          maximum: 200
+          minimum: 0
+        note:
+          type: string
+          maxLength: 200
+          minLength: 0
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        substitute:
+          type: integer
+          format: int32
+          maximum: 200
+          minimum: 0
+      required:
+      - campusId
+      - classId
+      - date
+      - normal
+      - note
+      - substitute
+    MealCountDayResponse:
+      type: object
+      properties:
+        counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealCountResponse"
+        cutoff:
+          type: string
+        date:
+          type: string
+          format: date
+        locked:
+          type: boolean
+        schoolDay:
+          type: boolean
+        today:
+          type: string
+          format: date
+    MealCountResponse:
+      type: object
+      properties:
+        adjustments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Adjustment"
+        aggregatedAt:
+          type: string
+          format: date-time
+        campusId:
+          type: integer
+          format: int64
+        canAdjust:
+          type: boolean
+        canConfirm:
+          type: boolean
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Line"
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedBy:
+          type: integer
+          format: int64
+        confirmedByName:
+          type: string
+        date:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        needsReconfirmation:
+          type: boolean
+        schoolYearId:
+          type: integer
+          format: int64
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        status:
+          type: string
+        totals:
+          $ref: "#/components/schemas/Totals"
     MultiSummary:
       type: object
       properties:
@@ -3693,6 +3913,18 @@ components:
             $ref: "#/components/schemas/ExpectedResultResponse"
         desc:
           type: string
+    ResponseJsonListMealCountResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealCountResponse"
+        desc:
+          type: string
     ResponseJsonListRoomResponse:
       type: object
       properties:
@@ -3738,6 +3970,26 @@ components:
           additionalProperties:
             type: integer
             format: int32
+        desc:
+          type: string
+    ResponseJsonMealCountDayResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MealCountDayResponse"
+        desc:
+          type: string
+    ResponseJsonMealCountResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MealCountResponse"
         desc:
           type: string
     ResponseJsonMultiSummary:
@@ -4399,16 +4651,19 @@ components:
     Totals:
       type: object
       properties:
-        checked:
+        absent:
           type: integer
           format: int32
-        noted:
+        missing:
           type: integer
           format: int32
-        notified:
+        normal:
           type: integer
           format: int32
         present:
+          type: integer
+          format: int32
+        substitute:
           type: integer
           format: int32
     Unplaced:
