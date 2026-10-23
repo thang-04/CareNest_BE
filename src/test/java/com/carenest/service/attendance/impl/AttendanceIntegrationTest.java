@@ -427,6 +427,21 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    void healthStaysOpenAfterCutoffAndLocksWhenTheDayEnds() {
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1)));
+        // HLT-07: sau giờ chốt điểm danh vẫn ghi thêm sức khỏe; sang ngày hôm sau thì ngày cũ đã khóa
+        clock.now = AFTER_CUTOFF;
+        assertThat(healthService
+                        .addEntry(teacherA, health("r-late", child1, HealthObservation.NO_CONCERN))
+                        .recordedAt())
+                .isEqualTo(AFTER_CUTOFF);
+        clock.now = AFTER_CUTOFF.plus(Duration.ofDays(1));
+        expectError(
+                () -> healthService.addEntry(teacherA, health("r-next", child1, HealthObservation.NO_CONCERN)),
+                ApiCode.BAD_REQUEST);
+    }
+
+    @Test
     void leadersSeeHealthOverviewInScope() {
         service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), present(child2)));
         healthService.addEntry(teacherA, health("r1", child1, HealthObservation.NO_CONCERN));

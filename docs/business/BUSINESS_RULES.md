@@ -75,6 +75,7 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | HLT-04 | AI chỉ giải thích dữ liệu, highlight trend, gợi ý điểm cần chú ý; **không** chẩn đoán bệnh/rối loạn phát triển, **không** khuyên điều trị | CONFIRMED | Report 1 |
 | HLT-05 | AI interpretation là DRAFT, cần nhân viên duyệt trước khi hiển thị chính thức | CONFIRMED | Report 1 |
 | HLT-06 | Dị ứng là thông tin cơ bản của trẻ (module child); nguồn khai báo/người xác nhận PENDING P-17 | CONFIRMED / PENDING | Brief |
+| HLT-07 | Sức khỏe trong ngày ghi được cả sau giờ chốt điểm danh (nhiều lần/ngày); khóa khi trẻ đã được trả cho phụ huynh. Chưa có BE Đón trẻ ⇒ BE khóa hết ngày (chỉ ghi cho hôm nay), FE khóa theo lần trả trẻ ở mock Đón trẻ; có BE Đón trẻ thì BE khóa theo giờ trả trẻ thật | CONFIRMED | Cần chốt 24/10/2026 |
 
 ## OBS — Quan sát, hoạt động, phát triển (module: learning-observation)
 

@@ -115,6 +115,8 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                         ApiCode.CONFLICT, "Health can only be recorded for classes of the active school year");
             }
             childInClass(cls.id(), request.childId(), request.date());
+            // HLT-07: ghi cả sau giờ chốt, khóa khi hết ngày
+            // TODO(Cần): khi có BE Đón trẻ, khóa từ lúc trẻ được trả cho phụ huynh (HLT-07)
             if (!request.date().equals(rules.today())) {
                 throw new GlobalException(ApiCode.BAD_REQUEST, "Health can only be recorded for today");
             }
