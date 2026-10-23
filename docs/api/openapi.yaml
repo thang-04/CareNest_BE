@@ -926,6 +926,23 @@ paths:
           description: OK
       tags:
       - edu-config-controller
+    put:
+      operationId: updateEduConfig
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EduConfigRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduConfigResponse"
+          description: OK
+      tags:
+      - edu-config-controller
   /api/education-plans/expected-results:
     get:
       operationId: getExpectedResults
@@ -2860,6 +2877,32 @@ components:
             $ref: "#/components/schemas/Row"
       required:
       - domainId
+    EduConfigRequest:
+      type: object
+      properties:
+        domainLabels:
+          type: object
+          additionalProperties:
+            type: string
+        extraDomains:
+          type: array
+          items:
+            type: string
+            maxLength: 150
+            minLength: 0
+        signers:
+          $ref: "#/components/schemas/Signers"
+        weekRows:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekRow"
+          maxItems: 2147483647
+          minItems: 1
+      required:
+      - domainLabels
+      - extraDomains
+      - signers
+      - weekRows
     EduConfigResponse:
       type: object
       properties:
@@ -2875,6 +2918,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolYearResponse"
+        signers:
+          $ref: "#/components/schemas/Signers"
+        weekRows:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekRow"
     Entry:
       type: object
       properties:
@@ -4135,6 +4184,25 @@ components:
           format: int64
         updatedByName:
           type: string
+    Signers:
+      type: object
+      properties:
+        branch:
+          type: array
+          items:
+            type: string
+        week:
+          type: array
+          items:
+            type: string
+        year:
+          type: array
+          items:
+            type: string
+      required:
+      - branch
+      - week
+      - year
     Skipped:
       type: object
       properties:
@@ -4397,6 +4465,28 @@ components:
           pattern: "[0-9]{6}"
       required:
       - otp
+    WeekRow:
+      type: object
+      properties:
+        allWeek:
+          type: boolean
+        canMerge:
+          type: boolean
+        extraLabel:
+          type: string
+          maxLength: 150
+          minLength: 0
+        key:
+          type: string
+          maxLength: 40
+          minLength: 0
+        label:
+          type: string
+          maxLength: 150
+          minLength: 0
+      required:
+      - key
+      - label
     Year:
       type: object
       properties:

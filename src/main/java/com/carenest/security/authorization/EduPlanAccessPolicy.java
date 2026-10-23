@@ -23,9 +23,13 @@ public class EduPlanAccessPolicy {
 
     // EDU-08: gán tạm tại một chỗ; khi BE có phân quyền động thì thay map này bằng dữ liệu cấu hình
     private static final Map<CareNestRole, Set<String>> ROLE_PERMISSIONS = Map.of(
-            CareNestRole.PRINCIPAL, Set.of(EduPermission.GOALS_VIEW),
+            CareNestRole.PRINCIPAL, Set.of(EduPermission.GOALS_VIEW, EduPermission.PLAN_CONFIG),
             CareNestRole.VICE_PRINCIPAL,
-                    Set.of(EduPermission.GOALS_VIEW, EduPermission.GOALS_EDIT, EduPermission.GOALS_APPROVE),
+                    Set.of(
+                            EduPermission.GOALS_VIEW,
+                            EduPermission.GOALS_EDIT,
+                            EduPermission.GOALS_APPROVE,
+                            EduPermission.PLAN_CONFIG),
             CareNestRole.TEACHER, Set.of(EduPermission.GOALS_VIEW, EduPermission.GOALS_EDIT));
 
     private final StaffAssignmentService staffAssignmentService;

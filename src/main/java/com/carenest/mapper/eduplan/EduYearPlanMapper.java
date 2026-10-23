@@ -96,7 +96,8 @@ public class EduYearPlanMapper {
                 domain.getName(),
                 domain.getDisplayLabel(),
                 domain.getShortLabel(),
-                domain.getSortOrder());
+                domain.getSortOrder(),
+                domain.isStandard());
     }
 
     public ExpectedResultResponse toExpectedResult(EduExpectedResult result) {
