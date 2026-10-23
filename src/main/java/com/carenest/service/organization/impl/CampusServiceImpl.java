@@ -23,6 +23,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.RoomType;
@@ -296,6 +297,44 @@ public class CampusServiceImpl implements CampusService {
         }
     }
 
+    @Override
+    public CampusResponse changeCampusStatus(CurrentUser currentUser, Long campusId, CampusStatus status) {
+        String logPrefix = LOG_PREFIX + "|changeCampusStatus|userId=" + currentUser.userId() + "|campusId=" + campusId
+                + "|status=" + status;
+        log.info("{}|START", logPrefix);
+        try {
+            checkPrincipal(currentUser);
+            Campus campus = findCampus(campusId);
+            if (status == CampusStatus.INACTIVE && campus.isActive()) {
+                if (campus.isMain()) {
+                    throw new GlobalException(ApiCode.CONFLICT, "The main campus cannot be deactivated");
+                }
+                if (campusRepository.countOpenYearClasses(campusId) > 0) {
+                    throw new GlobalException(
+                            ApiCode.CONFLICT, "Campus has classes in the active or planned school year");
+                }
+                // Còn PHT phụ trách (hôm nay hoặc sắp tới) ⇒ Hiệu trưởng phải gỡ phân công trước (Cần chốt 22/10)
+                List<String> vicePrincipals =
+                        staffAssignmentRepository.findOpenVicePrincipalNames(campusId, LocalDate.now(clock));
+                if (!vicePrincipals.isEmpty()) {
+                    throw new GlobalException(
+                            ApiCode.CONFLICT,
+                            "Campus still has vice principals assigned: " + String.join(", ", vicePrincipals));
+                }
+                campus.deactivate(clock.instant());
+            } else if (status == CampusStatus.ACTIVE && !campus.isActive()) {
+                campus.activate();
+            }
+            campusRepository.flush();
+            CampusResponse response = toResponseWithStats(campus);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private boolean isPrincipal(CurrentUser currentUser, LocalDate today) {
         return currentUser.hasRole(CareNestRole.PRINCIPAL)
                 && staffAssignmentService.hasActivePrincipalAssignment(currentUser.userId(), today);
@@ -346,6 +385,8 @@ public class CampusServiceImpl implements CampusService {
                 s.getAddress(),
                 s.getPhone(),
                 Boolean.TRUE.equals(s.getMain()),
+                // Năm đã kết thúc: điểm trường có trong bản chụp là đang hoạt động lúc đó
+                CampusStatus.ACTIVE,
                 r.classCount(),
                 r.childCount(),
                 r.vicePrincipals());

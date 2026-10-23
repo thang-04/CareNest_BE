@@ -19,6 +19,7 @@ public class CampusMapper {
                 campus.getAddress(),
                 campus.getPhone(),
                 campus.isMain(),
+                campus.getStatus(),
                 classCount,
                 childCount,
                 vicePrincipals);

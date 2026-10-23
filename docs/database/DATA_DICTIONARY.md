@@ -38,8 +38,10 @@ Mục đích: điểm trường của trường duy nhất (ADR-0002). Migration
 | address | VARCHAR(255) | không | Địa chỉ (V11, mặc định `''`) | — |
 | phone | VARCHAR(20) | có | 8–20 chữ số (V11) | — |
 | is_main | BOOLEAN | không | Điểm trường chính; đúng một điểm chính (`uk_campuses_main` unique một phần) (V11) | — |
+| status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE` (ngừng hoạt động) (V22) | CFG-CP-01 |
+| deactivated_at | TIMESTAMPTZ | có | Lúc ngừng hoạt động gần nhất (V22) | CFG-CP-01 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Không xóa được điểm trường chính, điểm trường có lớp hoặc có phân công nhân sự.
+Không xóa được điểm trường chính, điểm trường có lớp hoặc có phân công nhân sự (dùng ngừng hoạt động).
 
 ## school_years  (module: school-structure, scope: SCHOOL)
 Mục đích: năm học; lớp gắn với 1 năm học. Migration: V2.

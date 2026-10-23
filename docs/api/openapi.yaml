@@ -593,6 +593,31 @@ paths:
           description: OK
       tags:
       - campus-controller
+  /api/campuses/{campusId}/status:
+    patch:
+      operationId: changeCampusStatus
+      parameters:
+      - in: path
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CampusStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonCampusResponse"
+          description: OK
+      tags:
+      - campus-controller
   /api/children/{childId}:
     get:
       operationId: getChildProfile
@@ -2062,10 +2087,25 @@ components:
           type: string
         shortName:
           type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
         vicePrincipals:
           type: array
           items:
             $ref: "#/components/schemas/StaffBriefResponse"
+    CampusStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      required:
+      - status
     Candidate:
       type: object
       properties:

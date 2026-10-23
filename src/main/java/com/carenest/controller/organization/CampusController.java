@@ -3,6 +3,7 @@ package com.carenest.controller.organization;
 import com.carenest.dto.organization.CampusDetailResponse;
 import com.carenest.dto.organization.CampusRequest;
 import com.carenest.dto.organization.CampusResponse;
+import com.carenest.dto.organization.CampusStatusRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.CampusService;
 import com.carenest.utils.ApiCode;
@@ -16,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -98,5 +100,16 @@ public class CampusController {
         campusService.deleteCampus(currentUser, campusId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Delete campus success");
+    }
+
+    @PatchMapping("/{campusId}/status")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<CampusResponse>> changeCampusStatus(
+            @PathVariable Long campusId, @Valid @RequestBody CampusStatusRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|changeCampusStatus|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        CampusResponse campus = campusService.changeCampusStatus(currentUser, campusId, request.status());
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Change campus status success", campus);
     }
 }

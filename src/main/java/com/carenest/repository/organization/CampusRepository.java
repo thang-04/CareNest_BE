@@ -1,6 +1,7 @@
 package com.carenest.repository.organization;
 
 import com.carenest.entity.organization.Campus;
+import com.carenest.utils.enums.CampusStatus;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -12,6 +13,13 @@ import org.springframework.data.repository.query.Param;
 public interface CampusRepository extends JpaRepository<Campus, Long> {
 
     List<Campus> findAllByOrderByMainDescCodeAsc();
+
+    boolean existsByIdAndStatus(Long id, CampusStatus status);
+
+    // Lớp của năm đang hoạt động hoặc sắp diễn ra ở điểm trường: chặn ngừng hoạt động
+    @Query("select count(c) from Classroom c, SchoolYear y where y.id = c.schoolYearId and c.campusId = :campusId"
+            + " and y.status <> com.carenest.utils.enums.SchoolYearStatus.CLOSED")
+    long countOpenYearClasses(@Param("campusId") Long campusId);
 
     List<Campus> findAllByIdInOrderByMainDescCodeAsc(Collection<Long> ids);
 

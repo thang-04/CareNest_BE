@@ -13,6 +13,7 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.RoomService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.RoomType;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -192,6 +193,9 @@ public class RoomServiceImpl implements RoomService {
     private RoomRequest validate(RoomRequest request, Long excludeId, int minCapacity) {
         if (!campusRepository.existsById(request.campusId())) {
             throw new GlobalException(ApiCode.NOT_FOUND, "Campus not found");
+        }
+        if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
+            throw new GlobalException(ApiCode.CONFLICT, "Campus is inactive");
         }
         String code = request.room().trim();
         String name = request.name().trim();

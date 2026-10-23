@@ -25,6 +25,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
@@ -273,6 +274,10 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             List<String> withoutRoom = new ArrayList<>();
             // Chỉ sao chép tên, nhóm tuổi, điểm trường, phòng, sĩ số — không bao giờ sao chép giáo viên hay trẻ
             for (Classroom c : sourceClasses) {
+                if (!campusRepository.existsByIdAndStatus(c.getCampusId(), CampusStatus.ACTIVE)) {
+                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Campus is inactive"));
+                    continue;
+                }
                 if (classroomRepository.existsName(target.getId(), c.getCampusId(), c.getName(), null)) {
                     skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Campus already has this class name"));
                     continue;
@@ -317,6 +322,9 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         String name = request.name().trim();
         if (!campusRepository.existsById(request.campusId())) {
             throw new GlobalException(ApiCode.NOT_FOUND, "Campus not found");
+        }
+        if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
+            throw new GlobalException(ApiCode.CONFLICT, "Campus is inactive");
         }
         AgeGroup ageGroup = ageGroupRepository
                 .findById(request.ageGroupId())

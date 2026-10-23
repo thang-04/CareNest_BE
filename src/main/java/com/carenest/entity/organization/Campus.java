@@ -1,7 +1,10 @@
 package com.carenest.entity.organization;
 
+import com.carenest.utils.enums.CampusStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -41,6 +44,13 @@ public class Campus {
     @Column(name = "is_main", nullable = false)
     private boolean main;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private CampusStatus status = CampusStatus.ACTIVE;
+
+    @Column(name = "deactivated_at")
+    private Instant deactivatedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -65,5 +75,19 @@ public class Campus {
 
     public void markMain(boolean main) {
         this.main = main;
+    }
+
+    public boolean isActive() {
+        return status == CampusStatus.ACTIVE;
+    }
+
+    public void deactivate(Instant at) {
+        this.status = CampusStatus.INACTIVE;
+        this.deactivatedAt = at;
+    }
+
+    public void activate() {
+        this.status = CampusStatus.ACTIVE;
+        this.deactivatedAt = null;
     }
 }

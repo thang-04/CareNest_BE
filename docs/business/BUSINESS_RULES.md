@@ -27,6 +27,7 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | CFG-YR-01 | Dữ liệu thuộc năm học đã kết thúc (CLOSED) chỉ đọc ở mọi module. BE kiểm trước khi ghi bằng `SchoolYearService#checkYearOpen` (dữ liệu gắn năm), `checkClassYearOpen` (theo lớp: đánh giá, xếp lớp), `checkDateYearOpen` (theo ngày: điểm danh, suất ăn, thực đơn); vi phạm ⇒ 409 `School year … is closed`. FE: năm đang chọn ở header đã kết thúc ⇒ ẩn thao tác ghi (`useSchoolYear().yearReadOnly`) | CONFIRMED | Cần chốt 22/10/2026 |
 | CFG-YR-02 | Dữ liệu từng ngày lưu kèm lớp + ngày (lớp thuộc năm) ⇒ tự thuộc năm học; không sao chép dữ liệu sang năm mới. Dữ liệu dùng chung (phòng, điểm trường) chỉ xóa mềm khi năm cũ đã dùng để năm cũ vẫn xem được | CONFIRMED | Cần chốt 22/10/2026 |
 | CFG-YR-03 | Kích hoạt năm học tự đóng năm đang hoạt động và chuyển trẻ theo bản xếp lớp, trong một giao dịch; chỉ kích hoạt năm sắp diễn ra sớm nhất; kết thúc tay chỉ sau ngày kết thúc năm | CONFIRMED | Cần chốt 22/10/2026 |
+| CFG-CP-01 | Điểm trường ngừng hoạt động / hoạt động lại (Hiệu trưởng): không ngừng được điểm trường chính, điểm còn lớp ở năm đang hoạt động/sắp diễn ra, hoặc điểm còn PHT phụ trách (hôm nay hoặc sắp tới; lỗi nêu tên PHT, gỡ phân công trước); ngừng ⇒ không chọn được khi tạo/sửa lớp, phòng, không sao chép lớp sang năm mới; năm cũ vẫn xem đủ. Xóa chỉ cho điểm trường chưa dùng | CONFIRMED | Cần chốt 22–23/10/2026 |
 
 ## ATT — Điểm danh, báo ăn, đơn nghỉ (module: attendance)
 
