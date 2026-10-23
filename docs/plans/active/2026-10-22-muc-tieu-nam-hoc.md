@@ -208,3 +208,8 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Trùng version: `V10__drop_unused_edu_plan_tables` của nhánh này đổi thành `V20__…` (nội dung không đổi, độc lập với V10–V19). DB local đã chạy V10 cũ ⇒ cần dựng lại DB dev (Flyway báo lệch checksum/version).
 - `docs/api/openapi.yaml` xung đột ⇒ sinh lại từ code sau merge: giống nhánh kia, chỉ bỏ `EduConfigResponse.yearSigners` (đã bỏ ở `3438e72`).
 - Sau merge FE G94-179: màn Mục tiêu năm học sập ("Hệ thống gặp sự cố", `id.replace is not a function` ở `toEduYear`). Nguyên nhân: header (`SchoolYearContext`) nối BE thật giữ id năm dạng số, module kế hoạch giáo dục cần tên năm `2026-2027`. Sửa FE `useEducationPlan.jsx`: đổi id → tên năm qua `label` của lựa chọn năm (chưa commit).
+
+### 2026-10-23 — Khóa "Đang sửa" (EDU-10, Tiền chốt sau khảo sát)
+- Tiền chốt: 1A (tự nhả sau 30 phút không lưu), 2A (chỉ Tổ trưởng gửi; PHT tự soạn vẫn ban hành thẳng), 3A (chỉ PHT xóa Nháp), 4 (giữ Bị trả lại, cả hai sửa), 5A (người kia xem được, thấy "Đang được [tên] sửa"). Khảo sát: `huong_dan_nghiep_vu/1_muc_tieu_nam_hoc/khao_sat_quy_trinh_lap_ke_hoach_nam.md`.
+- Sửa EDU-02/03/04/06/07, thêm EDU-10. V21 thêm `EDITING` + `editing_by/since/at/from`. API mới `POST /{planId}/start-editing|finish-editing`; `editing` (người, lúc bắt đầu) trong chi tiết và danh sách.
+- Giả định Claude tự chọn: lưu (PUT) tự lấy khóa nếu đang trống; chờ duyệt không khóa (chỉ PHT sửa); HT không xem bản Đang sửa (kể cả từ Bị trả lại); thao tác ghi khóa dòng (`SELECT … FOR UPDATE`); job nhả khóa chạy mỗi phút, khóa quá hạn coi như trống ngay.

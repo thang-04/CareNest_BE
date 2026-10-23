@@ -42,6 +42,7 @@ public class EduYearPlanMapper {
                 toOwner(plan, userNames),
                 toActor(plan.getSentBy(), plan.getSentAt(), userNames),
                 toActor(plan.getIssuedBy(), plan.getIssuedAt(), userNames),
+                toActor(plan.getEditingBy(), plan.getEditingSince(), userNames),
                 plan.getCreatedAt(),
                 plan.getUpdatedAt());
     }

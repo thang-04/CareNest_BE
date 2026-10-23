@@ -26,4 +26,13 @@ public interface EduYearPlanService {
     YearPlanDetailResponse returnYearPlan(CurrentUser currentUser, Long planId, String note);
 
     void deleteYearPlan(CurrentUser currentUser, Long planId);
+
+    /** EDU-10: vào trang soạn ⇒ khóa "Đang sửa" cho người này (chờ duyệt thì không khóa). */
+    YearPlanDetailResponse startEditing(CurrentUser currentUser, Long planId);
+
+    /** EDU-10: thoát trang soạn ⇒ nhả khóa của chính người này, về Nháp / Bị trả lại. */
+    YearPlanDetailResponse finishEditing(CurrentUser currentUser, Long planId);
+
+    /** EDU-10: nhả các khóa quá hạn (job định kỳ); trả số kế hoạch đã nhả. */
+    int releaseExpiredEditLocks();
 }

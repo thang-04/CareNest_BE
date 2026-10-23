@@ -249,11 +249,11 @@ Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi m�
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
 
 ## Kế hoạch giáo dục năm học  (module: education-plan, scope: SCHOOL theo nhóm tuổi)
-Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V20__drop_unused_edu_plan_tables.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
+Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V20__drop_unused_edu_plan_tables.sql`, `V21__add_edu_year_plan_editing_lock.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| edu_year_plans | code VARCHAR(30), school_year_id, age_group_id, title VARCHAR(150), description VARCHAR(500) (rỗng được), status, owner_id/owner_title, sent_by/sent_at, issued_by/issued_at (người, thời điểm ban hành), created_at, updated_at | UNIQUE code; UNIQUE (school_year_id, age_group_id); status ∈ DRAFT/PENDING_VP/REJECTED/APPROVED; FK user_accounts | EDU-01..05 |
+| edu_year_plans | code VARCHAR(30), school_year_id, age_group_id, title VARCHAR(150), description VARCHAR(500) (rỗng được), status, owner_id/owner_title, sent_by/sent_at, issued_by/issued_at (người, thời điểm ban hành), editing_by/editing_since/editing_at/editing_from (khóa Đang sửa: người, lúc bắt đầu, lần lưu cuối, trạng thái trả về), created_at, updated_at | UNIQUE code; UNIQUE (school_year_id, age_group_id); status ∈ DRAFT/EDITING/PENDING_VP/REJECTED/APPROVED; status = EDITING ⇔ đủ 4 cột editing_*, editing_from ∈ DRAFT/REJECTED; FK user_accounts | EDU-01..05, EDU-10 |
 | edu_goal_rows | year_plan_id, domain_id, sort_order, kind, text, goal_no | kind ∈ sub/group/goal; `goal_no` có ⇔ kind = goal; xóa theo kế hoạch | EDU-09 |
 | edu_goal_contents | goal_row_id, sort_order, text | xóa theo dòng | — |
 | edu_themes | year_plan_id, sort_order, name VARCHAR(150), abbr VARCHAR(20) mặc định rỗng, start_date, end_date, festivals, note | Không ràng buộc viết tắt/ngày ở DB (V9): bản nháp lưu được khi còn soạn dở; service kiểm khi gửi/ban hành | EDU-04, EDU-05 |

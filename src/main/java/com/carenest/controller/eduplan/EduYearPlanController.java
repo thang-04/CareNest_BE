@@ -141,6 +141,28 @@ public class EduYearPlanController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Return year plan success", plan);
     }
 
+    @PostMapping("/{planId}/start-editing")
+    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> startEditing(
+            @PathVariable Long planId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|startEditing|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan = eduYearPlanService.startEditing(currentUser, planId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Start editing year plan success", plan);
+    }
+
+    @PostMapping("/{planId}/finish-editing")
+    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> finishEditing(
+            @PathVariable Long planId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|finishEditing|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan = eduYearPlanService.finishEditing(currentUser, planId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Finish editing year plan success", plan);
+    }
+
     @DeleteMapping("/{planId}")
     @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<Void>> deleteYearPlan(@PathVariable Long planId, CurrentUser currentUser) {
