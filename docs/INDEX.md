@@ -46,7 +46,7 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | 0003 | Role × Permission ∩ Scope | ACCEPTED |
 | 0004 | Giao tiếp feature: gọi service + event khi ngược chiều | ACCEPTED / event PROPOSED |
 | 0005 | Số suất đã xác nhận: lịch sử + xác nhận lại | ACCEPTED (P-04 pending) |
-| 0006 | Nguồn ngữ cảnh hoạt động / GoKids | **OPEN** |
+| 0006 | Nguồn ngữ cảnh hoạt động = giáo án đã duyệt trong CareNest | ACCEPTED |
 | 0007 | AI provider abstraction + data minimization | ACCEPTED / provider OPEN |
 | 0008 | Human-in-the-loop AI | ACCEPTED |
 | 0009 | Phạm vi kho/NCC | **OPEN** |

@@ -11,7 +11,9 @@ Tổng quan cho task L3/L4. Task trong 1 module: đọc `docs/modules/<module>.m
                nutrition (food, dish, menu, meal count, food quantity, kitchen view)
                facility-issue
  CHILD RECORD  health
-               learning-observation (activity context, observation, assessment,
+               education-plan (kế hoạch năm, cấu hình, chủ đề nhánh, kế hoạch chủ đề,
+                               giáo án tuần/ngày)
+               learning-observation (observation, đánh giá theo MT, assessment,
                                      follow-up, summary, development profile)
  READ          reporting (chỉ đọc)
 ```
@@ -44,7 +46,11 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | health | HealthInterpretation (childId, period, text, source, status) | CHILD | AI DRAFT → APPROVED |
 | learning-observation | ObservationCriteria, CriteriaOption | SCHOOL | Cấu hình |
 | learning-observation | Observation (childId, date, values[], note) | CLASS | |
-| learning-observation | ActivityContext (classroom/ageGroup, date, description, objective, source) | CLASS | Nguồn OPEN (ADR-0006) |
+| education-plan | EduYearPlan (schoolYear, ageGroup, status, owner, sent/issued, editing lock) | AGE GROUP | 1 bản / (năm học, nhóm tuổi); DRAFT ⇄ EDITING → PENDING_VP → APPROVED / REJECTED (EDU-01..10) |
+| education-plan | EduGoalRow (sub/group/goal, goalNo), EduGoalContent, EduTheme, EduBreak, EduContentThemeTick, EduPlanEvent | AGE GROUP | Cây mục tiêu 5 tầng, chủ đề, đợt nghỉ, dấu tích, lịch sử (EDU-09) |
+| education-plan | EduDomain, EduExpectedResult; cấu hình người ký, dòng hoạt động tuần | SCHOOL | EDU-11 (người ký, dòng tuần: BE chưa có) |
+| education-plan | Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần (kế hoạch tuần + 5 ngày), hồ sơ chủ đề | CLASS | EDU-12..18; UI có, BE chưa có |
+| learning-observation | Đánh giá hằng ngày theo MT (childId, date, giờ, MT, đạt/chưa) | CLASS/CHILD | Đọc giáo án đã duyệt (EDU-19, ADR-0006) |
 | learning-observation | ActivityParticipation, Assessment, FollowUp | CHILD | Biểu mẫu PENDING |
 | learning-observation | Summary (childId/classId, period, text, source, status) | CLASS/CHILD | DRAFT → APPROVED |
 | learning-observation | Reward (childId, period, type, decidedBy) | CHILD | PROPOSED — OBS-10 |
@@ -63,6 +69,8 @@ MealParticipation ──(tổng hợp)──→ MealCount ──×Recipe──�
 MealPlan *─* Dish 1─* Recipe line ─→ Food 1─* NutrientValue
 Child 1─* HealthRecord, Observation, Assessment, FollowUp, Summary
 Child ──(read model)──→ DevelopmentProfile
+SchoolYear × AgeGroup 1─1 EduYearPlan 1─* EduGoalRow(MT) 1─* EduGoalContent *─* EduTheme
+Classroom × EduTheme ─→ kế hoạch chủ đề (hoạt động theo MT) ─→ giáo án tuần (ô nhớ MT) ─→ đánh giá trẻ theo MT
 ```
 
 Tham chiếu xuyên module bằng **ID**; không dùng JPA relationship xuyên module (xem `docs/architecture/PACKAGE_STRUCTURE.md`).

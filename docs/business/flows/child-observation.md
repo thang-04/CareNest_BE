@@ -1,6 +1,6 @@
 # Flow — Quan sát hằng ngày, hồ sơ phát triển, nhận xét tổng hợp
 
-Module: learning-observation (đọc attendance, nutrition, health; dùng ai-assistance). Rule: OBS-*, AI-*. ADR: 0006, 0008.
+Module: learning-observation (đọc attendance, nutrition, health, education-plan; dùng ai-assistance). Rule: OBS-*, AI-*, EDU-19. ADR: 0006, 0008.
 
 ## Quan sát hằng ngày
 
@@ -10,11 +10,15 @@ Module: learning-observation (đọc attendance, nutrition, health; dùng ai-ass
     Mục tiêu UX: nhập nhanh cho 20–25 trẻ, dữ liệu nhất quán để tổng hợp
 ```
 
-## Ngữ cảnh hoạt động — OPEN DECISION (ADR-0006)
+## Ngữ cảnh hoạt động và đánh giá theo MT (ADR-0006, OBS-07, EDU-19)
 
-AI/nhận xét thiếu ngữ cảnh nếu không biết hoạt động dự kiến, nội dung đã dạy, mục tiêu. Nguồn ActivityContext chưa chốt:
-A) CareNest quản lý tối thiểu lịch hoạt động tuần · B) import/sync từ GoKids · C) GV/admin nhập metadata cần thiết.
-Model `ActivityContext` thiết kế **không phụ thuộc nguồn** (`source = MANUAL | IMPORT | GOKIDS`). Soạn/duyệt kế hoạch giáo dục thuộc module education-plan (ADR-0017).
+```text
+[S] Giáo án tuần/ngày của lớp đã duyệt (education-plan): mỗi ô (giờ, ngày) có hoạt động và MT của kế hoạch năm
+[S] Đánh giá hằng ngày: mỗi giờ có MT là một cột, GV chấm Đạt / Chưa đạt cho từng trẻ
+      Lớp chưa có giáo án duyệt ⇒ khóa phần chấm theo MT
+```
+
+Không import GoKids, không nhập metadata hoạt động riêng. Luồng soạn, duyệt giáo án: `docs/business/flows/education-plan.md`.
 
 ## Hồ sơ phát triển
 
@@ -23,7 +27,7 @@ Attendance history ─┐
 Meal history ───────┤
 Health + trend ─────┤
 Observation ───┼─► DevelopmentProfile (read model theo trẻ, theo thời gian — OBS-03)
-ActivityContext/Participation ┤
+Đánh giá theo MT (giáo án đã duyệt) ┤
 Assessment, FollowUp ─┘        (biểu mẫu PENDING P-16b)
 ```
 

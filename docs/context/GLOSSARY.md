@@ -33,11 +33,29 @@ Code dùng tên tiếng Anh; UI/docs dùng tiếng Việt.
 | Đo sức khỏe | HealthRecord | Chiều cao, cân nặng, tình trạng, ghi chú theo đợt |
 | Tiêu chí quan sát | ObservationCriteria | Tiêu chí trường cấu hình (tâm trạng, ăn, ngủ, hợp tác...) |
 | Quan sát hằng ngày | Observation | Giá trị theo tiêu chí + ghi chú tùy chọn, 1 trẻ/ngày |
-| Ngữ cảnh hoạt động | ActivityContext | Hoạt động dự kiến/đã làm + mục tiêu; nguồn OPEN (ADR-0006) |
+| Ngữ cảnh hoạt động | — | Hoạt động và MT trong giáo án tuần/ngày đã duyệt của lớp; nguồn của đánh giá theo MT (ADR-0006) |
 | Hồ sơ phát triển | DevelopmentProfile | Read model tổng hợp lịch sử theo trẻ |
 | Nhận xét tổng hợp | Summary | Nhận xét ngày/tuần/kỳ; DRAFT (template/AI) → APPROVED bởi GV |
 | Phiếu bé ngoan | Reward | Khen thưởng tuần/tháng; "bé ngoan toàn diện" cuối năm (PROPOSED) |
 | Đánh giá | Assessment | Dùng thay "feedback" khi nói về nhận xét trẻ (OBS-11) |
+| Kế hoạch giáo dục năm học (mục tiêu năm học) | EduYearPlan | 1 kế hoạch / (năm học, nhóm tuổi), áp dụng toàn trường; Tổ trưởng và Phó HT cùng soạn, Phó HT ban hành |
+| Nhóm tuổi / khối | AgeGroup | Nhà trẻ, Mẫu giáo bé, nhỡ, lớn; đơn vị của kế hoạch năm |
+| Tổ trưởng (khối) | AGE_GROUP_TEAM_LEADER | Giáo viên được phân công phụ trách một nhóm tuổi |
+| Lĩnh vực | EduDomain | 5 lĩnh vực của Chương trình GDMN (I–V) + lĩnh vực trường thêm |
+| Lĩnh vực con | EduGoalRow kind=sub | Dải tiêu đề trong lĩnh vực (vd. Phát triển vận động, KPKH, LQVT) |
+| Nhóm kết quả mong đợi | EduGoalRow kind=group / EduExpectedResult | Tầng giữa lĩnh vực con và mục tiêu, theo Chương trình GDMN |
+| Mục tiêu (MT n) | EduGoalRow kind=goal, goalNo | Mục tiêu giáo dục, đánh số 1..n liên tục cả năm; sợi dây nối năm → chủ đề → tuần/ngày → đánh giá |
+| Nội dung giáo dục | EduGoalContent | Nội dung của một MT, tích vào các chủ đề sẽ dạy |
+| Chủ đề | EduTheme | Chủ đề trong năm (tên, viết tắt, lễ hội, từ – đến ngày) |
+| Đợt nghỉ | EduBreak | Tết, ôn tập, nghỉ lễ; tuần trùng đợt nghỉ không tính vào chủ đề |
+| Ban hành | issue | Phó HT duyệt kế hoạch năm; sau đó khóa sửa |
+| Trả lại | return | Người duyệt trả về, bắt buộc lý do ⇒ Bị trả lại |
+| Đang sửa | EDITING | Khóa soạn kế hoạch năm cho một người (EDU-10) |
+| Chủ đề nhánh | — | Tên từng tuần học trong một chủ đề, GV lớp đặt cho cả năm |
+| Kế hoạch (giáo dục) chủ đề | — | MT + nội dung + hoạt động giáo dục + môi trường giáo dục của một chủ đề cho một lớp |
+| Giáo án tuần | — | Kế hoạch tuần (mục đích, chuẩn bị, dòng hoạt động × Thứ 2–6) + 5 kế hoạch ngày |
+| Hồ sơ chủ đề | — | Kế hoạch chủ đề + giáo án tất cả nhánh của chủ đề; gửi và duyệt một lần |
+| Chuỗi người ký | signers | Thứ tự người duyệt từng loại tài liệu, cấu hình được (mặc định Tổ trưởng → Phó HT) |
 | Sự cố CSVC | FacilityReport | Báo hỏng/thiếu/không đủ thiết bị; BGH theo dõi |
 | Bản nháp AI | AI draft | Output AI chưa chính thức, cần người duyệt |
 | Bước nghiệp vụ / hệ thống | [B] / [S] | [B] người làm ngoài hệ thống; [S] hệ thống thực hiện |
