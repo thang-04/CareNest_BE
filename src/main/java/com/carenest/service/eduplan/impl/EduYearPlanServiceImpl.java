@@ -36,6 +36,7 @@ import com.carenest.utils.enums.EduGoalRowKind;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -185,6 +186,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 throw new GlobalException(ApiCode.CONFLICT, "This age group already has a year plan");
             }
 
+            requireDatesInSchoolYear(schoolYear, request);
+
             Instant now = clock.instant();
             EduYearPlan plan = EduYearPlan.createDraft(
                     planCode(schoolYear, ageGroup),
@@ -221,6 +224,11 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
             requireEditable(currentUser, plan, now);
+            requireDatesInSchoolYear(
+                    schoolStructureService
+                            .findSchoolYear(plan.getSchoolYearId())
+                            .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "School year not found")),
+                    request);
             // EDU-10: lưu vẫn giữ "Đang sửa" (và gia hạn khóa); chỉ thoát trang soạn mới về Nháp
             if (plan.getStatus() != EduPlanStatus.PENDING_VP) {
                 plan.startEditing(currentUser.userId(), now);
@@ -527,6 +535,23 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 .anyMatch(row -> row.getKind() == EduGoalRowKind.GOAL);
         if (!hasGoal) {
             throw new GlobalException(ApiCode.CONFLICT, "Plan needs at least one goal");
+        }
+    }
+
+    // EDU-23: ngày của chủ đề, đợt nghỉ nằm trong năm học của kế hoạch
+    private void requireDatesInSchoolYear(SchoolYearResponse year, YearPlanRequest request) {
+        if (year.startDate() == null || year.endDate() == null) {
+            return;
+        }
+        Stream<LocalDate> dates = Stream.concat(
+                nullToEmpty(request.themes()).stream().flatMap(t -> Stream.of(t.startDate(), t.endDate())),
+                nullToEmpty(request.breaks()).stream().flatMap(b -> Stream.of(b.startDate(), b.endDate())));
+        boolean outside =
+                dates.filter(Objects::nonNull).anyMatch(d -> d.isBefore(year.startDate()) || d.isAfter(year.endDate()));
+        if (outside) {
+            throw new GlobalException(
+                    ApiCode.BAD_REQUEST,
+                    "Ngày của chủ đề, đợt nghỉ phải nằm trong năm học " + year.startDate() + " – " + year.endDate());
         }
     }
 
