@@ -108,7 +108,7 @@ CareNest soạn và duyệt toàn bộ kế hoạch giáo dục theo mẫu MN Th
 | EDU-09 | Bảng mục tiêu 5 tầng: lĩnh vực > lĩnh vực con > nhóm kết quả mong đợi > MT > nội dung giáo dục. MT đánh số 1..n liên tục cả năm theo thứ tự lĩnh vực và dòng (không dùng mã YCCĐ); mỗi nội dung tích vào các chủ đề sẽ dạy nó; MT của một chủ đề là kết quả của dấu tích, không nhập riêng | CONFIRMED | Tiền 14/10, 20/10; mẫu MN Thái Dương |
 | EDU-10 | Vào trang soạn (hoặc lưu) bản Nháp/Bị trả lại ⇒ trạng thái "Đang sửa" (EDITING) khóa cho người đó; người còn lại chỉ xem, thấy tên người sửa và giờ bắt đầu. Lưu nhiều lần vẫn là Đang sửa; thoát trang soạn mới về Nháp/Bị trả lại như trước. Khóa tự nhả sau 30 phút không lưu (cấu hình `carenest.edu-plan.edit-lock-ttl`). Chờ duyệt không khóa | CONFIRMED | Tiền 23/10 (khảo sát `huong_dan_nghiep_vu/1_muc_tieu_nam_hoc/khao_sat_quy_trinh_lap_ke_hoach_nam.md`) |
 
-### Cấu hình (đã có BE) và tài liệu của lớp (UI đã có, BE chưa làm)
+### Cấu hình và tài liệu của lớp (đã có BE; AI chưa làm)
 
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
@@ -124,6 +124,7 @@ CareNest soạn và duyệt toàn bộ kế hoạch giáo dục theo mẫu MN Th
 | EDU-20 | AI chỉ tạo bản nháp: gợi ý / viết lại tên chủ đề nhánh, gợi ý tiến trình giờ học (chỉ điền ô trống). Giáo viên giữ hoặc bỏ từng phần; bản dùng AI vẫn qua gửi, duyệt như thường; tắt AI vẫn soạn được (AI-*) | CONFIRMED | Tiền 20/10 |
 | EDU-21 | Không ký ảnh hay ký điện tử trong hệ thống: chỉ gửi, duyệt, trả lại. Mọi tài liệu xuất Word / in PDF đúng mẫu MN Thái Dương ở mọi bước, chừa chỗ ký tay; bản in kế hoạch năm in sẵn họ tên người soạn, gửi, ban hành | CONFIRMED | Tiền 16/10 |
 | EDU-22 | Lưu tay: nút Lưu hoặc Ctrl+S (không tự lưu); rời trang khi còn thay đổi chưa lưu thì hỏi Hủy / Không lưu / Lưu; xóa một mục (dòng, chủ đề, lĩnh vực, người ký…) phải xác nhận. Quy tắc giao diện, chi tiết ở `CareNest_FE/.claude/rules/year-plan-unsaved.md` | CONFIRMED | Tiền 22/10, 23/10 |
+| EDU-23 | Ngày bắt đầu, kết thúc của chủ đề và đợt nghỉ trong kế hoạch năm phải nằm trong năm học của kế hoạch (ngày bắt đầu → ngày kết thúc năm học). Lịch chọn ngày chỉ cho chọn trong khoảng này; BE từ chối lưu nếu sai | CONFIRMED | Tiền 24/10 |
 
 Trạng thái:
 - Kế hoạch năm: `DRAFT` (Nháp) ⇄ `EDITING` (Đang sửa) → `PENDING_VP` (Chờ Phó HT ban hành) → `APPROVED` (Đã ban hành) / `REJECTED` (Bị trả lại).

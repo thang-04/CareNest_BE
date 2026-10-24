@@ -1,6 +1,6 @@
 # Module — education-plan
 
-Feature: `eduplan` (`docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đang code (mục tiêu năm học và cấu hình xong BE, G94-226; tài liệu lớp UI có, BE chưa làm)
+Feature: `eduplan` (`docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đang code (mục tiêu năm học, cấu hình, tài liệu lớp xong BE, G94-226; AI chưa làm)
 
 ## Mục đích
 Soạn và duyệt kế hoạch giáo dục theo mẫu MN Thái Dương, nối bằng số MT tới đánh giá trẻ:
@@ -12,13 +12,13 @@ Soạn và duyệt kế hoạch giáo dục theo mẫu MN Thái Dương, nối b
 ## Owns
 - Kế hoạch năm: `EduYearPlan` (kèm khóa Đang sửa), `EduGoalRow`, `EduGoalContent`, `EduTheme`, `EduBreak`, `EduContentThemeTick`, lịch sử `EduPlanEvent`.
 - Danh mục và cấu hình: `EduDomain`, `EduExpectedResult`, `EduSettings` (chuỗi người ký, dòng hoạt động tuần).
-- Chưa có BE: chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày, hồ sơ chủ đề, lịch sử duyệt theo chuỗi.
+- Tài liệu của lớp: `EduClassDoc`, một bảng cho chủ đề nhánh, kế hoạch chủ đề, giáo án tuần + 5 kế hoạch ngày. Khóa, trạng thái là cột thường có ràng buộc; nội dung, người duyệt, lịch sử là JSONB (bảng tuần đổi theo cấu hình dòng, luôn đọc cả tài liệu).
 
 ## KHÔNG owns
 Năm học, nhóm tuổi, lớp, phân công (school-structure); tài khoản/role (identity-access); kết quả đánh giá trẻ theo MT (learning-observation — chỉ đọc giáo án đã duyệt của module này).
 
 ## Rules (ID)
-EDU-01..22 (`docs/business/BUSINESS_RULES.md`), OBS-07, AI-*, AUTH-03. ADR-0017, ADR-0006, ADR-0003.
+EDU-01..23 (`docs/business/BUSINESS_RULES.md`), OBS-07, AI-*, AUTH-03. ADR-0017, ADR-0006, ADR-0003.
 
 ## Flows
 `docs/business/flows/education-plan.md`. Sequence mục tiêu năm học SD-01..SD-10: `huong_dan_nghiep_vu/sequence/muc_tieu_nam_hoc_sequence.drawio` (ngoài repo).
@@ -29,17 +29,20 @@ EDU-01..22 (`docs/business/BUSINESS_RULES.md`), OBS-07, AI-*, AUTH-03. ADR-0017,
 
 ## API & bảng
 - Có: `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST /education-plans/goals/{planId}/submit|issue|return|start-editing|finish-editing`, `GET/PUT /education-plans/config` (cấu hình: lĩnh vực, người ký, dòng tuần — PUT cho HT, PHT, quyền `plans.config`), `GET /education-plans/expected-results` (`docs/api/openapi.yaml`).
-- PROPOSED (FE đã gọi khi tắt mock): `GET /education-plans/class-docs`, `PUT /education-plans/class-docs/{kind}/{id}`, `POST /education-plans/class-docs/{kind}/{id}/actions` (`submit|approve|reject` + `note`); `POST /education-plans/ai/branch-names`, `/ai/branch-names/rewrite`, `/ai/lesson-steps`. Hành vi chuẩn để làm BE: mock `CareNest_FE/src/services/education-plan/mock/classPlanMockRepository.js`, `src/models/education-plan/classPlan.js`, `eduConfig.js`.
-- Code: `EduYearPlanController`, `EduYearPlanService(Impl)`, `EduConfigService(Impl)`, quyền ở `security/authorization/EduPlanAccessPolicy` (EDU-06, EDU-08), job nhả khóa `EduPlanLockCleanupConfig`.
+- Có: `GET /education-plans/class-docs?schoolYearId=` (tài liệu + lớp + giáo viên/tổ trưởng trong phạm vi người xem), `PUT /education-plans/class-docs/{kind}/{docKey}` (giáo viên của lớp lưu; tạo mới nếu chưa có), `POST /education-plans/class-docs/{kind}/{docKey}/actions` (`submit|approve|reject` + `note`). `kind` = `branch|theme|week`; `docKey` do Web đặt theo lớp: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`, BE kiểm khớp.
+- PROPOSED (AI, chưa làm): `POST /education-plans/ai/branch-names`, `/ai/branch-names/rewrite`, `/ai/lesson-steps`.
+- Code: `EduYearPlanController`, `EduYearPlanService(Impl)`, `EduConfigService(Impl)`, `EduClassDocController`, `EduClassDocService(Impl)`, quyền ở `security/authorization/EduPlanAccessPolicy` (EDU-06, EDU-08), job nhả khóa `EduPlanLockCleanupConfig`.
 - PUT kế hoạch năm gửi cả cây: dòng/nội dung/chủ đề có id thì cập nhật, không id thì thêm, vắng thì xóa; nội dung tích chủ đề qua `themeKeys` trỏ `themes[].key` (chủ đề mới chưa có id).
 - Bảng `edu_*`: `docs/database/DATA_DICTIONARY.md`.
 
 ## PENDING
-Không có câu hỏi nghiệp vụ mở. Việc còn lại là làm BE cho EDU-12..20 (ngoài phạm vi G94-226).
+Không có câu hỏi nghiệp vụ mở. Còn lại: AI gợi ý (EDU-20), đọc giáo án đã duyệt cho đánh giá trẻ (EDU-19).
 
 ## Known pitfalls
 - Status do BE quyết định. Không nhận status từ client.
 - Khóa Đang sửa (EDU-10): mọi thao tác ghi đọc kế hoạch bằng `findForUpdateById` (khóa dòng) để hai người bấm sửa cùng lúc không cùng lấy được khóa; khóa quá hạn coi như trống ngay cả khi job (1 phút/lần) chưa chạy.
+- Tài liệu lớp: lịch tuần (`teachingWeeks`) phải tính giống Web (`yearWeeks` trong `CareNest_FE/src/models/education-plan/classPlan.js`): bỏ tuần trùng đợt nghỉ, chủ đề bắt đầu T7/CN thì từ Thứ Hai kế tiếp; lệch thì giáo án tuần bị từ chối hoặc gửi bị chặn.
+- Gửi / duyệt hồ sơ chủ đề đổi trạng thái cả kế hoạch chủ đề và giáo án các tuần nhánh trong cùng giao dịch (khóa dòng tài liệu chính).
 - MT đánh số lại khi xóa hoặc chèn dòng; module khác tham chiếu MT qua id dòng, không qua số.
 - Kế hoạch đã ban hành bị khóa sửa, vì lớp dùng chủ đề, đợt nghỉ và MT của nó.
 - Thứ tự chủ đề, đợt nghỉ = thứ tự mảng trong PUT (`sort_order`); dấu tích lưu theo chênh lệch, không xóa JPQL rồi ghi lại ([BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)).

@@ -249,7 +249,7 @@ Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi m�
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
 
 ## Kế hoạch giáo dục năm học  (module: education-plan, scope: SCHOOL theo nhóm tuổi)
-Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V20__drop_unused_edu_plan_tables.sql`, `V21__add_edu_year_plan_editing_lock.sql`, `V22__create_edu_settings.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
+Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V20__drop_unused_edu_plan_tables.sql`, `V21__add_edu_year_plan_editing_lock.sql`, `V22__create_edu_settings.sql`, `V23__create_edu_class_docs.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
@@ -261,6 +261,7 @@ Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constrain
 | edu_content_theme_ticks | content_id, theme_id | PK 2 cột; xóa theo nội dung/chủ đề | EDU-09 |
 | edu_plan_events | year_plan_id, action, action_label, actor_id, actor_name, actor_role_label, tone, note, occurred_at | tone ∈ '' / ok / warn / err (theo UI) | — |
 | edu_domains | name VARCHAR(150), display_label, short_label, sort_order, active, standard | UNIQUE name; seed 5 lĩnh vực chuẩn (standard, không xóa); lĩnh vực trường thêm bỏ đi thì active = false (V22) | EDU-09, EDU-11 |
+| edu_class_docs | doc_key (khóa Web: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`), kind (branch/theme/week), classroom_id, year_plan_id, theme_id, week_start, status (DRAFT, PENDING_TL/VP/HT, REJECTED, APPROVED), content (JSONB object: nội dung soạn), approvals (JSONB array), history (JSONB array), created_by, updated_by, created_at, updated_at, version | Một bảng cho 3 loại tài liệu. UNIQUE doc_key; UNIQUE (classroom_id, year_plan_id, kind, theme_id, week_start) — cũng là chỉ mục tra theo lớp; CHECK kind, status, khóa đúng theo loại (week_start là thứ Hai), kiểu JSONB; FK classroom, year_plan (ON DELETE CASCADE), theme, user | EDU-12..18 |
 | edu_settings | 1 dòng (id = 1): signers (JSON: year, branch, week → danh sách vai trò ký theo thứ tự), week_rows (JSON: key, label, canMerge, allWeek, extraLabel), updated_by, updated_at | CHECK id = 1; seed mặc định TT → PHT và 8 dòng tuần (V22) | EDU-11 |
 | edu_expected_results | age_group_id, domain_id, sub_domain, text, sort_order | chưa seed dữ liệu | — |
 

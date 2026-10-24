@@ -914,6 +914,72 @@ paths:
           description: OK
       tags:
       - daily-health-controller
+  /api/education-plans/class-docs:
+    get:
+      operationId: getClassDocs
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
+  /api/education-plans/class-docs/{kind}/{docKey}:
+    put:
+      operationId: saveClassDoc
+      parameters:
+      - in: path
+        name: kind
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json: {}
+        required: true
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
+  /api/education-plans/class-docs/{kind}/{docKey}/actions:
+    post:
+      operationId: actOnClassDoc
+      parameters:
+      - in: path
+        name: kind
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassDocActionRequest"
+        required: true
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/config:
     get:
       operationId: getEduConfig
@@ -2264,6 +2330,18 @@ components:
           format: int64
         name:
           type: string
+    ClassDocActionRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          minLength: 1
+        note:
+          type: string
+          maxLength: 2000
+          minLength: 0
+      required:
+      - action
     ClassOption:
       type: object
       properties:

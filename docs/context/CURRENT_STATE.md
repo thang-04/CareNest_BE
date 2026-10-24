@@ -27,7 +27,7 @@ Auth React cập nhật2026-10-12: extension Phase1 và backend gateway Phase2 o
 | school-structure (`organization`) | Có | Bảng scope | Chưa có API quản lý |
 | child (`child`) | Có | Bảng scope + `GET /children/{childId}` | Mới có hồ sơ cơ bản |
 | attendance (`attendance`) | Có | — | Giờ chốt, xử lý đến muộn PENDING; đơn nghỉ đã chốt 02/10: thông báo, không duyệt (ATT-05) |
-| education-plan (`eduplan`) | Có (ADR-0017, EDU-01..22, flow `education-plan`) | Mục tiêu năm học (khóa Đang sửa) và cấu hình kế hoạch: API + service + test (G94-226) | BE chưa có: chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày, AI gợi ý. FE đã có UI đủ luồng; phần mục tiêu năm gọi BE thật (`VITE_USE_MOCK=false`), phần còn lại chạy mock. Trang "Kế hoạch toàn trường" của Hiệu trưởng còn đọc dữ liệu chủ đề/giáo án kiểu cũ nên trống khi nối BE |
+| education-plan (`eduplan`) | Có (ADR-0017, EDU-01..23, flow `education-plan`) | Mục tiêu năm học (khóa Đang sửa), cấu hình kế hoạch, tài liệu lớp (chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày, hồ sơ chủ đề): API + service + test (G94-226) | BE chưa có: AI gợi ý. FE đã có UI đủ luồng và gọi BE thật khi `VITE_USE_MOCK=false`. Trang "Kế hoạch toàn trường" của Hiệu trưởng còn đọc dữ liệu chủ đề/giáo án kiểu cũ nên trống khi nối BE |
 | nutrition (`meals`) | Có | — | Bếp/thực đơn theo campus PENDING |
 | health (`health`) | Có | — | Ngưỡng tham chiếu PENDING |
 | learning-observation (`observation`) | Có | — | Ngữ cảnh hoạt động = giáo án đã duyệt (ADR-0006 ACCEPTED); đánh giá theo MT: FE mock |

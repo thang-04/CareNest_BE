@@ -70,6 +70,17 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date) order by a.staffRole, a.id")
     List<StaffAssignment> findActiveByUserId(@Param("userId") Long userId, @Param("date") LocalDate date);
 
+    // Lớp GV đang dạy hoặc sắp dạy (phân công chưa kết thúc tính tới :date)
+    @Query("select distinct a.classroomId from StaffAssignment a where a.userId = :userId"
+            + " and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
+            + " and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findCurrentTeacherClassroomIds(@Param("userId") Long userId, @Param("date") LocalDate date);
+
+    @Query("select distinct a.userId from StaffAssignment a"
+            + " where a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER"
+            + " and a.ageGroupId = :ageGroupId and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findActiveTeamLeaderIds(@Param("ageGroupId") Long ageGroupId, @Param("date") LocalDate date);
+
     // GV hiện tại của lớp: phân công chưa kết thúc tính tới ngày :date (gồm phân công bắt đầu sau, cho năm sắp tới)
     @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
             + " and a.classroomId in :classroomIds and (a.validTo is null or a.validTo >= :date) order by a.id")

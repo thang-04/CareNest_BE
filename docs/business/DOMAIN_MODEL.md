@@ -49,7 +49,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | education-plan | EduYearPlan (schoolYear, ageGroup, status, owner, sent/issued, editing lock) | AGE GROUP | 1 bản / (năm học, nhóm tuổi); DRAFT ⇄ EDITING → PENDING_VP → APPROVED / REJECTED (EDU-01..10) |
 | education-plan | EduGoalRow (sub/group/goal, goalNo), EduGoalContent, EduTheme, EduBreak, EduContentThemeTick, EduPlanEvent | AGE GROUP | Cây mục tiêu 5 tầng, chủ đề, đợt nghỉ, dấu tích, lịch sử (EDU-09) |
 | education-plan | EduDomain, EduExpectedResult; cấu hình người ký, dòng hoạt động tuần | SCHOOL | EDU-11 (người ký, dòng tuần: BE chưa có) |
-| education-plan | Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần (kế hoạch tuần + 5 ngày), hồ sơ chủ đề | CLASS | EDU-12..18; UI có, BE chưa có |
+| education-plan | Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần (kế hoạch tuần + 5 ngày), hồ sơ chủ đề | CLASS | EDU-12..18; `edu_class_docs` |
 | learning-observation | Đánh giá hằng ngày theo MT (childId, date, giờ, MT, đạt/chưa) | CLASS/CHILD | Đọc giáo án đã duyệt (EDU-19, ADR-0006) |
 | learning-observation | ActivityParticipation, Assessment, FollowUp | CHILD | Biểu mẫu PENDING |
 | learning-observation | Summary (childId/classId, period, text, source, status) | CLASS/CHILD | DRAFT → APPROVED |

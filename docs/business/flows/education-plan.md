@@ -1,6 +1,6 @@
 # Flow — Kế hoạch giáo dục và giáo án
 
-Module: education-plan → learning-observation (đánh giá theo MT). Rule: EDU-01..22, OBS-07. `[B]` = ngoài hệ thống, `[S]` = hệ thống.
+Module: education-plan → learning-observation (đánh giá theo MT). Rule: EDU-01..23, OBS-07. `[B]` = ngoài hệ thống, `[S]` = hệ thống.
 Nguồn: UI CareNest_FE (Tiền chốt UI là chuẩn, 20/10, 22/10), mẫu MN Thái Dương, `huong_dan_nghiep_vu/phan_viec_cac_actor_giao_an.md`.
 
 Kế hoạch năm theo **nhóm tuổi**, áp dụng toàn trường. Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày theo **từng lớp**. Sợi dây xuyên suốt là **số MT 1..n** của kế hoạch năm:
@@ -91,7 +91,7 @@ Kế hoạch năm: nội dung của MT tích vào chủ đề
 ## Lưu ý cho implementation
 
 - Trạng thái do BE quyết định qua endpoint hành động; client không gửi status.
-- Kế hoạch năm đã có BE (`/education-plans/goals`, G94-226). Cấu hình, tài liệu lớp, AI: UI chạy mock, API PROPOSED (`docs/system/CROSS_REPO_MAP.md`).
+- Đã có BE (G94-226): kế hoạch năm (`/education-plans/goals`), cấu hình (`/education-plans/config`), tài liệu lớp (`/education-plans/class-docs`). AI: UI chạy mock, API PROPOSED (`docs/system/CROSS_REPO_MAP.md`).
 - Module khác tham chiếu MT qua id dòng mục tiêu, không qua số MT (số đánh lại khi chèn/xóa dòng).
 - Bản kế hoạch chủ đề đã lưu giữ cả MT, nội dung lấy từ kế hoạch năm (EDU-15).
 - Lưu tay, hỏi khi rời trang, xác nhận khi xóa là quy tắc giao diện (EDU-22).

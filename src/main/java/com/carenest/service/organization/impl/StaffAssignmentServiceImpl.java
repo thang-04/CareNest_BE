@@ -1,13 +1,17 @@
 package com.carenest.service.organization.impl;
 
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
+import com.carenest.entity.organization.StaffAssignment;
 import com.carenest.mapper.organization.StaffAssignmentMapper;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -119,6 +123,53 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             Set<Long> ageGroupIds = Set.copyOf(staffAssignmentRepository.findActiveTeacherAgeGroupIds(userId, date));
             log.info("{}|END", logPrefix);
             return ageGroupIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findCurrentTeacherClassroomIds(Long userId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findCurrentTeacherClassroomIds|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> classroomIds = Set.copyOf(staffAssignmentRepository.findCurrentTeacherClassroomIds(userId, date));
+            log.info("{}|END", logPrefix);
+            return classroomIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, List<Long>> findCurrentTeacherIds(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findCurrentTeacherIds|classCount=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, List<Long>> teachers = classroomIds.isEmpty()
+                    ? Map.of()
+                    : staffAssignmentRepository.findCurrentTeachers(classroomIds, date).stream()
+                            .collect(Collectors.groupingBy(
+                                    StaffAssignment::getClassroomId,
+                                    Collectors.mapping(StaffAssignment::getUserId, Collectors.toList())));
+            log.info("{}|END", logPrefix);
+            return teachers;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderIds|ageGroupId=" + ageGroupId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> userIds = Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderIds(ageGroupId, date));
+            log.info("{}|END", logPrefix);
+            return userIds;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
