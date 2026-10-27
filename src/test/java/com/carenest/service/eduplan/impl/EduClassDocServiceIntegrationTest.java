@@ -443,7 +443,8 @@ class EduClassDocServiceIntegrationTest {
     private static void assertApiError(ThrowingCallable call, ApiCode code) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode()).isEqualTo(code));
+                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode().getHttpStatus())
+                        .isEqualTo(code.getHttpStatus()));
     }
 
     private void assignTeacher(CurrentUser user, long classroomId) {

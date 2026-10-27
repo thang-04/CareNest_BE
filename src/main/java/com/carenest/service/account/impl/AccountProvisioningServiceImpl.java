@@ -59,7 +59,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         log.info("{}|START", logPrefix);
         try {
             if (!PROVISIONABLE_ROLES.contains(request.role())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "This role cannot be created via API");
+                throw GlobalException.of(ApiCode.ROLE_NOT_CREATABLE);
             }
             String username = request.username().trim().toLowerCase(Locale.ROOT);
             String email = StringUtils.hasText(request.email())
@@ -67,11 +67,10 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                     : null;
             boolean sendSetupEmail = email != null && identityProviderClient.canSendSetupEmail();
             if (request.temporaryPassword() == null && !sendSetupEmail) {
-                throw new GlobalException(
-                        ApiCode.BAD_REQUEST, "Temporary password is required when a setup email cannot be sent");
+                throw GlobalException.of(ApiCode.TEMP_PASSWORD_REQUIRED);
             }
             if (userAccountRepository.existsByUsername(username)) {
-                throw new GlobalException(ApiCode.CONFLICT, "Username already exists");
+                throw GlobalException.of(ApiCode.USERNAME_OR_EMAIL_EXISTS);
             }
 
             String keycloakUserId;
@@ -95,7 +94,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                     throw toGlobalException(idpEx);
                 }
                 if (ex instanceof DataIntegrityViolationException) {
-                    throw new GlobalException(ApiCode.CONFLICT, "Account already exists", ex);
+                    throw GlobalException.withCause(ApiCode.ACCOUNT_EXISTS, ex);
                 }
                 throw ex;
             }
@@ -122,11 +121,11 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         try {
             // ADMIN tự khóa mình ⇒ có thể không còn ai mở lại qua API (team chốt 2026-10-06)
             if (userId.equals(actor.userId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "You cannot change the status of your own account");
+                throw GlobalException.of(ApiCode.CANNOT_CHANGE_OWN_STATUS);
             }
             UserAccount account = userAccountRepository
                     .findById(userId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Account not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.ACCOUNT_NOT_FOUND));
             // Ghi DB trước: CurrentUserService chặn ngay từ request kế tiếp kể cả khi bước Keycloak lỗi
             account.changeStatus(status);
             userAccountRepository.saveAndFlush(account);
@@ -138,10 +137,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                 }
             } catch (IdentityProviderException ex) {
                 log.error("{}|identityProviderSyncFailed", logPrefix, ex);
-                throw new GlobalException(
-                        ApiCode.SERVICE_UNAVAILABLE,
-                        "Account status saved but identity provider sync failed, please retry",
-                        ex);
+                throw GlobalException.withCause(ApiCode.IDENTITY_SYNC_FAILED, ex);
             }
 
             log.info("{}|END", logPrefix);
@@ -177,13 +173,9 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
 
     private static GlobalException toGlobalException(IdentityProviderException ex) {
         return switch (ex.getReason()) {
-            case CONFLICT -> new GlobalException(ApiCode.CONFLICT, "Username or email already exists", ex);
-            case REJECTED ->
-                new GlobalException(
-                        ApiCode.BAD_REQUEST,
-                        "Account data rejected by identity provider (check password policy and full name)",
-                        ex);
-            case UNAVAILABLE -> new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Identity provider unavailable", ex);
+            case CONFLICT -> GlobalException.withCause(ApiCode.USERNAME_OR_EMAIL_EXISTS, ex);
+            case REJECTED -> GlobalException.withCause(ApiCode.IDENTITY_DATA_REJECTED, ex);
+            case UNAVAILABLE -> GlobalException.withCause(ApiCode.IDENTITY_PROVIDER_UNAVAILABLE, ex);
         };
     }
 }

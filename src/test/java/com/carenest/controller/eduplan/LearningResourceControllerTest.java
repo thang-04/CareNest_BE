@@ -81,7 +81,8 @@ class LearningResourceControllerTest {
                         .header("X-Request-Id", java.util.UUID.randomUUID().toString())
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.desc").value("Thiếu dữ liệu bắt buộc: activitySignature"));
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.REQUIRED_FIELD_MISSING.getErrorCode()))
+                .andExpect(jsonPath("$.desc").value("Thiếu thông tin bắt buộc: activitySignature"));
         org.mockito.Mockito.verifyNoInteractions(service);
     }
 
@@ -123,7 +124,7 @@ class LearningResourceControllerTest {
         CurrentUser user = new CurrentUser(7L, "kc-7", "demo", "Demo", null, Set.of(CareNestRole.TEACHER));
         given(currentUserService.getCurrentUser()).willReturn(user);
         given(service.content(any(), anyString(), anyLong()))
-                .willThrow(new GlobalException(ApiCode.FORBIDDEN, "Không có quyền"));
+                .willThrow(GlobalException.of(ApiCode.CLASS_ACCESS_DENIED));
         mvc.perform(get(BASE + "/8/content").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isForbidden());
         mvc.perform(get(BASE + "/8/content").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_KITCHEN_STAFF"))))

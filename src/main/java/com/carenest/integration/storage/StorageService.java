@@ -32,8 +32,7 @@ public class StorageService {
 
     public String store(InputStream input, long expectedSize) {
         requireConfigured();
-        if (expectedSize <= 0 || expectedSize > 100L * 1024 * 1024)
-            throw new GlobalException(ApiCode.PAYLOAD_TOO_LARGE, "Dung lượng tệp không hợp lệ");
+        if (expectedSize <= 0 || expectedSize > 100L * 1024 * 1024) throw GlobalException.of(ApiCode.FILE_TOO_LARGE);
         String key = UUID.randomUUID().toString();
         try {
             s3.putObject(
@@ -61,9 +60,9 @@ public class StorageService {
         try {
             size = s3.headObject(r -> r.bucket(bucket).key(objectKey)).contentLength();
         } catch (NoSuchKeyException ex) {
-            throw new GlobalException(ApiCode.NOT_FOUND, "Không tìm thấy tệp");
+            throw GlobalException.of(ApiCode.FILE_NOT_FOUND);
         } catch (software.amazon.awssdk.services.s3.model.S3Exception ex) {
-            if (ex.statusCode() == 404) throw new GlobalException(ApiCode.NOT_FOUND, "Không tìm thấy tệp");
+            if (ex.statusCode() == 404) throw GlobalException.of(ApiCode.FILE_NOT_FOUND);
             throw unavailable();
         } catch (SdkException ex) {
             throw unavailable();
@@ -106,16 +105,15 @@ public class StorageService {
     }
 
     private String objectKey(String key) {
-        if (key == null || !key.matches("[a-f0-9-]{36}"))
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Mã tệp không hợp lệ");
+        if (key == null || !key.matches("[a-f0-9-]{36}")) throw GlobalException.of(ApiCode.FILE_KEY_INVALID);
         return prefix + key;
     }
 
     private void requireConfigured() {
-        if (bucket.isBlank()) throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Chưa cấu hình S3 cho học liệu");
+        if (bucket.isBlank()) throw GlobalException.of(ApiCode.STORAGE_NOT_CONFIGURED);
     }
 
     private GlobalException unavailable() {
-        return new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Không kết nối được S3, vui lòng thử lại");
+        return GlobalException.of(ApiCode.STORAGE_UNAVAILABLE);
     }
 }

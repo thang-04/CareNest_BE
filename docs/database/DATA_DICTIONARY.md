@@ -38,8 +38,10 @@ Mục đích: điểm trường của trường duy nhất (ADR-0002). Migration
 | address | VARCHAR(255) | không | Địa chỉ (V11, mặc định `''`) | — |
 | phone | VARCHAR(20) | có | 8–20 chữ số (V11) | — |
 | is_main | BOOLEAN | không | Điểm trường chính; đúng một điểm chính (`uk_campuses_main` unique một phần) (V11) | — |
+| status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE` (ngừng hoạt động) (V22) | CFG-CP-01 |
+| deactivated_at | TIMESTAMPTZ | có | Lúc ngừng hoạt động gần nhất (V22) | CFG-CP-01 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Không xóa được điểm trường chính, điểm trường có lớp hoặc có phân công nhân sự.
+Không xóa được điểm trường chính, điểm trường có lớp hoặc có phân công nhân sự (dùng ngừng hoạt động).
 
 ## school_years  (module: school-structure, scope: SCHOOL)
 Mục đích: năm học; lớp gắn với 1 năm học. Migration: V2.
@@ -242,6 +244,38 @@ Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nh�
 | recorded_by, recorded_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
 Index: `(child_id, date)`, `(classroom_id, date)`.
 
+## meal_counts  (module: nutrition, feature `meals`, scope: CAMPUS)
+Mục đích: sổ báo ăn một bữa của một điểm trường trong ngày, tổng hợp từ điểm danh lúc qua giờ chốt (lần đầu mở sổ sau giờ chốt). Migration: `V23__create_meal_counts.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| campus_id / school_year_id | BIGINT FK | không | Điểm trường, năm học của sổ | AUTH-02 |
+| date, session | DATE, VARCHAR(20) | không | Ngày, bữa (`MORNING`/`LUNCH`/`AFTERNOON`); UNIQUE `(campus_id, date, session)` | — |
+| status | VARCHAR(30) | không | `PENDING_CONFIRMATION` / `CONFIRMED` | NUT-02 |
+| needs_reconfirmation | BOOLEAN | không | Số đã đổi sau xác nhận, chờ PHT xác nhận lại; bếp vẫn dùng số cũ | NUT-03, ATT-07 |
+| aggregated_at | TIMESTAMPTZ | không | Lúc tổng hợp | NUT-01 |
+| confirmed_by, confirmed_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | HT hoặc PHT điểm trường xác nhận lần gần nhất | NUT-02 |
+| confirmed_by_role | VARCHAR(20) | có | Vai trò người xác nhận: `PRINCIPAL` / `VICE_PRINCIPAL` (V26) | NUT-02 |
+
+## meal_count_lines  (module: nutrition, scope: CLASS)
+Mục đích: số suất từng lớp của một bữa. `pending = true` là số mới chờ xác nhận lại; xác nhận ⇒ chép vào dòng `pending = false` rồi xóa dòng chờ. Migration: V23.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| meal_count_id | BIGINT FK meal_counts (ON DELETE CASCADE) | không | | — |
+| classroom_id | BIGINT FK classrooms | không | UNIQUE `(meal_count_id, classroom_id, pending)` | — |
+| present / absent / missing | INTEGER ≥ 0 | không | Sĩ số theo điểm danh lúc tổng hợp | — |
+| normal / substitute | INTEGER ≥ 0 | không | Suất thường / suất thay thế (chưa có dữ liệu dị ứng ⇒ thay thế = 0) | NUT-01 |
+
+## meal_count_history  (module: nutrition, scope: CAMPUS)
+Mục đích: lịch sử sổ báo ăn (chỉ thêm). Migration: V23.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| meal_count_id | BIGINT FK meal_counts (ON DELETE CASCADE) | không | | — |
+| action | VARCHAR(30) | không | `AGGREGATED` / `CONFIRMED` / `ADJUSTED` / `ATTENDANCE_CHANGED` | NUT-03 |
+| classroom_id | BIGINT FK | có | Lớp (điều chỉnh, điểm danh đổi) | — |
+| delta_normal, delta_substitute | INTEGER | không | Chênh lệch số suất | — |
+| note | VARCHAR(200) | có | Lý do (bắt buộc khi điều chỉnh) | NUT-03 |
+| user_id, at | BIGINT FK user_accounts (có thể null: tự động), TIMESTAMPTZ | | | — |
+
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
 
@@ -249,7 +283,7 @@ Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi m�
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
 
 ## Kế hoạch giáo dục năm học  (module: education-plan, scope: SCHOOL theo nhóm tuổi)
-Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V20__drop_unused_edu_plan_tables.sql`, `V21__add_edu_year_plan_editing_lock.sql`, `V22__create_edu_settings.sql`, `V23__create_edu_class_docs.sql`, `V24__add_edu_year_plan_edit_sessions.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
+Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V20__drop_unused_edu_plan_tables.sql`, `V21__add_edu_year_plan_editing_lock.sql`, `V24__create_edu_settings.sql`, `V25__create_edu_class_docs.sql`, `V27__add_edu_year_plan_edit_sessions.sql`, `V28__add_edu_learning_resources.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
@@ -260,9 +294,9 @@ Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constrain
 | edu_breaks | year_plan_id, sort_order, label VARCHAR(150), start_date, end_date | Không CHECK ngày (V9), như chủ đề | — |
 | edu_content_theme_ticks | content_id, theme_id | PK 2 cột; xóa theo nội dung/chủ đề | EDU-09 |
 | edu_plan_events | year_plan_id, action, action_label, actor_id, actor_name, actor_role_label, tone, note, occurred_at | tone ∈ '' / ok / warn / err (theo UI) | — |
-| edu_domains | name VARCHAR(150), display_label, short_label, sort_order, active, standard | UNIQUE name; seed 5 lĩnh vực chuẩn (standard, không xóa); lĩnh vực trường thêm bỏ đi thì active = false (V22) | EDU-09, EDU-11 |
+| edu_domains | name VARCHAR(150), display_label, short_label, sort_order, active, standard | UNIQUE name; seed 5 lĩnh vực chuẩn (standard, không xóa); lĩnh vực trường thêm bỏ đi thì active = false (V24) | EDU-09, EDU-11 |
 | edu_class_docs | doc_key (khóa Web: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`), kind (branch/theme/week), classroom_id, year_plan_id, theme_id, week_start, status (DRAFT, PENDING_TL/VP/HT, REJECTED, APPROVED), content (JSONB object: nội dung soạn), approvals (JSONB array), history (JSONB array), created_by, updated_by, created_at, updated_at, version | Một bảng cho 3 loại tài liệu. UNIQUE doc_key; UNIQUE (classroom_id, year_plan_id, kind, theme_id, week_start) — cũng là chỉ mục tra theo lớp; CHECK kind, status, khóa đúng theo loại (week_start là thứ Hai), kiểu JSONB; FK classroom, year_plan (ON DELETE CASCADE), theme, user | EDU-12..18 |
-| edu_settings | 1 dòng (id = 1): signers (JSON: year, branch, week → danh sách vai trò ký theo thứ tự), week_rows (JSON: key, label, canMerge, allWeek, extraLabel), updated_by, updated_at | CHECK id = 1; seed mặc định TT → PHT và 8 dòng tuần (V22) | EDU-11 |
+| edu_settings | 1 dòng (id = 1): signers (JSON: year, branch, week → danh sách vai trò ký theo thứ tự), week_rows (JSON: key, label, canMerge, allWeek, extraLabel), updated_by, updated_at | CHECK id = 1; seed mặc định TT → PHT và 8 dòng tuần (V24) | EDU-11 |
 | edu_expected_results | age_group_id, domain_id, sub_domain, text, sort_order | chưa seed dữ liệu | — |
 
 Lệch so với CAN_DB (đã chốt 22/10):

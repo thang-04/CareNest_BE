@@ -66,6 +66,15 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             """)
     List<Long> findActiveTeacherAgeGroupIds(@Param("userId") Long userId, @Param("date") LocalDate date);
 
+    @Query("""
+            select distinct u.fullName from StaffAssignment a, UserAccount u
+            where u.id = a.userId and a.campusId = :campusId
+              and a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL
+              and (a.validTo is null or a.validTo >= :date)
+            order by u.fullName
+            """)
+    List<String> findOpenVicePrincipalNames(@Param("campusId") Long campusId, @Param("date") LocalDate date);
+
     @Query("select a from StaffAssignment a where a.userId = :userId"
             + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date) order by a.staffRole, a.id")
     List<StaffAssignment> findActiveByUserId(@Param("userId") Long userId, @Param("date") LocalDate date);

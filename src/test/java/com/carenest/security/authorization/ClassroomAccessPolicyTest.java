@@ -13,6 +13,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
 import java.util.Optional;
@@ -89,6 +90,6 @@ class ClassroomAccessPolicyTest {
 
         assertThatThrownBy(() -> policy.checkCanViewClassroom(principal, 999L))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("You do not have access to this class");
+                .hasMessage(ApiCode.CLASS_ACCESS_DENIED.getDefaultDesc());
     }
 }

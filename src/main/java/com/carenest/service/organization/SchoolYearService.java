@@ -32,4 +32,7 @@ public interface SchoolYearService {
 
     /** CFG-YR-01 cho dữ liệu theo ngày (điểm danh, suất ăn, thực đơn…): kiểm năm học chứa ngày đó (không có năm nào thì bỏ qua). */
     void checkDateYearOpen(LocalDate date);
+
+    /** CFG-YR-03: năm sắp diễn ra sớm nhất (năm kế tiếp năm đang hoạt động); null nếu chưa có. */
+    SchoolYearDetailResponse findNextPlannedYear();
 }

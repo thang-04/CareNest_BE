@@ -19,6 +19,7 @@ import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.service.organization.CampusService;
+import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import java.util.List;
 import java.util.Set;
@@ -103,7 +104,8 @@ class CampusControllerTest {
     }
 
     private static CampusResponse campus() {
-        return new CampusResponse(10L, "CS-A", "Cơ sở A", "CS A", "Hà Nội", null, true, 2, 30, List.of());
+        return new CampusResponse(
+                10L, "CS-A", "Cơ sở A", "CS A", "Hà Nội", null, true, CampusStatus.ACTIVE, 2, 30, List.of());
     }
 
     private CurrentUser authenticateAs(CareNestRole role) {

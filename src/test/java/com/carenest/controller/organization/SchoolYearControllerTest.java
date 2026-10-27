@@ -121,14 +121,14 @@ class SchoolYearControllerTest {
     @Test
     void serviceConflictKeepsEnvelope() throws Exception {
         CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
-        willThrow(new GlobalException(ApiCode.CONFLICT, "Only a planned school year can be deleted"))
+        willThrow(GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_DELETABLE))
                 .given(schoolYearService)
                 .deleteSchoolYear(principal, 5L);
 
         mockMvc.perform(delete(YEARS + "/5").with(token(CareNestRole.PRINCIPAL)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409))
-                .andExpect(jsonPath("$.desc").value("Only a planned school year can be deleted"));
+                .andExpect(jsonPath("$.desc").value(ApiCode.SCHOOL_YEAR_NOT_DELETABLE.getDefaultDesc()));
     }
 
     private static String body(String name) {

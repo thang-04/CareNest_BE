@@ -56,18 +56,17 @@ public final class LearningResourcePolicy {
         clean = clean.substring(clean.lastIndexOf('/') + 1)
                 .replaceAll("[\\p{Cntrl}]", "")
                 .strip();
-        if (clean.isBlank() || clean.length() > 255)
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Tên tệp không hợp lệ");
+        if (clean.isBlank() || clean.length() > 255) throw GlobalException.of(ApiCode.FILE_NAME_INVALID);
         return clean;
     }
 
     public static String inspect(String name, byte[] head, long size) {
         String ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
         String type = TYPES.get(ext);
-        if (type == null) throw new GlobalException(ApiCode.UNSUPPORTED_MEDIA_TYPE, "Loại tệp chưa được hỗ trợ");
+        if (type == null) throw GlobalException.of(ApiCode.UNSUPPORTED_MEDIA_TYPE);
         long limit = (type.startsWith("image/") ? 5 : type.startsWith("video/") ? 100 : 20) * 1024L * 1024;
-        if (size > limit) throw new GlobalException(ApiCode.PAYLOAD_TOO_LARGE, "Tệp vượt dung lượng cho phép");
-        if (size <= 0) throw new GlobalException(ApiCode.BAD_REQUEST, "Tệp rỗng");
+        if (size > limit) throw GlobalException.of(ApiCode.FILE_TOO_LARGE);
+        if (size <= 0) throw GlobalException.of(ApiCode.FILE_EMPTY);
         String ascii = new String(head, StandardCharsets.ISO_8859_1);
         boolean valid =
                 switch (ext) {
@@ -89,7 +88,7 @@ public final class LearningResourcePolicy {
                                 && !ascii.stripLeading().startsWith("<")
                                 && ascii.chars().noneMatch(c -> c < 32 && c != 9 && c != 10 && c != 13);
                 };
-        if (!valid) throw new GlobalException(ApiCode.UNSUPPORTED_MEDIA_TYPE, "Nội dung tệp không khớp định dạng");
+        if (!valid) throw GlobalException.of(ApiCode.FILE_CONTENT_MISMATCH);
         return type;
     }
 }

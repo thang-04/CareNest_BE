@@ -14,7 +14,7 @@ Auth React cập nhật2026-10-12: extension Phase1 và backend gateway Phase2 o
 | Coding guide | **Có** — `docs/backend-coding-guide.md` |
 | Docs nghiệp vụ / kiến trúc / memory | Bản đầu |
 | Authentication/authorization | **Xong trên `feature/authentication`, chờ merge** — Keycloak + Resource Server (ADR-0011): kiểm JWT, role, 401/403/503, `user_accounts` + `GET /accounts/me`, bảng scope (V2/V3) + seed dev, policy campus/lớp/trẻ, `GET /children/{childId}`, cấp/khóa tài khoản qua Keycloak Admin API (Admin không tự khóa mình — AUTH-09). Chưa có: API quản lý phân công/liên kết phụ huynh. Giới hạn: KI-003..KI-009 (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
-| Schema/migration nghiệp vụ | Bắt đầu — V1 `user_accounts`, V2 campus/năm học/lớp/phân công, V3 trẻ/enrollment/liên kết PH, V7 nhóm tuổi + phân công Tổ trưởng, V8–V9 kế hoạch năm học `edu_*`, V20 bỏ bảng duyệt thừa, V21 khóa Đang sửa, V22 cấu hình kế hoạch; seed dev `db/dev` |
+| Schema/migration nghiệp vụ | Bắt đầu — V1 `user_accounts`, V2 campus/năm học/lớp/phân công, V3 trẻ/enrollment/liên kết PH, V7 nhóm tuổi + phân công Tổ trưởng, V8–V9 kế hoạch năm học `edu_*`, V20 bỏ bảng duyệt thừa, V21 khóa Đang sửa, V24 cấu hình kế hoạch, V25 hồ sơ kế hoạch lớp; seed dev `db/dev` |
 | OpenAPI export (`docs/api/`) | Chưa |
 | AI provider | OPEN (ADR-0007) |
 | Hạ tầng deploy | Chưa chốt (có Dockerfile, compose dev/demo: API + PostgreSQL + Keycloak + Mailpit) |

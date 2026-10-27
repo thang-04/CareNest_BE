@@ -306,6 +306,72 @@ class YearTransitionIntegrationTest {
                 ApiCode.FORBIDDEN);
     }
 
+    @Test
+    void onlyTheNextPlannedYearTakesPlacements() {
+        long laterYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
+                + "VALUES ('2028-2029', '2028-09-05', '2029-05-31') RETURNING id");
+
+        // CFG-YR-03: năm sau năm kế tiếp chỉ xem, không lưu / tự xếp được
+        assertThat(service.getPlacements(principal, laterYear).editable()).isFalse();
+        expectError(
+                () -> service.savePlacements(
+                        principal,
+                        laterYear,
+                        new SavePlacementsRequest(
+                                List.of(new SavePlacementsRequest.Item(child1, PlacementAction.LEAVE, null)))),
+                ApiCode.CONFLICT);
+        expectError(() -> service.autoPlace(principal, laterYear, new AutoPlaceRequest(null, null)), ApiCode.CONFLICT);
+        assertThat(service.getPlacements(principal, newYear).editable()).isTrue();
+    }
+
+    @Test
+    void stalePlacementFromAnotherSourceClassIsIgnoredThenReplaced() {
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass);
+        long otherClass = classroom(campus, oldYear, "Lớp khác", ag3, room(campus, "P.9"), 25);
+        // Bản xếp lưu lúc trẻ còn ở lớp khác (lớp nguồn cũ): không tính đã xếp, không áp khi kích hoạt
+        jdbc.update(
+                "INSERT INTO class_placements (school_year_id, child_id, from_classroom_id, action, to_classroom_id) "
+                        + "VALUES (?, ?, ?, 'PROMOTE', ?)",
+                newYear,
+                child1,
+                otherClass,
+                newClass4);
+
+        assertThat(service.getPlacements(principal, newYear)
+                        .classes()
+                        .getFirst()
+                        .children())
+                .allMatch(c -> c.placement() == null);
+        YearReadinessResponse before = service.getReadiness(principal, newYear);
+        assertThat(before.steps())
+                .filteredOn(st -> st.key().equals("placement"))
+                .singleElement()
+                .satisfies(st -> assertThat(st.detail()).startsWith("0/2"));
+
+        AutoPlaceResponse auto = service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null));
+        assertThat(auto.promoted()).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM class_placements WHERE child_id = ? AND from_classroom_id = ?",
+                        Integer.class,
+                        child1,
+                        oldClass))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void readinessRechecksCapacityAfterPlacement() {
+        service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null));
+        assertThat(service.getReadiness(principal, newYear).canActivate()).isTrue();
+
+        // Lớp bị hạ sĩ số sau khi xếp (dữ liệu cũ): chặn kích hoạt
+        jdbc.update("UPDATE classrooms SET capacity = 1 WHERE id = ?", newClass4);
+        entityManager.clear();
+        YearReadinessResponse after = service.getReadiness(principal, newYear);
+        assertThat(after.canActivate()).isFalse();
+        assertThat(after.blockers()).anyMatch(b -> b.contains("Vượt sĩ số"));
+    }
+
     private long user(String username) {
         return insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
@@ -334,8 +400,8 @@ class YearTransitionIntegrationTest {
     private static void expectError(ThrowingCallable call, ApiCode apiCode) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(apiCode);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(apiCode.getHttpStatus());
     }
 
     private long insertId(String sql) {

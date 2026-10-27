@@ -46,12 +46,12 @@ public class ResponseContractTestController {
 
     @GetMapping("/not-found")
     ResponseEntity<ResponseJson<Void>> throwNotFound() {
-        throw new GlobalException(ApiCode.NOT_FOUND, "Child not found");
+        throw GlobalException.of(ApiCode.CHILD_NOT_FOUND);
     }
 
     @GetMapping("/conflict")
     ResponseEntity<ResponseJson<Void>> throwConflict() {
-        throw new GlobalException(ApiCode.CONFLICT, "Meal count already confirmed");
+        throw GlobalException.of(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
     }
 
     @GetMapping("/unexpected")

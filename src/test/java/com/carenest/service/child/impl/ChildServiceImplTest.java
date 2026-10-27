@@ -58,14 +58,14 @@ class ChildServiceImplTest {
 
     @Test
     void shouldNotLoadChildWhenOutOfScope() {
-        willThrow(new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this child"))
+        willThrow(GlobalException.of(ApiCode.CHILD_ACCESS_DENIED))
                 .given(childAccessPolicy)
                 .checkCanViewChild(TEACHER, 201L);
 
         assertThatThrownBy(() -> childService.getChildProfile(TEACHER, 201L))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
         verify(childRepository, never()).findById(anyLong());
     }
 
@@ -75,8 +75,8 @@ class ChildServiceImplTest {
 
         assertThatThrownBy(() -> childService.getChildProfile(TEACHER, 101L))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.NOT_FOUND);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.NOT_FOUND.getHttpStatus());
     }
 
     private static Child child(long id) {

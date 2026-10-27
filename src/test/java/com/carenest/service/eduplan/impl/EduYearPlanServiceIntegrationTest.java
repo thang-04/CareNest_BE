@@ -91,8 +91,10 @@ class EduYearPlanServiceIntegrationTest {
                 leader3, created.id(), new YearPlanEditRequest(newSession, created.revision(), UUID.randomUUID()));
         assertThat(taken.editing().userId()).isEqualTo(leader3.userId());
 
-        assertApiError(() -> service.heartbeat(leader3, created.id(), oldTab), ApiCode.CONFLICT);
-        assertApiError(() -> service.updateYearPlan(leader3, created.id(), sampleRequest(), oldTab), ApiCode.CONFLICT);
+        assertErrorCode(() -> service.heartbeat(leader3, created.id(), oldTab), ApiCode.EDIT_SESSION_LOST);
+        assertErrorCode(
+                () -> service.updateYearPlan(leader3, created.id(), sampleRequest(), oldTab),
+                ApiCode.EDIT_SESSION_LOST);
         // Phiên cũ thoát trang không nhả được quyền của phiên mới
         assertThat(service.finishEditing(leader3, created.id(), oldTab).editing())
                 .isNotNull();
@@ -102,7 +104,9 @@ class EduYearPlanServiceIntegrationTest {
         YearPlanDetailResponse retried = service.updateYearPlan(leader3, created.id(), sampleRequest(), write);
         assertThat(retried.revision()).isEqualTo(saved.revision()).isEqualTo(created.revision() + 1);
         YearPlanEditRequest stale = new YearPlanEditRequest(newSession, created.revision(), UUID.randomUUID());
-        assertApiError(() -> service.updateYearPlan(leader3, created.id(), sampleRequest(), stale), ApiCode.CONFLICT);
+        assertErrorCode(
+                () -> service.updateYearPlan(leader3, created.id(), sampleRequest(), stale),
+                ApiCode.YEAR_PLAN_REVISION_STALE);
     }
 
     @Test
@@ -127,13 +131,15 @@ class EduYearPlanServiceIntegrationTest {
                 "UPDATE edu_year_plans SET editing_at = editing_at - interval '91 seconds' WHERE id = ?", created.id());
         entityManager.clear();
         YearPlanEditRequest old = new YearPlanEditRequest(session(leader3), created.revision(), UUID.randomUUID());
-        assertApiError(() -> service.heartbeat(leader3, created.id(), old), ApiCode.CONFLICT);
+        assertErrorCode(() -> service.heartbeat(leader3, created.id(), old), ApiCode.EDIT_SESSION_LOST);
         YearPlanEditRequest next =
                 new YearPlanEditRequest(session(vicePrincipal), created.revision(), UUID.randomUUID());
         service.startEditing(vicePrincipal, created.id(), next);
         assertThat(service.finishEditing(leader3, created.id(), old).editing().userId())
                 .isEqualTo(vicePrincipal.userId());
-        assertApiError(() -> service.updateYearPlan(leader3, created.id(), sampleRequest(), old), ApiCode.CONFLICT);
+        assertErrorCode(
+                () -> service.updateYearPlan(leader3, created.id(), sampleRequest(), old),
+                ApiCode.YEAR_PLAN_LOCKED_BY_OTHER);
     }
 
     @Test
@@ -151,15 +157,15 @@ class EduYearPlanServiceIntegrationTest {
         YearPlanDetailResponse created = service.createYearPlan(
                 leader3, draft, new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
         assertThat(created.title()).isEmpty();
-        assertApiError(
+        assertErrorCode(
                 () -> service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true)),
-                ApiCode.CONFLICT);
+                ApiCode.YEAR_PLAN_TITLE_REQUIRED);
         YearPlanRequest titled =
                 new YearPlanRequest(schoolYear, ageGroup3, "Title", "", draft.domains(), List.of(), List.of());
         service.updateYearPlan(leader3, created.id(), titled, edit(leader3, created.id(), true));
-        assertApiError(
+        assertErrorCode(
                 () -> service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true)),
-                ApiCode.CONFLICT);
+                ApiCode.PLAN_GOAL_REQUIRED);
     }
 
     private final Map<Long, UUID> sessions = new HashMap<>();
@@ -423,7 +429,7 @@ class EduYearPlanServiceIntegrationTest {
 
         assertApiError(
                 () -> service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true)),
-                ApiCode.CONFLICT);
+                ApiCode.PLAN_GOAL_REQUIRED);
     }
 
     @Test
@@ -702,10 +708,18 @@ class EduYearPlanServiceIntegrationTest {
                 .orElseThrow();
     }
 
-    private static void assertApiError(ThrowingCallable call, ApiCode code) {
+    // Mã lỗi nghiệp vụ chính xác (ERROR_CONTRACT), không chỉ HTTP status
+    private static void assertErrorCode(ThrowingCallable call, ApiCode code) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
                 .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode()).isEqualTo(code));
+    }
+
+    private static void assertApiError(ThrowingCallable call, ApiCode code) {
+        assertThatThrownBy(call)
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode().getHttpStatus())
+                        .isEqualTo(code.getHttpStatus()));
     }
 
     private CurrentUser user(String username, CareNestRole role) {

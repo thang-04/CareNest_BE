@@ -58,7 +58,7 @@ public class YearSetupServiceImpl implements YearSetupService {
         try {
             SchoolYear year = schoolYearRepository
                     .findById(schoolYearId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "School year not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
             SchoolYear source = schoolYearRepository
                     .findFirstByStatus(SchoolYearStatus.ACTIVE)
                     .filter(active -> !active.getId().equals(year.getId()))

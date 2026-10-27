@@ -41,7 +41,7 @@ class SchoolConfigAccess {
 
     void checkPrincipal(CurrentUser user) {
         if (!isPrincipal(user)) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "Only the principal can change school configuration");
+            throw GlobalException.of(ApiCode.PRINCIPAL_ONLY, "thay đổi cấu hình trường");
         }
     }
 
@@ -73,7 +73,7 @@ class SchoolConfigAccess {
         }
         Set<Long> campusIds = vicePrincipalCampusIds(user);
         if (campusIds.isEmpty()) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to school configuration");
+            throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
         }
         return campusIds;
     }
@@ -81,7 +81,7 @@ class SchoolConfigAccess {
     void checkCanViewCampus(CurrentUser user, Long campusId) {
         Set<Long> campusIds = viewableCampusIds(user);
         if (campusIds != null && !campusIds.contains(campusId)) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+            throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
         }
     }
 }

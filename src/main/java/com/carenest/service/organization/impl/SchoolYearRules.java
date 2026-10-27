@@ -15,7 +15,7 @@ final class SchoolYearRules {
 
     static void checkOpen(SchoolYear year) {
         if (year.getStatus() == SchoolYearStatus.CLOSED) {
-            throw new GlobalException(ApiCode.CONFLICT, "School year " + year.getName() + " is closed");
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_CLOSED, year.getName());
         }
     }
 }

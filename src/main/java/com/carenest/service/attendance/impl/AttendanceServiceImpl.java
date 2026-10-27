@@ -168,24 +168,23 @@ public class AttendanceServiceImpl implements AttendanceService {
             ClassroomInfoResponse cls = findClass(classId);
             // ATT-01, AUTH-03: chỉ giáo viên đang dạy lớp
             if (!rules.canRecord(currentUser, cls)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this class");
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             // CFG-YR-01: lớp năm đã kết thúc (hoặc chưa kích hoạt) chỉ xem
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "Attendance can only be recorded for classes of the active school year");
+                throw GlobalException.of(ApiCode.ATTENDANCE_YEAR_NOT_ACTIVE);
             }
             LocalDate date = request.date();
             if (!AttendanceDayRules.isSchoolDay(date)) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Selected date is not a school day");
+                throw GlobalException.of(ApiCode.NOT_SCHOOL_DAY);
             }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
             // Ngày khác hôm nay chỉ ghi được khi lớp/ngày đang được mở lại
             if (!date.equals(info.today()) && info.unlock() == null) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Attendance can only be recorded for today");
+                throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
             }
             if (info.locked()) {
-                throw new GlobalException(ApiCode.CONFLICT, "Attendance is locked after " + info.cutoff());
+                throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
             }
             Set<Long> classChildIds = enrollmentService.findChildrenInClassroom(classId, date).stream()
                     .map(ClassChildResponse::id)
@@ -193,7 +192,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             Set<Long> seen = new HashSet<>();
             for (SaveAttendanceRequest.Entry entry : request.entries()) {
                 if (!classChildIds.contains(entry.childId()) || !seen.add(entry.childId())) {
-                    throw new GlobalException(ApiCode.BAD_REQUEST, "Child list does not match the class");
+                    throw GlobalException.of(ApiCode.CHILD_LIST_MISMATCH);
                 }
             }
             Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
@@ -267,7 +266,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         log.info("{}|START", logPrefix);
         try {
             if (!currentUser.hasRole(CareNestRole.PRINCIPAL) && !currentUser.hasRole(CareNestRole.VICE_PRINCIPAL)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this summary");
+                throw GlobalException.of(ApiCode.ATTENDANCE_SUMMARY_ACCESS_DENIED);
             }
             checkRange(from, to);
             List<ClassSummary> parts = classroomService.findYearClassrooms(schoolYearId).stream()
@@ -276,7 +275,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .map(c -> summarize(c, from, to))
                     .toList();
             if (campusId != null && parts.isEmpty() && !rules.canUnlock(currentUser, campusId)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<DayRow> days = schoolDays(from, to).stream()
                     .map(date -> {
@@ -320,16 +319,65 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClassMealTally> tallyMeals(LocalDate date, Long campusId, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|tallyMeals|campusId=" + campusId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ClassMealTally> tallies = classroomService.findYearClassrooms(schoolYearId).stream()
+                    .filter(c -> c.campusId().equals(campusId))
+                    .map(c -> tally(c, date))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return tallies;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // NUT-01: suất = trẻ có mặt và có báo ăn bữa đó; trẻ chưa điểm danh không tính suất
+    private ClassMealTally tally(ClassroomInfoResponse cls, LocalDate date) {
+        List<Long> childIds = enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
+                .map(ClassChildResponse::id)
+                .toList();
+        Map<Long, AttendanceRecord> records = recordRepository.findByChildIdInAndDate(childIds, date).stream()
+                .filter(r -> r.getClassroomId().equals(cls.id()))
+                .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+        int present = 0;
+        int absent = 0;
+        Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
+        cls.mealSessions().forEach(s -> meals.put(s, 0));
+        for (AttendanceRecord r : records.values()) {
+            if (r.getStatus().isAbsent()) {
+                absent++;
+                continue;
+            }
+            present++;
+            r.getMeals().stream().filter(meals::containsKey).forEach(s -> meals.merge(s, 1, Integer::sum));
+        }
+        return new ClassMealTally(
+                cls.id(),
+                cls.name(),
+                cls.campusId(),
+                cls.mealSessions(),
+                present,
+                absent,
+                childIds.size() - present - absent,
+                meals);
+    }
+
     private ClassroomInfoResponse findClass(Long classId) {
         return classroomService
                 .findClassroomInfo(classId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
     }
 
     private ClassroomInfoResponse viewableClass(CurrentUser user, Long classId) {
         ClassroomInfoResponse cls = findClass(classId);
         if (!rules.canView(user, cls)) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this class");
+            throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
         }
         return cls;
     }
@@ -344,26 +392,26 @@ public class AttendanceServiceImpl implements AttendanceService {
                         .sorted()
                         .toList();
         if (!classSessions.containsAll(taken)) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Meal session is not served to this class");
+            throw GlobalException.of(ApiCode.MEAL_SESSION_NOT_SERVED);
         }
         if (entry.status().isAbsent() && !taken.isEmpty()) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Absent child cannot have meals");
+            throw GlobalException.of(ApiCode.ABSENT_CHILD_NO_MEAL);
         }
         return taken;
     }
 
     private void checkRange(LocalDate from, LocalDate to) {
         if (from == null || to == null) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "From and to dates are required");
+            throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "từ ngày, đến ngày");
         }
         if (from.isAfter(to)) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "To date must not be before from date");
+            throw GlobalException.of(ApiCode.INVALID_DATE_RANGE);
         }
         if (to.isAfter(rules.today())) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "To date must not be in the future");
+            throw GlobalException.of(ApiCode.INVALID_DATE_RANGE);
         }
         if (ChronoUnit.DAYS.between(from, to) >= MAX_SUMMARY_DAYS) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Date range must not exceed 366 days");
+            throw GlobalException.of(ApiCode.DATE_RANGE_TOO_LONG, 366);
         }
     }
 

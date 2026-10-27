@@ -78,7 +78,7 @@ public class AgeGroupServiceImpl implements AgeGroupService {
             schoolConfigAccess.checkPrincipal(currentUser);
             AgeGroup ageGroup = ageGroupRepository
                     .findById(ageGroupId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Age group not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
             validate(request, ageGroupId);
             checkMaxClassSize(ageGroupId, request.maxClassSize());
             applyRequest(ageGroup, request);
@@ -99,20 +99,19 @@ public class AgeGroupServiceImpl implements AgeGroupService {
             schoolConfigAccess.checkPrincipal(currentUser);
             AgeGroup ageGroup = ageGroupRepository
                     .findById(ageGroupId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Age group not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
             if (classroomRepository.countByAgeGroupId(ageGroupId) > 0) {
-                throw new GlobalException(ApiCode.CONFLICT, "Age group already has classes and cannot be deleted");
+                throw GlobalException.of(ApiCode.AGE_GROUP_HAS_DEPENDENTS, "lớp");
             }
             if (ageGroupRepository.countStaffAssignments(ageGroupId) > 0) {
-                throw new GlobalException(ApiCode.CONFLICT, "Age group has a team leader and cannot be deleted");
+                throw GlobalException.of(ApiCode.AGE_GROUP_HAS_DEPENDENTS, "tổ trưởng");
             }
             try {
                 ageGroupRepository.delete(ageGroup);
                 ageGroupRepository.flush();
             } catch (DataIntegrityViolationException integrityEx) {
                 // Kế hoạch giáo dục, kết quả mong đợi... còn tham chiếu nhóm tuổi này
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "Age group is used by other records and cannot be deleted", integrityEx);
+                throw GlobalException.withCause(ApiCode.AGE_GROUP_HAS_DEPENDENTS, integrityEx, "dữ liệu liên quan");
             }
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -123,10 +122,10 @@ public class AgeGroupServiceImpl implements AgeGroupService {
 
     private void validate(AgeGroupRequest request, Long excludeId) {
         if (request.ageToMonths() <= request.ageFromMonths()) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Age to must be greater than age from");
+            throw GlobalException.of(ApiCode.AGE_RANGE_INVALID);
         }
         if (ageGroupRepository.existsName(request.name().trim(), excludeId)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Age group name already exists");
+            throw GlobalException.of(ApiCode.AGE_GROUP_NAME_EXISTS);
         }
         // Khoảng [from, to): hai nhóm trùng khi from1 < to2 và from2 < to1
         ageGroupRepository.findAll().stream()
@@ -136,10 +135,9 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                         request.ageFromMonths() < g.getAgeToMonths() && g.getAgeFromMonths() < request.ageToMonths())
                 .findFirst()
                 .ifPresent(g -> {
-                    throw new GlobalException(
-                            ApiCode.CONFLICT,
-                            "Age range overlaps age group " + g.getShortName() + " (" + g.getAgeFromMonths() + "–"
-                                    + g.getAgeToMonths() + " months)");
+                    throw GlobalException.of(
+                            ApiCode.AGE_RANGE_OVERLAP,
+                            g.getShortName() + " (" + g.getAgeFromMonths() + "–" + g.getAgeToMonths() + " tháng)");
                 });
     }
 
@@ -162,8 +160,7 @@ public class AgeGroupServiceImpl implements AgeGroupService {
                 .map(Classroom::getName)
                 .collect(Collectors.joining(", "));
         if (!over.isEmpty()) {
-            throw new GlobalException(
-                    ApiCode.CONFLICT, "Cannot lower max class size: " + over + " exceed " + maxClassSize + " children");
+            throw GlobalException.of(ApiCode.AGE_GROUP_MAX_SIZE_CONFLICT, over, maxClassSize);
         }
     }
 

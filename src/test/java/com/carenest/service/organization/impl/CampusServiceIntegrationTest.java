@@ -10,6 +10,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.CampusService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
 import java.time.Instant;
@@ -109,8 +110,8 @@ class CampusServiceIntegrationTest {
                 .containsExactly(campusA);
         assertThatThrownBy(() -> service.getCampusDetail(vicePrincipal, campusB, null))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     @Test
@@ -137,8 +138,8 @@ class CampusServiceIntegrationTest {
     void campusWithStaffCannotBeDeleted() {
         assertThatThrownBy(() -> service.deleteCampus(principal, campusA))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.CONFLICT);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.CONFLICT.getHttpStatus());
     }
 
     @Test
@@ -147,6 +148,54 @@ class CampusServiceIntegrationTest {
 
         Integer remaining = jdbc.queryForObject("SELECT count(*) FROM campuses WHERE id = ?", Integer.class, campusB);
         assertThat(remaining).isZero();
+    }
+
+    @Test
+    void deactivateCampusRequiresNoVicePrincipalAndCanBeReactivated() {
+        assertThatThrownBy(() -> service.changeCampusStatus(principal, campusA, CampusStatus.INACTIVE))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.CONFLICT.getHttpStatus());
+        long vpB = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-vpb', 'vpb.it', 'PHT B') RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
+                vpB,
+                campusB);
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date) "
+                + "VALUES ('2027-2028', '2027-09-05', '2028-05-31') RETURNING id");
+        long plannedClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusB
+                + ", " + planned + ", 'Lớp B1') RETURNING id");
+        // Còn lớp ở năm sắp diễn ra ⇒ chưa ngừng được
+        assertThatThrownBy(() -> service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.CONFLICT.getHttpStatus());
+        jdbc.update("DELETE FROM classrooms WHERE id = ?", plannedClass);
+
+        // Còn PHT phụ trách ⇒ chặn, lỗi nêu tên PHT; phân công giữ nguyên
+        assertThatThrownBy(() -> service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE))
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("PHT B");
+        assertThat(jdbc.queryForObject(
+                        "SELECT valid_to FROM staff_assignments WHERE user_id = ? AND campus_id = ?",
+                        java.time.LocalDate.class,
+                        vpB,
+                        campusB))
+                .isNull();
+        jdbc.update("UPDATE staff_assignments SET valid_to = '2026-10-21' WHERE user_id = ?", vpB);
+
+        CampusResponse off = service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE);
+        assertThat(off.status()).isEqualTo(CampusStatus.INACTIVE);
+        assertThatThrownBy(() -> service.changeCampusStatus(vicePrincipal, campusB, CampusStatus.ACTIVE))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
+
+        assertThat(service.changeCampusStatus(principal, campusB, CampusStatus.ACTIVE)
+                        .status())
+                .isEqualTo(CampusStatus.ACTIVE);
     }
 
     private long insertId(String sql) {

@@ -66,7 +66,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         log.info("{}|START", p);
         try {
             EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
-            if (requestId == null) throw new GlobalException(ApiCode.BAD_REQUEST, "Thiếu mã lần tải");
+            if (requestId == null) throw GlobalException.of(ApiCode.UPLOAD_REQUEST_ID_REQUIRED);
             var replay = resources.findByClassDocIdAndUploadRequestId(doc.getId(), requestId);
             if (replay.isPresent()) {
                 log.info("{}|END", p);
@@ -78,14 +78,14 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             try (var input = file.getInputStream()) {
                 type = LearningResourcePolicy.inspect(name, input.readNBytes(8192), file.getSize());
             } catch (IOException ex) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Không đọc được tệp");
+                throw GlobalException.of(ApiCode.FILE_UNREADABLE);
             }
             if (name.matches("(?i).*\\.(pptx|docx|xlsx)$")) validateOffice(file, name);
             String key;
             try (var input = file.getInputStream()) {
                 key = storage.store(input, file.getSize());
             } catch (IOException ex) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Không đọc được tệp");
+                throw GlobalException.of(ApiCode.FILE_UNREADABLE);
             }
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
@@ -157,8 +157,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         try {
             EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, false);
             EduLearningResource r = requireResource(doc, id);
-            if (!isEditor(user, doc) && !active(doc, r))
-                throw new GlobalException(ApiCode.NOT_FOUND, "Học liệu chưa gắn với hoạt động hiện tại");
+            if (!isEditor(user, doc) && !active(doc, r)) throw GlobalException.of(ApiCode.LEARNING_RESOURCE_UNBOUND);
             Download result = new Download(storage.load(r.getStorageKey()), r.getOriginalName(), r.getContentType());
             log.info("{}|END", p);
             return result;
@@ -179,7 +178,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     private EduLearningResource requireResource(EduClassDoc doc, Long id) {
         return resources
                 .findByIdAndClassDocId(id, doc.getId())
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Không tìm thấy học liệu"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.LEARNING_RESOURCE_NOT_FOUND));
     }
 
     private void validateBinding(EduClassDoc doc, LearningResourceBinding b) {
@@ -188,8 +187,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                 || b.activityLabel().isBlank()
                 || b.activityLabel().length() > 1000
                 || !matches(doc, b.activityKey(), b.activitySignature()))
-            throw new GlobalException(
-                    ApiCode.CONFLICT, "Hoạt động đã thay đổi. Lưu và chọn lại hoạt động trước khi gắn tệp.");
+            throw GlobalException.of(ApiCode.ACTIVITY_CHANGED);
     }
 
     private boolean matches(EduClassDoc doc, String key, String signature) {
@@ -252,9 +250,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                 }
             }
         } catch (IOException ex) {
-            throw new GlobalException(ApiCode.UNSUPPORTED_MEDIA_TYPE, "Tệp Office không hợp lệ");
+            throw GlobalException.of(ApiCode.FILE_CONTENT_MISMATCH);
         }
-        if (!types || !body)
-            throw new GlobalException(ApiCode.UNSUPPORTED_MEDIA_TYPE, "Nội dung Office không khớp phần mở rộng");
+        if (!types || !body) throw GlobalException.of(ApiCode.FILE_CONTENT_MISMATCH);
     }
 }

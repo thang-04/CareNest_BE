@@ -26,7 +26,8 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | --- | --- | --- | --- |
 | CFG-YR-01 | Dữ liệu thuộc năm học đã kết thúc (CLOSED) chỉ đọc ở mọi module. BE kiểm trước khi ghi bằng `SchoolYearService#checkYearOpen` (dữ liệu gắn năm), `checkClassYearOpen` (theo lớp: đánh giá, xếp lớp), `checkDateYearOpen` (theo ngày: điểm danh, suất ăn, thực đơn); vi phạm ⇒ 409 `School year … is closed`. FE: năm đang chọn ở header đã kết thúc ⇒ ẩn thao tác ghi (`useSchoolYear().yearReadOnly`) | CONFIRMED | Cần chốt 22/10/2026 |
 | CFG-YR-02 | Dữ liệu từng ngày lưu kèm lớp + ngày (lớp thuộc năm) ⇒ tự thuộc năm học; không sao chép dữ liệu sang năm mới. Dữ liệu dùng chung (phòng, điểm trường) chỉ xóa mềm khi năm cũ đã dùng để năm cũ vẫn xem được | CONFIRMED | Cần chốt 22/10/2026 |
-| CFG-YR-03 | Kích hoạt năm học tự đóng năm đang hoạt động và chuyển trẻ theo bản xếp lớp, trong một giao dịch; chỉ kích hoạt năm sắp diễn ra sớm nhất; kết thúc tay chỉ sau ngày kết thúc năm | CONFIRMED | Cần chốt 22/10/2026 |
+| CFG-YR-03 | Kích hoạt năm học tự đóng năm đang hoạt động và chuyển trẻ theo bản xếp lớp, trong một giao dịch; chỉ kích hoạt năm sắp diễn ra sớm nhất; kết thúc tay chỉ sau ngày kết thúc năm. Năm mới tạo nối tiếp năm mới nhất (tên +1, bắt đầu sau ngày kết thúc năm đó); xếp lớp chỉ cho năm sắp diễn ra sớm nhất; bản xếp chỉ hợp lệ khi trẻ còn ở đúng lớp nguồn của năm đang hoạt động; lớp năm mới đã có trẻ xếp vào không đổi nhóm tuổi/điểm trường, không hạ sĩ số dưới số trẻ đã xếp, không xóa; kích hoạt kiểm lại sĩ số và nhóm tuổi | CONFIRMED | Cần chốt 22/10/2026; bổ sung 27/10/2026 |
+| CFG-CP-01 | Điểm trường ngừng hoạt động / hoạt động lại (Hiệu trưởng): không ngừng được điểm trường chính, điểm còn lớp ở năm đang hoạt động/sắp diễn ra, hoặc điểm còn PHT phụ trách (hôm nay hoặc sắp tới; lỗi nêu tên PHT, gỡ phân công trước); ngừng ⇒ không chọn được khi tạo/sửa lớp, phòng, không sao chép lớp sang năm mới; năm cũ vẫn xem đủ. Xóa chỉ cho điểm trường chưa dùng | CONFIRMED | Cần chốt 22–23/10/2026 |
 
 ## ATT — Điểm danh, báo ăn, đơn nghỉ (module: attendance)
 
@@ -41,13 +42,14 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | ATT-05b | Báo nghỉ/hủy báo nghỉ cho ngày đã qua cut-off (P-03) hoặc khi số suất đã xác nhận ⇒ xử lý như ATT-07 (đánh dấu thay đổi, xác nhận lại) | PROPOSED | Suy từ ATT-07 |
 | ATT-06 | Thời điểm khóa nhập điểm danh/báo ăn trong ngày (cut-off) | PENDING P-03 — để cấu hình, không hard-code | — |
 | ATT-07 | Thay đổi điểm danh/báo ăn sau khi số suất đã xác nhận ⇒ số suất bị đánh dấu thay đổi, cần xác nhận lại (NUT-03); attendance không tự sửa số suất | ACCEPTED | ADR-0004, ADR-0005 |
+| ATT-08 | Sau giờ chốt (ATT-06) điểm danh và cột tham gia ăn của GV chỉ xem; không có hủy suất sau giờ khóa. Thay đổi chỉ trong lần HT/PHT mở lại ngày ⇒ sổ báo ăn chờ PHT xác nhận lại (ATT-07). Sức khỏe trong ngày vẫn ghi sau giờ chốt | CONFIRMED | Cần chốt 24/10/2026 |
 
 ## NUT — Dinh dưỡng, suất ăn, bếp (module: nutrition)
 
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
 | NUT-01 | Số suất = trẻ **có mặt** và **có đăng ký ăn**; không tính từ sĩ số lớp | CONFIRMED | Report 1, guide 13.1 |
-| NUT-02 | MealCount có bước xác nhận bởi người có quyền trước khi chuyển bếp | CONFIRMED; ai xác nhận: PENDING P-05 | FE-01 |
+| NUT-02 | MealCount có bước xác nhận bởi người có quyền trước khi chuyển bếp; HT xác nhận được mọi điểm trường, PHT xác nhận điểm trường mình (lưu vai trò người xác nhận); điều chỉnh số suất chỉ PHT điểm trường | CONFIRMED (Cần chốt 27/10/2026, thay bản 24/10 "HT chỉ xem") | FE-01 |
 | NUT-03 | Thay đổi sau khi BGH xác nhận không sửa ngầm số đã xác nhận: lưu lịch sử, đánh dấu đã thay đổi, yêu cầu xác nhận lại, thông báo vai trò cần xử lý; bếp chỉ thấy số đã xác nhận | ACCEPTED | ADR-0005, guide 13.1 |
 | NUT-04 | Chi tiết xử lý thay đổi muộn: giờ chốt, ai nhận thông báo, bếp thêm/bớt suất thực tế thế nào | PENDING P-04 | — |
 | NUT-05 | Food master và NutrientValue phải có nguồn (`source`, `source_version`); AI không tạo/sửa dữ liệu này | CONFIRMED | Report 1 |
@@ -73,6 +75,7 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | HLT-04 | AI chỉ giải thích dữ liệu, highlight trend, gợi ý điểm cần chú ý; **không** chẩn đoán bệnh/rối loạn phát triển, **không** khuyên điều trị | CONFIRMED | Report 1 |
 | HLT-05 | AI interpretation là DRAFT, cần nhân viên duyệt trước khi hiển thị chính thức | CONFIRMED | Report 1 |
 | HLT-06 | Dị ứng là thông tin cơ bản của trẻ (module child); nguồn khai báo/người xác nhận PENDING P-17 | CONFIRMED / PENDING | Brief |
+| HLT-07 | Sức khỏe trong ngày ghi được cả sau giờ chốt điểm danh (nhiều lần/ngày); khóa khi trẻ đã được trả cho phụ huynh. Chưa có BE Đón trẻ ⇒ BE khóa hết ngày (chỉ ghi cho hôm nay), FE khóa theo lần trả trẻ ở mock Đón trẻ; có BE Đón trẻ thì BE khóa theo giờ trả trẻ thật | CONFIRMED | Cần chốt 24/10/2026 |
 
 ## OBS — Quan sát, hoạt động, phát triển (module: learning-observation)
 
