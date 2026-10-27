@@ -15,7 +15,7 @@ import java.util.List;
 public record YearPlanRequest(
         Long schoolYearId,
         Long ageGroupId,
-        @NotBlank @Size(max = 150) String title,
+        @NotNull @Size(max = 150) String title,
         @Size(max = 500) String description,
         @Valid List<Domain> domains,
         @Valid List<Theme> themes,

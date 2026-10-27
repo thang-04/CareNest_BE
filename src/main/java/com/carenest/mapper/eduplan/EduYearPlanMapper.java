@@ -27,7 +27,8 @@ public class EduYearPlanMapper {
             String ageGroupName,
             long goalCount,
             long themeCount,
-            Map<Long, String> userNames) {
+            Map<Long, String> userNames,
+            Instant editExpiresAt) {
         return new YearPlanSummaryResponse(
                 plan.getId(),
                 plan.getCode(),
@@ -44,7 +45,9 @@ public class EduYearPlanMapper {
                 toActor(plan.getIssuedBy(), plan.getIssuedAt(), userNames),
                 toActor(plan.getEditingBy(), plan.getEditingSince(), userNames),
                 plan.getCreatedAt(),
-                plan.getUpdatedAt());
+                plan.getUpdatedAt(),
+                plan.getContentRevision(),
+                editExpiresAt);
     }
 
     public PlanActorResponse toOwner(EduYearPlan plan, Map<Long, String> userNames) {

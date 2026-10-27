@@ -207,6 +207,15 @@ class EduYearPlanSchemaIntegrationTest {
         return EduYearPlan.createDraft(code, schoolYear, ageGroupId, "Kế hoạch " + code, "", owner, null, NOW);
     }
 
+    @Test
+    @DisplayName("EDU-10: phiên đang giữ quyền bắt buộc có trạng thái để trả về, không để CHECK lọt NULL")
+    void activeSessionCannotHaveNullReturnStatus() {
+        EduYearPlan plan = yearPlanRepository.saveAndFlush(draft("NULL-GUARD", ageGroup3));
+        assertThatThrownBy(
+                        () -> jdbc.update("UPDATE edu_year_plans SET editing_from = NULL WHERE id = ?", plan.getId()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
     private long insertId(String sql, Object... args) {
         return jdbc.queryForObject(sql, Long.class, args);
     }

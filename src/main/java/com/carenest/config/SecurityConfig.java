@@ -141,7 +141,15 @@ public class SecurityConfig {
         if (authProperties.enabled()) businessOrigins.addAll(authProperties.allowedOrigins());
         config.setAllowedOrigins(List.copyOf(businessOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE));
+        config.setAllowedHeaders(List.of(
+                HttpHeaders.AUTHORIZATION,
+                HttpHeaders.CONTENT_TYPE,
+                "X-Edit-Session",
+                "X-Plan-Revision",
+                "X-Request-Id",
+                HttpHeaders.RANGE));
+        config.setExposedHeaders(
+                List.of(HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES));
         config.setAllowCredentials(false);
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
+import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.exception.GlobalException;
@@ -18,8 +19,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -76,6 +80,114 @@ class EduYearPlanServiceIntegrationTest {
     private CurrentUser leader4;
     private CurrentUser teacher3;
 
+    @Test
+    @DisplayName("EDU-10: cùng tài khoản mở lại (vd. sau mất điện) thì phiên mới nhận quyền ngay; phiên cũ mất quyền")
+    void sameAccountNewSessionTakesOverAndOldSessionLosesLease() {
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanEditRequest oldTab = new YearPlanEditRequest(session(leader3), created.revision(), UUID.randomUUID());
+        UUID newSession = UUID.randomUUID();
+        YearPlanDetailResponse taken = service.startEditing(
+                leader3, created.id(), new YearPlanEditRequest(newSession, created.revision(), UUID.randomUUID()));
+        assertThat(taken.editing().userId()).isEqualTo(leader3.userId());
+
+        assertApiError(() -> service.heartbeat(leader3, created.id(), oldTab), ApiCode.CONFLICT);
+        assertApiError(() -> service.updateYearPlan(leader3, created.id(), sampleRequest(), oldTab), ApiCode.CONFLICT);
+        // Phiên cũ thoát trang không nhả được quyền của phiên mới
+        assertThat(service.finishEditing(leader3, created.id(), oldTab).editing())
+                .isNotNull();
+
+        YearPlanEditRequest write = new YearPlanEditRequest(newSession, created.revision(), UUID.randomUUID());
+        YearPlanDetailResponse saved = service.updateYearPlan(leader3, created.id(), sampleRequest(), write);
+        YearPlanDetailResponse retried = service.updateYearPlan(leader3, created.id(), sampleRequest(), write);
+        assertThat(retried.revision()).isEqualTo(saved.revision()).isEqualTo(created.revision() + 1);
+        YearPlanEditRequest stale = new YearPlanEditRequest(newSession, created.revision(), UUID.randomUUID());
+        assertApiError(() -> service.updateYearPlan(leader3, created.id(), sampleRequest(), stale), ApiCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("EDU-10: người khác vẫn phải chờ khóa hết hạn; thông báo nêu tên người đang sửa")
+    void otherUserStillWaitsForLeaseExpiry() {
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        assertThatThrownBy(() -> service.startEditing(
+                        vicePrincipal,
+                        created.id(),
+                        new YearPlanEditRequest(UUID.randomUUID(), created.revision(), UUID.randomUUID())))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Đang được Demo leader3 sửa");
+    }
+
+    @Test
+    @DisplayName("EDU-10: quyền hết sau 90 giây; yêu cầu cũ không nhả khóa mới")
+    void expiredLeaseCannotOverwriteOrReleaseNewSession() {
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        jdbc.update(
+                "UPDATE edu_year_plans SET editing_at = editing_at - interval '91 seconds' WHERE id = ?", created.id());
+        entityManager.clear();
+        YearPlanEditRequest old = new YearPlanEditRequest(session(leader3), created.revision(), UUID.randomUUID());
+        assertApiError(() -> service.heartbeat(leader3, created.id(), old), ApiCode.CONFLICT);
+        YearPlanEditRequest next =
+                new YearPlanEditRequest(session(vicePrincipal), created.revision(), UUID.randomUUID());
+        service.startEditing(vicePrincipal, created.id(), next);
+        assertThat(service.finishEditing(leader3, created.id(), old).editing().userId())
+                .isEqualTo(vicePrincipal.userId());
+        assertApiError(() -> service.updateYearPlan(leader3, created.id(), sampleRequest(), old), ApiCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("EDU-22: tự lưu thiếu tiêu đề được nhưng không gửi duyệt mục tiêu trống")
+    void incompleteDraftSavesButCannotBeSubmitted() {
+        YearPlanRequest draft = new YearPlanRequest(
+                schoolYear,
+                ageGroup3,
+                "",
+                "",
+                List.of(new YearPlanRequest.Domain(
+                        domainPhysical, List.of(new YearPlanRequest.Row(null, "goal", "", List.of())))),
+                List.of(),
+                List.of());
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3, draft, new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        assertThat(created.title()).isEmpty();
+        assertApiError(
+                () -> service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true)),
+                ApiCode.CONFLICT);
+        YearPlanRequest titled =
+                new YearPlanRequest(schoolYear, ageGroup3, "Title", "", draft.domains(), List.of(), List.of());
+        service.updateYearPlan(leader3, created.id(), titled, edit(leader3, created.id(), true));
+        assertApiError(
+                () -> service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true)),
+                ApiCode.CONFLICT);
+    }
+
+    private final Map<Long, UUID> sessions = new HashMap<>();
+
+    @Test
+    @DisplayName("EDU-22: tạo đã lưu nhưng mất phản hồi được thử lại cùng request mà không tạo trùng")
+    void retryFirstCreateReturnsTheSamePlan() {
+        YearPlanEditRequest create = new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID());
+        YearPlanDetailResponse first = service.createYearPlan(leader3, sampleRequest(), create);
+        YearPlanDetailResponse again = service.createYearPlan(leader3, sampleRequest(), create);
+        assertThat(again.id()).isEqualTo(first.id());
+        assertThat(again.revision()).isEqualTo(first.revision());
+        assertThat(again.domains()).isEqualTo(first.domains());
+    }
+
+    private UUID session(CurrentUser user) {
+        return sessions.computeIfAbsent(user.userId(), ignored -> UUID.randomUUID());
+    }
+
+    private YearPlanEditRequest edit(CurrentUser user, Long id, boolean acquire) {
+        YearPlanDetailResponse detail = service.getYearPlan(user, id);
+        YearPlanEditRequest context = new YearPlanEditRequest(session(user), detail.revision(), UUID.randomUUID());
+        if (acquire && detail.editing() == null && detail.permissions().canEdit()) {
+            service.startEditing(user, id, context);
+        }
+        return context;
+    }
+
     @BeforeEach
     void setUp() {
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
@@ -114,10 +226,16 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-01: kế hoạch thứ hai cho cùng (năm học, nhóm tuổi) bị 409")
     void secondPlanForSameAgeGroupIsConflict() {
-        service.createYearPlan(leader3, request(ageGroup3, List.of(), List.of()));
+        service.createYearPlan(
+                leader3,
+                request(ageGroup3, List.of(), List.of()),
+                new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
 
         assertApiError(
-                () -> service.createYearPlan(vicePrincipal, request(ageGroup3, List.of(), List.of())),
+                () -> service.createYearPlan(
+                        vicePrincipal,
+                        request(ageGroup3, List.of(), List.of()),
+                        new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID())),
                 ApiCode.CONFLICT);
     }
 
@@ -125,15 +243,24 @@ class EduYearPlanServiceIntegrationTest {
     @DisplayName("EDU-02: Tổ trưởng không lập được kế hoạch cho nhóm tuổi khác")
     void teamLeaderCannotCreateForOtherAgeGroup() {
         assertApiError(
-                () -> service.createYearPlan(leader3, request(ageGroup4, List.of(), List.of())), ApiCode.FORBIDDEN);
+                () -> service.createYearPlan(
+                        leader3,
+                        request(ageGroup4, List.of(), List.of()),
+                        new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID())),
+                ApiCode.FORBIDDEN);
         assertApiError(
-                () -> service.createYearPlan(teacher3, request(ageGroup3, List.of(), List.of())), ApiCode.FORBIDDEN);
+                () -> service.createYearPlan(
+                        teacher3,
+                        request(ageGroup3, List.of(), List.of()),
+                        new YearPlanEditRequest(session(teacher3), 0L, UUID.randomUUID())),
+                ApiCode.FORBIDDEN);
     }
 
     @Test
     @DisplayName("EDU-09: lưu cây mục tiêu, đánh số MT theo thứ tự lĩnh vực, tích chủ đề theo key")
     void savesGoalTreeAndNumbersGoalsAcrossDomains() {
-        YearPlanDetailResponse created = service.createYearPlan(leader3, sampleRequest());
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
 
         assertThat(created.code()).isEqualTo("KHNH-2627-MGB");
         assertThat(created.status()).isEqualTo(EduPlanStatus.EDITING);
@@ -160,7 +287,8 @@ class EduYearPlanServiceIntegrationTest {
                         List.of(new YearPlanRequest.Row(goal.id(), "goal", "Trẻ khỏe mạnh", List.of())))),
                 List.of(theme(String.valueOf(themeId), themeId)),
                 List.of());
-        YearPlanDetailResponse updated = service.updateYearPlan(leader3, created.id(), edit);
+        YearPlanDetailResponse updated =
+                service.updateYearPlan(leader3, created.id(), edit, edit(leader3, created.id(), true));
 
         assertThat(domain(updated, domainPhysical).rows()).singleElement().satisfies(row -> {
             assertThat(row.id()).isEqualTo(goal.id());
@@ -187,7 +315,8 @@ class EduYearPlanServiceIntegrationTest {
                                 namedTheme("t-3", null, "Gia đình", "GĐ")),
                         List.of(
                                 new YearPlanRequest.Break(null, "Tết", null, null),
-                                new YearPlanRequest.Break(null, "Ôn tập", null, null))));
+                                new YearPlanRequest.Break(null, "Ôn tập", null, null))),
+                new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
         List<Long> themeIds =
                 created.themes().stream().map(YearPlanDetailResponse.Theme::id).toList();
         List<Long> breakIds =
@@ -212,7 +341,8 @@ class EduYearPlanServiceIntegrationTest {
                                 namedTheme(String.valueOf(themeIds.get(1)), themeIds.get(1), "Bản thân", "BT")),
                         List.of(
                                 new YearPlanRequest.Break(breakIds.get(1), "Ôn tập", null, null),
-                                new YearPlanRequest.Break(breakIds.get(0), "Tết", null, null))));
+                                new YearPlanRequest.Break(breakIds.get(0), "Tết", null, null))),
+                edit(leader3, created.id(), true));
 
         assertThat(reordered.themes())
                 .extracting(YearPlanDetailResponse.Theme::id)
@@ -241,7 +371,8 @@ class EduYearPlanServiceIntegrationTest {
                         List.of(
                                 namedTheme(family, themeIds.get(2), "Gia đình", "GĐ"),
                                 namedTheme(String.valueOf(themeIds.get(1)), themeIds.get(1), "Bản thân", "BT")),
-                        List.of()));
+                        List.of()),
+                edit(leader3, created.id(), true));
 
         assertThat(removed.themes())
                 .extracting(YearPlanDetailResponse.Theme::id)
@@ -254,44 +385,64 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-03, EDU-04, EDU-05: gửi, Phó HT sửa khi chờ duyệt, ban hành rồi khóa")
     void submitEditIssueFlow() {
-        YearPlanDetailResponse plan = service.createYearPlan(leader3, sampleRequest());
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
 
-        YearPlanDetailResponse sent = service.submitYearPlan(leader3, plan.id(), null);
+        YearPlanDetailResponse sent = service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
         assertThat(sent.status()).isEqualTo(EduPlanStatus.PENDING_VP);
         assertThat(sent.sentBy().userId()).isEqualTo(leader3.userId());
         // Đã gửi thì Tổ trưởng không sửa được, Phó HT thì được (ghi lịch sử 1 lần)
-        assertApiError(() -> service.updateYearPlan(leader3, plan.id(), sampleRequest()), ApiCode.FORBIDDEN);
-        service.updateYearPlan(vicePrincipal, plan.id(), sampleRequest());
-        YearPlanDetailResponse editedTwice = service.updateYearPlan(vicePrincipal, plan.id(), sampleRequest());
+        assertApiError(
+                () -> service.updateYearPlan(leader3, plan.id(), sampleRequest(), edit(leader3, plan.id(), true)),
+                ApiCode.FORBIDDEN);
+        service.updateYearPlan(vicePrincipal, plan.id(), sampleRequest(), edit(vicePrincipal, plan.id(), true));
+        YearPlanDetailResponse editedTwice =
+                service.updateYearPlan(vicePrincipal, plan.id(), sampleRequest(), edit(vicePrincipal, plan.id(), true));
         assertThat(editedTwice.history())
                 .extracting(YearPlanDetailResponse.History::action)
                 .containsExactly("SUBMIT", "VP_EDIT");
 
-        YearPlanDetailResponse issued = service.issueYearPlan(vicePrincipal, plan.id(), "Đạt");
+        YearPlanDetailResponse issued =
+                service.issueYearPlan(vicePrincipal, plan.id(), "Đạt", edit(vicePrincipal, plan.id(), true));
         assertThat(issued.status()).isEqualTo(EduPlanStatus.APPROVED);
         assertThat(issued.issued().userId()).isEqualTo(vicePrincipal.userId());
         assertThat(issued.issued().at()).isNotNull();
-        assertApiError(() -> service.updateYearPlan(vicePrincipal, plan.id(), sampleRequest()), ApiCode.FORBIDDEN);
+        assertApiError(
+                () -> service.updateYearPlan(
+                        vicePrincipal, plan.id(), sampleRequest(), edit(vicePrincipal, plan.id(), true)),
+                ApiCode.FORBIDDEN);
     }
 
     @Test
     @DisplayName("EDU-04: kế hoạch chưa có MT không gửi được")
     void cannotSubmitWithoutGoals() {
-        YearPlanDetailResponse plan = service.createYearPlan(leader3, request(ageGroup3, List.of(), List.of()));
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3,
+                request(ageGroup3, List.of(), List.of()),
+                new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
 
-        assertApiError(() -> service.submitYearPlan(leader3, plan.id(), null), ApiCode.CONFLICT);
+        assertApiError(
+                () -> service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true)),
+                ApiCode.CONFLICT);
     }
 
     @Test
     @DisplayName("EDU-05: trả lại cần lý do, chỉ khi chờ duyệt; Tổ trưởng thấy lý do")
     void returnRequiresPendingAndReason() {
-        YearPlanDetailResponse plan = service.createYearPlan(leader3, sampleRequest());
-        assertApiError(() -> service.returnYearPlan(vicePrincipal, plan.id(), "Sửa MT"), ApiCode.CONFLICT);
-        service.submitYearPlan(leader3, plan.id(), null);
-        assertApiError(() -> service.returnYearPlan(vicePrincipal, plan.id(), " "), ApiCode.BAD_REQUEST);
-        assertApiError(() -> service.returnYearPlan(leader3, plan.id(), "Sửa MT"), ApiCode.FORBIDDEN);
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        assertApiError(
+                () -> service.returnYearPlan(vicePrincipal, plan.id(), "Sửa MT", edit(vicePrincipal, plan.id(), true)),
+                ApiCode.CONFLICT);
+        service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
+        assertApiError(
+                () -> service.returnYearPlan(vicePrincipal, plan.id(), " ", edit(vicePrincipal, plan.id(), true)),
+                ApiCode.BAD_REQUEST);
+        assertApiError(
+                () -> service.returnYearPlan(leader3, plan.id(), "Sửa MT", edit(leader3, plan.id(), true)),
+                ApiCode.FORBIDDEN);
 
-        service.returnYearPlan(vicePrincipal, plan.id(), "Sửa MT 2");
+        service.returnYearPlan(vicePrincipal, plan.id(), "Sửa MT 2", edit(vicePrincipal, plan.id(), true));
         YearPlanDetailResponse seenByLeader = service.getYearPlan(leader3, plan.id());
 
         assertThat(seenByLeader.status()).isEqualTo(EduPlanStatus.REJECTED);
@@ -303,17 +454,22 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-05: Phó HT tự soạn thì ban hành thẳng, Tổ trưởng không ban hành được")
     void vicePrincipalIssuesOwnDraftDirectly() {
-        YearPlanDetailResponse plan = service.createYearPlan(vicePrincipal, sampleRequest());
+        YearPlanDetailResponse plan = service.createYearPlan(
+                vicePrincipal, sampleRequest(), new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
 
-        assertApiError(() -> service.issueYearPlan(leader3, plan.id(), null), ApiCode.FORBIDDEN);
-        assertThat(service.issueYearPlan(vicePrincipal, plan.id(), null).status())
+        assertApiError(
+                () -> service.issueYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true)),
+                ApiCode.FORBIDDEN);
+        assertThat(service.issueYearPlan(vicePrincipal, plan.id(), null, edit(vicePrincipal, plan.id(), true))
+                        .status())
                 .isEqualTo(EduPlanStatus.APPROVED);
     }
 
     @Test
     @DisplayName("EDU-06: GV chỉ xem bản đã ban hành; HT không xem nháp; TT khác khối không xem")
     void viewScopeByRole() {
-        YearPlanDetailResponse plan = service.createYearPlan(leader3, sampleRequest());
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
 
         assertApiError(() -> service.getYearPlan(teacher3, plan.id()), ApiCode.FORBIDDEN);
         assertApiError(() -> service.getYearPlan(principal, plan.id()), ApiCode.FORBIDDEN);
@@ -323,8 +479,8 @@ class EduYearPlanServiceIntegrationTest {
                 .extracting(YearPlanSummaryResponse::id)
                 .containsExactly(plan.id());
 
-        service.submitYearPlan(leader3, plan.id(), null);
-        service.issueYearPlan(vicePrincipal, plan.id(), null);
+        service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
+        service.issueYearPlan(vicePrincipal, plan.id(), null, edit(vicePrincipal, plan.id(), true));
 
         assertThat(service.getYearPlan(teacher3, plan.id()).permissions().canEdit())
                 .isFalse();
@@ -339,86 +495,127 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-07: chỉ Phó HT xóa, chỉ bản nháp không bị người khác khóa")
     void onlyVicePrincipalDeletesDraft() {
-        YearPlanDetailResponse plan = service.createYearPlan(leader3, sampleRequest());
-        assertApiError(() -> service.deleteYearPlan(leader3, plan.id()), ApiCode.FORBIDDEN);
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        assertApiError(
+                () -> service.deleteYearPlan(leader3, plan.id(), edit(leader3, plan.id(), true)), ApiCode.FORBIDDEN);
         // Tổ trưởng đang sửa thì Phó HT chưa xóa được
-        assertApiError(() -> service.deleteYearPlan(vicePrincipal, plan.id()), ApiCode.CONFLICT);
+        assertApiError(
+                () -> service.deleteYearPlan(vicePrincipal, plan.id(), edit(vicePrincipal, plan.id(), true)),
+                ApiCode.CONFLICT);
 
-        service.submitYearPlan(leader3, plan.id(), null);
-        service.returnYearPlan(vicePrincipal, plan.id(), "Sửa");
-        assertApiError(() -> service.deleteYearPlan(vicePrincipal, plan.id()), ApiCode.CONFLICT);
+        service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
+        service.returnYearPlan(vicePrincipal, plan.id(), "Sửa", edit(vicePrincipal, plan.id(), true));
+        assertApiError(
+                () -> service.deleteYearPlan(vicePrincipal, plan.id(), edit(vicePrincipal, plan.id(), true)),
+                ApiCode.CONFLICT);
 
-        YearPlanDetailResponse other = service.createYearPlan(leader4, request(ageGroup4, List.of(), List.of()));
-        service.finishEditing(leader4, other.id());
+        YearPlanDetailResponse other = service.createYearPlan(
+                leader4,
+                request(ageGroup4, List.of(), List.of()),
+                new YearPlanEditRequest(session(leader4), 0L, UUID.randomUUID()));
+        service.finishEditing(leader4, other.id(), edit(leader4, other.id(), false));
         assertThat(service.getYearPlan(vicePrincipal, other.id()).permissions().canDelete())
                 .isTrue();
-        service.deleteYearPlan(vicePrincipal, other.id());
+        service.deleteYearPlan(vicePrincipal, other.id(), edit(vicePrincipal, other.id(), true));
         assertApiError(() -> service.getYearPlan(vicePrincipal, other.id()), ApiCode.NOT_FOUND);
     }
 
     @Test
     @DisplayName("EDU-10: người đang sửa giữ khóa; lưu vẫn Đang sửa; thoát trang mới về Nháp, người kia sửa tiếp")
     void editingLockIsHeldUntilEditorLeaves() {
-        YearPlanDetailResponse created = service.createYearPlan(leader3, sampleRequest());
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
         assertThat(created.status()).isEqualTo(EduPlanStatus.EDITING);
         assertThat(created.editing().userId()).isEqualTo(leader3.userId());
 
         YearPlanDetailResponse seenByVp = service.getYearPlan(vicePrincipal, created.id());
         assertThat(seenByVp.editing().name()).isEqualTo("Demo leader3");
         assertThat(seenByVp.permissions().canEdit()).isFalse();
-        assertApiError(() -> service.startEditing(vicePrincipal, created.id()), ApiCode.CONFLICT);
-        assertApiError(() -> service.updateYearPlan(vicePrincipal, created.id(), sampleRequest()), ApiCode.CONFLICT);
+        assertApiError(
+                () -> service.startEditing(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false)),
+                ApiCode.CONFLICT);
+        assertApiError(
+                () -> service.updateYearPlan(
+                        vicePrincipal, created.id(), sampleRequest(), edit(vicePrincipal, created.id(), true)),
+                ApiCode.CONFLICT);
 
-        assertThat(service.updateYearPlan(leader3, created.id(), sampleRequest())
+        assertThat(service.updateYearPlan(leader3, created.id(), sampleRequest(), edit(leader3, created.id(), true))
                         .status())
                 .isEqualTo(EduPlanStatus.EDITING);
-        YearPlanDetailResponse released = service.finishEditing(leader3, created.id());
+        YearPlanDetailResponse released =
+                service.finishEditing(leader3, created.id(), edit(leader3, created.id(), false));
         assertThat(released.status()).isEqualTo(EduPlanStatus.DRAFT);
         assertThat(released.editing()).isNull();
 
         // Phó HT cùng soạn bản của Tổ trưởng; lúc đó Tổ trưởng không gửi được
-        assertThat(service.startEditing(vicePrincipal, created.id()).status()).isEqualTo(EduPlanStatus.EDITING);
+        assertThat(service.startEditing(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false))
+                        .status())
+                .isEqualTo(EduPlanStatus.EDITING);
         assertThat(service.getYearPlan(leader3, created.id()).permissions().canSubmit())
                 .isFalse();
-        assertApiError(() -> service.submitYearPlan(leader3, created.id(), null), ApiCode.CONFLICT);
+        assertApiError(
+                () -> service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true)),
+                ApiCode.CONFLICT);
         // Thoát lại khi không giữ khóa thì không làm gì
-        assertThat(service.finishEditing(leader3, created.id()).status()).isEqualTo(EduPlanStatus.EDITING);
-        service.finishEditing(vicePrincipal, created.id());
+        assertThat(service.finishEditing(leader3, created.id(), edit(leader3, created.id(), false))
+                        .status())
+                .isEqualTo(EduPlanStatus.EDITING);
+        service.finishEditing(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false));
 
-        assertThat(service.submitYearPlan(leader3, created.id(), null).status()).isEqualTo(EduPlanStatus.PENDING_VP);
+        assertThat(service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true))
+                        .status())
+                .isEqualTo(EduPlanStatus.PENDING_VP);
         // Chờ duyệt: Phó HT sửa thẳng, không khóa
-        assertThat(service.startEditing(vicePrincipal, created.id()).status()).isEqualTo(EduPlanStatus.PENDING_VP);
-        assertApiError(() -> service.startEditing(leader3, created.id()), ApiCode.FORBIDDEN);
+        assertThat(service.startEditing(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false))
+                        .status())
+                .isEqualTo(EduPlanStatus.PENDING_VP);
+        assertApiError(
+                () -> service.startEditing(leader3, created.id(), edit(leader3, created.id(), false)),
+                ApiCode.FORBIDDEN);
     }
 
     @Test
     @DisplayName("EDU-10: bị trả lại thì cả hai sửa được và thoát trang vẫn giữ Bị trả lại")
     void rejectedPlanEditableByBothAndKeepsStatus() {
-        YearPlanDetailResponse plan = service.createYearPlan(leader3, sampleRequest());
-        service.submitYearPlan(leader3, plan.id(), null);
-        service.returnYearPlan(vicePrincipal, plan.id(), "Sửa MT");
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
+        service.returnYearPlan(vicePrincipal, plan.id(), "Sửa MT", edit(vicePrincipal, plan.id(), true));
 
-        YearPlanDetailResponse editing = service.startEditing(vicePrincipal, plan.id());
+        YearPlanDetailResponse editing =
+                service.startEditing(vicePrincipal, plan.id(), edit(vicePrincipal, plan.id(), false));
         assertThat(editing.status()).isEqualTo(EduPlanStatus.EDITING);
         assertThat(editing.lastReturnNote()).isEqualTo("Sửa MT");
-        assertThat(service.finishEditing(vicePrincipal, plan.id()).status()).isEqualTo(EduPlanStatus.REJECTED);
+        assertThat(service.finishEditing(vicePrincipal, plan.id(), edit(vicePrincipal, plan.id(), false))
+                        .status())
+                .isEqualTo(EduPlanStatus.REJECTED);
 
-        assertThat(service.startEditing(leader3, plan.id()).status()).isEqualTo(EduPlanStatus.EDITING);
-        assertThat(service.submitYearPlan(leader3, plan.id(), null).status()).isEqualTo(EduPlanStatus.PENDING_VP);
+        assertThat(service.startEditing(leader3, plan.id(), edit(leader3, plan.id(), false))
+                        .status())
+                .isEqualTo(EduPlanStatus.EDITING);
+        assertThat(service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true))
+                        .status())
+                .isEqualTo(EduPlanStatus.PENDING_VP);
     }
 
     @Test
     @DisplayName("EDU-10: khóa quá 30 phút không lưu thì người khác lấy được, job trả về trạng thái trước")
     void expiredEditLockIsReleased() {
-        YearPlanDetailResponse plan = service.createYearPlan(leader3, sampleRequest());
-        YearPlanDetailResponse other = service.createYearPlan(leader4, request(ageGroup4, List.of(), List.of()));
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse other = service.createYearPlan(
+                leader4,
+                request(ageGroup4, List.of(), List.of()),
+                new YearPlanEditRequest(session(leader4), 0L, UUID.randomUUID()));
         entityManager.flush();
         jdbc.update("UPDATE edu_year_plans SET editing_at = editing_at - INTERVAL '30 minutes'");
         entityManager.clear();
 
         assertThat(service.getYearPlan(vicePrincipal, plan.id()).permissions().canEdit())
                 .isTrue();
-        YearPlanDetailResponse takenOver = service.startEditing(vicePrincipal, plan.id());
+        YearPlanDetailResponse takenOver =
+                service.startEditing(vicePrincipal, plan.id(), edit(vicePrincipal, plan.id(), false));
         assertThat(takenOver.editing().userId()).isEqualTo(vicePrincipal.userId());
 
         assertThat(service.releaseExpiredEditLocks()).isEqualTo(1);
@@ -431,11 +628,10 @@ class EduYearPlanServiceIntegrationTest {
     void datesOutsideSchoolYearAreRejected() {
         YearPlanRequest.Theme early = new YearPlanRequest.Theme(
                 "t-1", null, "Trường mầm non", "TMN", LocalDate.of(2026, 8, 24), LocalDate.of(2026, 9, 4), "", "");
-        assertApiError(
-                () -> service.createYearPlan(leader3, request(ageGroup3, List.of(), List.of(early))),
-                ApiCode.BAD_REQUEST);
-
-        YearPlanDetailResponse plan = service.createYearPlan(leader3, request(ageGroup3, List.of(), List.of()));
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3,
+                request(ageGroup3, List.of(), List.of()),
+                new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
         YearPlanRequest lateBreak = new YearPlanRequest(
                 schoolYear,
                 ageGroup3,
@@ -445,7 +641,10 @@ class EduYearPlanServiceIntegrationTest {
                 List.of(),
                 List.of(new YearPlanRequest.Break(
                         null, "Nghỉ hè", LocalDate.of(2027, 5, 31), LocalDate.of(2027, 6, 5))));
-        assertApiError(() -> service.updateYearPlan(leader3, plan.id(), lateBreak), ApiCode.BAD_REQUEST);
+        service.updateYearPlan(leader3, plan.id(), lateBreak, edit(leader3, plan.id(), true));
+        assertApiError(
+                () -> service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true)),
+                ApiCode.BAD_REQUEST);
     }
 
     private YearPlanRequest sampleRequest() {

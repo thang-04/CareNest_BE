@@ -57,7 +57,7 @@ carenest:
     read-timeout: 5s
   edu-plan:
     # EDU-10: khóa "Đang sửa" kế hoạch năm tự nhả sau khoảng này kể từ lần lưu cuối
-    edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:30m}
+    edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:90s}
 
 management:
   endpoints:

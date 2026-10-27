@@ -30,7 +30,9 @@ public record YearPlanDetailResponse(
         List<Break> breaks,
         List<History> history,
         String lastReturnNote,
-        Permissions permissions) {
+        Permissions permissions,
+        long revision,
+        Instant editExpiresAt) {
 
     public record Domain(Long domainId, String name, String label, List<Row> rows) {}
 

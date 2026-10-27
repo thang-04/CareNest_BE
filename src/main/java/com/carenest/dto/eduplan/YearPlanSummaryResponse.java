@@ -20,4 +20,6 @@ public record YearPlanSummaryResponse(
         PlanActorResponse issued,
         PlanActorResponse editing,
         Instant createdAt,
-        Instant updatedAt) {}
+        Instant updatedAt,
+        long revision,
+        Instant editExpiresAt) {}

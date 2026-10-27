@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,6 +20,8 @@ public interface EduYearPlanRepository extends JpaRepository<EduYearPlan, Long> 
 
     boolean existsBySchoolYearIdAndAgeGroupId(Long schoolYearId, Long ageGroupId);
 
+    Optional<EduYearPlan> findByOwnerIdAndCreatedRequestId(Long ownerId, UUID createdRequestId);
+
     boolean existsByCode(String code);
 
     // Mọi thao tác ghi khóa dòng: hai người cùng bấm sửa thì người sau thấy khóa của người trước (EDU-10)
@@ -27,7 +30,7 @@ public interface EduYearPlanRepository extends JpaRepository<EduYearPlan, Long> 
     Optional<EduYearPlan> findForUpdateById(@Param("id") Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<EduYearPlan> findAllByStatusAndEditingAtLessThanEqual(EduPlanStatus status, Instant editingAt);
+    List<EduYearPlan> findAllByEditingAtLessThanEqual(Instant editingAt);
 
     // EDU-06: toàn trường theo trạng thái được xem, hoặc nhóm tuổi Tổ trưởng phụ trách, hoặc bản đã ban hành của GV
     @Query("""

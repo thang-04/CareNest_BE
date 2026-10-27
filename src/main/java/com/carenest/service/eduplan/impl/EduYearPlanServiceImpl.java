@@ -3,6 +3,7 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.config.EduPlanProperties;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
+import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.dto.organization.AgeGroupResponse;
@@ -136,7 +137,10 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                             ageGroupNames.get(plan.getAgeGroupId()),
                             goalCounts.getOrDefault(plan.getId(), 0L),
                             themeCounts.getOrDefault(plan.getId(), 0L),
-                            names));
+                            names,
+                            plan.getEditingAt() == null
+                                    ? null
+                                    : plan.getEditingAt().plus(properties.editLockTtl())));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -163,30 +167,42 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
-    public YearPlanDetailResponse createYearPlan(CurrentUser currentUser, YearPlanRequest request) {
+    public YearPlanDetailResponse createYearPlan(
+            CurrentUser currentUser, YearPlanRequest request, YearPlanEditRequest edit) {
         String logPrefix =
                 LOG_PREFIX + "|createYearPlan|userId=" + currentUser.userId() + "|ageGroupId=" + request.ageGroupId();
         log.info("{}|START", logPrefix);
         try {
             if (request.schoolYearId() == null || request.ageGroupId() == null) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "School year and age group are required");
+                throw new GlobalException(ApiCode.BAD_REQUEST, "Cần chọn năm học và nhóm tuổi");
             }
             SchoolYearResponse schoolYear = schoolStructureService
                     .findSchoolYear(request.schoolYearId())
-                    .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "School year not found"));
+                    .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "Không tìm thấy năm học"));
             AgeGroupResponse ageGroup = schoolStructureService
                     .findAgeGroup(request.ageGroupId())
-                    .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "Age group not found"));
+                    .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "Không tìm thấy nhóm tuổi"));
             // EDU-02: Phó HT mọi nhóm tuổi, Tổ trưởng chỉ nhóm tuổi mình
             if (!accessPolicy.canCreate(currentUser, ageGroup.id())) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You cannot create a plan for this age group");
+                throw new GlobalException(ApiCode.FORBIDDEN, "Bạn không lập được kế hoạch cho nhóm tuổi này");
             }
-            // EDU-01
-            if (yearPlanRepository.existsBySchoolYearIdAndAgeGroupId(schoolYear.id(), ageGroup.id())) {
-                throw new GlobalException(ApiCode.CONFLICT, "This age group already has a year plan");
+            requireEditContext(edit);
+            Optional<EduYearPlan> retried =
+                    yearPlanRepository.findByOwnerIdAndCreatedRequestId(currentUser.userId(), edit.requestId());
+            if (retried.isPresent()) {
+                EduYearPlan previous = retried.get();
+                if (!previous.getSchoolYearId().equals(request.schoolYearId())
+                        || !previous.getAgeGroupId().equals(request.ageGroupId())) {
+                    throw new GlobalException(ApiCode.CONFLICT, "Yêu cầu tạo đã dùng cho kế hoạch khác");
+                }
+                log.info("{}|END", logPrefix);
+                return toDetail(currentUser, previous);
             }
 
-            requireDatesInSchoolYear(schoolYear, request);
+            // EDU-01
+            if (yearPlanRepository.existsBySchoolYearIdAndAgeGroupId(schoolYear.id(), ageGroup.id())) {
+                throw new GlobalException(ApiCode.CONFLICT, "Nhóm tuổi này đã có kế hoạch năm học");
+            }
 
             Instant now = clock.instant();
             EduYearPlan plan = EduYearPlan.createDraft(
@@ -198,11 +214,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     currentUser.userId(),
                     actorTitle(currentUser),
                     now);
+            plan.acquireSession(currentUser.userId(), edit.sessionId(), now);
+            plan.initializeSave(edit.requestId());
             try {
                 plan = yearPlanRepository.saveAndFlush(plan);
             } catch (DataIntegrityViolationException ex) {
                 // Hai người cùng tạo cho một nhóm tuổi: bản thứ hai vấp unique (school_year_id, age_group_id)
-                throw new GlobalException(ApiCode.CONFLICT, "This age group already has a year plan", ex);
+                throw new GlobalException(ApiCode.CONFLICT, "Nhóm tuổi này đã có kế hoạch năm học", ex);
             }
             saveContent(plan, request);
 
@@ -217,24 +235,24 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
-    public YearPlanDetailResponse updateYearPlan(CurrentUser currentUser, Long planId, YearPlanRequest request) {
+    public YearPlanDetailResponse updateYearPlan(
+            CurrentUser currentUser, Long planId, YearPlanRequest request, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|updateYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
             EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
             requireEditable(currentUser, plan, now);
-            requireDatesInSchoolYear(
-                    schoolStructureService
-                            .findSchoolYear(plan.getSchoolYearId())
-                            .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "School year not found")),
-                    request);
-            // EDU-10: lưu vẫn giữ "Đang sửa" (và gia hạn khóa); chỉ thoát trang soạn mới về Nháp
-            if (plan.getStatus() != EduPlanStatus.PENDING_VP) {
-                plan.startEditing(currentUser.userId(), now);
+            requireSession(currentUser, plan, edit, now);
+            if (edit.requestId().equals(plan.getLastSaveRequestId())) {
+                log.info("{}|END", logPrefix);
+                return toDetail(currentUser, plan);
             }
+            requireRevision(plan, edit);
             plan.updateInfo(request.title().trim(), trimToEmpty(request.description()), now);
             saveContent(plan, request);
+            plan.recordSave(edit.requestId());
+            plan.touchEditing(now);
             if (plan.getStatus() == EduPlanStatus.PENDING_VP) {
                 recordVicePrincipalEdit(currentUser, plan, now);
             }
@@ -250,7 +268,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
-    public YearPlanDetailResponse submitYearPlan(CurrentUser currentUser, Long planId, String note) {
+    public YearPlanDetailResponse submitYearPlan(
+            CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|submitYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
@@ -258,15 +277,17 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             Instant now = clock.instant();
             // EDU-04: Tổ trưởng của nhóm tuổi gửi; PHT tự soạn thì ban hành luôn
             if (!accessPolicy.isTeamLeaderOf(currentUser, plan.getAgeGroupId())) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Only the team leader of this age group can submit it");
+                throw new GlobalException(ApiCode.FORBIDDEN, "Chỉ Tổ trưởng nhóm tuổi này gửi được kế hoạch");
             }
             if (!isDraftLike(plan)) {
-                throw new GlobalException(ApiCode.CONFLICT, "Plan cannot be submitted in its current status");
+                throw new GlobalException(ApiCode.CONFLICT, "Kế hoạch không gửi được ở trạng thái hiện tại");
             }
-            requireNotLockedByOther(currentUser, plan, now);
+            requireSession(currentUser, plan, edit, now);
+            requireRevision(plan, edit);
             requireReadyForReview(plan);
 
             plan.submit(currentUser.userId(), now);
+            plan.recordSave(null);
             yearPlanRepository.save(plan);
             recordEvent(
                     plan,
@@ -289,24 +310,27 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
-    public YearPlanDetailResponse issueYearPlan(CurrentUser currentUser, Long planId, String note) {
+    public YearPlanDetailResponse issueYearPlan(
+            CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|issueYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
             EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
             if (!accessPolicy.isVicePrincipal(currentUser)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Only the vice principal can issue the plan");
+                throw new GlobalException(ApiCode.FORBIDDEN, "Chỉ Phó hiệu trưởng ban hành được kế hoạch");
             }
             // EDU-05: ban hành bản chờ duyệt, hoặc bản nháp do chính PHT soạn
             boolean pending = plan.getStatus() == EduPlanStatus.PENDING_VP;
             if (!pending && !(isDraftLike(plan) && isOwner(currentUser, plan))) {
-                throw new GlobalException(ApiCode.CONFLICT, "Plan cannot be issued in its current status");
+                throw new GlobalException(ApiCode.CONFLICT, "Kế hoạch không ban hành được ở trạng thái hiện tại");
             }
-            requireNotLockedByOther(currentUser, plan, now);
+            requireSession(currentUser, plan, edit, now);
+            requireRevision(plan, edit);
             requireReadyForReview(plan);
 
             plan.issue(currentUser.userId(), now);
+            plan.recordSave(null);
             yearPlanRepository.save(plan);
             recordEvent(plan, ACTION_ISSUE, "Ban hành", currentUser, TITLE_VICE_PRINCIPAL, TONE_OK, note, now);
 
@@ -321,24 +345,28 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
-    public YearPlanDetailResponse returnYearPlan(CurrentUser currentUser, Long planId, String note) {
+    public YearPlanDetailResponse returnYearPlan(
+            CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|returnYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
             EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             if (!accessPolicy.isVicePrincipal(currentUser)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Only the vice principal can return the plan");
+                throw new GlobalException(ApiCode.FORBIDDEN, "Chỉ Phó hiệu trưởng trả lại được kế hoạch");
             }
             if (plan.getStatus() != EduPlanStatus.PENDING_VP) {
-                throw new GlobalException(ApiCode.CONFLICT, "Plan cannot be returned in its current status");
+                throw new GlobalException(ApiCode.CONFLICT, "Kế hoạch không trả lại được ở trạng thái hiện tại");
             }
             // EDU-05: trả lại bắt buộc lý do (request đã @NotBlank; giữ kiểm ở đây cho caller khác)
             if (note == null || note.isBlank()) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Return reason is required");
+                throw new GlobalException(ApiCode.BAD_REQUEST, "Cần ghi lý do trả lại");
             }
 
             Instant now = clock.instant();
+            requireSession(currentUser, plan, edit, now);
+            requireRevision(plan, edit);
             plan.returnToOwner(now);
+            plan.recordSave(null);
             yearPlanRepository.save(plan);
             recordEvent(plan, ACTION_RETURN, "Trả lại để sửa", currentUser, TITLE_VICE_PRINCIPAL, TONE_ERR, note, now);
 
@@ -353,19 +381,20 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
-    public void deleteYearPlan(CurrentUser currentUser, Long planId) {
+    public void deleteYearPlan(CurrentUser currentUser, Long planId, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|deleteYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
             EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             // EDU-07: chỉ Phó HT xóa, và chỉ khi Nháp (kể cả đang do chính mình sửa)
             if (!canDeleteAsVicePrincipal(currentUser)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Only the vice principal can delete a year plan");
+                throw new GlobalException(ApiCode.FORBIDDEN, "Chỉ Phó hiệu trưởng xóa được kế hoạch năm học");
             }
             if (plan.baseStatus() != EduPlanStatus.DRAFT) {
-                throw new GlobalException(ApiCode.CONFLICT, "Only a draft plan can be deleted");
+                throw new GlobalException(ApiCode.CONFLICT, "Chỉ xóa được kế hoạch đang nháp");
             }
-            requireNotLockedByOther(currentUser, plan, clock.instant());
+            requireSession(currentUser, plan, edit, clock.instant());
+            requireRevision(plan, edit);
             // Bảng con xóa theo ON DELETE CASCADE
             yearPlanRepository.delete(plan);
             log.info("{}|END", logPrefix);
@@ -377,17 +406,18 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
-    public YearPlanDetailResponse startEditing(CurrentUser currentUser, Long planId) {
+    public YearPlanDetailResponse startEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|startEditing|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
             EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
             requireEditable(currentUser, plan, now);
-            // EDU-10: chờ duyệt chỉ PHT sửa nên không cần khóa
-            if (plan.getStatus() != EduPlanStatus.PENDING_VP) {
-                plan.startEditing(currentUser.userId(), now);
-            }
+            requireEditContext(edit);
+            // EDU-10 (Tiền 27/10): cùng tài khoản mở lại (vd. sau mất điện) thì phiên mới nhận quyền ngay, phiên cũ mất
+            // quyền;
+            // người khác vẫn chờ khóa hết hạn (requireEditable ⇒ requireNotLockedByOther)
+            plan.acquireSession(currentUser.userId(), edit.sessionId(), now);
             YearPlanDetailResponse response = toDetail(currentUser, plan);
             log.info("{}|status={}|END", logPrefix, plan.getStatus());
             return response;
@@ -399,13 +429,14 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
-    public YearPlanDetailResponse finishEditing(CurrentUser currentUser, Long planId) {
+    public YearPlanDetailResponse finishEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|finishEditing|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
             EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
             // Không giữ khóa thì bỏ qua: trang soạn gọi khi thoát, kể cả lúc khóa đã hết hạn
-            if (plan.isEditingBy(currentUser.userId())) {
+            requireEditContext(edit);
+            if (plan.isEditingBy(currentUser.userId()) && edit.sessionId().equals(plan.getEditSessionId())) {
                 plan.finishEditing();
             }
             YearPlanDetailResponse response = toDetail(currentUser, plan);
@@ -421,14 +452,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     @Transactional
     public int releaseExpiredEditLocks() {
         String logPrefix = LOG_PREFIX + "|releaseExpiredEditLocks";
+        log.info("{}|START", logPrefix);
         try {
             Instant now = clock.instant();
-            List<EduYearPlan> expired = yearPlanRepository.findAllByStatusAndEditingAtLessThanEqual(
-                    EduPlanStatus.EDITING, now.minus(properties.editLockTtl()));
+            List<EduYearPlan> expired =
+                    yearPlanRepository.findAllByEditingAtLessThanEqual(now.minus(properties.editLockTtl()));
             expired.forEach(EduYearPlan::finishEditing);
-            if (!expired.isEmpty()) {
-                log.info("{}|count={}|END", logPrefix, expired.size());
-            }
+            log.info("{}|count={}|END", logPrefix, expired.size());
             return expired.size();
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -436,9 +466,54 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
     }
 
+    @Override
+    @Transactional
+    public YearPlanDetailResponse heartbeat(CurrentUser currentUser, Long planId, YearPlanEditRequest edit) {
+        String logPrefix = LOG_PREFIX + "|heartbeat|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        try {
+            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            Instant now = clock.instant();
+            requireEditable(currentUser, plan, now);
+            requireSession(currentUser, plan, edit, now);
+            plan.touchEditing(now);
+            log.info("{}|END", logPrefix);
+            return toDetail(currentUser, plan);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private void requireEditContext(YearPlanEditRequest edit) {
+        if (edit == null
+                || edit.sessionId() == null
+                || edit.revision() == null
+                || edit.requestId() == null
+                || edit.revision() < 0) {
+            throw new GlobalException(ApiCode.BAD_REQUEST, "Thiếu thông tin phiên sửa");
+        }
+    }
+
+    private void requireSession(CurrentUser user, EduYearPlan plan, YearPlanEditRequest edit, Instant now) {
+        requireEditContext(edit);
+        if (!plan.isEditingBy(user.userId())
+                || !edit.sessionId().equals(plan.getEditSessionId())
+                || plan.isEditLockExpired(now, properties.editLockTtl())) {
+            throw new GlobalException(
+                    ApiCode.CONFLICT, "Đã mất quyền sửa: phiên đã hết hạn hoặc kế hoạch đang mở ở tab khác");
+        }
+    }
+
+    private void requireRevision(EduYearPlan plan, YearPlanEditRequest edit) {
+        if (edit.revision() != plan.getContentRevision()) {
+            throw new GlobalException(ApiCode.CONFLICT, "Kế hoạch đã được thay đổi ở nơi khác. Tải lại để đối chiếu");
+        }
+    }
+
     private void requirePermission(CurrentUser user, String permission) {
         if (!accessPolicy.hasPermission(user, permission)) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have permission for year plans");
+            throw new GlobalException(ApiCode.FORBIDDEN, "Bạn không có quyền với kế hoạch năm học");
         }
     }
 
@@ -447,9 +522,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         requirePermission(user, EduPermission.GOALS_VIEW);
         EduYearPlan plan = yearPlanRepository
                 .findById(planId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Year plan not found"));
+                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Không tìm thấy kế hoạch năm học"));
         if (!accessPolicy.viewScope(user).allows(plan.getAgeGroupId(), plan.getStatus())) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this plan");
+            throw new GlobalException(ApiCode.FORBIDDEN, "Bạn không xem được kế hoạch này");
         }
         return plan;
     }
@@ -458,30 +533,36 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         requirePermission(user, EduPermission.GOALS_VIEW);
         EduYearPlan plan = yearPlanRepository
                 .findForUpdateById(planId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Year plan not found"));
+                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Không tìm thấy kế hoạch năm học"));
         if (!accessPolicy.viewScope(user).allows(plan.getAgeGroupId(), plan.getStatus())) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this plan");
+            throw new GlobalException(ApiCode.FORBIDDEN, "Bạn không xem được kế hoạch này");
         }
         return plan;
     }
 
     private void requireEditable(CurrentUser user, EduYearPlan plan, Instant now) {
+        if (plan.getStatus() == EduPlanStatus.PENDING_VP && !accessPolicy.isVicePrincipal(user)) {
+            throw new GlobalException(ApiCode.FORBIDDEN, "Kế hoạch đang chờ duyệt: chỉ Phó hiệu trưởng sửa được");
+        }
         requireNotLockedByOther(user, plan, now);
         // EDU-03
         if (!canEdit(user, plan, now)) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You cannot edit this plan");
+            throw new GlobalException(ApiCode.FORBIDDEN, "Bạn không sửa được kế hoạch này");
         }
     }
 
     private void requireNotLockedByOther(CurrentUser user, EduYearPlan plan, Instant now) {
         if (isLockedByOther(user, plan, now)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Plan is being edited by another user");
+            String editor = accountService
+                    .findFullNames(List.of(plan.getEditingBy()))
+                    .getOrDefault(plan.getEditingBy(), "người khác");
+            throw new GlobalException(ApiCode.CONFLICT, "Đang được " + editor + " sửa");
         }
     }
 
     // EDU-10: khóa của người khác còn hạn thì người này chỉ xem
     private boolean isLockedByOther(CurrentUser user, EduYearPlan plan, Instant now) {
-        return plan.getStatus() == EduPlanStatus.EDITING
+        return plan.getEditingBy() != null
                 && !plan.isEditingBy(user.userId())
                 && !plan.isEditLockExpired(now, properties.editLockTtl());
     }
@@ -516,25 +597,62 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     // Điều kiện của bước "Chủ đề và sự kiện" + "Mục tiêu" trên UI, kiểm khi gửi / ban hành (EDU-04, EDU-05)
     private void requireReadyForReview(EduYearPlan plan) {
+        if (plan.getTitle().isBlank()) {
+            throw new GlobalException(ApiCode.CONFLICT, "Cần nhập tên kế hoạch trước khi gửi");
+        }
+        SchoolYearResponse year = schoolStructureService
+                .findSchoolYear(plan.getSchoolYearId())
+                .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "Không tìm thấy năm học"));
+        List<EduBreak> breaks = breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
+        for (EduBreak item : breaks) {
+            if (item.getStartDate() != null
+                    && item.getEndDate() != null
+                    && item.getEndDate().isBefore(item.getStartDate())) {
+                throw new GlobalException(ApiCode.CONFLICT, "Ngày kết thúc đợt nghỉ không được trước ngày bắt đầu");
+            }
+        }
+        List<YearPlanRequest.Theme> dateThemes =
+                themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
+                        .map(t -> new YearPlanRequest.Theme(
+                                "date", t.getId(), t.getName(), t.getAbbr(), t.getStartDate(), t.getEndDate(), "", ""))
+                        .toList();
+        requireDatesInSchoolYear(
+                year,
+                new YearPlanRequest(
+                        null,
+                        null,
+                        plan.getTitle(),
+                        "",
+                        List.of(),
+                        dateThemes,
+                        breaks.stream()
+                                .map(b -> new YearPlanRequest.Break(
+                                        b.getId(), b.getLabel(), b.getStartDate(), b.getEndDate()))
+                                .toList()));
         List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
         Set<String> abbrs = new HashSet<>();
         for (EduTheme theme : themes) {
             if (theme.getName().isBlank() || theme.getAbbr().isBlank()) {
-                throw new GlobalException(ApiCode.CONFLICT, "Every theme needs a name and an abbreviation");
+                throw new GlobalException(ApiCode.CONFLICT, "Mỗi chủ đề cần có tên và tên viết tắt");
             }
             if (!abbrs.add(theme.getAbbr().trim().toLowerCase(Locale.ROOT))) {
-                throw new GlobalException(ApiCode.CONFLICT, "Theme abbreviations must be unique");
+                throw new GlobalException(ApiCode.CONFLICT, "Tên viết tắt của các chủ đề không được trùng nhau");
             }
             if (theme.getStartDate() != null
                     && theme.getEndDate() != null
                     && theme.getEndDate().isBefore(theme.getStartDate())) {
-                throw new GlobalException(ApiCode.CONFLICT, "Theme end date must not be before its start date");
+                throw new GlobalException(ApiCode.CONFLICT, "Ngày kết thúc chủ đề không được trước ngày bắt đầu");
             }
+        }
+        if (goalRowRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
+                .anyMatch(row ->
+                        row.getKind() == EduGoalRowKind.GOAL && row.getText().isBlank())) {
+            throw new GlobalException(ApiCode.CONFLICT, "Mỗi mục tiêu cần có nội dung trước khi gửi");
         }
         boolean hasGoal = goalRowRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
                 .anyMatch(row -> row.getKind() == EduGoalRowKind.GOAL);
         if (!hasGoal) {
-            throw new GlobalException(ApiCode.CONFLICT, "Plan needs at least one goal");
+            throw new GlobalException(ApiCode.CONFLICT, "Kế hoạch cần ít nhất một mục tiêu");
         }
     }
 
@@ -573,7 +691,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         List<YearPlanRequest.Domain> requestDomains = new ArrayList<>(nullToEmpty(request.domains()));
         for (YearPlanRequest.Domain domain : requestDomains) {
             if (!domains.containsKey(domain.domainId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Unknown education domain: " + domain.domainId());
+                throw new GlobalException(ApiCode.BAD_REQUEST, "Không có lĩnh vực giáo dục: " + domain.domainId());
             }
         }
         // EDU-09: MT đánh số liên tục cả năm theo thứ tự lĩnh vực đã cấu hình, rồi thứ tự dòng
@@ -655,7 +773,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         short sortOrder = 0;
         for (YearPlanRequest.Theme requestTheme : requestThemes) {
             if (idByKey.containsKey(requestTheme.key())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Duplicate theme key: " + requestTheme.key());
+                throw new GlobalException(ApiCode.BAD_REQUEST, "Trùng mã chủ đề: " + requestTheme.key());
             }
             EduTheme theme =
                     Optional.ofNullable(requestTheme.id()).map(existing::get).orElseGet(() -> EduTheme.create(planId));
@@ -814,7 +932,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         .toList(),
                 events.stream().map(mapper::toHistory).toList(),
                 lastReturnNote,
-                permissionsOf(user, plan));
+                permissionsOf(user, plan),
+                plan.getContentRevision(),
+                plan.getEditingAt() == null ? null : plan.getEditingAt().plus(properties.editLockTtl()));
     }
 
     private YearPlanDetailResponse.Permissions permissionsOf(CurrentUser user, EduYearPlan plan) {
@@ -827,7 +947,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 canEdit(user, plan, now),
                 free && draftLike && accessPolicy.isTeamLeaderOf(user, plan.getAgeGroupId()),
                 free && vicePrincipal && (pending || (draftLike && isOwner(user, plan))),
-                vicePrincipal && pending,
+                free && vicePrincipal && pending,
                 free && plan.baseStatus() == EduPlanStatus.DRAFT && canDeleteAsVicePrincipal(user));
     }
 

@@ -1,5 +1,6 @@
 package com.carenest.config;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -99,9 +100,13 @@ class SecurityConfigTest {
         mockMvc.perform(options(TEACHER_ENDPOINT)
                         .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, HttpHeaders.AUTHORIZATION))
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "Authorization, X-Edit-Session, X-Plan-Revision, X-Request-Id, Range"))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("X-Edit-Session")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("Range")));
     }
 
     @Test
