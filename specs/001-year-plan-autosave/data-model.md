@@ -1,6 +1,6 @@
 # Thiết kế dữ liệu — quyền sửa và tự lưu
 
-Migration mới: `src/main/resources/db/migration/V24__add_edu_year_plan_edit_sessions.sql`. Không sửa migration cũ.
+Migration mới: `src/main/resources/db/migration/V27__add_edu_year_plan_edit_sessions.sql`. Không sửa migration cũ.
 
 ## edu_year_plans
 

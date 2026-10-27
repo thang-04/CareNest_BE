@@ -29,7 +29,7 @@ Quyền theo tài khoản không phân biệt hai tab; nhận quyền sửa khô
 
 ## Fix
 
-V24 thêm phiên/revision/request ID; mọi ghi kiểm phiên/revision. Web queue tuần tự, giữ keystroke mới khi ánh xạ ID; retry cùng request ID; service phục hồi lưu mỗi phiên riêng, không tự ghi đè khi nối mạng lại.
+V27 (trước merge daily-attendance là V24) thêm phiên/revision/request ID; mọi ghi kiểm phiên/revision. Web queue tuần tự, giữ keystroke mới khi ánh xạ ID; retry cùng request ID; service phục hồi lưu mỗi phiên riêng, không tự ghi đè khi nối mạng lại.
 
 ## Regression test
 

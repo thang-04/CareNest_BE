@@ -10,7 +10,7 @@
 
 ## Phase 2: Foundational
 
-- [x] T003 Thêm migration V24 và trường phiên/revision/idempotency trong src/main/resources/db/migration/V24__add_edu_year_plan_edit_sessions.sql và entity/eduplan/EduYearPlan.java.
+- [x] T003 Thêm migration V27 và trường phiên/revision/idempotency trong src/main/resources/db/migration/V27__add_edu_year_plan_edit_sessions.sql và entity/eduplan/EduYearPlan.java.
 - [x] T004 Truyền context qua dto/eduplan/YearPlanEditRequest.java, service/eduplan/EduYearPlanService.java và controller/eduplan/EduYearPlanController.java.
 - [x] T005 Đổi TTL 90s và truy vấn cleanup có khóa trong config/EduPlanProperties.java, application.yml, repository/eduplan/EduYearPlanRepository.java.
 

@@ -9,7 +9,7 @@
 - [x] T004 Viết test giới hạn/type/binding trong src/test/java/com/carenest/service/eduplan/LearningResourcePolicyTest.java.
 - [x] T005 Viết StorageServiceTest trong src/test/java/com/carenest/integration/storage/StorageServiceTest.java cho confinement/cleanup.
 - [x] T006 Tạo policy trong src/main/java/com/carenest/service/eduplan/LearningResourcePolicy.java và StorageService trong integration/storage (FR-004/005/006/009).
-- [x] T007 Migration V25__add_edu_learning_resources.sql, entity EduLearningResource.java/repository EduLearningResourceRepository.java theo data-model.md.
+- [x] T007 Migration V28__add_edu_learning_resources.sql, entity EduLearningResource.java/repository EduLearningResourceRepository.java theo data-model.md.
 - [x] T008 Cấu hình media root/multipart trong application.yml, Dockerfile/compose.yaml/gitignore cho private persistent data (FR-006).
 
 ## Phase 3 — US1: giữ luồng tài liệu
