@@ -1,13 +1,14 @@
 package com.carenest.dto.meals;
 
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.StaffRole;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
 /**
  * Sổ báo ăn một bữa của một điểm trường. id null + status OPEN = tạm tính trước giờ chốt. Người duyệt thấy số chờ xác
- * nhận lại (needsReconfirmation); bếp chỉ thấy số đã xác nhận.
+ * nhận lại (needsReconfirmation); bếp chỉ thấy số đã xác nhận. confirmedByRole: HT hay PHT xác nhận.
  */
 public record MealCountResponse(
         Long id,
@@ -20,6 +21,7 @@ public record MealCountResponse(
         Instant aggregatedAt,
         Long confirmedBy,
         String confirmedByName,
+        StaffRole confirmedByRole,
         Instant confirmedAt,
         List<Line> classes,
         Totals totals,

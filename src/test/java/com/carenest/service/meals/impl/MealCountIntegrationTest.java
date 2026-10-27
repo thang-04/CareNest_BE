@@ -18,6 +18,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -166,17 +167,18 @@ class MealCountIntegrationTest {
                         MealCountResponse.Line::present, MealCountResponse.Line::absent, MealCountResponse.Line::normal)
                 .containsExactly(1, 1, 1);
         assertThat(service.getMealCounts(kitchenA, TODAY, null).counts()).isEmpty();
-        // AUTH-02: PHT điểm trường khác không thấy, không xác nhận được; HT chỉ xem (Cần chốt 24/10)
+        // AUTH-02: PHT điểm trường khác không thấy, không xác nhận được; HT xác nhận được, không điều chỉnh (Cần chốt
+        // 27/10)
         assertThat(service.getMealCounts(vpB, TODAY, null).counts()).isEmpty();
         expectError(() -> service.confirm(vpB, lunch.id()), ApiCode.FORBIDDEN);
-        expectError(() -> service.confirm(principal, lunch.id()), ApiCode.FORBIDDEN);
         assertThat(lunch(service.getMealCounts(principal, TODAY, null)))
                 .extracting(MealCountResponse::canConfirm, MealCountResponse::canAdjust)
-                .containsExactly(false, false);
+                .containsExactly(true, false);
 
         MealCountResponse confirmed = service.confirm(vpA, lunch.id());
         assertThat(confirmed.status()).isEqualTo("CONFIRMED");
         assertThat(confirmed.confirmedByName()).isEqualTo("vpa");
+        assertThat(confirmed.confirmedByRole()).isEqualTo(StaffRole.VICE_PRINCIPAL);
         assertThat(confirmed.classes().getFirst().ageGroupId()).isNotNull();
         expectError(() -> service.confirm(vpA, lunch.id()), ApiCode.CONFLICT);
         assertThat(service.getMealCounts(kitchenA, TODAY, null).counts())
@@ -211,6 +213,31 @@ class MealCountIntegrationTest {
                 .isEqualTo(2);
         assertThat(lunch(service.getMealCounts(vpA, TODAY, null)).needsReconfirmation())
                 .isFalse();
+    }
+
+    @Test
+    void principalConfirmsAnyCampusAndReconfirmsAfterChange() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1)));
+        clock.now = AFTER_CUTOFF;
+        long lunchId = lunch(service.getMealCounts(principal, TODAY, null)).id();
+
+        MealCountResponse confirmed = service.confirm(principal, lunchId);
+        assertThat(confirmed.status()).isEqualTo("CONFIRMED");
+        assertThat(confirmed.confirmedByName()).isEqualTo("principal");
+        assertThat(confirmed.confirmedByRole()).isEqualTo(StaffRole.PRINCIPAL);
+        expectError(() -> service.confirm(principal, lunchId), ApiCode.CONFLICT);
+
+        // ATT-07: đổi điểm danh sau xác nhận ⇒ chờ xác nhận lại; HT xác nhận lại, bếp nhận số mới
+        unlockService.unlockDay(
+                vpA, new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "Trẻ đến muộn"));
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        service.markAttendanceChanged(TODAY, campusA, classA);
+        assertThat(lunch(service.getMealCounts(principal, TODAY, null)))
+                .extracting(MealCountResponse::needsReconfirmation, MealCountResponse::canConfirm)
+                .containsExactly(true, true);
+        service.confirm(principal, lunchId);
+        assertThat(lunch(service.getMealCounts(kitchenA, TODAY, null)).totals().normal())
+                .isEqualTo(2);
     }
 
     @Test
@@ -287,8 +314,8 @@ class MealCountIntegrationTest {
     private static void expectError(ThrowingCallable call, ApiCode apiCode) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(apiCode);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(apiCode.getHttpStatus());
     }
 
     private long insertId(String sql) {

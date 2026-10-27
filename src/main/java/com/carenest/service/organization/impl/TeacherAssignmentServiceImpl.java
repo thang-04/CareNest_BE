@@ -64,7 +64,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             Long campusId = parseCampusId(campusParam);
             Set<Long> viewable = schoolConfigAccess.viewableCampusIds(currentUser);
             if (campusId != null && viewable != null && !viewable.contains(campusId)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             SchoolYear year = findYear(schoolYearId);
             List<Classroom> classes =
@@ -100,7 +100,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             schoolConfigAccess.checkPrincipal(currentUser);
             Classroom classroom = classroomRepository
                     .findById(classId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
             SchoolYear year = findYear(classroom.getSchoolYearId());
             SchoolYearRules.checkOpen(year);
             Set<Long> teacherIds = new HashSet<>(request.teacherIds());
@@ -110,8 +110,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             // Danh sách rỗng: gỡ toàn bộ giáo viên (phân công đã chạy kết thúc hôm trước, lịch sử giữ lại).
             // Năm đang học thì lớp phải còn giáo viên: chỉ gỡ kèm người thay thế (Cần chốt 22/10/2026)
             if (teacherIds.isEmpty() && year.getStatus() == SchoolYearStatus.ACTIVE) {
-                throw new GlobalException(
-                        ApiCode.BAD_REQUEST, "A class of the active school year needs a replacement teacher");
+                throw GlobalException.of(ApiCode.REPLACEMENT_TEACHER_REQUIRED);
             }
             if (teacherIds.isEmpty()) {
                 current.forEach(assignment -> endOrRemove(assignment, start));
@@ -122,7 +121,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 return response;
             }
             if (teacherIds.size() != request.teacherIds().size()) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Choose 2 different teachers for the class");
+                throw GlobalException.of(ApiCode.TEACHERS_MUST_DIFFER);
             }
             checkAccountsActive(teacherIds);
             // Lớp còn 1 giáo viên mà không chọn chủ nhiệm (vd. vừa gỡ chủ nhiệm) ⇒ người còn lại làm chủ nhiệm
@@ -131,7 +130,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     : request.homeroomTeacherId();
             // Chủ nhiệm không bắt buộc khi lưu (chọn sau được); có chọn thì phải là giáo viên của lớp
             if (homeroomId != null && !teacherIds.contains(homeroomId)) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Homeroom teacher must be one of the class teachers");
+                throw GlobalException.of(ApiCode.HOMEROOM_NOT_IN_CLASS);
             }
             // Chỉ phân công giáo viên thuộc điểm trường của lớp
             Set<Long> campusTeachers = teacherDirectory.findTeachers(schoolConfigAccess.today()).stream()
@@ -139,7 +138,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                     .map(TeacherCandidateResponse::id)
                     .collect(Collectors.toSet());
             if (!campusTeachers.containsAll(teacherIds)) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Only teachers of the class campus can be assigned");
+                throw GlobalException.of(ApiCode.TEACHER_WRONG_CAMPUS);
             }
             checkOneClassPerTeacher(classroom, teacherIds);
             Set<Long> kept = new HashSet<>();
@@ -200,7 +199,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             SchoolYear year = findYear(request.schoolYearId());
             SchoolYearRules.checkOpen(year);
             if (!ageGroupRepository.existsById(request.ageGroupId())) {
-                throw new GlobalException(ApiCode.NOT_FOUND, "Age group not found");
+                throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
             }
             if (request.userId() != null) {
                 checkAccountsActive(Set.of(request.userId()));
@@ -208,7 +207,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (request.userId() != null
                     && teacherDirectory.findTeachers(schoolConfigAccess.today()).stream()
                             .noneMatch(t -> t.id().equals(request.userId()))) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Team leader must be a working teacher");
+                throw GlobalException.of(ApiCode.TEAM_LEADER_INVALID);
             }
             LocalDate start = effectiveStart(year);
             // 1 tổ trưởng/nhóm tuổi/năm cho cả trường; 1 giáo viên làm tổ trưởng tối đa 1 nhóm tuổi trong năm
@@ -252,7 +251,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         try {
             Classroom classroom = classroomRepository
                     .findById(classId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
             schoolConfigAccess.checkCanViewCampus(currentUser, classroom.getCampusId());
             List<AssignmentHistoryResponse> history = toHistory(staffAssignmentRepository.findTeacherHistory(classId));
             log.info("{}|END", logPrefix);
@@ -271,7 +270,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         log.info("{}|START", logPrefix);
         try {
             if (!ageGroupRepository.existsById(ageGroupId)) {
-                throw new GlobalException(ApiCode.NOT_FOUND, "Age group not found");
+                throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
             }
             SchoolYear year = findYear(schoolYearId);
             List<AssignmentHistoryResponse> history = toHistory(staffAssignmentRepository.findTeamLeaderHistory(
@@ -315,7 +314,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
 
     private void checkAccountsActive(Set<Long> userIds) {
         if (!staffAssignmentRepository.findInactiveUserIds(userIds).isEmpty()) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Teacher account is locked");
+            throw GlobalException.of(ApiCode.TEACHER_ACCOUNT_LOCKED);
         }
     }
 
@@ -336,9 +335,8 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                             .map(RoomRepository.UserName::getFullName)
                             .findFirst()
                             .orElse("#" + a.getUserId());
-                    throw new GlobalException(
-                            ApiCode.CONFLICT,
-                            "Teacher " + name + " already teaches class " + otherClasses.get(a.getClassroomId()));
+                    throw GlobalException.of(
+                            ApiCode.TEACHER_ALREADY_ASSIGNED, name, otherClasses.get(a.getClassroomId()));
                 });
     }
 
@@ -450,6 +448,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 .collect(Collectors.toMap(
                         ClassroomRepository.ClassroomCount::getClassroomId,
                         ClassroomRepository.ClassroomCount::getTotal));
+        // Lớp năm sắp diễn ra chưa có trẻ đang học: hiện số trẻ đã xếp lớp (dự kiến)
+        classroomRepository
+                .countPlannedChildren(ids)
+                .forEach(p -> children.merge(p.getClassroomId(), p.getTotal(), Long::sum));
         return classes.stream()
                 .map(c -> {
                     List<StaffAssignment> rows = teachers.getOrDefault(c.getId(), List.of());
@@ -493,7 +495,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             return null;
         }
         if (!campusParam.matches("\\d+")) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "campusId must be a number or 'all'");
+            throw GlobalException.of(ApiCode.INVALID_VALUE, "campusId");
         }
         return Long.valueOf(campusParam);
     }
@@ -502,10 +504,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         if (schoolYearId == null) {
             return schoolYearRepository
                     .findFirstByStatus(SchoolYearStatus.ACTIVE)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "No active school year"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.NO_ACTIVE_SCHOOL_YEAR));
         }
         return schoolYearRepository
                 .findById(schoolYearId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "School year not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
     }
 }

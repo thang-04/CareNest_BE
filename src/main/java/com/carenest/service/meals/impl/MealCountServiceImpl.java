@@ -64,7 +64,7 @@ public class MealCountServiceImpl implements MealCountService {
     private final AccountService accountService;
     private final Clock clock;
 
-    /** Phạm vi người xem: HT toàn trường (chỉ xem); PHT, bếp theo điểm trường được phân công (AUTH-01, AUTH-02). */
+    /** Phạm vi người xem: HT toàn trường; PHT, bếp theo điểm trường được phân công (AUTH-01, AUTH-02). */
     private record Viewer(CurrentUser user, boolean principal, Set<Long> leadCampuses, Set<Long> kitchenCampuses) {
         boolean sees(Long campusId) {
             return principal || leadCampuses.contains(campusId) || kitchenCampuses.contains(campusId);
@@ -75,9 +75,18 @@ public class MealCountServiceImpl implements MealCountService {
             return principal || leadCampuses.contains(campusId);
         }
 
-        // NUT-02: chỉ PHT điểm trường xác nhận, điều chỉnh (Cần chốt 24/10/2026); HT chỉ xem
-        boolean manages(Long campusId) {
+        // NUT-02 (Cần chốt 27/10/2026): HT xác nhận được mọi điểm trường, PHT điểm trường mình
+        boolean confirms(Long campusId) {
+            return principal || leadCampuses.contains(campusId);
+        }
+
+        // NUT-02: điều chỉnh số suất vẫn chỉ PHT điểm trường
+        boolean adjusts(Long campusId) {
             return leadCampuses.contains(campusId);
+        }
+
+        StaffRole confirmerRole() {
+            return principal ? StaffRole.PRINCIPAL : StaffRole.VICE_PRINCIPAL;
         }
     }
 
@@ -165,16 +174,16 @@ public class MealCountServiceImpl implements MealCountService {
             Viewer viewer = viewer(currentUser);
             MealCount count = mealCountRepository
                     .findById(mealCountId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Meal count not found"));
-            if (!viewer.manages(count.getCampusId())) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this meal count");
+                    .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_COUNT_NOT_FOUND));
+            if (!viewer.confirms(count.getCampusId())) {
+                throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
             Year year = editableYear(count.getSchoolYearId());
             if (count.isConfirmed() && !count.hasPending()) {
-                throw new GlobalException(ApiCode.CONFLICT, "Meal count is already confirmed");
+                throw GlobalException.of(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
             }
             Instant at = clock.instant();
-            count.confirm(currentUser.userId(), at);
+            count.confirm(currentUser.userId(), viewer.confirmerRole(), at);
             historyRepository.save(
                     MealCountHistory.of(count.getId(), MealCountHistory.CONFIRMED, currentUser.userId(), at));
             mealCountRepository.flush();
@@ -193,15 +202,15 @@ public class MealCountServiceImpl implements MealCountService {
         log.info("{}|START", logPrefix);
         try {
             Viewer viewer = viewer(currentUser);
-            if (!viewer.manages(request.campusId())) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this meal count");
+            if (!viewer.adjusts(request.campusId())) {
+                throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
             List<MealCount> counts =
                     mealCountRepository.findByCampusIdAndDate(request.campusId(), request.date()).stream()
                             .filter(c -> request.session() == null || c.getSession() == request.session())
                             .toList();
             if (counts.isEmpty()) {
-                throw new GlobalException(ApiCode.NOT_FOUND, "Meal count not found");
+                throw GlobalException.of(ApiCode.MEAL_COUNT_NOT_FOUND);
             }
             Year year = editableYear(counts.getFirst().getSchoolYearId());
             Instant at = clock.instant();
@@ -220,7 +229,7 @@ public class MealCountServiceImpl implements MealCountService {
                 changed++;
             }
             if (changed == 0) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Meal count is unchanged");
+                throw GlobalException.of(ApiCode.MEAL_COUNT_UNCHANGED);
             }
             mealCountRepository.flush();
             List<MealCountResponse> response =
@@ -281,7 +290,7 @@ public class MealCountServiceImpl implements MealCountService {
         Set<Long> lead = campusesOf(assignments, user, CareNestRole.VICE_PRINCIPAL, StaffRole.VICE_PRINCIPAL);
         Set<Long> kitchen = campusesOf(assignments, user, CareNestRole.KITCHEN_STAFF, StaffRole.KITCHEN_STAFF);
         if (!principal && lead.isEmpty() && kitchen.isEmpty()) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to meal counts");
+            throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
         }
         return new Viewer(user, principal, lead, kitchen);
     }
@@ -313,7 +322,7 @@ public class MealCountServiceImpl implements MealCountService {
     private Year editableYear(Long schoolYearId) {
         Year year = year(schoolYearId);
         if (year == null || !year.active()) {
-            throw new GlobalException(ApiCode.CONFLICT, "Meal counts of an inactive school year are read-only");
+            throw GlobalException.of(ApiCode.MEAL_COUNT_YEAR_READ_ONLY);
         }
         return year;
     }
@@ -401,12 +410,13 @@ public class MealCountServiceImpl implements MealCountService {
                 count.getAggregatedAt(),
                 count.getConfirmedBy(),
                 nameOf(names, count.getConfirmedBy()),
+                count.getConfirmedByRole(),
                 count.getConfirmedAt(),
                 lines,
                 totals(lines),
                 reviewer ? adjustments : List.of(),
-                year.active() && viewer.manages(count.getCampusId()) && status == MealCountStatus.PENDING_CONFIRMATION,
-                year.active() && viewer.manages(count.getCampusId()));
+                year.active() && viewer.confirms(count.getCampusId()) && status == MealCountStatus.PENDING_CONFIRMATION,
+                year.active() && viewer.adjusts(count.getCampusId()));
     }
 
     private static MealCountResponse toPreview(
@@ -436,6 +446,7 @@ public class MealCountServiceImpl implements MealCountService {
                 session,
                 OPEN,
                 false,
+                null,
                 null,
                 null,
                 null,

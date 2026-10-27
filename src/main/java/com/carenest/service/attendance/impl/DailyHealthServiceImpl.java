@@ -106,37 +106,36 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             }
             ClassroomInfoResponse cls = classroomService
                     .findClassroomInfo(request.classId())
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
             if (!rules.canRecord(currentUser, cls)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this class");
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "Health can only be recorded for classes of the active school year");
+                throw GlobalException.of(ApiCode.HEALTH_YEAR_NOT_ACTIVE);
             }
             childInClass(cls.id(), request.childId(), request.date());
             // HLT-07: ghi cả sau giờ chốt, khóa khi hết ngày
             // TODO(Cần): khi có BE Đón trẻ, khóa từ lúc trẻ được trả cho phụ huynh (HLT-07)
             if (!request.date().equals(rules.today())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Health can only be recorded for today");
+                throw GlobalException.of(ApiCode.HEALTH_TODAY_ONLY);
             }
             if (!isPresent(request.childId(), cls.id(), request.date())) {
-                throw new GlobalException(ApiCode.CONFLICT, "Save the child as present today before recording health");
+                throw GlobalException.of(ApiCode.HEALTH_CHILD_NOT_PRESENT);
             }
             boolean noted = request.observation() == HealthObservation.NOTED;
             List<HealthSymptom> symptoms = noted ? distinct(request.symptoms()) : List.of();
             List<HealthAction> actions = distinct(request.actions());
             String note = request.note() == null ? "" : request.note().trim();
             if (noted && symptoms.isEmpty() && note.isEmpty()) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "A noted observation needs symptoms or a note");
+                throw GlobalException.of(ApiCode.HEALTH_NOTE_REQUIRED);
             }
             if (!noted && !actions.isEmpty()) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Actions are only recorded for a noted observation");
+                throw GlobalException.of(ApiCode.HEALTH_ACTIONS_NOT_ALLOWED);
             }
             DailyHealthRequest.Referral referral = actions.contains(HealthAction.REFERRAL) ? request.referral() : null;
             if (actions.contains(HealthAction.REFERRAL)
                     && (referral == null || blank(referral.place()) || referral.time() == null)) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Referral needs a place and a time");
+                throw GlobalException.of(ApiCode.HEALTH_REFERRAL_INCOMPLETE);
             }
             DailyHealthEntry entry = entryRepository.save(DailyHealthEntry.builder()
                     .requestId(request.requestId())
@@ -176,10 +175,10 @@ public class DailyHealthServiceImpl implements DailyHealthService {
         try {
             checkLeader(currentUser);
             if (date == null) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Date is required");
+                throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "ngày");
             }
             if (campusId != null && !rules.canUnlock(currentUser, campusId)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
@@ -278,14 +277,14 @@ public class DailyHealthServiceImpl implements DailyHealthService {
         try {
             checkLeader(currentUser);
             if (date == null) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Date is required");
+                throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "ngày");
             }
             List<DailyHealthEntry> entries =
                     entryRepository.findByChildIdAndDateOrderByRecordedAtDescIdDesc(childId, date);
             Long classId = entries.isEmpty()
                     ? enrollmentService.findActiveClassroomIds(childId, date).stream()
                             .findFirst()
-                            .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"))
+                            .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND))
                     : entries.getFirst().getClassroomId();
             ClassroomInfoResponse cls = viewableClass(currentUser, classId);
             String childName = enrollmentService.findChildrenInClassroom(classId, date).stream()
@@ -304,16 +303,16 @@ public class DailyHealthServiceImpl implements DailyHealthService {
 
     private static void checkLeader(CurrentUser user) {
         if (!user.hasRole(CareNestRole.PRINCIPAL) && !user.hasRole(CareNestRole.VICE_PRINCIPAL)) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to daily health overview");
+            throw GlobalException.of(ApiCode.HEALTH_OVERVIEW_ACCESS_DENIED);
         }
     }
 
     private ClassroomInfoResponse viewableClass(CurrentUser user, Long classId) {
         ClassroomInfoResponse cls = classroomService
                 .findClassroomInfo(classId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
         if (!rules.canView(user, cls)) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this class");
+            throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
         }
         return cls;
     }
@@ -322,7 +321,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
         return enrollmentService.findChildrenInClassroom(classId, date).stream()
                 .filter(c -> c.id().equals(childId))
                 .findFirst()
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child is not in this class"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_IN_CLASS));
     }
 
     private boolean isPresent(Long childId, Long classId, LocalDate date) {

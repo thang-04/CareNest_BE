@@ -2,6 +2,7 @@ package com.carenest.exception;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -15,6 +16,7 @@ import com.carenest.controller.ResponseContractTestController;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.utils.ApiCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -43,6 +45,7 @@ class ResponseContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.desc").value("Get data success"))
+                .andExpect(jsonPath("$.errorCode").value(nullValue()))
                 .andExpect(jsonPath("$.data.id").value(123));
     }
 
@@ -81,7 +84,7 @@ class ResponseContractTest {
                         .with(jwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.desc").value("Invalid request data"))
+                .andExpect(jsonPath("$.desc").value(ApiCode.INVALID_REQUEST_DATA.getDefaultDesc()))
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[?(@.field == 'classId')]").exists())
                 .andExpect(jsonPath("$.data[?(@.field == 'name')]").exists());
@@ -113,12 +116,14 @@ class ResponseContractTest {
         mockMvc.perform(get(BASE + "/not-found").with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.desc").value("Child not found"));
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.CHILD_NOT_FOUND.getErrorCode()))
+                .andExpect(jsonPath("$.desc").value(ApiCode.CHILD_NOT_FOUND.getDefaultDesc()));
 
         mockMvc.perform(get(BASE + "/conflict").with(jwt()))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409))
-                .andExpect(jsonPath("$.desc").value("Meal count already confirmed"));
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED.getErrorCode()))
+                .andExpect(jsonPath("$.desc").value(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED.getDefaultDesc()));
     }
 
     @Test
@@ -126,7 +131,7 @@ class ResponseContractTest {
         mockMvc.perform(get("/api/does-not-exist").with(jwt()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value(404))
-                .andExpect(jsonPath("$.desc").value("Resource not found"));
+                .andExpect(jsonPath("$.desc").value(ApiCode.RESOURCE_NOT_FOUND.getDefaultDesc()));
     }
 
     @Test
@@ -141,7 +146,7 @@ class ResponseContractTest {
         mockMvc.perform(get(BASE + "/unexpected").with(jwt()))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.code").value(500))
-                .andExpect(jsonPath("$.desc").value("Internal server error"))
+                .andExpect(jsonPath("$.desc").value(ApiCode.INTERNAL_ERROR.getDefaultDesc()))
                 .andExpect(content().string(not(containsString("secret internal detail"))));
     }
 
@@ -150,7 +155,7 @@ class ResponseContractTest {
         mockMvc.perform(get(BASE + "/data"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401))
-                .andExpect(jsonPath("$.desc").value("Unauthorized"))
+                .andExpect(jsonPath("$.desc").value(ApiCode.UNAUTHENTICATED.getDefaultDesc()))
                 .andExpect(content().string(containsString("\"data\":null")));
     }
 
@@ -159,7 +164,7 @@ class ResponseContractTest {
         mockMvc.perform(get(BASE + "/admin-only").with(jwt()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403))
-                .andExpect(jsonPath("$.desc").value("Forbidden"))
+                .andExpect(jsonPath("$.desc").value(ApiCode.FORBIDDEN.getDefaultDesc()))
                 .andExpect(content().string(containsString("\"data\":null")));
     }
 }

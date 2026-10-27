@@ -253,7 +253,8 @@ Mục đích: sổ báo ăn một bữa của một điểm trường trong ngà
 | status | VARCHAR(30) | không | `PENDING_CONFIRMATION` / `CONFIRMED` | NUT-02 |
 | needs_reconfirmation | BOOLEAN | không | Số đã đổi sau xác nhận, chờ PHT xác nhận lại; bếp vẫn dùng số cũ | NUT-03, ATT-07 |
 | aggregated_at | TIMESTAMPTZ | không | Lúc tổng hợp | NUT-01 |
-| confirmed_by, confirmed_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | PHT điểm trường xác nhận lần gần nhất | NUT-02 |
+| confirmed_by, confirmed_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | HT hoặc PHT điểm trường xác nhận lần gần nhất | NUT-02 |
+| confirmed_by_role | VARCHAR(20) | có | Vai trò người xác nhận: `PRINCIPAL` / `VICE_PRINCIPAL` (V26) | NUT-02 |
 
 ## meal_count_lines  (module: nutrition, scope: CLASS)
 Mục đích: số suất từng lớp của một bữa. `pending = true` là số mới chờ xác nhận lại; xác nhận ⇒ chép vào dòng `pending = false` rồi xóa dòng chờ. Migration: V23.

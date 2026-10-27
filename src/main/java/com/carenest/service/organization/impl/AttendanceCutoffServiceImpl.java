@@ -61,8 +61,7 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             SchoolYearRules.checkOpen(year);
             if (request.effectiveFrom().isBefore(year.getStartDate())
                     || request.effectiveFrom().isAfter(year.getEndDate())) {
-                throw new GlobalException(
-                        ApiCode.BAD_REQUEST, "Effective date must be inside school year " + year.getName());
+                throw GlobalException.of(ApiCode.CUTOFF_DATE_OUT_OF_YEAR, year.getName());
             }
             LocalTime time = request.time().withSecond(0).withNano(0);
             List<AttendanceCutoff> history =
@@ -70,7 +69,7 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             if (!history.isEmpty()
                     && history.getFirst().getCutoffTime().equals(time)
                     && history.getFirst().getEffectiveFrom().equals(request.effectiveFrom())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Cutoff time and effective date have not changed");
+                throw GlobalException.of(ApiCode.CUTOFF_UNCHANGED);
             }
             attendanceCutoffRepository.saveAndFlush(AttendanceCutoff.create(
                     schoolYearId,
@@ -159,6 +158,6 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
     private SchoolYear findYear(Long schoolYearId) {
         return schoolYearRepository
                 .findById(schoolYearId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "School year not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
     }
 }

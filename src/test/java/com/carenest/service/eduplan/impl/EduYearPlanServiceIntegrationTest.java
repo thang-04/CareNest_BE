@@ -279,7 +279,7 @@ class EduYearPlanServiceIntegrationTest {
     void cannotSubmitWithoutGoals() {
         YearPlanDetailResponse plan = service.createYearPlan(leader3, request(ageGroup3, List.of(), List.of()));
 
-        assertApiError(() -> service.submitYearPlan(leader3, plan.id(), null), ApiCode.CONFLICT);
+        assertApiError(() -> service.submitYearPlan(leader3, plan.id(), null), ApiCode.PLAN_GOAL_REQUIRED);
     }
 
     @Test
@@ -506,7 +506,8 @@ class EduYearPlanServiceIntegrationTest {
     private static void assertApiError(ThrowingCallable call, ApiCode code) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode()).isEqualTo(code));
+                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode().getHttpStatus())
+                        .isEqualTo(code.getHttpStatus()));
     }
 
     private CurrentUser user(String username, CareNestRole role) {

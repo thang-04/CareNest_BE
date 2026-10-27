@@ -110,8 +110,8 @@ class CampusServiceIntegrationTest {
                 .containsExactly(campusA);
         assertThatThrownBy(() -> service.getCampusDetail(vicePrincipal, campusB, null))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     @Test
@@ -138,8 +138,8 @@ class CampusServiceIntegrationTest {
     void campusWithStaffCannotBeDeleted() {
         assertThatThrownBy(() -> service.deleteCampus(principal, campusA))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.CONFLICT);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.CONFLICT.getHttpStatus());
     }
 
     @Test
@@ -154,8 +154,8 @@ class CampusServiceIntegrationTest {
     void deactivateCampusRequiresNoVicePrincipalAndCanBeReactivated() {
         assertThatThrownBy(() -> service.changeCampusStatus(principal, campusA, CampusStatus.INACTIVE))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.CONFLICT);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.CONFLICT.getHttpStatus());
         long vpB = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
                 + "VALUES ('kc-vpb', 'vpb.it', 'PHT B') RETURNING id");
         jdbc.update(
@@ -170,8 +170,8 @@ class CampusServiceIntegrationTest {
         // Còn lớp ở năm sắp diễn ra ⇒ chưa ngừng được
         assertThatThrownBy(() -> service.changeCampusStatus(principal, campusB, CampusStatus.INACTIVE))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.CONFLICT);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.CONFLICT.getHttpStatus());
         jdbc.update("DELETE FROM classrooms WHERE id = ?", plannedClass);
 
         // Còn PHT phụ trách ⇒ chặn, lỗi nêu tên PHT; phân công giữ nguyên
@@ -190,8 +190,8 @@ class CampusServiceIntegrationTest {
         assertThat(off.status()).isEqualTo(CampusStatus.INACTIVE);
         assertThatThrownBy(() -> service.changeCampusStatus(vicePrincipal, campusB, CampusStatus.ACTIVE))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
 
         assertThat(service.changeCampusStatus(principal, campusB, CampusStatus.ACTIVE)
                         .status())

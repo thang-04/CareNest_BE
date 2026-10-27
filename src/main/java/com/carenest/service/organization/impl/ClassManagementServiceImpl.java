@@ -75,7 +75,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             SchoolYear year = schoolYearId == null
                     ? schoolYearRepository
                             .findFirstByStatus(SchoolYearStatus.ACTIVE)
-                            .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "No active school year"))
+                            .orElseThrow(() -> GlobalException.of(ApiCode.NO_ACTIVE_SCHOOL_YEAR))
                     : findYear(schoolYearId);
             List<Classroom> classes = classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId());
             classes = filterVisible(currentUser, classes);
@@ -185,20 +185,27 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             schoolConfigAccess.checkPrincipal(currentUser);
             Classroom classroom = findClass(classId);
             if (!classroom.getSchoolYearId().equals(request.schoolYearId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "A class cannot move to another school year");
+                throw GlobalException.of(ApiCode.CLASS_YEAR_IMMUTABLE);
             }
             SchoolYearRules.checkOpen(findYear(classroom.getSchoolYearId()));
             long enrolled = activeChildren(List.of(classId)).getOrDefault(classId, 0L);
             long teachers = activeTeachers(List.of(classId)).getOrDefault(classId, 0L);
+            long planned = plannedChildren(List.of(classId)).getOrDefault(classId, 0L);
             // Lớp đã có trẻ: không đổi nhóm tuổi/điểm trường; lưu lớp không xếp hay chuyển trẻ
             if (enrolled > 0 && !Objects.equals(classroom.getAgeGroupId(), request.ageGroupId())) {
-                throw new GlobalException(ApiCode.CONFLICT, "Class already has children; age group cannot change");
+                throw GlobalException.of(ApiCode.CLASS_AGE_GROUP_LOCKED);
             }
             if ((enrolled > 0 || teachers > 0) && !classroom.getCampusId().equals(request.campusId())) {
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "Class already has children or teachers; campus cannot change");
+                throw GlobalException.of(ApiCode.CLASS_CAMPUS_LOCKED);
             }
-            String name = validate(request, classId, enrolled);
+            // Lớp năm mới đã có trẻ xếp vào: giữ nhóm tuổi, điểm trường; sĩ số không thấp hơn số trẻ đã xếp
+            if (planned > 0 && !Objects.equals(classroom.getAgeGroupId(), request.ageGroupId())) {
+                throw GlobalException.of(ApiCode.CLASS_PLACED_AGE_GROUP_LOCKED);
+            }
+            if (planned > 0 && !classroom.getCampusId().equals(request.campusId())) {
+                throw GlobalException.of(ApiCode.CLASS_PLACED_CAMPUS_LOCKED);
+            }
+            String name = validate(request, classId, Math.max(enrolled, planned));
             classroom.changeInfo(
                     name,
                     request.campusId(),
@@ -224,15 +231,17 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             Classroom classroom = findClass(classId);
             SchoolYearRules.checkOpen(findYear(classroom.getSchoolYearId()));
             if (classroomRepository.countAllEnrollments(classId) > 0) {
-                throw new GlobalException(ApiCode.CONFLICT, "Class already has children and cannot be deleted");
+                throw GlobalException.of(ApiCode.CLASS_HAS_DEPENDENTS, "trẻ");
+            }
+            if (plannedChildren(List.of(classId)).getOrDefault(classId, 0L) > 0) {
+                throw GlobalException.of(ApiCode.CLASS_HAS_PLACED_CHILDREN);
             }
             try {
                 classroomRepository.delete(classroom);
                 classroomRepository.flush();
             } catch (DataIntegrityViolationException integrityEx) {
                 // Phân công giáo viên, điểm danh, đánh giá... còn tham chiếu lớp
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "Class is used by other records and cannot be deleted", integrityEx);
+                throw GlobalException.withCause(ApiCode.CLASS_HAS_DEPENDENTS, integrityEx, "dữ liệu liên quan");
             }
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -252,7 +261,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             SchoolYearRules.checkOpen(target);
             SchoolYear source = findYear(request.sourceYearId());
             if (source.getId().equals(target.getId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Choose another school year to copy from");
+                throw GlobalException.of(ApiCode.COPY_SOURCE_YEAR_INVALID);
             }
             Set<Long> picked =
                     request.classIds() == null || request.classIds().isEmpty() ? null : Set.copyOf(request.classIds());
@@ -321,30 +330,30 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     private String validate(ClassRequest request, Long classId, long enrolled) {
         String name = request.name().trim();
         if (!campusRepository.existsById(request.campusId())) {
-            throw new GlobalException(ApiCode.NOT_FOUND, "Campus not found");
+            throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);
         }
         if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Campus is inactive");
+            throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);
         }
         AgeGroup ageGroup = ageGroupRepository
                 .findById(request.ageGroupId())
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Age group not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
         Room room = roomRepository
                 .findById(request.locationId())
                 .filter(r -> r.getStatus() != RoomStatus.DELETED)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Room not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.ROOM_NOT_FOUND));
         if (!room.getCampusId().equals(request.campusId())) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Room does not belong to the selected campus");
+            throw GlobalException.of(ApiCode.ROOM_NOT_IN_CAMPUS);
         }
         Long currentRoomId = classId == null ? null : findClass(classId).getRoomId();
         if (room.getStatus() != RoomStatus.ACTIVE && !room.getId().equals(currentRoomId)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Room is no longer in use");
+            throw GlobalException.of(ApiCode.ROOM_INACTIVE);
         }
         if (classroomRepository.existsName(request.schoolYearId(), request.campusId(), name, classId)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Campus already has a class with this name in the school year");
+            throw GlobalException.of(ApiCode.CLASS_NAME_EXISTS);
         }
         if (classroomRepository.existsRoomInYear(request.schoolYearId(), room.getId(), classId)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Room is already used by another class in this school year");
+            throw GlobalException.of(ApiCode.ROOM_TAKEN);
         }
         int max = Integer.MAX_VALUE;
         if (ageGroup.getMaxClassSize() != null) {
@@ -355,9 +364,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         }
         long min = Math.max(1, enrolled);
         if (request.capacity() < min || request.capacity() > max) {
-            throw new GlobalException(
-                    ApiCode.BAD_REQUEST,
-                    "Class max size must be between " + min + " and " + max + " (age group max and room capacity)");
+            throw GlobalException.of(ApiCode.CLASS_MAX_SIZE_OUT_OF_RANGE, min, max);
         }
         return name;
     }
@@ -369,7 +376,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         Set<Long> campusIds = schoolConfigAccess.vicePrincipalCampusIds(currentUser);
         Set<Long> classIds = schoolConfigAccess.teacherClassroomIds(currentUser);
         if (campusIds.isEmpty() && classIds.isEmpty()) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to school structure");
+            throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
         }
         return classes.stream()
                 .filter(c -> campusIds.contains(c.getCampusId()) || classIds.contains(c.getId()))
@@ -385,10 +392,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
         Map<Long, List<StaffAssignment>> teachers =
                 staffAssignmentRepository.findCurrentTeachers(ids, schoolConfigAccess.today()).stream()
                         .collect(Collectors.groupingBy(StaffAssignment::getClassroomId));
-        Map<Long, Long> planned = classroomRepository.countPlannedChildren(ids).stream()
-                .collect(Collectors.toMap(
-                        ClassroomRepository.ClassroomCount::getClassroomId,
-                        ClassroomRepository.ClassroomCount::getTotal));
+        Map<Long, Long> planned = plannedChildren(ids);
         Set<Long> plannedYears =
                 schoolYearRepository
                         .findAllById(
@@ -488,6 +492,13 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                         ClassroomRepository.ClassroomCount::getTotal));
     }
 
+    private Map<Long, Long> plannedChildren(Collection<Long> classIds) {
+        return classroomRepository.countPlannedChildren(classIds).stream()
+                .collect(Collectors.toMap(
+                        ClassroomRepository.ClassroomCount::getClassroomId,
+                        ClassroomRepository.ClassroomCount::getTotal));
+    }
+
     private Map<Long, Long> activeTeachers(Collection<Long> classIds) {
         return classroomRepository.countActiveTeachers(classIds, schoolConfigAccess.today()).stream()
                 .collect(Collectors.toMap(
@@ -498,12 +509,10 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     private SchoolYear findYear(Long schoolYearId) {
         return schoolYearRepository
                 .findById(schoolYearId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "School year not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
     }
 
     private Classroom findClass(Long classId) {
-        return classroomRepository
-                .findById(classId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+        return classroomRepository.findById(classId).orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
     }
 }

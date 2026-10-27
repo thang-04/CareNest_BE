@@ -96,13 +96,12 @@ class AccountControllerTest {
 
     @Test
     void shouldReturn403WhenAccountIsNotProvisioned() throws Exception {
-        given(currentUserService.getCurrentUser())
-                .willThrow(new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned"));
+        given(currentUserService.getCurrentUser()).willThrow(GlobalException.of(ApiCode.ACCOUNT_NOT_PROVISIONED));
 
         mockMvc.perform(get(MY_ACCOUNT).with(jwt()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403))
-                .andExpect(jsonPath("$.desc").value("Account is not provisioned"));
+                .andExpect(jsonPath("$.desc").value(ApiCode.ACCOUNT_NOT_PROVISIONED.getDefaultDesc()));
     }
 
     @Test

@@ -1,40 +1,308 @@
 package com.carenest.utils;
 
+import java.text.MessageFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 
 /**
- * Mã kết quả dùng trong {@link ResponseJson}. {@code code} luôn trùng HTTP status của response.
- * Chỉ thêm giá trị mới khi cần một HTTP status chưa có; lỗi cùng status phân biệt bằng {@code desc}.
+ * Mã kết quả dùng trong {@link ResponseJson}. {@code code} luôn trùng HTTP status của response; {@code errorCode} là
+ * mã lỗi nghiệp vụ 4 số theo phân hệ (docs/contracts/ERROR_CONTRACT.md), {@code null} với mã chung và mã thành công.
+ * Lỗi mới: thêm một dòng vào đúng dải phân hệ; service không tự viết câu lỗi.
  */
 @Getter
-@RequiredArgsConstructor
 public enum ApiCode {
+    // ========== Mã chung (không có mã lỗi nghiệp vụ) ==========
     SUCCESSFUL(HttpStatus.OK, "Success"),
     CREATED(HttpStatus.CREATED, "Created"),
     BAD_REQUEST(HttpStatus.BAD_REQUEST, "Bad request"),
     /** Alias của BAD_REQUEST, giữ tương thích tài liệu kiến trúc. */
     UNSUCCESSFUL(HttpStatus.BAD_REQUEST, "Unsuccessful"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "Unauthorized"),
-    FORBIDDEN(HttpStatus.FORBIDDEN, "Forbidden"),
     NOT_FOUND(HttpStatus.NOT_FOUND, "Not found"),
-    METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "Method not allowed"),
     /** Trùng dữ liệu hoặc sai trạng thái nghiệp vụ (vd. số suất ăn đã được xác nhận). */
     CONFLICT(HttpStatus.CONFLICT, "Conflict"),
     PRECONDITION_REQUIRED(HttpStatus.PRECONDITION_REQUIRED, "Password change required"),
     PAYLOAD_TOO_LARGE(HttpStatus.PAYLOAD_TOO_LARGE, "File too large"),
-    UNSUPPORTED_MEDIA_TYPE(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Unsupported media type"),
-    INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error"),
     /** Dịch vụ ngoài (AI, storage) không khả dụng. */
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "Service unavailable"),
     /** Dịch vụ ngoài (AI) quá thời gian chờ. */
-    GATEWAY_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "Upstream timeout");
+    GATEWAY_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "Upstream timeout"),
 
+    // ========== 10xx XÁC THỰC ==========
+    INVALID_CREDENTIALS(
+            1001, HttpStatus.UNAUTHORIZED, "Email hoặc mật khẩu không đúng (Số điện thoại hoặc mật khẩu không đúng)"),
+    UNAUTHENTICATED(1002, HttpStatus.UNAUTHORIZED, "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại"),
+    WEB_SESSION_INVALID(1003, HttpStatus.UNAUTHORIZED, "Phiên đăng nhập không hợp lệ hoặc đã hết hạn"),
+    AUTH_REQUEST_NOT_FOUND(1004, HttpStatus.NOT_FOUND, "Yêu cầu đăng nhập không tồn tại hoặc đã hết hạn"),
+    INVALID_AUTH_REQUEST(1005, HttpStatus.BAD_REQUEST, "Yêu cầu đăng nhập không hợp lệ"),
+    OTP_INVALID_OR_EXPIRED(1006, HttpStatus.BAD_REQUEST, "Mã xác nhận không đúng hoặc đã hết hạn"),
+    OTP_RESEND_TOO_SOON(1007, HttpStatus.TOO_MANY_REQUESTS, "Vui lòng chờ trước khi yêu cầu mã mới"),
+    RECOVERY_REQUEST_UNAVAILABLE(1008, HttpStatus.CONFLICT, "Yêu cầu khôi phục mật khẩu không còn hiệu lực"),
+    PASSWORD_POLICY_VIOLATION(1009, HttpStatus.BAD_REQUEST, "Mật khẩu mới chưa đáp ứng chính sách mật khẩu"),
+    PASSWORD_CHANGE_REQUIRED(1010, HttpStatus.PRECONDITION_REQUIRED, "Cần đổi mật khẩu tạm trước khi tiếp tục"),
+    CSRF_TOKEN_UNAVAILABLE(1011, HttpStatus.INTERNAL_SERVER_ERROR, "Không tạo được phiên bảo mật, vui lòng thử lại"),
+    WEB_AUTH_GATEWAY_DISABLED(1012, HttpStatus.SERVICE_UNAVAILABLE, "Đăng nhập web đang tạm tắt"),
+    AUTH_SERVICE_UNAVAILABLE(
+            1013, HttpStatus.SERVICE_UNAVAILABLE, "Dịch vụ đăng nhập đang gián đoạn, vui lòng thử lại sau"),
+    ACCOUNT_NOT_PROVISIONED(1014, HttpStatus.FORBIDDEN, "Tài khoản chưa được cấp quyền truy cập hệ thống"),
+    ACCOUNT_INACTIVE(1015, HttpStatus.FORBIDDEN, "Tài khoản đã bị khóa"),
+
+    // ========== 11xx TÀI KHOẢN & PHÂN QUYỀN ==========
+    FORBIDDEN(1101, HttpStatus.FORBIDDEN, "Bạn không có quyền thực hiện thao tác này"),
+    PRINCIPAL_ONLY(1102, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được {0}"),
+    ACCOUNT_NOT_FOUND(1103, HttpStatus.NOT_FOUND, "Không tìm thấy tài khoản"),
+    ROLE_NOT_CREATABLE(1104, HttpStatus.BAD_REQUEST, "Không tạo được tài khoản với vai trò này"),
+    TEMP_PASSWORD_REQUIRED(1105, HttpStatus.BAD_REQUEST, "Cần nhập mật khẩu tạm khi không gửi được email thiết lập"),
+    USERNAME_OR_EMAIL_EXISTS(1106, HttpStatus.CONFLICT, "Số điện thoại hoặc email đã tồn tại"),
+    ACCOUNT_EXISTS(1107, HttpStatus.CONFLICT, "Tài khoản đã tồn tại"),
+    CANNOT_CHANGE_OWN_STATUS(1108, HttpStatus.BAD_REQUEST, "Không tự khóa/mở tài khoản của chính mình"),
+    IDENTITY_DATA_REJECTED(1109, HttpStatus.BAD_REQUEST, "Thông tin tài khoản bị từ chối, kiểm tra mật khẩu và họ tên"),
+    IDENTITY_SYNC_FAILED(
+            1110,
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Đã lưu trạng thái tài khoản nhưng chưa đồng bộ được, vui lòng thử lại"),
+    IDENTITY_PROVIDER_UNAVAILABLE(
+            1111, HttpStatus.SERVICE_UNAVAILABLE, "Hệ thống tài khoản đang gián đoạn, vui lòng thử lại sau"),
+
+    // ========== 20xx NĂM HỌC ==========
+    SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),
+    NO_ACTIVE_SCHOOL_YEAR(2002, HttpStatus.NOT_FOUND, "Chưa có năm học đang hoạt động"),
+    SCHOOL_YEAR_CLOSED(2003, HttpStatus.CONFLICT, "Năm học {0} đã kết thúc, chỉ xem được"),
+    SCHOOL_YEAR_NAME_INVALID(
+            2004, HttpStatus.BAD_REQUEST, "Tên năm học có dạng NNNN-NNNN, năm sau lớn hơn năm trước 1 năm"),
+    END_DATE_BEFORE_START(2005, HttpStatus.BAD_REQUEST, "Ngày kết thúc phải sau ngày bắt đầu"),
+    SCHOOL_YEAR_EXISTS(2006, HttpStatus.CONFLICT, "Năm học {0} đã tồn tại"),
+    SCHOOL_YEAR_DATES_OVERLAP(2007, HttpStatus.CONFLICT, "Khoảng thời gian trùng với năm học {0}"),
+    SCHOOL_YEAR_NAME_LOCKED(2008, HttpStatus.CONFLICT, "Chỉ đổi được tên năm học khi năm học chưa bắt đầu"),
+    SCHOOL_YEAR_HAS_CLASSES(2009, HttpStatus.CONFLICT, "Năm học đã có lớp, không đổi được tên"),
+    SCHOOL_YEAR_NOT_DELETABLE(2010, HttpStatus.CONFLICT, "Chỉ xóa được năm học chưa bắt đầu"),
+    SCHOOL_YEAR_IN_USE(2011, HttpStatus.CONFLICT, "Năm học đã có dữ liệu liên quan, không xóa được"),
+    SCHOOL_YEAR_NOT_ACTIVATABLE(2012, HttpStatus.CONFLICT, "Chỉ kích hoạt được năm học chưa bắt đầu"),
+    ACTIVATE_EARLIER_YEAR_FIRST(2013, HttpStatus.CONFLICT, "Kích hoạt năm học {0} trước"),
+    ACTIVATION_CONFIRM_MISMATCH(2014, HttpStatus.BAD_REQUEST, "Gõ đúng tên năm học để xác nhận"),
+    ACTIVATION_TOO_EARLY(2015, HttpStatus.CONFLICT, "Chỉ kích hoạt được từ ngày {0}"),
+    SCHOOL_YEAR_NOT_READY(2016, HttpStatus.CONFLICT, "Năm học chưa đủ điều kiện kích hoạt: {0}"),
+    SCHOOL_YEAR_NOT_CLOSABLE(2017, HttpStatus.CONFLICT, "Chỉ kết thúc được năm học đang hoạt động"),
+    SCHOOL_YEAR_CLOSE_TOO_EARLY(2018, HttpStatus.CONFLICT, "Chỉ kết thúc được năm học sau ngày kết thúc {0}"),
+    SCHOOL_YEAR_OUT_OF_SEQUENCE(2019, HttpStatus.BAD_REQUEST, "Năm học tiếp theo phải là {0} (sau năm {1})"),
+    SCHOOL_YEAR_START_BEFORE_LATEST_END(
+            2020, HttpStatus.BAD_REQUEST, "Ngày bắt đầu phải sau ngày kết thúc năm học {0} ({1})"),
+
+    // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
+    SCHOOL_CONFIG_ACCESS_DENIED(2101, HttpStatus.FORBIDDEN, "Bạn không có quyền xem cấu hình trường"),
+    CAMPUS_ACCESS_DENIED(2102, HttpStatus.FORBIDDEN, "Bạn không có quyền với điểm trường này"),
+    CAMPUS_NOT_FOUND(2103, HttpStatus.NOT_FOUND, "Không tìm thấy điểm trường"),
+    ROOM_NOT_FOUND(2104, HttpStatus.NOT_FOUND, "Không tìm thấy phòng"),
+    CAMPUS_CODE_EXISTS(2105, HttpStatus.CONFLICT, "Mã điểm trường đã tồn tại"),
+    CAMPUS_NAME_EXISTS(2106, HttpStatus.CONFLICT, "Tên điểm trường đã tồn tại"),
+    MAIN_CAMPUS_REQUIRED(
+            2107, HttpStatus.CONFLICT, "Trường cần một điểm trường chính, chọn điểm trường chính khác trước"),
+    MAIN_CAMPUS_NOT_DELETABLE(2108, HttpStatus.CONFLICT, "Không xóa được điểm trường chính"),
+    CAMPUS_HAS_DEPENDENTS(2109, HttpStatus.CONFLICT, "Điểm trường đã có {0}, không xóa được"),
+    MAIN_CAMPUS_NOT_DEACTIVATABLE(2110, HttpStatus.CONFLICT, "Không ngừng hoạt động được điểm trường chính"),
+    CAMPUS_HAS_ACTIVE_CLASSES(
+            2111,
+            HttpStatus.CONFLICT,
+            "Điểm trường còn lớp ở năm học đang hoạt động hoặc sắp diễn ra. Chuyển hoặc xóa lớp trước"),
+    CAMPUS_HAS_VICE_PRINCIPALS(
+            2112,
+            HttpStatus.CONFLICT,
+            "Điểm trường còn PHT phụ trách: {0}. Gỡ phân công PHT trước khi ngừng hoạt động"),
+    CAMPUS_INACTIVE(2113, HttpStatus.CONFLICT, "Điểm trường đã ngừng hoạt động, chọn điểm trường khác"),
+    ROOM_CODE_EXISTS(2114, HttpStatus.CONFLICT, "Điểm trường đã có phòng cùng mã"),
+    ROOM_NAME_EXISTS(2115, HttpStatus.CONFLICT, "Điểm trường đã có phòng cùng tên"),
+    ROOM_CAPACITY_REQUIRED(2116, HttpStatus.BAD_REQUEST, "Nhập sức chứa của phòng học"),
+    ROOM_CAPACITY_BELOW_CLASS_SIZE(
+            2117, HttpStatus.CONFLICT, "Lớp đang dùng phòng có sĩ số tối đa {0}, sức chứa không được nhỏ hơn"),
+    ROOM_IN_USE_BY_CLASS(2118, HttpStatus.CONFLICT, "Phòng đang là phòng học của {0}, không thể {1}"),
+    ROOM_MANAGER_INVALID(2119, HttpStatus.BAD_REQUEST, "Người phụ trách phải là nhân sự của điểm trường này"),
+    ROOM_NOT_IN_CAMPUS(2120, HttpStatus.BAD_REQUEST, "Phòng không thuộc điểm trường đã chọn"),
+    ROOM_INACTIVE(2121, HttpStatus.CONFLICT, "Phòng đã ngừng sử dụng"),
+    ROOM_TAKEN(2122, HttpStatus.CONFLICT, "Phòng đã được lớp khác dùng trong năm học này"),
+
+    // ========== 22xx NHÓM TUỔI & LỚP ==========
+    CLASS_ACCESS_DENIED(2201, HttpStatus.FORBIDDEN, "Bạn không có quyền với lớp này"),
+    AGE_GROUP_NOT_FOUND(2202, HttpStatus.NOT_FOUND, "Không tìm thấy nhóm tuổi"),
+    CLASS_NOT_FOUND(2203, HttpStatus.NOT_FOUND, "Không tìm thấy lớp"),
+    AGE_GROUP_NAME_EXISTS(2204, HttpStatus.CONFLICT, "Tên nhóm tuổi đã tồn tại"),
+    AGE_RANGE_INVALID(2205, HttpStatus.BAD_REQUEST, "Độ tuổi đến phải lớn hơn độ tuổi từ"),
+    AGE_RANGE_OVERLAP(2206, HttpStatus.CONFLICT, "Độ tuổi trùng với nhóm {0}"),
+    AGE_GROUP_HAS_DEPENDENTS(2207, HttpStatus.CONFLICT, "Nhóm tuổi đã có {0}, không xóa được"),
+    AGE_GROUP_MAX_SIZE_CONFLICT(2208, HttpStatus.CONFLICT, "Không hạ được sĩ số tối đa: {0} đang vượt {1} trẻ"),
+    CLASS_NAME_EXISTS(2209, HttpStatus.CONFLICT, "Điểm trường đã có lớp cùng tên trong năm học này"),
+    CLASS_YEAR_IMMUTABLE(2210, HttpStatus.BAD_REQUEST, "Không chuyển lớp sang năm học khác được"),
+    CLASS_AGE_GROUP_LOCKED(2211, HttpStatus.CONFLICT, "Lớp đã có trẻ, không đổi được nhóm tuổi"),
+    CLASS_CAMPUS_LOCKED(2212, HttpStatus.CONFLICT, "Lớp đã có trẻ hoặc giáo viên, không đổi được điểm trường"),
+    CLASS_HAS_DEPENDENTS(2213, HttpStatus.CONFLICT, "Lớp đã có {0}, không xóa được"),
+    CLASS_MAX_SIZE_OUT_OF_RANGE(2214, HttpStatus.BAD_REQUEST, "Sĩ số tối đa từ {0} đến {1}"),
+    COPY_SOURCE_YEAR_INVALID(2215, HttpStatus.BAD_REQUEST, "Chọn năm học khác với năm đang cấu hình để sao chép"),
+    CLASS_PLACED_AGE_GROUP_LOCKED(2216, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào, không đổi được nhóm tuổi"),
+    CLASS_PLACED_CAMPUS_LOCKED(2217, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào, không đổi được điểm trường"),
+    CLASS_HAS_PLACED_CHILDREN(2218, HttpStatus.CONFLICT, "Lớp đã có trẻ được xếp vào năm mới, không xóa được"),
+
+    // ========== 23xx PHÂN CÔNG GIÁO VIÊN / TỔ TRƯỞNG ==========
+    REPLACEMENT_TEACHER_REQUIRED(2301, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: chọn giáo viên thay thế"),
+    TEACHERS_MUST_DIFFER(2302, HttpStatus.BAD_REQUEST, "Chọn 2 giáo viên khác nhau cho lớp"),
+    HOMEROOM_NOT_IN_CLASS(2303, HttpStatus.BAD_REQUEST, "Giáo viên chủ nhiệm phải là một trong các giáo viên của lớp"),
+    TEACHER_WRONG_CAMPUS(2304, HttpStatus.BAD_REQUEST, "Chỉ phân công giáo viên thuộc điểm trường của lớp"),
+    TEACHER_ACCOUNT_LOCKED(2305, HttpStatus.CONFLICT, "Tài khoản giáo viên đã bị khóa"),
+    TEACHER_ALREADY_ASSIGNED(2306, HttpStatus.CONFLICT, "Giáo viên {0} đang dạy lớp {1}, gỡ ở lớp đó trước"),
+    TEAM_LEADER_INVALID(2307, HttpStatus.BAD_REQUEST, "Tổ trưởng phải là giáo viên đang làm việc"),
+
+    // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
+    PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
+    CHILD_NOT_IN_ACTIVE_YEAR(2402, HttpStatus.BAD_REQUEST, "Trẻ {0} không thuộc lớp nào của năm học đang hoạt động"),
+    CLASS_WITHOUT_AGE_GROUP(2403, HttpStatus.BAD_REQUEST, "{0} chưa có nhóm tuổi, cập nhật lớp trước khi xếp"),
+    GRADUATION_NOT_ALLOWED(2404, HttpStatus.BAD_REQUEST, "Chỉ trẻ thuộc nhóm tuổi lớn nhất được ra trường"),
+    OLDEST_GROUP_GRADUATE_OR_STAY(2405, HttpStatus.BAD_REQUEST, "Trẻ nhóm tuổi lớn nhất chỉ chọn Ra trường hoặc Ở lại"),
+    TARGET_CLASS_REQUIRED(2406, HttpStatus.BAD_REQUEST, "Chọn lớp của năm học mới"),
+    PLACEMENT_WRONG_AGE_GROUP(2407, HttpStatus.BAD_REQUEST, "{0} không đúng nhóm tuổi cho lựa chọn {1}"),
+    PLACEMENT_CLASS_FULL(2408, HttpStatus.CONFLICT, "Vượt sĩ số tối đa: {0}"),
+    PLACEMENT_YEAR_NOT_UPCOMING(2409, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học chưa bắt đầu"),
+    NO_ACTIVE_YEAR_TO_MOVE_FROM(2410, HttpStatus.CONFLICT, "Không có năm học đang hoạt động để chuyển trẻ"),
+    PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
+
+    // ========== 30xx HỒ SƠ TRẺ ==========
+    CHILD_ACCESS_DENIED(3001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem thông tin trẻ này"),
+    CHILD_NOT_FOUND(3002, HttpStatus.NOT_FOUND, "Không tìm thấy trẻ"),
+    CHILD_NOT_IN_CLASS(3003, HttpStatus.NOT_FOUND, "Trẻ không thuộc danh sách lớp hiện tại"),
+
+    // ========== 40xx ĐIỂM DANH ==========
+    CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
+    CUTOFF_UNCHANGED(4002, HttpStatus.BAD_REQUEST, "Giờ chốt và ngày áp dụng chưa thay đổi"),
+    ATTENDANCE_SUMMARY_ACCESS_DENIED(4003, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp điểm danh"),
+    ATTENDANCE_YEAR_NOT_ACTIVE(
+            4004, HttpStatus.CONFLICT, "Lớp thuộc năm học đã kết thúc hoặc chưa bắt đầu, chỉ xem được"),
+    NOT_SCHOOL_DAY(4005, HttpStatus.BAD_REQUEST, "Ngày đã chọn không phải ngày học"),
+    ATTENDANCE_TODAY_ONLY(4006, HttpStatus.BAD_REQUEST, "Chỉ điểm danh được cho ngày hôm nay"),
+    ATTENDANCE_LOCKED(4007, HttpStatus.CONFLICT, "Điểm danh và báo ăn đã khóa sau {0}"),
+    CHILD_LIST_MISMATCH(4008, HttpStatus.BAD_REQUEST, "Danh sách trẻ đã thay đổi, tải lại trang rồi điểm danh lại"),
+    UNLOCK_ACCESS_DENIED(4009, HttpStatus.FORBIDDEN, "Bạn không có quyền mở lại điểm danh"),
+    ATTENDANCE_UNLOCK_NOT_FOUND(4010, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại điểm danh"),
+    UNLOCK_YEAR_NOT_ACTIVE(4011, HttpStatus.CONFLICT, "Chỉ mở lại lớp thuộc năm học đang hoạt động"),
+    UNLOCK_DATE_OUT_OF_RANGE(4012, HttpStatus.BAD_REQUEST, "Chọn một ngày học từ đầu năm học đến hôm nay"),
+    DAY_NOT_LOCKED_YET(4013, HttpStatus.CONFLICT, "Chưa đến giờ khóa, giáo viên vẫn điểm danh được"),
+    UNLOCK_DEADLINE_INVALID(
+            4014, HttpStatus.BAD_REQUEST, "Chọn hạn mở lại sau thời điểm hiện tại và không quá ngày kết thúc năm học"),
+    UNLOCK_ALREADY_ACTIVE(4015, HttpStatus.CONFLICT, "Lớp/ngày này đang có lần mở lại còn hiệu lực"),
+    UNLOCK_ALREADY_ENDED(4016, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
+    LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, báo nghỉ cần xác nhận lại số suất"),
+
+    // ========== 50xx SỨC KHỎE ==========
+    HEALTH_OVERVIEW_ACCESS_DENIED(5001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp sức khỏe"),
+    HEALTH_YEAR_NOT_ACTIVE(5002, HttpStatus.CONFLICT, "Lớp không thuộc năm học đang hoạt động"),
+    HEALTH_TODAY_ONLY(5003, HttpStatus.BAD_REQUEST, "Chỉ ghi nhận sức khỏe cho ngày hôm nay"),
+    HEALTH_CHILD_NOT_PRESENT(5004, HttpStatus.CONFLICT, "Chỉ ghi nhận cho trẻ đã lưu Có mặt trong ngày hôm nay"),
+    HEALTH_NOTE_REQUIRED(5005, HttpStatus.BAD_REQUEST, "Ghi biểu hiện hoặc ghi chú cần lưu ý"),
+    HEALTH_ACTIONS_NOT_ALLOWED(5006, HttpStatus.BAD_REQUEST, "Chỉ ghi xử trí khi có dấu hiệu cần lưu ý"),
+    HEALTH_REFERRAL_INCOMPLETE(5007, HttpStatus.BAD_REQUEST, "Nhập nơi chuyển trẻ đến và giờ chuyển"),
+    HEALTH_CHILD_PICKED_UP(5008, HttpStatus.CONFLICT, "Trẻ đã được trả cho phụ huynh, không ghi thêm được"),
+
+    // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
+    MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),
+    ABSENT_CHILD_NO_MEAL(6002, HttpStatus.BAD_REQUEST, "Trẻ vắng mặt không thể đăng ký suất ăn"),
+    MEAL_COUNT_ACCESS_DENIED(6003, HttpStatus.FORBIDDEN, "Bạn không có quyền với sổ báo ăn này"),
+    MEAL_COUNT_NOT_FOUND(6004, HttpStatus.NOT_FOUND, "Không tìm thấy sổ báo ăn"),
+    MEAL_COUNT_ALREADY_CONFIRMED(6005, HttpStatus.CONFLICT, "Sổ báo ăn bữa này đã được xác nhận"),
+    MEAL_COUNT_UNCHANGED(6006, HttpStatus.BAD_REQUEST, "Số suất chưa thay đổi"),
+    MEAL_COUNT_YEAR_READ_ONLY(6007, HttpStatus.CONFLICT, "Năm học không hoạt động, sổ báo ăn chỉ xem"),
+
+    // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
+    YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
+    YEAR_PLAN_EXISTS(7002, HttpStatus.CONFLICT, "Nhóm tuổi này đã có kế hoạch năm học"),
+    YEAR_PLAN_CREATE_FORBIDDEN(7003, HttpStatus.FORBIDDEN, "Bạn không tạo được kế hoạch cho nhóm tuổi này"),
+    YEAR_PLAN_ACCESS_DENIED(7004, HttpStatus.FORBIDDEN, "Bạn không có quyền xem kế hoạch giáo dục này"),
+    YEAR_PLAN_EDIT_FORBIDDEN(7005, HttpStatus.FORBIDDEN, "Bạn không sửa được kế hoạch này"),
+    YEAR_PLAN_LOCKED_BY_OTHER(7006, HttpStatus.CONFLICT, "Kế hoạch đang được người khác sửa"),
+    YEAR_PLAN_SUBMIT_FORBIDDEN(7007, HttpStatus.FORBIDDEN, "Chỉ tổ trưởng của nhóm tuổi được gửi duyệt"),
+    VICE_PRINCIPAL_ONLY(7008, HttpStatus.FORBIDDEN, "Chỉ Phó Hiệu trưởng được {0} kế hoạch"),
+    YEAR_PLAN_INVALID_STATUS(7009, HttpStatus.CONFLICT, "Không thể {0} kế hoạch ở trạng thái hiện tại"),
+    RETURN_REASON_REQUIRED(7010, HttpStatus.BAD_REQUEST, "Cần ghi lý do trả lại"),
+    THEME_NAME_REQUIRED(7011, HttpStatus.BAD_REQUEST, "Mỗi chủ đề cần tên và tên viết tắt"),
+    THEME_ABBR_DUPLICATE(7012, HttpStatus.BAD_REQUEST, "Tên viết tắt của chủ đề không được trùng"),
+    THEME_END_BEFORE_START(7013, HttpStatus.BAD_REQUEST, "Ngày kết thúc chủ đề không được trước ngày bắt đầu"),
+    PLAN_GOAL_REQUIRED(7014, HttpStatus.BAD_REQUEST, "Kế hoạch cần ít nhất một mục tiêu"),
+    THEME_DATE_OUT_OF_YEAR(7015, HttpStatus.BAD_REQUEST, "Ngày của chủ đề, đợt nghỉ phải nằm trong năm học {0} – {1}"),
+    THEME_KEY_DUPLICATE(7016, HttpStatus.BAD_REQUEST, "Trùng mã chủ đề: {0}"),
+
+    // ========== 71xx TÀI LIỆU LỚP (KẾ HOẠCH CHỦ ĐỀ, GIÁO ÁN) (module Tiền) ==========
+    CLASS_DOC_NOT_FOUND(7101, HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"),
+    CLASS_DOC_KEY_MISMATCH(7102, HttpStatus.BAD_REQUEST, "Tài liệu không khớp lớp, chủ đề hoặc tuần"),
+    CLASS_DOC_TEACHER_ONLY(
+            7103, HttpStatus.FORBIDDEN, "Chỉ giáo viên được phân công vào lớp mới sửa hoặc gửi được tài liệu"),
+    THEME_NOT_IN_PLAN(7104, HttpStatus.BAD_REQUEST, "Chủ đề không thuộc kế hoạch năm học"),
+    WEEK_NOT_IN_THEME(7105, HttpStatus.BAD_REQUEST, "Tuần không phải tuần học của chủ đề"),
+    CLASS_DOC_SUBMITTED(7106, HttpStatus.CONFLICT, "Tài liệu đã gửi duyệt, không sửa được"),
+    WEEKLY_LESSON_VIA_THEME(7107, HttpStatus.BAD_REQUEST, "Giáo án tuần được gửi và duyệt cùng kế hoạch chủ đề"),
+    YEAR_PLAN_CLASS_MISMATCH(7108, HttpStatus.BAD_REQUEST, "Kế hoạch năm học không khớp với lớp"),
+    YEAR_PLAN_NOT_ISSUED(7109, HttpStatus.CONFLICT, "Kế hoạch năm học của nhóm tuổi chưa được ban hành"),
+    BRANCH_THEMES_NOT_APPROVED(7110, HttpStatus.CONFLICT, "Dự kiến chủ đề nhánh của lớp cần được duyệt trước"),
+    THEME_PLAN_NOT_SAVED(7111, HttpStatus.CONFLICT, "Cần lưu kế hoạch giáo dục chủ đề trước"),
+    BRANCH_WEEKS_UNNAMED(7112, HttpStatus.CONFLICT, "Còn {0} tuần chưa đặt tên chủ đề nhánh"),
+    WEEKLY_LESSONS_MISSING(
+            7113, HttpStatus.CONFLICT, "Còn thiếu giáo án {0}. Soạn và lưu đủ giáo án các nhánh rồi mới gửi duyệt"),
+    NOT_YOUR_REVIEW_STEP(7114, HttpStatus.FORBIDDEN, "Bạn không {0} được ở bước này"),
+
+    // ========== 72xx CẤU HÌNH KẾ HOẠCH GIÁO DỤC (module Tiền) ==========
+    EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng hoặc Phó Hiệu trưởng sửa được cấu hình"),
+    SIGNERS_INVALID(7202, HttpStatus.BAD_REQUEST, "Người ký phải là các vai trò hợp lệ, không trùng nhau"),
+    YEAR_PLAN_SIGNER_REQUIRED(7203, HttpStatus.BAD_REQUEST, "Kế hoạch năm học phải có Phó Hiệu trưởng ký"),
+    CLASS_DOC_APPROVER_REQUIRED(7204, HttpStatus.BAD_REQUEST, "Mỗi loại tài liệu lớp cần ít nhất một người duyệt"),
+    WEEK_ROW_KEY_DUPLICATE(7205, HttpStatus.BAD_REQUEST, "Mã dòng của bảng tuần không được trùng"),
+    LESSON_ROW_REQUIRED(7206, HttpStatus.BAD_REQUEST, "Không bỏ được dòng giờ học"),
+    DOMAIN_NAME_EXISTS(7207, HttpStatus.CONFLICT, "Tên lĩnh vực {0} đã tồn tại"),
+
+    // ========== 80xx AI & TỆP ==========
+    AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),
+    AI_TIMEOUT(8002, HttpStatus.GATEWAY_TIMEOUT, "Trợ lý AI phản hồi quá lâu, vui lòng thử lại"),
+    STORAGE_UNAVAILABLE(8003, HttpStatus.SERVICE_UNAVAILABLE, "Không lưu được tệp, vui lòng thử lại sau"),
+    UNSUPPORTED_MEDIA_TYPE(8004, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Định dạng tệp không được hỗ trợ"),
+    FILE_TOO_LARGE(8005, HttpStatus.PAYLOAD_TOO_LARGE, "Tệp vượt quá dung lượng cho phép"),
+
+    // ========== 90xx CHUNG & HỆ THỐNG ==========
+    INVALID_REQUEST_DATA(9001, HttpStatus.BAD_REQUEST, "Dữ liệu chưa hợp lệ, xem các ô báo đỏ"),
+    MALFORMED_REQUEST(9002, HttpStatus.BAD_REQUEST, "Dữ liệu gửi lên không đúng định dạng"),
+    REQUIRED_FIELD_MISSING(9003, HttpStatus.BAD_REQUEST, "Thiếu thông tin bắt buộc: {0}"),
+    INVALID_DATE_FORMAT(9004, HttpStatus.BAD_REQUEST, "{0} phải có dạng yyyy-MM-dd"),
+    INVALID_DATE_RANGE(9005, HttpStatus.BAD_REQUEST, "Chọn khoảng ngày hợp lệ, không chọn ngày trong tương lai"),
+    DATE_RANGE_TOO_LONG(9006, HttpStatus.BAD_REQUEST, "Khoảng ngày tối đa {0} ngày"),
+    INVALID_VALUE(9007, HttpStatus.BAD_REQUEST, "Giá trị {0} không hợp lệ"),
+    METHOD_NOT_ALLOWED(9008, HttpStatus.METHOD_NOT_ALLOWED, "Thao tác không được hỗ trợ"),
+    RESOURCE_NOT_FOUND(9009, HttpStatus.NOT_FOUND, "Không tìm thấy dữ liệu"),
+    INTERNAL_ERROR(9010, HttpStatus.INTERNAL_SERVER_ERROR, "Có lỗi hệ thống, vui lòng thử lại sau"),
+    CONFIG_MISSING(9011, HttpStatus.INTERNAL_SERVER_ERROR, "Thiếu dữ liệu cấu hình hệ thống, liên hệ quản trị");
+
+    private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    private final Integer errorCode;
     private final HttpStatus httpStatus;
     private final String defaultDesc;
 
+    ApiCode(HttpStatus httpStatus, String defaultDesc) {
+        this(null, httpStatus, defaultDesc);
+    }
+
+    ApiCode(Integer errorCode, HttpStatus httpStatus, String defaultDesc) {
+        this.errorCode = errorCode;
+        this.httpStatus = httpStatus;
+        this.defaultDesc = defaultDesc;
+    }
+
     public int getCode() {
         return httpStatus.value();
+    }
+
+    /** Câu lỗi với giá trị thay vào {0}, {1}...; ngày hiện dd/MM/yyyy, số không tách nhóm nghìn. */
+    public String format(Object... args) {
+        if (args == null || args.length == 0) {
+            return defaultDesc;
+        }
+        Object[] shown = Arrays.stream(args)
+                .map(a -> a instanceof LocalDate d ? DISPLAY_DATE.format(d) : a instanceof Number n ? n.toString() : a)
+                .toArray();
+        return MessageFormat.format(defaultDesc, shown);
     }
 }

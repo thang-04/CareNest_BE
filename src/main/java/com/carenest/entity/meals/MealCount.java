@@ -2,6 +2,7 @@ package com.carenest.entity.meals;
 
 import com.carenest.utils.enums.MealCountStatus;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.StaffRole;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,7 +27,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 /**
  * Sổ báo ăn một bữa của một điểm trường trong ngày, tổng hợp lúc khóa điểm danh (NUT-01). Đã xác nhận thì không sửa
- * ngầm: thay đổi ghi vào các dòng pending, bếp vẫn dùng dòng đã xác nhận tới khi PHT xác nhận lại (NUT-03, ADR-0005).
+ * ngầm: thay đổi ghi vào các dòng pending, bếp vẫn dùng dòng đã xác nhận tới khi HT/PHT xác nhận lại (NUT-03, ADR-0005).
  */
 @Getter
 @Entity
@@ -66,6 +67,10 @@ public class MealCount {
 
     @Column(name = "confirmed_at")
     private Instant confirmedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "confirmed_by_role", length = 20)
+    private StaffRole confirmedByRole;
 
     @OneToMany(mappedBy = "mealCount", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id")
@@ -157,7 +162,7 @@ public class MealCount {
     }
 
     /** Xác nhận (hoặc xác nhận lại): số chờ thành số chốt, bếp dùng từ đây. */
-    public void confirm(Long userId, Instant at) {
+    public void confirm(Long userId, StaffRole role, Instant at) {
         List<MealCountLine> pending =
                 lines.stream().filter(MealCountLine::isPending).toList();
         // Chép số chờ vào dòng đã chốt rồi bỏ dòng chờ (tránh trùng khóa (sổ, lớp, pending) khi flush)
@@ -170,6 +175,7 @@ public class MealCount {
         status = MealCountStatus.CONFIRMED;
         needsReconfirmation = false;
         confirmedBy = userId;
+        confirmedByRole = role;
         confirmedAt = at;
     }
 }

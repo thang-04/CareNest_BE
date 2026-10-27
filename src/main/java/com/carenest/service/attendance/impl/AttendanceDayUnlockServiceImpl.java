@@ -48,7 +48,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
         log.info("{}|START", logPrefix);
         try {
             if (!currentUser.hasRole(CareNestRole.PRINCIPAL) && !currentUser.hasRole(CareNestRole.VICE_PRINCIPAL)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to attendance unlocks");
+                throw GlobalException.of(ApiCode.UNLOCK_ACCESS_DENIED);
             }
             Map<Long, Boolean> campusAllowed = new HashMap<>();
             List<AttendanceDayUnlock> unlocks =
@@ -87,25 +87,24 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
         try {
             ClassroomInfoResponse cls = classroomService
                     .findClassroomInfo(request.classId())
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
             if (!rules.canUnlock(currentUser, cls.campusId())) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this class");
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
-                throw new GlobalException(ApiCode.CONFLICT, "Only classes of the active school year can be unlocked");
+                throw GlobalException.of(ApiCode.UNLOCK_YEAR_NOT_ACTIVE);
             }
             LocalDate date = request.date();
             LocalDate today = rules.today();
             if (!AttendanceDayRules.isSchoolDay(date)
                     || date.isAfter(today)
                     || (cls.yearStart() != null && date.isBefore(cls.yearStart()))) {
-                throw new GlobalException(
-                        ApiCode.BAD_REQUEST, "Choose a school day from the start of the school year to today");
+                throw GlobalException.of(ApiCode.UNLOCK_DATE_OUT_OF_RANGE);
             }
             if (!rules.isBaseLocked(date, rules.cutoff(cls.schoolYearId(), date))) {
-                throw new GlobalException(ApiCode.CONFLICT, "Attendance of this day is not locked yet");
+                throw GlobalException.of(ApiCode.DAY_NOT_LOCKED_YET);
             }
-            // Cần chốt 21/10/2026: hạn do người mở chọn, sau hiện tại và không quá hết ngày kết thúc năm học
+            // hạn do người mở chọn, sau hiện tại và không quá hết ngày kết thúc năm học
             Instant now = rules.now();
             Instant yearEndAt = cls.yearEnd() == null
                     ? null
@@ -115,13 +114,11 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
                             .toInstant();
             if (!request.validUntil().isAfter(now)
                     || (yearEndAt != null && request.validUntil().isAfter(yearEndAt))) {
-                throw new GlobalException(
-                        ApiCode.BAD_REQUEST,
-                        "Unlock deadline must be after now and not after the end of the school year");
+                throw GlobalException.of(ApiCode.UNLOCK_DEADLINE_INVALID);
             }
             String reason = request.reason().trim();
             if (rules.activeUnlock(cls.id(), date).isPresent()) {
-                throw new GlobalException(ApiCode.CONFLICT, "This class already has an active unlock for this day");
+                throw GlobalException.of(ApiCode.UNLOCK_ALREADY_ACTIVE);
             }
             AttendanceDayUnlock unlock = unlockRepository.save(AttendanceDayUnlock.create(
                     cls.id(), cls.campusId(), date, request.validUntil(), reason, currentUser.userId(), now));
@@ -141,13 +138,13 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
         try {
             AttendanceDayUnlock unlock = unlockRepository
                     .findById(unlockId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Attendance unlock not found"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.ATTENDANCE_UNLOCK_NOT_FOUND));
             if (!rules.canUnlock(currentUser, unlock.getCampusId())) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this class");
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             Instant now = rules.now();
             if (!unlock.isActiveAt(now)) {
-                throw new GlobalException(ApiCode.CONFLICT, "This unlock has already ended");
+                throw GlobalException.of(ApiCode.UNLOCK_ALREADY_ENDED);
             }
             unlock.revoke(currentUser.userId(), now);
             String className = classroomService

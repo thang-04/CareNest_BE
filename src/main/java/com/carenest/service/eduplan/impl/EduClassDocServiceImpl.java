@@ -193,7 +193,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         default -> "wp_" + classId + "_" + weekStart;
                     };
             if (!expectedKey.equals(docKey)) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Document key does not match its class, theme or week");
+                throw GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH);
             }
 
             ClassroomInfoResponse cls = requireClass(classId);
@@ -202,20 +202,20 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (!staffAssignmentService
                     .findCurrentTeacherClassroomIds(currentUser.userId(), today)
                     .contains(classId)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Chỉ giáo viên của lớp sửa được tài liệu này");
+                throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
             }
             EduYearPlan plan = requireIssuedPlan(yearPlanId, cls);
             List<TeachingWeek> weeks = teachingWeeks(plan.getId());
             if (themeId != null
                     && themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
                             .noneMatch(t -> t.getId().equals(themeId))) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Theme does not belong to the year plan");
+                throw GlobalException.of(ApiCode.THEME_NOT_IN_PLAN);
             }
             if (weekStart != null
                     && weeks.stream()
                             .noneMatch(w ->
                                     w.start().equals(weekStart) && w.themeId().equals(themeId))) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Week is not a teaching week of the theme");
+                throw GlobalException.of(ApiCode.WEEK_NOT_IN_THEME);
             }
 
             Optional<EduClassDoc> current = classDocRepository.findForUpdateByDocKey(docKey);
@@ -228,7 +228,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 entity = current.get();
                 // EDU-18: chỉ sửa khi Nháp hoặc Bị trả lại
                 if (!entity.getStatus().editable()) {
-                    throw new GlobalException(ApiCode.CONFLICT, "Tài liệu đã gửi duyệt, không sửa được");
+                    throw GlobalException.of(ApiCode.CLASS_DOC_SUBMITTED);
                 }
             }
             entity.changeContent(objectMapper.writeValueAsString(contentOf(doc)), currentUser.userId());
@@ -253,13 +253,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             requireKind(kind);
             // EDU-17: giáo án tuần đi cùng hồ sơ chủ đề, không gửi riêng
             if (EduClassDoc.WEEK.equals(kind)) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Giáo án tuần được gửi và duyệt cùng kế hoạch chủ đề");
+                throw GlobalException.of(ApiCode.WEEKLY_LESSON_VIA_THEME);
             }
             EduClassDoc doc = classDocRepository
                     .findForUpdateByDocKey(docKey)
                     .filter(d -> d.getKind().equals(kind))
-                    .orElseThrow(() -> new GlobalException(
-                            ApiCode.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
             ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
             LocalDate today = LocalDate.now(clock);
             Set<Long> leaders = cls.ageGroupId() == null
@@ -296,11 +295,10 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             switch (request.action()) {
                 case ACTION_SUBMIT -> {
                     if (!classTeachers.contains(currentUser.userId())) {
-                        throw new GlobalException(
-                                ApiCode.FORBIDDEN, "Chỉ giáo viên được phân công vào lớp mới gửi được");
+                        throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
                     }
                     if (!doc.getStatus().editable()) {
-                        throw new GlobalException(ApiCode.CONFLICT, "Tài liệu đã được gửi");
+                        throw GlobalException.of(ApiCode.CLASS_DOC_SUBMITTED);
                     }
                     requireCanSubmit(doc);
                     next = chain.isEmpty() ? EduClassDocStatus.APPROVED : PENDING_OF.get(chain.getFirst());
@@ -310,7 +308,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     tone = TONE_NONE;
                 }
                 case ACTION_APPROVE -> {
-                    requireWaitingFor(currentUser, waiting, leaders, "Bạn không duyệt được ở bước này");
+                    requireWaitingFor(currentUser, waiting, leaders, "duyệt");
                     int index = chain.indexOf(waiting);
                     String nextRole = index >= 0 && index + 1 < chain.size() ? chain.get(index + 1) : null;
                     next = nextRole == null ? EduClassDocStatus.APPROVED : PENDING_OF.get(nextRole);
@@ -327,15 +325,15 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     tone = TONE_OK;
                 }
                 case ACTION_REJECT -> {
-                    requireWaitingFor(currentUser, waiting, leaders, "Bạn không trả lại được ở bước này");
+                    requireWaitingFor(currentUser, waiting, leaders, "trả lại");
                     if (note == null) {
-                        throw new GlobalException(ApiCode.BAD_REQUEST, "Cần ghi lý do trả lại");
+                        throw GlobalException.of(ApiCode.RETURN_REASON_REQUIRED);
                     }
                     next = EduClassDocStatus.REJECTED;
                     action = "Trả lại để sửa";
                     tone = TONE_ERR;
                 }
-                default -> throw new GlobalException(ApiCode.BAD_REQUEST, "Hành động không hợp lệ");
+                default -> throw GlobalException.of(ApiCode.INVALID_VALUE, "hành động");
             }
 
             ObjectNode entry = objectMapper.createObjectNode();
@@ -420,7 +418,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     private void requireView(CurrentUser user) {
         if (!accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW)) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "Không có quyền xem kế hoạch giáo dục");
+            throw GlobalException.of(ApiCode.YEAR_PLAN_ACCESS_DENIED);
         }
     }
 
@@ -445,20 +443,20 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private ClassroomInfoResponse requireClass(Long classId) {
         return classroomService
                 .findClassroomInfo(classId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Không tìm thấy lớp"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
     }
 
     /** EDU-12: tài liệu lớp dựa trên kế hoạch năm đã ban hành của đúng nhóm tuổi, năm học của lớp. */
     private EduYearPlan requireIssuedPlan(Long yearPlanId, ClassroomInfoResponse cls) {
         EduYearPlan plan = yearPlanRepository
                 .findById(yearPlanId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Không tìm thấy kế hoạch năm học"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
         if (!plan.getSchoolYearId().equals(cls.schoolYearId())
                 || !plan.getAgeGroupId().equals(cls.ageGroupId())) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Year plan does not match the class");
+            throw GlobalException.of(ApiCode.YEAR_PLAN_CLASS_MISMATCH);
         }
         if (plan.getStatus() != EduPlanStatus.APPROVED) {
-            throw new GlobalException(ApiCode.CONFLICT, "Kế hoạch năm học của nhóm tuổi chưa được ban hành");
+            throw GlobalException.of(ApiCode.YEAR_PLAN_NOT_ISSUED);
         }
         return plan;
     }
@@ -472,13 +470,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         boolean branchApproved = docs.stream()
                 .anyMatch(d -> EduClassDoc.BRANCH.equals(d.getKind()) && d.getStatus() == EduClassDocStatus.APPROVED);
         if (!branchApproved) {
-            throw new GlobalException(
-                    ApiCode.CONFLICT, "Chưa thể bắt đầu: Dự kiến chủ đề nhánh của lớp cần được duyệt trước.");
+            throw GlobalException.of(ApiCode.BRANCH_THEMES_NOT_APPROVED);
         }
         if (EduClassDoc.WEEK.equals(kind)
                 && docs.stream()
                         .noneMatch(d -> EduClassDoc.THEME.equals(d.getKind()) && themeId.equals(d.getThemeId()))) {
-            throw new GlobalException(ApiCode.CONFLICT, "Chưa thể bắt đầu: Cần lưu kế hoạch giáo dục chủ đề trước.");
+            throw GlobalException.of(ApiCode.THEME_PLAN_NOT_SAVED);
         }
     }
 
@@ -491,7 +488,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     .filter(w -> names.path(w.start().toString()).asString("").isBlank())
                     .count();
             if (empty > 0) {
-                throw new GlobalException(ApiCode.CONFLICT, "Còn " + empty + " tuần chưa đặt tên chủ đề nhánh");
+                throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, empty);
             }
             return;
         }
@@ -500,8 +497,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         .anyMatch(d ->
                                 EduClassDoc.BRANCH.equals(d.getKind()) && d.getStatus() == EduClassDocStatus.APPROVED);
         if (!branchApproved) {
-            throw new GlobalException(
-                    ApiCode.CONFLICT, "Dự kiến chủ đề nhánh của lớp chưa được duyệt, nên chưa gửi được.");
+            throw GlobalException.of(ApiCode.BRANCH_THEMES_NOT_APPROVED);
         }
         List<TeachingWeek> themeWeeks =
                 weeks.stream().filter(w -> w.themeId().equals(doc.getThemeId())).toList();
@@ -514,10 +510,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             }
         }
         if (!missing.isEmpty()) {
-            throw new GlobalException(
-                    ApiCode.CONFLICT,
-                    "Còn thiếu giáo án " + String.join(", ", missing)
-                            + ". Soạn và lưu đủ giáo án các nhánh rồi mới gửi duyệt kế hoạch chủ đề.");
+            throw GlobalException.of(ApiCode.WEEKLY_LESSONS_MISSING, String.join(", ", missing));
         }
     }
 
@@ -535,7 +528,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /** EDU-18: đúng lượt, đúng vai trò; Tổ trưởng chỉ duyệt lớp thuộc nhóm tuổi mình. */
-    private void requireWaitingFor(CurrentUser user, String waiting, Set<Long> leaders, String message) {
+    private void requireWaitingFor(CurrentUser user, String waiting, Set<Long> leaders, String action) {
         boolean allowed = waiting != null
                 && switch (waiting) {
                     case ROLE_TEAM_LEADER -> leaders.contains(user.userId());
@@ -544,7 +537,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     default -> false;
                 };
         if (!allowed) {
-            throw new GlobalException(ApiCode.FORBIDDEN, message);
+            throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, action);
         }
     }
 
@@ -560,7 +553,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     private static void requireKind(String kind) {
         if (!Set.of(EduClassDoc.BRANCH, EduClassDoc.THEME, EduClassDoc.WEEK).contains(kind)) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Unknown document kind");
+            throw GlobalException.of(ApiCode.INVALID_VALUE, "loại tài liệu");
         }
     }
 
@@ -568,7 +561,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         try {
             return Long.valueOf(doc.path(field).asString("").trim());
         } catch (NumberFormatException ex) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Field " + field + " is required", ex);
+            throw GlobalException.withCause(ApiCode.REQUIRED_FIELD_MISSING, ex, field);
         }
     }
 
@@ -576,7 +569,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         try {
             return LocalDate.parse(doc.path(field).asString("").trim());
         } catch (DateTimeParseException ex) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Field " + field + " must be yyyy-MM-dd", ex);
+            throw GlobalException.withCause(ApiCode.INVALID_DATE_FORMAT, ex, field);
         }
     }
 

@@ -100,6 +100,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         try {
             checkCanManage(currentUser);
             String name = validateYearInfo(request, null);
+            checkFollowsLatest(name, request);
             SchoolYear schoolYear =
                     schoolYearRepository.save(SchoolYear.plan(name, request.startDate(), request.endDate()));
             log.info("{}|schoolYearId={}|END", logPrefix, schoolYear.getId());
@@ -125,10 +126,10 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             // Tên năm học dùng ở lớp, kế hoạch, bộ chọn năm: chỉ đổi khi năm chưa bắt đầu và chưa có lớp
             if (!name.equals(schoolYear.getName())) {
                 if (schoolYear.getStatus() != SchoolYearStatus.PLANNED) {
-                    throw new GlobalException(ApiCode.CONFLICT, "School year name can only change before it starts");
+                    throw GlobalException.of(ApiCode.SCHOOL_YEAR_NAME_LOCKED);
                 }
                 if (classCount > 0) {
-                    throw new GlobalException(ApiCode.CONFLICT, "School year already has classes, name cannot change");
+                    throw GlobalException.of(ApiCode.SCHOOL_YEAR_HAS_CLASSES);
                 }
             }
             schoolYear.changeInfo(name, request.startDate(), request.endDate());
@@ -150,7 +151,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             checkCanManage(currentUser);
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
             if (schoolYear.getStatus() != SchoolYearStatus.PLANNED) {
-                throw new GlobalException(ApiCode.CONFLICT, "Only a planned school year can be deleted");
+                throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_DELETABLE);
             }
             try {
                 // Năm chưa bắt đầu chỉ có dữ liệu chuẩn bị: xóa cùng năm học (lớp, phân công, giờ chốt; xếp lớp
@@ -163,8 +164,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 schoolYearRepository.flush();
             } catch (DataIntegrityViolationException integrityEx) {
                 // Bảng của module khác (vd. kế hoạch năm học) còn tham chiếu năm này
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "School year is used by other records and cannot be deleted", integrityEx);
+                throw GlobalException.withCause(ApiCode.SCHOOL_YEAR_IN_USE, integrityEx);
             }
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -182,26 +182,23 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             checkCanManage(currentUser);
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
             if (schoolYear.getStatus() != SchoolYearStatus.PLANNED) {
-                throw new GlobalException(ApiCode.CONFLICT, "Only a planned school year can be activated");
+                throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_ACTIVATABLE);
             }
             // Kích hoạt theo thứ tự: chỉ năm PLANNED sớm nhất (năm liền sau năm đang chạy)
             SchoolYear next = schoolYearRepository
                     .findFirstByStatusOrderByStartDateAsc(SchoolYearStatus.PLANNED)
                     .orElse(schoolYear);
             if (!next.getId().equals(schoolYear.getId())) {
-                throw new GlobalException(ApiCode.CONFLICT, "Activate school year " + next.getName() + " first");
+                throw GlobalException.of(ApiCode.ACTIVATE_EARLIER_YEAR_FIRST, next.getName());
             }
             if (confirmName == null || !confirmName.trim().equals(schoolYear.getName())) {
-                throw new GlobalException(
-                        ApiCode.BAD_REQUEST, "Type the school year name exactly to confirm activation");
+                throw GlobalException.of(ApiCode.ACTIVATION_CONFIRM_MISMATCH);
             }
             LocalDate today = LocalDate.now(clock);
             if (!devActivation.skipDateWindow()
                     && today.isBefore(schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS))) {
-                throw new GlobalException(
-                        ApiCode.CONFLICT,
-                        "School year can be activated from "
-                                + schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS));
+                throw GlobalException.of(
+                        ApiCode.ACTIVATION_TOO_EARLY, schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS));
             }
             Instant now = clock.instant();
             // Chỉ một năm ACTIVE: đóng năm đang chạy trước (flush) rồi mới mở năm mới, cùng transaction
@@ -232,13 +229,11 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             checkCanManage(currentUser);
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
             if (schoolYear.getStatus() != SchoolYearStatus.ACTIVE) {
-                throw new GlobalException(ApiCode.CONFLICT, "Only the active school year can be closed");
+                throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_CLOSABLE);
             }
             // Kết thúc tay chỉ sau ngày kết thúc năm học; trước đó năm cũ tự đóng khi kích hoạt năm mới
             if (!devActivation.skipCloseEndDate() && !LocalDate.now(clock).isAfter(schoolYear.getEndDate())) {
-                throw new GlobalException(
-                        ApiCode.CONFLICT,
-                        "School year can only be closed after its end date " + schoolYear.getEndDate());
+                throw GlobalException.of(ApiCode.SCHOOL_YEAR_CLOSE_TOO_EARLY, schoolYear.getEndDate());
             }
             schoolYear.close(currentUser.userId(), clock.instant());
             classroomRepository.closeAllBySchoolYearId(schoolYearId);
@@ -264,7 +259,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     public void checkClassYearOpen(Long classroomId) {
         Classroom classroom = classroomRepository
                 .findById(classroomId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Class not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
         SchoolYearRules.checkOpen(findSchoolYear(classroom.getSchoolYearId()));
     }
 
@@ -272,6 +267,38 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     @Transactional(readOnly = true)
     public void checkDateYearOpen(LocalDate date) {
         schoolYearRepository.findContaining(date).ifPresent(SchoolYearRules::checkOpen);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SchoolYearDetailResponse findNextPlannedYear() {
+        return schoolYearRepository
+                .findFirstByStatusOrderByStartDateAsc(SchoolYearStatus.PLANNED)
+                .map(this::toDetail)
+                .orElse(null);
+    }
+
+    // Năm mới nối tiếp năm mới nhất: tên = năm mới nhất + 1, bắt đầu sau ngày kết thúc năm đó
+    private void checkFollowsLatest(String name, SchoolYearRequest request) {
+        SchoolYear latest = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
+                .findFirst()
+                .orElse(null);
+        if (latest == null) {
+            return;
+        }
+        Matcher latestName = YEAR_NAME.matcher(latest.getName());
+        Matcher newName = YEAR_NAME.matcher(name);
+        if (latestName.matches() && newName.matches()) {
+            int expected = Integer.parseInt(latestName.group(1)) + 1;
+            if (Integer.parseInt(newName.group(1)) != expected) {
+                throw GlobalException.of(
+                        ApiCode.SCHOOL_YEAR_OUT_OF_SEQUENCE, expected + "-" + (expected + 1), latest.getName());
+            }
+        }
+        if (!request.startDate().isAfter(latest.getEndDate())) {
+            throw GlobalException.of(
+                    ApiCode.SCHOOL_YEAR_START_BEFORE_LATEST_END, latest.getName(), latest.getEndDate());
+        }
     }
 
     // CFG-YR-02: chụp phòng / điểm trường / nhóm tuổi lúc năm kết thúc; xem năm cũ đọc bản chụp này
@@ -288,7 +315,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private void checkCanManage(CurrentUser currentUser) {
         if (!currentUser.hasRole(CareNestRole.PRINCIPAL)
                 || !staffAssignmentService.hasActivePrincipalAssignment(currentUser.userId(), LocalDate.now(clock))) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "Only the principal can manage school years");
+            throw GlobalException.of(ApiCode.PRINCIPAL_ONLY, "quản lý năm học");
         }
     }
 
@@ -297,24 +324,22 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         String name = request.name().trim();
         Matcher matcher = YEAR_NAME.matcher(name);
         if (!matcher.matches() || Integer.parseInt(matcher.group(2)) != Integer.parseInt(matcher.group(1)) + 1) {
-            throw new GlobalException(
-                    ApiCode.BAD_REQUEST, "School year name must be YYYY-YYYY with consecutive years, e.g. 2027-2028");
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_NAME_INVALID);
         }
         if (!request.endDate().isAfter(request.startDate())) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "End date must be after start date");
+            throw GlobalException.of(ApiCode.END_DATE_BEFORE_START);
         }
         boolean duplicated = excludeId == null
                 ? schoolYearRepository.existsByName(name)
                 : schoolYearRepository.existsByNameAndIdNot(name, excludeId);
         if (duplicated) {
-            throw new GlobalException(ApiCode.CONFLICT, "School year " + name + " already exists");
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_EXISTS, name);
         }
         List<SchoolYear> overlapping =
                 schoolYearRepository.findOverlapping(request.startDate(), request.endDate(), excludeId);
         if (!overlapping.isEmpty()) {
-            throw new GlobalException(
-                    ApiCode.CONFLICT,
-                    "Dates overlap school year " + overlapping.getFirst().getName());
+            throw GlobalException.of(
+                    ApiCode.SCHOOL_YEAR_DATES_OVERLAP, overlapping.getFirst().getName());
         }
         return name;
     }
@@ -322,7 +347,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private SchoolYear findSchoolYear(Long schoolYearId) {
         return schoolYearRepository
                 .findById(schoolYearId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "School year not found"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
     }
 
     private SchoolYearDetailResponse toDetail(SchoolYear schoolYear) {

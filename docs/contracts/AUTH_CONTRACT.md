@@ -55,9 +55,9 @@ Lỗi gateway: 401 sai credentials/phiên hết hạn; 403 chưa provision/inact
 
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
-| Thiếu token, sai chữ ký, hết hạn, sai issuer/audience | 401 | `Unauthorized` (kèm header `WWW-Authenticate: Bearer`) |
-| Role không đủ (`@PreAuthorize`) | 403 | `Forbidden` |
-| Không kiểm được token vì Keycloak tạm không khả dụng | 503 | `Authentication service unavailable` — báo thử lại, **không** về màn hình đăng nhập |
+| Thiếu token, sai chữ ký, hết hạn, sai issuer/audience | 401 | `errorCode` 1002 `UNAUTHENTICATED` (kèm header `WWW-Authenticate: Bearer`) |
+| Role không đủ (`@PreAuthorize`) | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Không kiểm được token vì Keycloak tạm không khả dụng | 503 | `errorCode` 1013 `AUTH_SERVICE_UNAVAILABLE` — báo thử lại, **không** về màn hình đăng nhập |
 
 Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất bại ⇒ về màn hình đăng nhập.
 
@@ -78,8 +78,8 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
-| Có tài khoản Keycloak nhưng chưa có hồ sơ CareNest | 403 | `Account is not provisioned` |
-| Tài khoản CareNest bị khóa (token còn hạn vẫn bị chặn) | 403 | `Account is inactive` |
+| Có tài khoản Keycloak nhưng chưa có hồ sơ CareNest | 403 | `errorCode` 1014 `ACCOUNT_NOT_PROVISIONED` |
+| Tài khoản CareNest bị khóa (token còn hạn vẫn bị chặn) | 403 | `errorCode` 1015 `ACCOUNT_INACTIVE` |
 
 Hai lỗi trên áp dụng cho **mọi** API dưới `{API_PREFIX}` (không riêng `/accounts/me`).
 
@@ -98,7 +98,7 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: role (`@PreAuthorize`) r�
 
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
-| Role KITCHEN_STAFF, ADMIN | 403 | `Forbidden` |
+| Role KITCHEN_STAFF, ADMIN | 403 | `errorCode` 1101 `FORBIDDEN` |
 | Trẻ ngoài phạm vi hoặc id không tồn tại | 403 | `You do not have access to this child` |
 | `childId` không phải số | 400 | `Malformed request` |
 
@@ -121,7 +121,7 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: role (`@PreAuthorize`) r�
 
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
-| Không phải ADMIN | 403 | `Forbidden` |
+| Không phải ADMIN | 403 | `errorCode` 1101 `FORBIDDEN` |
 | Body sai | 400 | `Invalid request data` (+ lỗi theo field) |
 | `role` = ADMIN | 400 | `This role cannot be created via API` |
 | Thiếu mật khẩu tạm khi không gửi được email | 400 | `Temporary password is required when a setup email cannot be sent` |
@@ -139,7 +139,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 
 - Web Phase 3: ghép các màn hình login/forgot-password/verify-otp/reset-password/change-password và AuthContext/HTTP client vào gateway phía trên. Public client `carenest-web` vẫn giữ PKCE cho legacy; Mobile `carenest-mobile` tiếp tục public + PKCE S256, cùng issuer/audience.
 - Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.
-- 403 `Account is not provisioned` / `Account is inactive` ⇒ báo liên hệ nhà trường, không retry. 403 khác ⇒ báo không có quyền. 503 `Authentication service unavailable` ⇒ báo thử lại sau.
+- 403 `ACCOUNT_NOT_PROVISIONED` / `ACCOUNT_INACTIVE` ⇒ báo liên hệ nhà trường, không retry. 403 khác ⇒ báo không có quyền. 503 `AUTH_SERVICE_UNAVAILABLE` ⇒ báo thử lại sau. Phân biệt bằng `errorCode` (không so `desc`, `desc` là câu tiếng Việt từ 27/10/2026 — `docs/contracts/ERROR_CONTRACT.md`).
 - Sau đăng nhập gọi `GET /accounts/me` lấy `roles`, `assignments`, `childIds` để dựng menu/màn hình; ẩn nút ở UI không phải phân quyền (AUTH-07).
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.

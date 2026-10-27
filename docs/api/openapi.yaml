@@ -3456,6 +3456,14 @@ components:
           format: int64
         confirmedByName:
           type: string
+        confirmedByRole:
+          type: string
+          enum:
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - AGE_GROUP_TEAM_LEADER
         date:
           type: string
           format: date
@@ -3778,6 +3786,9 @@ components:
           $ref: "#/components/schemas/AccessToken"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAccountResponse:
       type: object
       properties:
@@ -3788,6 +3799,9 @@ components:
           $ref: "#/components/schemas/AccountResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAgeGroupDetailResponse:
       type: object
       properties:
@@ -3798,6 +3812,9 @@ components:
           $ref: "#/components/schemas/AgeGroupDetailResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAutoPlaceResponse:
       type: object
       properties:
@@ -3808,6 +3825,9 @@ components:
           $ref: "#/components/schemas/AutoPlaceResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonCampusDetailResponse:
       type: object
       properties:
@@ -3818,6 +3838,9 @@ components:
           $ref: "#/components/schemas/CampusDetailResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonCampusResponse:
       type: object
       properties:
@@ -3828,6 +3851,9 @@ components:
           $ref: "#/components/schemas/CampusResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonChildDay:
       type: object
       properties:
@@ -3838,6 +3864,9 @@ components:
           $ref: "#/components/schemas/ChildDay"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonChildProfileResponse:
       type: object
       properties:
@@ -3848,6 +3877,9 @@ components:
           $ref: "#/components/schemas/ChildProfileResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonClassAttendanceResponse:
       type: object
       properties:
@@ -3858,6 +3890,9 @@ components:
           $ref: "#/components/schemas/ClassAttendanceResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonClassResponse:
       type: object
       properties:
@@ -3868,6 +3903,9 @@ components:
           $ref: "#/components/schemas/ClassResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonClassSummary:
       type: object
       properties:
@@ -3878,6 +3916,9 @@ components:
           $ref: "#/components/schemas/ClassSummary"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonClassTeachersResponse:
       type: object
       properties:
@@ -3888,6 +3929,9 @@ components:
           $ref: "#/components/schemas/ClassTeachersResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonCopyClassesResponse:
       type: object
       properties:
@@ -3898,6 +3942,9 @@ components:
           $ref: "#/components/schemas/CopyClassesResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonCreateAccountResponse:
       type: object
       properties:
@@ -3908,6 +3955,9 @@ components:
           $ref: "#/components/schemas/CreateAccountResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonCsrf:
       type: object
       properties:
@@ -3918,6 +3968,9 @@ components:
           $ref: "#/components/schemas/Csrf"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonCutoffResponse:
       type: object
       properties:
@@ -3928,6 +3981,9 @@ components:
           $ref: "#/components/schemas/CutoffResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonDailyHealthEntryResponse:
       type: object
       properties:
@@ -3938,6 +3994,9 @@ components:
           $ref: "#/components/schemas/DailyHealthEntryResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonDayInfoResponse:
       type: object
       properties:
@@ -3948,6 +4007,9 @@ components:
           $ref: "#/components/schemas/DayInfoResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonDayUnlockResponse:
       type: object
       properties:
@@ -3958,6 +4020,9 @@ components:
           $ref: "#/components/schemas/DayUnlockResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonEduConfigResponse:
       type: object
       properties:
@@ -3968,6 +4033,9 @@ components:
           $ref: "#/components/schemas/EduConfigResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListAgeGroupDetailResponse:
       type: object
       properties:
@@ -3980,6 +4048,9 @@ components:
             $ref: "#/components/schemas/AgeGroupDetailResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListAssignmentHistoryResponse:
       type: object
       properties:
@@ -3992,6 +4063,9 @@ components:
             $ref: "#/components/schemas/AssignmentHistoryResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListAttendanceClassResponse:
       type: object
       properties:
@@ -4004,6 +4078,9 @@ components:
             $ref: "#/components/schemas/AttendanceClassResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListCampusResponse:
       type: object
       properties:
@@ -4016,6 +4093,9 @@ components:
             $ref: "#/components/schemas/CampusResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListDayUnlockResponse:
       type: object
       properties:
@@ -4028,6 +4108,9 @@ components:
             $ref: "#/components/schemas/DayUnlockResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListExpectedResultResponse:
       type: object
       properties:
@@ -4040,6 +4123,9 @@ components:
             $ref: "#/components/schemas/ExpectedResultResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListMealCountResponse:
       type: object
       properties:
@@ -4052,6 +4138,9 @@ components:
             $ref: "#/components/schemas/MealCountResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListRoomResponse:
       type: object
       properties:
@@ -4064,6 +4153,9 @@ components:
             $ref: "#/components/schemas/RoomResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListSchoolYearDetailResponse:
       type: object
       properties:
@@ -4076,6 +4168,9 @@ components:
             $ref: "#/components/schemas/SchoolYearDetailResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonLoginData:
       type: object
       properties:
@@ -4086,6 +4181,9 @@ components:
           $ref: "#/components/schemas/LoginData"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMapStringInteger:
       type: object
       properties:
@@ -4099,6 +4197,9 @@ components:
             format: int32
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMealCountDayResponse:
       type: object
       properties:
@@ -4109,6 +4210,9 @@ components:
           $ref: "#/components/schemas/MealCountDayResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMealCountResponse:
       type: object
       properties:
@@ -4119,6 +4223,9 @@ components:
           $ref: "#/components/schemas/MealCountResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMultiSummary:
       type: object
       properties:
@@ -4129,6 +4236,9 @@ components:
           $ref: "#/components/schemas/MultiSummary"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMyAccountResponse:
       type: object
       properties:
@@ -4139,6 +4249,9 @@ components:
           $ref: "#/components/schemas/MyAccountResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonOtpRequest:
       type: object
       properties:
@@ -4149,6 +4262,9 @@ components:
           $ref: "#/components/schemas/OtpRequest"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonOverview:
       type: object
       properties:
@@ -4159,6 +4275,9 @@ components:
           $ref: "#/components/schemas/Overview"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonPageResponseYearPlanSummaryResponse:
       type: object
       properties:
@@ -4169,6 +4288,9 @@ components:
           $ref: "#/components/schemas/PageResponseYearPlanSummaryResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonPlacementBoardResponse:
       type: object
       properties:
@@ -4179,6 +4301,9 @@ components:
           $ref: "#/components/schemas/PlacementBoardResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonResetToken:
       type: object
       properties:
@@ -4189,6 +4314,9 @@ components:
           $ref: "#/components/schemas/ResetToken"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonRoomResponse:
       type: object
       properties:
@@ -4199,6 +4327,9 @@ components:
           $ref: "#/components/schemas/RoomResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonSaveAttendanceResponse:
       type: object
       properties:
@@ -4209,6 +4340,9 @@ components:
           $ref: "#/components/schemas/SaveAttendanceResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonSchoolStructureResponse:
       type: object
       properties:
@@ -4219,6 +4353,9 @@ components:
           $ref: "#/components/schemas/SchoolStructureResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonSchoolYearDetailResponse:
       type: object
       properties:
@@ -4229,6 +4366,9 @@ components:
           $ref: "#/components/schemas/SchoolYearDetailResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonTeacherAssignmentResponse:
       type: object
       properties:
@@ -4239,6 +4379,9 @@ components:
           $ref: "#/components/schemas/TeacherAssignmentResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonTeamLeaderResponse:
       type: object
       properties:
@@ -4249,6 +4392,9 @@ components:
           $ref: "#/components/schemas/TeamLeaderResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonVoid:
       type: object
       properties:
@@ -4258,6 +4404,9 @@ components:
         data: {}
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonYearPlanDetailResponse:
       type: object
       properties:
@@ -4268,6 +4417,9 @@ components:
           $ref: "#/components/schemas/YearPlanDetailResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonYearReadinessResponse:
       type: object
       properties:
@@ -4278,6 +4430,9 @@ components:
           $ref: "#/components/schemas/YearReadinessResponse"
         desc:
           type: string
+        errorCode:
+          type: integer
+          format: int32
     RoomRequest:
       type: object
       properties:

@@ -45,7 +45,7 @@ public class MealCountController {
     }
 
     @PostMapping("/meal-counts/{mealCountId}/confirm")
-    @PreAuthorize("hasRole('VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
     public ResponseEntity<ResponseJson<MealCountResponse>> confirm(
             @PathVariable Long mealCountId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|confirm|userId=" + currentUser.userId() + "|mealCountId=" + mealCountId;

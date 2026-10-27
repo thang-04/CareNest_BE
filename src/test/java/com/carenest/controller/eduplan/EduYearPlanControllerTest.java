@@ -148,12 +148,13 @@ class EduYearPlanControllerTest {
     void serviceConflictKeepsEnvelope() throws Exception {
         CurrentUser leader = authenticateAs(CareNestRole.TEACHER);
         given(eduYearPlanService.submitYearPlan(leader, 5L, null))
-                .willThrow(new GlobalException(ApiCode.CONFLICT, "Plan needs at least one goal"));
+                .willThrow(GlobalException.of(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER));
 
         mockMvc.perform(post(GOALS + "/5/submit").with(token(CareNestRole.TEACHER)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409))
-                .andExpect(jsonPath("$.desc").value("Plan needs at least one goal"));
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER.getErrorCode()))
+                .andExpect(jsonPath("$.desc").value(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER.getDefaultDesc()));
     }
 
     private static YearPlanDetailResponse detail(EduPlanStatus status) {

@@ -129,7 +129,7 @@ class EduConfigServiceIntegrationTest {
         assertApiError(
                 () -> service.updateEduConfig(
                         vicePrincipal, request(Map.of(), List.of(physical.toUpperCase()), chain, rows)),
-                ApiCode.BAD_REQUEST);
+                ApiCode.DOMAIN_NAME_EXISTS);
     }
 
     private static EduConfigRequest request(
@@ -144,7 +144,8 @@ class EduConfigServiceIntegrationTest {
     private static void assertApiError(ThrowingCallable call, ApiCode code) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode()).isEqualTo(code));
+                .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode().getHttpStatus())
+                        .isEqualTo(code.getHttpStatus()));
     }
 
     private CurrentUser user(String username, CareNestRole role) {

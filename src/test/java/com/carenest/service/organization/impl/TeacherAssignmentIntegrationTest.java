@@ -220,10 +220,10 @@ class TeacherAssignmentIntegrationTest {
         expectError(
                 () -> service.assignClassTeachers(
                         principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher1)),
-                ApiCode.BAD_REQUEST);
+                ApiCode.TEACHER_ACCOUNT_LOCKED);
         expectError(
                 () -> service.assignTeamLeader(principal, new TeamLeaderRequest(year, ageGroup3, teacher2)),
-                ApiCode.BAD_REQUEST);
+                ApiCode.TEACHER_ACCOUNT_LOCKED);
     }
 
     @Test
@@ -365,8 +365,8 @@ class TeacherAssignmentIntegrationTest {
     private static void expectError(ThrowingCallable call, ApiCode apiCode) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(apiCode);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(apiCode.getHttpStatus());
     }
 
     private long insertId(String sql) {

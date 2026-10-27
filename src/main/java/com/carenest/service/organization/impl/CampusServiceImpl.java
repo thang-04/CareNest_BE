@@ -108,7 +108,7 @@ public class CampusServiceImpl implements CampusService {
             // AUTH-02: PHT chỉ xem điểm trường được phân công
             if (!isPrincipal(currentUser, today)
                     && !vicePrincipalCampusIds(currentUser, today).contains(campusId)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             Long yearId = resolveSchoolYearId(schoolYearId);
             List<Classroom> yearClasses = yearId == null
@@ -209,10 +209,10 @@ public class CampusServiceImpl implements CampusService {
             checkPrincipal(currentUser);
             CampusRequest data = normalize(request);
             if (campusRepository.existsByCodeIgnoreCase(data.code())) {
-                throw new GlobalException(ApiCode.CONFLICT, "Campus code already exists");
+                throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
             }
             if (campusRepository.existsByNameIgnoreCase(data.name())) {
-                throw new GlobalException(ApiCode.CONFLICT, "Campus name already exists");
+                throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
             }
             Campus campus = Campus.create(data.code(), data.name(), data.shortName(), data.address(), data.phone());
             // Trường có đúng một điểm trường chính; điểm trường đầu tiên luôn là điểm chính
@@ -239,14 +239,13 @@ public class CampusServiceImpl implements CampusService {
             Campus campus = findCampus(campusId);
             CampusRequest data = normalize(request);
             if (campusRepository.existsByCodeIgnoreCaseAndIdNot(data.code(), campusId)) {
-                throw new GlobalException(ApiCode.CONFLICT, "Campus code already exists");
+                throw GlobalException.of(ApiCode.CAMPUS_CODE_EXISTS);
             }
             if (campusRepository.existsByNameIgnoreCaseAndIdNot(data.name(), campusId)) {
-                throw new GlobalException(ApiCode.CONFLICT, "Campus name already exists");
+                throw GlobalException.of(ApiCode.CAMPUS_NAME_EXISTS);
             }
             if (campus.isMain() && Boolean.FALSE.equals(data.isMain())) {
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "The school needs one main campus; choose another main campus first");
+                throw GlobalException.of(ApiCode.MAIN_CAMPUS_REQUIRED);
             }
             campus.changeInfo(data.code(), data.name(), data.shortName(), data.address(), data.phone());
             if (Boolean.TRUE.equals(data.isMain()) && !campus.isMain()) {
@@ -271,24 +270,23 @@ public class CampusServiceImpl implements CampusService {
             checkPrincipal(currentUser);
             Campus campus = findCampus(campusId);
             if (campus.isMain()) {
-                throw new GlobalException(ApiCode.CONFLICT, "The main campus cannot be deleted");
+                throw GlobalException.of(ApiCode.MAIN_CAMPUS_NOT_DELETABLE);
             }
             if (classroomRepository.countByCampusId(campusId) > 0) {
-                throw new GlobalException(ApiCode.CONFLICT, "Campus already has classes and cannot be deleted");
+                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "lớp");
             }
             if (roomRepository.countByCampusIdAndStatusNot(campusId, RoomStatus.DELETED) > 0) {
-                throw new GlobalException(ApiCode.CONFLICT, "Campus already has rooms and cannot be deleted");
+                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "phòng");
             }
             if (campusRepository.countStaffAssignments(campusId) > 0) {
-                throw new GlobalException(ApiCode.CONFLICT, "Campus already has staff and cannot be deleted");
+                throw GlobalException.of(ApiCode.CAMPUS_HAS_DEPENDENTS, "nhân sự");
             }
             try {
                 campusRepository.delete(campus);
                 campusRepository.flush();
             } catch (DataIntegrityViolationException integrityEx) {
                 // Bảng khác (phòng, bếp...) còn tham chiếu điểm trường này
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "Campus is used by other records and cannot be deleted", integrityEx);
+                throw GlobalException.withCause(ApiCode.CAMPUS_HAS_DEPENDENTS, integrityEx, "dữ liệu liên quan");
             }
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
@@ -307,19 +305,16 @@ public class CampusServiceImpl implements CampusService {
             Campus campus = findCampus(campusId);
             if (status == CampusStatus.INACTIVE && campus.isActive()) {
                 if (campus.isMain()) {
-                    throw new GlobalException(ApiCode.CONFLICT, "The main campus cannot be deactivated");
+                    throw GlobalException.of(ApiCode.MAIN_CAMPUS_NOT_DEACTIVATABLE);
                 }
                 if (campusRepository.countOpenYearClasses(campusId) > 0) {
-                    throw new GlobalException(
-                            ApiCode.CONFLICT, "Campus has classes in the active or planned school year");
+                    throw GlobalException.of(ApiCode.CAMPUS_HAS_ACTIVE_CLASSES);
                 }
                 // Còn PHT phụ trách (hôm nay hoặc sắp tới) ⇒ Hiệu trưởng phải gỡ phân công trước (Cần chốt 22/10)
                 List<String> vicePrincipals =
                         staffAssignmentRepository.findOpenVicePrincipalNames(campusId, LocalDate.now(clock));
                 if (!vicePrincipals.isEmpty()) {
-                    throw new GlobalException(
-                            ApiCode.CONFLICT,
-                            "Campus still has vice principals assigned: " + String.join(", ", vicePrincipals));
+                    throw GlobalException.of(ApiCode.CAMPUS_HAS_VICE_PRINCIPALS, String.join(", ", vicePrincipals));
                 }
                 campus.deactivate(clock.instant());
             } else if (status == CampusStatus.ACTIVE && !campus.isActive()) {
@@ -343,7 +338,7 @@ public class CampusServiceImpl implements CampusService {
     // AUTH-01: ghi cấu hình điểm trường chỉ Hiệu trưởng có phân công còn hiệu lực
     private void checkPrincipal(CurrentUser currentUser) {
         if (!isPrincipal(currentUser, LocalDate.now(clock))) {
-            throw new GlobalException(ApiCode.FORBIDDEN, "Only the principal can manage campuses");
+            throw GlobalException.of(ApiCode.PRINCIPAL_ONLY, "quản lý điểm trường");
         }
     }
 
@@ -395,7 +390,7 @@ public class CampusServiceImpl implements CampusService {
     private Long resolveSchoolYearId(Long schoolYearId) {
         if (schoolYearId != null) {
             if (!schoolYearRepository.existsById(schoolYearId)) {
-                throw new GlobalException(ApiCode.NOT_FOUND, "School year not found");
+                throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
             }
             return schoolYearId;
         }
@@ -438,9 +433,7 @@ public class CampusServiceImpl implements CampusService {
     }
 
     private Campus findCampus(Long campusId) {
-        return campusRepository
-                .findById(campusId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Campus not found"));
+        return campusRepository.findById(campusId).orElseThrow(() -> GlobalException.of(ApiCode.CAMPUS_NOT_FOUND));
     }
 
     private static Map<Long, Long> toMap(List<CampusRepository.CampusCount> counts) {

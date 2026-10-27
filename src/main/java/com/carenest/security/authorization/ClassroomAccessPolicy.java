@@ -39,7 +39,7 @@ public class ClassroomAccessPolicy {
     public void checkCanViewClassroom(CurrentUser user, Long classroomId) {
         if (!canViewClassroom(user, classroomId)) {
             log.warn("[checkCanViewClassroom]|userId={}|classroomId={}|denied", user.userId(), classroomId);
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this class");
+            throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
         }
     }
 }

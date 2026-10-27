@@ -213,6 +213,38 @@ class ClassStructureIntegrationTest {
     }
 
     @Test
+    void classWithPlacedChildrenKeepsAgeGroupSizeAndCannotBeDeleted() {
+        RoomResponse room = createRoom(campusA, "P.102", 25);
+        ClassResponse created = classService.createClass(principal, classRequest("Lớp Mầm 2", campusA, room.id(), 25));
+        for (String name : List.of("Trẻ xếp 1", "Trẻ xếp 2")) {
+            long child = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('" + name
+                    + "', '2022-01-01') RETURNING id");
+            jdbc.update(
+                    "INSERT INTO class_placements (school_year_id, child_id, from_classroom_id, action, to_classroom_id) "
+                            + "VALUES (?, ?, ?, 'STAY', ?)",
+                    year,
+                    child,
+                    created.id(),
+                    created.id());
+        }
+        long ageGroup4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+
+        expectError(
+                () -> classService.updateClass(
+                        principal,
+                        created.id(),
+                        new ClassRequest("Lớp Mầm 2", year, campusA, ageGroup4, room.id(), 25)),
+                ApiCode.CONFLICT);
+        expectError(
+                () -> classService.updateClass(
+                        principal, created.id(), new ClassRequest("Lớp Mầm 2", year, campusA, ageGroup3, room.id(), 1)),
+                ApiCode.BAD_REQUEST);
+        assertThatThrownBy(() -> classService.deleteClass(principal, created.id()))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.CLASS_HAS_PLACED_CHILDREN.getDefaultDesc());
+    }
+
+    @Test
     void structureForVicePrincipalOnlyShowsOwnCampus() {
         RoomResponse roomA = createRoom(campusA, "P.101", 25);
         RoomResponse roomB = createRoom(campusB, "P.101", 25);
@@ -272,8 +304,8 @@ class ClassStructureIntegrationTest {
     private static void expectError(ThrowingCallable call, ApiCode apiCode) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(apiCode);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(apiCode.getHttpStatus());
     }
 
     private long insertId(String sql) {

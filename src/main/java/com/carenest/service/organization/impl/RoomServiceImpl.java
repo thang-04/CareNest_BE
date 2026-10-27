@@ -51,7 +51,7 @@ public class RoomServiceImpl implements RoomService {
         try {
             Set<Long> viewable = schoolConfigAccess.viewableCampusIds(currentUser);
             if (campusId != null && viewable != null && !viewable.contains(campusId)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             Collection<Long> campusFilter = campusId != null ? Set.of(campusId) : viewable;
             Long yearId = resolveSchoolYearId(schoolYearId);
@@ -115,11 +115,10 @@ public class RoomServiceImpl implements RoomService {
             List<Classroom> openClasses = classroomRepository.findOpenYearClassesByRoomIds(List.of(roomId));
             boolean everUsed = classroomRepository.existsByRoomId(roomId);
             if (everUsed && !room.getCampusId().equals(request.campusId())) {
-                throw new GlobalException(
-                        ApiCode.CONFLICT, "Room is used by a class and cannot move to another campus");
+                throw GlobalException.of(ApiCode.ROOM_IN_USE_BY_CLASS, "một lớp", "chuyển sang điểm trường khác");
             }
             if (everUsed && room.getRoomType() != request.type()) {
-                throw new GlobalException(ApiCode.CONFLICT, "Room is used by a class and cannot change type");
+                throw GlobalException.of(ApiCode.ROOM_IN_USE_BY_CLASS, "một lớp", "đổi loại phòng");
             }
             RoomRequest data = validate(request, roomId, largestCapacity(openClasses));
             room.changeInfo(
@@ -149,11 +148,11 @@ public class RoomServiceImpl implements RoomService {
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
             if (status == RoomStatus.DELETED) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Use DELETE to remove a room");
+                throw GlobalException.of(ApiCode.METHOD_NOT_ALLOWED);
             }
             Room room = findRoom(roomId);
             if (status == RoomStatus.INACTIVE) {
-                checkNoOpenYearClass(roomId, "deactivated");
+                checkNoOpenYearClass(roomId, "ngừng sử dụng");
             }
             room.changeStatus(status);
             roomRepository.flush();
@@ -174,7 +173,7 @@ public class RoomServiceImpl implements RoomService {
         try {
             schoolConfigAccess.checkPrincipal(currentUser);
             Room room = findRoom(roomId);
-            checkNoOpenYearClass(roomId, "deleted");
+            checkNoOpenYearClass(roomId, "xóa");
             // Chưa lớp nào từng dùng ⇒ xóa hẳn; lớp năm cũ còn trỏ tới ⇒ xóa mềm để lịch sử còn tên phòng
             if (classroomRepository.existsByRoomId(roomId)) {
                 room.markDeleted(clock.instant());
@@ -192,32 +191,30 @@ public class RoomServiceImpl implements RoomService {
 
     private RoomRequest validate(RoomRequest request, Long excludeId, int minCapacity) {
         if (!campusRepository.existsById(request.campusId())) {
-            throw new GlobalException(ApiCode.NOT_FOUND, "Campus not found");
+            throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);
         }
         if (!campusRepository.existsByIdAndStatus(request.campusId(), CampusStatus.ACTIVE)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Campus is inactive");
+            throw GlobalException.of(ApiCode.CAMPUS_INACTIVE);
         }
         String code = request.room().trim();
         String name = request.name().trim();
         if (roomRepository.existsCode(request.campusId(), code, excludeId)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Campus already has a room with this code");
+            throw GlobalException.of(ApiCode.ROOM_CODE_EXISTS);
         }
         if (roomRepository.existsName(request.campusId(), name, excludeId)) {
-            throw new GlobalException(ApiCode.CONFLICT, "Campus already has a room with this name");
+            throw GlobalException.of(ApiCode.ROOM_NAME_EXISTS);
         }
         if (request.type() == RoomType.CLASS && request.capacity() == null) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Classroom type room needs a capacity");
+            throw GlobalException.of(ApiCode.ROOM_CAPACITY_REQUIRED);
         }
         if (request.capacity() != null && request.capacity() < minCapacity) {
-            throw new GlobalException(
-                    ApiCode.CONFLICT,
-                    "A class using this room has max size " + minCapacity + "; capacity cannot be lower");
+            throw GlobalException.of(ApiCode.ROOM_CAPACITY_BELOW_CLASS_SIZE, minCapacity);
         }
         // Phòng học: người phụ trách = giáo viên chủ nhiệm của lớp đang dùng phòng, không lưu riêng
         Long managerUserId = request.type() == RoomType.CLASS ? null : request.managerUserId();
         if (managerUserId != null
                 && !roomRepository.isStaffOfCampus(managerUserId, request.campusId(), schoolConfigAccess.today())) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Person in charge must be staff working at this campus");
+            throw GlobalException.of(ApiCode.ROOM_MANAGER_INVALID);
         }
         String note = request.note() == null ? "" : request.note().trim();
         return new RoomRequest(request.campusId(), code, name, request.type(), request.capacity(), managerUserId, note);
@@ -227,7 +224,7 @@ public class RoomServiceImpl implements RoomService {
         List<Classroom> openClasses = classroomRepository.findOpenYearClassesByRoomIds(List.of(roomId));
         if (!openClasses.isEmpty()) {
             String names = openClasses.stream().map(Classroom::getName).collect(Collectors.joining(", "));
-            throw new GlobalException(ApiCode.CONFLICT, "Room cannot be " + action + ": it is the room of " + names);
+            throw GlobalException.of(ApiCode.ROOM_IN_USE_BY_CLASS, names, action);
         }
     }
 
@@ -353,11 +350,9 @@ public class RoomServiceImpl implements RoomService {
     }
 
     private Room findRoom(Long roomId) {
-        Room room = roomRepository
-                .findById(roomId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Room not found"));
+        Room room = roomRepository.findById(roomId).orElseThrow(() -> GlobalException.of(ApiCode.ROOM_NOT_FOUND));
         if (room.getStatus() == RoomStatus.DELETED) {
-            throw new GlobalException(ApiCode.NOT_FOUND, "Room not found");
+            throw GlobalException.of(ApiCode.ROOM_NOT_FOUND);
         }
         return room;
     }

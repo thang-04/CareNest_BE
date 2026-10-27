@@ -73,8 +73,7 @@ public class EduConfigServiceImpl implements EduConfigService {
         log.info("{}|START", logPrefix);
         try {
             if (!accessPolicy.hasPermission(currentUser, EduPermission.PLAN_CONFIG)) {
-                throw new GlobalException(
-                        ApiCode.FORBIDDEN, "Only the principal or vice principal can edit the config");
+                throw GlobalException.of(ApiCode.EDU_CONFIG_FORBIDDEN);
             }
             EduConfigRequest.Signers signers = request.signers();
             requireSigners(signers);
@@ -84,7 +83,7 @@ public class EduConfigServiceImpl implements EduConfigService {
 
             EduSettings settings = settingsRepository
                     .findById(EduSettings.SINGLETON_ID)
-                    .orElseThrow(() -> new GlobalException(ApiCode.INTERNAL_ERROR, "Config row is missing"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
             settings.update(
                     objectMapper.writeValueAsString(
                             new EduConfigResponse.Signers(signers.year(), signers.branch(), signers.week())),
@@ -121,7 +120,7 @@ public class EduConfigServiceImpl implements EduConfigService {
     private EduConfigResponse toConfig() {
         EduSettings settings = settingsRepository
                 .findById(EduSettings.SINGLETON_ID)
-                .orElseThrow(() -> new GlobalException(ApiCode.INTERNAL_ERROR, "Config row is missing"));
+                .orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
         return new EduConfigResponse(
                 domainRepository.findAllByActiveTrueOrderBySortOrderAsc().stream()
                         .map(mapper::toConfigDomain)
@@ -136,14 +135,14 @@ public class EduConfigServiceImpl implements EduConfigService {
     private static void requireSigners(EduConfigRequest.Signers signers) {
         for (List<String> chain : List.of(signers.year(), signers.branch(), signers.week())) {
             if (!SIGNER_ROLES.containsAll(chain) || new HashSet<>(chain).size() != chain.size()) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Signers must be distinct known roles");
+                throw GlobalException.of(ApiCode.SIGNERS_INVALID);
             }
         }
         if (!signers.year().contains(VICE_PRINCIPAL)) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "The year plan must be signed by the vice principal");
+            throw GlobalException.of(ApiCode.YEAR_PLAN_SIGNER_REQUIRED);
         }
         if (signers.branch().isEmpty() || signers.week().isEmpty()) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Each class document needs at least one approver");
+            throw GlobalException.of(ApiCode.CLASS_DOC_APPROVER_REQUIRED);
         }
     }
 
@@ -161,10 +160,10 @@ public class EduConfigServiceImpl implements EduConfigService {
                                 : r.extraLabel().trim()))
                 .toList();
         if (!result.stream().allMatch(r -> keys.add(r.key()))) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "Week row keys must be unique");
+            throw GlobalException.of(ApiCode.WEEK_ROW_KEY_DUPLICATE);
         }
         if (!keys.contains(LESSON_ROW_KEY)) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "The lesson row cannot be removed");
+            throw GlobalException.of(ApiCode.LESSON_ROW_REQUIRED);
         }
         return result;
     }
@@ -181,7 +180,7 @@ public class EduConfigServiceImpl implements EduConfigService {
         for (String name : extras) {
             String lower = name.toLowerCase(Locale.ROOT);
             if (standardNames.contains(lower) || !seen.add(lower)) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Domain name already exists: " + name);
+                throw GlobalException.of(ApiCode.DOMAIN_NAME_EXISTS, name);
             }
         }
         Map<String, EduDomain> extraByName = domains.stream()

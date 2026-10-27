@@ -97,8 +97,22 @@ class SchoolYearServiceIntegrationTest {
 
         assertThatThrownBy(() -> service.createSchoolYear(principal, overlapping))
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(ApiCode.CONFLICT);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.CONFLICT.getHttpStatus());
+    }
+
+    @Test
+    void newYearMustFollowTheLatestYear() {
+        // Đang có 2026-2027: chỉ tạo được 2027-2028, không nhảy sang 2028-2029
+        SchoolYearRequest skipped =
+                new SchoolYearRequest("2028-2029", LocalDate.of(2028, 9, 5), LocalDate.of(2029, 5, 31));
+        assertThatThrownBy(() -> service.createSchoolYear(principal, skipped))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_OUT_OF_SEQUENCE.format("2027-2028", "2026-2027"));
+
+        service.createSchoolYear(
+                principal, new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 5), LocalDate.of(2028, 5, 31)));
+        assertThat(service.findNextPlannedYear().name()).isEqualTo("2027-2028");
     }
 
     @Test

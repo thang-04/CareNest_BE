@@ -62,7 +62,7 @@ class SecurityConfigTest {
         mockMvc.perform(get(TEACHER_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer expired-token"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value(401))
-                .andExpect(jsonPath("$.desc").value("Unauthorized"));
+                .andExpect(jsonPath("$.desc").value(ApiCode.UNAUTHENTICATED.getDefaultDesc()));
     }
 
     @Test
@@ -128,17 +128,16 @@ class SecurityConfigTest {
         mockMvc.perform(get(TEACHER_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer valid-token"))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.code").value(503))
-                .andExpect(jsonPath("$.desc").value("Authentication service unavailable"));
+                .andExpect(jsonPath("$.desc").value(ApiCode.AUTH_SERVICE_UNAVAILABLE.getDefaultDesc()));
     }
 
     @Test
     void shouldBlockInactiveAccountEvenOnEndpointWithoutCurrentUserParameter() throws Exception {
         given(jwtDecoder.decode("teacher-token")).willReturn(jwtWithRealmRoles("teacher-token", "TEACHER"));
-        given(currentUserService.getCurrentUser())
-                .willThrow(new GlobalException(ApiCode.FORBIDDEN, "Account is inactive"));
+        given(currentUserService.getCurrentUser()).willThrow(GlobalException.of(ApiCode.ACCOUNT_INACTIVE));
 
         mockMvc.perform(get(TEACHER_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer teacher-token"))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.desc").value("Account is inactive"));
+                .andExpect(jsonPath("$.desc").value(ApiCode.ACCOUNT_INACTIVE.getDefaultDesc()));
     }
 }

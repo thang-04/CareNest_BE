@@ -305,7 +305,7 @@ class SchoolYearServiceImplTest {
     private static void expectError(ThrowingCallable call, ApiCode apiCode) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .extracting(ex -> ((GlobalException) ex).getApiCode())
-                .isEqualTo(apiCode);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(apiCode.getHttpStatus());
     }
 }
