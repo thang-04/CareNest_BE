@@ -213,3 +213,15 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Tiền chốt: 1A (tự nhả sau 30 phút không lưu), 2A (chỉ Tổ trưởng gửi; PHT tự soạn vẫn ban hành thẳng), 3A (chỉ PHT xóa Nháp), 4 (giữ Bị trả lại, cả hai sửa), 5A (người kia xem được, thấy "Đang được [tên] sửa"). Khảo sát: `huong_dan_nghiep_vu/1_muc_tieu_nam_hoc/khao_sat_quy_trinh_lap_ke_hoach_nam.md`.
 - Sửa EDU-02/03/04/06/07, thêm EDU-10. V21 thêm `EDITING` + `editing_by/since/at/from`. API mới `POST /{planId}/start-editing|finish-editing`; `editing` (người, lúc bắt đầu) trong chi tiết và danh sách.
 - Giả định Claude tự chọn: lưu (PUT) tự lấy khóa nếu đang trống; chờ duyệt không khóa (chỉ PHT sửa); HT không xem bản Đang sửa (kể cả từ Bị trả lại); thao tác ghi khóa dòng (`SELECT … FOR UPDATE`); job nhả khóa chạy mỗi phút, khóa quá hạn coi như trống ngay.
+
+### 2026-10-23/24 — Danh sách, quy tắc lưu/xóa, tài liệu (Tiền yêu cầu)
+- FE: tổ trưởng và giáo viên dùng chung màn danh sách mục tiêu năm (không còn chuyển thẳng vào chi tiết); thẻ tổng quan, tìm kiếm, lọc nhóm tuổi chỉ cho PHT. Bỏ mô tả cứng dưới tiêu đề các trang kế hoạch giáo dục; thông báo khóa chỉ còn "Đang được [tên] sửa từ [giờ]".
+- FE: áp quy tắc lưu tay, hỏi khi rời trang, xác nhận khi xóa cho trang Cấu hình và Chủ đề nhánh (EDU-22). Trang "Kế hoạch toàn trường" của HT đọc kế hoạch năm, chủ đề nhánh, hồ sơ chủ đề kiểu mới (trước đọc collection cũ `themes`/`lessons`).
+- Docs: viết lại phần kế hoạch giáo dục theo context của Tiền: EDU-01..22, OBS-07 CONFIRMED, xóa OBS-08 và P-01, ADR-0006 ACCEPTED, flow `docs/business/flows/education-plan.md`; FE `AGENTS.md`, `.ai/ROUTER.md`, `.ai/CONTEXT_MAP.yaml`, `ROUTE_MAP.md` bỏ "không giáo án".
+- Commit: BE `f5acbe3`; FE `18adb8c`, `8045031`, `190bd04`, `cea6088` (Tiền), `4b5355a` (gỡ đăng nhập demo tạm). Docs và trang Kế hoạch toàn trường: chưa commit.
+### 2026-10-24 — Tài liệu của lớp lên BE (Tiền yêu cầu: chủ đề nhánh, kế hoạch tuần, ngày)
+- BE: `V25__create_edu_class_docs.sql`, `EduClassDoc`, `EduClassDocService(Impl)`, `EduClassDocController` (`/education-plans/class-docs`): lưu, gửi, duyệt, trả lại theo EDU-12..18, chuỗi người ký lấy từ cấu hình. Nội dung soạn lưu JSON (bảng tuần đổi theo cấu hình dòng). Lịch tuần `teachingWeeks` tính giống Web.
+- Quyết định: khóa tài liệu do Web đặt (`bp_/tp_/wp_`), BE kiểm khớp; GET trả kèm lớp, giáo viên, tổ trưởng để Web không gọi `/classes`, `/users` (BE chưa có). AI (EDU-20) chưa làm.
+- FE: nối API thật, lớp/giáo viên lấy từ class-docs theo năm ở header; nhãn REJECTED đổi "Bị trả lại"; nạp lại sau gửi/duyệt hồ sơ chủ đề.
+- Kiểm chứng: test tích hợp 5/5; Playwright trên BE thật: chủ đề nhánh (lưu, gửi, trả lại, gửi lại, duyệt), kế hoạch chủ đề, giáo án tuần + ngày, hồ sơ chủ đề gửi và duyệt; quyền giáo viên lớp khác, tổ trưởng, HT. BE verify PASS 373.
+- Commit: chưa commit.

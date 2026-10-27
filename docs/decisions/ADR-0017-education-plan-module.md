@@ -1,32 +1,31 @@
 # ADR-0017 — Module education-plan: CareNest soạn và duyệt kế hoạch giáo dục
 
 - Status: ACCEPTED
-- Date: 2026-10-22
-- Liên quan: EDU-01..09, OBS-08 (SUPERSEDED), ADR-0006, ADR-0003, module education-plan, school-structure
+- Date: 2026-10-22, cập nhật 2026-10-24
+- Liên quan: EDU-01..22, OBS-07, ADR-0006, ADR-0003, module education-plan, school-structure, learning-observation
 
 ## Bối cảnh
-OBS-08 (team chốt 02/10) để GoKids giữ phần soạn và duyệt giáo án. Sau đó team đã làm xong UI kế hoạch giáo dục theo mẫu MN Thái Dương ở CareNest_FE (nhánh G94-178). UI gồm mục tiêu năm học, chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày, và nối với đánh giá trẻ theo MT. Ngày 22/10/2026, Tiền chốt đưa phần này vào V1, lấy UI làm chuẩn.
+Trường MN Thượng Hồng lập kế hoạch giáo dục theo mẫu MN Thái Dương: kế hoạch năm theo nhóm tuổi, rồi mỗi lớp lập chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày; đánh giá trẻ dựa trên mục tiêu của giáo án. Team đã làm xong UI toàn bộ luồng này ở CareNest_FE (nhánh G94-178). Ngày 22/10/2026 Tiền chốt đưa phần này vào V1, lấy UI làm chuẩn.
 
 ## Quyết định
-- Tạo module mới **education-plan** (feature package `eduplan`), sở hữu các bảng `edu_*` của kế hoạch giáo dục.
-- Không gộp vào learning-observation, vì card của module đó cấm mở rộng thành quản lý giáo án.
-- Phụ thuộc: education-plan → school-structure (năm học, nhóm tuổi, lớp, phân công).
-- Người dùng được tham chiếu bằng `user_accounts.id`.
-- Luồng duyệt do BE quyết định qua endpoint hành động (`/submit`, `/issue`, `/return`). Client không tự đặt status.
-- Quyền dùng mã permission `goals.*` (EDU-08), tạm gán theo role tại một chỗ cho tới khi có phân quyền động. Scope Tổ trưởng lấy từ phân công `AGE_GROUP_TEAM_LEADER` theo nhóm tuổi.
+- Module **education-plan** (feature package `eduplan`) sở hữu mọi dữ liệu kế hoạch giáo dục: kế hoạch năm, cấu hình, chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày (bảng `edu_*`).
+- Không gộp vào learning-observation: hai vòng đời dữ liệu khác nhau; learning-observation chỉ đọc giáo án đã duyệt để chấm theo MT (ADR-0006).
+- Phụ thuộc: education-plan → school-structure (năm học, nhóm tuổi, lớp, phân công), identity-access (tên người dùng). Người dùng tham chiếu bằng `user_accounts.id`.
+- Trạng thái do BE quyết định qua endpoint hành động (`/submit`, `/issue`, `/return`, `/start-editing`, `/finish-editing`; tài liệu lớp: hành động gửi, duyệt, trả lại). Client không tự đặt status.
+- Quyền dùng mã permission `goals.*` (EDU-08), tạm gán theo role tại một chỗ (`EduPlanAccessPolicy`) cho tới khi có phân quyền động. Scope Tổ trưởng lấy từ phân công `AGE_GROUP_TEAM_LEADER` theo nhóm tuổi.
+- Không ký ảnh trong hệ thống; xuất Word / in PDF ở FE, ký tay trên giấy (EDU-21).
 
 ## Phương án đã cân nhắc
 | Phương án | Ưu | Nhược |
 | --- | --- | --- |
 | Module mới education-plan | Ranh giới rõ, không làm phình learning-observation | Thêm 1 module |
-| Gộp vào learning-observation | Ít module | Trái pitfall của card; trộn hai vòng đời dữ liệu khác nhau |
-| Giữ GoKids (OBS-08) | Không phải làm | Trái quyết định 22/10; UI đã có sẵn |
+| Gộp vào learning-observation | Ít module | Trộn hai vòng đời dữ liệu khác nhau |
+| Để GoKids giữ soạn, duyệt giáo án | Không phải làm | Trái quyết định 22/10; mất ngữ cảnh MT cho đánh giá |
 
 ## Hệ quả
-- Phải bỏ "soạn/duyệt giáo án" khỏi Exclusions, ROUTER, README và guide.
-- learning-observation đọc MT, hoạt động từ education-plan, không chiều ngược lại.
-- Chưa ký ảnh trong hệ thống: xuất và in ở FE, ký tay trên giấy.
+- learning-observation đọc MT, hoạt động của giáo án đã duyệt từ education-plan, không chiều ngược lại.
+- Kế hoạch năm đã ban hành bị khóa vì lớp dùng chủ đề, đợt nghỉ và số MT của nó.
 
 ## Còn chờ
-- Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày (các task sau).
+- BE cho cấu hình kế hoạch, chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày, AI gợi ý (UI đã có, đang chạy mock).
 - Phân quyền động ở BE (thay phần gán role tạm của EDU-08).

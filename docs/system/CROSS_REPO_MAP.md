@@ -43,7 +43,8 @@ BE bổ sung `/auth/**`, PUT `/me/password`, mã HTTP 428, cookie phiên mã hó
 
 | API BE | Consumer FE |
 | --- | --- |
-| `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST …/{planId}/submit\|issue\|return` | `CareNest_FE/src/services/education-plan/api/educationPlanApi.js` (`getAll`, `saveGoal`, `deleteGoal`), `src/hooks/education-plan/useEducationPlan.jsx` |
-| `GET /education-plans/config`, `GET /education-plans/expected-results` | `educationPlanApi.js` (`getEduConfig`), `src/models/education-plan/expectedResults.js` (hiện là hằng FE) |
+| `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST …/{planId}/submit\|issue\|return\|start-editing\|finish-editing` | `CareNest_FE/src/services/education-plan/api/educationPlanApi.js` (`getAll`, `saveGoal`, `deleteGoal`, `startEditingGoal`, `finishEditingGoal`), `src/hooks/education-plan/useEducationPlan.jsx` |
+| `GET /education-plans/class-docs`, `PUT /education-plans/class-docs/{kind}/{docKey}`, `POST …/{kind}/{docKey}/actions` | `educationPlanApi.js` (`getClassPlans`, `saveClassDoc`, `actOnClassDoc`), `useEducationPlan.jsx`, `components/education-plan/planUi.jsx` (lớp, giáo viên) |
+| `GET/PUT /education-plans/config`, `GET /education-plans/expected-results` | `educationPlanApi.js` (`getEduConfig`, `saveEduConfig`), `yearPlanMapper.js` (`toUiEduConfig`), `src/models/education-plan/expectedResults.js` (hiện là hằng FE) |
 | `GET /accounts/me` (`assignments[].staffRole = AGE_GROUP_TEAM_LEADER`, `ageGroupId`) | FE lấy nhóm tuổi của Tổ trưởng (hiện đọc `user.ageGroupId`) |
 

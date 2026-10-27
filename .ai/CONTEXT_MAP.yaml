@@ -19,8 +19,8 @@ keywords:
   "trẻ|child|hồ sơ trẻ|ghi danh|enrollment|chuyển lớp|phụ huynh liên kết|guardian|guardianchildlink": [child]
   "sức khỏe|health|healthrecord|healthinterpretation|chiều cao|cân nặng|measurement|tăng trưởng|trend": [health]
   "quan sát|observation|tiêu chí|criteria|nhận xét|summary|đánh giá|assessment|follow-up|phát triển|development profile|developmentprofile|bé ngoan|khen thưởng|reward": [learning-observation]
-  "hoạt động|activity|activitycontext|gokids": [learning-observation]   # ADR-0006 OPEN
-  "giáo án|kế hoạch giáo dục|mục tiêu năm|mục tiêu học|year plan|yearplan|eduplan|chủ đề|đợt nghỉ|lĩnh vực|kết quả mong đợi": [education-plan]
+  "hoạt động|activity|activitycontext|gokids|đánh giá theo mt": [learning-observation, education-plan]   # ADR-0006 ACCEPTED
+  "giáo án|kế hoạch giáo dục|mục tiêu năm|mục tiêu học|year plan|yearplan|eduplan|chủ đề|chủ đề nhánh|kế hoạch tuần|kế hoạch ngày|hồ sơ chủ đề|người ký|đợt nghỉ|lĩnh vực|kết quả mong đợi": [education-plan]
   "cơ sở vật chất|csvc|thiết bị|sự cố|facility|facilityreport|thiết bị hỏng|thiếu thiết bị": [facility-issue]
   "tài sản|asset|khấu hao|bảo trì|kiểm kê": [facility-issue]   # ngoài V1 — FAC-03
   "đăng nhập|login|token|role|permission|phân quyền|scope|accessscope|account|useraccount|tài khoản": [identity-access]
@@ -58,7 +58,7 @@ modules:
   nutrition:            {card: docs/modules/nutrition.md, feature: meals, rules: [NUT, AI], flows: [docs/business/flows/meal-management.md, docs/business/flows/attendance.md], adr: [0005, 0007, 0008, 0009]}
   health:               {card: docs/modules/health.md, feature: health, rules: [HLT, AI], flows: [docs/business/flows/health-check.md], adr: [0007, 0008, 0010]}
   learning-observation: {card: docs/modules/learning-observation.md, feature: observation, rules: [OBS, AI], flows: [docs/business/flows/child-observation.md], adr: [0006, 0008, 0010]}
-  education-plan:       {card: docs/modules/education-plan.md, feature: eduplan, rules: [EDU], adr: [0017]}
+  education-plan:       {card: docs/modules/education-plan.md, feature: eduplan, rules: [EDU], adr: [0017, 0006], flow: docs/business/flows/education-plan.md}
   facility-issue:       {card: docs/modules/facility-issue.md, feature: facilities, rules: [FAC], flows: [docs/business/flows/facility-issue.md]}
   notification:         {card: docs/modules/notification.md, feature: notification, adr: [0004]}
   audit:                {card: docs/modules/audit.md, feature: audit}

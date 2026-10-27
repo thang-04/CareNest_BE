@@ -39,6 +39,10 @@ public class EduDomain {
     @Column(nullable = false)
     private boolean active;
 
+    // EDU-11: 5 lĩnh vực của Chương trình GDMN không xóa được
+    @Column(nullable = false)
+    private boolean standard;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -46,4 +50,24 @@ public class EduDomain {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /** Lĩnh vực trường thêm khi Bộ bổ sung (EDU-11). */
+    public static EduDomain createExtra(String name, short sortOrder) {
+        EduDomain domain = new EduDomain();
+        domain.name = name;
+        domain.sortOrder = sortOrder;
+        domain.active = true;
+        domain.standard = false;
+        return domain;
+    }
+
+    public void rename(String displayLabel) {
+        this.displayLabel = displayLabel;
+    }
+
+    /** Lĩnh vực thêm bị bỏ khỏi cấu hình thì ẩn, không xóa vì kế hoạch cũ còn dòng của nó. */
+    public void placeExtra(boolean active, short sortOrder) {
+        this.active = active;
+        this.sortOrder = sortOrder;
+    }
 }

@@ -426,6 +426,28 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(service.getYearPlan(vicePrincipal, plan.id()).status()).isEqualTo(EduPlanStatus.EDITING);
     }
 
+    @Test
+    @DisplayName("EDU-23: chủ đề, đợt nghỉ có ngày ngoài năm học thì không lưu được")
+    void datesOutsideSchoolYearAreRejected() {
+        YearPlanRequest.Theme early = new YearPlanRequest.Theme(
+                "t-1", null, "Trường mầm non", "TMN", LocalDate.of(2026, 8, 24), LocalDate.of(2026, 9, 4), "", "");
+        assertApiError(
+                () -> service.createYearPlan(leader3, request(ageGroup3, List.of(), List.of(early))),
+                ApiCode.BAD_REQUEST);
+
+        YearPlanDetailResponse plan = service.createYearPlan(leader3, request(ageGroup3, List.of(), List.of()));
+        YearPlanRequest lateBreak = new YearPlanRequest(
+                schoolYear,
+                ageGroup3,
+                "Kế hoạch MGB",
+                "",
+                List.of(),
+                List.of(),
+                List.of(new YearPlanRequest.Break(
+                        null, "Nghỉ hè", LocalDate.of(2027, 5, 31), LocalDate.of(2027, 6, 5))));
+        assertApiError(() -> service.updateYearPlan(leader3, plan.id(), lateBreak), ApiCode.BAD_REQUEST);
+    }
+
     private YearPlanRequest sampleRequest() {
         return request(
                 ageGroup3,

@@ -87,15 +87,16 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | OBS-04 | Summary có baseline template không dùng AI; AI chỉ là tùy chọn tạo narrative draft | CONFIRMED | Report 1 |
 | OBS-05 | Summary: DRAFT → GV review/sửa → GV APPROVED → BGH xem. AI draft không tự thành đánh giá chính thức | CONFIRMED | Report 1 |
 | OBS-06 | Summary theo trẻ hằng **tuần** và **cuối kỳ** (GV soạn/duyệt → gửi BGH); tóm tắt lớp hằng ngày (FE-09). Có gửi phụ huynh không: PENDING P-12 | CONFIRMED (tuần + kỳ); phụ huynh: PENDING | Review 24/09 L102-107 (chỉ đạo giảng viên), Report 1 FE-09 |
-| OBS-07 | Nguồn ngữ cảnh hoạt động (nhập tối thiểu / import / GoKids) | OPEN (ADR-0006) | Review 24/09 |
-| OBS-08 | ~~CareNest không soạn/nộp/duyệt giáo án (GoKids giữ)~~ — CareNest soạn và duyệt kế hoạch giáo dục, giáo án (nhóm EDU) | SUPERSEDED bởi EDU | Report 1; Tiền 22/10 |
+| OBS-07 | Ngữ cảnh hoạt động của đánh giá trẻ = hoạt động và MT trong giáo án tuần/ngày **đã duyệt** của lớp (module education-plan, EDU-19); không import GoKids | CONFIRMED | Review 24/09; Tiền 20/10 |
 | OBS-09 | Biểu mẫu/chu kỳ assessment & follow-up | PENDING P-16b | — |
 | OBS-10 | Khen thưởng "phiếu bé ngoan" (tuần/tháng) và "bé ngoan toàn diện" dựa trên đánh giá hằng ngày; hệ thống chỉ gợi ý từ dữ liệu, GV/BGH quyết định | PROPOSED; tiêu chí PENDING P-11 | Review 24/09 L101, L310; Roadmap (Must) |
 | OBS-11 | Thuật ngữ: dùng "đánh giá" (assessment), không dùng "feedback" cho nhận xét trẻ | CONFIRMED | Review 24/09 L311-313 |
 
-## EDU — Kế hoạch giáo dục: mục tiêu năm học (module: education-plan)
+## EDU — Kế hoạch giáo dục (module: education-plan)
 
-Kế hoạch năm làm theo nhóm tuổi, áp dụng toàn trường; luồng theo mẫu MN Thái Dương, không ký ảnh trong hệ thống (duyệt trong hệ thống, in ra ký tay).
+CareNest soạn và duyệt toàn bộ kế hoạch giáo dục theo mẫu MN Thái Dương (Tiền chốt 22/10; UI CareNest_FE là chuẩn, Tiền 20/10). Kế hoạch năm làm theo **nhóm tuổi**, áp dụng toàn trường; chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày làm theo **từng lớp**. Sợi dây xuyên suốt là **số MT** của kế hoạch năm. Luồng: `docs/business/flows/education-plan.md`.
+
+### Kế hoạch năm học (mục tiêu năm học) — đã có BE
 
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
@@ -104,11 +105,33 @@ Kế hoạch năm làm theo nhóm tuổi, áp dụng toàn trường; luồng th
 | EDU-03 | Nháp/Bị trả lại: Phó HT và Tổ trưởng nhóm tuổi đều sửa được, mỗi lúc một người (EDU-10); Chờ Phó HT duyệt: chỉ Phó HT sửa; đã ban hành thì khóa sửa | CONFIRMED | Tiền 23/10 |
 | EDU-04 | Tổ trưởng của nhóm tuổi (không cần là người tạo) gửi Phó HT duyệt khi Nháp/Bị trả lại, không bị người khác giữ khóa sửa, và có ≥1 mục tiêu (MT) | CONFIRMED | Tiền 23/10 |
 | EDU-05 | Phó HT ban hành kế hoạch đang chờ duyệt, hoặc ban hành luôn bản nháp do chính mình soạn; trả lại chỉ khi chờ duyệt và bắt buộc lý do | CONFIRMED | Tiền 22/10 |
-| EDU-06 | Xem: Phó HT, Hiệu trưởng toàn trường (Hiệu trưởng không xem Nháp, Đang sửa); Tổ trưởng nhóm tuổi của mình; Giáo viên chỉ bản đã ban hành của nhóm tuổi các lớp mình dạy | CONFIRMED | Tiền 22/10 |
+| EDU-06 | Xem: Phó HT toàn trường mọi trạng thái; Hiệu trưởng toàn trường trừ Nháp, Đang sửa; Tổ trưởng mọi bản của nhóm tuổi mình; Giáo viên chỉ bản đã ban hành của nhóm tuổi các lớp mình dạy | CONFIRMED | Tiền 22/10, 23/10 |
 | EDU-07 | Chỉ Phó HT xóa được, và chỉ khi Nháp (không xóa khi người khác đang sửa) | CONFIRMED | Tiền 23/10 |
-| EDU-08 | Quyền kiểm tra theo mã `goals.view`, `goals.edit`, `goals.approve`; tạm gán theo role tại một chỗ, thay bằng phân quyền động khi BE có | CONFIRMED | Tiền 22/10 |
-| EDU-09 | MT đánh số 1..n liên tục cả năm theo thứ tự lĩnh vực và dòng; nội dung giáo dục được tích vào chủ đề | CONFIRMED | Tiền 14/10, 20/10 |
-| EDU-10 | Vào trang soạn (hoặc lưu) bản Nháp/Bị trả lại ⇒ trạng thái "Đang sửa" (EDITING) khóa cho người đó; người còn lại chỉ xem, thấy tên người sửa và giờ bắt đầu. Lưu nhiều lần vẫn là Đang sửa; thoát trang soạn mới về Nháp/Bị trả lại như trước. Khóa tự nhả sau 30 phút không lưu (cấu hình `carenest.edu-plan.edit-lock-ttl`). Chờ duyệt không khóa. Hiệu trưởng không xem bản Đang sửa | CONFIRMED | Tiền 23/10 (khảo sát `huong_dan_nghiep_vu/1_muc_tieu_nam_hoc/khao_sat_quy_trinh_lap_ke_hoach_nam.md`) |
+| EDU-08 | Quyền kiểm tra theo mã `goals.view`, `goals.edit`, `goals.approve`, `plans.config` (cấu hình); tạm gán theo role tại một chỗ, thay bằng phân quyền động khi BE có | CONFIRMED | Tiền 22/10 |
+| EDU-09 | Bảng mục tiêu 5 tầng: lĩnh vực > lĩnh vực con > nhóm kết quả mong đợi > MT > nội dung giáo dục. MT đánh số 1..n liên tục cả năm theo thứ tự lĩnh vực và dòng (không dùng mã YCCĐ); mỗi nội dung tích vào các chủ đề sẽ dạy nó; MT của một chủ đề là kết quả của dấu tích, không nhập riêng | CONFIRMED | Tiền 14/10, 20/10; mẫu MN Thái Dương |
+| EDU-10 | Vào trang soạn (hoặc lưu) bản Nháp/Bị trả lại ⇒ trạng thái "Đang sửa" (EDITING) khóa cho người đó; người còn lại chỉ xem, thấy tên người sửa và giờ bắt đầu. Lưu nhiều lần vẫn là Đang sửa; thoát trang soạn mới về Nháp/Bị trả lại như trước. Khóa tự nhả sau 30 phút không lưu (cấu hình `carenest.edu-plan.edit-lock-ttl`). Chờ duyệt không khóa | CONFIRMED | Tiền 23/10 (khảo sát `huong_dan_nghiep_vu/1_muc_tieu_nam_hoc/khao_sat_quy_trinh_lap_ke_hoach_nam.md`) |
+
+### Cấu hình và tài liệu của lớp (đã có BE; AI chưa làm)
+
+| ID | Rule | Status | Nguồn |
+| --- | --- | --- | --- |
+| EDU-11 | Cấu hình kế hoạch giáo dục (Hiệu trưởng, Phó HT): tên hiển thị lĩnh vực, thêm lĩnh vực (5 lĩnh vực của Chương trình GDMN không xóa được); chuỗi người ký cho kế hoạch năm, chủ đề nhánh, hồ sơ chủ đề (mặc định Tổ trưởng → Phó HT, thêm được Hiệu trưởng; kế hoạch năm luôn có Phó HT); các dòng hoạt động của kế hoạch tuần (mặc định Đón trẻ, Trò chuyện, Thể dục sáng, Hoạt động học, Chơi HĐ ngoài trời, Chơi HĐ ở các góc, Chơi HĐ buổi chiều, Trả trẻ; dòng nào được gộp cả tuần; không xóa dòng Hoạt động học) | CONFIRMED | Tiền 15/10, 16/10, 20/10 |
+| EDU-12 | Tài liệu của lớp chỉ lập khi kế hoạch năm của nhóm tuổi đã ban hành: chủ đề nhánh (1/lớp/năm học), kế hoạch chủ đề (1/lớp/chủ đề), giáo án tuần (1/lớp/tuần nhánh). Giáo viên được phân công vào lớp soạn và gửi | CONFIRMED | Tiền 20/10 |
+| EDU-13 | Trình tự: chủ đề nhánh cả năm đã duyệt → lưu kế hoạch chủ đề → giáo án tuần của các nhánh trong chủ đề đó (các nhánh soạn song song). Chưa đủ bước trước thì không mở bước sau | CONFIRMED | Tiền 20/10 |
+| EDU-14 | Chủ đề nhánh: mỗi tuần học (đánh số cả năm, bỏ tuần nghỉ) của từng chủ đề có một tên do giáo viên đặt; gửi khi mọi tuần đã có tên và không còn tên AI điền chưa giữ/bỏ | CONFIRMED | Tiền 20/10 |
+| EDU-15 | Kế hoạch chủ đề: MT và nội dung lấy sẵn từ kế hoạch năm (chỉ nội dung đã tích vào chủ đề), giáo viên không sửa; giáo viên viết hoạt động giáo dục cho từng MT theo loại giờ (tên dòng của kế hoạch tuần) và môi trường giáo dục (trong lớp, ngoài lớp). Bản lưu giữ cả các dòng lấy từ kế hoạch năm để bản đã duyệt không đổi theo kế hoạch năm | CONFIRMED | Tiền 20/10 |
+| EDU-16 | Giáo án tuần = kế hoạch tuần (mục đích, chuẩn bị, bảng dòng hoạt động × Thứ 2–6) + 5 kế hoạch ngày. Ô tuần gắn MT khi chọn (hoặc gõ trùng) hoạt động của kế hoạch chủ đề; mỗi hoạt động chỉ xếp vào 1 ô ngày trong cả chủ đề (ô gộp cả tuần lặp được). MT trong ngày = MT của các hoạt động đã xếp vào ngày đó | CONFIRMED | Tiền 20/10 |
+| EDU-17 | Hồ sơ chủ đề = kế hoạch chủ đề + giáo án tất cả các nhánh của chủ đề, gửi **một lần**; chỉ gửi khi chủ đề nhánh đã duyệt và đủ giáo án mọi tuần nhánh. Giáo án tuần không gửi riêng. Hạn gửi là ngày bắt đầu chủ đề, chỉ nhắc, không chặn | CONFIRMED | Tiền 15/10, 20/10 |
+| EDU-18 | Chủ đề nhánh và hồ sơ chủ đề duyệt theo chuỗi người ký đã cấu hình, đúng lượt, mỗi bước một người; Tổ trưởng chỉ duyệt lớp thuộc nhóm tuổi mình; bỏ bước Tổ trưởng khi nhóm tuổi không có Tổ trưởng hoặc Tổ trưởng dạy chính lớp đó; chuỗi rỗng thì gửi là duyệt. Trả lại bắt buộc lý do ⇒ Bị trả lại, sửa rồi gửi lại từ đầu chuỗi. Chỉ sửa khi Nháp hoặc Bị trả lại | CONFIRMED | Tiền 15/10, 16/10, 20/10 |
+| EDU-19 | Đánh giá trẻ hằng ngày (module learning-observation) chấm theo MT của các hoạt động trong giáo án tuần **đã duyệt** của lớp, theo giờ và ngày; lớp chưa có giáo án duyệt thì khóa phần chấm theo MT. Đánh giá không ghi trong giáo án | CONFIRMED | Tiền 20/10 |
+| EDU-20 | AI chỉ tạo bản nháp: gợi ý / viết lại tên chủ đề nhánh, gợi ý tiến trình giờ học (chỉ điền ô trống). Giáo viên giữ hoặc bỏ từng phần; bản dùng AI vẫn qua gửi, duyệt như thường; tắt AI vẫn soạn được (AI-*) | CONFIRMED | Tiền 20/10 |
+| EDU-21 | Không ký ảnh hay ký điện tử trong hệ thống: chỉ gửi, duyệt, trả lại. Mọi tài liệu xuất Word / in PDF đúng mẫu MN Thái Dương ở mọi bước, chừa chỗ ký tay; bản in kế hoạch năm in sẵn họ tên người soạn, gửi, ban hành | CONFIRMED | Tiền 16/10 |
+| EDU-22 | Lưu tay: nút Lưu hoặc Ctrl+S (không tự lưu); rời trang khi còn thay đổi chưa lưu thì hỏi Hủy / Không lưu / Lưu; xóa một mục (dòng, chủ đề, lĩnh vực, người ký…) phải xác nhận. Quy tắc giao diện, chi tiết ở `CareNest_FE/.claude/rules/year-plan-unsaved.md` | CONFIRMED | Tiền 22/10, 23/10 |
+| EDU-23 | Ngày bắt đầu, kết thúc của chủ đề và đợt nghỉ trong kế hoạch năm phải nằm trong năm học của kế hoạch (ngày bắt đầu → ngày kết thúc năm học). Lịch chọn ngày chỉ cho chọn trong khoảng này; BE từ chối lưu nếu sai | CONFIRMED | Tiền 24/10 |
+
+Trạng thái:
+- Kế hoạch năm: `DRAFT` (Nháp) ⇄ `EDITING` (Đang sửa) → `PENDING_VP` (Chờ Phó HT ban hành) → `APPROVED` (Đã ban hành) / `REJECTED` (Bị trả lại).
+- Chủ đề nhánh, hồ sơ chủ đề: `DRAFT` → `PENDING_TL` / `PENDING_VP` / `PENDING_HT` (theo người ký đang tới lượt) → `APPROVED` / `REJECTED`.
 
 ## FAC — Sự cố cơ sở vật chất (module: facility-issue)
 
@@ -145,7 +168,6 @@ Mỗi mục cần khảo sát. Khi chốt: cập nhật rule liên quan sang CON
 
 | ID | Câu hỏi | Rule bị chặn |
 | --- | --- | --- |
-| P-01 | GoKids có API/export (Excel/PDF) kế hoạch tuần không? Mục tiêu hoạt động theo độ tuổi ghi ở đâu? | OBS-07 |
 | P-02 | AI provider: external API hay local model? | AI-* (ADR-0007) |
 | P-03 | Điểm danh/báo ăn khóa lúc mấy giờ? *AS-IS: bếp nhận số đã xác nhận qua Zalo khoảng 8:30 (Report 1, khảo sát)* | ATT-06 |
 | P-04 | Trẻ đến muộn sau khi bếp đã nhận số: báo bếp thế nào, có thêm suất không? *AS-IS: GV báo lại, PHT tổng hợp lại; bếp điều chỉnh, trả bớt hoặc xin thêm qua BGH (khảo sát, review 24/09)* | NUT-04 |
@@ -168,4 +190,5 @@ Mỗi mục cần khảo sát. Khi chốt: cập nhật rule liên quan sang CON
 
 | ID | Kết luận | Ngày | Nguồn |
 | --- | --- | --- | --- |
+| P-01 | Không import GoKids: ngữ cảnh hoạt động lấy từ giáo án tuần/ngày đã duyệt trong CareNest (OBS-07, EDU-19) | 2026-10-20 | Tiền |
 | P-15 | Đơn nghỉ = thông báo của phụ huynh qua app, không duyệt (ATT-05) | 2026-10-02 | Team, review 24/09 |

@@ -1,23 +1,25 @@
 # ADR-0006 — Nguồn ngữ cảnh hoạt động/học tập
 
-- Status: **OPEN** — chờ khảo sát P-01
-- Date: 2026-10-03
-- Liên quan: OBS-07, OBS-08 (SUPERSEDED), ADR-0017, module learning-observation
+- Status: **ACCEPTED** (chốt 2026-10-20)
+- Date: 2026-10-03, cập nhật 2026-10-24
+- Liên quan: OBS-07, EDU-16, EDU-19, ADR-0017, module learning-observation, education-plan
 
 ## Bối cảnh
-~~GoKids giữ soạn/nộp/duyệt giáo án (OBS-08, team chốt 02/10).~~ Từ 22/10 CareNest soạn và duyệt kế hoạch giáo dục (ADR-0017); ADR này chỉ còn câu hỏi ngữ cảnh hoạt động cho quan sát. Review 24/09: nếu đánh giá/AI không biết hoạt động dự kiến, nội dung đã dạy, mục tiêu ⇒ phân tích thiếu ngữ cảnh; giảng viên nghiêng về import nội dung bài/kế hoạch tuần từ GoKids (API) để GV không phải làm 2 nơi, phương án "chỉ mô tả ngắn" được coi là tạm được. Import về chỉ là dữ liệu tham chiếu, quản lý theo năm học, không duyệt lại trong CareNest.
+Review 24/09: đánh giá trẻ và AI tóm tắt thiếu chiều sâu nếu không biết trẻ đã tham gia hoạt động gì, nhằm mục tiêu nào. Cần một nguồn ngữ cảnh hoạt động có cấu trúc cho đánh giá hằng ngày.
 
-## Phương án
-| Phương án | Mô tả | Ưu | Nhược |
-| --- | --- | --- | --- |
-| A | CareNest quản lý tối thiểu lịch hoạt động tuần, mô tả, nhóm tuổi, mục tiêu | Dữ liệu cấu trúc tốt | Gần với chức năng GoKids; nhập trùng |
-| B | Import/sync từ GoKids | Không nhập trùng | Phụ thuộc GoKids có API/export (chưa biết) |
-| C | GV/admin nhập metadata cần thiết khi cần | Đơn giản, độc lập | Phụ thuộc kỷ luật nhập; dữ liệu thưa |
+## Quyết định
+Ngữ cảnh hoạt động lấy từ **giáo án tuần/ngày đã duyệt** do CareNest soạn (module education-plan, ADR-0017):
+- mỗi ô (giờ, ngày) của kế hoạch tuần gắn hoạt động và **MT** của kế hoạch năm (EDU-16);
+- đánh giá hằng ngày chấm theo MT của hoạt động trong giáo án đã duyệt; lớp chưa có giáo án duyệt thì khóa phần chấm theo MT (EDU-19);
+- không import hay đồng bộ GoKids, không nhập metadata hoạt động riêng.
 
-## Hướng thiết kế an toàn trong khi OPEN
-- Entity `ActivityContext` không phụ thuộc nguồn: `source = MANUAL | IMPORT | GOKIDS`, trường tối thiểu (lớp/nhóm tuổi, ngày/tuần, mô tả, mục tiêu).
-- ~~Không xây chức năng soạn/duyệt giáo án dưới bất kỳ phương án nào.~~ Bỏ 22/10: soạn/duyệt thuộc module education-plan (ADR-0017).
-- Đề xuất (chưa quyết): bắt đầu C, chuyển B nếu GoKids có export. Chỉ chốt sau P-01.
+## Phương án đã cân nhắc
+| Phương án | Kết luận |
+| --- | --- |
+| Lấy từ giáo án tuần/ngày soạn trong CareNest | **Chọn**: dữ liệu có cấu trúc, đã duyệt, nối MT xuyên suốt năm → chủ đề → tuần/ngày → đánh giá |
+| Import/sync từ GoKids | Bỏ: trường soạn giáo án trong CareNest, không cần làm 2 nơi |
+| GV/admin tự nhập metadata hoạt động | Bỏ: trùng với giáo án, dữ liệu thưa |
 
-## Còn chờ
-P-01: GoKids có API/export không; trường ghi mục tiêu theo độ tuổi ở đâu.
+## Hệ quả
+- learning-observation chỉ đọc giáo án đã duyệt qua service của education-plan, không sở hữu dữ liệu hoạt động.
+- Giáo án đã duyệt không sửa được (EDU-18), nên ngữ cảnh của đánh giá đã ghi không bị đổi ngầm.

@@ -939,9 +939,92 @@ paths:
           description: OK
       tags:
       - daily-health-controller
+  /api/education-plans/class-docs:
+    get:
+      operationId: getClassDocs
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
+  /api/education-plans/class-docs/{kind}/{docKey}:
+    put:
+      operationId: saveClassDoc
+      parameters:
+      - in: path
+        name: kind
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json: {}
+        required: true
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
+  /api/education-plans/class-docs/{kind}/{docKey}/actions:
+    post:
+      operationId: actOnClassDoc
+      parameters:
+      - in: path
+        name: kind
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassDocActionRequest"
+        required: true
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/config:
     get:
       operationId: getEduConfig
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduConfigResponse"
+          description: OK
+      tags:
+      - edu-config-controller
+    put:
+      operationId: updateEduConfig
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EduConfigRequest"
+        required: true
       responses:
         "200":
           content:
@@ -2373,6 +2456,18 @@ components:
           format: int64
         name:
           type: string
+    ClassDocActionRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          minLength: 1
+        note:
+          type: string
+          maxLength: 2000
+          minLength: 0
+      required:
+      - action
     ClassOption:
       type: object
       properties:
@@ -2986,6 +3081,32 @@ components:
             $ref: "#/components/schemas/Row"
       required:
       - domainId
+    EduConfigRequest:
+      type: object
+      properties:
+        domainLabels:
+          type: object
+          additionalProperties:
+            type: string
+        extraDomains:
+          type: array
+          items:
+            type: string
+            maxLength: 150
+            minLength: 0
+        signers:
+          $ref: "#/components/schemas/Signers"
+        weekRows:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekRow"
+          maxItems: 2147483647
+          minItems: 1
+      required:
+      - domainLabels
+      - extraDomains
+      - signers
+      - weekRows
     EduConfigResponse:
       type: object
       properties:
@@ -3001,6 +3122,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolYearResponse"
+        signers:
+          $ref: "#/components/schemas/Signers"
+        weekRows:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekRow"
     Entry:
       type: object
       properties:
@@ -4427,6 +4554,25 @@ components:
           format: int64
         updatedByName:
           type: string
+    Signers:
+      type: object
+      properties:
+        branch:
+          type: array
+          items:
+            type: string
+        week:
+          type: array
+          items:
+            type: string
+        year:
+          type: array
+          items:
+            type: string
+      required:
+      - branch
+      - week
+      - year
     Skipped:
       type: object
       properties:
@@ -4692,6 +4838,28 @@ components:
           pattern: "[0-9]{6}"
       required:
       - otp
+    WeekRow:
+      type: object
+      properties:
+        allWeek:
+          type: boolean
+        canMerge:
+          type: boolean
+        extraLabel:
+          type: string
+          maxLength: 150
+          minLength: 0
+        key:
+          type: string
+          maxLength: 40
+          minLength: 0
+        label:
+          type: string
+          maxLength: 150
+          minLength: 0
+      required:
+      - key
+      - label
     Year:
       type: object
       properties:

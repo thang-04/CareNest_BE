@@ -29,6 +29,8 @@ public final class Constants {
         public static final String GOALS_VIEW = "goals.view";
         public static final String GOALS_EDIT = "goals.edit";
         public static final String GOALS_APPROVE = "goals.approve";
+        // EDU-11: Hiệu trưởng, Phó HT sửa cấu hình kế hoạch giáo dục
+        public static final String PLAN_CONFIG = "plans.config";
 
         private EduPermission() {}
     }
