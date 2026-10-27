@@ -6,6 +6,7 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| CASE-261027-activity-media-positional-identity | education-plan | Reorder hoạt động làm day pick cùng ID đổi nội dung | goalId#index theo vị trí; phải kiểm saved text và fingerprint khi ghép media | fixed |
 | BUG-261023-edu-theme-tick-lost-on-resave | education-plan | Lưu lại kế hoạch năm mất dấu tích chủ đề; test `themeIds` rỗng `Expecting actual: []` | Xóa tick bằng JPQL rồi `saveAll` → `merge` bỏ qua tick cùng khóa còn managed trong persistence context | fixed |
 | ENV-261013-docker-desktop-init-timeout | deployment/identity-access | FE localhost:5173 lên, API:8080/Keycloak:8180/PG:5432 không nghe; `docker start`/`docker pull` treo | ? Docker Desktop `starting`, init control API `/ping` timeout; nguyên nhân sâu chưa rõ | open |
 | BUG-261013-web-auth-session-absolute-expiry | identity-access | Phiên web gateway hết hạn sau ~30 phút dù remember; refresh 503 rồi retry 401 | `expiresAt` lấy từ `refresh_expires_in` (hạn idle) không gia hạn; `ProviderUnavailable` xóa phiên | fixed |
@@ -21,3 +22,4 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 | BUG-261006-jwks-unavailable-returns-500 | identity-access | Keycloak tắt, API chưa cache JWKS ⇒ 500 body Boot `AuthenticationServiceException` `Couldn't retrieve remote JWK set` | Failure handler mặc định của `BearerTokenAuthenticationFilter` ném lại lỗi thay vì gọi entry point | fixed |
 | ENV-261013-keycloak-dev-users-missing | identity-access | Login dev user (`teacher.a`…) báo "Email hoặc mật khẩu không đúng"; Keycloak event `LOGIN_ERROR` `error="user_not_found"` | Realm `carenest` tạo trước khi mount `carenest-users-0.json`; import `IGNORE_EXISTING` bỏ qua file user, DB app vẫn có seed | workaround |
 | ENV-261004-keycloak-user-profile-account-not-fully-set-up | identity-access | Keycloak `invalid_grant` `Account is not fully set up`, user không có email/lastName | User profile mặc định Keycloak 26 bắt buộc email + lastName | fixed |
+| [CASE-261027-year-plan-autosave-fencing](incidents/CASE-261027-year-plan-autosave-fencing.md) | education-plan | Tự lưu: hai tab, bản phục hồi offline, stale revision và late acquire | Cần fencing theo phiên/revision và bản phục hồi riêng mỗi slot; đã có gate BE/FE | fixed |

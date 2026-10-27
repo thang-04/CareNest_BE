@@ -43,8 +43,15 @@ BE bổ sung `/auth/**`, PUT `/me/password`, mã HTTP 428, cookie phiên mã hó
 
 | API BE | Consumer FE |
 | --- | --- |
-| `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST …/{planId}/submit\|issue\|return\|start-editing\|finish-editing` | `CareNest_FE/src/services/education-plan/api/educationPlanApi.js` (`getAll`, `saveGoal`, `deleteGoal`, `startEditingGoal`, `finishEditingGoal`), `src/hooks/education-plan/useEducationPlan.jsx` |
+| `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST …/{planId}/submit\|issue\|return\|start-editing\|finish-editing\|editing-heartbeat` | `CareNest_FE/src/services/education-plan/api/educationPlanApi.js` (`getAll`, `saveGoal`, `deleteGoal`, `startEditingGoal`, `finishEditingGoal`), `src/hooks/education-plan/useEducationPlan.jsx` |
 | `GET /education-plans/class-docs`, `PUT /education-plans/class-docs/{kind}/{docKey}`, `POST …/{kind}/{docKey}/actions` | `educationPlanApi.js` (`getClassPlans`, `saveClassDoc`, `actOnClassDoc`), `useEducationPlan.jsx`, `components/education-plan/planUi.jsx` (lớp, giáo viên) |
 | `GET/PUT /education-plans/config`, `GET /education-plans/expected-results` | `educationPlanApi.js` (`getEduConfig`, `saveEduConfig`), `yearPlanMapper.js` (`toUiEduConfig`), `src/models/education-plan/expectedResults.js` (hiện là hằng FE) |
 | `GET /accounts/me` (`assignments[].staffRole = AGE_GROUP_TEAM_LEADER`, `ageGroupId`) | FE lấy nhóm tuổi của Tổ trưởng (hiện đọc `user.ageGroupId`) |
 
+
+Tự lưu mục tiêu năm (27/10/2026): các thao tác ghi goals yêu cầu ba header X-Edit-Session/X-Plan-Revision/X-Request-Id; detail thêm revision/editExpiresAt. Consumer Web: educationPlanApi.js, yearPlanMapper.js, educationPlanService.js, useEducationPlan.jsx, GoalFormPage.jsx; thao tác chi tiết/xóa phải giữ revision mà người dùng đã xem. Không triển khai BE riêng khi client cũ còn ghi. Mobile chưa triển khai màn này trong đợt tự lưu. Từ 27/10 FE bỏ tự ghi lên server (chỉ Lưu/Ctrl+S, gửi/ban hành), contract không đổi; bản giữ ẩn chỉ ở trình duyệt (EDU-22).
+
+## Học liệu / trình chiếu lớp — feature002
+Web consumers: ClassThemePlanPage/ActivityResources gọi learning-resources list/upload/bind/detach/content; TeachingPresentationPage mở từ theme hoặc WeekPlanPage theo ngày. API base /education-plans/class-docs/theme/{docKey}/learning-resources, không đổi API cũ. Mobile chưa dùng API này. Tệp S3 private sau backend scope check; binary mock ở IndexedDB chỉ là demo. Xem [contract](../../specs/002-class-plan-teaching-media/contracts/learning-resources.md) và [S3 config](EDUCATION_MEDIA_S3.md).
+
+- Live S3 đã được kiểm từ BE StorageService theo cấu hình user chỉ định ngoài repo:4object bytes-roundtrip, anonymous-denied và dọn sạch. FE không cầm cloud credential. Native PDF viewer tùy trình duyệt; IAB chưa render được nên có hướng dẫn tải/fallback, không tuyên bố PDF inline smoke đạt.

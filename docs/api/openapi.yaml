@@ -930,6 +930,146 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources:
+    get:
+      operationId: list
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+    post:
+      operationId: upload
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                activityKey:
+                  type: string
+                activityLabel:
+                  type: string
+                activitySignature:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+              required:
+              - activityKey
+              - activityLabel
+              - activitySignature
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}:
+    delete:
+      operationId: detach
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonString"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/activity:
+    patch:
+      operationId: bind
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningResourceBinding"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/content:
+    get:
+      operationId: content
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: OK
+      tags:
+      - learning-resource-controller
   /api/education-plans/class-docs/{kind}/{docKey}:
     put:
       operationId: saveClassDoc
@@ -1077,6 +1217,25 @@ paths:
       - edu-year-plan-controller
     post:
       operationId: createYearPlan
+      parameters:
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
@@ -1102,6 +1261,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -1138,12 +1315,67 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/YearPlanRequest"
         required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/editing-heartbeat:
+    post:
+      operationId: heartbeat
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -1163,6 +1395,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -1182,6 +1432,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
@@ -1206,6 +1474,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
@@ -1231,6 +1517,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -1250,6 +1554,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
@@ -3187,6 +3509,54 @@ components:
           type: string
         shortName:
           type: string
+    LearningResourceBinding:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          maxLength: 180
+          minLength: 0
+        activityLabel:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        activitySignature:
+          type: string
+          minLength: 1
+          pattern: "[a-f0-9]{64}"
+      required:
+      - activityKey
+      - activityLabel
+      - activitySignature
+    LearningResourceResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        activityKey:
+          type: string
+        activityLabel:
+          type: string
+        activitySignature:
+          type: string
+        byteSize:
+          type: integer
+          format: int64
+        contentType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        docKey:
+          type: string
+        fileName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        uploadedBy:
+          type: integer
+          format: int64
     Login:
       type: object
       properties:
@@ -3708,6 +4078,16 @@ components:
           $ref: "#/components/schemas/EduConfigResponse"
         desc:
           type: string
+    ResponseJsonLearningResourceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/LearningResourceResponse"
+        desc:
+          type: string
     ResponseJsonListAgeGroupDetailResponse:
       type: object
       properties:
@@ -3778,6 +4158,18 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ExpectedResultResponse"
+        desc:
+          type: string
+    ResponseJsonListLearningResourceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningResourceResponse"
         desc:
           type: string
     ResponseJsonListRoomResponse:
@@ -3935,6 +4327,16 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/SchoolYearDetailResponse"
+        desc:
+          type: string
+    ResponseJsonString:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: string
         desc:
           type: string
     ResponseJsonTeacherAssignmentResponse:
@@ -4616,6 +5018,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Domain"
+        editExpiresAt:
+          type: string
+          format: date-time
         editing:
           $ref: "#/components/schemas/PlanActorResponse"
         history:
@@ -4633,6 +5038,9 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         permissions:
           $ref: "#/components/schemas/Permissions"
+        revision:
+          type: integer
+          format: int64
         schoolYearId:
           type: integer
           format: int64
@@ -4701,6 +5109,9 @@ components:
         createdAt:
           type: string
           format: date-time
+        editExpiresAt:
+          type: string
+          format: date-time
         editing:
           $ref: "#/components/schemas/PlanActorResponse"
         goalCount:
@@ -4713,6 +5124,9 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         owner:
           $ref: "#/components/schemas/PlanActorResponse"
+        revision:
+          type: integer
+          format: int64
         schoolYearId:
           type: integer
           format: int64

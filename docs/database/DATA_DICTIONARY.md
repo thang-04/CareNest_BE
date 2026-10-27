@@ -249,11 +249,11 @@ Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi m�
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
 
 ## Kế hoạch giáo dục năm học  (module: education-plan, scope: SCHOOL theo nhóm tuổi)
-Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V20__drop_unused_edu_plan_tables.sql`, `V21__add_edu_year_plan_editing_lock.sql`, `V22__create_edu_settings.sql`, `V23__create_edu_class_docs.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
+Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constraints.sql`, `V20__drop_unused_edu_plan_tables.sql`, `V21__add_edu_year_plan_editing_lock.sql`, `V22__create_edu_settings.sql`, `V23__create_edu_class_docs.sql`, `V24__add_edu_year_plan_edit_sessions.sql` (ADR-0017, theo CAN_DB trang 1; lệch so với CAN_DB ghi ở cuối mục).
 
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
-| edu_year_plans | code VARCHAR(30), school_year_id, age_group_id, title VARCHAR(150), description VARCHAR(500) (rỗng được), status, owner_id/owner_title, sent_by/sent_at, issued_by/issued_at (người, thời điểm ban hành), editing_by/editing_since/editing_at/editing_from (khóa Đang sửa: người, lúc bắt đầu, lần lưu cuối, trạng thái trả về), created_at, updated_at | UNIQUE code; UNIQUE (school_year_id, age_group_id); status ∈ DRAFT/EDITING/PENDING_VP/REJECTED/APPROVED; status = EDITING ⇔ đủ 4 cột editing_*, editing_from ∈ DRAFT/REJECTED; FK user_accounts | EDU-01..05, EDU-10 |
+| edu_year_plans | code VARCHAR(30), school_year_id, age_group_id, title VARCHAR(150) (rỗng được khi soạn), description VARCHAR(500), status, owner_id/owner_title, sent_by/sent_at, issued_by/issued_at, editing_by/editing_since/editing_at/editing_from, edit_session_id UUID, content_revision BIGINT DEFAULT 0, last_save_request_id UUID, created_request_id UUID, created_at, updated_at | UNIQUE code; UNIQUE (school_year_id, age_group_id); UNIQUE (owner_id, created_request_id); status ∈ DRAFT/EDITING/PENDING_VP/REJECTED/APPROVED; phiên đủ trường hoặc rỗng hoàn toàn; EDITING từ DRAFT/REJECTED, PENDING_VP giữ trạng thái khi có phiên; FK user_accounts | EDU-01..05, EDU-10/22/23 |
 | edu_goal_rows | year_plan_id, domain_id, sort_order, kind, text, goal_no | kind ∈ sub/group/goal; `goal_no` có ⇔ kind = goal; xóa theo kế hoạch | EDU-09 |
 | edu_goal_contents | goal_row_id, sort_order, text | xóa theo dòng | — |
 | edu_themes | year_plan_id, sort_order, name VARCHAR(150), abbr VARCHAR(20) mặc định rỗng, start_date, end_date, festivals, note | Không ràng buộc viết tắt/ngày ở DB (V9): bản nháp lưu được khi còn soạn dở; service kiểm khi gửi/ban hành | EDU-04, EDU-05 |
@@ -272,3 +272,6 @@ Lệch so với CAN_DB (đã chốt 22/10):
 - Thêm `sort_order` cho `edu_breaks`.
 - `edu_plan_events` chưa có cột `branch_plan_id`/`theme_plan_id`/`week_plan_id` (thêm khi có các bảng đó).
 - V20 (Tiền chốt 22/10; số cũ V10, đổi khi merge nhánh điểm danh G94-236 vì trùng `V10__add_school_year_lifecycle`): bỏ `edu_plan_approvals` (trùng `issued_by`/`issued_at` + sự kiện `ISSUE`), bỏ `edu_approval_steps` (thứ tự người ký khi in làm ở task Cấu hình kế hoạch), bỏ cột `attachment_key` (UI không có đính kèm).
+
+## Học liệu hoạt động / trình chiếu (2026-10-27)
+User yêu cầu tất cả tệp dùng S3 private và đồng ý AWS SDK v2. Metadata edu_learning_resources trỏ class_doc_id; lưu activity key/signature, tên/loại/kích thước, uploader, request UUID và storage key opaque. Key/signature cùng null khi gỡ. Không binary trong JSONB; không sửa schema nội dung cũ. Tham chiếu [data-model feature002](../../specs/002-class-plan-teaching-media/data-model.md), migration V25. Không expose storage key qua response.

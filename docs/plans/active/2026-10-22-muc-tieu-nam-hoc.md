@@ -8,7 +8,7 @@ modules: [education-plan, school-structure]
 rules: [EDU-01, EDU-02, EDU-03, EDU-04, EDU-05, EDU-06, EDU-07, EDU-08, EDU-09, AUTH-03]
 risk: high
 created: 2026-10-22
-updated: 2026-10-22
+updated: 2026-10-27
 ---
 # Mục tiêu năm học — API và nghiệp vụ
 
@@ -225,3 +225,137 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - FE: nối API thật, lớp/giáo viên lấy từ class-docs theo năm ở header; nhãn REJECTED đổi "Bị trả lại"; nạp lại sau gửi/duyệt hồ sơ chủ đề.
 - Kiểm chứng: test tích hợp 5/5; Playwright trên BE thật: chủ đề nhánh (lưu, gửi, trả lại, gửi lại, duyệt), kế hoạch chủ đề, giáo án tuần + ngày, hồ sơ chủ đề gửi và duyệt; quyền giáo viên lớp khác, tổ trưởng, HT. BE verify PASS 373.
 - Commit: chưa commit.
+
+## Bổ sung 27/10/2026 — Tự lưu khi soạn (APPROVED, đang triển khai)
+
+Phần này là đề nghị sửa đổi plan đang có, không kế thừa quyền triển khai từ các phase cũ. Trạng thái `in-progress` của plan gốc không có nghĩa phần bổ sung đã được duyệt. Đặc tả: [001-year-plan-autosave](../../../specs/001-year-plan-autosave/spec.md).
+
+### Context và làm rõ nghiệp vụ
+
+- Actor: Tổ trưởng nhóm tuổi, Phó hiệu trưởng; outcome: tự lưu và phục hồi công việc, chỉ một phiên sửa; không đổi quyền đọc theo EDU-03.
+- Hiện trạng: `src/main/java/com/carenest/dto/eduplan/YearPlanRequest.java:20` bắt buộc tiêu đề; `src/main/java/com/carenest/service/eduplan/impl/EduYearPlanServiceImpl.java:220` lưu và gia hạn khóa; `src/main/java/com/carenest/entity/eduplan/EduYearPlan.java:149` khóa hết hạn theo lần hoạt động đã ghi.
+- FE: `CareNest_FE/src/hooks/education-plan/useManualSave.js:10` chỉ lưu tay; `CareNest_FE/src/pages/education-plan/GoalFormPage.jsx:235` lấy/nhả khóa; chưa có tự lưu/khôi phục tại hai file này.
+- Yêu cầu mới khác EDU-10/22: lưu nội dung đang soạn, giữ quyền theo phiên hoạt động thay vì lần lưu, khóa cả bản Chờ duyệt. Không dùng các mô tả cũ trái yêu cầu để triển khai tính năng mới.
+- Phạm vi: education-plan, schema/contract của kế hoạch năm và Web; không sửa nghiệp vụ đánh giá trẻ/tài liệu lớp, không thay mục tiêu đã ban hành. Mobile không triển khai tính năng này trong đợt này.
+
+### Quyết định user đã chốt và phần đề xuất
+
+| Nội dung | Quyết định | Nguồn |
+| --- | --- | --- |
+| Cách lưu | Tự lưu trong lúc soạn, bảo vệ khi mất mạng/mất điện | User, 27/10/2026 |
+| Nội dung thiếu/chưa hợp lệ | Giữ nội dung soạn dở; kiểm tra đầy đủ trước gửi duyệt/ban hành | Câu trả lời user, 27/10/2026 |
+| Quyền sửa | Chỉ một phiên được sửa, kể cả Phó hiệu trưởng sửa bản Chờ duyệt | Câu trả lời user, 27/10/2026 |
+| Nhịp lưu/khôi phục | Ngừng gõ 2 giây; nhập liên tục tối đa 15 giây trước khi bắt đầu lưu; giữ trên máy trong 1 giây | Đề xuất agent, chờ duyệt plan |
+| Quyền khi mất liên lạc | Gia hạn bằng liên lạc định kỳ 20 giây; hết quyền sau 90 giây không liên lạc được | Đề xuất agent, chờ duyệt plan |
+| Triển khai Web | Cần cho phép sửa CareNest_FE rõ trước khi thực hiện phase AS-2 | AGENTS.md, phạm vi |
+
+Không còn câu hỏi nghiệp vụ chưa trả lời trong đặc tả. Phê duyệt kế hoạch, mốc thời gian và phạm vi sửa Web vẫn đang chờ; không tự đánh dấu approved.
+
+### Acceptance criteria bổ sung
+
+- **AS-AC1** (spec FR-001..004, FR-011..012): Given nội dung đang nhập dở, When đến nhịp lưu, Then giữ đúng giá trị và hiển thị đúng trạng thái; thiếu nội dung chỉ chặn bước gửi/ban hành, không chặn tự lưu.
+- **AS-AC2** (EDU-03, spec FR-005..006, FR-013): Given hai phiên của cùng/khác tài khoản, When cùng sửa, Then chỉ một phiên được ghi/chuyển trạng thái; nhả khóa cũ không làm mất quyền phiên mới; Chờ duyệt không bị đổi về Nháp.
+- **AS-AC3** (spec FR-004, FR-009, FR-014): Given lưu chậm, mất phản hồi hoặc kết nối lại, When thử lại, Then không trùng dữ liệu, không ghi đè bản mới, không đổi bản đã ban hành.
+- **AS-AC4** (spec FR-007..008): Given bản nháp đã được giữ trên máy, When mở lại cùng tài khoản/thiết bị, Then phục hồi đúng; tài khoản khác không truy cập; lỗi giữ trên máy phải báo rõ.
+- **AS-AC5** (spec FR-010, FR-015): Given còn nội dung chưa lưu/hợp lệ, When gửi/ban hành, Then chưa chuyển trạng thái; khi đủ điều kiện chỉ tạo sự kiện nghiệp vụ tương ứng, không tạo lịch sử duyệt sau mỗi lần tự lưu.
+
+### Key decisions đề xuất để duyệt
+
+| Quyết định | Đề xuất | Phương án khác | Lý do |
+| --- | --- | --- | --- |
+| Chống hai người ghi | Quyền theo phiên + kiểm tra phiên và phiên bản nội dung tại mọi thao tác ghi | Chỉ dùng quyền theo tài khoản hiện tại | Phân biệt hai tab, chặn yêu cầu cũ sau nhận lại quyền |
+| Theo dõi người còn soạn | Liên lạc định kỳ, độc lập lưu nội dung | Chỉ gia hạn khi có lưu | Không mất quyền khi đang đọc nội dung |
+| Phục hồi ngoại tuyến | Bản nháp theo tài khoản/kế hoạch trên thiết bị; đối chiếu trước đồng bộ | Chỉ lưu trên hệ thống | Mất mạng vẫn bảo vệ nội dung; không tự trộn xung đột |
+| Hạ tầng | Dùng cơ chế giao dịch/lưu trữ hiện có, không thêm dependency/dịch vụ | Thêm hệ thống cộng tác trực tiếp | Giữ phạm vi một người sửa và giới hạn V1 |
+
+### Contract và dữ liệu dự kiến — cần duyệt trước khi sửa
+
+- Đề xuất giữ prefix và các đường dẫn goals hiện tại; bổ sung nhận diện phiên sửa và phiên bản nội dung khi lấy khóa/lưu/kết thúc sửa và các thao tác gửi, ban hành, trả lại, xóa. Thêm thao tác duy trì phiên sửa độc lập với lưu nội dung. Không dùng thông tin từ client thay cho kiểm tra vai trò/nhóm tuổi ở server.
+- Chi tiết/list trả thông tin phiên bản, người đang sửa và hạn quyền; giá trị dùng để chứng minh quyền chỉ trả cho phiên được cấp, không hiển thị cho người chỉ xem hoặc ghi log. Dùng mã lỗi hiện có cho hết quyền/xung đột và thông báo rõ; không tự thêm ApiCode.
+- Tạo/lưu hỗ trợ nội dung chưa hoàn chỉnh; bảo toàn kiểm tra liên kết, quyền và giới hạn kích thước. Gửi/ban hành áp đầy đủ validation đã có. Cần đối chiếu cả validation ngày ở service và ràng buộc database, không chỉ bỏ NotBlank.
+- Migration mới bổ sung nhận diện phiên, phiên bản và dấu vết chống tạo/lưu trùng; điều chỉnh ràng buộc nháp cần thiết. Không sửa migration đã commit. Khóa cũ được chuyển an toàn khi triển khai; nội dung/ID/liên kết/bản ban hành giữ nguyên.
+- Consumer cụ thể: FE `educationPlanApi.js` (`saveGoal`, `startEditingGoal`, `finishEditingGoal`), `yearPlanMapper.js`, `useEducationPlan.jsx`, `GoalFormPage.jsx`. Đổi đồng bộ contract trước khi triển khai cho người dùng; không đưa BE mới lên riêng khi client cũ có thể ghi sai.
+
+### Phases bổ sung
+
+Thay đổi vượt 8 file: tách hai đợt review BE và Web; mỗi đợt chỉ bắt đầu sau khi phạm vi tương ứng được duyệt. Không mở rộng sang tài liệu lớp.
+
+#### Phase AS-1 — Backend và hợp đồng
+
+- Cập nhật rule/flow/card và contract theo yêu cầu đã chốt, giữ nguồn quyết định; tạo migration mới. Sửa entity, repository, DTO, controller, service, cấu hình/cleanup khóa cùng test tương ứng của education-plan.
+- Định nghĩa chi tiết dữ liệu phiên/phiên bản, chống thử lại tạo trùng và lỗi xung đột trước khi code; kiểm tra mọi thao tác ghi đều khóa dòng và kiểm tra quyền phiên. Tách trạng thái nghiệp vụ khỏi quyền sửa khi Chờ duyệt.
+- Tests: `EduYearPlanServiceIntegrationTest`, `EduYearPlanControllerTest`, `EduYearPlanSchemaIntegrationTest` cho AS-AC1/2/3/5; thử đồng thời hai phiên bằng dữ liệu giả; kiểm migration cũ sang mới.
+- Exit: `node scripts/check-ai-layer.mjs`; `node scripts/verify.mjs` đạt full, skip 0; cập nhật snapshot OpenAPI có chủ đích, báo diff và consumer. Thiếu Docker thì chưa đạt exit tích hợp.
+- **Dừng chờ user review; chưa triển khai lên môi trường dùng chung.**
+
+#### Phase AS-2 — Web và kiểm thử đầu cuối (chỉ khi được phép sửa CareNest_FE)
+
+- Giữ useManualSave cho màn khác; thêm cơ chế tự lưu riêng cho GoalFormPage, tuần tự hóa lưu, giữ thay đổi đang gõ và ánh xạ ID sau lần lưu đầu. Lưu tạm theo tài khoản/kế hoạch, hiển thị trạng thái, duy trì/nhả quyền theo phiên và đối chiếu khi kết nối lại.
+- Cập nhật consumer hợp đồng đã liệt kê, xử lý điều hướng/đóng trang và đợi lưu hoàn tất trước gửi/ban hành. Cập nhật hướng dẫn FE liên quan sau khi có phép; không tự sửa repo APP.
+- Tests: AS-AC1..5 trên backend thật; hai tài khoản/hai tab, nhập liên tục, phản hồi trễ, mất phản hồi, offline/reload, mất quyền, dữ liệu thiếu và bản chờ duyệt. Dùng clock giả để kiểm mốc thời gian; không đợi thật 30 phút.
+- Exit: lệnh verify chuẩn FE đạt; BE full skip 0; báo riêng kết quả E2E và giới hạn chưa kiểm chứng. Không dùng test mô phỏng thay cho kiểm quyền server.
+- **Dừng chờ user review.**
+
+### Test matrix bổ sung
+
+| AC | Tầng/đợt | Kết quả hiện tại |
+| --- | --- | --- |
+| AS-AC1 | Service/controller AS-1; tự lưu UI AS-2 | Chưa triển khai/chạy |
+| AS-AC2 | Giao dịch đồng thời AS-1; hai tab/người AS-2 | Chưa triển khai/chạy |
+| AS-AC3 | Tích hợp chống trùng/phiên bản AS-1; nối mạng lại AS-2 | Chưa triển khai/chạy |
+| AS-AC4 | Kiểm phục hồi/cách ly tài khoản AS-2 | Chưa triển khai/chạy |
+| AS-AC5 | Validation/chuyển trạng thái AS-1; thao tác gửi/ban hành AS-2 | Chưa triển khai/chạy |
+
+### Rủi ro và rollback bổ sung
+
+- Lưu thường xuyên làm tăng tải và có thể ghi đè nếu phản hồi sai thứ tự: chỉ lưu khi đổi, tuần tự hóa, kiểm tra phiên bản ở server; không ghi log toàn nội dung.
+- Bản nháp cũ còn trên máy sau mất quyền: không tự đồng bộ/hiển thị sang tài khoản khác; báo rõ phần chỉ giữ trên máy.
+- Rollback: dừng mở trang sửa, bảo toàn dữ liệu đã lưu và bản khôi phục, quay lại BE/FE tương thích sau kiểm tra schema; không xóa migration hoặc khôi phục database làm mất nội dung. Bản đã ban hành không sửa.
+
+### Validation log bổ sung
+
+- Đã đối chiếu source về lưu tay, khóa theo tài khoản, validation tiêu đề và ràng buộc quyền Chờ duyệt; tham chiếu file/line ở Context.
+- Đã chỉ rõ consumer và hai đợt review do >8 file; không thêm dependency/hạ tầng, không giả định đã được phép sửa Web.
+- Quyết định nghiệp vụ có nguồn user; các mốc thời gian và thiết kế phiên/phiên bản được đánh dấu đề xuất, không tự coi EDU-10/22 cũ là đã thay đổi.
+- Đặc tả đạt 16/16 mục chất lượng; test tính năng mới chưa có. Kế hoạch bổ sung này đang DRAFT, chưa được user duyệt.
+
+### Progress log bổ sung — 2026-10-27
+
+- Hoàn tất đặc tả và ghi hai câu trả lời user; chưa sửa source/contract/migration/FE, chưa commit.
+- Kiểm tra tài liệu: `node scripts/check-ai-layer.mjs` đạt trước khi thêm phần kế hoạch này; sẽ chạy lại sau lần chỉnh cuối.
+- Tiếp: user duyệt phần bổ sung, các mốc thời gian và cho phép sửa CareNest_FE trước khi thực hiện; không dùng trạng thái plan gốc để bỏ qua cổng duyệt.
+
+### 2026-10-27 — User duyệt triển khai tự lưu
+
+- Tiền: "duyệt sửa cả BE và FE"; duyệt các mốc thời gian và thay đổi contract/schema trong phần bổ sung, cho phép sửa CareNest_FE.
+- Thực hiện hai phần BE và FE trong phạm vi đã duyệt; không commit/push/tạo nhánh. Giữ các cổng kiểm tra và báo riêng phần chưa kiểm chứng.
+- RED: EduYearPlanEditTest thất bại đúng yêu cầu mới: expected PENDING_VP but was EDITING.
+
+### 2026-10-27 — Tự lưu AS-1/AS-2: gate đạt, chờ ghi đối chiếu cuối
+
+- BE: `VERIFY PASS full | tests 380 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 118s`. V24 chạy trên PostgreSQL thật; CHECK NULL có RED/GREEN; tạo/lưu retry, expiry và same-account sessions được kiểm.
+- FE: `VERIFY PASS full | npm run verify | log verify.log`; fixture Date test thực đơn được cố định, không đổi nghiệp vụ thực đơn; định dạng SchoolPlansPage trong cùng module. Đang chạy lại sau sửa câu cảnh báo rời trang cuối.
+- Browser mock: tự lưu không bấm Lưu; /new chuyển sang /edit giữ quyền; một tab sửa, tab kia chỉ xem; đóng holder rồi thử lại nhận quyền; rời trước 2s rồi mở lại thấy bản phục hồi. Review subagent không còn P1/P2 cụ thể.
+- Giới hạn: chưa chạy browser E2E trên BE thật; offline/reconnect được mô phỏng ở node:test và fencing kiểm qua PostgreSQL thật; chưa đo SLA mạng production. Không claim các phần đó đã kiểm.
+- Khác plan: bổ sung one-use handoff để route /new→/edit không làm mất quyền; cache riêng từng slot và fallback nhận diện lần tạo chưa có phản hồi; retry400 lấy snapshot đã sửa, retry mạng giữ request ID. Không thêm dependency.
+- Không commit/push/tạo nhánh; giữ các thay đổi trước task, nhất là FE authService.js.
+
+### 2026-10-27 — Chốt riêng phần tự lưu mục tiêu năm
+
+- Các task 001 hoàn tất qua review và gate; Converge 2 không còn thiếu sót triển khai trong phạm vi này. Giữ plan gốc in-progress vì lịch sử/phạm vi kế hoạch giáo dục còn bước tiếp theo.
+- FE gate chạy lại sau sửa câu cảnh báo đạt; browser mock phục hồi đúng nội dung rời trước nhịp lưu và có nút Khôi phục bản trên máy. Ảnh bằng chứng tạm trong target/autosave-recovery-demo.png (gitignored).
+- Tiếp theo theo chỉ đạo user: quy trình Spec Kit cho chủ đề nhánh/chủ đề/tuần/ngày và học liệu/trình chiếu, giữ quyền và chuỗi duyệt đang có.
+
+### 2026-10-27 — Đổi sang lưu tay + bản giữ ẩn (Tiền chốt)
+
+- Tiền: "để cả tự lưu và lưu bằng tay, đánh lừa người dùng rằng họ vẫn cần lưu nhưng nếu mất điện thì vẫn có bản tự lưu". FE bỏ nhịp tự ghi 2s/15s và tự thử lại; chỉ ghi khi Lưu/Ctrl+S, gửi/ban hành. Bản giữ ẩn trên máy (750ms + pagehide) cho mục tiêu năm và chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày; không hiện chữ về tự lưu. EDU-22/23 cập nhật; BE không đổi code/contract.
+- FE `node scripts/verify.mjs` PASS; browser mock kiểm mục tiêu năm và giáo án tuần (trạng thái, hộp rời màn, khôi phục, Không lưu/Lưu xóa bản giữ).
+
+### 2026-10-27 — Nhận quyền cùng tài khoản, Việt hóa thông báo, sửa B1/B3 (Tiền chốt)
+
+- A: cùng tài khoản start-editing bằng phiên mới ⇒ nhận quyền ngay; phiên cũ 409 "Đã mất quyền sửa…" ở heartbeat/lưu và giữ bản giữ; người khác vẫn chờ 90s. Test: `sameAccountNewSessionTakesOverAndOldSessionLosesLease`, `otherUserStillWaitsForLeaseExpiry`, `expiredLeaseCannotOverwriteOrReleaseNewSession`. EDU-10/22, flow mục 1, spec 001 (Clarifications) cập nhật.
+- B2: thông báo phiên/revision kế hoạch năm là câu ngắn tiếng Việt ("Đang được [tên] sửa", "Đã mất quyền sửa…", "Kế hoạch đã được thay đổi ở nơi khác. Tải lại để đối chiếu").
+- B3: thiếu part multipart/header bắt buộc ⇒ 400 "Thiếu dữ liệu bắt buộc: <tên>" (trước: 500 rồi câu tiếng Anh). Test: `LearningResourceControllerTest.uploadMissingPartReturns400WithClearMessage`, `ResponseContractTest.missingMultipartPartReturns400NotServerError`.
+- FE (CareNest_FE): CSS hàng đầu trang chi tiết kế hoạch năm (B1, Tiền duyệt, chỉ ≥1024px); Playwright IT-05b, IT-16, ST-03b, ST-05b; 31/31 Pass trên BE dev.
+- Không đổi contract/migration; không commit/push.
+

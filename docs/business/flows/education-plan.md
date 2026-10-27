@@ -26,7 +26,12 @@ Kế hoạch năm: nội dung của MT tích vào chủ đề
 ```text
 [S] Phó HT (mọi nhóm tuổi) hoặc Tổ trưởng (nhóm tuổi mình) lập kế hoạch: 1 bản / (năm học, nhóm tuổi)
 [S] Vào trang soạn ⇒ Đang sửa, khóa cho người đó; người kia chỉ xem "Đang được [tên] sửa"
-      Lưu (nút Lưu / Ctrl+S) vẫn Đang sửa; thoát trang ⇒ Nháp (hoặc Bị trả lại); 30 phút không lưu ⇒ tự nhả
+      Lưu tay: chỉ ghi lên hệ thống khi bấm Lưu/Ctrl+S hoặc gửi/ban hành (Tiền chốt 27/10); giữ nội dung dở
+      Heartbeat 20 giây, hết quyền sau 90 giây mất liên lạc; thoát bình thường nhả quyền ngay khi server nhận
+      Cùng tài khoản mở lại (vd. sau mất điện) ⇒ phiên mới nhận quyền ngay, Khôi phục dùng được ngay;
+      tab cũ còn sống ⇒ "Đã mất quyền sửa…", giữ bản giữ; người khác vẫn chờ 90 giây (EDU-10)
+      Chờ duyệt: chỉ Phó HT sửa và cũng giữ quyền theo phiên, không đổi trạng thái chờ
+      Web giữ ẩn bản chưa lưu trên máy để khôi phục khi mở lại; phải kiểm quyền/revision, không ghi đè bản mới
 [S] Tab Mục tiêu: lĩnh vực > lĩnh vực con > nhóm kết quả mong đợi > MT n > nội dung; tích nội dung vào chủ đề
 [S] Tab Chủ đề và sự kiện: chủ đề (tên, viết tắt, lễ hội, từ ngày – đến ngày, ghi chú), đợt nghỉ;
       số tuần và danh sách MT của chủ đề hệ thống tự tính
@@ -94,4 +99,7 @@ Kế hoạch năm: nội dung của MT tích vào chủ đề
 - Đã có BE (G94-226): kế hoạch năm (`/education-plans/goals`), cấu hình (`/education-plans/config`), tài liệu lớp (`/education-plans/class-docs`). AI: UI chạy mock, API PROPOSED (`docs/system/CROSS_REPO_MAP.md`).
 - Module khác tham chiếu MT qua id dòng mục tiêu, không qua số MT (số đánh lại khi chèn/xóa dòng).
 - Bản kế hoạch chủ đề đã lưu giữ cả MT, nội dung lấy từ kế hoạch năm (EDU-15).
-- Lưu tay, hỏi khi rời trang, xác nhận khi xóa là quy tắc giao diện (EDU-22).
+- Mục tiêu năm học và các màn kế hoạch lớp đều lưu tay (Tiền chốt 27/10); Web giữ ẩn bản chưa lưu trên máy để khôi phục. Rời khi chưa lưu và xóa mục có cảnh báo/xác nhận theo EDU-22.
+
+## Học liệu và dạy học
+Giáo viên lớp lưu activities trước khi upload; S3 giữ binary private và DB metadata. Chỉ Nháp/Bị trả lại được upload/gắn lại/gỡ. Các mutation khóa parent cùng luồng gửi/duyệt. Người xem scope hiện hành đọc học liệu active; editor thấy phần cần gắn lại. Trình chiếu không đổi trạng thái duyệt, giữ MT và nội dung đã xếp ngày; stale pick không ghép media theo ID vị trí. Ảnh/video/PDF trực tiếp, Office tải. Xem specs/002-class-plan-teaching-media và ADR-0018.
