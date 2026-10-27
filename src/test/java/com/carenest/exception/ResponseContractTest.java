@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -20,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -95,6 +97,17 @@ class ResponseContractTest {
                         .with(jwt()))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
+                .andExpect(content().string(containsString("\"data\":null")));
+    }
+
+    @Test
+    void missingMultipartPartReturns400NotServerError() throws Exception {
+        mockMvc.perform(multipart(BASE + "/upload")
+                        .file(new MockMultipartFile("other", "x.txt", "text/plain", "x".getBytes()))
+                        .with(jwt()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.desc").value("Thiếu dữ liệu bắt buộc: label"))
                 .andExpect(content().string(containsString("\"data\":null")));
     }
 

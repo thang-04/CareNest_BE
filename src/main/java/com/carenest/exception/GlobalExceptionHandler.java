@@ -13,12 +13,14 @@ import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -80,6 +82,16 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ResponseJson<Void>> handleMalformedRequest(Exception ex) {
         log.warn("[handleMalformedRequest]|type={}", ex.getClass().getSimpleName());
         return ResponseJson.toJson(ApiCode.BAD_REQUEST, "Malformed request");
+    }
+
+    // Thiếu part multipart / header bắt buộc là lỗi của request (400), không phải lỗi hệ thống
+    @ExceptionHandler({MissingServletRequestPartException.class, MissingRequestHeaderException.class})
+    public ResponseEntity<ResponseJson<Void>> handleMissingRequestPart(Exception ex) {
+        String name = ex instanceof MissingServletRequestPartException part
+                ? part.getRequestPartName()
+                : ((MissingRequestHeaderException) ex).getHeaderName();
+        log.warn("[handleMissingRequestPart]|type={}|name={}", ex.getClass().getSimpleName(), name);
+        return ResponseJson.toJson(ApiCode.BAD_REQUEST, "Thiếu dữ liệu bắt buộc: " + name);
     }
 
     @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
