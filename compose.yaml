@@ -71,6 +71,14 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-carenest}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-carenest}
       API_PREFIX: ${API_PREFIX:-/api}
+      CARENEST_EDUCATION_MEDIA_BUCKET: ${CARENEST_EDUCATION_MEDIA_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-ap-southeast-1}
+      CARENEST_EDUCATION_MEDIA_ENDPOINT: ${CARENEST_EDUCATION_MEDIA_ENDPOINT:-}
+      CARENEST_EDUCATION_MEDIA_PATH_STYLE: ${CARENEST_EDUCATION_MEDIA_PATH_STYLE:-false}
+      CARENEST_EDUCATION_MEDIA_PREFIX: ${CARENEST_EDUCATION_MEDIA_PREFIX:-education/learning-resources/}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
       # Profile dev nạp dữ liệu giả (db/dev); đặt rỗng để chạy không seed
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
       # Không phụ thuộc keycloak lúc khởi động: JWKS được lấy lazy khi có request đầu tiên

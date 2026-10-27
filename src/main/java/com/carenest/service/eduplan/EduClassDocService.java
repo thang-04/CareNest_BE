@@ -8,6 +8,8 @@ import tools.jackson.databind.node.ObjectNode;
 /** Tài liệu kế hoạch của lớp: chủ đề nhánh, kế hoạch chủ đề, giáo án tuần (EDU-12..18). */
 public interface EduClassDocService {
 
+    com.carenest.entity.eduplan.EduClassDoc requireThemeAccess(CurrentUser currentUser, String docKey, boolean write);
+
     /** Tài liệu, lớp và giáo viên của năm học (null = năm đang hoạt động) trong phạm vi người xem. */
     ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId);
 

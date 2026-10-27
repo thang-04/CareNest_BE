@@ -16,13 +16,19 @@ spring:
     ignore-migration-patterns: "*:future,repeatable:missing"
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 10MB
+      max-file-size: 100MB
+      max-request-size: 102MB
 
 server:
   port: ${SERVER_PORT:8080}
 
 carenest:
+  education-media:
+    bucket: ${CARENEST_EDUCATION_MEDIA_BUCKET:}
+    region: ${AWS_REGION:ap-southeast-1}
+    endpoint: ${CARENEST_EDUCATION_MEDIA_ENDPOINT:}
+    path-style: ${CARENEST_EDUCATION_MEDIA_PATH_STYLE:false}
+    prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}

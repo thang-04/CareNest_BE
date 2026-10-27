@@ -63,6 +63,12 @@ class EduClassDocServiceIntegrationTest {
     private EduYearPlanService yearPlanService;
 
     @Autowired
+    private com.carenest.service.eduplan.LearningResourceService learningResources;
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.carenest.integration.storage.StorageService storage;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
@@ -82,6 +88,22 @@ class EduClassDocServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        java.util.Map<String, byte[]> stored = new java.util.HashMap<>();
+        org.mockito.Mockito.when(
+                        storage.store(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenAnswer(call -> {
+                    String key = java.util.UUID.randomUUID().toString();
+                    stored.put(key, ((java.io.InputStream) call.getArgument(0)).readAllBytes());
+                    return key;
+                });
+        org.mockito.Mockito.when(storage.load(org.mockito.ArgumentMatchers.anyString()))
+                .thenAnswer(call -> new org.springframework.core.io.ByteArrayResource(stored.get(call.getArgument(0))));
+        org.mockito.Mockito.doAnswer(call -> {
+                    stored.remove(call.getArgument(0));
+                    return null;
+                })
+                .when(storage)
+                .remove(org.mockito.ArgumentMatchers.anyString());
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
         schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
@@ -113,6 +135,7 @@ class EduClassDocServiceIntegrationTest {
         assignTeacher(otherTeacher, otherClassId);
 
         // Chủ đề 1 có tuần nghỉ ở giữa (2 tuần học), chủ đề 2 bắt đầu Chủ nhật (1 tuần học)
+        java.util.UUID editSession = java.util.UUID.randomUUID();
         YearPlanDetailResponse draft = yearPlanService.createYearPlan(
                 vicePrincipal,
                 new YearPlanRequest(
@@ -147,8 +170,14 @@ class EduClassDocServiceIntegrationTest {
                                         "",
                                         "")),
                         List.of(new YearPlanRequest.Break(
-                                null, "Nghỉ", LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 18)))));
-        plan = yearPlanService.issueYearPlan(vicePrincipal, draft.id(), null);
+                                null, "Nghỉ", LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 18)))),
+                new com.carenest.dto.eduplan.YearPlanEditRequest(editSession, 0L, java.util.UUID.randomUUID()));
+        plan = yearPlanService.issueYearPlan(
+                vicePrincipal,
+                draft.id(),
+                null,
+                new com.carenest.dto.eduplan.YearPlanEditRequest(
+                        editSession, draft.revision(), java.util.UUID.randomUUID()));
         theme1 = String.valueOf(plan.themes().get(0).id());
         theme2 = String.valueOf(plan.themes().get(1).id());
     }
@@ -270,6 +299,93 @@ class EduClassDocServiceIntegrationTest {
         service.actOnClassDoc(teacher, "branch", key, submit());
         service.actOnClassDoc(leader, "branch", key, approve());
         service.actOnClassDoc(vicePrincipal, "branch", key, approve());
+    }
+
+    @Test
+    @DisplayName("EDU-12/18: học liệu private, retry một lần, stale binding cần gắn lại và bản khóa không sửa")
+    void learningResourcesRespectScopeAndActivityIdentity() throws Exception {
+        approveBranch();
+        String key = "tp_" + classId + "_" + theme1;
+        String goal = String.valueOf(jdbc.queryForObject(
+                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        ObjectNode doc = theme(theme1);
+        ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "- HĐ học:\n+ Vận động A\n+ Vận động B");
+        service.saveClassDoc(teacher, "theme", key, doc);
+        String sig = com.carenest.utils.LearningResourcePolicy.signature(
+                doc.path("rows").path(goal).path("activities").asString());
+        var binding = new com.carenest.dto.eduplan.LearningResourceBinding(goal + "#1", sig, "Vận động B");
+        var file = new org.springframework.mock.web.MockMultipartFile(
+                "file", "demo.pdf", "application/pdf", "%PDF-1.7\ndemo".getBytes());
+        java.util.UUID request = java.util.UUID.randomUUID();
+        var first = learningResources.upload(teacher, key, file, binding, request);
+        assertThat(learningResources
+                        .upload(teacher, key, file, binding, request)
+                        .id())
+                .isEqualTo(first.id());
+        assertThat(learningResources
+                        .content(teacher, key, first.id())
+                        .resource()
+                        .getInputStream()
+                        .readAllBytes())
+                .isEqualTo(file.getBytes());
+        assertApiError(() -> learningResources.list(otherTeacher, key), ApiCode.FORBIDDEN);
+        assertApiError(() -> learningResources.content(otherTeacher, key, first.id()), ApiCode.FORBIDDEN);
+        assertApiError(
+                () -> learningResources.upload(vicePrincipal, key, file, binding, java.util.UUID.randomUUID()),
+                ApiCode.FORBIDDEN);
+        ((ObjectNode) doc.path("rows").path(goal)).put("activities", "HĐ học: Vận động mới");
+        service.saveClassDoc(teacher, "theme", key, doc);
+        assertThat(learningResources.list(teacher, key).getFirst().active()).isFalse();
+        assertThat(learningResources.list(vicePrincipal, key)).isEmpty();
+        assertApiError(() -> learningResources.content(vicePrincipal, key, first.id()), ApiCode.NOT_FOUND);
+        assertApiError(
+                () -> learningResources.upload(teacher, key, file, binding, java.util.UUID.randomUUID()),
+                ApiCode.CONFLICT);
+        var rebound = new com.carenest.dto.eduplan.LearningResourceBinding(
+                goal + "#0", com.carenest.utils.LearningResourcePolicy.signature("HĐ học: Vận động mới"), "Mới");
+        assertThat(learningResources.bind(teacher, key, first.id(), rebound).active())
+                .isTrue();
+        learningResources.detach(teacher, key, first.id());
+        assertThat(learningResources.list(teacher, key).getFirst().activityKey())
+                .isNull();
+        assertThat(learningResources
+                        .content(teacher, key, first.id())
+                        .resource()
+                        .exists())
+                .isTrue();
+        jdbc.update("UPDATE edu_class_docs SET status='PENDING_VP' WHERE doc_key=?", key);
+        // Native update cần xóa persistence cache trước khi kiểm lại status.
+        entityManager.clear();
+        assertApiError(() -> learningResources.detach(teacher, key, first.id()), ApiCode.CONFLICT);
+    }
+
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
+    @Test
+    @DisplayName("EDU-12: ZIP đổi đuôi Office không phải học liệu hợp lệ")
+    void learningResourcesRejectRenamedZipAndInvalidGoal() throws Exception {
+        approveBranch();
+        String key = "tp_" + classId + "_" + theme1;
+        String goal = String.valueOf(jdbc.queryForObject(
+                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        ObjectNode doc = theme(theme1);
+        ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "A");
+        service.saveClassDoc(teacher, "theme", key, doc);
+        var binding = new com.carenest.dto.eduplan.LearningResourceBinding(
+                goal + "#0", com.carenest.utils.LearningResourcePolicy.signature("A"), "A");
+        var bytes = new java.io.ByteArrayOutputStream();
+        try (var zip = new java.util.zip.ZipOutputStream(bytes)) {
+            zip.putNextEntry(new java.util.zip.ZipEntry("random.txt"));
+            zip.write("x".getBytes());
+            zip.closeEntry();
+        }
+        var file = new org.springframework.mock.web.MockMultipartFile(
+                "file", "fake.pptx", "application/zip", bytes.toByteArray());
+        assertApiError(
+                () -> learningResources.upload(teacher, key, file, binding, java.util.UUID.randomUUID()),
+                ApiCode.UNSUPPORTED_MEDIA_TYPE);
+        assertThat(learningResources.list(teacher, key)).isEmpty();
     }
 
     private ObjectNode names(String... weeks) {

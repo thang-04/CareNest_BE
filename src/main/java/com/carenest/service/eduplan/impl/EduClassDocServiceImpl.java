@@ -111,6 +111,40 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     record TeachingWeek(int no, LocalDate start, Long themeId) {}
 
     @Override
+    @Transactional
+    public EduClassDoc requireThemeAccess(CurrentUser currentUser, String docKey, boolean write) {
+        String logPrefix = LOG_PREFIX + "|requireThemeAccess|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            requireView(currentUser);
+            EduClassDoc doc = (write
+                            ? classDocRepository.findForUpdateByDocKey(docKey)
+                            : classDocRepository.findByDocKey(docKey))
+                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Không tìm thấy kế hoạch chủ đề"));
+            if (!EduClassDoc.THEME.equals(doc.getKind()))
+                throw new GlobalException(ApiCode.BAD_REQUEST, "Học liệu chỉ thuộc kế hoạch chủ đề");
+            ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
+            LocalDate today = LocalDate.now(clock);
+            if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
+                throw new GlobalException(ApiCode.FORBIDDEN, "Không có quyền xem tài liệu của lớp");
+            if (write) {
+                if (!currentUser.hasRole(CareNestRole.TEACHER)
+                        || !staffAssignmentService
+                                .findCurrentTeacherClassroomIds(currentUser.userId(), today)
+                                .contains(cls.id()))
+                    throw new GlobalException(ApiCode.FORBIDDEN, "Chỉ giáo viên của lớp sửa được học liệu");
+                if (!doc.getStatus().editable())
+                    throw new GlobalException(ApiCode.CONFLICT, "Tài liệu đã khóa chỉnh sửa");
+            }
+            log.info("{}|END", logPrefix);
+            return doc;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId) {
         String logPrefix =
