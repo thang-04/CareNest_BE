@@ -91,7 +91,7 @@ class PermissionServiceImplTest {
                             principal, fixedRole, new UpdateRolePermissionsRequest(List.of(), "thử")))
                     .isInstanceOf(GlobalException.class)
                     .extracting("apiCode")
-                    .isEqualTo(ApiCode.FORBIDDEN);
+                    .isEqualTo(ApiCode.ROLE_PERMISSIONS_FIXED);
         }
         verifyNoInteractions(rolePermissionRepository, permissionChangeLogRepository);
     }
@@ -105,7 +105,7 @@ class PermissionServiceImplTest {
                         new UpdateRolePermissionsRequest(List.of(Permission.PERMISSION_MANAGE), "leo quyền")))
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.PERMISSION_NOT_CONFIGURABLE_FOR_ROLE);
         verifyNoInteractions(rolePermissionRepository, permissionChangeLogRepository);
     }
 
@@ -139,7 +139,7 @@ class PermissionServiceImplTest {
         assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, PRINCIPAL_ID, revoke()))
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.CANNOT_CHANGE_OWN_PERMISSIONS);
         verifyNoInteractions(userAccountRepository, identityProviderClient, userPermissionOverrideRepository);
     }
 
@@ -149,12 +149,12 @@ class PermissionServiceImplTest {
         givenTarget(TEACHER_ID, "PRINCIPAL", "default-roles-carenest");
         assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, TEACHER_ID, revoke()))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.ACCOUNT_PERMISSIONS_FIXED);
 
         givenTarget(TEACHER_ID, "PARENT");
         assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, TEACHER_ID, revoke()))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.ACCOUNT_PERMISSIONS_FIXED);
         verify(userPermissionOverrideRepository, never()).saveAll(any());
     }
 
@@ -200,7 +200,7 @@ class PermissionServiceImplTest {
 
         assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, TEACHER_ID, request))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.DUPLICATE_PERMISSION);
     }
 
     @Test
@@ -211,7 +211,7 @@ class PermissionServiceImplTest {
 
         assertThatThrownBy(() -> permissionService.getPermissionOverrides(TEACHER_ID))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.SERVICE_UNAVAILABLE);
+                .isEqualTo(ApiCode.IDENTITY_PROVIDER_UNAVAILABLE);
     }
 
     @Test
@@ -220,14 +220,14 @@ class PermissionServiceImplTest {
 
         assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, 99L, revoke()))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.NOT_FOUND);
+                .isEqualTo(ApiCode.ACCOUNT_NOT_FOUND);
     }
 
     @Test
     void changeLogFilterAcceptsOnlyOneTarget() {
         assertThatThrownBy(() -> permissionService.getPermissionChangeLogs(CareNestRole.TEACHER, 5L, 0, 20))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.CHANGE_LOG_FILTER_CONFLICT);
     }
 
     private void givenTarget(Long userId, String... realmRoles) {

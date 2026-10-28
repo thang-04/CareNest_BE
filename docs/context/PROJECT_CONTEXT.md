@@ -35,7 +35,7 @@ Trường đang dùng song song PMS, GoKids, Zalo, sổ giấy, hệ thống ng�
 
 CareNest tạo **hồ sơ có cấu trúc, lấy trẻ làm trung tâm, có lịch sử** — không phải kho tin nhắn/tài liệu rời.
 
-**Định vị (review 24/09, CONFIRMED):** CareNest **bao phủ, cải tiến và mở rộng** các chức năng của PMS/GoKids mà workflow của trường cần, để trường không phải dùng song song nhiều app rời rạc. Ví dụ: thực đơn phải nối liền chọn món → tính dinh dưỡng → định lượng/mua (PMS đang làm nhưng không tách theo điểm trường); quan sát/đánh giá cần ngữ cảnh hoạt động. Không viết "CareNest không trùng/không thay thế PMS/GoKids". Vẫn **không** thay hệ thống ngành/quốc gia và không thay Zalo cho chat. Giáo án: team chốt giữ ở GoKids (OBS-08); ngữ cảnh hoạt động: ADR-0006.
+**Định vị (review 24/09, CONFIRMED):** CareNest **bao phủ, cải tiến và mở rộng** các chức năng của PMS/GoKids mà workflow của trường cần, để trường không phải dùng song song nhiều app rời rạc. Ví dụ: thực đơn phải nối liền chọn món → tính dinh dưỡng → định lượng/mua (PMS đang làm nhưng không tách theo điểm trường); quan sát/đánh giá cần ngữ cảnh hoạt động. Không viết "CareNest không trùng/không thay thế PMS/GoKids". Vẫn **không** thay hệ thống ngành/quốc gia và không thay Zalo cho chat. Kế hoạch giáo dục (mục tiêu năm học, chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày) soạn và duyệt trong CareNest theo mẫu MN Thái Dương, nối với đánh giá trẻ theo MT (Tiền chốt 22/10; rule EDU, module education-plan, ADR-0017, ADR-0006).
 
 ## Actor (CONFIRMED)
 
@@ -51,7 +51,8 @@ Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kit
 | — | Chuẩn bị bếp + bàn giao suất cho lớp | PROPOSED (BP-BT-03, roadmap Must) | nutrition | meal-management |
 | — | Kho thực phẩm, NCC | OPEN (ADR-0009) | nutrition | — |
 | FE-03 | Hồ sơ sức khỏe định kỳ (~3 tháng), trend, AI giải thích có duyệt | CONFIRMED | health | health-check |
-| FE-04 | Lịch/kế hoạch hoạt động làm ngữ cảnh cho quan sát | OPEN (ADR-0006); không soạn/duyệt giáo án | learning-observation | child-observation |
+| FE-04 | Kế hoạch giáo dục: mục tiêu năm học theo nhóm tuổi → chủ đề nhánh → kế hoạch chủ đề → giáo án tuần/ngày, duyệt trong hệ thống, in ký tay | CONFIRMED (Tiền 22/10) | education-plan | education-plan |
+| — | Đánh giá trẻ hằng ngày theo MT của giáo án đã duyệt (ngữ cảnh hoạt động) | CONFIRMED (Tiền 20/10, ADR-0006) | learning-observation, education-plan | child-observation |
 | FE-05 | Quan sát + đánh giá hằng ngày có cấu trúc | CONFIRMED | learning-observation | child-observation |
 | FE-06 | Hồ sơ phát triển + follow-up | CONFIRMED | learning-observation | child-observation |
 | — | Phiếu bé ngoan / khen thưởng tuần-tháng | PROPOSED | learning-observation | child-observation |
@@ -63,7 +64,7 @@ Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kit
 
 ## Exclusions — KHÔNG làm trong V1
 
-Thay thế hệ thống ngành/quốc gia · tích hợp trực tiếp CSDL quốc gia · thay hoàn toàn Zalo (chat) · chẩn đoán y tế · chẩn đoán tâm lý/rối loạn phát triển · AI tự ra quyết định · kế toán đầy đủ · payroll · quản lý vòng đời tài sản (khấu hao, mua sắm, lịch bảo trì, kiểm kê) · multi-school enterprise SaaS · kiến trúc production 24/7 · disaster recovery đầy đủ · soạn/nộp/duyệt giáo án (GoKids giữ).
+Thay thế hệ thống ngành/quốc gia · tích hợp trực tiếp CSDL quốc gia · thay hoàn toàn Zalo (chat) · chẩn đoán y tế · chẩn đoán tâm lý/rối loạn phát triển · AI tự ra quyết định · ký ảnh/ký điện tử trên kế hoạch giáo dục (duyệt trong hệ thống, in ký tay — EDU-21) · kế toán đầy đủ · payroll · quản lý vòng đời tài sản (khấu hao, mua sắm, lịch bảo trì, kiểm kê) · multi-school enterprise SaaS · kiến trúc production 24/7 · disaster recovery đầy đủ.
 
 ## Ràng buộc dự án
 
@@ -91,4 +92,6 @@ Dùng mã này ở cột Nguồn của rule. Bản gốc nằm ngoài repo (thư
 | Khảo sát | Khảo sát tại trường 21/09 (HT, 1 HP, 3 GV; trước đó 3 PH, 2 bếp) | 21/09/2026 | Biên bản xác nhận chưa ký; số liệu thời gian là ước tính tự báo |
 | Roadmap | CareNest_Roadmap_15W_SEP490.xlsx | 26/09/2026 | Kế hoạch team — chỉ là PROPOSED |
 | BP-BT-03 | Sơ đồ kho + chuẩn bị + bàn giao suất | 02/10/2026 | Flow team mới nhất — PROPOSED |
-| Team 02/10 | Quyết định trưởng nhóm (đơn nghỉ, giáo án, kho) | 02/10/2026 | CONFIRMED (team chốt) |
+| Team 02/10 | Quyết định trưởng nhóm (đơn nghỉ, kho) | 02/10/2026 | CONFIRMED (team chốt) |
+| Mẫu MN Thái Dương | File kế hoạch giáo dục năm học, chủ đề, tuần, ngày của trường MN Thái Dương | 10/2026 | Mẫu nghiệp vụ và mẫu in của kế hoạch giáo dục |
+| Tiền 14–23/10 | Quyết định nghiệp vụ kế hoạch giáo dục (MT liên tục, chuỗi duyệt, bỏ ký ảnh 16/10, UI CareNest_FE là chuẩn 20/10, đưa vào V1 22/10, khóa Đang sửa 23/10) | 14–23/10/2026 | CONFIRMED; tài liệu ở `huong_dan_nghiep_vu/` |

@@ -2026,6 +2026,3488 @@
           }
         }
       ]
+    },
+    {
+      "name": "6. Năm học — /school-years (Cấu hình trường)",
+      "description": "Chạy folder 0 (Login principal.dev, viceprincipal.a) trước. Thứ tự request là một kịch bản: tạo → sửa → kích hoạt/kết thúc bị chặn → xóa.",
+      "item": [
+        {
+          "name": "list — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('data là mảng', () => pm.expect(d).to.be.an('array'));",
+                  "const active = d.find(y => y.status === 'ACTIVE');",
+                  "if (active) pm.collectionVariables.set('activeYearId', active.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years",
+            "description": "Danh sách năm học (mảng, không phân trang) mới nhất trước, kèm classCount. Lọc thêm `status=PLANNED|ACTIVE|CLOSED`. HT, PHT, GV được xem.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "list ACTIVE — viceprincipal.a → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years?status=ACTIVE",
+            "description": "PHT chỉ xem.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "create — viceprincipal.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years",
+            "description": "Chỉ Hiệu trưởng được tạo.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{newYearName}}\",\n  \"startDate\": \"{{newYearStart}}\",\n  \"endDate\": \"{{newYearEnd}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "create — tên sai dạng → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years",
+            "description": "Năm sau phải = năm trước + 1.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"2027-2029\",\n  \"startDate\": \"2027-09-05\",\n  \"endDate\": \"2028-05-31\"\n}"
+            }
+          }
+        },
+        {
+          "name": "create — principal.dev → 201 (PLANNED)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(201));",
+                  "const d = pm.response.json().data;",
+                  "pm.test('status PLANNED', () => pm.expect(d.status).to.eql('PLANNED'));",
+                  "pm.collectionVariables.set('newYearId', d.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years",
+            "description": "Tạo năm học mới, luôn `PLANNED`. Đổi biến `newYearName/newYearStart/newYearEnd` nếu năm đã tồn tại.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{newYearName}}\",\n  \"startDate\": \"{{newYearStart}}\",\n  \"endDate\": \"{{newYearEnd}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "create — trùng tên → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{newYearName}}\",\n  \"startDate\": \"{{newYearStart}}\",\n  \"endDate\": \"{{newYearEnd}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "create — chồng ngày năm khác → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"2099-2100\",\n  \"startDate\": \"{{newYearStart}}\",\n  \"endDate\": \"{{newYearEnd}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "get — năm vừa tạo → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "update — đổi ngày năm PLANNED → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{newYearName}}\",\n  \"startDate\": \"{{newYearStart}}\",\n  \"endDate\": \"{{newYearEnd2}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "activate — gõ sai tên → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/activate",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirmName\": \"sai\"\n}"
+            }
+          }
+        },
+        {
+          "name": "activate — chưa tới 7 ngày trước ngày bắt đầu → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/activate",
+            "description": "Chỉ kích hoạt từ 7 ngày trước startDate. Năm đang ACTIVE (nếu có) sẽ tự CLOSED khi kích hoạt thành công.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirmName\": \"{{newYearName}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "close — năm PLANNED → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/close",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "delete — năm PLANNED chưa có lớp → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "get — năm đã xóa → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 404', () => pm.response.to.have.status(404));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(404));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "delete — năm ACTIVE → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{activeYearId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Điểm trường — /campuses (Cấu hình trường)",
+      "description": "Chạy folder 0 (principal.dev, viceprincipal.a, teacher.a) trước.",
+      "item": [
+        {
+          "name": "list — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));",
+                  "pm.test('data là mảng', () => pm.expect(pm.response.json().data).to.be.an('array'));",
+                  "const main = pm.response.json().data.find(c => c.isMain);",
+                  "if (main) pm.collectionVariables.set('mainCampusId', main.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses",
+            "description": "Danh sách điểm trường (điểm chính trước) kèm classCount, childCount, vicePrincipals của năm học `schoolYearId` (mặc định năm ACTIVE). Không phân trang.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "list — viceprincipal.a → chỉ điểm trường mình",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));",
+                  "pm.test('chỉ 1 điểm trường', () => pm.expect(pm.response.json().data.length).to.eql(1));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "list — teacher.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "detail — điểm chính → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses/{{mainCampusId}}",
+            "description": "Gồm campus, classes, vicePrincipals, teachers, kitchenStaff.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "create — viceprincipal.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CS-C\",\n  \"name\": \"Cơ sở C (Postman)\",\n  \"shortName\": \"Cơ sở C\",\n  \"address\": \"Số 1 phố Demo\",\n  \"phone\": \"0241234567\",\n  \"isMain\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "create — phone sai → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CS-C\",\n  \"name\": \"Cơ sở C (Postman)\",\n  \"shortName\": \"Cơ sở C\",\n  \"address\": \"Số 1 phố Demo\",\n  \"phone\": \"abc\",\n  \"isMain\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "create — principal.dev → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(201));",
+                  "pm.collectionVariables.set('newCampusId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CS-C\",\n  \"name\": \"Cơ sở C (Postman)\",\n  \"shortName\": \"Cơ sở C\",\n  \"address\": \"Số 1 phố Demo\",\n  \"phone\": \"0241234567\",\n  \"isMain\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "create — trùng mã → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CS-C\",\n  \"name\": \"Cơ sở C (Postman)\",\n  \"shortName\": \"Cơ sở C\",\n  \"address\": \"Số 1 phố Demo\",\n  \"phone\": \"0241234567\",\n  \"isMain\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "update — đổi địa chỉ → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses/{{newCampusId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CS-C\",\n  \"name\": \"Cơ sở C (Postman)\",\n  \"shortName\": \"Cơ sở C\",\n  \"address\": \"Số 2 phố Demo\",\n  \"phone\": \"0241234567\",\n  \"isMain\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "update — bỏ điểm chính duy nhất → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses/{{mainCampusId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"CS-A\",\n  \"name\": \"Cơ sở A (demo)\",\n  \"shortName\": \"Cơ sở A\",\n  \"address\": \"Địa chỉ demo A\",\n  \"isMain\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "delete — điểm chính → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses/{{mainCampusId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "delete — điểm trường mới → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses/{{newCampusId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Phòng ban — /locations (Cấu hình trường)",
+      "description": "Chạy folder 0 và 7 trước. Phòng tạo ở đây được folder 9 dùng làm phòng của lớp.",
+      "item": [
+        {
+          "name": "list — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations",
+            "description": "Phòng chưa xóa kèm yearClasses (năm `schoolYearId`, mặc định năm ACTIVE), blockers, minCapacity. Lọc `campusId`. Chạy folder 7 trước để có `mainCampusId`.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "list — viceprincipal.a → phòng điểm trường mình",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "list — teacher.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "create — phòng học thiếu sức chứa → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campusId\": \"{{mainCampusId}}\",\n  \"room\": \"P.901\",\n  \"name\": \"Phòng Postman\",\n  \"type\": \"CLASS\",\n  \"capacity\": null,\n  \"note\": \"Tạo từ Postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "create — principal.dev → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(201));",
+                  "pm.collectionVariables.set('newRoomId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campusId\": \"{{mainCampusId}}\",\n  \"room\": \"P.901\",\n  \"name\": \"Phòng Postman\",\n  \"type\": \"CLASS\",\n  \"capacity\": 25,\n  \"note\": \"Tạo từ Postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "create — trùng mã trong điểm trường → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campusId\": \"{{mainCampusId}}\",\n  \"room\": \"P.901\",\n  \"name\": \"Phòng khác\",\n  \"type\": \"CLASS\",\n  \"capacity\": 25,\n  \"note\": \"Tạo từ Postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "update — đổi sức chứa → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations/{{newRoomId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campusId\": \"{{mainCampusId}}\",\n  \"room\": \"P.901\",\n  \"name\": \"Phòng Postman\",\n  \"type\": \"CLASS\",\n  \"capacity\": 30,\n  \"note\": \"Tạo từ Postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "status — ngừng sử dụng → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations/{{newRoomId}}/status",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"INACTIVE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "status — dùng lại → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations/{{newRoomId}}/status",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Nhóm tuổi & lớp — /age-groups, /classes, /school-structure",
+      "description": "Chạy folder 0, 6 (lấy activeYearId), 7, 8 trước.",
+      "item": [
+        {
+          "name": "age groups — kitchen.a → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));",
+                  "const g = pm.response.json().data.find(x => x.code === 'ag-3');",
+                  "if (g) pm.collectionVariables.set('ageGroupId', g.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/age-groups",
+            "description": "Mọi nhân sự (trừ phụ huynh) xem được nhóm tuổi.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_kitchen_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "age group — trùng độ tuổi → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/age-groups",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nhóm Postman\",\n  \"shortName\": \"NPM\",\n  \"ageFromMonths\": 30,\n  \"ageToMonths\": 40,\n  \"mealSessions\": [\n    \"MORNING\",\n    \"LUNCH\"\n  ],\n  \"maxClassSize\": 15,\n  \"nutritionNote\": \"\"\n}"
+            }
+          }
+        },
+        {
+          "name": "age group — principal.dev → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(201));",
+                  "pm.collectionVariables.set('newAgeGroupId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/age-groups",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nhóm Postman\",\n  \"shortName\": \"NPM\",\n  \"ageFromMonths\": 6,\n  \"ageToMonths\": 12,\n  \"mealSessions\": [\n    \"MORNING\",\n    \"LUNCH\"\n  ],\n  \"maxClassSize\": 15,\n  \"nutritionNote\": \"\"\n}"
+            }
+          }
+        },
+        {
+          "name": "age group — sửa → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/age-groups/{{newAgeGroupId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nhóm Postman\",\n  \"shortName\": \"NPM\",\n  \"ageFromMonths\": 6,\n  \"ageToMonths\": 12,\n  \"mealSessions\": [\n    \"MORNING\",\n    \"LUNCH\"\n  ],\n  \"maxClassSize\": 18,\n  \"nutritionNote\": \"\"\n}"
+            }
+          }
+        },
+        {
+          "name": "age group — xóa → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/age-groups/{{newAgeGroupId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "structure — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-structure?schoolYear={{activeYearId}}",
+            "description": "Năm `schoolYearId` (mặc định ACTIVE), lọc `campusId`. GV chỉ thấy lớp mình dạy, PHT điểm trường mình.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "structure — teacher.a → chỉ lớp mình",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-structure?schoolYear={{activeYearId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "class — sĩ số vượt nhóm tuổi → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/classes",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lớp Postman\",\n  \"campusId\": \"{{mainCampusId}}\",\n  \"ageGroupId\": \"{{ageGroupId}}\",\n  \"capacity\": 40,\n  \"locationId\": \"{{newRoomId}}\",\n  \"schoolYear\": \"{{activeYearId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "class — principal.dev → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(201));",
+                  "pm.collectionVariables.set('newClassId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/classes",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lớp Postman\",\n  \"campusId\": \"{{mainCampusId}}\",\n  \"ageGroupId\": \"{{ageGroupId}}\",\n  \"capacity\": 20,\n  \"locationId\": \"{{newRoomId}}\",\n  \"schoolYear\": \"{{activeYearId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "class — trùng tên → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/classes",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lớp Postman\",\n  \"campusId\": \"{{mainCampusId}}\",\n  \"ageGroupId\": \"{{ageGroupId}}\",\n  \"capacity\": 20,\n  \"locationId\": \"{{newRoomId}}\",\n  \"schoolYear\": \"{{activeYearId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "class — sửa sĩ số → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/classes/{{newClassId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lớp Postman\",\n  \"campusId\": \"{{mainCampusId}}\",\n  \"ageGroupId\": \"{{ageGroupId}}\",\n  \"capacity\": 22,\n  \"locationId\": \"{{newRoomId}}\",\n  \"schoolYear\": \"{{activeYearId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "room — xóa phòng đang có lớp → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations/{{newRoomId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "class — xóa → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/classes/{{newClassId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "room — xóa phòng (đã từng có lớp ⇒ xóa mềm) → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations/{{newRoomId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "copy classes — cùng năm → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{activeYearId}}/classes/copy",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sourceYearId\": \"{{activeYearId}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Giờ chốt điểm danh — /school-years/{id}/cutoff",
+      "description": "Chạy folder 0 và 6 (lấy activeYearId) trước.",
+      "item": [
+        {
+          "name": "get — kitchen.a → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{activeYearId}}/cutoff",
+            "description": "setting = lần đặt mới nhất, todayTime = giờ chốt đang áp dụng hôm nay, history = mọi lần đặt.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_kitchen_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "save — viceprincipal.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{activeYearId}}/cutoff",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"time\": \"08:45\",\n  \"effectiveFrom\": \"{{cutoffFrom}}\",\n  \"note\": \"\"\n}"
+            }
+          }
+        },
+        {
+          "name": "save — ngày ngoài năm học → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{activeYearId}}/cutoff",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"time\": \"08:45\",\n  \"effectiveFrom\": \"2099-01-01\",\n  \"note\": \"\"\n}"
+            }
+          }
+        },
+        {
+          "name": "save — giờ sai định dạng → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{activeYearId}}/cutoff",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"time\": \"8h45\",\n  \"effectiveFrom\": \"{{cutoffFrom}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "save — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{activeYearId}}/cutoff",
+            "description": "Đổi `cutoffFrom` (yyyy-MM-dd, trong năm học) hoặc giờ nếu báo chưa thay đổi.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"time\": \"08:45\",\n  \"effectiveFrom\": \"{{cutoffFrom}}\",\n  \"note\": \"Đặt từ Postman\"\n}"
+            }
+          }
+        },
+        {
+          "name": "save — không đổi gì → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{activeYearId}}/cutoff",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"time\": \"08:45\",\n  \"effectiveFrom\": \"{{cutoffFrom}}\",\n  \"note\": \"\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Phân công GV & tổ trưởng — /teacher-assignments, /team-leader-assignments",
+      "description": "Chạy folder 0, 6, 9 (lấy ageGroupId) trước.",
+      "item": [
+        {
+          "name": "overview — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));",
+                  "const d = pm.response.json().data;",
+                  "const a1 = d.classes[0]; if (a1) pm.collectionVariables.set('assignClassId', a1.id);",
+                  "const t = d.teachers.filter(x => a1 && x.campusIds.includes(a1.campusId));",
+                  "if (t[0]) pm.collectionVariables.set('teacherIdA', t[0].id);",
+                  "if (t[1]) pm.collectionVariables.set('teacherIdB', t[1].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/teacher-assignments?schoolYear={{activeYearId}}&campusId=all",
+            "description": "Lớp của năm học (teacherIds, homeroomTeacherId, childCount) và GV có thể chọn. Lọc `campusId`. Tạm thời GV = người đang có phân công GV/tổ trưởng.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "overview — viceprincipal.a → điểm trường mình",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/teacher-assignments",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "overview — teacher.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/teacher-assignments",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "class teachers — chỉ 1 GV → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/classes/{{assignClassId}}/teachers",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacherIds\": [\n    \"{{teacherIdA}}\"\n  ],\n  \"homeroomTeacherId\": \"{{teacherIdA}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "class teachers — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/classes/{{assignClassId}}/teachers",
+            "description": "Cần 2 GV cùng điểm trường của lớp. Seed dev chỉ có teacher.a, teacher.b ở hai lớp khác nhau; nếu chỉ có 1 GV cùng điểm trường sẽ trả 400.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"teacherIds\": [\n    \"{{teacherIdA}}\",\n    \"{{teacherIdB}}\"\n  ],\n  \"homeroomTeacherId\": \"{{teacherIdA}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "team leaders — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/team-leader-assignments?schoolYearId={{activeYearId}}",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "team leader — viceprincipal.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/team-leader-assignments",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ageGroupId\": \"{{ageGroupId}}\",\n  \"userId\": \"{{teacherIdA}}\",\n  \"schoolYear\": \"{{activeYearId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "team leader — principal.dev gán → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/team-leader-assignments",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ageGroupId\": \"{{ageGroupId}}\",\n  \"userId\": \"{{teacherIdA}}\",\n  \"schoolYear\": \"{{activeYearId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "team leader — gỡ → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/team-leader-assignments",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ageGroupId\": \"{{ageGroupId}}\",\n  \"userId\": null,\n  \"schoolYear\": \"{{activeYearId}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Xếp lớp năm mới & kích hoạt — /placements, /readiness, /activate",
+      "description": "Chạy folder 0 và request create của folder 6 trước (năm PLANNED `newYearId`).",
+      "item": [
+        {
+          "name": "readiness — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/readiness",
+            "description": "Các bước chuẩn bị (info, ageGroups, classes, rooms, vicePrincipals, teamLeaders, teachers, placement, cutoff), blockers, canActivate. Dùng năm PLANNED tạo ở folder 6 (chạy lại request create của folder 6 nếu đã xóa).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "readiness — viceprincipal.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/readiness",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_vp_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "placements — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/placements",
+            "description": "Lớp năm ACTIVE kèm trẻ + kết quả đã xếp, lớp năm mới kèm chỗ đã dùng.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "placements — teacher.a → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 403', () => pm.response.to.have.status(403));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/placements",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_teacher_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "auto place — principal.dev → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/placements/auto",
+            "description": "Xếp tự động trẻ chưa xếp: lên nhóm tuổi kế tiếp, nhóm lớn nhất ra trường; lớp năm mới hết chỗ ⇒ unplaced.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "save placements — trẻ không thuộc năm ACTIVE → 400",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 400', () => pm.response.to.have.status(400));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/placements",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [\n    {\n      \"childId\": 999999,\n      \"action\": \"LEAVE\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "activate — chưa sẵn sàng → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 409', () => pm.response.to.have.status(409));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(409));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/{{newYearId}}/activate",
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"confirmName\": \"{{newYearName}}\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Kiểm tra khớp FE — dạng dữ liệu theo FE (có response mẫu)",
+      "description": "Mỗi request có Example là response thật. So với mock FE (CareNest_FE 8fca8d5). Chạy folder 0 (principal.dev, kitchen.a) trước.",
+      "item": [
+        {
+          "name": "School years — data là MẢNG (trước: data.items) → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/school-years",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": [\n    {\n      \"id\": 6,\n      \"name\": \"2027-2028\",\n      \"startDate\": \"2027-09-05\",\n      \"endDate\": \"2028-05-31\",\n      \"status\": \"PLANNED\",\n      \"classCount\": 0,\n      \"activatedAt\": null,\n      \"activatedBy\": null,\n      \"closedAt\": null,\n      \"closedBy\": null,\n      \"createdAt\": \"2026-10-22T11:12:21.743388Z\",\n      \"updatedAt\": \"2026-10-22T11:12:21.743388Z\"\n    },\n    {\n      \"id\": 1,\n      \"name\": \"2026-2027\",\n      \"startDate\": \"2026-09-01\",\n      \"endDate\": \"2027-05-31\",\n      \"status\": \"ACTIVE\",\n      \"classCount\": 2,\n      \"activatedAt\": \"2026-10-22T10:10:49.741241Z\",\n      \"activatedBy\": null,\n      \"closedAt\": null,\n      \"closedBy\": null,\n      \"createdAt\": \"2026-10-22T10:10:00.074065Z\",\n      \"updatedAt\": \"2026-10-22T10:10:00.074065Z\"\n    }\n  ],\n  \"desc\": \"Get school years success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cutoff — setting.history, year (trước: history ở ngoài) → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/1/cutoff",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/school-years/1/cutoff",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": {\n    \"year\": {\n      \"id\": 1,\n      \"name\": \"2026-2027\",\n      \"startDate\": \"2026-09-01\",\n      \"endDate\": \"2027-05-31\",\n      \"status\": \"ACTIVE\"\n    },\n    \"setting\": {\n      \"schoolYear\": 1,\n      \"time\": \"08:45\",\n      \"effectiveFrom\": \"2026-11-02\",\n      \"note\": \"test\",\n      \"updatedBy\": 2,\n      \"updatedByName\": \"Hiệu trưởng Demo\",\n      \"updatedAt\": \"2026-10-22T10:39:47.054358Z\",\n      \"history\": [\n        {\n          \"id\": 2,\n          \"time\": \"08:45\",\n          \"effectiveFrom\": \"2026-11-02\",\n          \"previousTime\": \"08:30\",\n          \"note\": \"test\",\n          \"userId\": 2,\n          \"userName\": \"Hiệu trưởng Demo\",\n          \"at\": \"2026-10-22T10:39:47.054358Z\"\n        },\n        {\n          \"id\": 1,\n          \"time\": \"08:30\",\n          \"effectiveFrom\": \"2026-09-01\",\n          \"previousTime\": null,\n          \"note\": \"\",\n          \"userId\": 2,\n          \"userName\": \"Hiệu trưởng Demo\",\n          \"at\": \"2026-10-22T10:39:46.866055Z\"\n        }\n      ]\n    },\n    \"todayTime\": \"08:30\"\n  },\n  \"desc\": \"Get cutoff success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Campus detail — ageGroups, kitchen{locations,staff}, classes.childCount → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/campuses/1?schoolYear=1",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/campuses/1?schoolYear=1",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": {\n    \"campus\": {\n      \"id\": 1,\n      \"code\": \"CS-A\",\n      \"name\": \"Cơ sở A (demo)\",\n      \"shortName\": \"Cơ sở A\",\n      \"address\": \"Địa chỉ demo A\",\n      \"phone\": null,\n      \"isMain\": true,\n      \"classCount\": 1,\n      \"childCount\": 2,\n      \"vicePrincipals\": [\n        {\n          \"id\": 3,\n          \"fullName\": \"Hiệu phó Cơ sở A Demo\"\n        }\n      ]\n    },\n    \"schoolYearId\": 1,\n    \"classes\": [\n      {\n        \"id\": 1,\n        \"name\": \"Lớp A1\",\n        \"ageGroupId\": null,\n        \"capacity\": null,\n        \"locationId\": null,\n        \"childCount\": 2\n      }\n    ],\n    \"ageGroups\": [\n      {\n        \"id\": 1,\n        \"code\": \"ag-2\",\n        \"name\": \"Nhà trẻ (24–36 tháng)\",\n        \"shortName\": \"Nhà trẻ\",\n        \"sortOrder\": 1,\n        \"ageFromMonths\": 24,\n        \"ageToMonths\": 36,\n        \"mealSessions\": [\n          \"MORNING\",\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 3,\n        \"maxClassSize\": 25,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 2,\n        \"code\": \"ag-3\",\n        \"name\": \"Mẫu giáo bé (3–4 tuổi)\",\n        \"shortName\": \"Mẫu giáo bé\",\n        \"sortOrder\": 2,\n        \"ageFromMonths\": 36,\n        \"ageToMonths\": 48,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 25,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 3,\n        \"code\": \"ag-4\",\n        \"name\": \"Mẫu giáo nhỡ (4–5 tuổi)\",\n        \"shortName\": \"Mẫu giáo nhỡ\",\n        \"sortOrder\": 3,\n        \"ageFromMonths\": 48,\n        \"ageToMonths\": 60,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 30,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 4,\n        \"code\": \"ag-5\",\n        \"name\": \"Mẫu giáo lớn (5–6 tuổi)\",\n        \"shortName\": \"Mẫu giáo lớn\",\n        \"sortOrder\": 4,\n        \"ageFromMonths\": 60,\n        \"ageToMonths\": 72,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 35,\n        \"nutritionNote\": \"\"\n      }\n    ],\n    \"vicePrincipals\": [\n      {\n        \"id\": 3,\n        \"fullName\": \"Hiệu phó Cơ sở A Demo\"\n      }\n    ],\n    \"teachers\": [\n      {\n        \"id\": 4,\n        \"fullName\": \"Giáo viên A Demo\"\n      }\n    ],\n    \"kitchen\": {\n      \"locations\": [],\n      \"staff\": [\n        {\n          \"id\": 8,\n          \"fullName\": \"Nhà bếp Cơ sở A Demo\"\n        }\n      ]\n    }\n  },\n  \"desc\": \"Get campus success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Age groups — mealSessions, mealsPerDay → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/age-groups",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_kitchen_a}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/age-groups",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_kitchen_a}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": [\n    {\n      \"id\": 1,\n      \"code\": \"ag-2\",\n      \"name\": \"Nhà trẻ (24–36 tháng)\",\n      \"shortName\": \"Nhà trẻ\",\n      \"sortOrder\": 1,\n      \"ageFromMonths\": 24,\n      \"ageToMonths\": 36,\n      \"mealSessions\": [\n        \"MORNING\",\n        \"LUNCH\",\n        \"AFTERNOON\"\n      ],\n      \"mealsPerDay\": 3,\n      \"maxClassSize\": 25,\n      \"nutritionNote\": \"\"\n    },\n    {\n      \"id\": 2,\n      \"code\": \"ag-3\",\n      \"name\": \"Mẫu giáo bé (3–4 tuổi)\",\n      \"shortName\": \"Mẫu giáo bé\",\n      \"sortOrder\": 2,\n      \"ageFromMonths\": 36,\n      \"ageToMonths\": 48,\n      \"mealSessions\": [\n        \"LUNCH\",\n        \"AFTERNOON\"\n      ],\n      \"mealsPerDay\": 2,\n      \"maxClassSize\": 25,\n      \"nutritionNote\": \"\"\n    },\n    {\n      \"id\": 3,\n      \"code\": \"ag-4\",\n      \"name\": \"Mẫu giáo nhỡ (4–5 tuổi)\",\n      \"shortName\": \"Mẫu giáo nhỡ\",\n      \"sortOrder\": 3,\n      \"ageFromMonths\": 48,\n      \"ageToMonths\": 60,\n      \"mealSessions\": [\n        \"LUNCH\",\n        \"AFTERNOON\"\n      ],\n      \"mealsPerDay\": 2,\n      \"maxClassSize\": 30,\n      \"nutritionNote\": \"\"\n    },\n    {\n      \"id\": 4,\n      \"code\": \"ag-5\",\n      \"name\": \"Mẫu giáo lớn (5–6 tuổi)\",\n      \"shortName\": \"Mẫu giáo lớn\",\n      \"sortOrder\": 4,\n      \"ageFromMonths\": 60,\n      \"ageToMonths\": 72,\n      \"mealSessions\": [\n        \"LUNCH\",\n        \"AFTERNOON\"\n      ],\n      \"mealsPerDay\": 2,\n      \"maxClassSize\": 35,\n      \"nutritionNote\": \"\"\n    }\n  ],\n  \"desc\": \"Get age groups success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Rooms — usage, query schoolYear → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/locations?schoolYear=1",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/locations?schoolYear=1",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": [\n    {\n      \"id\": 2,\n      \"campusId\": 1,\n      \"room\": \"P.FE1\",\n      \"name\": \"Phòng FE 1\",\n      \"type\": \"CLASS\",\n      \"capacity\": 25,\n      \"managerUserId\": null,\n      \"managerName\": null,\n      \"status\": \"ACTIVE\",\n      \"note\": \"Dữ liệu mẫu nối FE\",\n      \"yearClasses\": [],\n      \"usage\": {},\n      \"blockers\": [],\n      \"minCapacity\": 0\n    }\n  ],\n  \"desc\": \"Get rooms success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Class — body tên FE (schoolYear, locationId) → 201",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/classes",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Lớp FE\",\n  \"schoolYear\": 1,\n  \"campusId\": 1,\n  \"ageGroupId\": 2,\n  \"locationId\": 2,\n  \"capacity\": 20\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 201",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{apiPrefix}}/classes",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Lớp FE\",\n  \"schoolYear\": 1,\n  \"campusId\": 1,\n  \"ageGroupId\": 2,\n  \"locationId\": 2,\n  \"capacity\": 20\n}"
+                }
+              },
+              "status": "OK",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 201,\n  \"data\": {\n    \"id\": 9,\n    \"name\": \"Lớp FE\",\n    \"schoolYearId\": 1,\n    \"campusId\": 1,\n    \"ageGroupId\": 2,\n    \"locationId\": 2,\n    \"capacity\": 20,\n    \"status\": \"ACTIVE\",\n    \"childCount\": 0,\n    \"plannedCount\": null,\n    \"missingTeachers\": 2,\n    \"noRoom\": false,\n    \"fill\": \"OPEN\"\n  },\n  \"desc\": \"Create class success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "School structure — plannedCount, groupStats.planned, teamLeaders.campusId → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-structure?schoolYear=1",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/school-structure?schoolYear=1",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": {\n    \"year\": {\n      \"id\": 1,\n      \"name\": \"2026-2027\",\n      \"startDate\": \"2026-09-01\",\n      \"endDate\": \"2027-05-31\",\n      \"status\": \"ACTIVE\",\n      \"classCount\": 3,\n      \"activatedAt\": \"2026-10-22T10:10:49.741241Z\",\n      \"activatedBy\": null,\n      \"closedAt\": null,\n      \"closedBy\": null,\n      \"createdAt\": \"2026-10-22T10:10:00.074065Z\",\n      \"updatedAt\": \"2026-10-22T10:10:00.074065Z\"\n    },\n    \"ageGroups\": [\n      {\n        \"id\": 1,\n        \"code\": \"ag-2\",\n        \"name\": \"Nhà trẻ (24–36 tháng)\",\n        \"shortName\": \"Nhà trẻ\",\n        \"sortOrder\": 1,\n        \"ageFromMonths\": 24,\n        \"ageToMonths\": 36,\n        \"mealSessions\": [\n          \"MORNING\",\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 3,\n        \"maxClassSize\": 25,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 2,\n        \"code\": \"ag-3\",\n        \"name\": \"Mẫu giáo bé (3–4 tuổi)\",\n        \"shortName\": \"Mẫu giáo bé\",\n        \"sortOrder\": 2,\n        \"ageFromMonths\": 36,\n        \"ageToMonths\": 48,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 25,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 3,\n        \"code\": \"ag-4\",\n        \"name\": \"Mẫu giáo nhỡ (4–5 tuổi)\",\n        \"shortName\": \"Mẫu giáo nhỡ\",\n        \"sortOrder\": 3,\n        \"ageFromMonths\": 48,\n        \"ageToMonths\": 60,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 30,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 4,\n        \"code\": \"ag-5\",\n        \"name\": \"Mẫu giáo lớn (5–6 tuổi)\",\n        \"shortName\": \"Mẫu giáo lớn\",\n        \"sortOrder\": 4,\n        \"ageFromMonths\": 60,\n        \"ageToMonths\": 72,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 35,\n        \"nutritionNote\": \"\"\n      }\n    ],\n    \"classes\": [\n      {\n        \"id\": 1,\n        \"name\": \"Lớp A1\",\n        \"schoolYearId\": 1,\n        \"campusId\": 1,\n        \"ageGroupId\": null,\n        \"locationId\": null,\n        \"capacity\": null,\n        \"status\": \"ACTIVE\",\n        \"childCount\": 2,\n        \"plannedCount\": null,\n        \"missingTeachers\": 1,\n        \"noRoom\": true,\n        \"fill\": \"OPEN\"\n      },\n      {\n        \"id\": 9,\n        \"name\": \"Lớp FE\",\n        \"schoolYearId\": 1,\n        \"campusId\": 1,\n        \"ageGroupId\": 2,\n        \"locationId\": 2,\n        \"capacity\": 20,\n        \"status\": \"ACTIVE\",\n        \"childCount\": 0,\n        \"plannedCount\": null,\n        \"missingTeachers\": 2,\n        \"noRoom\": false,\n        \"fill\": \"OPEN\"\n      },\n      {\n        \"id\": 2,\n        \"name\": \"Lớp B1\",\n        \"schoolYearId\": 1,\n        \"campusId\": 2,\n        \"ageGroupId\": null,\n        \"locationId\": null,\n        \"capacity\": null,\n        \"status\": \"ACTIVE\",\n        \"childCount\": 1,\n        \"plannedCount\": null,\n        \"missingTeachers\": 1,\n        \"noRoom\": true,\n        \"fill\": \"OPEN\"\n      }\n    ],\n    \"teamLeaders\": [],\n    \"groupStats\": {\n      \"1\": {\n        \"classCount\": 0,\n        \"enrolled\": 0,\n        \"planned\": null,\n        \"capacity\": 0\n      },\n      \"2\": {\n        \"classCount\": 1,\n        \"enrolled\": 0,\n        \"planned\": null,\n        \"capacity\": 20\n      },\n      \"3\": {\n        \"classCount\": 0,\n        \"enrolled\": 0,\n        \"planned\": null,\n        \"capacity\": 0\n      },\n      \"4\": {\n        \"classCount\": 0,\n        \"enrolled\": 0,\n        \"planned\": null,\n        \"capacity\": 0\n      }\n    }\n  },\n  \"desc\": \"Get school structure success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Teacher assignments — campusId=all, teachers.campusId → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/teacher-assignments?schoolYear=1&campusId=all",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/teacher-assignments?schoolYear=1&campusId=all",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": {\n    \"year\": {\n      \"id\": 1,\n      \"name\": \"2026-2027\",\n      \"startDate\": \"2026-09-01\",\n      \"endDate\": \"2027-05-31\",\n      \"status\": \"ACTIVE\",\n      \"classCount\": 3,\n      \"activatedAt\": \"2026-10-22T10:10:49.741241Z\",\n      \"activatedBy\": null,\n      \"closedAt\": null,\n      \"closedBy\": null,\n      \"createdAt\": \"2026-10-22T10:10:00.074065Z\",\n      \"updatedAt\": \"2026-10-22T10:10:00.074065Z\"\n    },\n    \"ageGroups\": [\n      {\n        \"id\": 1,\n        \"code\": \"ag-2\",\n        \"name\": \"Nhà trẻ (24–36 tháng)\",\n        \"shortName\": \"Nhà trẻ\",\n        \"sortOrder\": 1,\n        \"ageFromMonths\": 24,\n        \"ageToMonths\": 36,\n        \"mealSessions\": [\n          \"MORNING\",\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 3,\n        \"maxClassSize\": 25,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 2,\n        \"code\": \"ag-3\",\n        \"name\": \"Mẫu giáo bé (3–4 tuổi)\",\n        \"shortName\": \"Mẫu giáo bé\",\n        \"sortOrder\": 2,\n        \"ageFromMonths\": 36,\n        \"ageToMonths\": 48,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 25,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 3,\n        \"code\": \"ag-4\",\n        \"name\": \"Mẫu giáo nhỡ (4–5 tuổi)\",\n        \"shortName\": \"Mẫu giáo nhỡ\",\n        \"sortOrder\": 3,\n        \"ageFromMonths\": 48,\n        \"ageToMonths\": 60,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 30,\n        \"nutritionNote\": \"\"\n      },\n      {\n        \"id\": 4,\n        \"code\": \"ag-5\",\n        \"name\": \"Mẫu giáo lớn (5–6 tuổi)\",\n        \"shortName\": \"Mẫu giáo lớn\",\n        \"sortOrder\": 4,\n        \"ageFromMonths\": 60,\n        \"ageToMonths\": 72,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"mealsPerDay\": 2,\n        \"maxClassSize\": 35,\n        \"nutritionNote\": \"\"\n      }\n    ],\n    \"classes\": [\n      {\n        \"id\": 1,\n        \"name\": \"Lớp A1\",\n        \"campusId\": 1,\n        \"ageGroupId\": null,\n        \"childCount\": 2,\n        \"teacherIds\": [\n          4\n        ],\n        \"homeroomTeacherId\": null\n      },\n      {\n        \"id\": 9,\n        \"name\": \"Lớp FE\",\n        \"campusId\": 1,\n        \"ageGroupId\": 2,\n        \"childCount\": 0,\n        \"teacherIds\": [],\n        \"homeroomTeacherId\": null\n      },\n      {\n        \"id\": 2,\n        \"name\": \"Lớp B1\",\n        \"campusId\": 2,\n        \"ageGroupId\": null,\n        \"childCount\": 1,\n        \"teacherIds\": [\n          5\n        ],\n        \"homeroomTeacherId\": null\n      }\n    ],\n    \"teachers\": [\n      {\n        \"id\": 4,\n        \"fullName\": \"Giáo viên A Demo\",\n        \"campusId\": 1,\n        \"campusIds\": [\n          1\n        ]\n      },\n      {\n        \"id\": 5,\n        \"fullName\": \"Giáo viên B Demo\",\n        \"campusId\": 2,\n        \"campusIds\": [\n          2\n        ]\n      }\n    ]\n  },\n  \"desc\": \"Get teacher assignments success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Team leaders — leaderGroups phẳng, leadsGroup, campusId → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/team-leader-assignments?schoolYear=1",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/team-leader-assignments?schoolYear=1",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": {\n    \"schoolYearId\": 1,\n    \"teamLeaders\": [],\n    \"leaderGroups\": [\n      {\n        \"id\": 1,\n        \"code\": \"ag-2\",\n        \"name\": \"Nhà trẻ (24–36 tháng)\",\n        \"shortName\": \"Nhà trẻ\",\n        \"ageFromMonths\": 24,\n        \"ageToMonths\": 36,\n        \"mealSessions\": [\n          \"MORNING\",\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"maxClassSize\": 25,\n        \"classCount\": 0\n      },\n      {\n        \"id\": 2,\n        \"code\": \"ag-3\",\n        \"name\": \"Mẫu giáo bé (3–4 tuổi)\",\n        \"shortName\": \"Mẫu giáo bé\",\n        \"ageFromMonths\": 36,\n        \"ageToMonths\": 48,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"maxClassSize\": 25,\n        \"classCount\": 1\n      },\n      {\n        \"id\": 3,\n        \"code\": \"ag-4\",\n        \"name\": \"Mẫu giáo nhỡ (4–5 tuổi)\",\n        \"shortName\": \"Mẫu giáo nhỡ\",\n        \"ageFromMonths\": 48,\n        \"ageToMonths\": 60,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"maxClassSize\": 30,\n        \"classCount\": 0\n      },\n      {\n        \"id\": 4,\n        \"code\": \"ag-5\",\n        \"name\": \"Mẫu giáo lớn (5–6 tuổi)\",\n        \"shortName\": \"Mẫu giáo lớn\",\n        \"ageFromMonths\": 60,\n        \"ageToMonths\": 72,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"maxClassSize\": 35,\n        \"classCount\": 0\n      }\n    ],\n    \"leaderCandidates\": [\n      {\n        \"id\": 4,\n        \"fullName\": \"Giáo viên A Demo\",\n        \"campusId\": 1,\n        \"campusIds\": [\n          1\n        ],\n        \"leadsAgeGroupId\": null,\n        \"leadsGroup\": null\n      },\n      {\n        \"id\": 5,\n        \"fullName\": \"Giáo viên B Demo\",\n        \"campusId\": 2,\n        \"campusIds\": [\n          2\n        ],\n        \"leadsAgeGroupId\": null,\n        \"leadsGroup\": null\n      }\n    ]\n  },\n  \"desc\": \"Get team leaders success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Team leader — body {schoolYear, ageGroupId, userId} → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}{{apiPrefix}}/team-leader-assignments",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"schoolYear\": 1,\n  \"ageGroupId\": 2,\n  \"userId\": null\n}"
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": "{{baseUrl}}{{apiPrefix}}/team-leader-assignments",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"schoolYear\": 1,\n  \"ageGroupId\": 2,\n  \"userId\": null\n}"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": {\n    \"schoolYearId\": 1,\n    \"teamLeaders\": [],\n    \"leaderGroups\": [\n      {\n        \"id\": 1,\n        \"code\": \"ag-2\",\n        \"name\": \"Nhà trẻ (24–36 tháng)\",\n        \"shortName\": \"Nhà trẻ\",\n        \"ageFromMonths\": 24,\n        \"ageToMonths\": 36,\n        \"mealSessions\": [\n          \"MORNING\",\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"maxClassSize\": 25,\n        \"classCount\": 0\n      },\n      {\n        \"id\": 2,\n        \"code\": \"ag-3\",\n        \"name\": \"Mẫu giáo bé (3–4 tuổi)\",\n        \"shortName\": \"Mẫu giáo bé\",\n        \"ageFromMonths\": 36,\n        \"ageToMonths\": 48,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"maxClassSize\": 25,\n        \"classCount\": 1\n      },\n      {\n        \"id\": 3,\n        \"code\": \"ag-4\",\n        \"name\": \"Mẫu giáo nhỡ (4–5 tuổi)\",\n        \"shortName\": \"Mẫu giáo nhỡ\",\n        \"ageFromMonths\": 48,\n        \"ageToMonths\": 60,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"maxClassSize\": 30,\n        \"classCount\": 0\n      },\n      {\n        \"id\": 4,\n        \"code\": \"ag-5\",\n        \"name\": \"Mẫu giáo lớn (5–6 tuổi)\",\n        \"shortName\": \"Mẫu giáo lớn\",\n        \"ageFromMonths\": 60,\n        \"ageToMonths\": 72,\n        \"mealSessions\": [\n          \"LUNCH\",\n          \"AFTERNOON\"\n        ],\n        \"maxClassSize\": 35,\n        \"classCount\": 0\n      }\n    ],\n    \"leaderCandidates\": [\n      {\n        \"id\": 4,\n        \"fullName\": \"Giáo viên A Demo\",\n        \"campusId\": 1,\n        \"campusIds\": [\n          1\n        ],\n        \"leadsAgeGroupId\": null,\n        \"leadsGroup\": null\n      },\n      {\n        \"id\": 5,\n        \"fullName\": \"Giáo viên B Demo\",\n        \"campusId\": 2,\n        \"campusIds\": [\n          2\n        ],\n        \"leadsAgeGroupId\": null,\n        \"leadsGroup\": null\n      }\n    ]\n  },\n  \"desc\": \"Assign team leader success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Readiness — steps[].label → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/6/readiness",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/school-years/6/readiness",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": {\n    \"yearId\": 6,\n    \"steps\": [\n      {\n        \"key\": \"info\",\n        \"label\": \"Thông tin năm học\",\n        \"required\": true,\n        \"ok\": true,\n        \"detail\": \"2027-09-05 – 2028-05-31\"\n      },\n      {\n        \"key\": \"ageGroups\",\n        \"label\": \"Nhóm tuổi & bữa ăn\",\n        \"required\": true,\n        \"ok\": true,\n        \"detail\": \"4 nhóm tuổi\"\n      },\n      {\n        \"key\": \"classes\",\n        \"label\": \"Lớp học\",\n        \"required\": true,\n        \"ok\": false,\n        \"detail\": \"Chưa có lớp nào\"\n      },\n      {\n        \"key\": \"rooms\",\n        \"label\": \"Phòng & sức chứa\",\n        \"required\": true,\n        \"ok\": false,\n        \"detail\": \"0 lớp có phòng\"\n      },\n      {\n        \"key\": \"vicePrincipals\",\n        \"label\": \"Phó hiệu trưởng từng điểm trường\",\n        \"required\": true,\n        \"ok\": false,\n        \"detail\": \"Chưa phân công 1 điểm trường\"\n      },\n      {\n        \"key\": \"teamLeaders\",\n        \"label\": \"Tổ trưởng nhóm tuổi\",\n        \"required\": false,\n        \"ok\": false,\n        \"detail\": \"0/0 nhóm tuổi có tổ trưởng\"\n      },\n      {\n        \"key\": \"teachers\",\n        \"label\": \"Giáo viên lớp (2 giáo viên / lớp)\",\n        \"required\": true,\n        \"ok\": false,\n        \"detail\": \"0/0 lớp đủ GV\"\n      },\n      {\n        \"key\": \"placement\",\n        \"label\": \"Xếp lớp trẻ năm mới\",\n        \"required\": true,\n        \"ok\": false,\n        \"detail\": \"0/3 trẻ của năm 2026-2027 đã xếp lớp\"\n      },\n      {\n        \"key\": \"cutoff\",\n        \"label\": \"Giờ chốt điểm danh\",\n        \"required\": true,\n        \"ok\": false,\n        \"detail\": \"Chưa cài đặt\"\n      }\n    ],\n    \"openFrom\": \"2027-08-29\",\n    \"sourceYear\": {\n      \"id\": 1,\n      \"name\": \"2026-2027\"\n    },\n    \"impact\": {\n      \"move\": 0,\n      \"leave\": 0\n    },\n    \"blockers\": [\n      \"Lớp học: Chưa có lớp nào\",\n      \"Phòng & sức chứa: 0 lớp có phòng\",\n      \"Phó hiệu trưởng từng điểm trường: Chưa phân công 1 điểm trường\",\n      \"Giáo viên lớp (2 giáo viên / lớp): 0/0 lớp đủ GV\",\n      \"Xếp lớp trẻ năm mới: 0/3 trẻ của năm 2026-2027 đã xếp lớp\",\n      \"Giờ chốt điểm danh: Chưa cài đặt\",\n      \"Chỉ kích hoạt được từ 2027-08-29\"\n    ],\n    \"canActivate\": false\n  },\n  \"desc\": \"Get readiness success\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Placements — children.code/photoUrl, placement đầy đủ → 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('code = HTTP status', () => pm.expect(pm.response.json().code).to.eql(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/school-years/6/placements",
+            "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [
+            {
+              "name": "Ví dụ 200",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/school-years/6/placements",
+                "description": "Kiểm tra dạng dữ liệu đã chỉnh cho khớp FE (docs/api/FE_MAPPING.md). Example lưu response thật lúc chạy.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{token_principal}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"code\": 200,\n  \"data\": {\n    \"year\": {\n      \"id\": 6,\n      \"name\": \"2027-2028\"\n    },\n    \"sourceYear\": {\n      \"id\": 1,\n      \"name\": \"2026-2027\"\n    },\n    \"editable\": true,\n    \"ageGroups\": [\n      {\n        \"id\": 1,\n        \"shortName\": \"Nhà trẻ\"\n      },\n      {\n        \"id\": 2,\n        \"shortName\": \"Mẫu giáo bé\"\n      },\n      {\n        \"id\": 3,\n        \"shortName\": \"Mẫu giáo nhỡ\"\n      },\n      {\n        \"id\": 4,\n        \"shortName\": \"Mẫu giáo lớn\"\n      }\n    ],\n    \"campuses\": [\n      {\n        \"id\": 1,\n        \"name\": \"Cơ sở A\"\n      },\n      {\n        \"id\": 2,\n        \"name\": \"Cơ sở B (demo)\"\n      }\n    ],\n    \"classes\": [\n      {\n        \"id\": 1,\n        \"name\": \"Lớp A1\",\n        \"campusId\": 1,\n        \"ageGroupId\": null,\n        \"nextAgeGroupId\": null,\n        \"graduating\": false,\n        \"suggestedTargetId\": null,\n        \"children\": [\n          {\n            \"id\": 2,\n            \"code\": null,\n            \"fullName\": \"Trẻ Demo A1-01\",\n            \"photoUrl\": null,\n            \"birthDate\": \"2022-03-15\",\n            \"placement\": null\n          },\n          {\n            \"id\": 1,\n            \"code\": null,\n            \"fullName\": \"Trẻ Demo A1-02\",\n            \"photoUrl\": null,\n            \"birthDate\": \"2022-07-02\",\n            \"placement\": null\n          }\n        ]\n      },\n      {\n        \"id\": 9,\n        \"name\": \"Lớp FE\",\n        \"campusId\": 1,\n        \"ageGroupId\": 2,\n        \"nextAgeGroupId\": 3,\n        \"graduating\": false,\n        \"suggestedTargetId\": null,\n        \"children\": []\n      },\n      {\n        \"id\": 2,\n        \"name\": \"Lớp B1\",\n        \"campusId\": 2,\n        \"ageGroupId\": null,\n        \"nextAgeGroupId\": null,\n        \"graduating\": false,\n        \"suggestedTargetId\": null,\n        \"children\": [\n          {\n            \"id\": 3,\n            \"code\": null,\n            \"fullName\": \"Trẻ Demo B1-01\",\n            \"photoUrl\": null,\n            \"birthDate\": \"2021-11-20\",\n            \"placement\": null\n          }\n        ]\n      }\n    ],\n    \"targets\": []\n  },\n  \"desc\": \"Get placements success\"\n}"
+            }
+          ]
+        }
+      ]
     }
   ],
   "variable": [
@@ -2096,6 +5578,70 @@
     {
       "key": "invalidToken",
       "value": "not.a.valid.jwt"
+    },
+    {
+      "key": "newYearName",
+      "value": "2030-2031"
+    },
+    {
+      "key": "newYearStart",
+      "value": "2030-09-05"
+    },
+    {
+      "key": "newYearEnd",
+      "value": "2031-05-31"
+    },
+    {
+      "key": "newYearEnd2",
+      "value": "2031-05-30"
+    },
+    {
+      "key": "newYearId",
+      "value": ""
+    },
+    {
+      "key": "activeYearId",
+      "value": ""
+    },
+    {
+      "key": "mainCampusId",
+      "value": ""
+    },
+    {
+      "key": "newCampusId",
+      "value": ""
+    },
+    {
+      "key": "newRoomId",
+      "value": ""
+    },
+    {
+      "key": "ageGroupId",
+      "value": ""
+    },
+    {
+      "key": "newAgeGroupId",
+      "value": ""
+    },
+    {
+      "key": "newClassId",
+      "value": ""
+    },
+    {
+      "key": "cutoffFrom",
+      "value": "2026-11-02"
+    },
+    {
+      "key": "assignClassId",
+      "value": ""
+    },
+    {
+      "key": "teacherIdA",
+      "value": ""
+    },
+    {
+      "key": "teacherIdB",
+      "value": ""
     }
   ]
 }

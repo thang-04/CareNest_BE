@@ -14,7 +14,6 @@ import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
-import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
@@ -172,8 +171,8 @@ class StaffAccessPolicyTest {
     private static void assertDenied(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .extracting("apiCode.httpStatus")
+                .isEqualTo(org.springframework.http.HttpStatus.FORBIDDEN);
     }
 
     private static CurrentUser user(Long id, CareNestRole role) {

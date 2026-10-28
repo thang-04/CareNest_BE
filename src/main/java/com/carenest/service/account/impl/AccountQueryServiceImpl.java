@@ -71,7 +71,7 @@ public class AccountQueryServiceImpl implements AccountQueryService {
                 // AUTH-08: PHT chỉ thấy GV/bếp đang được phân công trong campus mình
                 Set<Long> managed = staffAccessPolicy.managedCampusIds(actor);
                 if (campusId != null && !managed.contains(campusId)) {
-                    throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+                    throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
                 }
                 userIds = staffAssignmentService.findActiveStaffUserIds(
                         campusId == null ? managed : Set.of(campusId), today);

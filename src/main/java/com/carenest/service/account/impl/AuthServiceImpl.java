@@ -81,8 +81,7 @@ public class AuthServiceImpl implements AuthService {
         log.info("{}|START", logPrefix);
         try {
             ensureEnabled();
-            if (token == null || token.isBlank())
-                throw new GlobalException(ApiCode.INTERNAL_ERROR, "CSRF token unavailable");
+            if (token == null || token.isBlank()) throw GlobalException.of(ApiCode.CSRF_TOKEN_UNAVAILABLE);
             log.info("{}|END", logPrefix);
             return new AuthResponses.Csrf(token, "X-XSRF-TOKEN");
         } catch (RuntimeException ex) {
@@ -116,8 +115,8 @@ public class AuthServiceImpl implements AuthService {
                         cookie);
             } catch (AuthGatewayClient.FirstLoginRequired challenge) {
                 UserAccount account = accounts.findByKeycloakUserId(challenge.userId())
-                        .orElseThrow(() -> new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned"));
-                if (!account.isActive()) throw new GlobalException(ApiCode.FORBIDDEN, "Account is inactive");
+                        .orElseThrow(() -> GlobalException.of(ApiCode.ACCOUNT_NOT_PROVISIONED));
+                if (!account.isActive()) throw GlobalException.of(ApiCode.ACCOUNT_INACTIVE);
                 String handle = crypto.randomToken();
                 String hash = crypto.hash(handle);
                 Instant now = clock.instant();
@@ -137,11 +136,11 @@ public class AuthServiceImpl implements AuthService {
                 return new LoginResult(
                         new AuthResponses.LoginData(null, now.plusSeconds(ttl), true, handle, null), null);
             } catch (AuthGatewayClient.InvalidCredentials ex) {
-                throw new GlobalException(ApiCode.UNAUTHORIZED, "Email hoặc mật khẩu không đúng");
+                throw GlobalException.of(ApiCode.INVALID_CREDENTIALS);
             } catch (AuthGatewayClient.ProviderUnavailable ex) {
-                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+                throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
             } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
-                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+                throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
             } finally {
                 if (!issued && tokens != null && tokens.refreshToken() != null) keycloak.logout(tokens.refreshToken());
             }
@@ -176,7 +175,7 @@ public class AuthServiceImpl implements AuthService {
             tokens = keycloak.refresh(session.refreshToken());
         } catch (AuthGatewayClient.ProviderUnavailable ex) {
             // Giữ cookie để client retry; nếu Keycloak đã rotate, token cũ bị Keycloak từ chối (revokeRefreshToken).
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
         } catch (AuthGatewayClient.SessionRejected ex) {
             throw invalidSession();
         }
@@ -189,7 +188,7 @@ public class AuthServiceImpl implements AuthService {
             return new RefreshResult(
                     new AuthResponses.AccessToken(tokens.accessToken(), now.plusSeconds(tokens.expiresIn())), cookie);
         } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+            throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
         } finally {
             // Tài khoản inactive/chưa provision: thu hồi token vừa xoay để không còn phiên treo ở Keycloak.
             if (!issued && tokens.refreshToken() != null) keycloak.logout(tokens.refreshToken());
@@ -334,7 +333,7 @@ public class AuthServiceImpl implements AuthService {
                     crypto.keyedHash("recovery-rate:" + pending.data().lookupHash() + ":" + window),
                     Instant.ofEpochSecond((window + 1) * 1800));
             if (changed.status() == AuthStateStore.Status.THROTTLED)
-                throw new GlobalException(ApiCode.CONFLICT, "Wait before requesting another code");
+                throw GlobalException.of(ApiCode.OTP_RESEND_TOO_SOON);
             if (changed.status() != AuthStateStore.Status.READY) throw notFound();
             if (changed.data().userId() != null) sendOtpQuietly(changed.data().subject(), code);
             log.info("{}|END", logPrefix);
@@ -356,9 +355,9 @@ public class AuthServiceImpl implements AuthService {
             var result =
                     state.verifyOtp(crypto.hash(raw), crypto.otpDigest(raw, requestIdAndOtp.otp()), clock.instant());
             if (result.status() == AuthStateStore.Status.THROTTLED)
-                throw new GlobalException(ApiCode.CONFLICT, "This recovery request is no longer available");
+                throw GlobalException.of(ApiCode.RECOVERY_REQUEST_UNAVAILABLE);
             if (result.status() != AuthStateStore.Status.READY || result.data().userId() == null)
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Code is invalid or expired");
+                throw GlobalException.of(ApiCode.OTP_INVALID_OR_EXPIRED);
             var otp = result.data();
             Instant now = clock.instant();
             String handle = crypto.randomToken();
@@ -378,7 +377,7 @@ public class AuthServiceImpl implements AuthService {
                         now.plusSeconds(Auth.OTP_SECONDS * 2),
                         now));
             } catch (AuthGatewayClient.ProviderUnavailable ex) {
-                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+                throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
             }
             log.info("{}|END", logPrefix);
             return new AuthResponses.ResetToken(handle, now.plusSeconds(Auth.OTP_SECONDS * 2));
@@ -413,13 +412,13 @@ public class AuthServiceImpl implements AuthService {
                     state.revokeAccountAuth(claim.data().userId());
             } catch (AuthGatewayClient.PasswordRejected ex) {
                 state.finishPassword(hash, owner, clock.instant(), false);
-                throw new GlobalException(ApiCode.BAD_REQUEST, "New password does not meet policy");
+                throw GlobalException.of(ApiCode.PASSWORD_POLICY_VIOLATION);
             } catch (AuthGatewayClient.CapabilityRejected ex) {
                 state.finishPassword(hash, owner, clock.instant(), true);
                 throw notFound();
             } catch (AuthGatewayClient.ProviderUnavailable ex) {
                 state.finishPassword(hash, owner, clock.instant(), true);
-                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+                throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
             } catch (RuntimeException ex) {
                 state.finishPassword(hash, owner, clock.instant(), true);
                 throw ex;
@@ -454,13 +453,13 @@ public class AuthServiceImpl implements AuthService {
             } catch (AuthGatewayClient.InvalidCredentials | AuthGatewayClient.FirstLoginRequired ex) {
                 throw invalidCredentials();
             } catch (org.springframework.security.oauth2.jwt.JwtException ex) {
-                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+                throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
             } catch (AuthGatewayClient.PasswordRejected ex) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "New password does not meet policy");
+                throw GlobalException.of(ApiCode.PASSWORD_POLICY_VIOLATION);
             } catch (AuthGatewayClient.CapabilityRejected ex) {
-                throw new GlobalException(ApiCode.UNAUTHORIZED, "Invalid credentials");
+                throw GlobalException.of(ApiCode.INVALID_CREDENTIALS);
             } catch (AuthGatewayClient.ProviderUnavailable ex) {
-                throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+                throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
             } finally {
                 // This direct-grant result proves the old password only; tokens stay server-side and are immediately
                 // revoked.
@@ -495,23 +494,22 @@ public class AuthServiceImpl implements AuthService {
     }
 
     private void ensureEnabled() {
-        if (!properties.enabled())
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Web authentication gateway is disabled");
+        if (!properties.enabled()) throw GlobalException.of(ApiCode.WEB_AUTH_GATEWAY_DISABLED);
     }
 
     private static GlobalException malformed() {
-        return new GlobalException(ApiCode.BAD_REQUEST, "Invalid request");
+        return GlobalException.of(ApiCode.INVALID_AUTH_REQUEST);
     }
 
     private static GlobalException notFound() {
-        return new GlobalException(ApiCode.NOT_FOUND, "Authentication request not found");
+        return GlobalException.of(ApiCode.AUTH_REQUEST_NOT_FOUND);
     }
 
     private static GlobalException invalidSession() {
-        return new GlobalException(ApiCode.UNAUTHORIZED, "Web session is invalid or expired");
+        return GlobalException.of(ApiCode.WEB_SESSION_INVALID);
     }
 
     private static GlobalException invalidCredentials() {
-        return new GlobalException(ApiCode.UNAUTHORIZED, "Email hoặc mật khẩu không đúng");
+        return GlobalException.of(ApiCode.INVALID_CREDENTIALS);
     }
 }

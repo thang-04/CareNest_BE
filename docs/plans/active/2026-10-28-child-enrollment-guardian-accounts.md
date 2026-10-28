@@ -5,7 +5,7 @@ owner: carenestg94@gmail.com
 jira: G94-180 / BE-FEAT-43   # theo nhánh hiện tại; xác nhận task Jira khi commit
 branch: feature/G94-180-BE-FEAT-43-child-health-pickup
 modules: [child, identity-access, health, school-structure, notification]
-rules: [AUTH-18, AUTH-19, AUTH-20, AUTH-21, CHD-01, CHD-02, CHD-03, CHD-04, CHD-05, CHD-06, CHD-07, CHD-08, CHD-09, CHD-10, HLT-06, HLT-07, ATT-08]
+rules: [AUTH-18, AUTH-19, AUTH-20, AUTH-21, CHD-01, CHD-02, CHD-03, CHD-04, CHD-05, CHD-06, CHD-07, CHD-08, CHD-09, CHD-10, HLT-06, HLT-08, ATT-09]
 risk: high
 created: 2026-10-28
 updated: 2026-10-28
@@ -15,7 +15,7 @@ updated: 2026-10-28
 ## Context
 User chốt ngày 28/10/2026 toàn bộ điểm lệch BE–FE của nhánh G94-180 (`FE:docs/integration/CHILD_ENROLLMENT_BE_GAPS.md`). FE đã sửa BE giả theo các quyết định đó và viết đặc tả việc BE cần làm (`FE:docs/integration/CHILD_ENROLLMENT_BE_SPEC.md`). User cho phép chép đặc tả sang repo BE để bắt đầu làm BE (C-6, 28/10). Plan này là bản làm việc phía BE; đổi contract thì sửa cả bản FE.
 
-Rule đã ghi ở `docs/business/BUSINESS_RULES.md`: AUTH-18..AUTH-21, CHD-01..CHD-10, HLT-06, HLT-07, ATT-08; P-17, P-18 đã đóng. Mã quyền mới ở `docs/business/USER_ROLES.md`. Module card: `docs/modules/child.md` (mục "Đã chốt, BE chưa làm"), `docs/modules/identity-access.md`.
+Rule đã ghi ở `docs/business/BUSINESS_RULES.md`: AUTH-18..AUTH-21, CHD-01..CHD-10, HLT-06, HLT-08, ATT-09; P-17, P-18 đã đóng. Mã quyền mới ở `docs/business/USER_ROLES.md`. Module card: `docs/modules/child.md` (mục "Đã chốt, BE chưa làm"), `docs/modules/identity-access.md`.
 
 BE hiện có (`aa64480` + thay đổi chưa commit 28/10): bảng `children` (id, họ tên, ngày sinh), `enrollments`, `guardian_child_links`; `GET /children`, `GET /children/{childId}`, `GET|POST /children/{childId}/guardians`, `DELETE /children/{childId}/guardians/{userId}`, `PATCH /parent-accounts/{userId}/status`, `POST /parent-accounts/{userId}/temporary-password` (`docs/api/openapi.yaml`). L-17 (email phụ huynh chỉ để liên hệ), L-18 (tên đăng nhập nhân sự không là SĐT) đã làm 28/10, chưa commit.
 
@@ -129,7 +129,7 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 - Ghi vào "Quyết định đã chốt" (10–14) và Đặc tả (sinh lại từ bản FE). FE đã làm phần của mình: quan hệ 6 loại, tối đa 3 phụ huynh trong BE giả. Còn mở D-3, D-7. Commit: chưa commit.
 
 ### 2026-10-28 — Ghi quyết định vào sổ rule BE
-- User: "FE chưa làm, làm BE trước và commit lên git để tôi code BE". `docs/business/BUSINESS_RULES.md`: AUTH-18 (6 loại quan hệ, tối đa 3 phụ huynh), AUTH-20 (bỏ `POST /children/{childId}/guardians`), CHD-01 (mã quyền), thêm CHD-08 (hồ sơ đủ thông tin), CHD-09 (danh sách trẻ theo năm), CHD-10 (xếp lớp năm đang hoạt động; tài khoản phụ huynh không theo năm), HLT-07 (đợt khám, phiếu theo dõi theo năm), ATT-08 (đón trẻ theo năm). `docs/business/USER_ROLES.md` (3 mã `CHILD_*`), `docs/database/DATA_DICTIONARY.md` (6 mã quan hệ), thẻ module child, identity-access, health, attendance, `docs/context/CURRENT_STATE.md`; ghi chú plan `2026-10-18-parent-account-auto-provisioning.md` đã bị thay một phần.
+- User: "FE chưa làm, làm BE trước và commit lên git để tôi code BE". `docs/business/BUSINESS_RULES.md`: AUTH-18 (6 loại quan hệ, tối đa 3 phụ huynh), AUTH-20 (bỏ `POST /children/{childId}/guardians`), CHD-01 (mã quyền), thêm CHD-08 (hồ sơ đủ thông tin), CHD-09 (danh sách trẻ theo năm), CHD-10 (xếp lớp năm đang hoạt động; tài khoản phụ huynh không theo năm), HLT-08 (đợt khám, phiếu theo dõi theo năm), ATT-09 (đón trẻ theo năm). `docs/business/USER_ROLES.md` (3 mã `CHILD_*`), `docs/database/DATA_DICTIONARY.md` (6 mã quan hệ), thẻ module child, identity-access, health, attendance, `docs/context/CURRENT_STATE.md`; ghi chú plan `2026-10-18-parent-account-auto-provisioning.md` đã bị thay một phần.
 
 ### 2026-10-28 — User duyệt plan
 - D-7 A (quyết định 15): PHT chỉ trong campus được phân công; ghi `docs/business/USER_ROLES.md`, `docs/business/BUSINESS_RULES.md` AUTH-02. D-3 chuyển thành việc kỹ thuật Phase 4. Status `approved`; bắt đầu Phase 1.
@@ -404,7 +404,7 @@ Ngoài phần năm học ở mục 9, contract vẫn ở chú thích các file A
 
 ### 9. Năm học (user chốt 2026-10-28, Y-1..Y-5)
 
-Header có ô chọn năm học (mặc định năm đang hoạt động). Dữ liệu xem theo năm đang chọn; việc trong ngày và việc ghi (tiếp nhận, xếp lớp, đón trẻ) luôn ở năm đang hoạt động. Rule BE: CHD-09 (Y-2), CHD-10 (Y-3, Y-5), HLT-07 (Y-4), ATT-08 (Y-1). Plan: `FE:docs/plans/completed/2026-10-28-school-year-scope.md`; BE giả dùng chung `FE:src/mocks/schoolYearScope.js`.
+Header có ô chọn năm học (mặc định năm đang hoạt động). Dữ liệu xem theo năm đang chọn; việc trong ngày và việc ghi (tiếp nhận, xếp lớp, đón trẻ) luôn ở năm đang hoạt động. Rule BE: CHD-09 (Y-2), CHD-10 (Y-3, Y-5), HLT-08 (Y-4), ATT-09 (Y-1). Plan: `FE:docs/plans/completed/2026-10-28-school-year-scope.md`; BE giả dùng chung `FE:src/mocks/schoolYearScope.js`.
 
 - **Ngày thuộc năm nào:** năm học gần nhất đã bắt đầu tính tới ngày đó (kỳ hè giữa hai năm tính vào năm vừa qua) — để ngày nào cũng thuộc đúng một năm (BE giả `schoolYearIdOfDate`).
 - **Y-2 · Danh sách trẻ `GET /children?schoolYear=X`:** trẻ có lớp thuộc năm X, trả `classId`, `className`, `ageGroupId`, `schoolYear`, `campusId` của lớp cuối cùng trong năm X (BE lấy từ `enrollments`; CMR-04). Trẻ chờ xếp lớp chỉ có ở năm đang hoạt động; trẻ nghỉ khi chưa có lớp ở năm của ngày nghỉ. `status` vẫn là trạng thái hiện tại; phạm vi xem theo điểm trường hiện tại của trẻ. Không có `schoolYear` ⇒ mọi trẻ trong phạm vi. BE giả: `classInYear`, `inSchoolYear` (lấy lịch sử từ `childPlacements` và lịch sử chuyển năm của Xếp lớp năm học mới). Bảng tổng quan HT/PHT đếm số trẻ theo cùng tham số.

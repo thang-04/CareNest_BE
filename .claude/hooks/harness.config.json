@@ -28,6 +28,7 @@
     "display": "node scripts/verify.mjs"
   },
   "guard": {
+    "autonomous": true,
     "immutableGlobs": ["src/main/resources/db/migration/**"],
     "dependencyGlobs": ["pom.xml", "Dockerfile", "compose.yaml", "compose.*.yaml", ".mvn/wrapper/**", "mvnw", "mvnw.cmd"],
     "contractGlobs": [

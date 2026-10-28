@@ -92,12 +92,11 @@ class ChildControllerTest {
     @Test
     void teacherOutsideScopeGets403FromService() throws Exception {
         CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
-        given(childService.getChildProfile(teacher, 201L))
-                .willThrow(new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this child"));
+        given(childService.getChildProfile(teacher, 201L)).willThrow(GlobalException.of(ApiCode.CHILD_ACCESS_DENIED));
 
         mockMvc.perform(get(CHILD_URL, 201).with(tokenWithRole(CareNestRole.TEACHER)))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.desc").value("You do not have access to this child"));
+                .andExpect(jsonPath("$.desc").value(ApiCode.CHILD_ACCESS_DENIED.getDefaultDesc()));
     }
 
     @Test

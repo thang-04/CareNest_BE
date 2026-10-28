@@ -63,7 +63,7 @@ class AccountQueryServiceImplTest {
 
         assertThatThrownBy(() -> service.searchAccounts(VICE, null, null, 20L, null, 0, 20))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.CAMPUS_ACCESS_DENIED);
         verify(accounts, never()).findAll(any(Specification.class), any(Pageable.class));
     }
 }

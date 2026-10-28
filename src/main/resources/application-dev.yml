@@ -1,4 +1,7 @@
 # Profile dev/demo: nạp thêm dữ liệu giả (user dev khớp Keycloak realm import, campus, lớp, trẻ, phân công).
 spring:
+  config:
+    # Chạy local (IntelliJ, mvnw) tự đọc .env ở thư mục gốc; biến môi trường thật vẫn được ưu tiên
+    import: optional:file:.env[.properties]
   flyway:
     locations: classpath:db/migration,classpath:db/dev

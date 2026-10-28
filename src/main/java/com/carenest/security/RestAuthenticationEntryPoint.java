@@ -31,7 +31,10 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
         if (authException instanceof AuthenticationServiceException) {
             log.error("[commence]|path={}|tokenVerificationUnavailable", request.getRequestURI(), authException);
             SecurityResponseWriter.write(
-                    response, objectMapper, ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+                    response,
+                    objectMapper,
+                    ApiCode.AUTH_SERVICE_UNAVAILABLE,
+                    ApiCode.AUTH_SERVICE_UNAVAILABLE.getDefaultDesc());
             return;
         }
         log.warn(
@@ -39,6 +42,7 @@ public class RestAuthenticationEntryPoint implements AuthenticationEntryPoint {
                 request.getRequestURI(),
                 authException.getClass().getSimpleName());
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
-        SecurityResponseWriter.write(response, objectMapper, ApiCode.UNAUTHORIZED, "Unauthorized");
+        SecurityResponseWriter.write(
+                response, objectMapper, ApiCode.UNAUTHENTICATED, ApiCode.UNAUTHENTICATED.getDefaultDesc());
     }
 }

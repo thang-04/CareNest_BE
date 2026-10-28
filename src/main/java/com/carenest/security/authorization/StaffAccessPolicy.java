@@ -65,7 +65,7 @@ public class StaffAccessPolicy {
 
     public void checkCanViewCampus(CurrentUser actor, Long campusId) {
         if (!seesAllCampuses(actor) && !managedCampusIds(actor).contains(campusId)) {
-            deny("checkCanViewCampus", actor, "You do not have access to this campus");
+            deny("checkCanViewCampus", actor, ApiCode.CAMPUS_ACCESS_DENIED);
         }
     }
 
@@ -78,14 +78,14 @@ public class StaffAccessPolicy {
                         && campusId != null
                         && managedCampusIds(actor).contains(campusId));
         if (!allowed) {
-            deny("checkCanCreate", actor, "You cannot create an account with this role");
+            deny("checkCanCreate", actor, ApiCode.ROLE_CREATE_DENIED);
         }
     }
 
     /** Khóa/mở, cấp lại mật khẩu tạm, xem chi tiết. targetRole null = chưa biết role ⇒ chỉ Admin. */
     public void checkCanManageAccount(CurrentUser actor, Long targetUserId, CareNestRole targetRole) {
         if (!canManageAccount(actor, targetUserId, targetRole)) {
-            deny("checkCanManageAccount", actor, "You cannot manage this account");
+            deny("checkCanManageAccount", actor, ApiCode.ACCOUNT_MANAGE_DENIED);
         }
     }
 
@@ -111,7 +111,7 @@ public class StaffAccessPolicy {
                         && campusId != null
                         && managedCampusIds(actor).contains(campusId));
         if (!allowed) {
-            deny("checkCanAssign", actor, "You cannot manage this assignment");
+            deny("checkCanAssign", actor, ApiCode.ASSIGNMENT_MANAGE_DENIED);
         }
     }
 
@@ -119,7 +119,7 @@ public class StaffAccessPolicy {
     public void checkCanManageChildGuardians(CurrentUser actor, Long childId) {
         if (!managesWholeSchool(actor)
                 && Collections.disjoint(managedCampusIds(actor), currentCampusesOfChildren(Set.of(childId)))) {
-            deny("checkCanManageChildGuardians", actor, "You cannot manage guardians of this child");
+            deny("checkCanManageChildGuardians", actor, ApiCode.CHILD_GUARDIANS_MANAGE_DENIED);
         }
     }
 
@@ -131,7 +131,7 @@ public class StaffAccessPolicy {
         Set<Long> childCampuses =
                 currentCampusesOfChildren(guardianChildLinkService.findChildIdsOfGuardian(parentUserId));
         if (Collections.disjoint(managedCampusIds(actor), childCampuses)) {
-            deny("checkCanManageParent", actor, "You cannot manage this account");
+            deny("checkCanManageParent", actor, ApiCode.ACCOUNT_MANAGE_DENIED);
         }
     }
 
@@ -158,8 +158,8 @@ public class StaffAccessPolicy {
         return LocalDate.now(clock);
     }
 
-    private static void deny(String check, CurrentUser actor, String desc) {
+    private static void deny(String check, CurrentUser actor, ApiCode code) {
         log.warn("[{}]|userId={}|denied", check, actor.userId());
-        throw new GlobalException(ApiCode.FORBIDDEN, desc);
+        throw GlobalException.of(code);
     }
 }

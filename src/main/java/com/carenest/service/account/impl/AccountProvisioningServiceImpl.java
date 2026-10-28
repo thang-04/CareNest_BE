@@ -66,7 +66,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         log.info("{}|START", logPrefix);
         try {
             if (!PROVISIONABLE_ROLES.contains(request.role())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "This role cannot be created via API");
+                throw GlobalException.of(ApiCode.ROLE_NOT_CREATABLE);
             }
             // AUTH-15: xác định phạm vi người được tạo và quyền người tạo trước khi đụng Keycloak
             AssignmentScope scope = toAssignmentScope(request);
@@ -78,18 +78,17 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             String username = request.username().trim().toLowerCase(Locale.ROOT);
             // AUTH-18: tên đăng nhập phụ huynh là SĐT ⇒ nhân sự không đặt dạng SĐT để hai loại không trùng
             if (PhoneNumbers.normalize(username).isPresent()) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Staff username must not be a phone number");
+                throw GlobalException.of(ApiCode.STAFF_USERNAME_IS_PHONE);
             }
             String email = StringUtils.hasText(request.email())
                     ? request.email().trim().toLowerCase(Locale.ROOT)
                     : null;
             boolean sendSetupEmail = email != null && identityProviderClient.canSendSetupEmail();
             if (request.temporaryPassword() == null && !sendSetupEmail) {
-                throw new GlobalException(
-                        ApiCode.BAD_REQUEST, "Temporary password is required when a setup email cannot be sent");
+                throw GlobalException.of(ApiCode.TEMP_PASSWORD_REQUIRED);
             }
             if (userAccountRepository.existsByUsername(username)) {
-                throw new GlobalException(ApiCode.CONFLICT, "Username already exists");
+                throw GlobalException.of(ApiCode.USERNAME_OR_EMAIL_EXISTS);
             }
 
             // Tài khoản và phân công cùng 1 transaction: không có tài khoản PHT tạo ra mà nằm ngoài campus
@@ -134,7 +133,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         try {
             // ADMIN tự khóa mình ⇒ có thể không còn ai mở lại qua API (team chốt 2026-10-06)
             if (userId.equals(actor.userId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "You cannot change the status of your own account");
+                throw GlobalException.of(ApiCode.CANNOT_CHANGE_OWN_STATUS);
             }
             // AUTH-17: HT khóa/mở PHT/GV/bếp; PHT (nếu được bật quyền) chỉ GV/bếp campus mình; Admin mọi tài khoản
             UserAccount account = managedAccountLoader.loadManageable(actor, userId);
@@ -154,7 +153,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         try {
             // AUTH-12: tự đổi mật khẩu dùng luồng đổi mật khẩu của chính mình
             if (userId.equals(actor.userId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Use change password for your own account");
+                throw GlobalException.of(ApiCode.USE_OWN_PASSWORD_CHANGE);
             }
             UserAccount account = managedAccountLoader.loadManageable(actor, userId);
             accountLifecycle.resetTemporaryPassword(logPrefix, account, temporaryPassword);
@@ -173,7 +172,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         return switch (request.role()) {
             case PRINCIPAL -> {
                 if (requested != null) {
-                    throw new GlobalException(ApiCode.BAD_REQUEST, "Principal assignment covers the whole school");
+                    throw GlobalException.of(ApiCode.PRINCIPAL_ASSIGNMENT_NO_SCOPE);
                 }
                 yield new AssignmentScope(StaffRole.PRINCIPAL, null, null, today);
             }
@@ -187,7 +186,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                                 requested.validFrom() == null ? today : requested.validFrom());
             default -> {
                 if (requested != null) {
-                    throw new GlobalException(ApiCode.BAD_REQUEST, "This role has no staff assignment");
+                    throw GlobalException.of(ApiCode.ROLE_HAS_NO_ASSIGNMENT);
                 }
                 yield null;
             }

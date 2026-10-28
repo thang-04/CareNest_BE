@@ -158,9 +158,9 @@ class ChildAccessPolicyTest {
 
         assertThatThrownBy(() -> policy.checkCanViewChild(principal, CHILD_WITHOUT_ENROLLMENT))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("You do not have access to this child")
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .hasMessage(ApiCode.CHILD_ACCESS_DENIED.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     private CurrentUser teacherOf(long classroomId) {

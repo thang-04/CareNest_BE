@@ -53,11 +53,11 @@ Lỗi gateway: 401 sai credentials/phiên hết hạn; 403 chưa provision/inact
 
 ## Lỗi (đã có)
 
-| Tình huống | HTTP / `code` | `desc` |
+| Tình huống | HTTP / `code` | `errorCode` / ApiCode |
 | --- | --- | --- |
-| Thiếu token, sai chữ ký, hết hạn, sai issuer/audience | 401 | `Unauthorized` (kèm header `WWW-Authenticate: Bearer`) |
-| Role không đủ (`@PreAuthorize`) | 403 | `Forbidden` |
-| Không kiểm được token vì Keycloak tạm không khả dụng | 503 | `Authentication service unavailable` — báo thử lại, **không** về màn hình đăng nhập |
+| Thiếu token, sai chữ ký, hết hạn, sai issuer/audience | 401 | `errorCode` 1002 `UNAUTHENTICATED` (kèm header `WWW-Authenticate: Bearer`) |
+| Role không đủ (`@PreAuthorize`) | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Không kiểm được token vì Keycloak tạm không khả dụng | 503 | `errorCode` 1013 `AUTH_SERVICE_UNAVAILABLE` — báo thử lại, **không** về màn hình đăng nhập |
 
 Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất bại ⇒ về màn hình đăng nhập.
 
@@ -78,10 +78,10 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 - `childIds`: trẻ liên kết với tài khoản (chỉ khi có role PARENT).
 - `permissions`: quyền hiệu lực (ADR-0017) — dùng ẩn/hiện menu, route; đổi ngay khi Hiệu trưởng sửa ma trận/ngoại lệ (gọi lại `/accounts/me` để cập nhật).
 
-| Tình huống | HTTP / `code` | `desc` |
+| Tình huống | HTTP / `code` | `errorCode` / ApiCode |
 | --- | --- | --- |
-| Có tài khoản Keycloak nhưng chưa có hồ sơ CareNest | 403 | `Account is not provisioned` |
-| Tài khoản CareNest bị khóa (token còn hạn vẫn bị chặn) | 403 | `Account is inactive` |
+| Có tài khoản Keycloak nhưng chưa có hồ sơ CareNest | 403 | `errorCode` 1014 `ACCOUNT_NOT_PROVISIONED` |
+| Tài khoản CareNest bị khóa (token còn hạn vẫn bị chặn) | 403 | `errorCode` 1015 `ACCOUNT_INACTIVE` |
 
 Hai lỗi trên áp dụng cho **mọi** API dưới `{API_PREFIX}` (không riêng `/accounts/me`).
 
@@ -98,11 +98,11 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: quyền (`@PreAuthorize("
   "data": { "id": 2, "fullName": "...", "dateOfBirth": "2022-03-15", "classroomId": 1 } }
 ```
 
-| Tình huống | HTTP / `code` | `desc` |
+| Tình huống | HTTP / `code` | `errorCode` / ApiCode |
 | --- | --- | --- |
-| Không có `CHILD_PROFILE_VIEW` (KITCHEN_STAFF, ADMIN, người bị thu hồi) | 403 | `Forbidden` |
-| Trẻ ngoài phạm vi hoặc id không tồn tại | 403 | `You do not have access to this child` |
-| `childId` không phải số | 400 | `Malformed request` |
+| Không có `CHILD_PROFILE_VIEW` (KITCHEN_STAFF, ADMIN, người bị thu hồi) | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Trẻ ngoài phạm vi hoặc id không tồn tại | 403 | `errorCode` 3001 `CHILD_ACCESS_DENIED` |
+| `childId` không phải số | 400 | `errorCode` 9002 `MALFORMED_REQUEST` |
 
 `classroomId` = lớp trẻ đang học hôm nay (`null` nếu không có enrollment hiện tại — khi đó chỉ phụ huynh liên kết xem được).
 
@@ -127,26 +127,26 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 
 `POST {API_PREFIX}/accounts/{userId}/temporary-password` (`ACCOUNT_MANAGE`) — body `{ "temporaryPassword": "..." }` (8–128) ⇒ 200 `{ userId, username, fullName, email, status }`. Bắt đổi ở lần đăng nhập kế tiếp; hủy mọi phiên web và session Keycloak đang mở.
 
-| Tình huống | HTTP / `code` | `desc` |
+| Tình huống | HTTP / `code` | `errorCode` / ApiCode |
 | --- | --- | --- |
-| Không có quyền tương ứng | 403 | `Forbidden` |
-| Tạo role ngoài phạm vi (Admin tạo GV, HT tạo HT, PHT thiếu `assignment` / campus khác) | 403 | `You cannot create an account with this role` |
-| `assignment` sai hình dạng (GV gửi `campusId`, PHT/bếp gửi `classroomId`, PRINCIPAL/PARENT gửi `assignment`) | 400 | vd. `Teacher must be assigned to a classroom` |
-| Campus / lớp không tồn tại | 404 | `Campus not found` / `Classroom not found` |
-| Khóa/mật khẩu tạm: tài khoản ngoài phạm vi (PHT nhận 403 cả khi id không tồn tại) | 403 | `You cannot manage this account` |
-| Mật khẩu tạm: cho chính mình | 400 | `Use change password for your own account` |
-| Mật khẩu tạm: đã đặt nhưng không hủy được phiên | 503 | `Password reset but existing sessions could not be revoked, please retry` |
-| Body sai | 400 | `Invalid request data` (+ lỗi theo field) |
-| `role` = ADMIN | 400 | `This role cannot be created via API` |
-| Thiếu mật khẩu tạm khi không gửi được email | 400 | `Temporary password is required when a setup email cannot be sent` |
-| `username` là SĐT (AUTH-18) | 400 | `Staff username must not be a phone number` |
-| Username đã có trong CareNest | 409 | `Username already exists` |
-| Username/email đã có bên Keycloak | 409 | `Username or email already exists` |
-| Keycloak từ chối dữ liệu (mật khẩu vi phạm policy, vd. trùng username; họ tên có ký tự như `( ) < > & /`) | 400 | `Account data rejected by identity provider (check password policy and full name)` |
-| Keycloak không khả dụng / chưa cấu hình | 503 | `Identity provider unavailable` |
-| Khóa: `userId` là chính người gọi (AUTH-09) | 400 | `You cannot change the status of your own account` |
-| Khóa: `userId` không tồn tại | 404 | `Account not found` |
-| Khóa: đã lưu CareNest nhưng Keycloak lỗi | 503 | `Account status saved but identity provider sync failed, please retry` |
+| Không có quyền tương ứng | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Tạo role ngoài phạm vi (Admin tạo GV, HT tạo HT, PHT thiếu `assignment` / campus khác) | 403 | `errorCode` 1115 `ROLE_CREATE_DENIED` |
+| `assignment` sai hình dạng (GV gửi `campusId`, PHT/bếp gửi `classroomId`, PRINCIPAL/PARENT gửi `assignment`) | 400 | `errorCode` 2318 `TEACHER_CLASSROOM_REQUIRED` (GV) / 2317 `ASSIGNMENT_CAMPUS_REQUIRED` (PHT, bếp) / 2316 `PRINCIPAL_ASSIGNMENT_NO_SCOPE` (HT) / 2319 `ROLE_HAS_NO_ASSIGNMENT` (PARENT) |
+| Campus / lớp không tồn tại | 404 | `errorCode` 2103 `CAMPUS_NOT_FOUND` / 2203 `CLASS_NOT_FOUND` |
+| Khóa/mật khẩu tạm: tài khoản ngoài phạm vi (PHT nhận 403 cả khi id không tồn tại) | 403 | `errorCode` 1114 `ACCOUNT_MANAGE_DENIED` |
+| Mật khẩu tạm: cho chính mình | 400 | `errorCode` 1113 `USE_OWN_PASSWORD_CHANGE` |
+| Mật khẩu tạm: đã đặt nhưng không hủy được phiên | 503 | `errorCode` 1127 `SESSIONS_NOT_REVOKED` |
+| Body sai | 400 | `errorCode` 9001 `INVALID_REQUEST_DATA` (`data` = lỗi theo field) |
+| `role` = ADMIN | 400 | `errorCode` 1104 `ROLE_NOT_CREATABLE` |
+| Thiếu mật khẩu tạm khi không gửi được email | 400 | `errorCode` 1105 `TEMP_PASSWORD_REQUIRED` |
+| `username` là SĐT (AUTH-18) | 400 | `errorCode` 1112 `STAFF_USERNAME_IS_PHONE` |
+| Username đã có trong CareNest | 409 | `errorCode` 1106 `USERNAME_OR_EMAIL_EXISTS`; hai request tạo trùng cùng lúc: 1107 `ACCOUNT_EXISTS` |
+| Username/email đã có bên Keycloak | 409 | `errorCode` 1106 `USERNAME_OR_EMAIL_EXISTS` |
+| Keycloak từ chối dữ liệu (mật khẩu vi phạm policy, vd. trùng username; họ tên có ký tự như `( ) < > & /`) | 400 | `errorCode` 1109 `IDENTITY_DATA_REJECTED` |
+| Keycloak không khả dụng / chưa cấu hình | 503 | `errorCode` 1111 `IDENTITY_PROVIDER_UNAVAILABLE` |
+| Khóa: `userId` là chính người gọi (AUTH-09) | 400 | `errorCode` 1108 `CANNOT_CHANGE_OWN_STATUS` |
+| Khóa: `userId` không tồn tại | 404 | `errorCode` 1103 `ACCOUNT_NOT_FOUND` |
+| Khóa: đã lưu CareNest nhưng Keycloak lỗi | 503 | `errorCode` 1110 `IDENTITY_SYNC_FAILED` |
 
 ## Danh sách nhân sự, phân công, campus/lớp (đã có — AUTH-08, AUTH-16)
 
@@ -156,20 +156,21 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 | `GET /accounts/{userId}` | như trên | — | `{ userId, username, fullName, email, role, status, assignments[] }` (mọi phân công, mới nhất trước) |
 | `POST /staff-assignments` | `STAFF_ASSIGNMENT_MANAGE` | `{ userId, campusId?, classroomId?, validFrom?, validTo? }` — role phân công lấy theo role tài khoản | 201 `{ id, userId, staffRole, campusId, classroomId, validFrom, validTo }` |
 | `PATCH /staff-assignments/{id}/end` | `STAFF_ASSIGNMENT_MANAGE` | `{ validTo }` (ngày cuối còn hiệu lực) | như trên |
-| `GET /campuses` | `ACCOUNT_MANAGE` hoặc `STAFF_ASSIGNMENT_MANAGE` | — | `[{ id, code, name }]` — HT/Admin mọi campus, PHT campus mình |
+| `GET /campuses` | role PRINCIPAL hoặc VICE_PRINCIPAL (API cấu hình trường, `CampusController`, từ G94-235) | `schoolYearId?` | `CampusResponse[]` (`id, code, name, shortName, …, status`) — HT mọi campus, PHT campus mình. Admin nhận 403, xem "Còn chờ" |
 | `GET /classrooms?campusId=` | như trên | `campusId` bắt buộc | `[{ id, campusId, name }]` lớp của năm học đang diễn ra |
 
 - `role` trong danh sách là bản sao role Keycloak (`null` = chưa rõ). HT/Admin thấy mọi tài khoản; PHT chỉ GV/bếp đang được phân công trong campus mình.
 
-| Tình huống | HTTP / `code` | `desc` |
+| Tình huống | HTTP / `code` | `errorCode` / ApiCode |
 | --- | --- | --- |
-| PHT lọc / xem campus khác | 403 | `You do not have access to this campus` |
-| Xem chi tiết tài khoản ngoài phạm vi | 403 | `You cannot manage this account` |
-| Phân công role/campus ngoài phạm vi, phân công HT | 403 | `You cannot manage this assignment` |
-| Tự phân công / kết thúc phân công của mình | 400 | `You cannot change your own assignments` |
-| Tài khoản không phải PHT/GV/bếp | 400 | `This account cannot be assigned` |
-| Trùng phân công còn mở cùng phạm vi | 409 | `This staff already has an open assignment for this scope` |
-| Kết thúc: ngày cuối trước ngày bắt đầu / đã kết thúc sớm hơn | 400 / 409 | `Assignment end date must not be before start date` / `Assignment already ended` |
+| PHT lọc / xem campus khác | 403 | `errorCode` 2102 `CAMPUS_ACCESS_DENIED` |
+| Xem chi tiết tài khoản ngoài phạm vi | 403 | `errorCode` 1114 `ACCOUNT_MANAGE_DENIED` |
+| Phân công role/campus ngoài phạm vi, phân công HT | 403 | `errorCode` 2311 `ASSIGNMENT_MANAGE_DENIED` |
+| Tự phân công / kết thúc phân công của mình | 400 | `errorCode` 2308 `CANNOT_CHANGE_OWN_ASSIGNMENTS` |
+| Tài khoản không phải PHT/GV/bếp | 400 | `errorCode` 2309 `ACCOUNT_NOT_ASSIGNABLE` |
+| Trùng phân công còn mở cùng phạm vi | 409 | `errorCode` 2314 `ASSIGNMENT_OVERLAP` |
+| Kết thúc: ngày cuối trước ngày bắt đầu / đã kết thúc sớm hơn | 400 / 409 | `errorCode` 2313 `ASSIGNMENT_END_BEFORE_START` / 2315 `ASSIGNMENT_ALREADY_ENDED` |
+| Kết thúc: phân công không tồn tại (PHT nhận 403 2311) | 404 | `errorCode` 2310 `ASSIGNMENT_NOT_FOUND` |
 
 ## Phân quyền cấu hình được (đã có, chỉ PRINCIPAL — `PERMISSION_MANAGE`, ADR-0017)
 
@@ -186,18 +187,18 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 - `reason` bắt buộc (≤500 ký tự). `beforeState`/`afterState`: `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ).
 - Role đích của ngoại lệ đọc từ Keycloak; `size` 1–100.
 
-| Tình huống | HTTP / `code` | `desc` |
+| Tình huống | HTTP / `code` | `errorCode` / ApiCode |
 | --- | --- | --- |
-| Không phải PRINCIPAL | 403 | `Forbidden` |
-| Sửa ma trận PRINCIPAL/PARENT/ADMIN (AUTH-11) | 403 | `Permissions of this role are fixed` |
-| Quyền không cấu hình được cho role | 400 | `Permission <CODE> cannot be configured for role <ROLE>` |
-| Mã quyền/role không tồn tại, thiếu `reason`, `size` > 100 | 400 | `Malformed request` / `Invalid request data` |
-| Ngoại lệ cho chính mình (AUTH-12) | 400 | `You cannot change your own permissions` |
-| Ngoại lệ cho người có PRINCIPAL/ADMIN hoặc không có role cấu hình (vd. chỉ PARENT) | 403 | `Permissions of this account cannot be overridden` |
-| Ngoại lệ: quyền không áp dụng cho role của người đó / trùng quyền | 400 | `Permission <CODE> cannot be configured for this account` / `Duplicate permission <CODE>` |
-| `userId` không tồn tại | 404 | `Account not found` |
-| Keycloak không khả dụng khi đọc role | 503 | `Identity provider is unavailable` |
-| Lọc lịch sử theo cả `targetRole` và `targetUserId` | 400 | `Filter by either targetRole or targetUserId` |
+| Không phải PRINCIPAL | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Sửa ma trận PRINCIPAL/PARENT/ADMIN (AUTH-11) | 403 | `errorCode` 1120 `ROLE_PERMISSIONS_FIXED` |
+| Quyền không cấu hình được cho role | 400 | `errorCode` 1121 `PERMISSION_NOT_CONFIGURABLE_FOR_ROLE` |
+| Mã quyền/role không tồn tại, thiếu `reason`, `size` > 100 | 400 | `errorCode` 9002 `MALFORMED_REQUEST` / 9001 `INVALID_REQUEST_DATA` |
+| Ngoại lệ cho chính mình (AUTH-12) | 400 | `errorCode` 1122 `CANNOT_CHANGE_OWN_PERMISSIONS` |
+| Ngoại lệ cho người có PRINCIPAL/ADMIN hoặc không có role cấu hình (vd. chỉ PARENT) | 403 | `errorCode` 1123 `ACCOUNT_PERMISSIONS_FIXED` |
+| Ngoại lệ: quyền không áp dụng cho role của người đó / trùng quyền | 400 | `errorCode` 1126 `PERMISSION_NOT_CONFIGURABLE_FOR_ACCOUNT` / 1125 `DUPLICATE_PERMISSION` |
+| `userId` không tồn tại | 404 | `errorCode` 1103 `ACCOUNT_NOT_FOUND` |
+| Keycloak không khả dụng khi đọc role | 503 | `errorCode` 1111 `IDENTITY_PROVIDER_UNAVAILABLE` |
+| Lọc lịch sử theo cả `targetRole` và `targetUserId` | 400 | `errorCode` 1124 `CHANGE_LOG_FILTER_CONFLICT` |
 
 ## Tài khoản phụ huynh gắn trẻ (đã có — `PARENT_ACCOUNT_MANAGE`, AUTH-18, AUTH-19)
 
@@ -216,19 +217,19 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 - `email` chỉ để liên hệ (AUTH-18, thêm 2026-10-28): đúng định dạng, ≤255 ký tự, lưu chữ thường, rỗng ⇒ `null`. Chỉ lưu ở CareNest, không gửi Keycloak ⇒ không đăng nhập, không khôi phục mật khẩu bằng email này; được trùng email nhân sự hoặc phụ huynh khác. SĐT đã là phụ huynh ⇒ giữ họ tên, email của tài khoản (không sửa ở API này).
 - `newAccount = true` ⇒ `temporaryPassword` (10 ký tự) trả **đúng lần này** để in phiếu, CareNest không lưu/log; bắt đổi ở lần đăng nhập đầu. `newAccount = false` ⇒ SĐT đã là phụ huynh, chỉ thêm liên kết, `temporaryPassword = null`.
 
-| Tình huống | HTTP / `code` | `desc` |
+| Tình huống | HTTP / `code` | `errorCode` / ApiCode |
 | --- | --- | --- |
-| Không có `PARENT_ACCOUNT_MANAGE` | 403 | `Forbidden` |
-| Trẻ ngoài campus / chưa có lớp (PHT) | 403 | `You cannot manage guardians of this child` |
-| Lọc campus/lớp ngoài phạm vi | 403 | `You do not have access to this campus` / `... classroom` |
-| Trẻ không tồn tại (HT) | 404 | `Child not found` |
-| SĐT sai định dạng | 400 | `Invalid phone number` |
-| `relationship` không thuộc danh sách, thiếu field, `email` sai định dạng hoặc quá 255 ký tự | 400 | `Malformed request` / `Invalid request data` |
-| SĐT là tên đăng nhập của tài khoản nhân sự (chỉ tài khoản tạo trước 2026-10-28 hoặc tạo thẳng trên Keycloak — AUTH-18) | 409 | `This phone number belongs to a staff account` |
-| Phụ huynh đã liên kết trẻ này | 409 | `This parent is already linked to the child` |
-| Gỡ liên kết không tồn tại | 404 | `Guardian link not found` |
-| Khóa/mật khẩu: tài khoản không phải phụ huynh / của chính mình | 400 | `This account is not a parent account` / `You cannot manage your own account here` |
-| Khóa/mật khẩu: phụ huynh ngoài phạm vi | 403 | `You cannot manage this account` |
+| Không có `PARENT_ACCOUNT_MANAGE` | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Trẻ ngoài campus / chưa có lớp (PHT) | 403 | `errorCode` 3006 `CHILD_GUARDIANS_MANAGE_DENIED` |
+| Lọc campus/lớp ngoài phạm vi | 403 | `errorCode` 2102 `CAMPUS_ACCESS_DENIED` / 2201 `CLASS_ACCESS_DENIED` |
+| Trẻ không tồn tại (HT) | 404 | `errorCode` 3002 `CHILD_NOT_FOUND` |
+| SĐT sai định dạng | 400 | `errorCode` 1116 `PHONE_INVALID` |
+| `relationship` không thuộc danh sách, thiếu field, `email` sai định dạng hoặc quá 255 ký tự | 400 | `errorCode` 9002 `MALFORMED_REQUEST` / 9001 `INVALID_REQUEST_DATA` |
+| SĐT là tên đăng nhập của tài khoản nhân sự (chỉ tài khoản tạo trước 2026-10-28 hoặc tạo thẳng trên Keycloak — AUTH-18) | 409 | `errorCode` 1117 `PHONE_OF_STAFF_ACCOUNT` |
+| Phụ huynh đã liên kết trẻ này | 409 | `errorCode` 3004 `PARENT_ALREADY_LINKED` |
+| Gỡ liên kết không tồn tại | 404 | `errorCode` 3005 `GUARDIAN_LINK_NOT_FOUND` |
+| Khóa/mật khẩu: tài khoản không phải phụ huynh / của chính mình | 400 | `errorCode` 1119 `NOT_PARENT_ACCOUNT` / 1118 `CANNOT_MANAGE_OWN_ACCOUNT` |
+| Khóa/mật khẩu: phụ huynh ngoài phạm vi | 403 | `errorCode` 1114 `ACCOUNT_MANAGE_DENIED` |
 
 ## Tác động FE/APP (BE không sửa repo khác)
 
@@ -236,7 +237,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 
 - Web Phase 3: ghép các màn hình login/forgot-password/verify-otp/reset-password/change-password và AuthContext/HTTP client vào gateway phía trên. Public client `carenest-web` vẫn giữ PKCE cho legacy; Mobile `carenest-mobile` tiếp tục public + PKCE S256, cùng issuer/audience.
 - Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; refresh: Web gateway gọi `POST /auth/refresh` (cookie + `withCredentials`), PKCE tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.
-- 403 `Account is not provisioned` / `Account is inactive` ⇒ báo liên hệ nhà trường, không retry. 403 khác ⇒ báo không có quyền. 503 `Authentication service unavailable` ⇒ báo thử lại sau.
+- 403 `ACCOUNT_NOT_PROVISIONED` / `ACCOUNT_INACTIVE` ⇒ báo liên hệ nhà trường, không retry. 403 khác ⇒ báo không có quyền. 503 `AUTH_SERVICE_UNAVAILABLE` ⇒ báo thử lại sau. Phân biệt bằng `errorCode` (không so `desc`, `desc` là câu tiếng Việt từ 27/10/2026 — `docs/contracts/ERROR_CONTRACT.md`).
 - Sau đăng nhập gọi `GET /accounts/me` lấy `roles`, `permissions`, `assignments`, `childIds` để dựng menu/màn hình (menu/route theo `permissions`); ẩn nút ở UI không phải phân quyền (AUTH-07).
 - Web: màn ma trận quyền/ngoại lệ/lịch sử (`/school/roles`) đổi sang API phân quyền ở trên; bỏ mức F/R/N, mã dạng `user.manage` và role TEAM_LEADER của mock.
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
@@ -247,3 +248,4 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 
 - ~~Phụ huynh đăng nhập bằng gì~~ — chốt: username = SĐT (AUTH-18), xem mục "Tài khoản phụ huynh gắn trẻ".
 - Mobile có dùng `offline_access` (phiên dài) không; lưu token ở secure storage (APP `AUTH_FLOW.md`).
+- Danh sách campus cho Admin ở form cấp tài khoản / phân công: từ khi gộp G94-236 (29/10/2026), `GET /campuses` là API cấu hình trường chỉ cho HT/PHT. Cần chốt: mở thêm cho `ACCOUNT_MANAGE` / `STAFF_ASSIGNMENT_MANAGE` hay thêm API danh sách campus rút gọn.

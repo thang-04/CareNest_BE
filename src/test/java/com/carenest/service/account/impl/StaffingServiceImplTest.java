@@ -67,7 +67,7 @@ class StaffingServiceImplTest {
     void cannotAssignSelf() {
         assertThatThrownBy(() -> service.assignStaff(VICE, new CreateStaffAssignmentRequest(3L, 10L, null, null, null)))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.CANNOT_CHANGE_OWN_ASSIGNMENTS);
     }
 
     @Test
@@ -79,7 +79,7 @@ class StaffingServiceImplTest {
             assertThatThrownBy(() ->
                             service.assignStaff(VICE, new CreateStaffAssignmentRequest(id, 10L, null, null, null)))
                     .extracting("apiCode")
-                    .isEqualTo(ApiCode.BAD_REQUEST);
+                    .isEqualTo(ApiCode.ACCOUNT_NOT_ASSIGNABLE);
         }
         verify(assignments, never()).createAssignment(any());
     }
@@ -88,14 +88,14 @@ class StaffingServiceImplTest {
     void outOfScopeAssignmentIsDeniedBeforeWriting() {
         givenAccount(40L, CareNestRole.TEACHER);
         given(assignments.resolveCampusId(StaffRole.TEACHER, null, 99L)).willReturn(20L);
-        willThrow(new GlobalException(ApiCode.FORBIDDEN, "denied"))
+        willThrow(GlobalException.of(ApiCode.ASSIGNMENT_MANAGE_DENIED))
                 .given(policy)
                 .checkCanAssign(VICE, StaffRole.TEACHER, 20L);
 
         assertThatThrownBy(
                         () -> service.assignStaff(VICE, new CreateStaffAssignmentRequest(40L, null, 99L, null, null)))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.ASSIGNMENT_MANAGE_DENIED);
         verify(assignments, never()).createAssignment(any());
     }
 
@@ -106,7 +106,7 @@ class StaffingServiceImplTest {
 
         assertThatThrownBy(() -> service.endAssignment(VICE, 77L, TODAY))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.ASSIGNMENT_MANAGE_DENIED);
     }
 
     @Test

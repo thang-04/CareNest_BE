@@ -1,16 +1,21 @@
 package com.carenest.entity.organization;
 
+import com.carenest.utils.enums.CampusStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
 
-/** Điểm trường (V2). Chỉ đọc — chưa có API tạo/sửa campus. */
 @Getter
 @Entity
 @Table(name = "campuses")
@@ -21,9 +26,68 @@ public class Campus {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, updatable = false, length = 30)
+    @Column(nullable = false, length = 30)
     private String code;
 
     @Column(nullable = false, length = 150)
     private String name;
+
+    @Column(name = "short_name", nullable = false, length = 50)
+    private String shortName;
+
+    @Column(nullable = false, length = 255)
+    private String address;
+
+    @Column(length = 20)
+    private String phone;
+
+    @Column(name = "is_main", nullable = false)
+    private boolean main;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private CampusStatus status = CampusStatus.ACTIVE;
+
+    @Column(name = "deactivated_at")
+    private Instant deactivatedAt;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
+
+    public static Campus create(String code, String name, String shortName, String address, String phone) {
+        Campus campus = new Campus();
+        campus.changeInfo(code, name, shortName, address, phone);
+        return campus;
+    }
+
+    public void changeInfo(String code, String name, String shortName, String address, String phone) {
+        this.code = code;
+        this.name = name;
+        this.shortName = shortName;
+        this.address = address;
+        this.phone = phone;
+    }
+
+    public void markMain(boolean main) {
+        this.main = main;
+    }
+
+    public boolean isActive() {
+        return status == CampusStatus.ACTIVE;
+    }
+
+    public void deactivate(Instant at) {
+        this.status = CampusStatus.INACTIVE;
+        this.deactivatedAt = at;
+    }
+
+    public void activate() {
+        this.status = CampusStatus.ACTIVE;
+        this.deactivatedAt = null;
+    }
 }

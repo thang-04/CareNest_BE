@@ -183,7 +183,7 @@ class GuardianAccountServiceImplTest {
 
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, REQUEST))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.CONFLICT);
+                .isEqualTo(ApiCode.PHONE_OF_STAFF_ACCOUNT);
         verify(links, never()).createLink(any(), any(), any());
     }
 
@@ -192,20 +192,20 @@ class GuardianAccountServiceImplTest {
         assertThatThrownBy(() -> service.addGuardian(
                         VICE, CHILD, new AddGuardianRequest("12345", "PH", GuardianRelationship.FATHER, null)))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.PHONE_INVALID);
         verifyNoInteractions(identity);
     }
 
     @Test
     @DisplayName("AUTH-08: trẻ ngoài campus ⇒ 403 trước khi đụng Keycloak/DB")
     void childOutOfScopeIsDenied() {
-        willThrow(new GlobalException(ApiCode.FORBIDDEN, "denied"))
+        willThrow(GlobalException.of(ApiCode.CHILD_GUARDIANS_MANAGE_DENIED))
                 .given(policy)
                 .checkCanManageChildGuardians(VICE, CHILD);
 
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, REQUEST))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.CHILD_GUARDIANS_MANAGE_DENIED);
         verifyNoInteractions(identity, accounts, links);
     }
 
@@ -213,11 +213,11 @@ class GuardianAccountServiceImplTest {
     void linkFailureAfterKeycloakCreateDeletesKeycloakUser() {
         given(accounts.findByUsername("0912345678")).willReturn(Optional.empty());
         given(identity.createUser(any())).willReturn("kc-parent");
-        given(links.createLink(any(), any(), any())).willThrow(new GlobalException(ApiCode.CONFLICT, "linked"));
+        given(links.createLink(any(), any(), any())).willThrow(GlobalException.of(ApiCode.PARENT_ALREADY_LINKED));
 
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, REQUEST))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.CONFLICT);
+                .isEqualTo(ApiCode.PARENT_ALREADY_LINKED);
         verify(identity).deleteUser("kc-parent");
     }
 
@@ -241,10 +241,10 @@ class GuardianAccountServiceImplTest {
 
         assertThatThrownBy(() -> service.updateParentStatus(VICE, 61L, UserStatus.INACTIVE))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.NOT_PARENT_ACCOUNT);
         assertThatThrownBy(() -> service.resetParentPassword(VICE, 3L))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
         verify(identity, never()).resetTemporaryPassword(anyString(), anyString());
     }
 

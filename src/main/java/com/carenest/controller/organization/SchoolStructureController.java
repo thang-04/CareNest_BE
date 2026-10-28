@@ -1,6 +1,5 @@
 package com.carenest.controller.organization;
 
-import com.carenest.dto.organization.CampusResponse;
 import com.carenest.dto.organization.ClassroomResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.SchoolStructureService;
@@ -23,16 +22,6 @@ public class SchoolStructureController {
     private static final String LOG_PREFIX = "[SchoolStructureController]";
 
     private final SchoolStructureService schoolStructureService;
-
-    @GetMapping("/campuses")
-    @PreAuthorize("@permissionGuard.hasAny('ACCOUNT_MANAGE', 'STAFF_ASSIGNMENT_MANAGE')")
-    public ResponseEntity<ResponseJson<List<CampusResponse>>> listCampuses(CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|listCampuses|userId=" + currentUser.userId();
-        log.info("{}|START", logPrefix);
-        List<CampusResponse> campuses = schoolStructureService.listCampuses(currentUser);
-        log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "List campuses success", campuses);
-    }
 
     @GetMapping("/classrooms")
     @PreAuthorize("@permissionGuard.hasAny('ACCOUNT_MANAGE', 'STAFF_ASSIGNMENT_MANAGE')")

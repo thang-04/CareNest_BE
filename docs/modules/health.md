@@ -12,7 +12,7 @@ HealthRecord, trend calculation, HealthInterpretation (DRAFT/APPROVED, source).
 Dị ứng (child), chẩn đoán/điều trị (exclusion).
 
 ## Rules
-HLT-01..07, AI-01..06. Flow: `docs/business/flows/health-check.md`. HLT-07 (lọc đợt khám, phiếu theo dõi theo năm học, chốt 2026-10-28): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9.
+HLT-01..08, AI-01..06. Flow: `docs/business/flows/health-check.md`. HLT-08 (lọc đợt khám, phiếu theo dõi theo năm học, chốt 2026-10-28): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9.
 
 ## Phụ thuộc
 - Dùng: service `child`, identity (scope), `AiClient` (`integration/`).

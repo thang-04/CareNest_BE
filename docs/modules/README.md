@@ -10,7 +10,8 @@
 | [attendance](attendance.md) | Điểm danh, báo ăn, đơn nghỉ |
 | [nutrition](nutrition.md) | Thực phẩm, món, thực đơn, số suất, định lượng, bếp |
 | [health](health.md) | Đo sức khỏe định kỳ, trend, diễn giải AI có duyệt |
-| [learning-observation](learning-observation.md) | Quan sát, ngữ cảnh hoạt động, đánh giá, summary, hồ sơ phát triển |
+| [learning-observation](learning-observation.md) | Quan sát, đánh giá theo MT của giáo án đã duyệt, summary, hồ sơ phát triển |
+| [education-plan](education-plan.md) | Kế hoạch giáo dục: mục tiêu năm học theo nhóm tuổi, cấu hình, chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày |
 | [facility-issue](facility-issue.md) | Báo và theo dõi sự cố CSVC |
 | [notification](notification.md) | Gửi thông báo theo event |
 | [audit](audit.md) | Nhật ký thay đổi nhạy cảm |

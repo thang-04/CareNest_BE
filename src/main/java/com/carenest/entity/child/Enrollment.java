@@ -43,4 +43,17 @@ public class Enrollment {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public static Enrollment start(Long childId, Long classroomId, LocalDate validFrom) {
+        Enrollment enrollment = new Enrollment();
+        enrollment.childId = childId;
+        enrollment.classroomId = classroomId;
+        enrollment.validFrom = validFrom;
+        return enrollment;
+    }
+
+    /** Trẻ rời lớp: còn học tới hết ngày lastDay (không xóa để giữ lịch sử lớp). */
+    public void endOn(LocalDate lastDay) {
+        this.validTo = lastDay;
+    }
 }

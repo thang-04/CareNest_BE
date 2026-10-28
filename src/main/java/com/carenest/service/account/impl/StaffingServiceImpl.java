@@ -42,11 +42,11 @@ public class StaffingServiceImpl implements StaffingService {
         try {
             // AUTH-12: không tự mở rộng phạm vi của chính mình
             if (request.userId().equals(actor.userId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "You cannot change your own assignments");
+                throw GlobalException.of(ApiCode.CANNOT_CHANGE_OWN_ASSIGNMENTS);
             }
             UserAccount target = managedAccountLoader.loadExisting(actor, request.userId());
             if (target.getPrimaryRole() == null || !ASSIGNABLE_ROLES.contains(target.getPrimaryRole())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "This account cannot be assigned");
+                throw GlobalException.of(ApiCode.ACCOUNT_NOT_ASSIGNABLE);
             }
             StaffRole staffRole = StaffRole.valueOf(target.getPrimaryRole().name());
             Long campusId =
@@ -79,10 +79,10 @@ public class StaffingServiceImpl implements StaffingService {
             StaffAssignmentResponse assignment = staffAssignmentService
                     .findAssignment(assignmentId)
                     .orElseThrow(() -> fullScope
-                            ? new GlobalException(ApiCode.NOT_FOUND, "Assignment not found")
-                            : new GlobalException(ApiCode.FORBIDDEN, "You cannot manage this assignment"));
+                            ? GlobalException.of(ApiCode.ASSIGNMENT_NOT_FOUND)
+                            : GlobalException.of(ApiCode.ASSIGNMENT_MANAGE_DENIED));
             if (assignment.userId().equals(actor.userId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "You cannot change your own assignments");
+                throw GlobalException.of(ApiCode.CANNOT_CHANGE_OWN_ASSIGNMENTS);
             }
             Long campusId = assignment.staffRole() == StaffRole.PRINCIPAL
                     ? null

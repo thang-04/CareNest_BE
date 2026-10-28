@@ -1,6 +1,6 @@
 # Module — attendance
 
-Feature: `attendance` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thiết kế
+Feature: `attendance` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt 1 (điểm danh lớp/ngày, mở lại ngày, tổng hợp)
 
 ## Mục đích
 Nguồn dữ liệu có mặt và tham gia ăn của trẻ theo ngày; đơn xin nghỉ.
@@ -12,7 +12,7 @@ AttendanceRecord, MealParticipation, LeaveRequest.
 MealCount, MealPlan, định lượng (nutrition). Attendance **không biết** nutrition tồn tại.
 
 ## Rules
-ATT-01..08, ATT-05b. Flows: `docs/business/flows/attendance.md`, `docs/business/flows/leave-request.md`. ATT-08 (đón trẻ theo lớp năm học đang hoạt động, chốt 2026-10-28; BE chưa có module đón trẻ): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9.
+ATT-01..09, ATT-05b. Flows: `docs/business/flows/attendance.md`, `docs/business/flows/leave-request.md`. ATT-09 (đón trẻ theo lớp năm học đang hoạt động, chốt 2026-10-28; BE chưa có module đón trẻ): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9.
 
 ## Phụ thuộc
 - Dùng: service `child` (trẻ trong lớp), service `organization`, identity (scope).
@@ -20,7 +20,7 @@ ATT-01..08, ATT-05b. Flows: `docs/business/flows/attendance.md`, `docs/business/
 - Event phát: `AttendanceChanged(date, campusId, childId)`, `LeaveRequestSubmitted`, `LeaveRequestCancelled`. Attendance không biết MealCount đã chốt hay chưa — nutrition nghe event và tự quyết có tạo adjustment.
 
 ## API & bảng
-Chưa có. API nhập theo batch (cả lớp/ngày).
+Bảng `attendance_records`, `attendance_record_history`, `attendance_day_unlocks` (V18). API: `docs/api/FE_MAPPING.md` mục 3. Nhập theo batch (cả lớp/ngày). Giờ chốt mặc định khi năm chưa cấu hình: `carenest.attendance.default-cutoff` (P-03). Ngày học tạm thứ 2–6. Sức khỏe trong ngày (`daily_health_entries`, V19) cũng ở module này: GV lớp ghi khi tiếp nhận trẻ đã lưu Có mặt hôm nay. Chưa có: đơn nghỉ, số suất, bàn giao, thông báo phụ huynh.
 
 ## PENDING
 P-03 (cut-off), P-04 (late sau chốt). Đơn nghỉ đã chốt: thông báo, không duyệt (ATT-05).

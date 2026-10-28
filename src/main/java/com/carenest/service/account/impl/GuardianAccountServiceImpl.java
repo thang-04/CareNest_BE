@@ -92,7 +92,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
         try {
             checkChild(actor, childId);
             String username = PhoneNumbers.normalize(request.phone())
-                    .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "Invalid phone number"));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.PHONE_INVALID));
             String fullName = request.fullName().trim();
             // AUTH-18: email chỉ để liên hệ ⇒ lưu ở CareNest, không gửi Keycloak (không thành tên đăng nhập,
             // không vướng kiểm trùng email với nhân sự)
@@ -107,7 +107,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                 // AUTH-18 (2026-10-28): nhân sự không được đặt tên đăng nhập dạng SĐT; chỉ còn tài khoản cũ
                 // hoặc tạo thẳng trên Keycloak ⇒ không gắn trẻ vào tài khoản nhân sự
                 if (parent.getPrimaryRole() != CareNestRole.PARENT) {
-                    throw new GlobalException(ApiCode.CONFLICT, "This phone number belongs to a staff account");
+                    throw GlobalException.of(ApiCode.PHONE_OF_STAFF_ACCOUNT);
                 }
                 guardianChildLinkService.createLink(parent.getId(), childId, request.relationship());
                 log.info("{}|userId={}|newAccount=false|END", logPrefix, parent.getId());
@@ -185,23 +185,23 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
     private void checkChild(CurrentUser actor, Long childId) {
         staffAccessPolicy.checkCanManageChildGuardians(actor, childId);
         if (!childService.childExists(childId)) {
-            throw new GlobalException(ApiCode.NOT_FOUND, "Child not found");
+            throw GlobalException.of(ApiCode.CHILD_NOT_FOUND);
         }
     }
 
     private UserAccount loadManageableParent(CurrentUser actor, Long userId) {
         // AUTH-12: không tự thao tác tài khoản của chính mình
         if (userId.equals(actor.userId())) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "You cannot manage your own account here");
+            throw GlobalException.of(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
         }
         UserAccount account = userAccountRepository
                 .findById(userId)
                 .orElseThrow(() -> staffAccessPolicy.managesWholeSchool(actor)
-                        ? new GlobalException(ApiCode.NOT_FOUND, "Account not found")
-                        : new GlobalException(ApiCode.FORBIDDEN, "You cannot manage this account"));
+                        ? GlobalException.of(ApiCode.ACCOUNT_NOT_FOUND)
+                        : GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED));
         staffAccessPolicy.checkCanManageParent(actor, userId);
         if (account.getPrimaryRole() != CareNestRole.PARENT) {
-            throw new GlobalException(ApiCode.BAD_REQUEST, "This account is not a parent account");
+            throw GlobalException.of(ApiCode.NOT_PARENT_ACCOUNT);
         }
         return account;
     }

@@ -23,4 +23,15 @@ public final class Constants {
 
         private Security() {}
     }
+
+    /** Mã quyền kế hoạch giáo dục (EDU-08); tạm gán theo role ở EduPlanAccessPolicy cho tới khi có phân quyền động. */
+    public static final class EduPermission {
+        public static final String GOALS_VIEW = "goals.view";
+        public static final String GOALS_EDIT = "goals.edit";
+        public static final String GOALS_APPROVE = "goals.approve";
+        // EDU-11: Hiệu trưởng, Phó HT sửa cấu hình kế hoạch giáo dục
+        public static final String PLAN_CONFIG = "plans.config";
+
+        private EduPermission() {}
+    }
 }

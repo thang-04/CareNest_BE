@@ -242,7 +242,7 @@ Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo 
 | Mọi API trả 503 `Authentication service unavailable` | API mới khởi động mà không lấy được JWKS (Keycloak tắt / sai `KEYCLOAK_JWK_SET_URI`) | Bật Keycloak, kiểm URL JWKS; token đã cấp dùng lại được ngay khi lấy được key |
 | Tạo tài khoản trả 400 `Account data rejected by identity provider` | Mật khẩu tạm vi phạm policy (vd. trùng username, < 8 ký tự) hoặc họ tên có ký tự Keycloak cấm (`( ) < > & /`...) | Đổi mật khẩu tạm / bỏ ký tự đặc biệt khỏi họ tên |
 | Password grant `invalid_client` với `carenest-dev` | Client dev đang tắt (`CARENEST_DEV_CLIENT_ENABLED` không phải `true` lúc import realm) | Đặt `true` trong `.env` rồi reset DB Keycloak (mục 7) |
-| Tạo/khóa tài khoản trả 503 `Identity provider unavailable` | Thiếu/sai `KEYCLOAK_ADMIN_CLIENT_SECRET`, sai `KEYCLOAK_BASE_URL`, Keycloak tắt, hoặc thiếu service account role | Kiểm `.env`, log API (`keycloakStatus=...`), tab *Credentials* / *Service account roles* của `carenest-backend` |
+| Tạo/khóa tài khoản trả 503 `errorCode` 1111 `IDENTITY_PROVIDER_UNAVAILABLE` | Thiếu/sai `KEYCLOAK_ADMIN_CLIENT_SECRET`, sai `KEYCLOAK_BASE_URL`, Keycloak tắt, hoặc thiếu service account role | Kiểm `.env`, log API (`keycloakStatus=...`), tab *Credentials* / *Service account roles* của `carenest-backend` |
 | Tạo tài khoản trả 409 dù DB chưa có username | User đã có bên Keycloak (tạo tay trên console) | Xóa user đó trên console rồi tạo lại qua API |
 
 ## 9. Khi đưa lên server
