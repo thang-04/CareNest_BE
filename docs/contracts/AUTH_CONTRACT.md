@@ -230,7 +230,7 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 
 ## Tác động FE/APP (BE không sửa repo khác)
 
-Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
+Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `FE:docs/integration/AUTH_FLOW.md`, `APP:docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
 
 - Web Phase 3: ghép các màn hình login/forgot-password/verify-otp/reset-password/change-password và AuthContext/HTTP client vào gateway phía trên. Public client `carenest-web` vẫn giữ PKCE cho legacy; Mobile `carenest-mobile` tiếp tục public + PKCE S256, cùng issuer/audience.
 - Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; refresh: Web gateway gọi `POST /auth/refresh` (cookie + `withCredentials`), PKCE tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.
