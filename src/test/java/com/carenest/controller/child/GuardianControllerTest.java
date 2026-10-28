@@ -60,6 +60,7 @@ class GuardianControllerTest {
                         50L,
                         "0912345678",
                         "Phụ huynh Demo",
+                        "me@example.test",
                         GuardianRelationship.MOTHER,
                         UserStatus.ACTIVE,
                         true,
@@ -71,6 +72,7 @@ class GuardianControllerTest {
                         .content(ADD_JSON))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.username").value("0912345678"))
+                .andExpect(jsonPath("$.data.email").value("me@example.test"))
                 .andExpect(jsonPath("$.data.newAccount").value(true))
                 .andExpect(jsonPath("$.data.temporaryPassword").value("Gen3rated7k"));
     }
@@ -107,6 +109,22 @@ class GuardianControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"fullName\":\"PH\",\"relationship\":\"MOTHER\"}"))
                 .andExpect(status().isBadRequest());
+        verifyNoInteractions(guardianAccountService);
+    }
+
+    @Test
+    void invalidOrTooLongEmailIs400() throws Exception {
+        authenticate(CareNestRole.PRINCIPAL);
+        String tooLong = "a".repeat(64) + "@" + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(63) + ".vn";
+
+        for (String email : new String[] {"not-an-email", tooLong}) {
+            mockMvc.perform(post("/api/children/101/guardians")
+                            .with(token(CareNestRole.PRINCIPAL))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"phone\":\"0912345678\",\"fullName\":\"PH\",\"relationship\":\"MOTHER\","
+                                    + "\"email\":\"" + email + "\"}"))
+                    .andExpect(status().isBadRequest());
+        }
         verifyNoInteractions(guardianAccountService);
     }
 

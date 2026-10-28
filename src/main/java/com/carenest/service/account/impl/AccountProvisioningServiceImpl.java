@@ -20,6 +20,7 @@ import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.AccountProvisioningService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
 import com.carenest.utils.enums.UserStatus;
@@ -75,6 +76,10 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             staffAccessPolicy.checkCanCreate(actor, request.role(), campusId);
 
             String username = request.username().trim().toLowerCase(Locale.ROOT);
+            // AUTH-18: tên đăng nhập phụ huynh là SĐT ⇒ nhân sự không đặt dạng SĐT để hai loại không trùng
+            if (PhoneNumbers.normalize(username).isPresent()) {
+                throw new GlobalException(ApiCode.BAD_REQUEST, "Staff username must not be a phone number");
+            }
             String email = StringUtils.hasText(request.email())
                     ? request.email().trim().toLowerCase(Locale.ROOT)
                     : null;

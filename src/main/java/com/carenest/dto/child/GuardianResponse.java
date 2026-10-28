@@ -4,11 +4,12 @@ import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.UserStatus;
 import java.time.Instant;
 
-/** Phụ huynh của một trẻ; username là SĐT đăng nhập (AUTH-18). */
+/** Phụ huynh của một trẻ; username là SĐT đăng nhập, email chỉ để liên hệ (AUTH-18). */
 public record GuardianResponse(
         Long userId,
         String username,
         String fullName,
+        String email,
         GuardianRelationship relationship,
         UserStatus status,
         Instant linkedAt) {}

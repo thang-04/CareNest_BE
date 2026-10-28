@@ -11,6 +11,7 @@ public record AddGuardianResponse(
         Long userId,
         String username,
         String fullName,
+        String email,
         GuardianRelationship relationship,
         UserStatus status,
         boolean newAccount,

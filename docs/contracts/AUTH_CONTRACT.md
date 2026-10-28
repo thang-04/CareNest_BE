@@ -34,7 +34,7 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 | POST `/auth/login` (mật khẩu tạm đã xác minh) | như trên | 428 `{expiresAt,passwordChangeRequired:true,changeToken}`; không phát cookie phiên/access/refresh token |
 | POST `/auth/refresh` | tùy chọn `{force:false}` | `{accessToken,expiresAt}` + `Set-Cookie` mới; đọc cookie `CARENEST_SESSION`, gộp request đồng thời; 401 kèm xóa cookie; `force` không còn tác dụng |
 | POST `/auth/logout` | — | 200, xóa cookie, best-effort logout Keycloak; cookie thiếu/hỏng vẫn 200 |
-| POST `/auth/password/forgot` | `{email}` | `{requestId,expiresAt,resendAvailableAt}`; cùng status/shape cho email không tồn tại, inactive hoặc bị giới hạn |
+| POST `/auth/password/forgot` | `{email}` | `{requestId,expiresAt,resendAvailableAt}`; cùng status/shape cho email không tồn tại, inactive, bị giới hạn hoặc chỉ là email liên hệ của phụ huynh (không gửi OTP, AUTH-18) |
 | GET `/auth/password/otp/{requestId}` | — | metadata cùng shape, không chứa email/OTP |
 | POST `/auth/password/otp/{requestId}/resend` | — | metadata; khoảng cách 60 giây |
 | POST `/auth/password/otp/{requestId}/verify` | `{otp}` | `{resetToken,expiresAt}`; OTP một lần |
@@ -118,7 +118,7 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
   "assignment": { "classroomId": 11, "validFrom": "2026-10-17" } }
 ```
 
-- `username`: 3–100 ký tự `[A-Za-z0-9._-]`, lưu chữ thường; `fullName` bắt buộc; `email` tùy chọn; `role` ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF (PARENT ⇒ 400 `This role cannot be created via API` — phụ huynh tạo kèm trẻ, AUTH-18).
+- `username`: 3–100 ký tự `[A-Za-z0-9._-]`, lưu chữ thường, không được là SĐT (dạng `PhoneNumbers` chấp nhận: `0912345678`, `84912345678`, `0912.345.678` — tên đăng nhập phụ huynh là SĐT, AUTH-18); `fullName` bắt buộc; `email` tùy chọn; `role` ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF (PARENT ⇒ 400 `This role cannot be created via API` — phụ huynh tạo kèm trẻ, AUTH-18).
 - `temporaryPassword` (8–128 ký tự): bắt buộc trừ khi có `email` và server bật gửi email đặt mật khẩu. Người dùng phải đổi ở lần đăng nhập đầu. CareNest không lưu/log mật khẩu.
 - `assignment` (AUTH-15): PHT/bếp ⇒ `campusId`, GV ⇒ `classroomId`; `validFrom` bỏ trống = hôm nay. Bắt buộc khi người tạo là PHT; HT bỏ trống được. PRINCIPAL không gửi (tự có phân công toàn trường); PARENT không có phân công.
 - 201: `{ userId, username, fullName, email, role, status: "ACTIVE", setupEmailSent, assignment }` (`assignment` = phân công vừa tạo hoặc `null`).
@@ -139,6 +139,7 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 | Body sai | 400 | `Invalid request data` (+ lỗi theo field) |
 | `role` = ADMIN | 400 | `This role cannot be created via API` |
 | Thiếu mật khẩu tạm khi không gửi được email | 400 | `Temporary password is required when a setup email cannot be sent` |
+| `username` là SĐT (AUTH-18) | 400 | `Staff username must not be a phone number` |
 | Username đã có trong CareNest | 409 | `Username already exists` |
 | Username/email đã có bên Keycloak | 409 | `Username or email already exists` |
 | Keycloak từ chối dữ liệu (mật khẩu vi phạm policy, vd. trùng username; họ tên có ký tự như `( ) < > & /`) | 400 | `Account data rejected by identity provider (check password policy and full name)` |
@@ -205,13 +206,14 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 | Method + path | Body / query | `data` |
 | --- | --- | --- |
 | `GET /children` | `campusId`, `classroomId`, `q` (họ tên), `page`, `size` (1–100) | `PageResponse` của `{ id, fullName, dateOfBirth, classroomId, campusId, guardianCount }` (lớp/campus hiện tại, `null` nếu chưa có lớp) |
-| `GET /children/{childId}/guardians` | — | `[{ userId, username, fullName, relationship, status, linkedAt }]` (`username` = SĐT) |
-| `POST /children/{childId}/guardians` | `{ "phone": "0912 345 678", "fullName": "...", "relationship": "MOTHER" \| "FATHER" \| "GUARDIAN" \| "OTHER" }` | 201 `{ userId, username, fullName, relationship, status, newAccount, temporaryPassword }` |
+| `GET /children/{childId}/guardians` | — | `[{ userId, username, fullName, email, relationship, status, linkedAt }]` (`username` = SĐT, `email` có thể `null`) |
+| `POST /children/{childId}/guardians` | `{ "phone": "0912 345 678", "fullName": "...", "relationship": "MOTHER" \| "FATHER" \| "GUARDIAN" \| "OTHER", "email": "..." }` (`email` tùy chọn) | 201 `{ userId, username, fullName, email, relationship, status, newAccount, temporaryPassword }` |
 | `DELETE /children/{childId}/guardians/{userId}` | — | 200, `data` rỗng; tài khoản giữ nguyên |
 | `PATCH /parent-accounts/{userId}/status` | `{ "status": "INACTIVE" \| "ACTIVE" }` | `{ userId, username, fullName, email, status }` |
 | `POST /parent-accounts/{userId}/temporary-password` | — | `{ userId, username, temporaryPassword }` (mật khẩu mới hệ thống sinh, hủy mọi phiên) |
 
 - `phone` chấp nhận `+84`/`84`, khoảng trắng, `.`, `-`, `()`; chuẩn hóa thành 10 số bắt đầu `0` = tên đăng nhập.
+- `email` chỉ để liên hệ (AUTH-18, thêm 2026-10-28): đúng định dạng, ≤255 ký tự, lưu chữ thường, rỗng ⇒ `null`. Chỉ lưu ở CareNest, không gửi Keycloak ⇒ không đăng nhập, không khôi phục mật khẩu bằng email này; được trùng email nhân sự hoặc phụ huynh khác. SĐT đã là phụ huynh ⇒ giữ họ tên, email của tài khoản (không sửa ở API này).
 - `newAccount = true` ⇒ `temporaryPassword` (10 ký tự) trả **đúng lần này** để in phiếu, CareNest không lưu/log; bắt đổi ở lần đăng nhập đầu. `newAccount = false` ⇒ SĐT đã là phụ huynh, chỉ thêm liên kết, `temporaryPassword = null`.
 
 | Tình huống | HTTP / `code` | `desc` |
@@ -221,8 +223,8 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 | Lọc campus/lớp ngoài phạm vi | 403 | `You do not have access to this campus` / `... classroom` |
 | Trẻ không tồn tại (HT) | 404 | `Child not found` |
 | SĐT sai định dạng | 400 | `Invalid phone number` |
-| `relationship` không thuộc danh sách, thiếu field | 400 | `Malformed request` / `Invalid request data` |
-| SĐT là tài khoản nhân sự | 409 | `This phone number belongs to a staff account` |
+| `relationship` không thuộc danh sách, thiếu field, `email` sai định dạng hoặc quá 255 ký tự | 400 | `Malformed request` / `Invalid request data` |
+| SĐT là tên đăng nhập của tài khoản nhân sự (chỉ tài khoản tạo trước 2026-10-28 hoặc tạo thẳng trên Keycloak — AUTH-18) | 409 | `This phone number belongs to a staff account` |
 | Phụ huynh đã liên kết trẻ này | 409 | `This parent is already linked to the child` |
 | Gỡ liên kết không tồn tại | 404 | `Guardian link not found` |
 | Khóa/mật khẩu: tài khoản không phải phụ huynh / của chính mình | 400 | `This account is not a parent account` / `You cannot manage your own account here` |

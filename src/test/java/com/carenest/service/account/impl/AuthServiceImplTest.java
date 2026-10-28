@@ -154,6 +154,24 @@ class AuthServiceImplTest {
         assertThat(saved.getAllValues().getLast().getUserId()).isNull();
     }
 
+    @Test
+    @DisplayName("AUTH-18: email phụ huynh chỉ để liên hệ ⇒ quên mật khẩu bỏ qua tài khoản phụ huynh")
+    void parentContactEmailIsNotUsedForRecovery() {
+        given(state.takeRate(any(), org.mockito.ArgumentMatchers.eq(5), any())).willReturn(true);
+        UserAccount parent =
+                UserAccount.create("kc-parent", "0912345678", "family@example.test", "Phụ huynh", CareNestRole.PARENT);
+        UserAccount teacher =
+                UserAccount.create("kc-teacher", "teacher.b", "family@example.test", "Giáo viên", CareNestRole.TEACHER);
+        given(userAccounts.findByEmailIgnoreCase("parent@example.test")).willReturn(List.of(parent));
+        given(userAccounts.findByEmailIgnoreCase("family@example.test")).willReturn(List.of(parent, teacher));
+
+        service.forgot(new com.carenest.dto.account.AuthRequests.Forgot("parent@example.test"));
+        service.forgot(new com.carenest.dto.account.AuthRequests.Forgot("family@example.test"));
+
+        verify(keycloak, never()).sendOtp(org.mockito.ArgumentMatchers.eq("kc-parent"), any());
+        verify(keycloak).sendOtp(org.mockito.ArgumentMatchers.eq("kc-teacher"), any());
+    }
+
     private Jwt jwt(String value) {
         return Jwt.withTokenValue(value)
                 .header("alg", "RS256")

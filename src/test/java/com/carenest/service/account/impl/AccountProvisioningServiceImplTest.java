@@ -45,6 +45,8 @@ import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -164,6 +166,33 @@ class AccountProvisioningServiceImplTest {
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.BAD_REQUEST);
         verifyNoInteractions(identityProviderClient);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0912345678", "84912345678", "0912.345.678"})
+    @DisplayName(
+            "AUTH-18: tên đăng nhập nhân sự dạng SĐT ⇒ 400 trước khi gọi Keycloak (không trùng tên đăng nhập phụ huynh)")
+    void rejectsPhoneShapedStaffUsername(String username) {
+        assertThatThrownBy(() ->
+                        service.createAccount(ADMIN, request(username, null, CareNestRole.TEACHER, "Temp-Pass-1")))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Staff username must not be a phone number")
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
+        verifyNoInteractions(identityProviderClient);
+        verify(userAccountRepository, never()).existsByUsername(anyString());
+    }
+
+    @Test
+    @DisplayName("AUTH-15: tên đăng nhập có chữ số nhưng không phải SĐT ⇒ tạo như thường")
+    void allowsUsernameThatOnlyLooksNumeric() {
+        given(identityProviderClient.createUser(any())).willReturn(KC_ID);
+
+        CreateAccountResponse response =
+                service.createAccount(ADMIN, request("0912345678a", null, CareNestRole.TEACHER, "Temp-Pass-1"));
+
+        assertThat(response.userId()).isEqualTo(42L);
+        verify(identityProviderClient).createUser(any());
     }
 
     @Test

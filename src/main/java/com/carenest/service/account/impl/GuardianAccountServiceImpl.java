@@ -21,6 +21,7 @@ import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
@@ -28,9 +29,10 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
- * Tài khoản phụ huynh (AUTH-18, AUTH-19). Không log SĐT/họ tên/mật khẩu — chỉ id. Tạo user Keycloak rồi lưu tài
+ * Tài khoản phụ huynh (AUTH-18, AUTH-19). Không log SĐT/họ tên/email/mật khẩu — chỉ id. Tạo user Keycloak rồi lưu tài
  * khoản + liên kết trẻ trong một transaction; lỗi ⇒ xóa user Keycloak (AccountLifecycleOperations).
  */
 @Slf4j
@@ -69,6 +71,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                                 account.getId(),
                                 account.getUsername(),
                                 account.getFullName(),
+                                account.getEmail(),
                                 link.relationship(),
                                 account.getStatus(),
                                 link.linkedAt());
@@ -91,11 +94,18 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             String username = PhoneNumbers.normalize(request.phone())
                     .orElseThrow(() -> new GlobalException(ApiCode.BAD_REQUEST, "Invalid phone number"));
             String fullName = request.fullName().trim();
+            // AUTH-18: email chỉ để liên hệ ⇒ lưu ở CareNest, không gửi Keycloak (không thành tên đăng nhập,
+            // không vướng kiểm trùng email với nhân sự)
+            String email = StringUtils.hasText(request.email())
+                    ? request.email().trim().toLowerCase(Locale.ROOT)
+                    : null;
 
             Optional<UserAccount> existing = userAccountRepository.findByUsername(username);
             if (existing.isPresent()) {
-                // Anh/chị em học cùng trường: dùng lại tài khoản phụ huynh, giữ mật khẩu (AUTH-18)
+                // Anh/chị em học cùng trường: dùng lại tài khoản phụ huynh, giữ mật khẩu, họ tên, email (AUTH-18)
                 UserAccount parent = existing.get();
+                // AUTH-18 (2026-10-28): nhân sự không được đặt tên đăng nhập dạng SĐT; chỉ còn tài khoản cũ
+                // hoặc tạo thẳng trên Keycloak ⇒ không gắn trẻ vào tài khoản nhân sự
                 if (parent.getPrimaryRole() != CareNestRole.PARENT) {
                     throw new GlobalException(ApiCode.CONFLICT, "This phone number belongs to a staff account");
                 }
@@ -111,7 +121,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                     CareNestRole.PARENT,
                     keycloakUserId -> {
                         UserAccount parent = userAccountRepository.saveAndFlush(
-                                UserAccount.create(keycloakUserId, username, null, fullName, CareNestRole.PARENT));
+                                UserAccount.create(keycloakUserId, username, email, fullName, CareNestRole.PARENT));
                         guardianChildLinkService.createLink(parent.getId(), childId, request.relationship());
                         return parent;
                     });
@@ -202,6 +212,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                 parent.getId(),
                 parent.getUsername(),
                 parent.getFullName(),
+                parent.getEmail(),
                 request.relationship(),
                 parent.getStatus(),
                 newAccount,

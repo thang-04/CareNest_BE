@@ -19,6 +19,7 @@ import com.carenest.service.account.AuthService.SessionCookie;
 import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.Constants.Auth;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.PasswordTokenPurpose;
 import java.time.Clock;
 import java.time.Instant;
@@ -266,8 +267,11 @@ public class AuthServiceImpl implements AuthService {
                     crypto.keyedHash("recovery-rate:" + lookup + ":" + window),
                     Auth.RATE_LIMIT,
                     Instant.ofEpochSecond((window + 1) * 1800));
+            // AUTH-18: email phụ huynh chỉ để liên hệ ⇒ không khôi phục bằng email đó, và nhân sự trùng email
+            // với phụ huynh (vd. giáo viên có con học ở trường) vẫn nhận OTP
             List<UserAccount> matches = accounts.findByEmailIgnoreCase(email).stream()
                     .filter(UserAccount::isActive)
+                    .filter(match -> match.getPrimaryRole() != CareNestRole.PARENT)
                     .toList();
             UserAccount account = matches.size() == 1 && allowed ? matches.getFirst() : null;
             String requestId = crypto.randomToken();
