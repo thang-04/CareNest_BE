@@ -176,7 +176,7 @@ Quy trình ghi duy nhất: `.ai/workflows/update-knowledge.md` (T1 nghiệp vụ
 | Loại | Dạng | Ở đâu |
 | --- | --- | --- |
 | Business rule | `ATT-05`, `NUT-14`, `OBS-10`... | `docs/business/BUSINESS_RULES.md` |
-| Câu hỏi chờ chốt | `P-03` … `P-17` | Pending register (BUSINESS_RULES) |
+| Câu hỏi chờ chốt | `P-03` … `P-18` | Pending register (BUSINESS_RULES) |
 | Quyết định | `ADR-0001` … | `docs/decisions/` |
 | NFR | `NFR-PERF-01`... | `docs/quality/NFR.md` |
 | Issue BE | `BUG-YYMMDD-slug`, `CASE-…`, `ENV-…` | BE `docs/knowledge/` |

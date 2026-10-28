@@ -12,7 +12,7 @@ UserAccount, Role, Permission, role↔permission; kiểm tra access scope (`Acce
 StaffAssignment (school-structure), GuardianChildLink (child), dữ liệu nghiệp vụ.
 
 ## Rules
-AUTH-01..17 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business/USER_ROLES.md`.
+AUTH-01..21 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business/USER_ROLES.md`.
 
 ## Phụ thuộc
 - Dùng: common/utils.
@@ -27,9 +27,14 @@ AUTH-01..17 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business
 - Code: `security/CurrentUser`, `CurrentUserService` (JWT `sub` → `user_accounts`, chặn chưa cấp/INACTIVE), `CurrentUserArgumentResolver`; `controller|service/account/` (interface + `impl/*Impl`, ADR-0014). Web auth gateway: `AuthController`/`PasswordController` → `AuthService` → `integration/keycloak/AuthGatewayClient` (adapter `KeycloakAuthGatewayClient`); cấu hình `carenest.auth.*` (`AuthProperties`, env `CARENEST_AUTH_*`); cookie/TTL/rate limit ở `utils/Constants.Auth`; enum `CareNestRole`, `UserStatus` ở `utils/enums/`.
 - Phân quyền (ADR-0017, chỉ PRINCIPAL — `PERMISSION_MANAGE`): `GET /permissions`, `GET /role-permissions[/{role}]`, `PUT /role-permissions/{role}`, `GET|PUT /accounts/{userId}/permission-overrides`, `GET /permission-change-logs` — `PermissionController` → `PermissionService`. Lớp 1 mọi endpoint nghiệp vụ: `@PreAuthorize("@permissionGuard.has('CODE')")` (`security/authorization/PermissionGuard`, bean khai trong `SecurityConfig`); quyền hiệu lực tính trong `CurrentUserService` bằng `EffectivePermissionResolver` và nằm trong `CurrentUser.permissions`.
 - Kiểm tra scope: `security/authorization/` — `CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy` (role trong token ∧ phân công/liên kết còn hiệu lực; bảng quy tắc ở `docs/architecture/SECURITY.md`). Đây là tên thật thay cho `AccessScopeService` (tên minh họa trong docs cũ).
+- **Tài khoản phụ huynh — đã chốt 2026-10-28, BE chưa làm** (code hiện theo AUTH-18 cũ: `POST /children/{id}/guardians` trả `temporaryPassword` để in phiếu, nhận diện theo SĐT, không nhận CCCD; email liên hệ đã làm 2026-10-28 — Known pitfalls):
+  - AUTH-18: gửi mật khẩu tạm qua SMS tới SĐT đăng nhập, không trả mật khẩu cho client (cần chọn nhà cung cấp SMS, đi qua `integration/`); nhận diện theo CCCD phụ huynh (cần lưu CCCD, duy nhất).
+  - AUTH-20: thông tin phụ huynh lưu trên hồ sơ trẻ trước khi có tài khoản; lưu form tiếp nhận tạo/liên kết tài khoản trong cùng giao dịch (bù trừ Keycloak như cấp tài khoản hiện nay); nhập Excel, Sửa hồ sơ kích hoạt sau.
+  - AUTH-21: sửa thông tin phụ huynh ở hồ sơ trẻ cập nhật tài khoản; đổi SĐT ⇒ đổi tên đăng nhập sang SĐT mới, cấp mật khẩu tạm mới, gửi SMS tới SĐT mới. `docs/database/DATA_DICTIONARY.md` ghi username Keycloak "không đổi được" ⇒ BE phải thiết kế cách đổi tên đăng nhập (chưa chọn giải pháp).
+  - Chốt thêm 2026-10-28: bỏ `POST /children/{childId}/guardians`, giữ phần tạo/liên kết tài khoản dùng chung cho kích hoạt (C-4); cổng SMS giả trước, chọn nhà cung cấp trước khi dùng thật (D-2); quan hệ 6 loại (AUTH-18). Plan: `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`.
 
 ## PENDING
-P-14 (scope Hiệu phó), P-16 (Admin xem dữ liệu trẻ).
+P-14 (scope Hiệu phó), P-16 (Admin xem dữ liệu trẻ). P-18 đã đóng 2026-10-28 (AUTH-20).
 
 ## Known pitfalls
 - Auth React: ADR-0013 là ngoại lệ Web dùng gateway/extension, không phải PKCE. Phase 2 có source API/session/OTP opt-in và V4; FE thuộc Phase3. Provider setup chỉ qua capability một lần; recovery/current-password exchange đòi assertion HMAC60s sau xác minh.
@@ -52,6 +57,8 @@ P-14 (scope Hiệu phó), P-16 (Admin xem dữ liệu trẻ).
 - Tài khoản phụ huynh chỉ tạo qua `POST /children/{id}/guardians` (username = SĐT, `utils/PhoneNumbers`; mật khẩu `TemporaryPasswordGenerator` trả 1 lần, không log — DTO che `toString`). Khóa/mở, mật khẩu phụ huynh qua `/parent-accounts/...` (`GuardianAccountService`), vòng đời Keycloak dùng chung `AccountLifecycleOperations`.
 - PHT chỉ có phạm vi campus: id tài khoản/phân công không tồn tại và ngoài phạm vi phải cùng 403 (`ManagedAccountLoader`); Admin/HT nhận 404.
 - Tạo tài khoản: kiểm phạm vi (`StaffAccessPolicy.checkCanCreate`) TRƯỚC khi gọi Keycloak; tài khoản + phân công lưu trong 1 TransactionTemplate, lỗi ⇒ xóa user Keycloak.
+- Tên đăng nhập nhân sự không được là SĐT (`PhoneNumbers.normalize` có giá trị ⇒ 400, AUTH-18 sửa 2026-10-28) để không trùng tên đăng nhập phụ huynh. Tạo nhân sự thẳng trên Keycloak console bỏ qua kiểm này; tài khoản nhân sự cũ dạng SĐT vẫn làm `POST /children/{id}/guardians` trả 409. SQL tìm các tài khoản đó trước khi phát hành: `docs/plans/completed/2026-10-28-staff-username-not-phone.md` (Progress log).
+- Email phụ huynh chỉ để liên hệ (AUTH-18, 2026-10-28): `POST /children/{id}/guardians` lưu `email` vào `user_accounts.email`, **không** gửi lên Keycloak (email trên Keycloak thành tên đăng nhập thứ hai và bị Keycloak chặn trùng với nhân sự). Quên mật khẩu web (`AuthServiceImpl.forgot`) bỏ qua tài khoản `PARENT`, nếu không thì nhân sự trùng email với phụ huynh mất OTP. Khi làm AUTH-20 (phụ huynh trên hồ sơ trẻ) xét lại chỗ lưu email.
 
 ## Related issues
 ENV-261004-keycloak-user-profile-account-not-fully-set-up (user profile Keycloak), ENV-261016-flyway-duplicate-version-stale-target (đổi nhánh còn migration cũ trong target).

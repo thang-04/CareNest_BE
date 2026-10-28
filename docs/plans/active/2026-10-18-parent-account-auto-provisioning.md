@@ -12,6 +12,8 @@ updated: 2026-10-18
 ---
 # Tự tạo tài khoản phụ huynh + in phiếu theo lớp (phần tài khoản)
 
+> **Bị thay một phần (2026-10-28):** user chốt gửi mật khẩu qua SMS thay in phiếu, kích hoạt khi lưu form tiếp nhận hoặc ở màn Tài khoản phụ huynh — `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`. "AUTH-20", "AUTH-21" trong plan này là đề xuất cũ, **khác nghĩa** AUTH-20, AUTH-21 hiện có ở `docs/business/BUSINESS_RULES.md`. Đối chiếu plan mới trước khi làm tiếp.
+
 ## Context
 - Hôm nay phụ huynh có tài khoản chỉ khi người dùng nhập tay từng người: `POST /children/{id}/guardians` sinh mật khẩu tạm và trả ngay (`GuardianAccountServiceImpl.java:86-121`).
 - Không đếm được theo lớp ai đã nhận phiếu, ai đã đăng nhập.
@@ -64,7 +66,7 @@ updated: 2026-10-18
 
 ## Acceptance criteria
 - **AC-1** (AUTH-20): `provisionForChild` với SĐT mới ⇒ tạo tài khoản PARENT trong Keycloak **không mật khẩu** + liên kết; SĐT đã là phụ huynh ⇒ chỉ liên kết, giữ mật khẩu.
-- **AC-2** (AUTH-20): SĐT sai định dạng, SĐT của nhân sự, hoặc Keycloak lỗi ⇒ không ném lỗi ra luồng gọi; liên hệ ghi `issue` (`INVALID_PHONE` | `PHONE_OF_STAFF` | `IDP_UNAVAILABLE`); không để Keycloak có user mồ côi.
+- **AC-2** (AUTH-20): SĐT sai định dạng, SĐT của nhân sự (từ 2026-10-28 chỉ còn khi SĐT là tên đăng nhập tài khoản nhân sự cũ — AUTH-18), hoặc Keycloak lỗi ⇒ không ném lỗi ra luồng gọi; liên hệ ghi `issue` (`INVALID_PHONE` | `PHONE_OF_STAFF` | `IDP_UNAVAILABLE`); không để Keycloak có user mồ côi.
 - **AC-3** (AUTH-20, AUTH-08): Sửa liên hệ đang lỗi ⇒ tạo lại ngay. `POST /classrooms/{id}/parent-accounts` ⇒ xử lý lại mọi liên hệ chưa có tài khoản của lớp, trả số tạo / liên kết / còn lỗi. PHT ngoài campus ⇒ 403.
 - **AC-4** (AUTH-21): `POST /classrooms/{id}/parent-slips` không truyền danh sách ⇒ chỉ cấp mật khẩu cho phụ huynh chưa in. Ghi `password_issued_at`. Trả mật khẩu một lần, không ghi log, `Cache-Control: no-store`. Cấp lại một người cũng ghi giờ in.
 - **AC-5** (AUTH-21): Request hợp lệ đầu tiên của tài khoản có `first_login_at` rỗng ⇒ ghi giờ. Các request sau không ghi nữa.

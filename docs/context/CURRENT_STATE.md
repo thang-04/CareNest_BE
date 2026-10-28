@@ -25,9 +25,9 @@ Phân quyền cấu hình được (ADR-0017) cập nhật 2026-10-16 trên `fea
 
 | Module (feature) | Thiết kế | Code | Ghi chú |
 | --- | --- | --- | --- |
-| identity-access (`account`, `security/`) | Có | Gần xong | Resource Server, CurrentUser, policy, phân quyền cấu hình được (ADR-0017), HT/PHT cấp/khóa tài khoản, mật khẩu tạm, danh sách nhân sự, phân công (AUTH-15..17) xong (chưa commit), tài khoản phụ huynh gắn trẻ (AUTH-18, AUTH-19) xong (chưa commit) |
+| identity-access (`account`, `security/`) | Có | Gần xong | Resource Server, CurrentUser, policy, phân quyền cấu hình được (ADR-0017), HT/PHT cấp/khóa tài khoản, mật khẩu tạm, danh sách nhân sự, phân công (AUTH-15..17) xong (chưa commit), tài khoản phụ huynh gắn trẻ (AUTH-18, AUTH-19) xong (chưa commit); AUTH-18 sửa 2026-10-28: tên đăng nhập nhân sự không được là SĐT; thêm phụ huynh nhận, lưu email liên hệ (không gửi Keycloak, không dùng quên mật khẩu) (chưa commit) |
 | school-structure (`organization`) | Có | Bảng scope + phân công + đọc campus/lớp | Chưa có API tạo/sửa campus/lớp/năm học |
-| child (`child`) | Có | Bảng scope + `GET /children/{childId}` | Mới có hồ sơ cơ bản |
+| child (`child`) | Có | Bảng scope + `GET /children/{childId}` | Mới có hồ sơ cơ bản. Nghiệp vụ tiếp nhận chốt 2026-10-28 (CHD-01..10, AUTH-18 sửa, AUTH-20, AUTH-21, HLT-07, ATT-08; P-17, P-18 đóng) — chưa có code/API; plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` (`docs/modules/child.md`) |
 | attendance (`attendance`) | Có | — | Giờ chốt, xử lý đến muộn PENDING; đơn nghỉ đã chốt 02/10: thông báo, không duyệt (ATT-05) |
 | nutrition (`meals`) | Có | — | Bếp/thực đơn theo campus PENDING |
 | health (`health`) | Có | — | Ngưỡng tham chiếu PENDING |

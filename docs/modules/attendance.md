@@ -12,7 +12,7 @@ AttendanceRecord, MealParticipation, LeaveRequest.
 MealCount, MealPlan, định lượng (nutrition). Attendance **không biết** nutrition tồn tại.
 
 ## Rules
-ATT-01..07, ATT-05b. Flows: `docs/business/flows/attendance.md`, `docs/business/flows/leave-request.md`.
+ATT-01..08, ATT-05b. Flows: `docs/business/flows/attendance.md`, `docs/business/flows/leave-request.md`. ATT-08 (đón trẻ theo lớp năm học đang hoạt động, chốt 2026-10-28; BE chưa có module đón trẻ): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9.
 
 ## Phụ thuộc
 - Dùng: service `child` (trẻ trong lớp), service `organization`, identity (scope).

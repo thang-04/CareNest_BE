@@ -12,7 +12,7 @@ Child, Enrollment (childId, classroomId, from, to), GuardianChildLink (childId, 
 Điểm danh, sức khỏe định kỳ, quan sát, hồ sơ phát triển (read model ở learning-observation).
 
 ## Rules
-AUTH-04, HLT-06, NUT-09.
+AUTH-04, AUTH-18, AUTH-20, AUTH-21, CHD-01..CHD-10, HLT-06, HLT-07, ATT-08, NUT-09.
 
 ## Phụ thuộc
 - Dùng: common/utils, service `organization` (classroom/campus).
@@ -26,11 +26,22 @@ AUTH-04, HLT-06, NUT-09.
 - Service cho kiểm tra scope: `EnrollmentService.findActiveClassroomIds(childId, date)`, `GuardianChildLinkService.isGuardianOf(userId, childId)`, `findChildIdsOfGuardian(userId)`. Không gọi ngược `security/authorization`.
 - Query còn cần khi làm nghiệp vụ: `childrenInClass(classroomId, date)`, `allergySummary(campusId|classroomId)` (`guardiansOf`, `childrenOfGuardian` đã có).
 
+## Đã chốt, BE chưa làm (user chốt 2026-10-28)
+Nghiệp vụ tiếp nhận trẻ chốt theo danh sách lệch BE–FE của nhánh G94-180 (`FE:docs/integration/CHILD_ENROLLMENT_BE_GAPS.md`); FE đang chạy bằng BE giả, contract đề xuất ở `FE:src/services/children/api/childrenApi.js` (PROPOSED). **Plan làm BE (đặc tả đủ dữ liệu, quyền, API, lỗi): `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`.** Chưa có code, migration, API nào dưới đây:
+- Quyền (CHD-01, chốt D-1): thêm `CHILD_ENROLL`, `CHILD_PROFILE_EDIT`, `CHILD_PLACEMENT` (`docs/business/USER_ROLES.md`), HT cố định, PHT theo ma trận.
+- Quan hệ phụ huynh 6 loại cho hồ sơ lẫn liên kết, tối đa 3 phụ huynh mỗi trẻ (AUTH-18); hồ sơ luôn đủ thông tin, seed dev nhập đủ (CHD-08).
+- Theo năm học: danh sách trẻ theo lớp của năm đó (CHD-09); tiếp nhận/xếp lớp chỉ vào lớp năm đang hoạt động (CHD-10); đợt khám, phiếu theo dõi (HLT-07); đón trẻ (ATT-08).
+- Bỏ `POST /children/{childId}/guardians` (AUTH-20, C-4): phụ huynh nhập ở hồ sơ trẻ rồi kích hoạt.
+- Dữ liệu trẻ: mã trẻ, giới tính, điểm trường tiếp nhận cho trẻ chưa có lớp (CHD-02), trạng thái Đang học / Chờ xếp lớp / Đã nghỉ học, ngày tiếp nhận, ngày + lý do nghỉ (CHD-03); bảng hành chính (CHD-05); khai báo sức khỏe khi tiếp nhận (CHD-06).
+- Phụ huynh: thông tin phụ huynh trên hồ sơ trẻ trước khi có tài khoản (AUTH-20), CCCD phụ huynh làm khóa nhận diện (AUTH-18), sửa thông tin phụ huynh cập nhật tài khoản, đổi SĐT đổi tên đăng nhập (AUTH-21 — xem `docs/modules/identity-access.md`).
+- API: kiểm trùng hồ sơ (CHD-04), kiểm điều kiện phụ huynh trước khi lưu, `POST /children/enrollments` (+ `campusId`; tạo/liên kết tài khoản và gửi SMS cùng giao dịch, trả kết quả tài khoản từng phụ huynh — AUTH-20), nhập Excel xem trước + nhập (+ `campusId`, không tạo tài khoản), mở lại hồ sơ, cho nghỉ học, xếp/chuyển lớp (đóng enrollment cũ, mở enrollment mới), khai báo sức khỏe.
+- Thông báo tiếp xúc người bệnh lao (CHD-07) khi có module notification.
+
 ## PENDING
-P-17 (ai khai báo/xác nhận dị ứng).
+Không còn PENDING riêng của module. P-17 (CHD-06), P-18 (AUTH-20: người lưu không có quyền quản lý tài khoản phụ huynh vẫn lưu, phụ huynh chờ kích hoạt) đã đóng 2026-10-28.
 
 ## Known pitfalls
-- Danh sách trẻ cho PHT lọc theo enrollment **hôm nay**: trẻ chưa có lớp hoặc đã rời lớp không hiện với PHT (chỉ HT thấy mọi trẻ). Gỡ liên kết phụ huynh không xóa tài khoản.
+- Danh sách trẻ cho PHT lọc theo enrollment **hôm nay**: trẻ chưa có lớp hoặc đã rời lớp không hiện với PHT (chỉ HT thấy mọi trẻ). Lệch CHD-02 (2026-10-28): trẻ chờ xếp lớp phải hiện với PHT của điểm trường tiếp nhận — sửa khi làm tiếp nhận. Gỡ liên kết phụ huynh không xóa tài khoản.
 - Campus của trẻ suy từ Enrollment tại ngày cụ thể; trẻ chuyển lớp/campus giữa năm ⇒ dữ liệu lịch sử phải theo enrollment tại ngày đó.
 - DB chưa chặn enrollment chồng thời gian; khi viết API ghi enrollment phải kiểm ở service.
 - Dữ liệu trẻ là nhạy cảm: không đưa vào log/test fixture thật.

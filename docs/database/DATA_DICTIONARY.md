@@ -19,14 +19,15 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính, dùng làm `userId` trong CareNest | — |
 | keycloak_user_id | VARCHAR(36) | không | = claim `sub` của access token; UNIQUE | AUTH-07 |
-| username | VARCHAR(100) | không | Username Keycloak (không đổi được); UNIQUE | — |
-| email | VARCHAR(255) | có | Phụ huynh có thể không có email | — |
+| username | VARCHAR(100) | không | Username Keycloak (không đổi được); UNIQUE. Phụ huynh = SĐT chuẩn hóa; nhân sự không được là SĐT (AUTH-18) | — |
+| email | VARCHAR(255) | có | Nhân sự: email đăng nhập/khôi phục mật khẩu (có trên Keycloak). Phụ huynh: email liên hệ, có thể null, chỉ lưu ở đây (không gửi Keycloak, không dùng đăng nhập/khôi phục). Không UNIQUE: phụ huynh được trùng email nhân sự | AUTH-18 |
 | full_name | VARCHAR(150) | không | Họ tên đầy đủ (= `firstName` bên Keycloak) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
 | primary_role | VARCHAR(20) | có | Bản sao role Keycloak khi CareNest tạo tài khoản (V8); lọc danh sách + kiểm phạm vi quản lý nhân sự; quyền người gọi vẫn theo token. NULL = chưa rõ (chỉ Admin quản lý) | AUTH-15..17 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Không có cột mật khẩu: Keycloak quản lý. Role gốc ở Keycloak (`primary_role` chỉ là bản sao).
 Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`, `idx_user_accounts_primary_role`.
+Đã chốt 2026-10-28, chưa làm: AUTH-21 đổi tên đăng nhập phụ huynh khi đổi SĐT (cột `username` hiện "không đổi được" ⇒ BE thiết kế cách đổi), AUTH-18 lưu CCCD phụ huynh làm khóa nhận diện — `docs/modules/identity-access.md`.
 
 ## campuses  (module: school-structure, scope: CAMPUS)
 Mục đích: điểm trường của trường duy nhất (ADR-0002). Migration: `V2__create_school_structure.sql`.
@@ -101,7 +102,7 @@ Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/
 | id | BIGINT identity | không | Khóa chính | — |
 | user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh | AUTH-04 |
 | child_id | BIGINT FK children | không | | AUTH-04 |
-| relationship | VARCHAR(30) | không | `MOTHER` / `FATHER` / `GUARDIAN` / `OTHER` (CHECK `ck_guardian_child_links_relationship`, V9) | AUTH-18 |
+| relationship | VARCHAR(30) | không | `MOTHER` / `FATHER` / `GUARDIAN` / `OTHER` (CHECK `ck_guardian_child_links_relationship`, V9). Đã chốt 2026-10-28, chưa làm: thêm `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` (6 loại như hồ sơ trẻ), `OTHER` chỉ còn ở dữ liệu cũ | AUTH-18 |
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `uk_guardian_child_links_user_child`, `idx_guardian_child_links_child_id`.
 

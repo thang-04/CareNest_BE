@@ -27,7 +27,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | school-structure | StaffAssignment (userId, staffRole, campusId hoặc classroomId, validFrom, validTo) | — | Nguồn scope nhân sự; vai trò quyết định cột scope (PRINCIPAL: toàn trường, VP/bếp: campus, GV: lớp) |
 | child | Child, Enrollment (childId, classroomId, from, to) | CLASS | Campus suy từ classroom |
 | child | GuardianChildLink (childId, userId, relation) | CHILD | Nguồn scope phụ huynh |
-| child | ChildAllergy / basic info | CHILD | Nguồn khai báo PENDING P-17 |
+| child | ChildAllergy / basic info | CHILD | Người tiếp nhận khai báo, chốt (CHD-06); campus của trẻ chưa có lớp = điểm trường tiếp nhận (CHD-02) |
 | attendance | LeaveRequest (childId, from, to, status) | CHILD | Phụ huynh gửi, không duyệt: SUBMITTED → CANCELLED (ATT-05) |
 | attendance | AttendanceRecord (childId, date, status, arrivalTime?) | CLASS | 1 bản ghi/trẻ/ngày |
 | attendance | MealParticipation (childId, date, meal, participating) | CLASS | Nhập cùng điểm danh |
