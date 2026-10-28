@@ -18,7 +18,7 @@ Soạn và duyệt kế hoạch giáo dục theo mẫu MN Thái Dương, nối b
 Năm học, nhóm tuổi, lớp, phân công (school-structure); tài khoản/role (identity-access); kết quả đánh giá trẻ theo MT (learning-observation — chỉ đọc giáo án đã duyệt của module này).
 
 ## Rules (ID)
-EDU-01..23 (`docs/business/BUSINESS_RULES.md`), OBS-07, AI-*, AUTH-03. ADR-0017, ADR-0006, ADR-0003.
+EDU-01..24 (`docs/business/BUSINESS_RULES.md`), OBS-07, AI-*, AUTH-03. ADR-0017, ADR-0006, ADR-0003.
 
 ## Flows
 `docs/business/flows/education-plan.md`. Sequence mục tiêu năm học SD-01..SD-10: `huong_dan_nghiep_vu/sequence/muc_tieu_nam_hoc_sequence.drawio` (ngoài repo).
@@ -50,6 +50,8 @@ Không có câu hỏi nghiệp vụ mở. Còn lại: AI gợi ý (EDU-20), đ�
 - Hai chỗ comment FE lệch code, làm BE theo code: mock ghi chủ đề nhánh "Phó HT duyệt" nhưng chuỗi mặc định là Tổ trưởng → Phó HT; gợi ý người ký `week` ghi "mỗi tuần duyệt riêng" nhưng code duyệt cả hồ sơ chủ đề một lần (EDU-17).
 - Mã YCCĐ (TC1.1…) trong `educationPlanConstants.js` của FE chỉ còn để đọc dữ liệu cũ; không dùng cho dữ liệu mới (EDU-09).
 
+- Lấy mục tiêu giữ context cả sau normalize/mở lại: thêm sub đầu tiên vào lĩnh vực đích vốn không-sub có thể đổi cha goal cũ; xem [case](../knowledge/incidents/CASE-261028-year-plan-import-first-sub-reparent.md). Helper import mới đã có guard và regression round-trip.
+
 ## Related issues
 - [CASE-261027-activity-media-positional-identity](../knowledge/incidents/CASE-261027-activity-media-positional-identity.md): không ghép học liệu theo ID vị trí đơn lẻ.
 - [BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)
@@ -66,3 +68,7 @@ Mọi binary ảnh/video/slide/tệp lưu S3 private, metadata riêng trong edu_
 
 ## Mã lỗi (chuẩn ERROR_CONTRACT, merge daily-attendance 28/10/2026)
 Mọi lỗi của module ném `GlobalException.of(ApiCode.X)`; response có `errorCode` 4 số, Web/App phân biệt bằng mã, không so `desc`. Dải: 70xx kế hoạch năm (7006 `Đang được {0} sửa`, 7020 mất phiên sửa, 7021 revision cũ, 7022 chờ duyệt chỉ Phó HT sửa…), 71xx tài liệu lớp + học liệu (7115–7120), 72xx cấu hình; tệp/S3 dùng 80xx (8003 kho lỗi, 8004 loại tệp, 8005 quá cỡ, 8006–8013). Thiếu part multipart/header ⇒ 9003. Danh sách đầy đủ: `ApiCode.java`, `docs/contracts/ERROR_CONTRACT.md`.
+
+## Lấy mục tiêu từ kế hoạch có sẵn (user chốt 28/10/2026)
+
+EDU-24: giữ quyền nguồn EDU-06; chỉ Phó HT lấy khác nhóm tuổi, Tổ trưởng chỉ nhóm tuổi mình (có thể khác năm). Tích từng mục tiêu hoặc tất cả trong một nguồn; chỉ chép mục tiêu/nội dung, không chép chủ đề, đợt nghỉ, lịch hoặc dấu tích. Giữ dữ liệu đích, bản nguồn và luồng sửa ba bước. Source Web đã triển khai, 13/13 E2E thật đạt và T019/T021 hoàn tất: [feature003](../../specs/003-import-year-plan-goals/spec.md).

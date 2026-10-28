@@ -6,6 +6,8 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [ENV-261028-e2e-fixture-database-mismatch](incidents/ENV-261028-e2e-fixture-database-mismatch.md) | education-plan / E2E | Tạo kế hoạch 404 Không tìm thấy năm học sau đăng nhập thành công | Helper SQL mặc định carenest nhưng Backend dùng carenest_merge; đặt E2E_PG_DB đúng | fixed |
+| [CASE-261028-year-plan-import-first-sub-reparent](incidents/CASE-261028-year-plan-import-first-sub-reparent.md) | education-plan / lấy mục tiêu | Thêm sub đầu vào đích không-sub có thể đổi cha goal cũ sau normalize/mở lại | toRows/nestUnderFirstSub đưa sub đầu lên đầu; đã có guard và regression round-trip | fixed |
 | CASE-261027-activity-media-positional-identity | education-plan | Reorder hoạt động làm day pick cùng ID đổi nội dung | goalId#index theo vị trí; phải kiểm saved text và fingerprint khi ghép media | fixed |
 | BUG-261023-edu-theme-tick-lost-on-resave | education-plan | Lưu lại kế hoạch năm mất dấu tích chủ đề; test `themeIds` rỗng `Expecting actual: []` | Xóa tick bằng JPQL rồi `saveAll` → `merge` bỏ qua tick cùng khóa còn managed trong persistence context | fixed |
 | ENV-261013-docker-desktop-init-timeout | deployment/identity-access | FE localhost:5173 lên, API:8080/Keycloak:8180/PG:5432 không nghe; `docker start`/`docker pull` treo | ? Docker Desktop `starting`, init control API `/ping` timeout; nguyên nhân sâu chưa rõ | open |

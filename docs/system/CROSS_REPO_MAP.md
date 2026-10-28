@@ -55,3 +55,7 @@ Tự lưu mục tiêu năm (27/10/2026): các thao tác ghi goals yêu cầu ba 
 Web consumers: ClassThemePlanPage/ActivityResources gọi learning-resources list/upload/bind/detach/content; TeachingPresentationPage mở từ theme hoặc WeekPlanPage theo ngày. API base /education-plans/class-docs/theme/{docKey}/learning-resources, không đổi API cũ. Mobile chưa dùng API này. Tệp S3 private sau backend scope check; binary mock ở IndexedDB chỉ là demo. Xem [contract](../../specs/002-class-plan-teaching-media/contracts/learning-resources.md) và [S3 config](EDUCATION_MEDIA_S3.md).
 
 - Live S3 đã được kiểm từ BE StorageService theo cấu hình user chỉ định ngoài repo:4object bytes-roundtrip, anonymous-denied và dọn sạch. FE không cầm cloud credential. Native PDF viewer tùy trình duyệt; IAB chưa render được nên có hướng dẫn tải/fallback, không tuyên bố PDF inline smoke đạt.
+
+## Lấy mục tiêu kế hoạch năm từ nguồn khác (EDU-24, chốt 28/10/2026)
+
+Web: ImportGoalsModal, GoalFormPage, service đọc kế hoạch nguồn; giữ quyền EDU-06 và luồng sửa ba bước. Chỉ lấy mục tiêu/nội dung, không chép chủ đề/đợt nghỉ/dấu tích. Web đã triển khai list/detail nguồn bằng contract hiện có; không thêm endpoint/DTO. 13/13 E2E thật đã đạt, Mobile chưa thuộc phạm vi. Xem [đặc tả feature003](../../specs/003-import-year-plan-goals/spec.md).

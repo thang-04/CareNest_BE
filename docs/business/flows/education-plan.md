@@ -1,6 +1,6 @@
 # Flow — Kế hoạch giáo dục và giáo án
 
-Module: education-plan → learning-observation (đánh giá theo MT). Rule: EDU-01..23, OBS-07. `[B]` = ngoài hệ thống, `[S]` = hệ thống.
+Module: education-plan → learning-observation (đánh giá theo MT). Rule: EDU-01..24, OBS-07. `[B]` = ngoài hệ thống, `[S]` = hệ thống.
 Nguồn: UI CareNest_FE (Tiền chốt UI là chuẩn, 20/10, 22/10), mẫu MN Thái Dương, `huong_dan_nghiep_vu/phan_viec_cac_actor_giao_an.md`.
 
 Kế hoạch năm theo **nhóm tuổi**, áp dụng toàn trường. Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày theo **từng lớp**. Sợi dây xuyên suốt là **số MT 1..n** của kế hoạch năm:
@@ -33,6 +33,9 @@ Kế hoạch năm: nội dung của MT tích vào chủ đề
       Chờ duyệt: chỉ Phó HT sửa và cũng giữ quyền theo phiên, không đổi trạng thái chờ
       Web giữ ẩn bản chưa lưu trên máy để khôi phục khi mở lại; phải kiểm quyền/revision, không ghi đè bản mới
 [S] Tab Mục tiêu: lĩnh vực > lĩnh vực con > nhóm kết quả mong đợi > MT n > nội dung; tích nội dung vào chủ đề
+[S] Lấy từ kế hoạch có sẵn (EDU-24, yêu cầu đã chốt; chưa triển khai): chọn năm học/nhóm tuổi và một nguồn;
+      giữ quyền EDU-06 (chỉ Phó HT khác nhóm tuổi, Tổ trưởng chỉ nhóm tuổi mình), tích từng MT hoặc tất cả;
+      chỉ chép MT và nội dung, không chép chủ đề/đợt nghỉ/lịch/dấu tích, giữ dữ liệu đích; Lưu theo EDU-22
 [S] Tab Chủ đề và sự kiện: chủ đề (tên, viết tắt, lễ hội, từ ngày – đến ngày, ghi chú), đợt nghỉ;
       số tuần và danh sách MT của chủ đề hệ thống tự tính
 [S] Tổ trưởng gửi ⇒ Chờ Phó HT ban hành (khóa với Tổ trưởng)
