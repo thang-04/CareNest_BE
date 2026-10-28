@@ -900,8 +900,11 @@ components:
         relationship:
           type: string
           enum:
-          - MOTHER
           - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
           - GUARDIAN
           - OTHER
       required:
@@ -920,8 +923,11 @@ components:
         relationship:
           type: string
           enum:
-          - MOTHER
           - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
           - GUARDIAN
           - OTHER
         status:
@@ -1134,8 +1140,11 @@ components:
         relationship:
           type: string
           enum:
-          - MOTHER
           - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
           - GUARDIAN
           - OTHER
         status:
@@ -1200,6 +1209,9 @@ components:
             type: string
             enum:
             - CHILD_PROFILE_VIEW
+            - CHILD_ENROLL
+            - CHILD_PROFILE_EDIT
+            - CHILD_PLACEMENT
             - ACCOUNT_MANAGE
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
@@ -1244,6 +1256,9 @@ components:
           type: string
           enum:
           - CHILD_PROFILE_VIEW
+          - CHILD_ENROLL
+          - CHILD_PROFILE_EDIT
+          - CHILD_PLACEMENT
           - ACCOUNT_MANAGE
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
@@ -1378,6 +1393,9 @@ components:
           type: string
           enum:
           - CHILD_PROFILE_VIEW
+          - CHILD_ENROLL
+          - CHILD_PROFILE_EDIT
+          - CHILD_PLACEMENT
           - ACCOUNT_MANAGE
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
@@ -1398,6 +1416,9 @@ components:
           type: string
           enum:
           - CHILD_PROFILE_VIEW
+          - CHILD_ENROLL
+          - CHILD_PROFILE_EDIT
+          - CHILD_PLACEMENT
           - ACCOUNT_MANAGE
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
@@ -1727,6 +1748,9 @@ components:
             type: string
             enum:
             - CHILD_PROFILE_VIEW
+            - CHILD_ENROLL
+            - CHILD_PROFILE_EDIT
+            - CHILD_PLACEMENT
             - ACCOUNT_MANAGE
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
@@ -1740,6 +1764,9 @@ components:
             type: string
             enum:
             - CHILD_PROFILE_VIEW
+            - CHILD_ENROLL
+            - CHILD_PROFILE_EDIT
+            - CHILD_PLACEMENT
             - ACCOUNT_MANAGE
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
@@ -1849,6 +1876,9 @@ components:
             type: string
             enum:
             - CHILD_PROFILE_VIEW
+            - CHILD_ENROLL
+            - CHILD_PROFILE_EDIT
+            - CHILD_PLACEMENT
             - ACCOUNT_MANAGE
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
@@ -1870,6 +1900,9 @@ components:
             type: string
             enum:
             - CHILD_PROFILE_VIEW
+            - CHILD_ENROLL
+            - CHILD_PROFILE_EDIT
+            - CHILD_PLACEMENT
             - ACCOUNT_MANAGE
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
@@ -1881,6 +1914,9 @@ components:
             type: string
             enum:
             - CHILD_PROFILE_VIEW
+            - CHILD_ENROLL
+            - CHILD_PROFILE_EDIT
+            - CHILD_PLACEMENT
             - ACCOUNT_MANAGE
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE

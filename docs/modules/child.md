@@ -20,16 +20,16 @@ AUTH-04, AUTH-18, AUTH-20, AUTH-21, CHD-01..CHD-10, HLT-06, HLT-07, ATT-08, NUT-
 - **Không** đọc ngược health/learning (tránh cycle).
 
 ## API & bảng
-- Bảng: `children` (khung tối thiểu), `enrollments`, `guardian_child_links` (`V3__create_children.sql`, `docs/database/DATA_DICTIONARY.md`).
+- Bảng: `children`, `enrollments`, `guardian_child_links` (`V3__create_children.sql`); V10 (`V10__child_enrollment_guardian_accounts.sql`) thêm cột trẻ (mã, giới tính, trạng thái, điểm trường tiếp nhận, ngày tiếp nhận/nghỉ/mở lại), `child_code_sequences`, `child_profiles`, `child_guardians`, `child_health_declarations`, `child_allergies`, `child_health_declaration_history`, `child_history` — cột, ràng buộc: `docs/database/DATA_DICTIONARY.md`. Entity `Child` mới map cột V3; entity bảng V10 thêm theo từng phase của plan.
 - API: `GET /children/{childId}` (`ChildController` → `ChildService.getChildProfile`: `ChildAccessPolicy.checkCanViewChild` trước khi load; DTO `ChildProfileResponse` chỉ id, họ tên, ngày sinh, lớp hiện tại).
 - API phụ huynh (AUTH-18, AUTH-19; quyền `PARENT_ACCOUNT_MANAGE`, phạm vi `StaffAccessPolicy`): `GET /children` (`ChildService.searchChildren` — HT mọi trẻ, PHT trẻ đang học trong lớp thuộc campus mình), `GET|POST /children/{id}/guardians`, `DELETE /children/{id}/guardians/{userId}` (`GuardianController` → `GuardianAccountService` của feature account; ghi liên kết qua `GuardianChildLinkService.createLink/deleteLink`). Quan hệ: enum `GuardianRelationship` + CHECK V9.
 - Service cho kiểm tra scope: `EnrollmentService.findActiveClassroomIds(childId, date)`, `GuardianChildLinkService.isGuardianOf(userId, childId)`, `findChildIdsOfGuardian(userId)`. Không gọi ngược `security/authorization`.
 - Query còn cần khi làm nghiệp vụ: `childrenInClass(classroomId, date)`, `allergySummary(campusId|classroomId)` (`guardiansOf`, `childrenOfGuardian` đã có).
 
 ## Đã chốt, BE chưa làm (user chốt 2026-10-28)
-Nghiệp vụ tiếp nhận trẻ chốt theo danh sách lệch BE–FE của nhánh G94-180 (`FE:docs/integration/CHILD_ENROLLMENT_BE_GAPS.md`); FE đang chạy bằng BE giả, contract đề xuất ở `FE:src/services/children/api/childrenApi.js` (PROPOSED). **Plan làm BE (đặc tả đủ dữ liệu, quyền, API, lỗi): `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`.** Chưa có code, migration, API nào dưới đây:
-- Quyền (CHD-01, chốt D-1): thêm `CHILD_ENROLL`, `CHILD_PROFILE_EDIT`, `CHILD_PLACEMENT` (`docs/business/USER_ROLES.md`), HT cố định, PHT theo ma trận.
-- Quan hệ phụ huynh 6 loại cho hồ sơ lẫn liên kết, tối đa 3 phụ huynh mỗi trẻ (AUTH-18); hồ sơ luôn đủ thông tin, seed dev nhập đủ (CHD-08).
+Nghiệp vụ tiếp nhận trẻ chốt theo danh sách lệch BE–FE của nhánh G94-180 (`FE:docs/integration/CHILD_ENROLLMENT_BE_GAPS.md`); FE đang chạy bằng BE giả, contract đề xuất ở `FE:src/services/children/api/childrenApi.js` (PROPOSED). **Plan làm BE (đặc tả đủ dữ liệu, quyền, API, lỗi): `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`.**
+Đã làm (Phase 1, 2026-10-28): mã quyền `CHILD_ENROLL`, `CHILD_PROFILE_EDIT`, `CHILD_PLACEMENT` trong enum `Permission` + seed ma trận PHT (CHD-01); enum `GuardianRelationship` 6 loại, CHECK V10 (AUTH-18); migration V10 cho mọi bảng/cột dưới đây; seed dev nhập đủ thông tin (CHD-08). Chưa có entity, API nào dưới đây:
+- Quan hệ phụ huynh 6 loại cho hồ sơ lẫn liên kết, tối đa 3 phụ huynh mỗi trẻ (AUTH-18 — DB đã chặn); hồ sơ luôn đủ thông tin (CHD-08).
 - Theo năm học: danh sách trẻ theo lớp của năm đó (CHD-09); tiếp nhận/xếp lớp chỉ vào lớp năm đang hoạt động (CHD-10); đợt khám, phiếu theo dõi (HLT-07); đón trẻ (ATT-08).
 - Bỏ `POST /children/{childId}/guardians` (AUTH-20, C-4): phụ huynh nhập ở hồ sơ trẻ rồi kích hoạt.
 - Dữ liệu trẻ: mã trẻ, giới tính, điểm trường tiếp nhận cho trẻ chưa có lớp (CHD-02), trạng thái Đang học / Chờ xếp lớp / Đã nghỉ học, ngày tiếp nhận, ngày + lý do nghỉ (CHD-03); bảng hành chính (CHD-05); khai báo sức khỏe khi tiếp nhận (CHD-06).
@@ -43,7 +43,10 @@ Không còn PENDING riêng của module. P-17 (CHD-06), P-18 (AUTH-20: người 
 ## Known pitfalls
 - Danh sách trẻ cho PHT lọc theo enrollment **hôm nay**: trẻ chưa có lớp hoặc đã rời lớp không hiện với PHT (chỉ HT thấy mọi trẻ). Lệch CHD-02 (2026-10-28): trẻ chờ xếp lớp phải hiện với PHT của điểm trường tiếp nhận — sửa khi làm tiếp nhận. Gỡ liên kết phụ huynh không xóa tài khoản.
 - Campus của trẻ suy từ Enrollment tại ngày cụ thể; trẻ chuyển lớp/campus giữa năm ⇒ dữ liệu lịch sử phải theo enrollment tại ngày đó.
-- DB chưa chặn enrollment chồng thời gian; khi viết API ghi enrollment phải kiểm ở service.
+- DB chưa chặn enrollment chồng thời gian (V10 chỉ chặn 2 enrollment đang mở); khi viết API ghi enrollment phải kiểm ở service.
+- V10 có ràng buộc NOT VALID (`ck_children_complete`, `ck_child_guardians_citizen_id_required`): dòng có trước V10 được giữ, nhưng **mọi UPDATE** dòng đó phải nhập đủ (giới tính; CCCD phụ huynh) nếu không DB trả lỗi CHECK.
+- UNIQUE của `child_guardians` theo trẻ là DEFERRABLE INITIALLY DEFERRED: trùng SĐT/CCCD/vị trí chỉ lỗi lúc commit, không lỗi lúc flush ⇒ service phải tự kiểm (422/409 theo ô) trước khi lưu, DB chỉ là chốt chặn cuối.
+- Seed dev: `parent.a`, `parent.b` có tên đăng nhập kiểu cũ (không phải SĐT) nên SĐT của họ trên hồ sơ trẻ (`0900000006`, `0900000007`) khác tên đăng nhập; phụ huynh khác của trẻ demo chờ kích hoạt.
 - Dữ liệu trẻ là nhạy cảm: không đưa vào log/test fixture thật.
 
 ## Related issues

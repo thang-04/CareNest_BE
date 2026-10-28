@@ -1,6 +1,6 @@
 ---
 title: Tiếp nhận trẻ, phụ huynh trên hồ sơ, tài khoản phụ huynh (CCCD, SMS), dữ liệu theo năm học — việc BE
-status: draft        # user duyệt khi bắt đầu làm BE; còn câu hỏi mở D-3, D-7
+status: approved     # user duyệt 2026-10-28; D-3 thành việc kỹ thuật Phase 4, D-7 chốt A
 owner: carenestg94@gmail.com
 jira: G94-180 / BE-FEAT-43   # theo nhánh hiện tại; xác nhận task Jira khi commit
 branch: feature/G94-180-BE-FEAT-43-child-health-pickup
@@ -34,6 +34,7 @@ BE hiện có (`aa64480` + thay đổi chưa commit 28/10): bảng `children` (i
 12. D-4 A: một `GET /children` phân trang, trả đủ trường cho danh sách trẻ và màn Tài khoản phụ huynh — user, 2026-10-28.
 13. D-5a B: quan hệ 6 loại (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ) cho cả hồ sơ lẫn liên kết tài khoản; D-5b A: tối đa 3 phụ huynh mỗi trẻ, BE chặn; D-5c B: nhập đầy đủ thông tin trẻ, không có hồ sơ thiếu — user, 2026-10-28.
 14. D-6: đồng ý các giả định FE (Excel không sửa tài khoản; không đổi cùng lúc CCCD và SĐT; phụ huynh có tài khoản không xóa ở hồ sơ) — user, 2026-10-28.
+15. D-7 A: PHT chỉ làm trong campus được phân công (AUTH-02); "Hồ sơ trẻ" toàn trường chỉ HT có; không giao PHT phạm vi toàn trường — FE bỏ lựa chọn này ở màn giao quyền PHT (nhánh G94-179) — user, 2026-10-28.
 
 ## Làm rõ nghiệp vụ
 - **Hiểu nghiệp vụ:** actor HT (toàn trường, cố định), PHT (theo ma trận quyền, trong campus mình), GV (xem trẻ lớp mình) · outcome: BE thay BE giả của FE cho tiếp nhận trẻ, phụ huynh, tài khoản phụ huynh, lọc theo năm học · rule: như frontmatter (CONFIRMED).
@@ -43,16 +44,17 @@ BE hiện có (`aa64480` + thay đổi chưa commit 28/10): bảng `children` (i
 Chi tiết, khuyến nghị: mục 7 của Đặc tả.
 - [x] D-1 — Mã quyền ⇒ A (quyết định 10).
 - [x] D-2 — Nhà cung cấp SMS ⇒ A, cổng SMS giả trước (quyết định 11).
-- [ ] D-3 — Đổi username Keycloak khi đổi SĐT: thử "Edit username" trên bản Keycloak đang dùng (kỹ thuật, mục 6.3); không làm được thì báo user.
+- [x] D-3 — Đổi username Keycloak khi đổi SĐT ⇒ không phải câu hỏi nghiệp vụ; chuyển thành việc kỹ thuật ở Phase 4 (user duyệt plan 2026-10-28).
 - [x] D-4 — `GET /children` ⇒ A (quyết định 12).
 - [x] D-5 — a B, b A, c B (quyết định 13).
 - [x] D-6 — Đồng ý (quyết định 14).
-- [ ] D-7 — PHT được giao "Hồ sơ trẻ" toàn trường (FE, nhánh G94-179) so với AUTH-02 (PHT theo campus được phân công): thống nhất khi làm ma trận quyền.
+- [x] D-7 — PHT được giao "Hồ sơ trẻ" toàn trường? ⇒ A: không, PHT chỉ trong campus được phân công (quyết định 15).
 
 | Câu hỏi | Trả lời | Ai | Ngày | Rule/doc đã cập nhật |
 | --- | --- | --- | --- | --- |
 | C-1..C-7 | Như "Quyết định đã chốt" | user | 2026-10-28 | plan này, `FE:docs/integration/CHILD_ENROLLMENT_BE_SPEC.md` |
 | D-1, D-2, D-4, D-5, D-6 | Như quyết định 10–14 | user | 2026-10-28 | plan này, `FE:docs/integration/CHILD_ENROLLMENT_BE_SPEC.md` mục 2, 3, 6, 7 |
+| D-7 | A (quyết định 15); D-3 thành việc Phase 4 | user | 2026-10-28 | plan này, `docs/business/USER_ROLES.md`, `docs/business/BUSINESS_RULES.md` AUTH-02 |
 
 ## Acceptance criteria
 - **AC-1** (CHD-01..CHD-07, AUTH-18..AUTH-21): mỗi endpoint ở mục 4 của Đặc tả trả đúng dữ liệu, quyền, lỗi như BE giả FE; ca kiểm thử `FE:tests/children/*.test.mjs` là ví dụ nghiệm thu, viết lại thành test BE (`@DisplayName("RULE-ID: …")`).
@@ -66,18 +68,26 @@ Chi tiết, khuyến nghị: mục 7 của Đặc tả.
 | Điểm trường của trẻ chưa có lớp | Lưu `children.intake_campus_id` | Chỉ suy từ enrollment | L-03 A, CHD-02 |
 | Phụ huynh trên hồ sơ trước khi có tài khoản | Bảng `child_guardians`, `guardian_child_links` vẫn là nguồn scope | Tạo tài khoản ngay | AUTH-20 |
 | Lớp của trẻ theo năm học | Lấy từ `enrollments` | Lưu năm trên hồ sơ | CMR-04 |
+| Cột bắt buộc khi đã có dòng cũ (`children.gender`, `child_guardians.citizen_id`) | CHECK `NOT VALID` (áp cho dòng thêm/sửa) | NOT NULL thẳng (migration lỗi trên DB dev cũ), cột null + chỉ kiểm ở service | Không làm hỏng DB dev/demo cũ; dòng mới vẫn bị DB chặn (CHD-08, mục 3.9) |
+| Cấp mã trẻ | Bảng `child_code_sequences` + upsert trong giao dịch | `max(code)+1`, advisory lock | Không trùng mã khi lưu đồng thời, không cần khóa thêm |
+| Thông tin phụ huynh trùng trong một trẻ | UNIQUE DEFERRABLE INITIALLY DEFERRED | UNIQUE thường | Sửa hồ sơ đổi SĐT/CCCD giữa hai phụ huynh trong một lần lưu |
+| Lịch sử thay đổi (`changes`, `allergy_change`, `history_change`) | JSONB (Hibernate 7.4 có `Jackson3JsonFormatMapper`) | Bảng con từng ô | Dữ liệu chỉ ghi/đọc theo trẻ, không truy vấn bên trong |
+| Dị ứng | Bảng `child_allergies` | JSON trong khai báo | Bếp, điểm danh truy vấn theo lớp/campus |
 Chi tiết dữ liệu: mục 3 của Đặc tả. Quyết định kiến trúc mới (vd. outbox SMS) ⇒ ADR.
 
 ## Phases
 Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `node scripts/verify.mjs` → `VERIFY PASS full`, skip 0; **dừng chờ user review**.
 ### Phase 1 — Quyền và migration
 - Mục 2, 3 của Đặc tả: 3 mã quyền mới (D-1), CHECK quan hệ 6 mã (D-5a), cột bắt buộc NOT NULL và seed dev đủ thông tin (D-5c).
+- Files: `utils/enums/Permission.java`, `utils/enums/GuardianRelationship.java`, `db/migration/V10__child_enrollment_guardian_accounts.sql`, `db/dev/R__dev_seed.sql`, `docs/api/openapi.yaml` (snapshot: thêm giá trị enum); test `PermissionTest`, `CurrentUserServiceTest`, `ScopeQueryIntegrationTest`, `GuardianDirectoryIntegrationTest`, `ChildEnrollmentMigrationIntegrationTest` (mới); docs `DATA_DICTIONARY.md`, `ERD.md`, `USER_ROLES.md`, thẻ module child, identity-access.
+- Exit: `node scripts/verify.mjs` → `VERIFY PASS full`, skip 0 (Progress log 2026-10-28 — Phase 1).
 ### Phase 2 — Tra cứu không ghi
 - `duplicate-check`, `guardian-check`, `parent-accounts/by-citizen-id`, `placement-classes`.
 ### Phase 3 — Tiếp nhận bằng form
 - `POST /children/enrollments`: trước chưa có tài khoản, sau thêm tạo/liên kết tài khoản + SMS (mục 5.3, 6.1, 6.3).
 ### Phase 4 — Sửa hồ sơ
-- `PUT /children/{id}`, sửa tài khoản theo hồ sơ, đổi SĐT đổi username (mục 5.4, D-3).
+- `PUT /children/{id}`, sửa tài khoản theo hồ sơ, đổi SĐT đổi username (mục 5.4).
+- Việc kỹ thuật (từ D-3): bật/thử "Edit username" (`editUsernameAllowed`) trên bản Keycloak đang dùng, đổi username qua Admin API, mật khẩu tạm mới, hủy phiên, trả lại username cũ khi lỗi (mục 6.3). Không làm được ⇒ dừng, báo user chọn cách khác (vd. tạo tài khoản mới, chuyển liên kết).
 ### Phase 5 — Nhập Excel
 - Xem trước, nhập (mục 4.3).
 ### Phase 6 — Xếp lớp, cho nghỉ học, mở lại hồ sơ
@@ -94,7 +104,9 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 ## Test matrix
 | AC | Rule | Test (tầng) | Phase | Kết quả |
 | --- | --- | --- | --- | --- |
-| AC-1..AC-4 | như trên | ghi khi làm từng phase | 1–10 | chưa làm |
+| AC-1 (quyền) | CHD-01 | `PermissionTest.childEnrollmentPermissionsArePrincipalFixedAndVicePrincipalConfigurable`, `PermissionSchemaIntegrationTest.seedMatchesEnumDefaults` (seed V10), `CurrentUserServiceTest` (unit + DB) | 1 | pass |
+| AC-1 (dữ liệu) | AUTH-18, CHD-02, CHD-03, CHD-05, CHD-06, CHD-08 | `ChildEnrollmentMigrationIntegrationTest` (nâng cấp dữ liệu cũ mục 3.9; quan hệ 6 loại; ≤3 phụ huynh, không chung SĐT/CCCD; ngày nghỉ; hồ sơ đủ; 1 enrollment đang mở; tuần thai; "Có" có nội dung; CCCD tài khoản duy nhất) — PostgreSQL thật | 1 | pass |
+| AC-1..AC-4 (API) | như trên | ghi khi làm từng phase | 2–10 | chưa làm |
 
 ## Rủi ro & rollback
 | Rủi ro | Tác động | Giảm thiểu | Rollback |
@@ -118,6 +130,17 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 
 ### 2026-10-28 — Ghi quyết định vào sổ rule BE
 - User: "FE chưa làm, làm BE trước và commit lên git để tôi code BE". `docs/business/BUSINESS_RULES.md`: AUTH-18 (6 loại quan hệ, tối đa 3 phụ huynh), AUTH-20 (bỏ `POST /children/{childId}/guardians`), CHD-01 (mã quyền), thêm CHD-08 (hồ sơ đủ thông tin), CHD-09 (danh sách trẻ theo năm), CHD-10 (xếp lớp năm đang hoạt động; tài khoản phụ huynh không theo năm), HLT-07 (đợt khám, phiếu theo dõi theo năm), ATT-08 (đón trẻ theo năm). `docs/business/USER_ROLES.md` (3 mã `CHILD_*`), `docs/database/DATA_DICTIONARY.md` (6 mã quan hệ), thẻ module child, identity-access, health, attendance, `docs/context/CURRENT_STATE.md`; ghi chú plan `2026-10-18-parent-account-auto-provisioning.md` đã bị thay một phần.
+
+### 2026-10-28 — User duyệt plan
+- D-7 A (quyết định 15): PHT chỉ trong campus được phân công; ghi `docs/business/USER_ROLES.md`, `docs/business/BUSINESS_RULES.md` AUTH-02. D-3 chuyển thành việc kỹ thuật Phase 4. Status `approved`; bắt đầu Phase 1.
+
+### 2026-10-28 — Phase 1 (quyền, migration V10, seed dev)
+- User: "hãy code BE theo FE hiện tại" ⇒ làm theo plan đã duyệt, bắt đầu Phase 1. Files, Exit: mục Phase 1. Commit: chưa commit.
+- Quyết định kỹ thuật (Key decisions): CHECK `NOT VALID` cho cột bắt buộc khi đã có dòng cũ; `child_code_sequences`; UNIQUE DEFERRABLE ở `child_guardians`; JSONB cho lịch sử; bảng `child_allergies`; partial unique 1 enrollment đang mở.
+- Giả định (user soát): dòng `children.status` lưu (không suy mỗi lần đọc), dịch vụ giữ đồng bộ với enrollment; `intake_campus_id` chỉ bắt buộc khi Chờ xếp lớp; `OTHER` vẫn nhận ở `child_guardians` cho dữ liệu chuyển từ liên kết cũ; liên kết cũ có tên đăng nhập không phải SĐT không chuyển sang `child_guardians` (chỉ có ở seed dev — seed tự ghi); `parent_sms_logs` chỉ `SENT`/`FAILED` (outbox, nếu cần, quyết ở Phase 3 kèm ADR); `POST /children/{id}/guardians` vẫn nhận `OTHER` tới khi bỏ ở Phase 8.
+- Seed dev: 4 trẻ đủ giới tính, hành chính, khai báo (có trẻ dị ứng, trẻ khai tiếp xúc lao, trẻ chờ xếp lớp ở CS-A), phụ huynh có CCCD giả `999…`; `parent.a`, `parent.b` có CCCD trên tài khoản. DB dev cũ: V10 sinh mã/trạng thái, seed bổ sung giới tính — không cần tạo lại DB.
+- **Chặn Phase 2 — cần user chọn:** BE chưa có dữ liệu school-structure mà mục 4.1, 4.4, 9 cần: sĩ số lớp (`capacity`), lớp ngừng hoạt động, điểm trường ngừng hoạt động, năm học đang hoạt động (bảng `school_years` chỉ có tên, ngày bắt đầu/kết thúc). FE có ở BE giả school-config (`classes.capacity`, `classes.status`, `campuses.status`, `schoolYears.status`).
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 325 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; `node scripts/check-ai-layer.mjs` 0 lỗi. Seed dev thử bằng psql trên PostgreSQL 17 tạm (test không chạy profile dev): DB mới (V1–V10 + seed, chạy seed 2 lần) và DB dev cũ (V1–V9 + seed cũ, rồi V10 + seed mới) đều chạy được, ra cùng dữ liệu (4 trẻ, 5 phụ huynh có CCCD, 4 hành chính, 4 khai báo); mã trẻ demo ở DB cũ theo thứ tự id cũ.
 
 ## Đặc tả (chép từ FE ngày 28/10/2026)
 
@@ -365,8 +388,8 @@ Câu trung tính, không chẩn đoán (CHD-07). Đường dẫn: hồ sơ trẻ
 - Đổi tên đăng nhập (AUTH-21): realm cần cho đổi username (Keycloak "Edit username", `editUsernameAllowed`) để Admin API đổi `username`; sau đó đặt mật khẩu tạm mới, hủy phiên, cập nhật `user_accounts.username`; lỗi giữa chừng thì trả lại username cũ. BE cần thử trên bản Keycloak đang dùng.
 
 ### 7. Điểm cần thống nhất và kết quả chốt
-Chốt 28/10/2026: C-5 (mục 2), D-1 (mục 1), D-2 (mục 4), D-4 (mục 5), D-5 (mục 6–8), D-6 (mục 9). Còn mở: mục 3 (việc kỹ thuật) và phần "toàn trường" của mục 1.
-1. **Mã quyền — đã chốt (D-1 A).** Bảng ở mục 2. Còn mở: FE cho HT giao PHT "Hồ sơ trẻ" phạm vi toàn trường (nhánh G94-179) trong khi AUTH-02 ghi PHT theo campus được phân công ⇒ thống nhất khi làm ma trận quyền.
+Chốt 28/10/2026: C-5 (mục 2), D-1, D-7 (mục 1), D-2 (mục 4), D-4 (mục 5), D-5 (mục 6–8), D-6 (mục 9). Mục 3 là việc kỹ thuật (Phase 4 của plan BE).
+1. **Mã quyền — đã chốt (D-1 A).** Bảng ở mục 2. **Phạm vi PHT — đã chốt (D-7 A):** PHT chỉ trong campus được phân công (AUTH-02), "Hồ sơ trẻ" toàn trường chỉ HT có. FE còn phải bỏ lựa chọn "toàn trường" khi HT giao "Hồ sơ trẻ" cho PHT (màn Phân công Phó hiệu trưởng, nhánh G94-179) — làm khi nối API.
 2. **Lỗi theo ô — đã chốt 28/10 (C-5 A).** BE: 400 + `data` danh sách `{ field, message }` (`docs/contracts/ERROR_CONTRACT.md`, không có 422). FE (13 file BE giả, các trang tiếp nhận): 422 + `details` map; trang tiếp nhận chỉ đọc lỗi ô khi 422/409. Chốt: BE giữ 400, `field` theo đường dẫn ô ở mục 4 (không tiền tố `child.`, chỉ số dạng `guardians.0.phone`), 409 trùng cũng trả danh sách; FE đổi danh sách thành map ở `axiosClient` và coi 400 như 422 (`FE:docs/knowledge/KNOWN_ISSUES.md` FE-KI-003).
 3. **Đổi tên đăng nhập Keycloak** (mục 6.3) — việc kỹ thuật, BE thử khi làm; không làm được thì báo user chọn cách khác.
 4. **Nhà cung cấp SMS — đã chốt (D-2 A):** cổng SMS giả trước, chọn nhà cung cấp trước khi dùng thật (mục 6.1).

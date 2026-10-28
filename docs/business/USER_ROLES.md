@@ -35,10 +35,10 @@ Danh mục chính thức là enum `utils/enums/Permission`; BE kiểm bằng `@p
 | `STAFF_ASSIGNMENT_MANAGE` (phân công) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; chỉ GV/bếp campus mình — AUTH-16) |
 | `PARENT_ACCOUNT_MANAGE` (tài khoản phụ huynh gắn trẻ, khóa/mở, mật khẩu tạm) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; chỉ trẻ đang học trong campus mình — AUTH-18, AUTH-19) |
 | `PERMISSION_MANAGE` | PRINCIPAL | không giao được (AUTH-11) |
-| `CHILD_ENROLL` (tiếp nhận form, nhập Excel, mở lại hồ sơ) — **chốt 2026-10-28, chưa có trong enum** | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; campus mình — CHD-01) |
-| `CHILD_PROFILE_EDIT` (sửa hồ sơ, khai báo sức khỏe) — **chốt 2026-10-28, chưa có trong enum** | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; trẻ campus mình — CHD-02) |
-| `CHILD_PLACEMENT` (xếp/chuyển lớp, cho nghỉ học) — **chốt 2026-10-28, chưa có trong enum** | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; campus mình — CHD-01) |
+| `CHILD_ENROLL` (tiếp nhận form, nhập Excel, mở lại hồ sơ) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; campus mình — CHD-01) |
+| `CHILD_PROFILE_EDIT` (sửa hồ sơ, khai báo sức khỏe) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; trẻ campus mình — CHD-02) |
+| `CHILD_PLACEMENT` (xếp/chuyển lớp, cho nghỉ học) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; campus mình — CHD-01) |
 
-Ba mã `CHILD_*` chốt ngày 28/10 (D-1 A, plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`). FE giao PHT mảng "Hồ sơ trẻ" theo Thêm/Sửa: Thêm = `CHILD_ENROLL`; Sửa = `CHILD_PROFILE_EDIT` + `CHILD_PLACEMENT` + `PARENT_ACCOUNT_MANAGE`. Còn mở: FE cho giao PHT phạm vi toàn trường, khác AUTH-02 — thống nhất khi làm ma trận (plan, câu hỏi D-7).
+Ba mã `CHILD_*` chốt ngày 28/10 (D-1 A, plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`); có trong enum và seed ma trận PHT từ V10, API dùng các mã này làm theo các phase sau của plan. FE giao PHT mảng "Hồ sơ trẻ" theo Thêm/Sửa: Thêm = `CHILD_ENROLL`; Sửa = `CHILD_PROFILE_EDIT` + `CHILD_PLACEMENT` + `PARENT_ACCOUNT_MANAGE`. Phạm vi chốt 2026-10-28 (D-7 A): PHT chỉ trong campus được phân công (AUTH-02); không giao PHT phạm vi toàn trường — FE bỏ lựa chọn này ở màn giao quyền PHT.
 
 Định hướng cho module chưa làm (mỗi module tự thêm quyền khi có API): `attendance:record` · `leave:create` · `meal-count:confirm` · `menu:approve` · `food-master:manage` · `health:record` · `health-interpretation:approve` · `observation:record` · `summary:approve` · `facility-issue:report` · `facility-issue:manage` · `report:view` · `admin:accounts`. Hành động có người thực hiện PENDING (meal-count:confirm, health:record) ⇒ để cấu hình được, không hard-code.

@@ -11,7 +11,7 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
 | AUTH-01 | Principal có scope toàn trường (mọi campus) | CONFIRMED | Khảo sát |
-| AUTH-02 | Vice Principal có scope theo campus được phân công qua StaffAssignment, không gắn cứng role→campus | CONFIRMED (hướng); cố định hay luân phiên: PENDING P-14 | Khảo sát |
+| AUTH-02 | Vice Principal có scope theo campus được phân công qua StaffAssignment, không gắn cứng role→campus. Không giao PHT phạm vi toàn trường (kể cả hồ sơ trẻ — chỉ HT toàn trường) | CONFIRMED (hướng); cố định hay luân phiên: PENDING P-14 | Khảo sát; user chốt 2026-10-28 (D-7 A: không giao PHT toàn trường) |
 | AUTH-03 | Teacher chỉ truy cập lớp được phân công | CONFIRMED | Report 1 |
 | AUTH-04 | Parent chỉ truy cập trẻ có GuardianChildLink với mình, và chỉ dữ liệu được phép hiển thị cho phụ huynh | CONFIRMED | Report 1 |
 | AUTH-05 | Kitchen Staff truy cập dữ liệu bếp (suất đã chốt, thực đơn, định lượng) của campus liên quan; không xem hồ sơ trẻ ngoài thông tin dị ứng cần cho nấu | CONFIRMED (hướng); phạm vi bếp PENDING P-06 | Khảo sát |

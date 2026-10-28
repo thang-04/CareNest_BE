@@ -24,10 +24,11 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | full_name | VARCHAR(150) | không | Họ tên đầy đủ (= `firstName` bên Keycloak) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
 | primary_role | VARCHAR(20) | có | Bản sao role Keycloak khi CareNest tạo tài khoản (V8); lọc danh sách + kiểm phạm vi quản lý nhân sự; quyền người gọi vẫn theo token. NULL = chưa rõ (chỉ Admin quản lý) | AUTH-15..17 |
+| citizen_id | VARCHAR(12) | có | CCCD phụ huynh, khóa nhận diện phụ huynh; UNIQUE, CHECK 12 chữ số (V10). Nhân sự NULL; tài khoản phụ huynh cũ bổ sung khi hồ sơ trẻ ghi CCCD | AUTH-18 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Không có cột mật khẩu: Keycloak quản lý. Role gốc ở Keycloak (`primary_role` chỉ là bản sao).
-Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`, `idx_user_accounts_primary_role`.
-Đã chốt 2026-10-28, chưa làm: AUTH-21 đổi tên đăng nhập phụ huynh khi đổi SĐT (cột `username` hiện "không đổi được" ⇒ BE thiết kế cách đổi), AUTH-18 lưu CCCD phụ huynh làm khóa nhận diện — `docs/modules/identity-access.md`.
+Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`, `uk_user_accounts_citizen_id`, `idx_user_accounts_primary_role`.
+Đã chốt 2026-10-28, chưa làm: AUTH-21 đổi tên đăng nhập phụ huynh khi đổi SĐT (cột `username` hiện "không đổi được" ⇒ BE thiết kế cách đổi, Phase 4 của plan `2026-10-28-child-enrollment-guardian-accounts`) — `docs/modules/identity-access.md`.
 
 ## campuses  (module: school-structure, scope: CAMPUS)
 Mục đích: điểm trường của trường duy nhất (ADR-0002). Migration: `V2__create_school_structure.sql`.
@@ -74,13 +75,30 @@ Ràng buộc: `ck_staff_assignments_scope` (đúng cột scope theo vai trò), `
 Index: `user_id`, `campus_id`, `classroom_id`.
 
 ## children  (module: child, scope: CHILD)
-Mục đích: hồ sơ gốc của trẻ (khung tối thiểu; cột nghiệp vụ thêm sau). Migration: `V3__create_children.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
+Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, `V10__child_enrollment_guardian_accounts.sql`. Dữ liệu nhạy cảm — không log họ tên/ngày sinh.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| full_name | VARCHAR(150) | không | Họ tên | — |
+| code | VARCHAR(20) | không | Mã trẻ `HS` + 2 số cuối năm tiếp nhận + số thứ tự trong năm (≥3 chữ số, vd. `HS26001`); UNIQUE; số thứ tự lấy từ `child_code_sequences` | — |
+| full_name | VARCHAR(150) | không | Họ tên (API nhận ≤100) | — |
 | date_of_birth | DATE | không | Ngày sinh | — |
+| gender | VARCHAR(10) | có (xem dưới) | `MALE` / `FEMALE`; bắt buộc với hồ sơ mới/sửa | CHD-08 |
+| status | VARCHAR(20) | không | `ACTIVE` (đang học) / `PENDING_PLACEMENT` (chờ xếp lớp) / `LEFT` (đã nghỉ học) | CHD-03 |
+| intake_campus_id | BIGINT FK campuses | có | Điểm trường của trẻ chưa có lớp (bắt buộc khi `PENDING_PLACEMENT`); có lớp thì điểm trường theo lớp (enrollment) | CHD-02 |
+| enrolled_on | DATE | không | Ngày tiếp nhận | — |
+| left_on, left_reason | DATE, VARCHAR(300) | có | Ngày, lý do nghỉ học; có đúng khi `LEFT`, mở lại hồ sơ xóa cả hai; `left_on ≥ enrolled_on` | CHD-03 |
+| readmitted_on | DATE | có | Ngày mở lại hồ sơ gần nhất | CHD-03 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
+Ràng buộc: `ck_children_status`, `ck_children_gender`, `ck_children_left`, `ck_children_left_on`; `ck_children_complete` (có giới tính, chờ xếp lớp thì có điểm trường) là **NOT VALID**: áp cho mọi dòng thêm/sửa, không kiểm trẻ có trước V10 (chỉ dữ liệu demo — trẻ đó phải nhập đủ khi sửa hồ sơ). V10 sinh `code`, `status`, `enrolled_on`, `intake_campus_id` cho trẻ có sẵn (plan mục 3.9).
+FE đọc `campusId` của trẻ = điểm trường theo lớp nếu có lớp, không thì `intake_campus_id`.
+Index: `uk_children_code`, `idx_children_intake_campus_id`, `idx_children_date_of_birth` (kiểm trùng hồ sơ — CHD-04).
+
+## child_code_sequences  (module: child, scope: SCHOOL)
+Mục đích: số thứ tự mã trẻ theo năm; giao dịch tiếp nhận tăng bằng upsert nên nhiều người lưu cùng lúc không cấp trùng mã. Migration: V10.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| code_prefix | VARCHAR(10) PK | không | `HS` + 2 số cuối năm, vd. `HS26` | — |
+| last_number | INTEGER | không | Số thứ tự đã cấp gần nhất; CHECK > 0 | — |
 
 ## enrollments  (module: child, scope: CLASS)
 Mục đích: trẻ học lớp nào theo thời gian; campus của trẻ suy từ lớp tại ngày cần xét. Migration: V3.
@@ -91,20 +109,116 @@ Mục đích: trẻ học lớp nào theo thời gian; campus của trẻ suy t�
 | classroom_id | BIGINT FK classrooms | không | | — |
 | valid_from | DATE | không | Tính cả ngày này | — |
 | valid_to | DATE | có | Tính cả ngày này; NULL = đang học | — |
+| reason | VARCHAR(300) | có | Lý do chuyển lớp (bắt buộc khi chuyển, V10) | — |
+| created_by | BIGINT FK user_accounts | có | Người xếp/chuyển lớp (V10); NULL ở dữ liệu cũ | — |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Chưa có ràng buộc DB chống enrollment chồng thời gian — service phải kiểm khi làm module child.
-Index: `child_id`, `classroom_id`.
+Xếp lớp mở enrollment mới; chuyển lớp đóng enrollment đang mở rồi mở enrollment mới. `uk_enrollments_child_open` (V10, partial unique `valid_to IS NULL`): mỗi trẻ tối đa 1 enrollment đang mở; chồng thời gian giữa các enrollment đã đóng vẫn do service kiểm.
+Index: `child_id`, `classroom_id`, `uk_enrollments_child_open`.
 
 ## guardian_child_links  (module: child, scope: CHILD)
-Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/gỡ qua `/children/{id}/guardians` (AUTH-18, AUTH-19). Migration: V3, V9 (CHECK quan hệ).
+Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/gỡ qua `/children/{id}/guardians` (AUTH-18, AUTH-19). Migration: V3, V9 (CHECK quan hệ), V10 (6 loại).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh | AUTH-04 |
 | child_id | BIGINT FK children | không | | AUTH-04 |
-| relationship | VARCHAR(30) | không | `MOTHER` / `FATHER` / `GUARDIAN` / `OTHER` (CHECK `ck_guardian_child_links_relationship`, V9). Đã chốt 2026-10-28, chưa làm: thêm `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` (6 loại như hồ sơ trẻ), `OTHER` chỉ còn ở dữ liệu cũ | AUTH-18 |
+| relationship | VARCHAR(30) | không | `FATHER` / `MOTHER` / `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` / `GUARDIAN` (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ — như hồ sơ trẻ); `OTHER` chỉ còn ở dữ liệu trước V10 (CHECK `ck_guardian_child_links_relationship`) | AUTH-18 |
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `uk_guardian_child_links_user_child`, `idx_guardian_child_links_child_id`.
+
+## child_profiles  (module: child, scope: CHILD)
+Mục đích: hành chính của trẻ, 1–1 với `children`; phiếu khám sức khỏe đọc từ đây; danh sách trẻ không trả phần này. Migration: V10. Dữ liệu nhạy cảm (CHD-05).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id | BIGINT PK, FK children | không | | — |
+| id_number | VARCHAR(20) | có | CCCD/mã định danh 12 số hoặc hộ chiếu 6–12 chữ và số (API kiểm định dạng) | CHD-05 |
+| premature | VARCHAR(3) | không | `YES` / `NO` — sinh non | CHD-05 |
+| gestation_weeks | SMALLINT | có | 20–42; bắt buộc khi `premature = YES` (CHECK) | CHD-05 |
+| ethnicity, beneficiary | VARCHAR(100) | không | Dân tộc, đối tượng | CHD-05 |
+| payment_source | VARCHAR(20) | không | Luôn `BHYT` (DEFAULT + CHECK), không nhập | CHD-05 |
+| blood_type | VARCHAR(100) | có | Nhóm máu | CHD-05 |
+| address_province, address_ward | VARCHAR(100) | không | Tỉnh/thành, phường/xã nơi ở | CHD-05 |
+| address_street | VARCHAR(300) | không | Số nhà/thôn/xóm | CHD-05 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+
+## child_guardians  (module: child, scope: CHILD)
+Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20); nguồn scope của phụ huynh vẫn là `guardian_child_links`. Migration: V10.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | | — |
+| position | SMALLINT | không | Thứ tự nhập 0–2 ⇒ tối đa 3 phụ huynh mỗi trẻ (CHECK + UNIQUE cùng `child_id`) | AUTH-18 |
+| full_name | VARCHAR(150) | không | | — |
+| relationship | VARCHAR(30) | không | 6 mã như `guardian_child_links`; `OTHER` chỉ ở dữ liệu chuyển từ liên kết cũ | AUTH-18 |
+| phone | VARCHAR(10) | không | SĐT chuẩn hóa 10 số bắt đầu 0 (CHECK) = tên đăng nhập tài khoản phụ huynh | AUTH-18 |
+| citizen_id | VARCHAR(12) | có (xem dưới) | CCCD 12 chữ số, khóa nhận diện phụ huynh | AUTH-18 |
+| email | VARCHAR(255) | có | Email liên hệ, chữ thường | AUTH-18 |
+| user_id | BIGINT FK user_accounts | có | Tài khoản đã kích hoạt cho trẻ này; NULL = chưa kích hoạt | AUTH-20 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Ràng buộc: UNIQUE (`child_id`, `position`), (`child_id`, `phone`), (`child_id`, `citizen_id`) dạng DEFERRABLE INITIALLY DEFERRED (Sửa hồ sơ đổi thông tin giữa hai phụ huynh trong một lần lưu); UNIQUE (`child_id`, `user_id`). `ck_child_guardians_citizen_id_required` **NOT VALID**: dòng thêm/sửa phải có CCCD; dòng V10 chuyển từ liên kết cũ chưa có CCCD (nhập bổ sung). V10 chuyển mỗi liên kết có sẵn có tên đăng nhập là SĐT thành 1 dòng (tối đa 3 mỗi trẻ).
+`accountStatus` trả FE: `NOT_ACTIVATED` khi chưa có `guardian_child_links` với trẻ; có thì `user_accounts.status`.
+Index: `idx_child_guardians_phone`, `idx_child_guardians_citizen_id`, `idx_child_guardians_user_id` (kiểm một người một tài khoản trên mọi hồ sơ — AUTH-18).
+
+## child_health_declarations  (module: child, scope: CHILD)
+Mục đích: khai báo sức khỏe khi tiếp nhận, 1–1 với trẻ; dị ứng có hiệu lực ngay cho bếp, điểm danh. Migration: V10. Dữ liệu sức khỏe nhạy cảm.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id | BIGINT PK, FK children | không | | — |
+| allergies_state, diet_state, other_notes_state | VARCHAR(20) | không | `REPORTED` (Có) / `NONE_REPORTED` (Không có) / `NOT_PROVIDED` (Chưa cung cấp); danh sách dị ứng ở `child_allergies` | CHD-06 |
+| diet_text, other_notes_text | VARCHAR(500) | có | Có đúng khi mục là `REPORTED` (CHECK) | CHD-06 |
+| self_history_state, family_history_state | VARCHAR(20) | không | Tiền sử bản thân, gia đình: chỉ `REPORTED` / `NONE_REPORTED` | HLT-06 |
+| self_history_text, family_history_text | VARCHAR(300) | có | Tên bệnh; có đúng khi `REPORTED` | HLT-06 |
+| tb_contact_state | VARCHAR(20) | không | Tiếp xúc người bệnh lao: `REPORTED` / `NONE_REPORTED` | CHD-07 |
+| tb_contact_date | DATE | có | Ngày tiếp xúc gần nhất; có đúng khi `REPORTED` | CHD-07 |
+| declared_by | BIGINT FK user_accounts | không | Người lưu gần nhất | — |
+| declared_at | TIMESTAMPTZ | không | Lần lưu gần nhất | — |
+
+## child_allergies  (module: child, scope: CHILD)
+Mục đích: dị ứng của khai báo sức khỏe, thứ tự theo `id`; bếp và điểm danh đọc bảng này. Migration: V10.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK child_health_declarations | không | | CHD-06 |
+| name | VARCHAR(100) | không | Thực phẩm/chất gây dị ứng | CHD-06 |
+Index: `idx_child_allergies_child_id`.
+
+## child_health_declaration_history  (module: child, scope: CHILD)
+Mục đích: lịch sử khai báo sức khỏe, chỉ thêm. Migration: V10.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | | — |
+| action | VARCHAR(30) | không | `DECLARED` / `UPDATED` / `UPDATED_FROM_FOLLOW_UP` | HLT-06 |
+| user_id | BIGINT FK user_accounts | không | Người lưu | — |
+| note | VARCHAR(500) | có | Lý do thay đổi | — |
+| allergy_change, history_change | JSONB | có | `{ from, to }` khi dị ứng / tiền sử đổi | CHD-06, HLT-06 |
+| created_at | TIMESTAMPTZ | không | | — |
+Index: `idx_child_health_declaration_history_child_id` (`child_id`, `created_at`).
+
+## child_history  (module: child, scope: CHILD)
+Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V10.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | | — |
+| action | VARCHAR(20) | không | `ENROLLED` / `UPDATED` / `WITHDRAWN` / `READMITTED` | CHD-03 |
+| user_id | BIGINT FK user_accounts | không | Người làm | — |
+| note | VARCHAR(500) | có | Lý do | CHD-03 |
+| changes | JSONB | có | `[{ field, label, from, to }]` từng ô đổi; số định danh của trẻ chỉ 3 số cuối | CHD-05 |
+| created_at | TIMESTAMPTZ | không | | — |
+Index: `idx_child_history_child_id` (`child_id`, `created_at`).
+
+## parent_sms_logs  (module: identity-access, scope: ACCOUNT)
+Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V10.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh | — |
+| phone | VARCHAR(10) | không | SĐT đã gửi | — |
+| purpose | VARCHAR(20) | không | `ACTIVATION` / `PASSWORD_RESET` / `USERNAME_CHANGED` | L-15 |
+| status | VARCHAR(10) | không | `SENT` / `FAILED` | L-15 |
+| sent_at | TIMESTAMPTZ | không | | — |
+Index: `idx_parent_sms_logs_user_id` (`user_id`, `sent_at DESC`).
 
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
