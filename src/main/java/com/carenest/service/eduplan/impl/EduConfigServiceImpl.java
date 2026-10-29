@@ -2,13 +2,11 @@ package com.carenest.service.eduplan.impl;
 
 import com.carenest.dto.eduplan.EduConfigRequest;
 import com.carenest.dto.eduplan.EduConfigResponse;
-import com.carenest.dto.eduplan.ExpectedResultResponse;
 import com.carenest.entity.eduplan.EduDomain;
 import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.eduplan.EduYearPlanMapper;
 import com.carenest.repository.eduplan.EduDomainRepository;
-import com.carenest.repository.eduplan.EduExpectedResultRepository;
 import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
@@ -44,7 +42,6 @@ public class EduConfigServiceImpl implements EduConfigService {
     private static final TypeReference<List<EduConfigResponse.WeekRow>> WEEK_ROWS = new TypeReference<>() {};
 
     private final EduDomainRepository domainRepository;
-    private final EduExpectedResultRepository expectedResultRepository;
     private final EduSettingsRepository settingsRepository;
     private final SchoolStructureService schoolStructureService;
     private final EduPlanAccessPolicy accessPolicy;
@@ -94,23 +91,6 @@ public class EduConfigServiceImpl implements EduConfigService {
             EduConfigResponse config = toConfig();
             log.info("{}|END", logPrefix);
             return config;
-        } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
-            throw ex;
-        }
-    }
-
-    @Override
-    public List<ExpectedResultResponse> getExpectedResults(Long ageGroupId) {
-        String logPrefix = LOG_PREFIX + "|getExpectedResults|ageGroupId=" + ageGroupId;
-        log.info("{}|START", logPrefix);
-        try {
-            List<ExpectedResultResponse> results =
-                    expectedResultRepository.findAllByAgeGroupIdOrderByDomainIdAscSortOrderAsc(ageGroupId).stream()
-                            .map(mapper::toExpectedResult)
-                            .toList();
-            log.info("{}|END", logPrefix);
-            return results;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

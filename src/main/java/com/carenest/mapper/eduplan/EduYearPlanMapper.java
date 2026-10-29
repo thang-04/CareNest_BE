@@ -2,13 +2,11 @@ package com.carenest.mapper.eduplan;
 
 import com.carenest.dto.eduplan.CurriculumGoalRef;
 import com.carenest.dto.eduplan.EduConfigResponse;
-import com.carenest.dto.eduplan.ExpectedResultResponse;
 import com.carenest.dto.eduplan.PlanActorResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.entity.eduplan.EduBreak;
 import com.carenest.entity.eduplan.EduDomain;
-import com.carenest.entity.eduplan.EduExpectedResult;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduPlanEvent;
@@ -114,10 +112,5 @@ public class EduYearPlanMapper {
                 domain.getShortLabel(),
                 domain.getSortOrder(),
                 domain.isStandard());
-    }
-
-    public ExpectedResultResponse toExpectedResult(EduExpectedResult result) {
-        return new ExpectedResultResponse(
-                result.getId(), result.getDomainId(), result.getSubDomain(), result.getText());
     }
 }

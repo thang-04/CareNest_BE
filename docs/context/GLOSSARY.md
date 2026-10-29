@@ -44,7 +44,7 @@ Code dùng tên tiếng Anh; UI/docs dùng tiếng Việt.
 | Tổ trưởng (khối) / tổ trưởng chuyên môn | AGE_GROUP_TEAM_LEADER (phân công) | GV được HT phân công phụ trách một nhóm tuổi; cùng soạn, gửi kế hoạch năm, duyệt tài liệu lớp theo chuỗi (EDU-02, EDU-18, AUTH-23) |
 | Lĩnh vực | EduDomain | 5 lĩnh vực của Chương trình GDMN (I–V) + lĩnh vực trường thêm |
 | Lĩnh vực con | EduGoalRow kind=sub | Dải tiêu đề trong lĩnh vực (vd. Phát triển vận động, KPKH, LQVT) |
-| Nhóm kết quả mong đợi | EduGoalRow kind=group / EduExpectedResult | Tầng giữa lĩnh vực con và mục tiêu, theo Chương trình GDMN |
+| Nhóm kết quả mong đợi | EduPlanExpectedResult | Tầng giữa lĩnh vực con và mục tiêu, theo Chương trình GDMN |
 | Mục tiêu (MT n) | EduGoalRow kind=goal, goalNo | Mục tiêu giáo dục, đánh số 1..n liên tục cả năm; sợi dây nối năm → chủ đề → tuần/ngày → đánh giá |
 | Nội dung giáo dục | EduGoalContent | Nội dung của một MT, tích vào các chủ đề sẽ dạy |
 | Chủ đề | EduTheme | Chủ đề trong năm (tên, viết tắt, lễ hội, từ – đến ngày) |

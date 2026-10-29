@@ -300,7 +300,6 @@ Migration: `V11__create_edu_year_plans.sql`, `V12__relax_edu_theme_draft_constra
 | edu_domains | name VARCHAR(150), display_label, short_label, sort_order, active, standard | UNIQUE name; seed 5 lĩnh vực chuẩn (standard, không xóa); lĩnh vực trường thêm bỏ đi thì active = false (V27) | EDU-09, EDU-11 |
 | edu_class_docs | doc_key (khóa Web: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`, phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<kế hoạch năm>`), kind (branch/theme/week), classroom_id, year_plan_id, theme_id, week_start, status (DRAFT, PENDING_TL/VP/HT, REJECTED, APPROVED), content (JSONB object: nội dung soạn), approvals (JSONB array), history (JSONB array), source_doc_id (V32, bản chép từ phiên bản cũ, ON DELETE SET NULL), adjustments (V32, JSONB object ngày → "Kế hoạch điều chỉnh và bổ sung", chỉ kind week), created_by, updated_by, created_at, updated_at, version | Một bảng cho 3 loại tài liệu. UNIQUE doc_key; UNIQUE (classroom_id, year_plan_id, kind, theme_id, week_start) — cũng là chỉ mục tra theo lớp; CHECK kind, status, khóa đúng theo loại (week_start là thứ Hai), kiểu JSONB; FK classroom, year_plan (ON DELETE CASCADE), theme, user | EDU-12..18 |
 | edu_settings | 1 dòng (id = 1): signers (JSON: year, branch, week → danh sách vai trò ký theo thứ tự), week_rows (JSON: key, label, canMerge, allWeek, extraLabel), updated_by, updated_at | CHECK id = 1; seed mặc định TT → PHT và 8 dòng tuần (V27) | EDU-11 |
-| edu_expected_results | age_group_id, domain_id, sub_domain, text, sort_order | chưa seed dữ liệu | — |
 
 Lệch so với CAN_DB (đã chốt 22/10):
 - Bỏ 2 cột `updated_at` lặp.
@@ -322,6 +321,8 @@ User yêu cầu tất cả tệp dùng S3 private và đồng ý AWS SDK v2. Met
 | edu_curriculum_goal_contents | curriculum_goal_id (CASCADE), text, sort_order | Gạch đầu dòng dưới mục tiêu = nội dung |
 | edu_curriculum_contents | source_id, age_group_id, domain_id, sub_domain, category_no, category, label, text, section_ref, sort_order | Mục C "Nội dung giáo dục theo độ tuổi" = gợi ý nội dung |
 | edu_plan_goals.curriculum_goal_id | FK edu_curriculum_goals ON DELETE SET NULL | Mục tiêu trong kế hoạch lấy từ Bộ; chép theo phiên bản (EDU-25) |
+
+V36 bỏ bảng `edu_expected_results` (danh mục gợi ý chưa từng có dữ liệu, không client nào đọc; gợi ý theo Bộ dùng `edu_curriculum_*`, EDU-28).
 
 V35 thay bảng `edu_goal_rows` bằng ba bảng trên, giữ id/lineage/sort_order và chuyển FK nội dung. Ba bảng dùng `edu_plan_rows_seq`; `kind` chỉ còn ở DTO. Không tự tạo cha khi dữ liệu cũ thiếu cấp. FK cha được deferred để chuyển cha trong cùng transaction; service flush cập nhật trước xóa tiêu đề cũ.
 

@@ -47,7 +47,7 @@ Trạng thái tích hợp (2026-10-22): FE `dev` chưa ghép — vẫn mock, g�
 | --- | --- |
 | `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST …/{planId}/submit\|issue\|return\|start-editing\|finish-editing\|editing-heartbeat` | `CareNest_FE/src/services/education-plan/api/educationPlanApi.js` (`getAll`, `saveGoal`, `deleteGoal`, `startEditingGoal`, `finishEditingGoal`), `src/hooks/education-plan/useEducationPlan.jsx` |
 | `GET /education-plans/class-docs`, `PUT /education-plans/class-docs/{kind}/{docKey}`, `POST …/{kind}/{docKey}/actions` | `educationPlanApi.js` (`getClassPlans`, `saveClassDoc`, `actOnClassDoc`), `useEducationPlan.jsx`, `components/education-plan/planUi.jsx` (lớp, giáo viên) |
-| `GET/PUT /education-plans/config`, `GET /education-plans/expected-results` | `educationPlanApi.js` (`getEduConfig`, `saveEduConfig`), `yearPlanMapper.js` (`toUiEduConfig`), `src/models/education-plan/expectedResults.js` (hiện là hằng FE) |
+| `GET/PUT /education-plans/config` | `educationPlanApi.js` (`getEduConfig`, `saveEduConfig`), `yearPlanMapper.js` (`toUiEduConfig`); gợi ý nhóm kết quả mong đợi là hằng FE `src/models/education-plan/expectedResults.js`, không có API |
 | `GET /accounts/me` (`assignments[].staffRole = AGE_GROUP_TEAM_LEADER`, `ageGroupId`) | FE lấy nhóm tuổi của Tổ trưởng (hiện đọc `user.ageGroupId`) |
 
 

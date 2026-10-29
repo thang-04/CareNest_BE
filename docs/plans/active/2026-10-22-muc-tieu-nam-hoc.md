@@ -480,3 +480,9 @@ Thay đổi vượt 8 file: tách hai đợt review BE và Web; mỗi đợt ch�
 - BE: `EduYearPlanServiceImpl.requireThemeWeeks` kiểm ở gửi/ban hành (mã 7031 `THEME_WEEK_ALIGNMENT`, 7032 `THEME_DATES_OVERLAP`); `EduClassDocServiceImpl.teachingWeeks` tính nghỉ theo từng ngày. Fixture chủ đề bắt đầu Chủ nhật 27/09 đổi thành Thứ 2 28/09. Test mới `EduTeachingWeeksTest`, `themesMustCoverWholeWeeksWithoutOverlap`.
 - FE: `goalTable` (`breakOn`, `weekBreaks`, `isWholeWeekTheme`, `overlappingThemes`, `themeScheduleIssue`); `yearWeeks` trả `offDays`; form kế hoạch năm chặn ở bước Tiếp theo, báo tại dòng; giáo án tuần/ngày, hồ sơ chủ đề, bảng chủ đề nhánh, bản in hiện "Nghỉ: <tên đợt>". Không đổi API/DB (đợt nghỉ 1 ngày đã lưu được với ngày kết thúc trống).
 - Giả định: ngày nghỉ lẻ không chặn soạn/gửi (chỉ ghi chú "không cần soạn"); kế hoạch đã ban hành trước 30/10 không bị kiểm lại, chỉ phiên bản mới mới phải theo EDU-39/40.
+
+### Progress log bổ sung — 2026-10-30 (bỏ `edu_expected_results`)
+- User chốt bỏ bảng danh mục gợi ý `edu_expected_results` và `GET /education-plans/expected-results`. Lý do: bảng chưa từng có dữ liệu (0 dòng ở mọi DB dev), không bảng nào có FK trỏ vào, Web/App không gọi API; gợi ý theo Bộ đã có `edu_curriculum_*` (EDU-28, spec 005).
+- BE: migration `V36__drop_edu_expected_results.sql`; xóa `EduExpectedResult`, `EduExpectedResultRepository`, `ExpectedResultResponse`, `getExpectedResults` (controller/service/mapper). Không đụng `EduPlanExpectedResult` (nhóm kết quả mong đợi thật trong kế hoạch).
+- Contract: bỏ một endpoint đọc; tác động FE/APP: không (Web dùng hằng `src/models/education-plan/expectedResults.js`, App không tham chiếu). Cập nhật openapi, DATA_DICTIONARY, DOMAIN_MODEL, GLOSSARY, module card, CROSS_REPO_MAP, contract spec 005.
+- Giả định: gợi ý ở Web giữ nguyên (hằng FE, mới có khối 3–4 tuổi); hướng bổ sung là lấy từ danh mục Bộ, không dựng lại bảng cũ.

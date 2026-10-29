@@ -49,7 +49,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | health | HealthInterpretation (childId, period, text, source, status) | CHILD | AI DRAFT → APPROVED |
 | education-plan | EduYearPlan (schoolYear, ageGroup, status, owner, sent/issued, editing lock) | AGE GROUP | 1 bản / (năm học, nhóm tuổi); DRAFT ⇄ EDITING → PENDING_VP → APPROVED / REJECTED (EDU-01..10) |
 | education-plan | EduPlanSubDomain, EduPlanExpectedResult, EduPlanGoal (goalNo), EduGoalContent, EduTheme, EduBreak, EduContentThemeTick, EduPlanEvent | AGE GROUP | Cây mục tiêu 5 tầng, chủ đề, đợt nghỉ, dấu tích, lịch sử (EDU-09) |
-| education-plan | EduDomain, EduExpectedResult; cấu hình người ký, dòng hoạt động tuần | SCHOOL | EDU-11 (người ký, dòng tuần: BE chưa có) |
+| education-plan | EduDomain; cấu hình người ký, dòng hoạt động tuần | SCHOOL | EDU-11 (người ký, dòng tuần: BE chưa có) |
 | education-plan | Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần (kế hoạch tuần + 5 ngày), hồ sơ chủ đề | CLASS | EDU-12..18; `edu_class_docs` |
 | learning-observation | ObservationCriteria, CriteriaOption | SCHOOL | 7 mặt, 3 mức; cố định hay cấu hình: P-11 |
 | learning-observation | Observation (childId, date, values[], note) | CLASS | Đánh giá ngày; mọi trẻ có mặt, mặc định "bình thường"; khóa hết ngày (OBS-01, OBS-12) |

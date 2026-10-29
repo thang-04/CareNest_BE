@@ -1542,25 +1542,6 @@ paths:
           description: OK
       tags:
       - edu-curriculum-controller
-  /api/education-plans/expected-results:
-    get:
-      operationId: getExpectedResults
-      parameters:
-      - in: query
-        name: ageGroupId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonListExpectedResultResponse"
-          description: OK
-      tags:
-      - edu-config-controller
   /api/education-plans/goals:
     get:
       operationId: getYearPlans
@@ -4397,19 +4378,6 @@ components:
           format: int64
         userName:
           type: string
-    ExpectedResultResponse:
-      type: object
-      properties:
-        domainId:
-          type: integer
-          format: int64
-        id:
-          type: integer
-          format: int64
-        subDomain:
-          type: string
-        text:
-          type: string
     Forgot:
       type: object
       properties:
@@ -5789,21 +5757,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DayUnlockResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonListExpectedResultResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/ExpectedResultResponse"
         desc:
           type: string
         errorCode:
