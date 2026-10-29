@@ -1,6 +1,6 @@
 # Current State
 
-Cập nhật: 2026-10-04. **Agent: cập nhật file này khi một feature bắt đầu có code, hoàn thành, hoặc một PENDING được chốt.**
+Cập nhật: 2026-10-29 (chốt rule theo khảo sát team 210/210: sức khỏe, đánh giá, kế hoạch giáo dục, đón trẻ, phụ huynh, báo cáo, AI; loại CSVC — chỉ docs, code không đổi; plan `docs/plans/active/2026-10-29-survey-full-alignment.md`). Trước đó 2026-10-28: bán trú, hồ sơ trẻ, sức khỏe đầu ngày (plan `docs/plans/active/2026-10-28-survey-business-alignment.md`). **Agent: cập nhật file này khi một feature bắt đầu có code, hoàn thành, hoặc một PENDING được chốt.**
 
 ## Tổng quan
 
@@ -18,25 +18,25 @@ Phân quyền cấu hình được (ADR-0017) cập nhật 2026-10-16 trên `fea
 | Authentication/authorization | **Xong trên `feature/authentication`, chờ merge** — Keycloak + Resource Server (ADR-0011): kiểm JWT, role, 401/403/503, `user_accounts` + `GET /accounts/me`, bảng scope (V2/V3) + seed dev, policy campus/lớp/trẻ, `GET /children/{childId}`, cấp/khóa tài khoản qua Keycloak Admin API (Admin không tự khóa mình — AUTH-09). Chưa có: API quản lý phân công/liên kết phụ huynh. Giới hạn: KI-003..KI-009 (`docs/plans/active/2026-10-04-keycloak-auth.md`) |
 | Schema/migration nghiệp vụ | Bắt đầu — V1 `user_accounts`, V2 campus/năm học/lớp/phân công, V3 trẻ/enrollment/liên kết PH, V7 phân quyền, V8 `primary_role`, V9 quyền phụ huynh; seed dev `db/dev` |
 | OpenAPI export (`docs/api/`) | Chưa |
-| AI provider | OPEN (ADR-0007) |
+| AI provider | Chốt Gemini API, Groq (AI-09, ADR-0007); chưa có adapter |
 | Hạ tầng deploy | Chưa chốt (có Dockerfile, compose dev/demo: API + PostgreSQL + Keycloak + Mailpit) |
 
 ## Feature
 
 | Module (feature) | Thiết kế | Code | Ghi chú |
 | --- | --- | --- | --- |
-| identity-access (`account`, `security/`) | Có | Gần xong | Resource Server, CurrentUser, policy, phân quyền cấu hình được (ADR-0017), HT/PHT cấp/khóa tài khoản, mật khẩu tạm, danh sách nhân sự, phân công (AUTH-15..17) xong (chưa commit), tài khoản phụ huynh gắn trẻ (AUTH-18, AUTH-19) xong (chưa commit) |
+| identity-access (`account`, `security/`) | Có | Gần xong | Resource Server, CurrentUser, policy, phân quyền cấu hình được (ADR-0017), HT/PHT cấp/khóa tài khoản, mật khẩu tạm, danh sách nhân sự, phân công (AUTH-15..17) xong (chưa commit), tài khoản phụ huynh gắn trẻ (AUTH-18, AUTH-19) xong (chưa commit). AUTH-03 mở rộng 29/10 (GV cũ xem lại lớp/năm từng dạy, chỉ đọc): code chưa làm — policy hiện chỉ theo phân công còn hiệu lực |
 | school-structure (`organization`) | Có | Bảng scope + phân công + đọc campus/lớp | Chưa có API tạo/sửa campus/lớp/năm học |
-| child (`child`) | Có | Bảng scope + `GET /children/{childId}` | Mới có hồ sơ cơ bản |
-| attendance (`attendance`) | Có | — | Giờ chốt, xử lý đến muộn PENDING; đơn nghỉ đã chốt 02/10: thông báo, không duyệt (ATT-05) |
-| nutrition (`meals`) | Có | — | Bếp/thực đơn theo campus PENDING |
-| health (`health`) | Có | — | Ngưỡng tham chiếu PENDING |
-| learning-observation (`observation`) | Có | — | Activity context OPEN (ADR-0006) |
-| facility-issue (`facilities`) | Có | — | |
-| notification | Có | — | Kênh push chưa chốt |
+| child (`child`) | Có | Bảng scope + `GET /children/{childId}` | Mới có hồ sơ cơ bản. Rule chốt 28/10: CHD-01..05, dị ứng HLT-06; gửi tài khoản phụ huynh qua SMS (AUTH-18) chưa làm — code hiện in phiếu |
+| attendance (`attendance`) | Có | — | Rule chốt 28/10 theo khảo sát team: một giờ chốt HT cấu hình, không nhận trẻ đến muộn, PHT mở lại có lý do, có mặt là ăn (ATT-01..11). Đón trẻ chốt 29/10 (PCK-01..04). Còn P-19, P-20, P-33 |
+| nutrition (`meals`) | Có | — | Rule chốt 28/10: thực đơn chung hai cơ sở, PHT cơ sở xác nhận suất, kho khô trừ dự kiến + điều chỉnh, hàng tươi PHT ghi, danh mục NCC, dị ứng 2 mức (NUT-01..23; NUT-14/15 REMOVED). Thiết kế bảng (`MEAL_NUTRITION_AI_SCHEMA.md`) chưa cập nhật theo bản 28/10 — xem §13. Còn P-24..P-27 |
+| health (`health`) | Có | — | Chốt 29/10: chuẩn WHO, GV cân đo, công bố cho phụ huynh, sức khỏe trong ngày (HLT-01..14). Kiểm tra đầu ngày HLT-07 (chốt 28/10), còn P-21..P-23 |
+| learning-observation (`observation`) | Có | — | Chốt 29/10: đánh giá ngày 7 mặt 3 mức, nhận xét định kỳ GV xác nhận, phiếu bé ngoan, khen cuối năm (OBS-01..14). Còn P-11, P-30, P-31 |
+| education-plan (`eduplan`) | Có (29/10) | — trên `dev` | Làm lại trên `dev` (ADR-0019); code nhánh G94-226 chỉ tham khảo. Còn P-29 |
+| notification | Có | — | Thông báo trường do BGH gửi, push + trong App (PAR-05); push provider chưa chốt |
 | audit | Có | — | |
-| ai-assistance (`integration/`) | Có | — | Provider OPEN |
-| reporting (`report`) | Có | — | |
+| ai-assistance (`integration/`) | Có | — | Provider chốt Gemini API, Groq (AI-09); 5 tính năng (AI-07) |
+| reporting (`report`) | Có | — | Báo cáo ngày, định kỳ, Excel + PDF (RPT-01..03). Còn P-34 |
 
 ## Giới hạn hiện tại
 
@@ -47,5 +47,5 @@ Có xác thực Keycloak, phạm vi campus/lớp/trẻ và cấp/khóa tài kho�
 1. Nền móng — **xong**.
 2. Đăng nhập và phạm vi: user/role, campus/class assignment, liên kết phụ huynh–trẻ, test quyền — xác thực + phạm vi **xong** (ADR-0011, chờ merge); API quản lý phân công/liên kết chưa làm.
 3. Điểm danh → BGH xác nhận số ăn → bếp xem.
-4. Hồ sơ trẻ: quan sát/sức khỏe, chia sẻ phụ huynh, audit, lịch sử.
-5. Mở rộng: sự cố CSVC, thông báo, thực đơn; AI sau khi dữ liệu + baseline sẵn sàng.
+4. Hồ sơ trẻ: đánh giá/sức khỏe, chia sẻ phụ huynh, audit, lịch sử.
+5. Mở rộng: thông báo, thực đơn, kế hoạch giáo dục; AI sau khi dữ liệu + baseline sẵn sàng. (CSVC đã loại 29/10.)

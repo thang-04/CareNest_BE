@@ -1,6 +1,6 @@
 # ADR-0007 — Trừu tượng hóa AI provider và bảo vệ dữ liệu trẻ
 
-- Status: ACCEPTED (abstraction, guide mục 2, 4, 13.3) · **OPEN** (chọn provider — P-02)
+- Status: ACCEPTED (abstraction, guide mục 2, 4, 13.3) · provider chốt 2026-10-29: Gemini API, Groq (AI-09; P-02 đã đóng — khảo sát team 27/10, AI-04)
 - Date: 2026-10-03
 - Liên quan: AI-04..06, module ai-assistance
 

@@ -1,49 +1,56 @@
-# Flow — Quan sát hằng ngày, hồ sơ phát triển, nhận xét tổng hợp
+# Flow — Đánh giá hằng ngày, nhận xét định kỳ, khen thưởng, hồ sơ phát triển
 
-Module: learning-observation (đọc attendance, nutrition, health; dùng ai-assistance). Rule: OBS-*, AI-*. ADR: 0006, 0008.
+Module: learning-observation (đọc attendance, nutrition, health, education-plan; dùng ai-assistance). Rule: OBS-*, AI-*, PAR-03. ADR: 0008, 0019.
 
-## Quan sát hằng ngày
+## Đánh giá hằng ngày (OBS-01, OBS-02, OBS-12, OBS-13)
 
 ```text
-[S] Admin/BGH cấu hình ObservationCriteria + option (danh sách: PENDING P-11)
-[S] GV nhập Observation cho cả lớp: chọn option theo tiêu chí + ghi chú tùy chọn (OBS-01)
-    Mục tiêu UX: nhập nhanh cho 20–25 trẻ, dữ liệu nhất quán để tổng hợp
+[S] Danh sách trẻ có mặt hôm nay (attendance); trẻ vắng tự bỏ qua
+[S] Mặc định mọi trẻ "bình thường"; GV chỉ sửa trẻ khác thường
+    7 mặt: ăn uống, ngủ, cảm xúc, hành vi/quan hệ với bạn, tham gia hoạt động,
+           kiến thức–kỹ năng theo bài học, sức khỏe
+    Mức: Đạt / Cần cố gắng / Chưa đạt · ô nhận xét không bắt buộc
+    Tiêu chí cố định theo Bộ hay trường cấu hình: P-11
+[S] Kiến thức–kỹ năng đánh giá theo mục tiêu hoạt động của kế hoạch ngày (education-plan — OBS-07)
+[S] GV lưu ⇒ phụ huynh xem đánh giá ngày của con (OBS-13)
+      ↓ hết ngày
+[S] Khóa sửa (OBS-12)
+[S] GV viết nhận xét chung về lớp 1–2 câu ⇒ BGH xem trong báo cáo ngày (RPT-02)
 ```
 
-## Ngữ cảnh hoạt động — OPEN DECISION (ADR-0006)
-
-AI/nhận xét thiếu ngữ cảnh nếu không biết hoạt động dự kiến, nội dung đã dạy, mục tiêu. Nguồn ActivityContext chưa chốt:
-A) CareNest quản lý tối thiểu lịch hoạt động tuần · B) import/sync từ GoKids · C) GV/admin nhập metadata cần thiết.
-Model `ActivityContext` thiết kế **không phụ thuộc nguồn** (`source = MANUAL | IMPORT | GOKIDS`). Không implement soạn/duyệt giáo án (OBS-08).
-
-## Hồ sơ phát triển
+## Nhận xét định kỳ (OBS-04, OBS-05, OBS-06)
 
 ```text
-Attendance history ─┐
-Meal history ───────┤
-Health + trend ─────┤
-Observation ───┼─► DevelopmentProfile (read model theo trẻ, theo thời gian — OBS-03)
-ActivityContext/Participation ┤
-Assessment, FollowUp ─┘        (biểu mẫu PENDING P-16b)
-```
-
-## Nhận xét tổng hợp (OBS-04, OBS-05)
-
-```text
-Structured records trong kỳ (tuần theo trẻ + cuối kỳ; tóm tắt lớp hằng ngày — OBS-06)
-      ├─ Baseline: template/rule-based summary (luôn có, không AI)
-      └─ Tùy chọn: AI narrative draft (input tối thiểu, bí danh — AI-04)
+Đánh giá ngày trong kỳ (tuần / tháng / học kỳ / cuối năm), theo mẫu riêng của trường (P-30)
+      ├─ Mẫu nền: điền số liệu sẵn, luôn có, không AI
+      └─ Tùy chọn: AI nháp (input tối thiểu, bí danh — AI-04, AI-08; giọng văn AI-10)
       ↓
-Summary DRAFT → GV review → GV sửa → GV APPROVED → gửi BGH
+Nháp → GV sửa → GV xác nhận là xong (không có bước BGH duyệt; BGH xem)
       ↓
-Phụ huynh xem nếu policy cho phép (PAR-02, P-12)
+Phụ huynh nhận tất cả các kỳ (OBS-06, PAR-03)
 ```
 
-## Khen thưởng — PROPOSED (OBS-10)
+## Khen thưởng (OBS-10, OBS-14)
 
 ```text
-Đánh giá hằng ngày trong tuần/tháng ─► [S] gợi ý trẻ đạt "phiếu bé ngoan" (rule theo tiêu chí — P-11)
-                                     ─► GV/BGH xem, chỉnh, quyết định ─► lưu kết quả; cuối năm: "bé ngoan toàn diện"
+[S] GV cắm cờ cho trẻ theo biểu hiện trong ngày
+[S] Cuối tuần: trẻ đi học ≥4 ngày và có ≥3 cờ đủ điều kiện; GV tự chọn trẻ nhận phiếu bé ngoan
+    (hệ thống không gợi ý) ⇒ phụ huynh thấy ngay khi GV xác nhận
+    3 phiếu trong tháng = "xuất sắc"
+[S] Cuối năm: GV đề xuất khen → PHT xét → HT duyệt (OBS-14)
+    Capstone làm cả hai: P-31
 ```
 
-AI chỉ có thể soạn lời nhận xét; không tự xếp hạng hay trao thưởng (AI-02).
+AI không xếp hạng, không trao thưởng (AI-02).
+
+## Hồ sơ phát triển (OBS-03)
+
+```text
+Điểm danh ─────────────┐
+Sức khỏe + tăng trưởng ┤
+Đánh giá ngày ─────────┼─► DevelopmentProfile (read model theo trẻ, theo thời gian)
+Nhận xét định kỳ ──────┤
+Khen thưởng ───────────┘
+```
+
+Không có mục theo dõi/can thiệp riêng (OBS-03, HLT-12).
