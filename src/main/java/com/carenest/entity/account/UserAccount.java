@@ -39,6 +39,10 @@ public class UserAccount {
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
+    // CCCD phụ huynh, khóa nhận diện (AUTH-18, V10): UNIQUE; tài khoản cũ chưa có được bổ sung khi hồ sơ trẻ ghi CCCD
+    @Column(name = "citizen_id", length = 12)
+    private String citizenId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private UserStatus status;
@@ -70,6 +74,21 @@ public class UserAccount {
         account.status = UserStatus.ACTIVE;
         account.primaryRole = primaryRole;
         return account;
+    }
+
+    /** Tài khoản phụ huynh tạo khi tiếp nhận / kích hoạt (AUTH-18, AUTH-20): tên đăng nhập = SĐT, kèm CCCD. */
+    public static UserAccount createParent(
+            String keycloakUserId, String username, String email, String fullName, String citizenId) {
+        UserAccount account = create(keycloakUserId, username, email, fullName, CareNestRole.PARENT);
+        account.citizenId = citizenId;
+        return account;
+    }
+
+    /** Tài khoản phụ huynh cũ chưa có CCCD: ghi CCCD từ hồ sơ trẻ (AUTH-18); đã có thì giữ. */
+    public void assignCitizenIdIfMissing(String citizenId) {
+        if (this.citizenId == null) {
+            this.citizenId = citizenId;
+        }
     }
 
     public boolean isActive() {

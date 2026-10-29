@@ -60,6 +60,9 @@ public interface StaffAssignmentService {
     /** Giáo viên hiện tại của từng lớp (gồm phân công bắt đầu sau ngày date). */
     Map<Long, List<Long>> findCurrentTeacherIds(Collection<Long> classroomIds, LocalDate date);
 
+    /** Giáo viên chủ nhiệm hiện tại của từng lớp (lớp chưa có chủ nhiệm không có trong map). */
+    Map<Long, Long> findHomeroomTeacherIds(Collection<Long> classroomIds, LocalDate date);
+
     /** Tổ trưởng đang phụ trách nhóm tuổi. */
     Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date);
 }

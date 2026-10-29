@@ -73,6 +73,9 @@ Chi tiết, khuyến nghị: mục 7 của Đặc tả.
 | Thông tin phụ huynh trùng trong một trẻ | UNIQUE DEFERRABLE INITIALLY DEFERRED | UNIQUE thường | Sửa hồ sơ đổi SĐT/CCCD giữa hai phụ huynh trong một lần lưu |
 | Lịch sử thay đổi (`changes`, `allergy_change`, `history_change`) | JSONB (Hibernate 7.4 có `Jackson3JsonFormatMapper`) | Bảng con từng ô | Dữ liệu chỉ ghi/đọc theo trẻ, không truy vấn bên trong |
 | Dị ứng | Bảng `child_allergies` | JSON trong khai báo | Bếp, điểm danh truy vấn theo lớp/campus |
+| Nơi điều phối lưu form tiếp nhận | `ChildEnrollmentService` ở feature account, ghi hồ sơ qua `ChildIntakeService` (child) | Điều phối ở child + interface tài khoản do account cài | Giống `GuardianAccountService` hiện có; child không gọi account (ArchUnit cấm vòng) |
+| Gửi SMS | Gửi ngay sau khi giao dịch DB commit, ghi `parent_sms_logs`; không outbox (không cần ADR) | Outbox + job gửi lại | Cổng SMS giả (D-2); lỗi gửi ⇒ `FAILED`, FE "Gửi lại mật khẩu" (cấp lại) |
+| Lỗi theo ô từ service | `GlobalException.withFieldErrors` ⇒ `data [{field, message}]` cho 400 và 409 | Bean Validation trên DTO lồng | Đường dẫn ô phải như FE (`guardians.0.phone`), Bean Validation cho `child.guardians[0].phone` |
 Chi tiết dữ liệu: mục 3 của Đặc tả. Quyết định kiến trúc mới (vd. outbox SMS) ⇒ ADR.
 
 ## Phases
@@ -83,8 +86,12 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 - Exit: `node scripts/verify.mjs` → `VERIFY PASS full`, skip 0 (Progress log 2026-10-28 — Phase 1).
 ### Phase 2 — Tra cứu không ghi
 - `duplicate-check`, `guardian-check`, `parent-accounts/by-citizen-id`, `placement-classes`.
+- Files: `controller/child/ChildEnrollmentController.java`; `service/child/ChildIntakeService.java` + `impl/ChildIntakeServiceImpl.java`, `impl/EnrollmentFormValidator.java`; `service/account/ChildEnrollmentService.java` + `impl/ChildEnrollmentServiceImpl.java`; entity, repository bảng V10 (`entity/child/*`, `repository/child/*`); `dto/child/*` (request, bản đã kiểm, response); `exception/GlobalException.java` (`withFieldErrors`), `GlobalExceptionHandler.java`; `utils/ApiCode.java` (3007–3009), `utils/CitizenIds.java`, enum `utils/enums/*`; organization: `ClassroomInfoResponse` (+ `capacity`, `status`), `StaffAssignmentService.findHomeroomTeacherIds`, `CampusService.findCampusStatus`; `docs/api/openapi.yaml`; test `ChildEnrollmentControllerTest`, `EnrollmentFormValidatorTest`, `ChildEnrollmentIntegrationTest`; docs `docs/modules/child.md`, `docs/modules/identity-access.md`, `docs/contracts/ERROR_CONTRACT.md`, `docs/contracts/AUTH_CONTRACT.md`, `docs/context/CURRENT_STATE.md`.
+- Exit: `node scripts/verify.mjs` → `VERIFY PASS full`, skip 0 (Progress log 2026-10-29 — Phase 2–3).
 ### Phase 3 — Tiếp nhận bằng form
-- `POST /children/enrollments`: trước chưa có tài khoản, sau thêm tạo/liên kết tài khoản + SMS (mục 5.3, 6.1, 6.3).
+- `POST /children/enrollments`: trước chưa có tài khoản, sau thêm tạo/liên kết tài khoản + SMS (mục 5.3, 6.1, 6.3). Kèm `POST /children/{id}/readmit` (mục 4.4; user giao cùng phần tiếp nhận).
+- Files: như Phase 2 + `integration/sms/*` (`SmsGateway`, `FakeSmsGateway`, `SmsDeliveryException`), `service/account/impl/ParentSmsSender.java`, `AccountLifecycleOperations.createIdentities`, `entity/account/ParentSmsLog.java`, `repository/account/ParentSmsLogRepository.java`, `UserAccount.citizenId`.
+- Exit: như Phase 2 (làm cùng một lượt).
 ### Phase 4 — Sửa hồ sơ
 - `PUT /children/{id}`, sửa tài khoản theo hồ sơ, đổi SĐT đổi username (mục 5.4).
 - Việc kỹ thuật (từ D-3): bật/thử "Edit username" (`editUsernameAllowed`) trên bản Keycloak đang dùng, đổi username qua Admin API, mật khẩu tạm mới, hủy phiên, trả lại username cũ khi lỗi (mục 6.3). Không làm được ⇒ dừng, báo user chọn cách khác (vd. tạo tài khoản mới, chuyển liên kết).
@@ -106,7 +113,11 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 | --- | --- | --- | --- | --- |
 | AC-1 (quyền) | CHD-01 | `PermissionTest.childEnrollmentPermissionsArePrincipalFixedAndVicePrincipalConfigurable`, `PermissionSchemaIntegrationTest.seedMatchesEnumDefaults` (seed V10), `CurrentUserServiceTest` (unit + DB) | 1 | pass |
 | AC-1 (dữ liệu) | AUTH-18, CHD-02, CHD-03, CHD-05, CHD-06, CHD-08 | `ChildEnrollmentMigrationIntegrationTest` (nâng cấp dữ liệu cũ mục 3.9; quan hệ 6 loại; ≤3 phụ huynh, không chung SĐT/CCCD; ngày nghỉ; hồ sơ đủ; 1 enrollment đang mở; tuần thai; "Có" có nội dung; CCCD tài khoản duy nhất) — PostgreSQL thật | 1 | pass |
-| AC-1..AC-4 (API) | như trên | ghi khi làm từng phase | 2–10 | chưa làm |
+| AC-1 (tra cứu) | CHD-04, CHD-10, AUTH-18 | `ChildEnrollmentIntegrationTest.duplicateChildRules`, `placementClassesFollowActiveYearAndScope`, `parentAccountLookupByCitizenId`, `identityConflictsAreFieldErrors` (DB); `EnrollmentFormValidatorTest.nameKeyKeepsDiacritics` (unit); `ChildEnrollmentControllerTest.duplicateCheckPassesGuardianIdNumbers`, `guardianConflictIsConflictWithFields` (WebMvc) | 2 | pass |
+| AC-1 (form) | CHD-02, CHD-05, CHD-06, CHD-08, CHD-10, AUTH-18 | `EnrollmentFormValidatorTest` (7 ca, đường dẫn ô + câu lỗi như BE giả); `ChildEnrollmentIntegrationTest.enrollIntoClassChecksClass`, `intakeCampusRules`; `ChildEnrollmentControllerTest.fieldErrorsAreReturnedAsList`, `vicePrincipalEnrollsChild` (JSON phẳng, tuần thai rỗng) | 3 | pass |
+| AC-2 | AUTH-20, P-18, L-15 | `ChildEnrollmentIntegrationTest.principalEnrollsPendingChildAndCreatesAccount`, `enrollerWithoutParentAccountPermissionStillSaves`, `legacyAccountMatchedByPhoneGetsCitizenId`, `identityFailureCompensatesCreatedUsers` (bù trừ Keycloak), `smsFailureKeepsEnrollment` | 3 | pass |
+| AC-1 (mở lại hồ sơ) | CHD-03 | `ChildEnrollmentIntegrationTest.readmitLeftChild`; `ChildEnrollmentControllerTest.principalReadmitsChild`, `teacherCannotUseEnrollmentApis` | 3 | pass |
+| AC-1..AC-4 (API còn lại) | như trên | ghi khi làm từng phase | 4–10 | chưa làm |
 
 ## Rủi ro & rollback
 | Rủi ro | Tác động | Giảm thiểu | Rollback |
@@ -141,6 +152,31 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 - Seed dev: 4 trẻ đủ giới tính, hành chính, khai báo (có trẻ dị ứng, trẻ khai tiếp xúc lao, trẻ chờ xếp lớp ở CS-A), phụ huynh có CCCD giả `999…`; `parent.a`, `parent.b` có CCCD trên tài khoản. DB dev cũ: V10 sinh mã/trạng thái, seed bổ sung giới tính — không cần tạo lại DB.
 - **Chặn Phase 2 — cần user chọn:** BE chưa có dữ liệu school-structure mà mục 4.1, 4.4, 9 cần: sĩ số lớp (`capacity`), lớp ngừng hoạt động, điểm trường ngừng hoạt động, năm học đang hoạt động (bảng `school_years` chỉ có tên, ngày bắt đầu/kết thúc). FE có ở BE giả school-config (`classes.capacity`, `classes.status`, `campuses.status`, `schoolYears.status`).
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 325 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; `node scripts/check-ai-layer.mjs` 0 lỗi. Seed dev thử bằng psql trên PostgreSQL 17 tạm (test không chạy profile dev): DB mới (V1–V10 + seed, chạy seed 2 lần) và DB dev cũ (V1–V9 + seed cũ, rồi V10 + seed mới) đều chạy được, ra cùng dữ liệu (4 trẻ, 5 phụ huynh có CCCD, 4 hành chính, 4 khai báo); mã trẻ demo ở DB cũ theo thứ tự id cũ.
+
+### 2026-10-29 — Phase 2 chặn: cần gộp nhánh school-config/điểm danh trước
+- User: "Hãy code BE theo như luồng FE và xem 2 phần nhánh code BE xem cần làm thế nào và làm theo" (nhánh `origin/feature/G94-226-BE-FEAT-09-school-year-goals`, `origin/feature/G94-236-BE-FEAT-29-daily-attendance`; G94-236 đã gộp G94-226 và G94-235). Chưa code; đọc nhánh chỉ bằng `git show`/`git merge-tree` (không đổi working tree).
+- Dữ liệu mà chặn Phase 2 (ghi ở Phase 1) đã có trên các nhánh đó: `school_years.status` PLANNED/ACTIVE/CLOSED (V10 của họ, nay V14), `classrooms.capacity`, `classrooms.status`, `age_groups.max_class_size` (V13, nay V17), `campuses.status` (V22, nay V26), xếp lớp năm học mới `class_placements` (V16, nay V20).
+- Mã lỗi tập trung (G94-236, 9c95058): mỗi lỗi một dòng `ApiCode` có mã 4 số + HTTP status + câu tiếng Việt, service ném `GlobalException.of(ApiCode.X)` (constructor cũ đã private), response thêm `errorCode`; dải 24xx xếp lớp, 30xx hồ sơ trẻ (mới tới 3003). Chưa có cách trả lỗi theo ô từ service (chỉ Bean Validation) ⇒ tiếp nhận cần thêm (400 và 409 kèm danh sách `{ field, message }`, C-5).
+- Gộp thử `git merge-tree HEAD origin/feature/G94-236-BE-FEAT-29-daily-attendance`: 29 file xung đột; số migration trùng V7–V10 (dev: quyền G94-60 V7–V9, nhánh này V10; nhánh kia V7–V28); 87 chỗ `new GlobalException(` ở 18 file của nhánh này phải chuyển sang mã tập trung. Plan `2026-10-22-muc-tieu-nam-hoc.md` của G94-226 đã ghi rủi ro "V7 trùng, báo team trước khi gộp, đánh lại số nếu cần".
+- Chờ user: gộp G94-236 vào nhánh này ngay (merge commit cục bộ, đổi số migration của nhánh kia, chuyển mã lỗi) hay chờ team gộp vào `dev` trước. Commit: chưa commit.
+
+### 2026-10-29 — Gộp G94-236 vào nhánh này (merge commit cục bộ)
+- User: "vậy hãy gộp vào và làm theo plan A bạn đã để ở trên" ⇒ merge commit `5d1246f` (cha `615dd2b`, `9c95058`), chưa push.
+- Migration: giữ V1–V10; V7–V26 của G94-236 đổi số thành V11–V30, nội dung không đổi. DB đã chạy nhánh G94-236 phải tạo lại. V27–V28 của G94-226 (chưa vào G94-236) khi gộp sẽ thành V31–V32. PR nhánh này vào `dev` sau PR G94-236.
+- Mã lỗi tập trung cho tài khoản, phân công, liên kết phụ huynh: 1112–1127, 2308–2320, 3004–3006 (`docs/contracts/ERROR_CONTRACT.md`, `docs/contracts/AUTH_CONTRACT.md`); cần thêm vào bản Word của Cần.
+- `GET /campuses` theo API cấu hình trường (chỉ HT/PHT); Admin chưa có danh sách campus cho form cấp tài khoản (`docs/contracts/AUTH_CONTRACT.md` mục "Còn chờ").
+- Rule trùng số: đón trẻ theo năm thành ATT-09, sức khỏe theo năm thành HLT-08 (ATT-08, HLT-07 là rule của nhánh kia).
+- Sửa sau gộp: kích hoạt năm học ghi việc đóng enrollment cũ trước khi mở enrollment mới (`uk_enrollments_child_open` của V10); test tích hợp của nhánh kia tạo trẻ đủ cột bắt buộc của V10.
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 509 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; `node scripts/check-ai-layer.mjs` 0 lỗi (1 cảnh báo có từ trước). Seed dev thử trên PostgreSQL 17 tạm: V1–V30 + seed chạy 2 lần được (4 trẻ, 5 phụ huynh có CCCD, 2 điểm trường, năm 2026-2027 ACTIVE, 2 lớp).
+- Hết chặn Phase 2: dữ liệu năm học, lớp, điểm trường đã có. Tiếp: Phase 2 rồi Phase 3 (user: code BE phần tiếp nhận trẻ theo luồng FE).
+
+### 2026-10-29 — Phase 2–3 (tra cứu, lưu form tiếp nhận, mở lại hồ sơ)
+- User: "Hãy code BE theo như luồng FE ... phần tiếp nhận trẻ" rồi "gộp vào và làm theo plan A" ⇒ làm Phase 2 và 3 trong một lượt sau khi gộp G94-236 (user giao cả phần tiếp nhận, gồm mở lại hồ sơ của mục 4.4). Files, Exit: mục Phase 2, Phase 3. Commit: chưa commit.
+- Mã lỗi mới (cần thêm vào bản Word của Cần): 3007 `CHILD_DUPLICATE`, 3008 `GUARDIAN_IDENTITY_CONFLICT` (kèm ô), 3009 `CHILD_NOT_LEFT`; lỗi form dùng 9001 `INVALID_REQUEST_DATA` + ô (C-5).
+- Khác BE giả (FE đổi khi nối API): quan hệ gửi/nhận theo mã `FATHER|MOTHER|GRANDFATHER|GRANDMOTHER|SIBLING|GUARDIAN` (không nhãn tiếng Việt); lỗi theo ô 400 thay 422, 409 có `data` danh sách thay `details`; `schoolYearId` thay `schoolYear` trong hồ sơ trẻ; `history[]` chưa có `changes`; `profile` có ở response tiếp nhận / mở lại hồ sơ.
+- Giả định (user soát): (1) lưu form khi phụ huynh khớp tài khoản có sẵn ⇒ hồ sơ ghi họ tên, SĐT, email của tài khoản, không sửa tài khoản (như C-2/Excel), `phoneChanged` luôn false — sửa tài khoản theo hồ sơ, đổi SĐT đổi tên đăng nhập (mục 5.4, AUTH-21) làm ở Phase 4 cùng `PUT /children/{id}`; (2) `guardian-check` kiểm cùng cách đó; (3) SĐT là tên đăng nhập nhân sự cũ mà sắp tạo tài khoản ⇒ 409 ô `guardians.{i}.phone`; (4) mở lại hồ sơ: PHT ngoài điểm trường hoặc id không tồn tại cùng 403, kiểm phạm vi trước trạng thái (BE giả báo 409 trước); (5) tin SMS không dấu; (6) lớp tiếp nhận không lọc điểm trường ngừng hoạt động (như BE giả).
+- Chưa làm trong lượt này: CHD-02 cho `GET /children`, `ChildAccessPolicy`, `StaffAccessPolicy.checkCanManageChildGuardians` (PHT chưa thấy trẻ chờ xếp lớp ở các API cũ — `docs/modules/child.md` Known pitfalls); thông báo `CHILD_TB_CONTACT`, `CHILD_PLACED` (chờ module notification, mục 6.2); chống vượt sĩ số khi hai người lưu cùng lúc vào lớp gần đầy (không khóa lớp).
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 534 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`.
 
 ## Đặc tả (chép từ FE ngày 28/10/2026)
 

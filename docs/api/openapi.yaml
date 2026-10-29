@@ -816,6 +816,116 @@ paths:
           description: OK
       tags:
       - child-controller
+  /api/children/duplicate-check:
+    get:
+      operationId: checkDuplicate
+      parameters:
+      - in: query
+        name: fullName
+        required: false
+        schema:
+          type: string
+          maxLength: 150
+          minLength: 0
+      - in: query
+        name: dateOfBirth
+        required: false
+        schema:
+          type: string
+          maxLength: 10
+          minLength: 0
+      - in: query
+        name: guardianIdNumbers
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+          maxItems: 3
+          minItems: 0
+      - in: query
+        name: excludeId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDuplicateCheckResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
+  /api/children/enrollments:
+    post:
+      operationId: enroll
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnrollChildRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildEnrollmentResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
+  /api/children/guardian-check:
+    post:
+      operationId: checkGuardians
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuardianCheckRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - child-enrollment-controller
+  /api/children/parent-accounts/by-citizen-id:
+    get:
+      operationId: findParentAccount
+      parameters:
+      - in: query
+        name: idNumber
+        required: true
+        schema:
+          type: string
+          maxLength: 20
+          minLength: 0
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentAccountLookupResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
+  /api/children/placement-classes:
+    get:
+      operationId: listPlacementClasses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListPlacementClassResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}:
     get:
       operationId: getChildProfile
@@ -928,6 +1038,31 @@ paths:
           description: OK
       tags:
       - guardian-controller
+  /api/children/{childId}/readmit:
+    post:
+      operationId: readmit
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReadmitChildRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/classes:
     post:
       operationId: createClass
@@ -2671,6 +2806,15 @@ components:
         sortOrder:
           type: integer
           format: int32
+    AllergiesInput:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+        state:
+          type: string
     AssignmentHistoryResponse:
       type: object
       properties:
@@ -2936,6 +3080,24 @@ components:
       - confirmPassword
       - currentPassword
       - newPassword
+    ChildAddressInput:
+      type: object
+      properties:
+        province:
+          type: string
+        street:
+          type: string
+        ward:
+          type: string
+    ChildAddressResponse:
+      type: object
+      properties:
+        province:
+          type: string
+        street:
+          type: string
+        ward:
+          type: string
     ChildBrief:
       type: object
       properties:
@@ -2969,6 +3131,130 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DailyHealthEntryResponse"
+    ChildEnrollmentResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        allergies:
+          type: array
+          items:
+            type: string
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        code:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        enrolledAt:
+          type: string
+          format: date
+        fullName:
+          type: string
+        gender:
+          type: string
+          enum:
+          - MALE
+          - FEMALE
+        guardianAccounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianAccountResultResponse"
+        guardians:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildGuardianResponse"
+        hasDeclaration:
+          type: boolean
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildHistoryResponse"
+        id:
+          type: integer
+          format: int64
+        leftAt:
+          type: string
+          format: date
+        leftReason:
+          type: string
+        profile:
+          $ref: "#/components/schemas/ChildProfileDetailResponse"
+        readmittedAt:
+          type: string
+          format: date
+        schoolYearId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - PENDING_PLACEMENT
+          - LEFT
+    ChildGuardianResponse:
+      type: object
+      properties:
+        accountStatus:
+          type: string
+          enum:
+          - NOT_ACTIVATED
+          - ACTIVE
+          - INACTIVE
+        email:
+          type: string
+        fullName:
+          type: string
+        idNumber:
+          type: string
+        phone:
+          type: string
+        relation:
+          type: string
+          enum:
+          - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
+          - GUARDIAN
+          - OTHER
+        smsAt:
+          type: string
+          format: date-time
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+    ChildHistoryResponse:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+          - ENROLLED
+          - UPDATED
+          - WITHDRAWN
+          - READMITTED
+        at:
+          type: string
+          format: date-time
+        note:
+          type: string
+        userFullName:
+          type: string
+        userId:
+          type: integer
+          format: int64
     ChildPlacement:
       type: object
       properties:
@@ -2986,6 +3272,47 @@ components:
           type: string
         placement:
           $ref: "#/components/schemas/Placement"
+    ChildProfileDetailResponse:
+      type: object
+      properties:
+        address:
+          $ref: "#/components/schemas/ChildAddressResponse"
+        beneficiary:
+          type: string
+        bloodType:
+          type: string
+        ethnicity:
+          type: string
+        gestationWeeks:
+          type: integer
+          format: int32
+        idNumber:
+          type: string
+        paymentSource:
+          type: string
+        premature:
+          type: string
+          enum:
+          - "YES"
+          - "NO"
+    ChildProfileInput:
+      type: object
+      properties:
+        address:
+          $ref: "#/components/schemas/ChildAddressInput"
+        beneficiary:
+          type: string
+        bloodType:
+          type: string
+        ethnicity:
+          type: string
+        gestationWeeks:
+          type: integer
+          format: int32
+        idNumber:
+          type: string
+        premature:
+          type: string
     ChildProfileResponse:
       type: object
       properties:
@@ -3044,6 +3371,71 @@ components:
         unexcused:
           type: integer
           format: int32
+    ChildViewResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        allergies:
+          type: array
+          items:
+            type: string
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        code:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        enrolledAt:
+          type: string
+          format: date
+        fullName:
+          type: string
+        gender:
+          type: string
+          enum:
+          - MALE
+          - FEMALE
+        guardians:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildGuardianResponse"
+        hasDeclaration:
+          type: boolean
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildHistoryResponse"
+        id:
+          type: integer
+          format: int64
+        leftAt:
+          type: string
+          format: date
+        leftReason:
+          type: string
+        profile:
+          $ref: "#/components/schemas/ChildProfileDetailResponse"
+        readmittedAt:
+          type: string
+          format: date
+        schoolYearId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - PENDING_PLACEMENT
+          - LEFT
     ClassAttendanceResponse:
       type: object
       properties:
@@ -3744,6 +4136,13 @@ components:
         validUntil:
           type: string
           format: date-time
+    DeclarationAnswerInput:
+      type: object
+      properties:
+        state:
+          type: string
+        text:
+          type: string
     Domain:
       type: object
       properties:
@@ -3756,6 +4155,28 @@ components:
             $ref: "#/components/schemas/Row"
       required:
       - domainId
+    DuplicateCheckResponse:
+      type: object
+      properties:
+        canReadmit:
+          type: boolean
+        code:
+          type: string
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - ACTIVE
+          - LEFT
+        leftAt:
+          type: string
+          format: date
+        sameCampus:
+          type: boolean
     EduConfigRequest:
       type: object
       properties:
@@ -3811,6 +4232,34 @@ components:
           format: date
       required:
       - validTo
+    EnrollChildRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        child:
+          $ref: "#/components/schemas/EnrollmentChildInput"
+        classId:
+          type: integer
+          format: int64
+        declaration:
+          $ref: "#/components/schemas/HealthDeclarationInput"
+    EnrollmentChildInput:
+      type: object
+      properties:
+        dateOfBirth:
+          type: string
+        fullName:
+          type: string
+        gender:
+          type: string
+        guardians:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianInput"
+        profile:
+          $ref: "#/components/schemas/ChildProfileInput"
     Entry:
       type: object
       properties:
@@ -3874,6 +4323,46 @@ components:
         planned:
           type: integer
           format: int64
+    GuardianAccountResultResponse:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        phoneChanged:
+          type: boolean
+        result:
+          type: string
+          enum:
+          - CREATED
+          - LINKED
+          - NOT_ACTIVATED
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+    GuardianCheckRequest:
+      type: object
+      properties:
+        guardians:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianInput"
+    GuardianInput:
+      type: object
+      properties:
+        email:
+          type: string
+        fullName:
+          type: string
+        idNumber:
+          type: string
+        phone:
+          type: string
+        relation:
+          type: string
     GuardianResponse:
       type: object
       properties:
@@ -3904,6 +4393,17 @@ components:
           format: int64
         username:
           type: string
+    HealthDeclarationInput:
+      type: object
+      properties:
+        allergies:
+          $ref: "#/components/schemas/AllergiesInput"
+        diet:
+          $ref: "#/components/schemas/DeclarationAnswerInput"
+        medicalHistory:
+          $ref: "#/components/schemas/MedicalHistoryInput"
+        otherNotes:
+          $ref: "#/components/schemas/DeclarationAnswerInput"
     History:
       type: object
       properties:
@@ -4052,6 +4552,18 @@ components:
         substitute:
           type: integer
           format: int32
+    LinkedChildResponse:
+      type: object
+      properties:
+        className:
+          type: string
+        code:
+          type: string
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
     Login:
       type: object
       properties:
@@ -4198,6 +4710,15 @@ components:
           type: string
         totals:
           $ref: "#/components/schemas/Totals"
+    MedicalHistoryInput:
+      type: object
+      properties:
+        family:
+          $ref: "#/components/schemas/DeclarationAnswerInput"
+        self:
+          $ref: "#/components/schemas/DeclarationAnswerInput"
+        tbContact:
+          $ref: "#/components/schemas/TbContactInput"
     MultiSummary:
       type: object
       properties:
@@ -4426,6 +4947,42 @@ components:
         totalPages:
           type: integer
           format: int32
+    ParentAccountLookupResponse:
+      type: object
+      properties:
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/LinkedChildResponse"
+        email:
+          type: string
+        fullName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        idNumber:
+          type: string
+        otherChildrenCount:
+          type: integer
+          format: int32
+        phone:
+          type: string
+        relation:
+          type: string
+          enum:
+          - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
+          - GUARDIAN
+          - OTHER
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
     ParentPasswordResponse:
       type: object
       properties:
@@ -4618,6 +5175,32 @@ components:
             $ref: "#/components/schemas/TargetClass"
         year:
           $ref: "#/components/schemas/YearBrief"
+    PlacementClassResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+        enrolledCount:
+          type: integer
+          format: int64
+        homeroomTeacherId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
     PlanActorResponse:
       type: object
       properties:
@@ -4631,6 +5214,11 @@ components:
         userId:
           type: integer
           format: int64
+    ReadmitChildRequest:
+      type: object
+      properties:
+        reason:
+          type: string
     RecordView:
       type: object
       properties:
@@ -4835,6 +5423,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonChildEnrollmentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildEnrollmentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonChildProfileResponse:
       type: object
       properties:
@@ -4843,6 +5444,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ChildProfileResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonChildViewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildViewResponse"
         desc:
           type: string
         errorCode:
@@ -4986,6 +5600,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/DayUnlockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonDuplicateCheckResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DuplicateCheckResponse"
         desc:
           type: string
         errorCode:
@@ -5149,6 +5776,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PermissionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListPlacementClassResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlacementClassResponse"
         desc:
           type: string
         errorCode:
@@ -5353,6 +5995,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/PageResponseYearPlanSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentAccountLookupResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentAccountLookupResponse"
         desc:
           type: string
         errorCode:
@@ -6032,6 +6687,13 @@ components:
         taken:
           type: integer
           format: int64
+    TbContactInput:
+      type: object
+      properties:
+        contactDate:
+          type: string
+        state:
+          type: string
     Teacher:
       type: object
       properties:

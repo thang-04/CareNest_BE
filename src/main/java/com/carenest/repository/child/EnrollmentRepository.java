@@ -4,6 +4,7 @@ import com.carenest.entity.child.Enrollment;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -34,4 +35,7 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     // Enrollment chưa kết thúc tới ngày :date (gồm cả lớp sẽ học), dùng khi chuyển lớp
     @Query("select e from Enrollment e where e.childId = :childId and (e.validTo is null or e.validTo >= :date)")
     List<Enrollment> findOpenByChildId(@Param("childId") Long childId, @Param("date") LocalDate date);
+
+    /** Enrollment gần nhất của trẻ (kể cả đã đóng): điểm trường của trẻ đã nghỉ học là điểm trường lớp cuối. */
+    Optional<Enrollment> findFirstByChildIdOrderByValidFromDescIdDesc(Long childId);
 }

@@ -207,6 +207,27 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Map<Long, Long> findHomeroomTeacherIds(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findHomeroomTeacherIds|classCount=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> homeroom = classroomIds.isEmpty()
+                    ? Map.of()
+                    : staffAssignmentRepository.findCurrentTeachers(classroomIds, date).stream()
+                            .filter(StaffAssignment::isHomeroom)
+                            .collect(Collectors.toMap(
+                                    StaffAssignment::getClassroomId,
+                                    StaffAssignment::getUserId,
+                                    (first, second) -> first));
+            log.info("{}|END", logPrefix);
+            return homeroom;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderIds|ageGroupId=" + ageGroupId;
         log.info("{}|START", logPrefix);

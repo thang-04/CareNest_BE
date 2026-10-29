@@ -1,6 +1,8 @@
 package com.carenest.repository.account;
 
 import com.carenest.entity.account.UserAccount;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -13,5 +15,12 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
 
     Optional<UserAccount> findByUsername(String username);
 
-    java.util.List<UserAccount> findByEmailIgnoreCase(String email);
+    List<UserAccount> findByEmailIgnoreCase(String email);
+
+    // CCCD phụ huynh là khóa nhận diện (AUTH-18, UNIQUE ở V10)
+    Optional<UserAccount> findByCitizenId(String citizenId);
+
+    List<UserAccount> findAllByCitizenIdIn(Collection<String> citizenIds);
+
+    List<UserAccount> findAllByUsernameIn(Collection<String> usernames);
 }

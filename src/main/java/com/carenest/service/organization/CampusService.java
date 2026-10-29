@@ -6,6 +6,7 @@ import com.carenest.dto.organization.CampusResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.CampusStatus;
 import java.util.List;
+import java.util.Optional;
 
 /** Cấu hình trường › Điểm trường: HT xem/ghi toàn trường, PHT chỉ xem điểm trường được phân công. */
 public interface CampusService {
@@ -22,4 +23,7 @@ public interface CampusService {
 
     /** Ngừng hoạt động / hoạt động lại (Cần chốt 23/10/2026); ngừng thì kết thúc phân công PHT của điểm trường. */
     CampusResponse changeCampusStatus(CurrentUser currentUser, Long campusId, CampusStatus status);
+
+    /** Trạng thái điểm trường cho module khác (tiếp nhận trẻ chỉ vào điểm trường đang hoạt động); không có ⇒ rỗng. */
+    Optional<CampusStatus> findCampusStatus(Long campusId);
 }

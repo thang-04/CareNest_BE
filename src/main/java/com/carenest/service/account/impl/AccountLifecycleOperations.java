@@ -10,6 +10,8 @@ import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -47,6 +49,34 @@ class AccountLifecycleOperations {
             return transactionTemplate.execute(status -> persist.apply(keycloakUserId));
         } catch (RuntimeException ex) {
             deleteIdentityQuietly(logPrefix, keycloakUserId);
+            if (ex instanceof IdentityProviderException idpEx) {
+                throw toGlobalException(idpEx);
+            }
+            if (ex instanceof DataIntegrityViolationException) {
+                throw GlobalException.withCause(ApiCode.ACCOUNT_EXISTS, ex);
+            }
+            throw ex;
+        }
+    }
+
+    /**
+     * Như {@link #createIdentity} cho nhiều user một lần (lưu form tiếp nhận tạo tài khoản cho cả nhà, AUTH-20): tạo lần
+     * lượt user Keycloak + realm role, rồi chạy {@code persist(keycloakUserIds)} (cùng thứ tự {@code users}) trong một
+     * transaction DB. Lỗi ở bất kỳ bước nào ⇒ xóa mọi user Keycloak đã tạo. {@code users} rỗng ⇒ chỉ chạy persist.
+     */
+    <T> T createIdentities(
+            String logPrefix, List<NewIdentityUser> users, CareNestRole role, Function<List<String>, T> persist) {
+        List<String> created = new ArrayList<>();
+        try {
+            for (NewIdentityUser user : users) {
+                String keycloakUserId = identityProviderClient.createUser(user);
+                created.add(keycloakUserId);
+                identityProviderClient.assignRealmRole(keycloakUserId, role.name());
+            }
+            List<String> keycloakUserIds = List.copyOf(created);
+            return transactionTemplate.execute(status -> persist.apply(keycloakUserIds));
+        } catch (RuntimeException ex) {
+            created.forEach(keycloakUserId -> deleteIdentityQuietly(logPrefix, keycloakUserId));
             if (ex instanceof IdentityProviderException idpEx) {
                 throw toGlobalException(idpEx);
             }

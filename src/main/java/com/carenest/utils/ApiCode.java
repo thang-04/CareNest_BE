@@ -206,6 +206,17 @@ public enum ApiCode {
     PARENT_ALREADY_LINKED(3004, HttpStatus.CONFLICT, "Phụ huynh đã liên kết với trẻ này"),
     GUARDIAN_LINK_NOT_FOUND(3005, HttpStatus.NOT_FOUND, "Không tìm thấy liên kết phụ huynh với trẻ"),
     CHILD_GUARDIANS_MANAGE_DENIED(3006, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý phụ huynh của trẻ này"),
+    // CHD-04: trùng họ tên, ngày sinh và CCCD của một phụ huynh với trẻ đang học / chờ xếp lớp
+    CHILD_DUPLICATE(
+            3007,
+            HttpStatus.CONFLICT,
+            "Hồ sơ trẻ này đã tồn tại (trùng họ tên, ngày sinh và phụ huynh). Xem lại hồ sơ đã có."),
+    // AUTH-18: một người một tài khoản; data = các ô CCCD/SĐT lệch (guardians.{i}.idNumber|phone)
+    GUARDIAN_IDENTITY_CONFLICT(
+            3008,
+            HttpStatus.CONFLICT,
+            "Số CCCD hoặc số điện thoại đã thuộc phụ huynh khác. Kiểm tra các ô được đánh dấu."),
+    CHILD_NOT_LEFT(3009, HttpStatus.CONFLICT, "Trẻ chưa nghỉ học, không cần mở lại hồ sơ"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),

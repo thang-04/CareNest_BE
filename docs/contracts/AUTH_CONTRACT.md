@@ -202,6 +202,8 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 
 ## Tài khoản phụ huynh gắn trẻ (đã có — `PARENT_ACCOUNT_MANAGE`, AUTH-18, AUTH-19)
 
+Từ 29/10/2026 tài khoản phụ huynh còn được tạo khi lưu form tiếp nhận `POST /children/enrollments` (AUTH-20; quyền `CHILD_ENROLL`, tạo tài khoản khi người lưu có thêm `PARENT_ACCOUNT_MANAGE`): mật khẩu tạm **không** trả về, chỉ gửi SMS (L-15, cổng SMS giả tới khi chọn nhà cung cấp), kết quả từng phụ huynh trong `guardianAccounts[]`. Tài khoản lưu `citizen_id` (CCCD, khóa nhận diện); tra theo CCCD: `GET /children/parent-accounts/by-citizen-id`. Contract: `docs/modules/child.md` mục "API & bảng", plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 4.1.
+
 Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang học (lớp hôm nay) trong campus mình, và phụ huynh có ít nhất một trẻ liên kết như vậy. PHT nhận cùng 403 cho trẻ/tài khoản không tồn tại và ngoài phạm vi.
 
 | Method + path | Body / query | `data` |

@@ -31,7 +31,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(GlobalException.class)
-    public ResponseEntity<ResponseJson<Void>> handleGlobalException(GlobalException ex) {
+    public ResponseEntity<ResponseJson<List<FieldErrorResponse>>> handleGlobalException(GlobalException ex) {
         if (ex.getApiCode().getHttpStatus().is5xxServerError()) {
             log.error(
                     "[handleGlobalException]|code={}|errorCode={}|desc={}",
@@ -40,13 +40,17 @@ public class GlobalExceptionHandler {
                     ex.getMessage(),
                     ex);
         } else {
+            // Chỉ log tên ô, không log câu lỗi theo ô (có thể nhắc lại dữ liệu người dùng nhập)
             log.warn(
-                    "[handleGlobalException]|code={}|errorCode={}|desc={}",
+                    "[handleGlobalException]|code={}|errorCode={}|desc={}|fields={}",
                     ex.getApiCode().getCode(),
                     ex.getApiCode().getErrorCode(),
-                    ex.getMessage());
+                    ex.getMessage(),
+                    ex.getFieldErrors().stream().map(FieldErrorResponse::field).toList());
         }
-        return ResponseJson.toJson(ex.getApiCode(), ex.getMessage());
+        // Lỗi theo ô (C-5): data = [{ field, message }]; lỗi khác data = null như trước
+        List<FieldErrorResponse> fields = ex.getFieldErrors().isEmpty() ? null : ex.getFieldErrors();
+        return ResponseJson.toJsonWithData(ex.getApiCode(), ex.getMessage(), fields);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

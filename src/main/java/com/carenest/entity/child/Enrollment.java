@@ -36,6 +36,10 @@ public class Enrollment {
     @Column(name = "valid_to")
     private LocalDate validTo;
 
+    // Người xếp lớp (V10); null ở enrollment cũ và enrollment do chuyển năm học tạo
+    @Column(name = "created_by", updatable = false)
+    private Long createdBy;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -49,6 +53,13 @@ public class Enrollment {
         enrollment.childId = childId;
         enrollment.classroomId = classroomId;
         enrollment.validFrom = validFrom;
+        return enrollment;
+    }
+
+    /** Xếp lớp do người thao tác (tiếp nhận có lớp, xếp/chuyển lớp): ghi người xếp. */
+    public static Enrollment start(Long childId, Long classroomId, LocalDate validFrom, Long createdBy) {
+        Enrollment enrollment = start(childId, classroomId, validFrom);
+        enrollment.createdBy = createdBy;
         return enrollment;
     }
 

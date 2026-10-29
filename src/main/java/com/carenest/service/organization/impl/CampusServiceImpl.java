@@ -34,6 +34,7 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -324,6 +325,20 @@ public class CampusServiceImpl implements CampusService {
             CampusResponse response = toResponseWithStats(campus);
             log.info("{}|END", logPrefix);
             return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Optional<CampusStatus> findCampusStatus(Long campusId) {
+        String logPrefix = LOG_PREFIX + "|findCampusStatus|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<CampusStatus> status = campusRepository.findById(campusId).map(Campus::getStatus);
+            log.info("{}|END", logPrefix);
+            return status;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
