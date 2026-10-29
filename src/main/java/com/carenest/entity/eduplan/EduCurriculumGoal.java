@@ -30,14 +30,8 @@ public class EduCurriculumGoal {
     @Column(name = "domain_id", nullable = false)
     private Long domainId;
 
-    @Column(name = "sub_domain", length = 150)
-    private String subDomain;
-
-    @Column(name = "group_no", length = 10)
-    private String groupNo;
-
-    @Column(name = "group_text", nullable = false, columnDefinition = "text")
-    private String groupText;
+    @Column(name = "expected_result_id", nullable = false)
+    private Long expectedResultId;
 
     @Column(name = "goal_no", length = 10)
     private String goalNo;

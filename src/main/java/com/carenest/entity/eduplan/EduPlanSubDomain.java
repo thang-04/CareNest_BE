@@ -12,6 +12,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EduPlanSubDomain extends EduGoalRow {
 
+    @Column(name = "curriculum_sub_domain_id")
+    private Long curriculumSubDomainId;
+
     @Override
     public EduGoalRowKind getKind() {
         return EduGoalRowKind.SUB;
@@ -19,4 +22,14 @@ public class EduPlanSubDomain extends EduGoalRow {
 
     @Override
     public void attachParents(Long subDomainId, Long expectedResultId) {}
+
+    @Override
+    public Long getCurriculumId() {
+        return curriculumSubDomainId;
+    }
+
+    @Override
+    public void linkCurriculum(Long id) {
+        this.curriculumSubDomainId = id;
+    }
 }

@@ -5,6 +5,7 @@ public record CurriculumContentResponse(
         Long sourceId,
         Long domainId,
         String domainName,
+        Long subDomainId,
         String subDomain,
         String categoryNo,
         String category,

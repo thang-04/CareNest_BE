@@ -486,3 +486,25 @@ Thay đổi vượt 8 file: tách hai đợt review BE và Web; mỗi đợt ch�
 - BE: migration `V36__drop_edu_expected_results.sql`; xóa `EduExpectedResult`, `EduExpectedResultRepository`, `ExpectedResultResponse`, `getExpectedResults` (controller/service/mapper). Không đụng `EduPlanExpectedResult` (nhóm kết quả mong đợi thật trong kế hoạch).
 - Contract: bỏ một endpoint đọc; tác động FE/APP: không (Web dùng hằng `src/models/education-plan/expectedResults.js`, App không tham chiếu). Cập nhật openapi, DATA_DICTIONARY, DOMAIN_MODEL, GLOSSARY, module card, CROSS_REPO_MAP, contract spec 005.
 - Giả định: gợi ý ở Web giữ nguyên (hằng FE, mới có khối 3–4 tuổi); hướng bổ sung là lấy từ danh mục Bộ, không dựng lại bảng cũ.
+
+## Bổ sung 30/10/2026 — Danh mục Bộ 3 tầng (làn L, tự chạy theo CLAUDE.md)
+**Yêu cầu (user 30/10):** tách danh mục Chương trình GDMN thành 3 tầng giống kế hoạch (lĩnh vực con, nhóm kết quả mong đợi, mục tiêu) và để lĩnh vực con/nhóm trong kế hoạch liên kết về nguồn Bộ. EDU-28 đã cập nhật.
+
+**Thiết kế**
+- V37: bảng `edu_curriculum_sub_domains` (nguồn, nhóm tuổi, lĩnh vực, tên; UNIQUE theo nguồn/nhóm tuổi/lĩnh vực/tên) và `edu_curriculum_expected_results` (nguồn, nhóm tuổi, lĩnh vực, `sub_domain_id` tùy chọn, `group_no`, câu); nạp từ dữ liệu V34 (17 lĩnh vực con, 102 nhóm — mỗi nhóm là một đoạn liền trong văn bản). `edu_curriculum_goals` thay `sub_domain`/`group_no`/`group_text` bằng `expected_result_id` NOT NULL; `edu_curriculum_contents` thay `sub_domain` bằng `sub_domain_id`.
+- Kế hoạch: `edu_plan_sub_domains.curriculum_sub_domain_id`, `edu_plan_expected_results.curriculum_expected_result_id` (nullable, ON DELETE SET NULL, như `edu_plan_goals.curriculum_goal_id`). Backfill: dòng kế hoạch có mục tiêu con lấy từ Bộ và chữ trùng câu Bộ thì gắn liên kết.
+- API (thêm field, tương thích): `/curriculum/goals` thêm `subDomainId`, `expectedResultId` (giữ `subDomain`, `groupNo`, `groupText`); `/curriculum/contents` thêm `subDomainId`; dòng kế hoạch (request) thêm `curriculumSubDomainId`, `curriculumExpectedResultId`; (response) thêm hai id đó và `curriculumText` (câu gốc của lĩnh vực con/nhóm). Mã 7030 dùng chung cho cả ba tầng, đổi lời báo.
+- FE: dựng kế hoạch nguồn theo id tầng; chép (EDU-24) giữ liên kết tiêu đề; nhãn Theo Bộ / Đã sửa từ Bộ ở lĩnh vực con và nhóm.
+
+**Giả định (user soát)**
+- Mục tiêu của Bộ không lưu thêm `sub_domain_id` (đi qua nhóm) vì mọi mục tiêu Bộ đều có nhóm; kế hoạch vẫn giữ cấu trúc cũ.
+- Kiểm hợp lệ liên kết lĩnh vực con/nhóm giống mục tiêu: đúng nhóm tuổi của kế hoạch (7030); id sai kiểu dòng bị bỏ qua.
+- Không đổi cách ghép "thêm vào cuối, bỏ trùng mục tiêu" của EDU-28; chỉ thêm liên kết cho tiêu đề được tạo khi ghép.
+- Gợi ý nhóm bằng hằng FE (khối 3–4 tuổi) giữ nguyên, không gắn liên kết Bộ.
+
+### Progress log — 2026-10-30 (3 tầng)
+- Đã đối chiếu dữ liệu V34 trên DB tạm: 102 nhóm = 102 đoạn liền; mọi lĩnh vực con mục C có trong mục D.
+- BE: V37 (`V37__split_edu_curriculum_tiers.sql`); entity `EduCurriculumSubDomain`, `EduCurriculumExpectedResult`; `EduGoalRow.getCurriculumId/linkCurriculum` chung 3 tầng; `EduCurriculumService.findRefs(kind, ids)` thay `findGoalRefs`; `CurriculumGoalRef` → `CurriculumRef`. Lời báo 7030 đổi thành "Dòng lấy từ danh mục của Bộ…". Snapshot OpenAPI cập nhật có chủ đích (chỉ thêm 5 field).
+- Test BE mới: `EduCurriculumTiersMigrationTest` (tách + backfill, tiêu đề tự gõ không bị gắn), `threeTiersShareIds`, `curriculumHeadingLinksKeptAndValidated` (lưu, câu gốc, 7030, chép phiên bản).
+- FE: `curriculum.mjs` (`curriculumLink`, cây/kế hoạch nguồn theo id tầng, nhãn + anchor `cs-`/`cgr-`), `importGoals` giữ liên kết tiêu đề, `yearPlanMapper` gửi/đọc id tầng, `GoalTables` nhãn ở lĩnh vực con/nhóm, trang nguồn có anchor. Test FE mới trong `tests/education-plan/curriculum.test.mjs`.
+- Tác động APP: không dùng các API này. Web cũ vẫn chạy (field cũ giữ nguyên).

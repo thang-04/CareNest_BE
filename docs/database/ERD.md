@@ -82,6 +82,10 @@ erDiagram
     edu_plan_sub_domains |o--o{ edu_plan_goals : goals
     edu_plan_expected_results |o--o{ edu_plan_goals : goals
     edu_plan_goals ||--o{ edu_goal_contents : contents
+    edu_curriculum_sub_domains |o--o{ edu_curriculum_expected_results : groups
+    edu_curriculum_expected_results ||--o{ edu_curriculum_goals : goals
+    edu_curriculum_sub_domains |o--o{ edu_plan_sub_domains : source
+    edu_curriculum_expected_results |o--o{ edu_plan_expected_results : source
     edu_curriculum_goals |o--o{ edu_plan_goals : source
     edu_goal_contents ||--o{ edu_content_theme_ticks : ticks
     edu_themes ||--o{ edu_content_theme_ticks : ticks

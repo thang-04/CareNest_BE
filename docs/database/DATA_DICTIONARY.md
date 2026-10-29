@@ -317,10 +317,13 @@ User yêu cầu tất cả tệp dùng S3 private và đồng ý AWS SDK v2. Met
 | Bảng | Cột chính | Ghi chú |
 | --- | --- | --- |
 | edu_curriculum_sources | code (unique), title, document_no, issued_date, issuer, official_url, retrieved_from_url, retrieved_at, scope_note, active | Văn bản nguồn (VBHN-01-2021-GDMN) |
-| edu_curriculum_goals | source_id, age_group_id, domain_id, sub_domain, group_no, group_text, goal_no, goal_text, section_ref, sort_order (unique theo nguồn + nhóm tuổi) | Mục D "Kết quả mong đợi": câu đánh số = mục tiêu |
+| edu_curriculum_sub_domains | source_id, age_group_id, domain_id, text, sort_order (unique theo nguồn + nhóm tuổi; unique tên theo nguồn + nhóm tuổi + lĩnh vực) | V37: lĩnh vực con của Bộ (17 dòng) |
+| edu_curriculum_expected_results | source_id, age_group_id, domain_id, sub_domain_id (FK, tùy chọn), group_no, text, sort_order | V37: nhóm kết quả mong đợi = tiêu đề hàng "n. …" mục D (102 dòng) |
+| edu_curriculum_goals | source_id, age_group_id, domain_id, expected_result_id (FK NOT NULL, V37), goal_no, goal_text, section_ref, sort_order (unique theo nguồn + nhóm tuổi) | Mục D "Kết quả mong đợi": câu đánh số = mục tiêu; V37 bỏ sub_domain/group_no/group_text (lấy qua nhóm) |
 | edu_curriculum_goal_contents | curriculum_goal_id (CASCADE), text, sort_order | Gạch đầu dòng dưới mục tiêu = nội dung |
-| edu_curriculum_contents | source_id, age_group_id, domain_id, sub_domain, category_no, category, label, text, section_ref, sort_order | Mục C "Nội dung giáo dục theo độ tuổi" = gợi ý nội dung |
+| edu_curriculum_contents | source_id, age_group_id, domain_id, sub_domain_id (FK, V37), category_no, category, label, text, section_ref, sort_order | Mục C "Nội dung giáo dục theo độ tuổi" = gợi ý nội dung |
 | edu_plan_goals.curriculum_goal_id | FK edu_curriculum_goals ON DELETE SET NULL | Mục tiêu trong kế hoạch lấy từ Bộ; chép theo phiên bản (EDU-25) |
+| edu_plan_sub_domains.curriculum_sub_domain_id, edu_plan_expected_results.curriculum_expected_result_id | FK danh mục cùng tầng ON DELETE SET NULL (V37) | Lĩnh vực con/nhóm trong kế hoạch lấy từ Bộ; chép theo phiên bản; dữ liệu cũ gắn khi chữ trùng câu Bộ và có mục tiêu con lấy từ Bộ |
 
 V36 bỏ bảng `edu_expected_results` (danh mục gợi ý chưa từng có dữ liệu, không client nào đọc; gợi ý theo Bộ dùng `edu_curriculum_*`, EDU-28).
 

@@ -40,6 +40,11 @@ public class EduPlanGoal extends EduGoalRow {
     }
 
     @Override
+    public Long getCurriculumId() {
+        return curriculumGoalId;
+    }
+
+    @Override
     public void linkCurriculum(Long id) {
         this.curriculumGoalId = id;
     }

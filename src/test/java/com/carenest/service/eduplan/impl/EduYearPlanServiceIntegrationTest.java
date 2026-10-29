@@ -723,6 +723,66 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "EDU-28: lĩnh vực con và nhóm lấy từ Bộ giữ liên kết, trả câu gốc, chép sang phiên bản; sai nhóm tuổi bị từ chối")
+    void curriculumHeadingLinksKeptAndValidated() {
+        Long ministryGoal = jdbc.queryForObject(
+                "SELECT g.id FROM edu_curriculum_goals g JOIN age_groups a ON a.id = g.age_group_id "
+                        + "WHERE a.code = 'ag-3' AND g.goal_no = '2.1' AND g.section_ref LIKE '%› I › a) › 2 › 2.1'",
+                Long.class);
+        Long ministryGroup = jdbc.queryForObject(
+                "SELECT expected_result_id FROM edu_curriculum_goals WHERE id = ?", Long.class, ministryGoal);
+        Long ministrySub = jdbc.queryForObject(
+                "SELECT sub_domain_id FROM edu_curriculum_expected_results WHERE id = ?", Long.class, ministryGroup);
+        String groupText = jdbc.queryForObject(
+                "SELECT text FROM edu_curriculum_expected_results WHERE id = ?", String.class, ministryGroup);
+        YearPlanRequest linked = request(
+                ageGroup3,
+                List.of(new YearPlanRequest.Domain(
+                        domainPhysical,
+                        List.of(
+                                new YearPlanRequest.Row(
+                                        null, "sub", "Vận động (trường sửa)", List.of(), null, ministrySub, null),
+                                new YearPlanRequest.Row(null, "group", groupText, List.of(), null, null, ministryGroup),
+                                new YearPlanRequest.Row(null, "goal", "Giữ thăng bằng", List.of(), ministryGoal)))),
+                List.of());
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3, linked, new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+
+        List<YearPlanDetailResponse.Row> rows = domain(created, domainPhysical).rows();
+        assertThat(rows.get(0).curriculumSubDomainId()).isEqualTo(ministrySub);
+        assertThat(rows.get(0).curriculumText()).isEqualTo("Phát triển vận động");
+        assertThat(rows.get(0).curriculumGoalId()).isNull();
+        assertThat(rows.get(1).curriculumExpectedResultId()).isEqualTo(ministryGroup);
+        assertThat(rows.get(1).curriculumText()).isEqualTo(groupText);
+        assertThat(rows.get(2).curriculumGoalId()).isEqualTo(ministryGoal);
+        assertThat(rows.get(2).curriculumText()).isNull();
+
+        Long otherAgeGroup = jdbc.queryForObject(
+                "SELECT r.id FROM edu_curriculum_expected_results r JOIN age_groups a ON a.id = r.age_group_id "
+                        + "WHERE a.code = 'ag-5' ORDER BY r.sort_order LIMIT 1",
+                Long.class);
+        YearPlanRequest wrongAge = request(
+                ageGroup3,
+                List.of(new YearPlanRequest.Domain(
+                        domainPhysical,
+                        List.of(new YearPlanRequest.Row(
+                                rows.get(1).id(), "group", groupText, List.of(), null, null, otherAgeGroup)))),
+                List.of());
+        assertErrorCode(
+                () -> service.updateYearPlan(leader3, created.id(), wrongAge, edit(leader3, created.id(), true)),
+                ApiCode.CURRICULUM_GOAL_INVALID);
+
+        service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true));
+        service.issueYearPlan(vicePrincipal, created.id(), "Đạt", edit(vicePrincipal, created.id(), true));
+        YearPlanDetailResponse v2 =
+                service.createVersion(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false));
+        List<YearPlanDetailResponse.Row> copied = domain(v2, domainPhysical).rows();
+        assertThat(copied.get(0).curriculumSubDomainId()).isEqualTo(ministrySub);
+        assertThat(copied.get(1).curriculumExpectedResultId()).isEqualTo(ministryGroup);
+    }
+
+    @Test
     @DisplayName("EDU-09: chuyển nhóm và MT giữ lại trước khi xóa lĩnh vực con cũ, không mất nội dung/dấu tích")
     void storesThreeTablesAndReparentsBeforeDeletingHeadings() {
         var rows = List.of(

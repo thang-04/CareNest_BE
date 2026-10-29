@@ -280,7 +280,8 @@ public enum ApiCode {
     YEAR_PLAN_OPEN_VERSION_EXISTS(
             7028, HttpStatus.CONFLICT, "Đã có phiên bản {0} đang soạn. Hãy sửa tiếp phiên bản đó"),
     YEAR_PLAN_VERSION_COMPARE_INVALID(7029, HttpStatus.BAD_REQUEST, "Hai kế hoạch không cùng chuỗi phiên bản"),
-    CURRICULUM_GOAL_INVALID(7030, HttpStatus.BAD_REQUEST, "Mục tiêu của Bộ không thuộc nhóm tuổi của kế hoạch"),
+    CURRICULUM_GOAL_INVALID(
+            7030, HttpStatus.BAD_REQUEST, "Dòng lấy từ danh mục của Bộ không thuộc nhóm tuổi của kế hoạch"),
     THEME_WEEK_ALIGNMENT(7031, HttpStatus.BAD_REQUEST, "Chủ đề {0} phải bắt đầu vào Thứ 2 và kết thúc vào Thứ 6"),
     THEME_DATES_OVERLAP(7032, HttpStatus.BAD_REQUEST, "Chủ đề {0} trùng thời gian với chủ đề {1}"),
 

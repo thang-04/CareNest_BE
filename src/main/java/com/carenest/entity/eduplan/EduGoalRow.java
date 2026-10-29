@@ -44,11 +44,10 @@ public abstract class EduGoalRow {
         return null;
     }
 
-    public Long getCurriculumGoalId() {
-        return null;
-    }
+    /** Dòng danh mục của Bộ cùng tầng mà dòng này lấy từ đó (EDU-28); null nếu tự gõ. */
+    public abstract Long getCurriculumId();
 
-    public void linkCurriculum(Long id) {}
+    public abstract void linkCurriculum(Long id);
 
     public abstract void attachParents(Long subDomainId, Long expectedResultId);
 
@@ -81,7 +80,7 @@ public abstract class EduGoalRow {
         EduGoalRow row = create(yearPlanId, source.getKind());
         row.lineageId = source.lineage();
         row.place(source.domainId, source.sortOrder, source.getKind(), source.text, source.getGoalNo());
-        row.linkCurriculum(source.getCurriculumGoalId());
+        row.linkCurriculum(source.getCurriculumId());
         return row;
     }
 }

@@ -2,7 +2,7 @@ package com.carenest.service.eduplan.impl;
 
 import com.carenest.config.EduPlanProperties;
 import com.carenest.dto.common.PageResponse;
-import com.carenest.dto.eduplan.CurriculumGoalRef;
+import com.carenest.dto.eduplan.CurriculumRef;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
@@ -49,6 +49,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -825,23 +826,27 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     // Lưu cả cây nội dung: lưu/cập nhật trước, xóa phần bị bỏ sau để nội dung chuyển dòng không bị cascade xóa
-    // EDU-28: mục tiêu lấy từ danh mục của Bộ phải đúng nhóm tuổi của kế hoạch
-    private Map<Long, CurriculumGoalRef> requireCurriculumGoals(
+    // EDU-28: lĩnh vực con, nhóm, mục tiêu lấy từ danh mục của Bộ phải đúng nhóm tuổi của kế hoạch
+    private Map<EduGoalRowKind, Set<Long>> requireCurriculum(
             EduYearPlan plan, List<YearPlanRequest.Domain> requestDomains) {
-        Set<Long> ids = requestDomains.stream()
-                .flatMap(d -> nullToEmpty(d.rows()).stream())
-                .filter(r -> "goal".equals(r.kind()))
-                .map(YearPlanRequest.Row::curriculumGoalId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        Map<Long, CurriculumGoalRef> refs = curriculumService.findGoalRefs(ids);
-        for (Long id : ids) {
-            CurriculumGoalRef ref = refs.get(id);
-            if (ref == null || !ref.ageGroupId().equals(plan.getAgeGroupId())) {
-                throw GlobalException.of(ApiCode.CURRICULUM_GOAL_INVALID);
+        Map<EduGoalRowKind, Set<Long>> valid = new EnumMap<>(EduGoalRowKind.class);
+        for (EduGoalRowKind kind : EduGoalRowKind.values()) {
+            Set<Long> ids = requestDomains.stream()
+                    .flatMap(d -> nullToEmpty(d.rows()).stream())
+                    .filter(r -> kind.code().equals(r.kind()))
+                    .map(r -> r.curriculumId(kind))
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Map<Long, CurriculumRef> refs = curriculumService.findRefs(kind, ids);
+            for (Long id : ids) {
+                CurriculumRef ref = refs.get(id);
+                if (ref == null || !ref.ageGroupId().equals(plan.getAgeGroupId())) {
+                    throw GlobalException.of(ApiCode.CURRICULUM_GOAL_INVALID);
+                }
             }
+            valid.put(kind, ids);
         }
-        return refs;
+        return valid;
     }
 
     private void saveContent(EduYearPlan plan, YearPlanRequest request) {
@@ -859,7 +864,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         .collect(Collectors.toMap(EduGoalContent::getId, Function.identity()));
 
         List<YearPlanRequest.Domain> requestDomains = new ArrayList<>(nullToEmpty(request.domains()));
-        Map<Long, CurriculumGoalRef> curriculum = requireCurriculumGoals(plan, requestDomains);
+        Map<EduGoalRowKind, Set<Long>> curriculum = requireCurriculum(plan, requestDomains);
         Set<Long> requestedDomainIds = new HashSet<>();
         Set<Long> requestedRowIds = new HashSet<>();
         Set<Long> requestedContentIds = new HashSet<>();
@@ -909,10 +914,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         .map(existingRows::get)
                         .orElseGet(() -> EduGoalRow.create(planId, kind));
                 row.place(domain.domainId(), sortOrder++, kind, text, kind == EduGoalRowKind.GOAL ? ++goalNo : null);
-                row.linkCurriculum(
-                        requestRow.curriculumGoalId() == null || !curriculum.containsKey(requestRow.curriculumGoalId())
-                                ? null
-                                : requestRow.curriculumGoalId());
+                Long curriculumId = requestRow.curriculumId(kind);
+                row.linkCurriculum(curriculum.get(kind).contains(curriculumId) ? curriculumId : null);
                 row.attachParents(
                         kind == EduGoalRowKind.SUB ? null : subDomainId,
                         kind == EduGoalRowKind.GOAL ? expectedResultId : null);
@@ -1203,10 +1206,18 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                                 Collectors.toList())));
         Map<Long, List<EduGoalRow>> rowsByDomain =
                 rows.stream().collect(Collectors.groupingBy(EduGoalRow::getDomainId));
-        Map<Long, CurriculumGoalRef> curriculum = curriculumService.findGoalRefs(rows.stream()
-                .map(EduGoalRow::getCurriculumGoalId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet()));
+        Map<EduGoalRowKind, Map<Long, CurriculumRef>> curriculum = new EnumMap<>(EduGoalRowKind.class);
+        for (EduGoalRowKind kind : EduGoalRowKind.values()) {
+            curriculum.put(
+                    kind,
+                    curriculumService.findRefs(
+                            kind,
+                            rows.stream()
+                                    .filter(r -> r.getKind() == kind)
+                                    .map(EduGoalRow::getCurriculumId)
+                                    .filter(Objects::nonNull)
+                                    .collect(Collectors.toSet())));
+        }
 
         // UI luôn hiện đủ các lĩnh vực đang dùng; lĩnh vực đã tắt vẫn hiện nếu kế hoạch còn dòng của nó
         List<YearPlanDetailResponse.Domain> domains = domainRepository.findAll().stream()
@@ -1220,9 +1231,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                                 .map(r -> mapper.toRow(
                                         r,
                                         contentsByRow.getOrDefault(r.getId(), List.of()),
-                                        r.getCurriculumGoalId() == null
+                                        r.getCurriculumId() == null
                                                 ? null
-                                                : curriculum.get(r.getCurriculumGoalId())))
+                                                : curriculum.get(r.getKind()).get(r.getCurriculumId())))
                                 .toList()))
                 .toList();
 

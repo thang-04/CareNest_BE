@@ -3967,6 +3967,9 @@ components:
           format: int64
         subDomain:
           type: string
+        subDomainId:
+          type: integer
+          format: int64
         text:
           type: string
     CurriculumGoalResponse:
@@ -3981,6 +3984,9 @@ components:
           format: int64
         domainName:
           type: string
+        expectedResultId:
+          type: integer
+          format: int64
         goalNo:
           type: string
         goalText:
@@ -4002,6 +4008,9 @@ components:
           format: int64
         subDomain:
           type: string
+        subDomainId:
+          type: integer
+          format: int64
     CurriculumSourceResponse:
       type: object
       properties:
@@ -6392,7 +6401,13 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Content"
+        curriculumExpectedResultId:
+          type: integer
+          format: int64
         curriculumGoalId:
+          type: integer
+          format: int64
+        curriculumSubDomainId:
           type: integer
           format: int64
         id:

@@ -2,6 +2,8 @@
 
 Migration `V33__add_edu_curriculum_catalog.sql` (cấu trúc) và `V34__seed_edu_curriculum_vbhn_01_2021.sql` (dữ liệu, sinh từ văn bản).
 
+> Cập nhật 30/10/2026 (V37): danh mục tách 3 tầng — `edu_curriculum_sub_domains`, `edu_curriculum_expected_results`; `edu_curriculum_goals` dùng `expected_result_id` thay `sub_domain`/`group_no`/`group_text`, `edu_curriculum_contents` dùng `sub_domain_id`. Kế hoạch thêm `curriculum_sub_domain_id`, `curriculum_expected_result_id`. Mô tả cột bên dưới là bản V33. Chi tiết: `docs/database/DATA_DICTIONARY.md`.
+
 ## edu_curriculum_sources — văn bản nguồn
 
 | Cột | Kiểu | Ghi chú |

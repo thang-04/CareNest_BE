@@ -14,6 +14,9 @@ public class EduPlanExpectedResult extends EduGoalRow {
     @Column(name = "sub_domain_id")
     private Long subDomainId;
 
+    @Column(name = "curriculum_expected_result_id")
+    private Long curriculumExpectedResultId;
+
     @Override
     public EduGoalRowKind getKind() {
         return EduGoalRowKind.GROUP;
@@ -22,5 +25,15 @@ public class EduPlanExpectedResult extends EduGoalRow {
     @Override
     public void attachParents(Long subDomainId, Long expectedResultId) {
         this.subDomainId = subDomainId;
+    }
+
+    @Override
+    public Long getCurriculumId() {
+        return curriculumExpectedResultId;
+    }
+
+    @Override
+    public void linkCurriculum(Long id) {
+        this.curriculumExpectedResultId = id;
     }
 }
