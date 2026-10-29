@@ -38,6 +38,6 @@ Ngoài đợt 2: bàn giao suất cho bếp (NUT-14, NUT-15 PROPOSED, phụ thu�
 - Cần chốt 24/10: giữ các giả định trên; suất thay thế = 0 tới khi có dữ liệu dị ứng; chưa có module thông báo ⇒ bếp thấy nhãn "Mới" khi `confirmedAt` đổi.
 
 ## Progress log
-- 2026-10-24 (3): Cần chốt lại: chỉ PHT xác nhận/điều chỉnh, HT chỉ xem; bỏ GV hủy suất sau giờ khóa (endpoint, cột lịch sử, `kitchenChangedAt`). V23 chưa commit nên sửa thẳng, DB local gỡ V23 cũ rồi chạy lại (backup `carenest-20261024-0315-before-V23-redo.dump`).
+- 2026-10-24 (3): Cần chốt lại: chỉ PHT xác nhận/điều chỉnh, HT chỉ xem; bỏ GV hủy suất sau giờ khóa (endpoint, cột lịch sử, `kitchenChangedAt`). V26 chưa commit nên sửa thẳng, DB local gỡ V26 cũ rồi chạy lại (backup `carenest-20261024-0315-before-V26-redo.dump`).
 - 2026-10-24 (2): `classes[].ageGroupId` cho FE bếp (bếp FE mock tính định lượng từ số đã xác nhận).
-- 2026-10-24: V23, feature `meals` (entity, repository, service, controller, listener), `AttendanceService.tallyMeals` + `cancelMealAfterLock`; `MealCountIntegrationTest` (tổng hợp + bếp chỉ thấy số đã xác nhận, trẻ đến muộn sau xác nhận, điều chỉnh có lý do); snapshot OpenAPI cập nhật.
+- 2026-10-24: V26, feature `meals` (entity, repository, service, controller, listener), `AttendanceService.tallyMeals` + `cancelMealAfterLock`; `MealCountIntegrationTest` (tổng hợp + bếp chỉ thấy số đã xác nhận, trẻ đến muộn sau xác nhận, điều chỉnh có lý do); snapshot OpenAPI cập nhật.

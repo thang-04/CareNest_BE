@@ -14,19 +14,26 @@ INSERT INTO user_accounts (keycloak_user_id, username, email, full_name) VALUES
 -- Cập nhật username/email để DB dev cũ (user *.dev, *@carenest.test) khớp tên mới; các join theo username bên dưới cần điều này
 ON CONFLICT (keycloak_user_id) DO UPDATE SET username = EXCLUDED.username, email = EXCLUDED.email;
 
+-- primary_role khớp realm role trong docker/keycloak/dev/carenest-users-0.json (V8)
+UPDATE user_accounts u SET primary_role = v.role
+FROM (VALUES ('admin', 'ADMIN'), ('principal', 'PRINCIPAL'), ('viceprincipal', 'VICE_PRINCIPAL'),
+             ('teacher1', 'TEACHER'), ('teacher2', 'TEACHER'), ('parent1', 'PARENT'), ('parent2', 'PARENT'),
+             ('kitchen', 'KITCHEN_STAFF')) AS v (username, role)
+WHERE u.username = v.username AND u.primary_role IS NULL;
+
 INSERT INTO campuses (code, name, short_name, address) VALUES
     ('CS-A', 'Cơ sở A (demo)', 'Cơ sở A', 'Địa chỉ demo A'),
     ('CS-B', 'Cơ sở B (demo)', 'Cơ sở B', 'Địa chỉ demo B')
 ON CONFLICT (code) DO NOTHING;
 
--- Điểm trường chính (V11): CS-A, trừ khi đã có điểm chính
+-- Điểm trường chính (V14): CS-A, trừ khi đã có điểm chính
 UPDATE campuses SET is_main = TRUE
 WHERE code = 'CS-A' AND NOT EXISTS (SELECT 1 FROM campuses WHERE is_main);
 
 INSERT INTO school_years (name, start_date, end_date) VALUES ('2026-2027', '2026-09-01', '2027-05-31')
 ON CONFLICT (name) DO NOTHING;
 
--- Năm demo là năm đang hoạt động (V10), trừ khi đã có năm ACTIVE khác
+-- Năm demo là năm đang hoạt động (V13), trừ khi đã có năm ACTIVE khác
 UPDATE school_years SET status = 'ACTIVE', activated_at = now()
 WHERE name = '2026-2027' AND status = 'PLANNED'
   AND NOT EXISTS (SELECT 1 FROM school_years WHERE status = 'ACTIVE');

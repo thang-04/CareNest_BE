@@ -1,6 +1,6 @@
 # Database Design
 
-Migration mới V25 tạo edu_learning_resources; không sửa migration cũ/JSONB.
+Migration mới V31 tạo edu_learning_resources; không sửa migration cũ/JSONB.
 
 | Column | Type/constraint |
 | --- | --- |

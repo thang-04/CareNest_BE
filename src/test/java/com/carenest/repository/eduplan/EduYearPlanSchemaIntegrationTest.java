@@ -31,7 +31,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Migration V7/V8 (nhóm tuổi, phân công Tổ trưởng, bảng edu_*) trên PostgreSQL thật. Mỗi test rollback. Cần Docker. */
+/** Migration V10/V11 (nhóm tuổi, phân công Tổ trưởng, bảng edu_*) trên PostgreSQL thật. Mỗi test rollback. Cần Docker. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)

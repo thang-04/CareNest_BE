@@ -654,6 +654,28 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("EDU-39/40: chủ đề phải trọn tuần Thứ 2 → Thứ 6 và không trùng thời gian; nháp vẫn lưu được")
+    void themesMustCoverWholeWeeksWithoutOverlap() {
+        YearPlanDetailResponse plan = service.createYearPlan(
+                leader3,
+                request(
+                        ageGroup3,
+                        List.of(),
+                        List.of(datedTheme("t-1", "TMN", 7, 25), datedTheme("t-2", "BT", 27, 30))),
+                new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        assertErrorCode(
+                () -> service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true)),
+                ApiCode.THEME_WEEK_ALIGNMENT);
+
+        YearPlanRequest overlapping = request(
+                ageGroup3, List.of(), List.of(datedTheme("t-1", "TMN", 7, 25), datedTheme("t-2", "BT", 21, 25)));
+        service.updateYearPlan(leader3, plan.id(), overlapping, edit(leader3, plan.id(), true));
+        assertErrorCode(
+                () -> service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true)),
+                ApiCode.THEME_DATES_OVERLAP);
+    }
+
+    @Test
     @DisplayName("EDU-28: mục tiêu lấy từ danh mục của Bộ giữ liên kết, trả câu gốc; sai nhóm tuổi bị từ chối")
     void curriculumGoalLinkKeptAndValidated() {
         Long ministryGoal = jdbc.queryForObject(
@@ -913,6 +935,12 @@ class EduYearPlanServiceIntegrationTest {
     private static YearPlanRequest.Theme theme(String key, Long id) {
         return new YearPlanRequest.Theme(
                 key, id, "Trường mầm non", "TMN", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "");
+    }
+
+    // Chủ đề trong tháng 9/2026: ngày 7, 14, 21, 28 là Thứ 2; 25 là Thứ 6
+    private static YearPlanRequest.Theme datedTheme(String key, String abbr, int startDay, int endDay) {
+        return new YearPlanRequest.Theme(
+                key, null, abbr, abbr, LocalDate.of(2026, 9, startDay), LocalDate.of(2026, 9, endDay), "", "");
     }
 
     private static YearPlanRequest.Theme namedTheme(String key, Long id, String name, String abbr) {

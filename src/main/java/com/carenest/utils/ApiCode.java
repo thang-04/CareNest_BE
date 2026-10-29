@@ -66,6 +66,27 @@ public enum ApiCode {
             "Đã lưu trạng thái tài khoản nhưng chưa đồng bộ được, vui lòng thử lại"),
     IDENTITY_PROVIDER_UNAVAILABLE(
             1111, HttpStatus.SERVICE_UNAVAILABLE, "Hệ thống tài khoản đang gián đoạn, vui lòng thử lại sau"),
+    ACCOUNT_MANAGE_DENIED(1112, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý tài khoản này"),
+    ACCOUNT_ROLE_CREATE_DENIED(1113, HttpStatus.FORBIDDEN, "Bạn không có quyền tạo tài khoản với vai trò này"),
+    CANNOT_MANAGE_OWN_ACCOUNT(1114, HttpStatus.BAD_REQUEST, "Không tự quản lý tài khoản của chính mình tại đây"),
+    USE_CHANGE_PASSWORD_FOR_SELF(
+            1115, HttpStatus.BAD_REQUEST, "Dùng chức năng đổi mật khẩu cho tài khoản của chính mình"),
+    PASSWORD_RESET_SESSION_REVOKE_FAILED(
+            1116,
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Đã đặt mật khẩu tạm nhưng chưa đăng xuất được các phiên cũ, vui lòng thử lại"),
+    ROLE_PERMISSIONS_FIXED(1117, HttpStatus.FORBIDDEN, "Quyền của vai trò này cố định, không chỉnh được"),
+    PERMISSION_NOT_CONFIGURABLE_FOR_ROLE(1118, HttpStatus.BAD_REQUEST, "Quyền {0} không cấu hình được cho vai trò {1}"),
+    CANNOT_CHANGE_OWN_PERMISSIONS(1119, HttpStatus.BAD_REQUEST, "Không tự đổi quyền của chính mình"),
+    PERMISSIONS_NOT_OVERRIDABLE(1120, HttpStatus.FORBIDDEN, "Không cấp ngoại lệ quyền cho tài khoản này"),
+    PERMISSION_LOG_FILTER_INVALID(
+            1121, HttpStatus.BAD_REQUEST, "Chỉ lọc theo vai trò hoặc theo tài khoản, không chọn cả hai"),
+    PERMISSION_DUPLICATED(1122, HttpStatus.BAD_REQUEST, "Quyền {0} bị chọn trùng"),
+    PERMISSION_NOT_CONFIGURABLE_FOR_ACCOUNT(
+            1123, HttpStatus.BAD_REQUEST, "Quyền {0} không cấu hình được cho tài khoản này"),
+    PHONE_NUMBER_INVALID(1124, HttpStatus.BAD_REQUEST, "Số điện thoại không hợp lệ"),
+    PHONE_BELONGS_TO_STAFF(1125, HttpStatus.CONFLICT, "Số điện thoại này đã thuộc tài khoản nhân sự"),
+    NOT_PARENT_ACCOUNT(1126, HttpStatus.BAD_REQUEST, "Tài khoản này không phải tài khoản phụ huynh"),
 
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),
@@ -151,6 +172,20 @@ public enum ApiCode {
     TEACHER_ACCOUNT_LOCKED(2305, HttpStatus.CONFLICT, "Tài khoản giáo viên đã bị khóa"),
     TEACHER_ALREADY_ASSIGNED(2306, HttpStatus.CONFLICT, "Giáo viên {0} đang dạy lớp {1}, gỡ ở lớp đó trước"),
     TEAM_LEADER_INVALID(2307, HttpStatus.BAD_REQUEST, "Tổ trưởng phải là giáo viên đang làm việc"),
+    STAFF_ASSIGNMENT_NOT_FOUND(2308, HttpStatus.NOT_FOUND, "Không tìm thấy phân công"),
+    STAFF_ASSIGNMENT_MANAGE_DENIED(2309, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý phân công này"),
+    CANNOT_CHANGE_OWN_ASSIGNMENTS(2310, HttpStatus.BAD_REQUEST, "Không tự thay đổi phân công của chính mình"),
+    ACCOUNT_NOT_ASSIGNABLE(2311, HttpStatus.BAD_REQUEST, "Tài khoản này không phân công được"),
+    ROLE_HAS_NO_ASSIGNMENT(2312, HttpStatus.BAD_REQUEST, "Vai trò này không có phân công nhân sự"),
+    PRINCIPAL_ASSIGNMENT_SCHOOL_WIDE(
+            2313, HttpStatus.BAD_REQUEST, "Phân công Hiệu trưởng áp dụng toàn trường, không chọn điểm trường hay lớp"),
+    ASSIGNMENT_CAMPUS_REQUIRED(2314, HttpStatus.BAD_REQUEST, "Vai trò này phải phân công theo điểm trường"),
+    ASSIGNMENT_CLASS_REQUIRED(2315, HttpStatus.BAD_REQUEST, "Giáo viên phải được phân công vào một lớp"),
+    ASSIGNMENT_END_BEFORE_START(2316, HttpStatus.BAD_REQUEST, "Ngày kết thúc phân công không được trước ngày bắt đầu"),
+    ASSIGNMENT_OVERLAP(2317, HttpStatus.CONFLICT, "Nhân sự đã có phân công còn hiệu lực cho phạm vi này"),
+    ASSIGNMENT_ALREADY_ENDED(2318, HttpStatus.CONFLICT, "Phân công đã kết thúc"),
+    TEAM_LEADER_ASSIGNMENT_NOT_HERE(
+            2319, HttpStatus.BAD_REQUEST, "Phân công Tổ trưởng thực hiện ở màn phân công giáo viên theo năm học"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
@@ -169,6 +204,9 @@ public enum ApiCode {
     CHILD_ACCESS_DENIED(3001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem thông tin trẻ này"),
     CHILD_NOT_FOUND(3002, HttpStatus.NOT_FOUND, "Không tìm thấy trẻ"),
     CHILD_NOT_IN_CLASS(3003, HttpStatus.NOT_FOUND, "Trẻ không thuộc danh sách lớp hiện tại"),
+    GUARDIAN_ALREADY_LINKED(3004, HttpStatus.CONFLICT, "Phụ huynh đã được liên kết với trẻ"),
+    GUARDIAN_LINK_NOT_FOUND(3005, HttpStatus.NOT_FOUND, "Không tìm thấy liên kết phụ huynh"),
+    CHILD_GUARDIAN_MANAGE_DENIED(3006, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý phụ huynh của trẻ này"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
@@ -243,6 +281,8 @@ public enum ApiCode {
             7028, HttpStatus.CONFLICT, "Đã có phiên bản {0} đang soạn. Hãy sửa tiếp phiên bản đó"),
     YEAR_PLAN_VERSION_COMPARE_INVALID(7029, HttpStatus.BAD_REQUEST, "Hai kế hoạch không cùng chuỗi phiên bản"),
     CURRICULUM_GOAL_INVALID(7030, HttpStatus.BAD_REQUEST, "Mục tiêu của Bộ không thuộc nhóm tuổi của kế hoạch"),
+    THEME_WEEK_ALIGNMENT(7031, HttpStatus.BAD_REQUEST, "Chủ đề {0} phải bắt đầu vào Thứ 2 và kết thúc vào Thứ 6"),
+    THEME_DATES_OVERLAP(7032, HttpStatus.BAD_REQUEST, "Chủ đề {0} trùng thời gian với chủ đề {1}"),
 
     // ========== 71xx TÀI LIỆU LỚP (KẾ HOẠCH CHỦ ĐỀ, GIÁO ÁN) (module Tiền) ==========
     CLASS_DOC_NOT_FOUND(7101, HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"),

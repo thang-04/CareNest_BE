@@ -34,7 +34,7 @@ Rule chưa CONFIRMED/ACCEPTED hoặc yêu cầu lệch tài liệu ⇒ `workflow
 
 ## Bảng 3 — Yêu cầu ngoài scope
 
-Kho/NCC (OPEN — ADR-0009), tài sản/khấu hao/bảo trì, chat, chẩn đoán, multi-school, payroll/kế toán ⇒ **dừng**, đối chiếu `docs/context/PROJECT_CONTEXT.md` (Exclusions) và hỏi người dùng.
+Kiểm kê kho, dự báo tuần gửi NCC, thu tiền ăn, trạng thái nấu/bàn giao suất (kho khô rút gọn và danh mục NCC thì trong scope — ADR-0009), CSVC (báo sự cố, tài sản, khấu hao, bảo trì — FAC REMOVED), đăng ký trước người đón hộ (PCK-03), chat, chẩn đoán, multi-school, payroll/kế toán ⇒ **dừng**, đối chiếu `docs/context/PROJECT_CONTEXT.md` (Exclusions) và hỏi người dùng.
 
 ## Cập nhật tri thức (song song với mọi task)
 

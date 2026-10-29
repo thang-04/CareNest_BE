@@ -14,7 +14,7 @@ updated: 2026-10-23
 
 ## Context
 - **UI là chuẩn:** CareNest_FE `pages/attendance/AttendancePage.jsx`, `AttendanceDayUnlockPage.jsx`, `AttendanceSummaryPage.jsx`; hành vi lấy từ `services/attendance/mock/attendanceMockRepository.js` (đặc tả rút gọn ở mục "Hành vi theo mock" dưới).
-- **BE hiện có:** giờ chốt theo năm học (`attendance_cutoffs`, V14), lớp/năm, phân công GV, enrollment theo ngày, quy tắc năm đã kết thúc chỉ đọc (CFG-YR-01). Chưa có bảng điểm danh.
+- **BE hiện có:** giờ chốt theo năm học (`attendance_cutoffs`, V17), lớp/năm, phân công GV, enrollment theo ngày, quy tắc năm đã kết thúc chỉ đọc (CFG-YR-01). Chưa có bảng điểm danh.
 - **Module card:** `docs/modules/attendance.md` — attendance không biết nutrition; phát event cho nutrition.
 
 ## Phạm vi đợt 1
@@ -36,7 +36,7 @@ Ngoài đợt 1 (đợt 2–3): số suất + xác nhận, hủy suất sau gi�
 - Mở lại: hạn mở sau hiện tại, ≤ ngày kết thúc năm, không giới hạn số phút (Cần 21/10/2026); lý do ≤ 300 ký tự; mỗi lớp/ngày 1 lần mở còn hiệu lực; thu hồi = đặt hạn = bây giờ, giữ bản ghi.
 
 ## Thiết kế
-- Bảng (V18): `attendance_records(id, child_id, classroom_id, campus_id, date, status, meals VARCHAR(40), recorded_by, recorded_at, …, UNIQUE(child_id, date))` (ATT-01b); `attendance_record_history(record_id, at, user_id, action, note, unlock_id)`; `attendance_day_unlocks(id, classroom_id, campus_id, date, valid_until, reason, unlocked_by, unlocked_at, revoked_at, revoked_by)`.
+- Bảng (V21): `attendance_records(id, child_id, classroom_id, campus_id, date, status, meals VARCHAR(40), recorded_by, recorded_at, …, UNIQUE(child_id, date))` (ATT-01b); `attendance_record_history(record_id, at, user_id, action, note, unlock_id)`; `attendance_day_unlocks(id, classroom_id, campus_id, date, valid_until, reason, unlocked_by, unlocked_at, revoked_at, revoked_by)`.
 - Package `attendance` (controller/service/repository/dto) theo guide; gọi `child` (trẻ đang học lớp ngày đó), `organization` (lớp, nhóm tuổi, giờ chốt, phân công, `SchoolYearService#checkClassYearOpen`).
 - Sau khi lưu có thay đổi: phát `AttendanceChanged(date, campusId, classId)` (ADR-0004) — đợt 2 nutrition dùng để đánh dấu số suất cần xác nhận lại (ATT-07).
 - FE: `attendanceApi` theo path trên; cầu nối dev như Cấu hình trường (đăng nhập demo).
@@ -56,7 +56,7 @@ Ngoài đợt 1 (đợt 2–3): số suất + xác nhận, hủy suất sau gi�
 - **AC-7**: tổng hợp lớp/khoảng ngày đếm đúng có mặt/vắng/chưa điểm danh và số trẻ ăn.
 
 ## Phases
-1. Migration V18 + entity/repository + day-info + xem/lưu điểm danh (AC-1..5).
+1. Migration V21 + entity/repository + day-info + xem/lưu điểm danh (AC-1..5).
 2. Mở lại ngày (AC-6) + tổng hợp (AC-7).
 3. Nối FE (`attendanceApi`, cầu nối dev), thử trên trình duyệt, Postman folder "Điểm danh".
 
@@ -78,5 +78,5 @@ Ngoài đợt 1 (đợt 2–3): số suất + xác nhận, hủy suất sau gi�
 
 ## Progress log
 - 2026-10-23: draft, chờ Cần duyệt + trả lời câu hỏi mở.
-- 2026-10-23: Cần bảo "làm tiếp" ⇒ làm với mặc định của 3 câu hỏi mở (thứ 2–6; đơn nghỉ đợt sau; chưa thông báo). Lỗi dùng mã chung 400/403/404/409 (không thêm 422/423 vào ApiCode). Phase 1–2 BE xong: V18, `AttendanceService`, `AttendanceDayUnlockService`, `AttendanceController`; `AttendanceIntegrationTest` (6), `AttendanceControllerTest` (4). Còn phase 3 nối FE.
-- 2026-10-23: phase 3 nối FE xong (cầu nối dev); thử trình duyệt: GV demo lưu 2 có mặt + 1 vắng vào DB thật. Cần hỏi sức khỏe trong ngày ⇒ thêm V19 `daily_health_entries`, `DailyHealthService` (ghi nhận, xem theo lớp/trẻ, tổng hợp BGH); chưa gửi thông báo phụ huynh.
+- 2026-10-23: Cần bảo "làm tiếp" ⇒ làm với mặc định của 3 câu hỏi mở (thứ 2–6; đơn nghỉ đợt sau; chưa thông báo). Lỗi dùng mã chung 400/403/404/409 (không thêm 422/423 vào ApiCode). Phase 1–2 BE xong: V21, `AttendanceService`, `AttendanceDayUnlockService`, `AttendanceController`; `AttendanceIntegrationTest` (6), `AttendanceControllerTest` (4). Còn phase 3 nối FE.
+- 2026-10-23: phase 3 nối FE xong (cầu nối dev); thử trình duyệt: GV demo lưu 2 có mặt + 1 vắng vào DB thật. Cần hỏi sức khỏe trong ngày ⇒ thêm V22 `daily_health_entries`, `DailyHealthService` (ghi nhận, xem theo lớp/trẻ, tổng hợp BGH); chưa gửi thông báo phụ huynh.

@@ -1,6 +1,6 @@
 # Data Model: Danh mục Chương trình GDMN của Bộ
 
-Migration `V30__add_edu_curriculum_catalog.sql` (cấu trúc) và `V31__seed_edu_curriculum_vbhn_01_2021.sql` (dữ liệu, sinh từ văn bản).
+Migration `V33__add_edu_curriculum_catalog.sql` (cấu trúc) và `V34__seed_edu_curriculum_vbhn_01_2021.sql` (dữ liệu, sinh từ văn bản).
 
 ## edu_curriculum_sources — văn bản nguồn
 

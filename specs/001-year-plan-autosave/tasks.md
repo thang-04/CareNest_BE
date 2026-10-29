@@ -10,7 +10,7 @@
 
 ## Phase 2: Foundational
 
-- [x] T003 Thêm migration V27 và trường phiên/revision/idempotency trong src/main/resources/db/migration/V27__add_edu_year_plan_edit_sessions.sql và entity/eduplan/EduYearPlan.java.
+- [x] T003 Thêm migration V30 và trường phiên/revision/idempotency trong src/main/resources/db/migration/V30__add_edu_year_plan_edit_sessions.sql và entity/eduplan/EduYearPlan.java.
 - [x] T004 Truyền context qua dto/eduplan/YearPlanEditRequest.java, service/eduplan/EduYearPlanService.java và controller/eduplan/EduYearPlanController.java.
 - [x] T005 Đổi TTL 90s và truy vấn cleanup có khóa trong config/EduPlanProperties.java, application.yml, repository/eduplan/EduYearPlanRepository.java.
 
@@ -97,7 +97,7 @@ Analyze 1: 15/15 FR có task; không có xung đột yêu cầu mới với quy�
 - [x] T029 [US1] Sau lỗi validation 400, bỏ snapshot bị từ chối để nội dung đã sửa được lưu; giữ request ID khi retry lỗi mạng/5xx. RED đã tái hiện trong FE year-plan-autosave.test.mjs.
 - [x] T030 [US2] Bàn giao quyền một lần khi /new đổi sang /id/edit, không để unmount nhả quyền của trang mới, không tái sử dụng bàn giao khi Back/reload/tab khác. FE GoalFormPage.jsx; kiểm trực tiếp trình duyệt.
 
-- [x] T031 [US2] Siết CHECK của migration V24 để editing_from NULL không lọt logic ba giá trị của SQL; thêm schema regression thật.
+- [x] T031 [US2] Siết CHECK của migration V30 để editing_from NULL không lọt logic ba giá trị của SQL; thêm schema regression thật.
 
 - [x] T032 [US3] Sửa thông điệp LeaveConfirmModal riêng GoalFormPage.jsx: phân biệt chưa lưu lên hệ thống với bản đã giữ trên máy, không nói chắc rằng rời trang sẽ mất toàn bộ. Browser đã kiểm khôi phục sau khi rời trước nhịp 2s.
 

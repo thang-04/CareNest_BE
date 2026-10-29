@@ -42,7 +42,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Phòng, nhóm tuổi, lớp trên PostgreSQL thật (V12, V13). Mỗi test rollback. Cần Docker. */
+/** Phòng, nhóm tuổi, lớp trên PostgreSQL thật (V15, V16). Mỗi test rollback. Cần Docker. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)

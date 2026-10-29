@@ -1,5 +1,6 @@
 package com.carenest.entity.account;
 
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -42,6 +43,11 @@ public class UserAccount {
     @Column(nullable = false, length = 20)
     private UserStatus status;
 
+    // Bản sao role Keycloak để lọc/kiểm phạm vi quản lý (V8); token vẫn là nguồn quyền
+    @Enumerated(EnumType.STRING)
+    @Column(name = "primary_role", updatable = false, length = 20)
+    private CareNestRole primaryRole;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -51,12 +57,18 @@ public class UserAccount {
     private Instant updatedAt;
 
     public static UserAccount create(String keycloakUserId, String username, String email, String fullName) {
+        return create(keycloakUserId, username, email, fullName, null);
+    }
+
+    public static UserAccount create(
+            String keycloakUserId, String username, String email, String fullName, CareNestRole primaryRole) {
         UserAccount account = new UserAccount();
         account.keycloakUserId = keycloakUserId;
         account.username = username;
         account.email = email;
         account.fullName = fullName;
         account.status = UserStatus.ACTIVE;
+        account.primaryRole = primaryRole;
         return account;
     }
 

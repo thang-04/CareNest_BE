@@ -3,19 +3,28 @@ package com.carenest.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.carenest.entity.account.RolePermission;
 import com.carenest.entity.account.UserAccount;
+import com.carenest.entity.account.UserPermissionOverride;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.account.RolePermissionRepository;
 import com.carenest.repository.account.UserAccountRepository;
+import com.carenest.repository.account.UserPermissionOverrideRepository;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
+import com.carenest.utils.enums.PermissionEffect;
 import com.carenest.utils.enums.UserStatus;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -35,6 +44,12 @@ class CurrentUserServiceTest {
 
     @Mock
     private UserAccountRepository userAccountRepository;
+
+    @Mock
+    private RolePermissionRepository rolePermissionRepository;
+
+    @Mock
+    private UserPermissionOverrideRepository userPermissionOverrideRepository;
 
     @InjectMocks
     private CurrentUserService currentUserService;
@@ -74,6 +89,43 @@ class CurrentUserServiceTest {
         assertThat(currentUser.keycloakUserId()).isEqualTo(KEYCLOAK_USER_ID);
         assertThat(currentUser.username()).isEqualTo("teacher.a");
         assertThat(currentUser.roles()).containsExactly(CareNestRole.TEACHER);
+    }
+
+    @Test
+    @DisplayName("AUTH-10: quyền giáo viên đọc từ ma trận + ngoại lệ ở mỗi request, REVOKE có hiệu lực ngay")
+    void shouldResolveTeacherPermissionsFromMatrixAndOverrides() {
+        authenticateWithJwt("ROLE_TEACHER");
+        given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
+                .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+        given(rolePermissionRepository.findByRoleIn(Set.of(CareNestRole.TEACHER)))
+                .willReturn(List.of(RolePermission.create(CareNestRole.TEACHER, "CHILD_PROFILE_VIEW", null)));
+        given(userPermissionOverrideRepository.findByUserId(10L)).willReturn(List.of());
+
+        assertThat(currentUserService.getCurrentUser().permissions()).containsExactly(Permission.CHILD_PROFILE_VIEW);
+
+        given(userPermissionOverrideRepository.findByUserId(10L))
+                .willReturn(List.of(UserPermissionOverride.create(
+                        10L, "CHILD_PROFILE_VIEW", PermissionEffect.REVOKE, "Tạm nghỉ", 1L)));
+
+        assertThat(currentUserService.getCurrentUser().permissions()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("AUTH-11: quyền PRINCIPAL cố định trong code, không đọc ma trận")
+    void shouldGivePrincipalFixedPermissionsWithoutQueryingMatrix() {
+        authenticateWithJwt("ROLE_PRINCIPAL");
+        given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
+                .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+
+        assertThat(currentUserService.getCurrentUser().permissions())
+                .containsExactlyInAnyOrder(
+                        Permission.CHILD_PROFILE_VIEW,
+                        Permission.ACCOUNT_MANAGE,
+                        Permission.ACCOUNT_STATUS_MANAGE,
+                        Permission.STAFF_ASSIGNMENT_MANAGE,
+                        Permission.PARENT_ACCOUNT_MANAGE,
+                        Permission.PERMISSION_MANAGE);
+        verifyNoInteractions(rolePermissionRepository, userPermissionOverrideRepository);
     }
 
     @Test

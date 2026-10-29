@@ -8,7 +8,7 @@ Nạp danh mục "Kết quả mong đợi" (mục D) và "Nội dung giáo dục
 
 ## Technical Context
 
-Java 21 / Spring Boot 4.1.1 / PostgreSQL 17 / Flyway (V30, V31); React 18 + Vite JS; test JUnit + Testcontainers, `node:test`, Playwright 1.63. Ràng buộc: không sửa CSS/token; tái dùng `Modal`, `EmptyState`, `Notice`, bảng lớp có sẵn; lỗi qua `ApiCode`; không đè thay đổi chưa commit của 004 và bản sửa token.
+Java 21 / Spring Boot 4.1.1 / PostgreSQL 17 / Flyway (V33, V34); React 18 + Vite JS; test JUnit + Testcontainers, `node:test`, Playwright 1.63. Ràng buộc: không sửa CSS/token; tái dùng `Modal`, `EmptyState`, `Notice`, bảng lớp có sẵn; lỗi qua `ApiCode`; không đè thay đổi chưa commit của 004 và bản sửa token.
 
 ## Constitution Check
 
@@ -18,7 +18,7 @@ Java 21 / Spring Boot 4.1.1 / PostgreSQL 17 / Flyway (V30, V31); React 18 + Vite
 
 ### BE (package `eduplan`)
 
-- Migration V30 (bảng `edu_curriculum_sources`, `edu_curriculum_goals`, `edu_curriculum_goal_contents`, `edu_curriculum_contents`; cột `edu_goal_rows.curriculum_goal_id`), V31 (dữ liệu, sinh tự động, tra `age_groups.code`, `edu_domains.name`).
+- Migration V33 (bảng `edu_curriculum_sources`, `edu_curriculum_goals`, `edu_curriculum_goal_contents`, `edu_curriculum_contents`; cột `edu_goal_rows.curriculum_goal_id`), V34 (dữ liệu, sinh tự động, tra `age_groups.code`, `edu_domains.name`).
 - Entity: `EduCurriculumSource`, `EduCurriculumGoal` (+ `@ElementCollection`? không — entity `EduCurriculumGoalContent`), `EduCurriculumContent`; `EduGoalRow.curriculumGoalId` (+ `copyFor` chép).
 - Repository: 4 repo read-only (`findAllByAgeGroupIdOrderBySortOrderAsc`, `findAllByActiveTrue…`, `findAllByCurriculumGoalIdIn…`).
 - Service `EduCurriculumService` + `impl/EduCurriculumServiceImpl` (`@Transactional(readOnly)`): `getSources()`, `getGoals(ageGroupId)`, `getContents(ageGroupId)`; kiểm nhóm tuổi tồn tại.
@@ -45,8 +45,8 @@ Java 21 / Spring Boot 4.1.1 / PostgreSQL 17 / Flyway (V30, V31); React 18 + Vite
 ## Progress log
 
 - 2026-10-28: specify, clarify (Tiền chốt), dữ liệu tách xong (327 MT, 423 gợi ý).
-- 2026-10-28: plan, data-model, tasks, analyze (A1 MEDIUM đã sửa ⇒ sạch). Implement T001–T016: V30/V31, API `/education-plans/curriculum/*`, mã lỗi 7030, FE nút/hộp chọn/nhãn/trang nguồn.
+- 2026-10-28: plan, data-model, tasks, analyze (A1 MEDIUM đã sửa ⇒ sạch). Implement T001–T016: V33/V34, API `/education-plans/curriculum/*`, mã lỗi 7030, FE nút/hộp chọn/nhãn/trang nguồn.
 - 2026-10-28: BE verify full 424/424 test pass, ArchUnit/OpenAPI ok, spotless sạch (chạy ở repo thật). FE verify PASS.
-- 2026-10-28: converge vòng 1 thêm C001 (BE test phiên bản mới giữ liên kết) và C002 (lọc lĩnh vực con ở Gợi ý nội dung). E2E mới: `tests/e2e/integration/edu-curriculum-api.spec.mjs` (IT-17, IT-18), `tests/e2e/system/edu-plan-version-ministry.spec.mjs` (ST-13..15, gồm T035 của 004); chạy trên BE dựng từ working copy ở :8081 + DB bản sao `carenest_e2e005` (BE IntelliJ :8080 chưa có V30/V31).
+- 2026-10-28: converge vòng 1 thêm C001 (BE test phiên bản mới giữ liên kết) và C002 (lọc lĩnh vực con ở Gợi ý nội dung). E2E mới: `tests/e2e/integration/edu-curriculum-api.spec.mjs` (IT-17, IT-18), `tests/e2e/system/edu-plan-version-ministry.spec.mjs` (ST-13..15, gồm T035 của 004); chạy trên BE dựng từ working copy ở :8081 + DB bản sao `carenest_e2e005` (BE IntelliJ :8080 chưa có V33/V34).
 - Giả định còn mở: link gốc chính thức `official_url` (vbpl.vn) NEEDS VERIFICATION — team đối chiếu, sửa bằng migration mới nếu cần.
 - 2026-10-28: Playwright bắt 2 lỗi: (1) lĩnh vực có mục tiêu tự gõ ngoài lĩnh vực con không nhận mục tiêu Bộ có lĩnh vực con ⇒ hỏi Tiền, chốt A (giữ từ chối, báo lý do) — C003; (2) phiên bản V2 bị coi trùng nhóm tuổi (lỗi 004) — C004 đã sửa. Kết quả cuối: integration 18/18, system 31/31 (ST-08 chập chờn 1 lần, chạy lại pass). Converge vòng 2: không còn thiếu sót.

@@ -12,4 +12,4 @@ Ngày: 27/10/2026. Nguồn: source hiện tại và yêu cầu user trong spec; 
 | Gửi duyệt/ban hành | Khóa nhập, flush xong, gửi phiên bản đã xác nhận | Gửi cùng lúc autosave | Không bỏ lại nội dung đang gõ hoặc chuyển trạng thái sai revision |
 | Nội dung dở | Lưu nháp được, kiểm tra đầy đủ ở bước gửi/ban hành | Chặn autosave khi thiếu | User đã chọn sau clarify |
 
-Ràng buộc dữ liệu cũ đã kiểm: V9 đã bỏ ràng buộc khoảng ngày của themes/breaks; không cần sửa migration đó. V21 gắn trạng thái EDITING với khóa cũ, V27 thay bằng invariant nhận diện phiên và giữ PENDING_VP độc lập.
+Ràng buộc dữ liệu cũ đã kiểm: V12 đã bỏ ràng buộc khoảng ngày của themes/breaks; không cần sửa migration đó. V24 gắn trạng thái EDITING với khóa cũ, V30 thay bằng invariant nhận diện phiên và giữ PENDING_VP độc lập.

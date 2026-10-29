@@ -16,11 +16,11 @@ Repo này là **nguồn chuẩn (source of truth)** của toàn dự án: nghi�
 
 Trường đang dùng song song PMS, GoKids, Zalo, sổ giấy và hệ thống ngành, nên dữ liệu bị nhập lặp, tổng hợp tay và khó tra lịch sử. CareNest gom các workflow đó vào một hồ sơ có cấu trúc, lấy trẻ làm trung tâm:
 
-- **Vận hành:** điểm danh, phụ huynh báo nghỉ, chốt số suất ăn gửi bếp, thực đơn và định lượng, sự cố cơ sở vật chất, báo cáo theo lớp / điểm trường / toàn trường.
-- **Hồ sơ trẻ:** sức khỏe định kỳ, quan sát và đánh giá hằng ngày, hồ sơ phát triển, chia sẻ thông tin được phép cho phụ huynh.
-- **AI chỉ hỗ trợ:** gợi ý thực đơn, diễn giải xu hướng sức khỏe, nháp nhận xét. AI tạo bản nháp, con người duyệt; hệ thống vẫn chạy đủ khi tắt AI.
+- **Vận hành:** điểm danh, đón trẻ, phụ huynh báo nghỉ, chốt số suất ăn gửi bếp, thực đơn và định lượng, kho khô rút gọn, kế hoạch giáo dục, thông báo, báo cáo theo lớp / điểm trường / toàn trường.
+- **Hồ sơ trẻ:** cân đo và sức khỏe, đánh giá hằng ngày, nhận xét định kỳ, khen thưởng, hồ sơ phát triển, chia sẻ thông tin được phép cho phụ huynh.
+- **AI chỉ hỗ trợ:** gợi ý thực đơn, diễn giải xu hướng sức khỏe, nháp nhận xét, gợi ý nội dung hoạt động. AI tạo bản nháp, con người duyệt; hệ thống vẫn chạy đủ khi tắt AI.
 
-Ngoài phạm vi V1: multi-school / multi-tenant, chat thay Zalo, chẩn đoán y tế hoặc tâm lý, kế toán / payroll, quản lý vòng đời tài sản. Scope đầy đủ: [`docs/context/PROJECT_CONTEXT.md`](docs/context/PROJECT_CONTEXT.md).
+Ngoài phạm vi V1: multi-school / multi-tenant, chat thay Zalo, chẩn đoán y tế hoặc tâm lý, kế toán / payroll, sự cố và tài sản cơ sở vật chất. Scope đầy đủ: [`docs/context/PROJECT_CONTEXT.md`](docs/context/PROJECT_CONTEXT.md).
 
 ## Tech stack
 
@@ -65,7 +65,7 @@ src/main/java/com/carenest/
 └── common/
 ```
 
-Module nghiệp vụ, mỗi module là một feature sub-package xuyên các lớp: identity-access, school-structure, child, attendance, nutrition, health, learning-observation, facility-issue, notification, audit, ai-assistance, reporting. Mỗi module có card riêng trong [`docs/modules/`](docs/modules/); chiều phụ thuộc giữa module ở [`docs/system/MODULE_MAP.md`](docs/system/MODULE_MAP.md).
+Module nghiệp vụ, mỗi module là một feature sub-package xuyên các lớp: identity-access, school-structure, child, attendance, nutrition, health, learning-observation, education-plan, notification, audit, ai-assistance, reporting. Mỗi module có card riêng trong [`docs/modules/`](docs/modules/); chiều phụ thuộc giữa module ở [`docs/system/MODULE_MAP.md`](docs/system/MODULE_MAP.md).
 
 ## Chạy local
 
@@ -242,7 +242,7 @@ Thứ tự triển khai:
 2. Đăng nhập và phạm vi: user/role, phân công điểm trường/lớp, liên kết phụ huynh–trẻ: xác thực + phạm vi **xong** (`feature/authentication`, chờ merge); API quản lý phân công/liên kết chưa làm.
 3. Điểm danh → BGH xác nhận số suất → bếp.
 4. Hồ sơ trẻ: quan sát, sức khỏe, chia sẻ phụ huynh, audit, lịch sử.
-5. Mở rộng: sự cố cơ sở vật chất, thông báo, thực đơn; AI sau khi dữ liệu nền sẵn sàng.
+5. Mở rộng: thông báo, thực đơn, kế hoạch giáo dục; AI sau khi dữ liệu nền sẵn sàng.
 
 ## Xử lý sự cố
 

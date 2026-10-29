@@ -37,7 +37,7 @@ class EduGoalHierarchyMigrationTest {
     @BeforeEach
     void oldDatabase() {
         schema = "upgrade_" + UUID.randomUUID().toString().replace("-", "");
-        flyway("31").migrate();
+        flyway("34").migrate();
         var dataSource = new DriverManagerDataSource(
                 postgres.getJdbcUrl() + (postgres.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=" + schema,
                 postgres.getUsername(),

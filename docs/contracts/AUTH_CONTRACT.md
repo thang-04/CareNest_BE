@@ -4,7 +4,7 @@
 
 ## Cơ chế (đã chốt)
 
-Web React dùng gateway opt-in theo ADR-0013 (`docs/decisions/ADR-0013-react-auth-gateway.md`). Backend Phase 2 đã có source API/session/OTP; xem trạng thái kiểm chứng trong plan. Tích hợp FE thuộc Phase 3, chưa thực hiện. Mobile và Web legacy tiếp tục PKCE. Hướng dẫn extension: `docker/keycloak/auth/README.md`.
+Web React dùng gateway opt-in theo ADR-0013 (`docs/decisions/ADR-0013-react-auth-gateway.md`). Backend Phase 2 đã có source API/session/OTP; xem trạng thái kiểm chứng trong plan. Tích hợp FE thuộc Phase 3: source gateway FE có trên nhánh FE `feature/G94-209-FE-FEAT-53-permission-management` nhưng chưa vào FE `dev` (FE `dev` vẫn mock); đối chiếu `docs/quality/reports/2026-10-22-auth-fe-integration-gap.md`. Mobile và Web legacy tiếp tục PKCE. Hướng dẫn extension: `docker/keycloak/auth/README.md`.
 
 - **Keycloak** (realm `carenest`) xác minh mật khẩu và phát token. Mobile/Web legacy dùng **OAuth2 Authorization Code + PKCE (S256)**; gateway React nhận mật khẩu tại backend qua confidential client riêng, không đưa client secret ra browser.
 - Client gửi `Authorization: Bearer <access_token>` cho mọi API (trừ `/actuator/health`, Swagger).
@@ -68,6 +68,7 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 ```json
 { "code": 200, "desc": "Get my account success",
   "data": { "userId": 12, "username": "teacher.a", "fullName": "...", "email": null, "roles": ["TEACHER"],
+            "permissions": ["CHILD_PROFILE_VIEW"],
             "assignments": [ { "staffRole": "TEACHER", "campusId": null, "classroomId": 3,
                                "validFrom": "2026-09-01", "validTo": null } ],
             "childIds": [] } }
@@ -75,6 +76,7 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 
 - `assignments`: phân công **đang hiệu lực hôm nay** và khớp role trong token (`staffRole` PRINCIPAL: cả hai id null; VICE_PRINCIPAL/KITCHEN_STAFF: `campusId`; TEACHER: `classroomId`).
 - `childIds`: trẻ liên kết với tài khoản (chỉ khi có role PARENT).
+- `permissions`: quyền hiệu lực (ADR-0017) — dùng ẩn/hiện menu, route; đổi ngay khi Hiệu trưởng sửa ma trận/ngoại lệ (gọi lại `/accounts/me` để cập nhật).
 
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
@@ -87,9 +89,9 @@ Hai lỗi trên áp dụng cho **mọi** API dưới `{API_PREFIX}` (không riê
 
 ## Phân quyền theo phạm vi (đã có)
 
-API nhận id (trẻ, lớp, campus) kiểm hai lớp: role (`@PreAuthorize`) rồi phạm vi (phân công/liên kết còn hiệu lực). **Ngoài phạm vi và id không tồn tại cùng trả 403 với cùng `desc`** — client không phân biệt được hai trường hợp (chống dò id). 404 chỉ xảy ra với người có phạm vi.
+API nhận id (trẻ, lớp, campus) kiểm hai lớp: quyền (`@PreAuthorize("@permissionGuard.has(...)")`, ADR-0017) rồi phạm vi (phân công/liên kết còn hiệu lực). **Ngoài phạm vi và id không tồn tại cùng trả 403 với cùng `desc`** — client không phân biệt được hai trường hợp (chống dò id). 404 chỉ xảy ra với người có phạm vi.
 
-`GET {API_PREFIX}/children/{childId}` — role TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT:
+`GET {API_PREFIX}/children/{childId}` — quyền `CHILD_PROFILE_VIEW` (mặc định TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT):
 
 ```json
 { "code": 200, "desc": "Get child profile success",
@@ -98,30 +100,42 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: role (`@PreAuthorize`) r�
 
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
-| Role KITCHEN_STAFF, ADMIN | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Không có `CHILD_PROFILE_VIEW` (KITCHEN_STAFF, ADMIN, người bị thu hồi) | 403 | `errorCode` 1101 `FORBIDDEN` |
 | Trẻ ngoài phạm vi hoặc id không tồn tại | 403 | `You do not have access to this child` |
 | `childId` không phải số | 400 | `Malformed request` |
 
 `classroomId` = lớp trẻ đang học hôm nay (`null` nếu không có enrollment hiện tại — khi đó chỉ phụ huynh liên kết xem được).
 
-## Cấp / khóa tài khoản (đã có, chỉ ADMIN)
+## Cấp / khóa tài khoản (đã có; quyền `ACCOUNT_MANAGE` / `ACCOUNT_STATUS_MANAGE`, AUTH-06, AUTH-15, AUTH-17)
+
+Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIPAL, khóa/mở mọi tài khoản; HT (có phân công PRINCIPAL) → PHT/GV/bếp toàn trường; PHT (khi HT bật quyền) → GV/bếp trong campus mình. Không ai thao tác chính mình.
 
 `POST {API_PREFIX}/accounts`
 
 ```json
 { "username": "teacher.c", "fullName": "Giáo viên C", "email": "teacher.c@example.test",
-  "role": "TEACHER", "temporaryPassword": "..." }
+  "role": "TEACHER", "temporaryPassword": "...",
+  "assignment": { "classroomId": 11, "validFrom": "2026-10-17" } }
 ```
 
-- `username`: 3–100 ký tự `[A-Za-z0-9._-]`, lưu chữ thường; `fullName` bắt buộc; `email` tùy chọn; `role` ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF, PARENT.
+- `username`: 3–100 ký tự `[A-Za-z0-9._-]`, lưu chữ thường; `fullName` bắt buộc; `email` tùy chọn; `role` ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF (PARENT ⇒ 400 `This role cannot be created via API` — phụ huynh tạo kèm trẻ, AUTH-18).
 - `temporaryPassword` (8–128 ký tự): bắt buộc trừ khi có `email` và server bật gửi email đặt mật khẩu. Người dùng phải đổi ở lần đăng nhập đầu. CareNest không lưu/log mật khẩu.
-- 201: `{ userId, username, fullName, email, role, status: "ACTIVE", setupEmailSent }`.
+- `assignment` (AUTH-15): PHT/bếp ⇒ `campusId`, GV ⇒ `classroomId`; `validFrom` bỏ trống = hôm nay. Bắt buộc khi người tạo là PHT; HT bỏ trống được. PRINCIPAL không gửi (tự có phân công toàn trường); PARENT không có phân công.
+- 201: `{ userId, username, fullName, email, role, status: "ACTIVE", setupEmailSent, assignment }` (`assignment` = phân công vừa tạo hoặc `null`).
 
 `PATCH {API_PREFIX}/accounts/{userId}/status` — body `{ "status": "INACTIVE" | "ACTIVE" }` ⇒ 200 `{ userId, username, fullName, email, status }`. INACTIVE có hiệu lực ngay (kể cả token còn hạn) và hủy session Keycloak.
 
+`POST {API_PREFIX}/accounts/{userId}/temporary-password` (`ACCOUNT_MANAGE`) — body `{ "temporaryPassword": "..." }` (8–128) ⇒ 200 `{ userId, username, fullName, email, status }`. Bắt đổi ở lần đăng nhập kế tiếp; hủy mọi phiên web và session Keycloak đang mở.
+
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
-| Không phải ADMIN | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Không có quyền tương ứng | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Tạo role ngoài phạm vi (Admin tạo GV, HT tạo HT, PHT thiếu `assignment` / campus khác) | 403 | `You cannot create an account with this role` |
+| `assignment` sai hình dạng (GV gửi `campusId`, PHT/bếp gửi `classroomId`, PRINCIPAL/PARENT gửi `assignment`) | 400 | vd. `Teacher must be assigned to a classroom` |
+| Campus / lớp không tồn tại | 404 | `Campus not found` / `Classroom not found` |
+| Khóa/mật khẩu tạm: tài khoản ngoài phạm vi (PHT nhận 403 cả khi id không tồn tại) | 403 | `You cannot manage this account` |
+| Mật khẩu tạm: cho chính mình | 400 | `Use change password for your own account` |
+| Mật khẩu tạm: đã đặt nhưng không hủy được phiên | 503 | `Password reset but existing sessions could not be revoked, please retry` |
 | Body sai | 400 | `Invalid request data` (+ lỗi theo field) |
 | `role` = ADMIN | 400 | `This role cannot be created via API` |
 | Thiếu mật khẩu tạm khi không gửi được email | 400 | `Temporary password is required when a setup email cannot be sent` |
@@ -133,19 +147,101 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: role (`@PreAuthorize`) r�
 | Khóa: `userId` không tồn tại | 404 | `Account not found` |
 | Khóa: đã lưu CareNest nhưng Keycloak lỗi | 503 | `Account status saved but identity provider sync failed, please retry` |
 
+## Danh sách nhân sự, phân công, campus/lớp (đã có — AUTH-08, AUTH-16)
+
+| Method + path | Quyền | Body / query | `data` |
+| --- | --- | --- | --- |
+| `GET /accounts` | một trong `ACCOUNT_MANAGE`, `ACCOUNT_STATUS_MANAGE`, `STAFF_ASSIGNMENT_MANAGE`, `PERMISSION_MANAGE` | `role`, `status`, `campusId`, `q` (username/họ tên), `page` (0…), `size` (1–100, mặc định 20) | `PageResponse` của `{ userId, username, fullName, email, role, status, activeAssignments[] }` |
+| `GET /accounts/{userId}` | như trên | — | `{ userId, username, fullName, email, role, status, assignments[] }` (mọi phân công, mới nhất trước) |
+| `POST /staff-assignments` | `STAFF_ASSIGNMENT_MANAGE` | `{ userId, campusId?, classroomId?, validFrom?, validTo? }` — role phân công lấy theo role tài khoản | 201 `{ id, userId, staffRole, campusId, classroomId, validFrom, validTo }` |
+| `PATCH /staff-assignments/{id}/end` | `STAFF_ASSIGNMENT_MANAGE` | `{ validTo }` (ngày cuối còn hiệu lực) | như trên |
+| `GET /campuses/options` | `ACCOUNT_MANAGE` hoặc `STAFF_ASSIGNMENT_MANAGE` | — | `[{ id, code, name }]` — HT/Admin mọi campus, PHT campus mình (tách khỏi `GET /campuses` của màn điểm trường khi merge G94-226) |
+| `GET /classrooms?campusId=` | như trên | `campusId` bắt buộc | `[{ id, campusId, name }]` lớp của năm học đang diễn ra |
+
+- `role` trong danh sách là bản sao role Keycloak (`null` = chưa rõ). HT/Admin thấy mọi tài khoản; PHT chỉ GV/bếp đang được phân công trong campus mình.
+
+| Tình huống | HTTP / `code` | `desc` |
+| --- | --- | --- |
+| PHT lọc / xem campus khác | 403 | `You do not have access to this campus` |
+| Xem chi tiết tài khoản ngoài phạm vi | 403 | `You cannot manage this account` |
+| Phân công role/campus ngoài phạm vi, phân công HT | 403 | `You cannot manage this assignment` |
+| Tự phân công / kết thúc phân công của mình | 400 | `You cannot change your own assignments` |
+| Tài khoản không phải PHT/GV/bếp | 400 | `This account cannot be assigned` |
+| Trùng phân công còn mở cùng phạm vi | 409 | `This staff already has an open assignment for this scope` |
+| Kết thúc: ngày cuối trước ngày bắt đầu / đã kết thúc sớm hơn | 400 / 409 | `Assignment end date must not be before start date` / `Assignment already ended` |
+
+## Phân quyền cấu hình được (đã có, chỉ PRINCIPAL — `PERMISSION_MANAGE`, ADR-0017)
+
+| Method + path | Body | `data` |
+| --- | --- | --- |
+| `GET /permissions` | — | `[{ code, module, description, defaultRoles[], configurableRoles[] }]` |
+| `GET /role-permissions` | — | `[{ role, editable, configurablePermissions[], permissions[] }]` cho cả 6 role |
+| `GET /role-permissions/{role}` | — | 1 phần tử như trên |
+| `PUT /role-permissions/{role}` | `{ "permissions": ["CHILD_PROFILE_VIEW"], "reason": "..." }` (thay toàn bộ ô đang bật) | như GET |
+| `GET /accounts/{userId}/permission-overrides` | — | `{ userId, roles[], configurablePermissions[], overrides: [{ permission, effect, reason, updatedBy, updatedAt }], effectivePermissions[] }` |
+| `PUT /accounts/{userId}/permission-overrides` | `{ "overrides": [{ "permission": "CHILD_PROFILE_VIEW", "effect": "GRANT" \| "REVOKE" }], "reason": "..." }` (thay toàn bộ; quyền bỏ khỏi danh sách = theo ma trận) | như GET |
+| `GET /permission-change-logs?targetRole=&targetUserId=&page=0&size=20` | — | `PageResponse` của `{ id, batchId, actorUserId, targetRole, targetUserId, permissionCode, beforeState, afterState, reason, changedAt }`, mới nhất trước |
+
+- `reason` bắt buộc (≤500 ký tự). `beforeState`/`afterState`: `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ).
+- Role đích của ngoại lệ đọc từ Keycloak; `size` 1–100.
+
+| Tình huống | HTTP / `code` | `desc` |
+| --- | --- | --- |
+| Không phải PRINCIPAL | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Sửa ma trận PRINCIPAL/PARENT/ADMIN (AUTH-11) | 403 | `Permissions of this role are fixed` |
+| Quyền không cấu hình được cho role | 400 | `Permission <CODE> cannot be configured for role <ROLE>` |
+| Mã quyền/role không tồn tại, thiếu `reason`, `size` > 100 | 400 | `Malformed request` / `Invalid request data` |
+| Ngoại lệ cho chính mình (AUTH-12) | 400 | `You cannot change your own permissions` |
+| Ngoại lệ cho người có PRINCIPAL/ADMIN hoặc không có role cấu hình (vd. chỉ PARENT) | 403 | `Permissions of this account cannot be overridden` |
+| Ngoại lệ: quyền không áp dụng cho role của người đó / trùng quyền | 400 | `Permission <CODE> cannot be configured for this account` / `Duplicate permission <CODE>` |
+| `userId` không tồn tại | 404 | `Account not found` |
+| Keycloak không khả dụng khi đọc role | 503 | `Identity provider is unavailable` |
+| Lọc lịch sử theo cả `targetRole` và `targetUserId` | 400 | `Filter by either targetRole or targetUserId` |
+
+## Tài khoản phụ huynh gắn trẻ (đã có — `PARENT_ACCOUNT_MANAGE`, AUTH-18, AUTH-19)
+
+Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang học (lớp hôm nay) trong campus mình, và phụ huynh có ít nhất một trẻ liên kết như vậy. PHT nhận cùng 403 cho trẻ/tài khoản không tồn tại và ngoài phạm vi.
+
+| Method + path | Body / query | `data` |
+| --- | --- | --- |
+| `GET /children` | `campusId`, `classroomId`, `q` (họ tên), `page`, `size` (1–100) | `PageResponse` của `{ id, fullName, dateOfBirth, classroomId, campusId, guardianCount }` (lớp/campus hiện tại, `null` nếu chưa có lớp) |
+| `GET /children/{childId}/guardians` | — | `[{ userId, username, fullName, relationship, status, linkedAt }]` (`username` = SĐT) |
+| `POST /children/{childId}/guardians` | `{ "phone": "0912 345 678", "fullName": "...", "relationship": "MOTHER" \| "FATHER" \| "GUARDIAN" \| "OTHER" }` | 201 `{ userId, username, fullName, relationship, status, newAccount, temporaryPassword }` |
+| `DELETE /children/{childId}/guardians/{userId}` | — | 200, `data` rỗng; tài khoản giữ nguyên |
+| `PATCH /parent-accounts/{userId}/status` | `{ "status": "INACTIVE" \| "ACTIVE" }` | `{ userId, username, fullName, email, status }` |
+| `POST /parent-accounts/{userId}/temporary-password` | — | `{ userId, username, temporaryPassword }` (mật khẩu mới hệ thống sinh, hủy mọi phiên) |
+
+- `phone` chấp nhận `+84`/`84`, khoảng trắng, `.`, `-`, `()`; chuẩn hóa thành 10 số bắt đầu `0` = tên đăng nhập.
+- `newAccount = true` ⇒ `temporaryPassword` (10 ký tự) trả **đúng lần này** để in phiếu, CareNest không lưu/log; bắt đổi ở lần đăng nhập đầu. `newAccount = false` ⇒ SĐT đã là phụ huynh, chỉ thêm liên kết, `temporaryPassword = null`.
+
+| Tình huống | HTTP / `code` | `desc` |
+| --- | --- | --- |
+| Không có `PARENT_ACCOUNT_MANAGE` | 403 | `errorCode` 1101 `FORBIDDEN` |
+| Trẻ ngoài campus / chưa có lớp (PHT) | 403 | `You cannot manage guardians of this child` |
+| Lọc campus/lớp ngoài phạm vi | 403 | `You do not have access to this campus` / `... classroom` |
+| Trẻ không tồn tại (HT) | 404 | `Child not found` |
+| SĐT sai định dạng | 400 | `Invalid phone number` |
+| `relationship` không thuộc danh sách, thiếu field | 400 | `Malformed request` / `Invalid request data` |
+| SĐT là tài khoản nhân sự | 409 | `This phone number belongs to a staff account` |
+| Phụ huynh đã liên kết trẻ này | 409 | `This parent is already linked to the child` |
+| Gỡ liên kết không tồn tại | 404 | `Guardian link not found` |
+| Khóa/mật khẩu: tài khoản không phải phụ huynh / của chính mình | 400 | `This account is not a parent account` / `You cannot manage your own account here` |
+| Khóa/mật khẩu: phụ huynh ngoài phạm vi | 403 | `You cannot manage this account` |
+
 ## Tác động FE/APP (BE không sửa repo khác)
 
 Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
 
 - Web Phase 3: ghép các màn hình login/forgot-password/verify-otp/reset-password/change-password và AuthContext/HTTP client vào gateway phía trên. Public client `carenest-web` vẫn giữ PKCE cho legacy; Mobile `carenest-mobile` tiếp tục public + PKCE S256, cùng issuer/audience.
-- Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.
+- Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; refresh: Web gateway gọi `POST /auth/refresh` (cookie + `withCredentials`), PKCE tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.
 - 403 `ACCOUNT_NOT_PROVISIONED` / `ACCOUNT_INACTIVE` ⇒ báo liên hệ nhà trường, không retry. 403 khác ⇒ báo không có quyền. 503 `AUTH_SERVICE_UNAVAILABLE` ⇒ báo thử lại sau. Phân biệt bằng `errorCode` (không so `desc`, `desc` là câu tiếng Việt từ 27/10/2026 — `docs/contracts/ERROR_CONTRACT.md`).
-- Sau đăng nhập gọi `GET /accounts/me` lấy `roles`, `assignments`, `childIds` để dựng menu/màn hình; ẩn nút ở UI không phải phân quyền (AUTH-07).
+- Sau đăng nhập gọi `GET /accounts/me` lấy `roles`, `permissions`, `assignments`, `childIds` để dựng menu/màn hình (menu/route theo `permissions`); ẩn nút ở UI không phải phân quyền (AUTH-07).
+- Web: màn ma trận quyền/ngoại lệ/lịch sử (`/school/roles`) đổi sang API phân quyền ở trên; bỏ mức F/R/N, mã dạng `user.manage` và role TEAM_LEADER của mock.
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
 - Types: sinh lại từ `docs/api/openapi.yaml`.
 
 ## Còn chờ
 
-- Phụ huynh đăng nhập bằng gì (username trường cấp / SĐT / email).
+- ~~Phụ huynh đăng nhập bằng gì~~ — chốt: username = SĐT (AUTH-18), xem mục "Tài khoản phụ huynh gắn trẻ".
 - Mobile có dùng `offline_access` (phiên dài) không; lưu token ở secure storage (APP `AUTH_FLOW.md`).

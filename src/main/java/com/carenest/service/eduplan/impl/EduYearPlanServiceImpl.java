@@ -44,6 +44,7 @@ import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.EduGoalRowKind;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -775,6 +776,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 throw GlobalException.of(ApiCode.THEME_END_BEFORE_START);
             }
         }
+        requireThemeWeeks(themes);
         if (findRows(plan.getId()).stream()
                 .anyMatch(row ->
                         row.getKind() == EduGoalRowKind.GOAL && row.getText().isBlank())) {
@@ -783,6 +785,27 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         boolean hasGoal = findRows(plan.getId()).stream().anyMatch(row -> row.getKind() == EduGoalRowKind.GOAL);
         if (!hasGoal) {
             throw GlobalException.of(ApiCode.PLAN_GOAL_REQUIRED);
+        }
+    }
+
+    // EDU-40: chủ đề trọn tuần học (Thứ 2 → Thứ 6); EDU-39: các chủ đề không trùng thời gian
+    private static void requireThemeWeeks(List<EduTheme> themes) {
+        List<EduTheme> dated = themes.stream()
+                .filter(t -> t.getStartDate() != null && t.getEndDate() != null)
+                .sorted(Comparator.comparing(EduTheme::getStartDate))
+                .toList();
+        for (EduTheme theme : dated) {
+            if (theme.getStartDate().getDayOfWeek() != DayOfWeek.MONDAY
+                    || theme.getEndDate().getDayOfWeek() != DayOfWeek.FRIDAY) {
+                throw GlobalException.of(ApiCode.THEME_WEEK_ALIGNMENT, theme.getAbbr());
+            }
+        }
+        for (int i = 1; i < dated.size(); i++) {
+            EduTheme previous = dated.get(i - 1);
+            EduTheme current = dated.get(i);
+            if (!current.getStartDate().isAfter(previous.getEndDate())) {
+                throw GlobalException.of(ApiCode.THEME_DATES_OVERLAP, current.getAbbr(), previous.getAbbr());
+            }
         }
     }
 

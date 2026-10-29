@@ -8,7 +8,7 @@ Java 21, Spring Boot/JPA và PostgreSQL 17/Flyway hiện có; không thêm depen
 ## Constitution Check
 Constitution hiện là template chưa điền: bỏ qua template, áp AGENTS.md và rule EDU được CONFIRMED. Không tạo nhánh/commit, không sửa FE/APP, không chạy migration lên DB đang dùng.
 ## Project Structure
-- src/main/resources/db/migration/V32__split_edu_goal_hierarchy.sql
+- src/main/resources/db/migration/V35__split_edu_goal_hierarchy.sql
 - src/main/java/com/carenest/entity/eduplan/: EduGoalRow là mapped superclass, ba concrete entity; EduGoalContent trỏ goal_id.
 - src/main/java/com/carenest/repository/eduplan/: ba repository; bỏ repository/converter của bảng cũ.
 - src/main/java/com/carenest/service/eduplan/impl/: lưu/đọc/copy/diff và membership học liệu.

@@ -54,7 +54,7 @@ test("E2: tham chiếu BE: / ../CareNest_BE/ giải theo repo sibling, sibling v
   const ws = makeWorkspace();
   makeRepo({ "docs/modules/a.md": "# a\n" }, { workspace: ws, name: "CareNest_BE" });
   const fe = makeRepo(
-    { "docs/x.md": "`BE:docs/modules/a.md` `BE:docs/modules/zz.md` `../CareNest_BE/docs/modules/a.md` `APP:docs/q.md`" },
+    { "docs/x.md": "`BE:docs/modules/a.md` `BE:docs/modules/a.md:3` `BE:docs/modules/zz.md` `../CareNest_BE/docs/modules/a.md` `APP:docs/q.md`" },
     { workspace: ws, name: "CareNest_FE" },
   );
   const result = run(fe, { only: ["E2"], overrides: { repo: "FE" } });
@@ -183,6 +183,17 @@ test("E7: rule phải có frontmatter paths", () => {
   assert.deepEqual(errorsOf(result).map((f) => f.file), [".claude/rules/bad.md"]);
 });
 
+test("E7: rule không glob nào khớp file ⇒ lỗi (rule chết); một glob lẻ không khớp ⇒ cảnh báo", () => {
+  const root = makeRepo({
+    ".claude/rules/dead.md": '---\npaths:\n  - "src/**/*.ts"\n---\n# chết\n',
+    ".claude/rules/partial.md": '---\npaths:\n  - "src/**/*.js"\n  - "src/**/*.ts"\n---\n# một phần\n',
+    "src/a.js": "export {};\n",
+  });
+  const result = run(root, { only: ["E7"] });
+  assert.deepEqual(errorsOf(result).map((f) => f.file), [".claude/rules/dead.md"]);
+  assert.match(msgs(warnsOf(result)), /partial.md|glob không khớp file nào: src\/\*\*\/\*\.ts/);
+});
+
 test("E7: entrypoint và rule controller/service phải cùng tham chiếu quy ước log ADR-0016", () => {
   const rule = (body) => `---\npaths:\n  - "src/**"\n---\n${body}\n`;
   const aligned = {
@@ -199,6 +210,16 @@ test("E7: entrypoint và rule controller/service phải cùng tham chiếu quy �
   const drift = makeRepo({ ...aligned, ".claude/rules/service.md": rule("RuntimeException") });
   const findings = errorsOf(run(drift, { only: ["E7"] }));
   assert.ok(findings.some((f) => f.file === ".claude/rules/service.md" && f.msg.includes("LOG_PREFIX")));
+});
+
+test("E2: đường dẫn thiếu trong docs/plans chỉ cảnh báo (plan ghi file sẽ tạo/đã xóa)", () => {
+  const root = makeRepo({
+    "docs/plans/active/p.md": "- Files: D `scripts/gone.mjs` · C `scripts/new.mjs`\n",
+    "docs/guide.md": "Xem `scripts/gone.mjs`\n",
+  });
+  const result = run(root, { only: ["E2"] });
+  assert.deepEqual(errorsOf(result).map((f) => f.file), ["docs/guide.md"]);
+  assert.equal(warnsOf(result).filter((f) => f.file === "docs/plans/active/p.md").length, 2);
 });
 
 test("CLI: --only sai ⇒ exit 2; --json in JSON hợp lệ", () => {

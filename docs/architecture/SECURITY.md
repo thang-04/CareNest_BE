@@ -29,7 +29,7 @@ Client (Web/Mobile)          Keycloak (realm carenest)              CareNest API
   |                                     kiểm chữ ký, iss, aud=carenest-api, exp/nbf
   |                                     realm_access.roles -> ROLE_* (whitelist CareNestRole)
   |                                     ActiveAccountInterceptor: sub -> user_accounts ACTIVE
-  |                                     @PreAuthorize (role) -> service: *AccessPolicy (scope)
+  |                                     @PreAuthorize (@permissionGuard) -> service: *AccessPolicy (scope)
   |<----------------------------------------------- {code, desc, data} --|
 ```
 
@@ -38,7 +38,7 @@ Client (Web/Mobile)          Keycloak (realm carenest)              CareNest API
 | Thiếu token, sai chữ ký, hết hạn, sai `iss`/`aud` | 401 `Unauthorized` + `WWW-Authenticate: Bearer` | `RestAuthenticationEntryPoint` |
 | Chưa lấy được JWKS (Keycloak tắt, API chưa cache key) | 503 `Authentication service unavailable` | `RestAuthenticationEntryPoint` (failure handler của `BearerTokenAuthenticationFilter`, BUG-261006-jwks-unavailable-returns-500) |
 | Token hợp lệ nhưng chưa cấp tài khoản / `INACTIVE` | 403 `Account is not provisioned` / `Account is inactive` | `ActiveAccountInterceptor` |
-| Sai role | 403 `Forbidden` | `@PreAuthorize` ⇒ `GlobalExceptionHandler`; trong filter chain ⇒ `RestAccessDeniedHandler` |
+| Không có quyền (permission) của endpoint | 403 `Forbidden` | `@PreAuthorize` ⇒ `GlobalExceptionHandler`; trong filter chain ⇒ `RestAccessDeniedHandler` |
 | Ngoài phạm vi campus/lớp/trẻ (kể cả id không tồn tại) | 403 | `*AccessPolicy.checkCanXxx` |
 
 Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùng format `ResponseJson`. Không thêm filter JWT tự viết.
@@ -58,7 +58,7 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 
 ## Authorization (ADR-0003)
 
-- Permission theo role (`docs/business/USER_ROLES.md`) + access scope theo assignment/guardian link.
+- Permission cấu hình được (ADR-0017): ma trận theo role + ngoại lệ từng người do Hiệu trưởng quản lý (`docs/business/USER_ROLES.md`) + access scope theo assignment/guardian link.
 - Kiểm tra tại service; `@PreAuthorize` ở controller chỉ là lớp đầu, **không** thay lọc scope trong query.
 - Truy cập theo ID (vd. `/children/{id}`) phải kiểm tra ID thuộc scope — chống IDOR.
 - Parent: default-deny với dữ liệu chưa được công bố (ADR-0010).
@@ -66,7 +66,7 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 
 ### Hai lớp phân quyền (đã implement)
 
-1. **Role** — `@PreAuthorize` ở controller (role toàn cục từ token Keycloak). Đúng role KHÔNG có nghĩa được xem mọi dữ liệu.
+1. **Permission** — `@PreAuthorize("@permissionGuard.has('CODE')")` ở controller. Quyền hiệu lực = phần cố định của role trong token (ADMIN/PRINCIPAL/PARENT) ∪ (ma trận `role_permissions` ∪ GRANT − REVOKE), tính 1 lần/request trong `CurrentUserService` (`EffectivePermissionResolver`), đổi là có hiệu lực ngay; không nằm trong JWT. Mã lạ ⇒ từ chối. Có quyền KHÔNG có nghĩa được xem mọi dữ liệu (AUTH-13).
 2. **Scope** — policy trong `security/authorization/`, gọi ở service với `CurrentUser`. Quyền chỉ có khi **role trong token VÀ phân công/liên kết còn hiệu lực hôm nay** (theo `carenest.time-zone`) cùng khớp.
 
 | Policy | Cho phép khi | Không bao giờ |
@@ -74,11 +74,13 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 | `CampusAccessPolicy.canViewCampus` | PRINCIPAL + phân công PRINCIPAL còn hiệu lực (mọi campus); VICE_PRINCIPAL + phân công VP tại campus đó | Bếp (phân công campus của bếp chỉ cho dữ liệu bếp), GV, PH, Admin |
 | `ClassroomAccessPolicy.canViewClassroom` | TEACHER + phân công lớp đó còn hiệu lực; hoặc `canViewCampus(campus của lớp)` | Phân công lớp đã kết thúc/năm trước |
 | `ChildAccessPolicy.canViewChild` | PARENT + liên kết với trẻ; hoặc TEACHER/VP/PRINCIPAL có `canViewClassroom(lớp trẻ đang học hôm nay)` | Bếp, Admin (không bypass), trẻ không có enrollment hiện tại |
+| `StaffAccessPolicy` (AUTH-15..17) | Tạo: Admin → PRINCIPAL; HT có phân công PRINCIPAL → PHT/GV/bếp; PHT → GV/bếp kèm phân công campus mình. Quản lý (khóa/mở, mật khẩu tạm, chi tiết): Admin mọi tài khoản; HT → PHT/GV/bếp; PHT → GV/bếp đang phân công trong campus mình. Phân công: HT → PHT/GV/bếp; PHT → GV/bếp campus mình | Thao tác HT/Admin (trừ Admin), chính mình, tài khoản `primary_role` null (trừ Admin) |
 
 - Mỗi policy có `canXxx` (boolean) và `checkCanXxx` (ném `GlobalException(FORBIDDEN, ...)`, log warn kèm id — không log dữ liệu cá nhân).
 - **403 thay vì 404:** service gọi `checkCanXxx` **trước** khi load resource ⇒ id không tồn tại và id ngoài scope cùng trả 403 cùng `desc` (không lộ id để dò). Chỉ người có scope mới có thể nhận 404.
 - Quyền xem lịch sử (lớp năm trước, trẻ đã chuyển lớp) chưa có rule ⇒ từ chối; logic gói trong policy để đổi sau.
 - Policy đọc dữ liệu qua service của `organization`/`child`; các service đó không gọi ngược policy (MODULE_MAP). Test: `security/authorization/*PolicyTest` (case GV/PH/VP/bếp/Admin/hết hạn/đa role).
+- Chống leo quyền (AUTH-11, AUTH-12): `PERMISSION_MANAGE` chỉ PRINCIPAL, không giao được; ma trận chỉ nhận VICE_PRINCIPAL/TEACHER/KITCHEN_STAFF (CHECK DB); không tự tạo ngoại lệ cho mình (API + CHECK `created_by <> user_id`); đích có PRINCIPAL/ADMIN không có ngoại lệ. Quyền ghi chỉ cấu hình cho TEACHER khi policy ghi còn dùng chung policy xem.
 
 ## Dữ liệu trẻ & AI (ADR-0007)
 
@@ -94,4 +96,4 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 
 ## Audit
 
-Hành động nhạy cảm ghi AuditEvent (`docs/modules/audit.md`).
+Hành động nhạy cảm ghi AuditEvent (`docs/modules/audit.md`). Thay đổi phân quyền ghi `permission_change_log` (người đổi, trước/sau, lý do — AUTH-14).

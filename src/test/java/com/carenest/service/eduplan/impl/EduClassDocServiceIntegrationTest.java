@@ -165,7 +165,7 @@ class EduClassDocServiceIntegrationTest {
                                         null,
                                         "Gia đình",
                                         "GĐ",
-                                        LocalDate.of(2026, 9, 27),
+                                        LocalDate.of(2026, 9, 28),
                                         LocalDate.of(2026, 10, 2),
                                         "",
                                         "")),
@@ -279,7 +279,7 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Lịch tuần: bỏ tuần nghỉ, chủ đề bắt đầu Chủ nhật tính từ Thứ Hai kế tiếp")
+    @DisplayName("Lịch tuần: bỏ tuần nghỉ trọn tuần, tuần học đánh số liên tục qua các chủ đề")
     void teachingWeeksSkipBreaks() {
         assertThat(service.getClassDocs(teacher, schoolYear).branchPlans()).isEmpty();
         ObjectNode doc = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));

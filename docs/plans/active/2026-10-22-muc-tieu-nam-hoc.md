@@ -44,7 +44,7 @@ Không còn câu hỏi nghiệp vụ; user đã duyệt phương án triển kha
 | Ownership | Cả ba bảng giữ year_plan_id, domain_id; FK ghép kiểm tra cha cùng kế hoạch/lĩnh vực, và sub của goal khớp sub của nhóm khi có nhóm | Chỉ FK id đơn | Chặn liên kết khác phiên bản/lĩnh vực ở DB và service |
 | API | Giữ domains[].rows[] và kind như hiện tại, service chuyển đổi với ba bảng | DTO cây lồng nhau | Tránh buộc Web đổi đồng thời; snapshot phải chứng minh |
 | ID/thứ tự | Giữ id, lineage_id, sort_order cũ; dùng chung sequence cho ba bảng để ID dòng không trùng khi đưa ra API | Sequence riêng + đổi định dạng ID API | Bảo toàn khóa dòng Web, JSON giáo án và học liệu |
-| Migration | Flyway mới (V32 nếu chưa được dùng), backfill từng plan/domain theo thứ tự cũ; đổi FK nội dung sang goal_id | Sửa V8/V29/V30 | Không sửa migration đã commit; không làm mất tham chiếu |
+| Migration | Flyway mới (V35 nếu chưa được dùng), backfill từng plan/domain theo thứ tự cũ; đổi FK nội dung sang goal_id | Sửa V11/V32/V33 | Không sửa migration đã commit; không làm mất tham chiếu |
 | Dữ liệu bất hợp lệ | Kiểm tra trước; FK/nội dung trỏ dòng không phải goal hoặc thứ tự mơ hồ thì fail transaction, báo để xử lý | Tự bỏ dòng/sửa dữ liệu | Không làm mất dữ liệu âm thầm |
 | Triển khai | Một đợt BE gồm migration và source tương thích; tạo ADR theo convention repo | Tách deploy migration và service | Không chạy service cũ với bảng đã thay thế |
 
@@ -63,7 +63,7 @@ Không còn câu hỏi nghiệp vụ; user đã duyệt phương án triển kha
 - Steps: migration/backfill/constraints → CRUD và query ba bảng → copy/diff/ownership → tài liệu và regression.
 - >8 file: đề xuất chia review thành hai nhóm schema/backfill và service/caller; cùng một bản phát hành để tránh schema/source lệch nhau.
 - Consumer cần kiểm: Web `src/services/education-plan/api/yearPlanMapper.js:63,140` vẫn dùng rows/kind; không sửa FE/APP. Mobile chưa triển khai màn này theo CROSS_REPO_MAP.
-- Tests: DB-AC1/2 → EduYearPlanSchemaIntegrationTest + test nâng cấp V31; DB-AC3 → EduYearPlanServiceIntegrationTest; DB-AC4 → version/copy/diff; DB-AC5 → EduClassDocServiceIntegrationTest, LearningResourceServiceImplTest và snapshot OpenAPI.
+- Tests: DB-AC1/2 → EduYearPlanSchemaIntegrationTest + test nâng cấp V34; DB-AC3 → EduYearPlanServiceIntegrationTest; DB-AC4 → version/copy/diff; DB-AC5 → EduClassDocServiceIntegrationTest, LearningResourceServiceImplTest và snapshot OpenAPI.
 - Tên DisplayName dùng EDU-09/24/25/26/28 tương ứng; test mới kiểm trường hợp khó, không chỉ phản chiếu implementation.
 - Exit: `node scripts/verify.mjs` → VERIFY PASS full, skip 0; PostgreSQL Testcontainers chạy thật; snapshot không đổi; `node scripts/check-ai-layer.mjs` exit 0.
 - **Dừng chờ user review sau phase.**
@@ -149,7 +149,7 @@ Không còn câu hỏi nghiệp vụ; user đã duyệt phương án triển kha
 ## Key decisions
 | Quyết định | Chọn | Phương án khác | Vì sao |
 | --- | --- | --- | --- |
-| Module | Tạo module mới `education-plan` và ADR-0017 | Nhét vào learning-observation | Card learning-observation cấm mở rộng thành giáo án |
+| Module | Tạo module mới `education-plan` và ADR-0017 (nay ADR-0020) | Nhét vào learning-observation | Card learning-observation cấm mở rộng thành giáo án |
 | API | Mỗi hành động một endpoint (`/submit`, `/issue`, `/return`) | Giữ PUT upsert có status | BE phải tự quyết trạng thái (guide §7) |
 | Lưu cây | PUT gửi cả cây. Dòng có id thì update, không có thì insert, dòng bị bỏ thì delete | Tách nhiều endpoint con | Khớp với cách FE lưu cả văn bản (nút Lưu / Ctrl+S) |
 
@@ -159,7 +159,7 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 ### Phase 0 — Nền và tài liệu
 - **Files:**
   - M: `BUSINESS_RULES.md` (thêm EDU, OBS-08 thành SUPERSEDED), `PROJECT_CONTEXT.md`, `ADR-0006`, `.ai/CONTEXT_MAP.yaml`
-  - C: `docs/modules/education-plan.md`, `docs/decisions/ADR-0017-education-plan-module.md`
+  - C: `docs/modules/education-plan.md`, `docs/decisions/ADR-0020-education-plan-module.md` (số cũ ADR-0017)
 - **Steps:**
   1. Merge `origin/feature/G94-60-BE-FEAT-01-authentication` vào nhánh này. Việc này tạo commit merge, cần Tiền cho phép.
   2. Sửa tài liệu theo danh sách Files.
@@ -167,8 +167,8 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 
 ### Phase 1 — Schema, entity, repository
 - **Files:**
-  - C: `V7__create_age_groups.sql` (`age_groups`, `classrooms.age_group_id`, nới `staff_role` thành VARCHAR(30) và cho phép `AGE_GROUP_TEAM_LEADER` + `age_group_id`)
-  - C: `V8__create_edu_year_plans.sql` (11 bảng `edu_*` + seed 5 lĩnh vực)
+  - C: `V10__create_age_groups.sql` (`age_groups`, `classrooms.age_group_id`, nới `staff_role` thành VARCHAR(30) và cho phép `AGE_GROUP_TEAM_LEADER` + `age_group_id`)
+  - C: `V11__create_edu_year_plans.sql` (11 bảng `edu_*` + seed 5 lĩnh vực)
   - C: `entity/eduplan/*`, `repository/eduplan/*`, `entity/organization/AgeGroup` (+ SchoolYear)
   - M: `StaffRole`, `StaffAssignment`
 - **Tests:** migration chạy qua Testcontainers + `ddl-auto: validate`, cùng test cho repository.
@@ -228,7 +228,7 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Commit: chưa commit
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 230 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; `EduYearPlanServiceIntegrationTest` 9/9 (AC-1..AC-8, PostgreSQL thật), `EduYearPlanControllerTest` 9/9
 - Khác plan:
-  - `V9` bỏ unique viết tắt + CHECK ngày của chủ đề/đợt nghỉ: bản nháp lưu được khi còn soạn dở; kiểm ở service khi gửi/ban hành.
+  - `V12` bỏ unique viết tắt + CHECK ngày của chủ đề/đợt nghỉ: bản nháp lưu được khi còn soạn dở; kiểm ở service khi gửi/ban hành.
   - `GET /education-plans/config` trả thêm `schoolYears`, `ageGroups` để FE đổi hằng số sang dữ liệu BE.
   - `StaffAssignmentSummaryResponse` thêm `ageGroupId`; `/accounts/me` tính phân công Tổ trưởng theo role TEACHER.
   - Không ghi lịch sử khi lập (UI không ghi); "Phó hiệu trưởng chỉnh sửa" ghi 1 lần cho tới thao tác kế tiếp.
@@ -241,7 +241,7 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Verify: FE `node scripts/verify.mjs` → `VERIFY PASS full`, `tests/education-plan/year-plan-api.test.mjs` 4/4; BE xem dòng verify cuối báo cáo.
 - Chưa kiểm chứng: FE chạy với BE thật (FE chưa có đăng nhập Keycloak, `/auth/login` vẫn PROPOSED); `PUT /education-plans/config` chưa có ở BE.
 
-### 2026-10-22 — Thu gọn schema (V20, trước là V10; Tiền chọn A)
+### 2026-10-22 — Thu gọn schema (V23, trước là V10 rồi V20; Tiền chọn A)
 - Bỏ `edu_plan_approvals`, `edu_approval_steps`, cột `edu_year_plans.attachment_key`; `GET /education-plans/config` bỏ `yearSigners` (FE dùng người ký mặc định).
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 230 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; FE `VERIFY PASS full`
 - Commit: chưa commit
@@ -278,14 +278,14 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Sau góp ý (Tiền): ô kết quả mong đợi và ô lĩnh vực con — Backspace khi đã hết chữ không xóa dòng nữa (ô trống, như ô mục tiêu/chủ đề), xóa dòng bằng thùng rác (có xác nhận). Kiểm chứng trình duyệt (không lưu): xóa hết + Backspace ×3 vẫn còn dòng ở cả 2 loại ô. FE `VERIFY PASS full`.
 
 ### 2026-10-23 — Merge nhánh điểm danh G94-236 (Tiền yêu cầu)
-- Merge `origin/feature/G94-236-BE-FEAT-29-daily-attendance` (kèm cấu hình trường G94-235, migration V10–V19).
-- Trùng version: `V10__drop_unused_edu_plan_tables` của nhánh này đổi thành `V20__…` (nội dung không đổi, độc lập với V10–V19). DB local đã chạy V10 cũ ⇒ cần dựng lại DB dev (Flyway báo lệch checksum/version).
+- Merge `origin/feature/G94-236-BE-FEAT-29-daily-attendance` (kèm cấu hình trường G94-235, migration V13–V22).
+- Trùng version: `V10__drop_unused_edu_plan_tables` của nhánh này đổi thành `V20__…` (nội dung không đổi, độc lập với V10–V19). DB local đã chạy V10 cũ ⇒ cần dựng lại DB dev (Flyway báo lệch checksum/version). (Merge `dev` 29/10: dời tiếp +3, nay `V23__drop_unused_edu_plan_tables`.)
 - `docs/api/openapi.yaml` xung đột ⇒ sinh lại từ code sau merge: giống nhánh kia, chỉ bỏ `EduConfigResponse.yearSigners` (đã bỏ ở `3438e72`).
 - Sau merge FE G94-179: màn Mục tiêu năm học sập ("Hệ thống gặp sự cố", `id.replace is not a function` ở `toEduYear`). Nguyên nhân: header (`SchoolYearContext`) nối BE thật giữ id năm dạng số, module kế hoạch giáo dục cần tên năm `2026-2027`. Sửa FE `useEducationPlan.jsx`: đổi id → tên năm qua `label` của lựa chọn năm (chưa commit).
 
 ### 2026-10-23 — Khóa "Đang sửa" (EDU-10, Tiền chốt sau khảo sát)
 - Tiền chốt: 1A (tự nhả sau 30 phút không lưu), 2A (chỉ Tổ trưởng gửi; PHT tự soạn vẫn ban hành thẳng), 3A (chỉ PHT xóa Nháp), 4 (giữ Bị trả lại, cả hai sửa), 5A (người kia xem được, thấy "Đang được [tên] sửa"). Khảo sát: `huong_dan_nghiep_vu/1_muc_tieu_nam_hoc/khao_sat_quy_trinh_lap_ke_hoach_nam.md`.
-- Sửa EDU-02/03/04/06/07, thêm EDU-10. V21 thêm `EDITING` + `editing_by/since/at/from`. API mới `POST /{planId}/start-editing|finish-editing`; `editing` (người, lúc bắt đầu) trong chi tiết và danh sách.
+- Sửa EDU-02/03/04/06/07, thêm EDU-10. V24 thêm `EDITING` + `editing_by/since/at/from`. API mới `POST /{planId}/start-editing|finish-editing`; `editing` (người, lúc bắt đầu) trong chi tiết và danh sách.
 - Giả định Claude tự chọn: lưu (PUT) tự lấy khóa nếu đang trống; chờ duyệt không khóa (chỉ PHT sửa); HT không xem bản Đang sửa (kể cả từ Bị trả lại); thao tác ghi khóa dòng (`SELECT … FOR UPDATE`); job nhả khóa chạy mỗi phút, khóa quá hạn coi như trống ngay.
 
 ### 2026-10-23/24 — Danh sách, quy tắc lưu/xóa, tài liệu (Tiền yêu cầu)
@@ -294,7 +294,7 @@ Plan có hơn 8 file và 4 phase, nên đề xuất tách: Phase 3 (FE) làm th�
 - Docs: viết lại phần kế hoạch giáo dục theo context của Tiền: EDU-01..22, OBS-07 CONFIRMED, xóa OBS-08 và P-01, ADR-0006 ACCEPTED, flow `docs/business/flows/education-plan.md`; FE `AGENTS.md`, `.ai/ROUTER.md`, `.ai/CONTEXT_MAP.yaml`, `ROUTE_MAP.md` bỏ "không giáo án".
 - Commit: BE `f5acbe3`; FE `18adb8c`, `8045031`, `190bd04`, `cea6088` (Tiền), `4b5355a` (gỡ đăng nhập demo tạm). Docs và trang Kế hoạch toàn trường: chưa commit.
 ### 2026-10-24 — Tài liệu của lớp lên BE (Tiền yêu cầu: chủ đề nhánh, kế hoạch tuần, ngày)
-- BE: `V25__create_edu_class_docs.sql`, `EduClassDoc`, `EduClassDocService(Impl)`, `EduClassDocController` (`/education-plans/class-docs`): lưu, gửi, duyệt, trả lại theo EDU-12..18, chuỗi người ký lấy từ cấu hình. Nội dung soạn lưu JSON (bảng tuần đổi theo cấu hình dòng). Lịch tuần `teachingWeeks` tính giống Web.
+- BE: `V28__create_edu_class_docs.sql`, `EduClassDoc`, `EduClassDocService(Impl)`, `EduClassDocController` (`/education-plans/class-docs`): lưu, gửi, duyệt, trả lại theo EDU-12..18, chuỗi người ký lấy từ cấu hình. Nội dung soạn lưu JSON (bảng tuần đổi theo cấu hình dòng). Lịch tuần `teachingWeeks` tính giống Web.
 - Quyết định: khóa tài liệu do Web đặt (`bp_/tp_/wp_`), BE kiểm khớp; GET trả kèm lớp, giáo viên, tổ trưởng để Web không gọi `/classes`, `/users` (BE chưa có). AI (EDU-20) chưa làm.
 - FE: nối API thật, lớp/giáo viên lấy từ class-docs theo năm ở header; nhãn REJECTED đổi "Bị trả lại"; nạp lại sau gửi/duyệt hồ sơ chủ đề.
 - Kiểm chứng: test tích hợp 5/5; Playwright trên BE thật: chủ đề nhánh (lưu, gửi, trả lại, gửi lại, duyệt), kế hoạch chủ đề, giáo án tuần + ngày, hồ sơ chủ đề gửi và duyệt; quyền giáo viên lớp khác, tổ trưởng, HT. BE verify PASS 373.
@@ -407,7 +407,7 @@ Thay đổi vượt 8 file: tách hai đợt review BE và Web; mỗi đợt ch�
 
 ### 2026-10-27 — Tự lưu AS-1/AS-2: gate đạt, chờ ghi đối chiếu cuối
 
-- BE: `VERIFY PASS full | tests 380 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 118s`. V24 chạy trên PostgreSQL thật; CHECK NULL có RED/GREEN; tạo/lưu retry, expiry và same-account sessions được kiểm.
+- BE: `VERIFY PASS full | tests 380 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 118s`. V24 (nay V30) chạy trên PostgreSQL thật; CHECK NULL có RED/GREEN; tạo/lưu retry, expiry và same-account sessions được kiểm.
 - FE: `VERIFY PASS full | npm run verify | log verify.log`; fixture Date test thực đơn được cố định, không đổi nghiệp vụ thực đơn; định dạng SchoolPlansPage trong cùng module. Đang chạy lại sau sửa câu cảnh báo rời trang cuối.
 - Browser mock: tự lưu không bấm Lưu; /new chuyển sang /edit giữ quyền; một tab sửa, tab kia chỉ xem; đóng holder rồi thử lại nhận quyền; rời trước 2s rồi mở lại thấy bản phục hồi. Review subagent không còn P1/P2 cụ thể.
 - Giới hạn: chưa chạy browser E2E trên BE thật; offline/reconnect được mô phỏng ở node:test và fencing kiểm qua PostgreSQL thật; chưa đo SLA mạng production. Không claim các phần đó đã kiểm.
@@ -439,7 +439,7 @@ Thay đổi vượt 8 file: tách hai đợt review BE và Web; mỗi đợt ch�
 - Feature artifacts: specs/006-year-plan-goal-hierarchy; ba bảng/FK thật, cấp cha tùy chọn; không tạo branch/commit.
 
 ### 29/10/2026 — DB-1 triển khai và review, đang kiểm chứng cuối
-- Source: V32 backfill giữ ID/lineage; ba bảng/entity/repository, FK cha optional kiểm ownership; mapped superclass thay entity bảng cũ; API rows/kind giữ nguyên.
+- Source: V35 backfill giữ ID/lineage; ba bảng/entity/repository, FK cha optional kiểm ownership; mapped superclass thay entity bảng cũ; API rows/kind giữ nguyên.
 - Lưu/đọc/copy/diff và membership học liệu đã chuyển sang ba bảng. Test chuyển/xóa cha kiểm giữ ID/nội dung/dấu tích, copy remap FK/lineage.
 - Regression đợt đầu: 46 tests fail 0 err 0 skip 0; upgrade trên PostgreSQL 17 Testcontainers. Lỗi deferred-trigger DDL có RED/GREEN và incident BUG-261029-hierarchy-deferred-ddl.
 - Verify trước convergence: VERIFY PASS full | tests 432 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 250s | log target/verify.log (đã giữ bản log tại target/hierarchy-full-before-convergence.log).
@@ -452,9 +452,31 @@ Thay đổi vượt 8 file: tách hai đợt review BE và Web; mỗi đợt ch�
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 433 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 247s | log target/verify.log`.
 - Migration PostgreSQL 17: 5/5 test upgrade, skip 0; full gate gồm HBM validate, schema, service/copy, class-doc/học liệu, quyền và snapshot.
 - API: snapshot ok và `git diff --exit-code -- docs/api/openapi.yaml` exit 0. Không thay DTO/endpoint.
-- Docs: dictionary/ERD/domain model/module card + ADR-0019; markdown ngoài repo và tab drawio V32; XML/ID/edge valid, bản vẽ user đang chỉnh được giữ lại.
+- Docs: dictionary/ERD/domain model/module card + ADR-0019 (nay ADR-0021); markdown ngoài repo và tab drawio V32; XML/ID/edge valid, bản vẽ user đang chỉnh được giữ lại.
 - Memory: BUG-261029-hierarchy-deferred-ddl fixed (RED/GREEN); ISSUE_INDEX và module pitfalls cập nhật.
 - Spec loop: 8 FR/4 SC/3 US được đối chiếu; converge 1 append T011, implement; converge 2 không còn gap, không thêm task. 11/11 tasks done.
 - DoD DB-1: phạm vi/quyền/ID/dữ liệu cũ/phiên bản đúng, full verify skip0, schema docs/ADR và check-ai-layer 0 lỗi/0 cảnh báo (E6 bỏ qua theo output).
 - Giới hạn: chưa migration DB đang dùng hoặc production, chưa browser E2E Web; không commit/push/branch, không sửa FE/APP. Không cần test AI-off mới vì không chạm AI.
 - Tiếp: user review DB-1; dừng triển khai tại đây. Giữ plan gốc active/in-progress vì phạm vi lịch sử còn rộng hơn DB-1; không tự đóng/chuyển cả plan cũ.
+
+### 29/10/2026 — Merge `origin/dev` (G94-60, G94-254) vào nhánh, cả BE và FE
+- User: "giải quyết merge cả be và fe đi, đổi số migration bên nhánh này"; nghiệp vụ lấy context `dev`, kế hoạch giáo dục theo nhánh này (cập nhật thêm phần `dev` đổi); code kế hoạch giáo dục theo nhánh. Chưa commit.
+- Migration: V7–V9 giữ của `dev` (phân quyền); V7–V32 của nhánh đổi thành V10–V35 (`git mv`). Test target `flyway("31")` → `"34"`; comment V-số trong test/seed/migration đổi theo. DB dev/test đã chạy số cũ phải tạo lại (Flyway lệch checksum theo version).
+- `GET /campuses` trùng mapping giữa `CampusController` (nhánh) và `SchoolStructureController` (`dev`) ⇒ giữ của nhánh; endpoint tra cứu của `dev` chuyển `GET /campuses/options`, DTO `CampusOptionResponse` (JSON `{id, code, name}` như cũ). FE chưa gọi endpoint này (tài khoản/phụ huynh FE đang mock) nên không sửa FE code.
+- `GlobalException` của nhánh chỉ tạo qua `GlobalException.of(ApiCode)` ⇒ đổi mọi lỗi tiếng Anh trong code `dev` sang mã mới: 1112–1126 (tài khoản & phân quyền), 2308–2319 (phân công), 3004–3006 (phụ huynh–trẻ); test `dev` so mã cụ thể. API phân công chung của `dev` từ chối `AGE_GROUP_TEAM_LEADER` (2319) — tổ trưởng phân công qua TeacherAssignmentService.
+- Seed dev: `primary_role` của `dev` dùng username mới của nhánh (`admin`, `teacher1`…); campus giữ `short_name`, `address`.
+- Docs: đổi số rule HLT-07 (nhánh) → HLT-15; EDU-01..10 (`dev`) → EDU-29..38; ADR-0017 (nhánh) → ADR-0020, ADR-0019 (nhánh) → ADR-0021. ADR-0019 của `dev` ("làm lại kế hoạch giáo dục trên dev") lệch với merge này — giữ, thêm ghi chú, chờ user chốt. Lệch nghiệp vụ còn mở: EDU-31/32/35/38 vs EDU-11/17..19, ADR-0006 ACCEPTED (nhánh) vs SUPERSEDED (`dev`).
+- Link hỏng có sẵn từ `dev` (`MEAL_NUTRITION_AI_SCHEMA.md`, plan `2026-10-27-survey-auth-alignment.md` chưa từng commit) ⇒ ghi tên + "chưa có trong repo" thay vì đường dẫn.
+- `openapi.yaml` sinh lại bằng `-Dopenapi.snapshot.update=true`; khớp bản gộp tay trừ `/campuses/options`, GET `/campuses` của nhánh và enum `AGE_GROUP_TEAM_LEADER`.
+
+### 29/10/2026 — Context kế hoạch giáo dục theo đúng code (user chốt)
+- User: "sửa context kế hoạch giáo dục theo đúng code của tôi". Đã đối chiếu code: EDU-18 bỏ bước Tổ trưởng (`EduClassDocServiceImpl`), hồ sơ chủ đề gửi một lần (EDU-17), dòng hoạt động tuần do HT/PHT cấu hình (`EduSettings.weekRows`, EDU-11), quyền theo role tại `EduPlanAccessPolicy` (EDU-08).
+- BE: EDU-31/32/35/38 (khảo sát `dev`) ⇒ SUPERSEDED, trỏ EDU-18, EDU-17..19, EDU-11/16, EDU-08; ADR-0019 của `dev` ⇒ SUPERSEDED bởi ADR-0020; INT-02 không còn áp dụng; ADR-0006 giữ ACCEPTED. Sửa BUSINESS_RULES, flow + card education-plan, INDEX, PROJECT_CONTEXT, CURRENT_STATE, USER_ROLES.
+- FE: ROUTE_MAP, CURRENT_STATE, REPOSITORY_CONTEXT, CONTEXT_MAP, AGENTS viết lại theo route/quyền thật (`AppRoutes.jsx`, EDU-01..28), bỏ ghi chú "UI mock, lệch BE" của `dev`. Không đổi code.
+
+### 30/10/2026 — Lịch chủ đề theo mẫu Thái Dương, đóng P-29 (user chốt)
+- User: chặn chủ đề trùng thời gian (1) và chủ đề Thứ 2 → Thứ 6 (2) — "ok"; đợt nghỉ không cần trọn tuần, nghỉ 1 ngày vẫn ghi, các ngày khác soạn bình thường (3). Code chưa có cả ba (trùng chỉ cảnh báo FE; nghỉ bất kỳ ngày nào bỏ cả tuần) ⇒ chốt theo user.
+- Rule: EDU-39 (thời lượng do người lập đặt, 1 tuần học = 1 nhánh, không trùng), EDU-40 (Thứ 2 → Thứ 6), EDU-41 (tuần chỉ thành tuần nghỉ khi nghỉ trọn Thứ 2 → Thứ 6). P-29 chuyển "Đã đóng".
+- BE: `EduYearPlanServiceImpl.requireThemeWeeks` kiểm ở gửi/ban hành (mã 7031 `THEME_WEEK_ALIGNMENT`, 7032 `THEME_DATES_OVERLAP`); `EduClassDocServiceImpl.teachingWeeks` tính nghỉ theo từng ngày. Fixture chủ đề bắt đầu Chủ nhật 27/09 đổi thành Thứ 2 28/09. Test mới `EduTeachingWeeksTest`, `themesMustCoverWholeWeeksWithoutOverlap`.
+- FE: `goalTable` (`breakOn`, `weekBreaks`, `isWholeWeekTheme`, `overlappingThemes`, `themeScheduleIssue`); `yearWeeks` trả `offDays`; form kế hoạch năm chặn ở bước Tiếp theo, báo tại dòng; giáo án tuần/ngày, hồ sơ chủ đề, bảng chủ đề nhánh, bản in hiện "Nghỉ: <tên đợt>". Không đổi API/DB (đợt nghỉ 1 ngày đã lưu được với ngày kết thúc trống).
+- Giả định: ngày nghỉ lẻ không chặn soạn/gửi (chỉ ghi chú "không cần soạn"); kế hoạch đã ban hành trước 30/10 không bị kiểm lại, chỉ phiên bản mới mới phải theo EDU-39/40.

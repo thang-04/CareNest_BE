@@ -10,6 +10,68 @@ security:
 - bearerAuth: []
 paths:
   /api/accounts:
+    get:
+      operationId: searchAccounts
+      parameters:
+      - in: query
+        name: role
+        required: false
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 0
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponseAccountSummaryResponse"
+          description: OK
+      tags:
+      - account-controller
     post:
       operationId: createAccount
       requestBody:
@@ -39,6 +101,68 @@ paths:
           description: OK
       tags:
       - account-controller
+  /api/accounts/{userId}:
+    get:
+      operationId: getAccountDetail
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountDetailResponse"
+          description: OK
+      tags:
+      - account-controller
+  /api/accounts/{userId}/permission-overrides:
+    get:
+      operationId: getPermissionOverrides
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonUserPermissionOverridesResponse"
+          description: OK
+      tags:
+      - permission-controller
+    put:
+      operationId: updatePermissionOverrides
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePermissionOverridesRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonUserPermissionOverridesResponse"
+          description: OK
+      tags:
+      - permission-controller
   /api/accounts/{userId}/status:
     patch:
       operationId: updateAccountStatus
@@ -54,6 +178,31 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/UpdateAccountStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountResponse"
+          description: OK
+      tags:
+      - account-controller
+  /api/accounts/{userId}/temporary-password:
+    post:
+      operationId: resetTemporaryPassword
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetTemporaryPasswordRequest"
         required: true
       responses:
         "200":
@@ -520,6 +669,18 @@ paths:
           description: Created
       tags:
       - campus-controller
+  /api/campuses/options:
+    get:
+      operationId: listCampuses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListCampusOptionResponse"
+          description: OK
+      tags:
+      - school-structure-controller
   /api/campuses/{campusId}:
     delete:
       operationId: deleteCampus
@@ -618,6 +779,55 @@ paths:
           description: OK
       tags:
       - campus-controller
+  /api/children:
+    get:
+      operationId: searchChildren
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classroomId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 0
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponseChildSummaryResponse"
+          description: OK
+      tags:
+      - child-controller
   /api/children/{childId}:
     get:
       operationId: getChildProfile
@@ -662,6 +872,74 @@ paths:
           description: OK
       tags:
       - daily-health-controller
+  /api/children/{childId}/guardians:
+    get:
+      operationId: listGuardians
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListGuardianResponse"
+          description: OK
+      tags:
+      - guardian-controller
+    post:
+      operationId: addGuardian
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddGuardianRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAddGuardianResponse"
+          description: Created
+      tags:
+      - guardian-controller
+  /api/children/{childId}/guardians/{userId}:
+    delete:
+      operationId: removeGuardian
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - guardian-controller
   /api/classes:
     post:
       operationId: createClass
@@ -878,6 +1156,25 @@ paths:
           description: OK
       tags:
       - teacher-assignment-controller
+  /api/classrooms:
+    get:
+      operationId: listClassrooms
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListClassroomResponse"
+          description: OK
+      tags:
+      - school-structure-controller
   /api/daily-health-entries:
     post:
       operationId: addEntry
@@ -1940,6 +2237,177 @@ paths:
           description: OK
       tags:
       - meal-count-controller
+  /api/parent-accounts/{userId}/status:
+    patch:
+      operationId: updateParentStatus
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountResponse"
+          description: OK
+      tags:
+      - guardian-controller
+  /api/parent-accounts/{userId}/temporary-password:
+    post:
+      operationId: resetParentPassword
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentPasswordResponse"
+          description: OK
+      tags:
+      - guardian-controller
+  /api/permission-change-logs:
+    get:
+      operationId: getPermissionChangeLogs
+      parameters:
+      - in: query
+        name: targetRole
+        required: false
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+      - in: query
+        name: targetUserId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponsePermissionChangeLogResponse"
+          description: OK
+      tags:
+      - permission-controller
+  /api/permissions:
+    get:
+      operationId: getPermissionCatalog
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListPermissionResponse"
+          description: OK
+      tags:
+      - permission-controller
+  /api/role-permissions:
+    get:
+      operationId: getRolePermissions
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListRolePermissionResponse"
+          description: OK
+      tags:
+      - permission-controller
+  /api/role-permissions/{role}:
+    get:
+      operationId: getRolePermission
+      parameters:
+      - in: path
+        name: role
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonRolePermissionResponse"
+          description: OK
+      tags:
+      - permission-controller
+    put:
+      operationId: updateRolePermissions
+      parameters:
+      - in: path
+        name: role
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRolePermissionsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonRolePermissionResponse"
+          description: OK
+      tags:
+      - permission-controller
   /api/school-structure:
     get:
       operationId: getSchoolStructure
@@ -2269,6 +2737,49 @@ paths:
           description: OK
       tags:
       - year-transition-controller
+  /api/staff-assignments:
+    post:
+      operationId: assignStaff
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffAssignmentRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStaffAssignmentResponse"
+          description: Created
+      tags:
+      - staff-assignment-controller
+  /api/staff-assignments/{assignmentId}/end:
+    patch:
+      operationId: endAssignment
+      parameters:
+      - in: path
+        name: assignmentId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EndStaffAssignmentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStaffAssignmentResponse"
+          description: OK
+      tags:
+      - staff-assignment-controller
   /api/teacher-assignments:
     get:
       operationId: getTeacherAssignments
@@ -2351,6 +2862,36 @@ components:
         expiresAt:
           type: string
           format: date-time
+    AccountDetailResponse:
+      type: object
+      properties:
+        assignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffAssignmentResponse"
+        email:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
     AccountResponse:
       type: object
       properties:
@@ -2358,6 +2899,36 @@ components:
           type: string
         fullName:
           type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+    AccountSummaryResponse:
+      type: object
+      properties:
+        activeAssignments:
+          type: array
+          items:
+            $ref: "#/components/schemas/StaffAssignmentSummaryResponse"
+        email:
+          type: string
+        fullName:
+          type: string
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
         status:
           type: string
           enum:
@@ -2376,6 +2947,54 @@ components:
           minLength: 1
       required:
       - confirmName
+    AddGuardianRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          maxLength: 150
+          minLength: 0
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 0
+        relationship:
+          type: string
+          enum:
+          - MOTHER
+          - FATHER
+          - GUARDIAN
+          - OTHER
+      required:
+      - fullName
+      - phone
+      - relationship
+    AddGuardianResponse:
+      type: object
+      properties:
+        fullName:
+          type: string
+        newAccount:
+          type: boolean
+        relationship:
+          type: string
+          enum:
+          - MOTHER
+          - FATHER
+          - GUARDIAN
+          - OTHER
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        temporaryPassword:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
     Adjustment:
       type: object
       properties:
@@ -2657,6 +3276,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StaffBriefResponse"
+    CampusOptionResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     CampusRequest:
       type: object
       properties:
@@ -2842,6 +3471,26 @@ components:
           $ref: "#/components/schemas/ChildBrief"
         record:
           $ref: "#/components/schemas/RecordView"
+    ChildSummaryResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        dateOfBirth:
+          type: string
+          format: date
+        fullName:
+          type: string
+        guardianCount:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
     ChildTotal:
       type: object
       properties:
@@ -3166,6 +3815,17 @@ components:
         unexcused:
           type: integer
           format: int32
+    ClassroomResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     Content:
       type: object
       properties:
@@ -3209,6 +3869,8 @@ components:
     CreateAccountRequest:
       type: object
       properties:
+        assignment:
+          $ref: "#/components/schemas/StaffAssignmentScopeRequest"
         email:
           type: string
           format: email
@@ -3243,6 +3905,8 @@ components:
     CreateAccountResponse:
       type: object
       properties:
+        assignment:
+          $ref: "#/components/schemas/StaffAssignmentResponse"
         email:
           type: string
         fullName:
@@ -3268,6 +3932,26 @@ components:
           format: int64
         username:
           type: string
+    CreateStaffAssignmentRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+      required:
+      - userId
     Csrf:
       type: object
       properties:
@@ -3680,6 +4364,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WeekRow"
+    EndStaffAssignmentRequest:
+      type: object
+      properties:
+        validTo:
+          type: string
+          format: date
+      required:
+      - validTo
     Entry:
       type: object
       properties:
@@ -3776,6 +4468,31 @@ components:
         planned:
           type: integer
           format: int64
+    GuardianResponse:
+      type: object
+      properties:
+        fullName:
+          type: string
+        linkedAt:
+          type: string
+          format: date-time
+        relationship:
+          type: string
+          enum:
+          - MOTHER
+          - FATHER
+          - GUARDIAN
+          - OTHER
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
     History:
       type: object
       properties:
@@ -4157,6 +4874,17 @@ components:
           type: string
         fullName:
           type: string
+        permissions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CHILD_PROFILE_VIEW
+            - ACCOUNT_MANAGE
+            - ACCOUNT_STATUS_MANAGE
+            - STAFF_ASSIGNMENT_MANAGE
+            - PARENT_ACCOUNT_MANAGE
+            - PERMISSION_MANAGE
         roles:
           type: array
           items:
@@ -4210,6 +4938,26 @@ components:
         resendAvailableAt:
           type: string
           format: date-time
+    OverrideItem:
+      type: object
+      properties:
+        effect:
+          type: string
+          enum:
+          - GRANT
+          - REVOKE
+        permission:
+          type: string
+          enum:
+          - CHILD_PROFILE_VIEW
+          - ACCOUNT_MANAGE
+          - ACCOUNT_STATUS_MANAGE
+          - STAFF_ASSIGNMENT_MANAGE
+          - PARENT_ACCOUNT_MANAGE
+          - PERMISSION_MANAGE
+      required:
+      - effect
+      - permission
     Overview:
       type: object
       properties:
@@ -4233,6 +4981,63 @@ components:
           type: boolean
         totals:
           $ref: "#/components/schemas/Totals"
+    PageResponseAccountSummaryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountSummaryResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseChildSummaryResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildSummaryResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponsePermissionChangeLogResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionChangeLogResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
     PageResponseYearPlanSummaryResponse:
       type: object
       properties:
@@ -4252,6 +5057,126 @@ components:
         totalPages:
           type: integer
           format: int32
+    ParentPasswordResponse:
+      type: object
+      properties:
+        temporaryPassword:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+    PermissionChangeLogResponse:
+      type: object
+      properties:
+        actorUserId:
+          type: integer
+          format: int64
+        afterState:
+          type: string
+          enum:
+          - "ON"
+          - "OFF"
+          - GRANT
+          - REVOKE
+          - INHERIT
+        batchId:
+          type: string
+          format: uuid
+        beforeState:
+          type: string
+          enum:
+          - "ON"
+          - "OFF"
+          - GRANT
+          - REVOKE
+          - INHERIT
+        changedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        permissionCode:
+          type: string
+        reason:
+          type: string
+        targetRole:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+        targetUserId:
+          type: integer
+          format: int64
+    PermissionOverrideResponse:
+      type: object
+      properties:
+        effect:
+          type: string
+          enum:
+          - GRANT
+          - REVOKE
+        permission:
+          type: string
+          enum:
+          - CHILD_PROFILE_VIEW
+          - ACCOUNT_MANAGE
+          - ACCOUNT_STATUS_MANAGE
+          - STAFF_ASSIGNMENT_MANAGE
+          - PARENT_ACCOUNT_MANAGE
+          - PERMISSION_MANAGE
+        reason:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        updatedBy:
+          type: integer
+          format: int64
+    PermissionResponse:
+      type: object
+      properties:
+        code:
+          type: string
+          enum:
+          - CHILD_PROFILE_VIEW
+          - ACCOUNT_MANAGE
+          - ACCOUNT_STATUS_MANAGE
+          - STAFF_ASSIGNMENT_MANAGE
+          - PARENT_ACCOUNT_MANAGE
+          - PERMISSION_MANAGE
+        configurableRoles:
+          type: array
+          items:
+            type: string
+            enum:
+            - ADMIN
+            - PRINCIPAL
+            - VICE_PRINCIPAL
+            - TEACHER
+            - KITCHEN_STAFF
+            - PARENT
+        defaultRoles:
+          type: array
+          items:
+            type: string
+            enum:
+            - ADMIN
+            - PRINCIPAL
+            - VICE_PRINCIPAL
+            - TEACHER
+            - KITCHEN_STAFF
+            - PARENT
+        description:
+          type: string
+        module:
+          type: string
     Permissions:
       type: object
       properties:
@@ -4403,6 +5328,15 @@ components:
       - confirmPassword
       - newPassword
       - token
+    ResetTemporaryPasswordRequest:
+      type: object
+      properties:
+        temporaryPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+      required:
+      - temporaryPassword
     ResetToken:
       type: object
       properties:
@@ -4424,6 +5358,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonAccountDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AccountDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAccountResponse:
       type: object
       properties:
@@ -4432,6 +5379,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AccountResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAddGuardianResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AddGuardianResponse"
         desc:
           type: string
         errorCode:
@@ -4729,6 +5689,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListCampusOptionResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampusOptionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListCampusResponse:
       type: object
       properties:
@@ -4739,6 +5714,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CampusResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListClassroomResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassroomResponse"
         desc:
           type: string
         errorCode:
@@ -4819,6 +5809,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListGuardianResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListLearningResourceResponse:
       type: object
       properties:
@@ -4844,6 +5849,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MealCountResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListPermissionResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListRolePermissionResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/RolePermissionResponse"
         desc:
           type: string
         errorCode:
@@ -4986,6 +6021,45 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonPageResponseAccountSummaryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponseAccountSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPageResponseChildSummaryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponseChildSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPageResponsePermissionChangeLogResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponsePermissionChangeLogResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonPageResponseYearPlanSummaryResponse:
       type: object
       properties:
@@ -4994,6 +6068,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/PageResponseYearPlanSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentPasswordResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentPasswordResponse"
         desc:
           type: string
         errorCode:
@@ -5020,6 +6107,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ResetToken"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonRolePermissionResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/RolePermissionResponse"
         desc:
           type: string
         errorCode:
@@ -5077,6 +6177,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonStaffAssignmentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/StaffAssignmentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonString:
       type: object
       properties:
@@ -5111,6 +6224,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/TeamLeaderResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonUserPermissionOverridesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/UserPermissionOverridesResponse"
         desc:
           type: string
         errorCode:
@@ -5167,6 +6293,42 @@ components:
         errorCode:
           type: integer
           format: int32
+    RolePermissionResponse:
+      type: object
+      properties:
+        configurablePermissions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CHILD_PROFILE_VIEW
+            - ACCOUNT_MANAGE
+            - ACCOUNT_STATUS_MANAGE
+            - STAFF_ASSIGNMENT_MANAGE
+            - PARENT_ACCOUNT_MANAGE
+            - PERMISSION_MANAGE
+        editable:
+          type: boolean
+        permissions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CHILD_PROFILE_VIEW
+            - ACCOUNT_MANAGE
+            - ACCOUNT_STATUS_MANAGE
+            - STAFF_ASSIGNMENT_MANAGE
+            - PARENT_ACCOUNT_MANAGE
+            - PERMISSION_MANAGE
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
     RoomRequest:
       type: object
       properties:
@@ -5498,6 +6660,47 @@ components:
         suggestedTargetId:
           type: integer
           format: int64
+    StaffAssignmentResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        staffRole:
+          type: string
+          enum:
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - AGE_GROUP_TEAM_LEADER
+        userId:
+          type: integer
+          format: int64
+        validFrom:
+          type: string
+          format: date
+        validTo:
+          type: string
+          format: date
+    StaffAssignmentScopeRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        validFrom:
+          type: string
+          format: date
     StaffAssignmentSummaryResponse:
       type: object
       properties:
@@ -5722,6 +6925,84 @@ components:
           - INACTIVE
       required:
       - status
+    UpdatePermissionOverridesRequest:
+      type: object
+      properties:
+        overrides:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverrideItem"
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - overrides
+      - reason
+    UpdateRolePermissionsRequest:
+      type: object
+      properties:
+        permissions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CHILD_PROFILE_VIEW
+            - ACCOUNT_MANAGE
+            - ACCOUNT_STATUS_MANAGE
+            - STAFF_ASSIGNMENT_MANAGE
+            - PARENT_ACCOUNT_MANAGE
+            - PERMISSION_MANAGE
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - permissions
+      - reason
+    UserPermissionOverridesResponse:
+      type: object
+      properties:
+        configurablePermissions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CHILD_PROFILE_VIEW
+            - ACCOUNT_MANAGE
+            - ACCOUNT_STATUS_MANAGE
+            - STAFF_ASSIGNMENT_MANAGE
+            - PARENT_ACCOUNT_MANAGE
+            - PERMISSION_MANAGE
+        effectivePermissions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CHILD_PROFILE_VIEW
+            - ACCOUNT_MANAGE
+            - ACCOUNT_STATUS_MANAGE
+            - STAFF_ASSIGNMENT_MANAGE
+            - PARENT_ACCOUNT_MANAGE
+            - PERMISSION_MANAGE
+        overrides:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionOverrideResponse"
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - ADMIN
+            - PRINCIPAL
+            - VICE_PRINCIPAL
+            - TEACHER
+            - KITCHEN_STAFF
+            - PARENT
+        userId:
+          type: integer
+          format: int64
     VerifyOtp:
       type: object
       properties:

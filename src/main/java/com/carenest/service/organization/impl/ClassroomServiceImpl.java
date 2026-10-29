@@ -10,6 +10,7 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.SchoolYearStatus;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -103,6 +104,37 @@ public class ClassroomServiceImpl implements ClassroomService {
                     .orElse(List.of());
             log.info("{}|END", logPrefix);
             return classes;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, Long> findCampusIds(Collection<Long> classroomIds) {
+        String logPrefix = LOG_PREFIX + "|findCampusIds|classrooms=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> campusIds = classroomIds.isEmpty()
+                    ? Map.of()
+                    : classroomRepository.findAllById(classroomIds).stream()
+                            .collect(Collectors.toMap(Classroom::getId, Classroom::getCampusId));
+            log.info("{}|END", logPrefix);
+            return campusIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<Long> findClassroomIdsOfCampuses(Collection<Long> campusIds) {
+        String logPrefix = LOG_PREFIX + "|findClassroomIdsOfCampuses|campuses=" + campusIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            List<Long> ids = campusIds.isEmpty() ? List.of() : classroomRepository.findIdsByCampusIdIn(campusIds);
+            log.info("{}|END", logPrefix);
+            return ids;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

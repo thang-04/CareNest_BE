@@ -1,6 +1,6 @@
 # Data model & thiết kế database — feature 004
 
-PostgreSQL 17, Flyway. Convention `docs/database/DATABASE.md` mục 9: id `BIGINT GENERATED ALWAYS AS IDENTITY` (riêng `edu_class_docs` vẫn BIGSERIAL như V25), cột audit `created_at`/`updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`, người tạo theo cột có sẵn của bảng (`owner_id` của kế hoạch năm = người tạo phiên bản; `created_by`/`updated_by` của tài liệu lớp). Tên ràng buộc `uk_/ck_/fk_/idx_`. Migration mới **V29__add_edu_plan_versions.sql**; không sửa V8–V28.
+PostgreSQL 17, Flyway. Convention `docs/database/DATABASE.md` mục 9: id `BIGINT GENERATED ALWAYS AS IDENTITY` (riêng `edu_class_docs` vẫn BIGSERIAL như V28), cột audit `created_at`/`updated_at TIMESTAMPTZ NOT NULL DEFAULT now()`, người tạo theo cột có sẵn của bảng (`owner_id` của kế hoạch năm = người tạo phiên bản; `created_by`/`updated_by` của tài liệu lớp). Tên ràng buộc `uk_/ck_/fk_/idx_`. Migration mới **V32__add_edu_plan_versions.sql**; không sửa V11–V31.
 
 ## 1. Kế hoạch năm theo phiên bản — `edu_year_plans`
 
@@ -29,7 +29,7 @@ Hiện hành: `max(version_no) where status = 'APPROVED'` trong chuỗi (truy v�
 | edu_themes | lineage_id BIGINT NULL | idx_edu_themes_lineage_id |
 | edu_breaks | lineage_id BIGINT NULL | — |
 
-- Lineage hiệu dụng = `COALESCE(lineage_id, id)`. Dòng gốc (kể cả dữ liệu trước V29) để NULL; dòng chép đặt `lineage_id = COALESCE(src.lineage_id, src.id)`. Không FK (dòng gốc có thể bị xóa ở phiên bản sau; lineage chỉ là định danh).
+- Lineage hiệu dụng = `COALESCE(lineage_id, id)`. Dòng gốc (kể cả dữ liệu trước V32) để NULL; dòng chép đặt `lineage_id = COALESCE(src.lineage_id, src.id)`. Không FK (dòng gốc có thể bị xóa ở phiên bản sau; lineage chỉ là định danh).
 - PUT kế hoạch: dòng có id giữ nguyên lineage; dòng mới (id null) có lineage NULL = chính nó (MT "mới").
 - Invariant: trong một kế hoạch, lineage hiệu dụng duy nhất theo bảng (chép 1-1). Không ép bằng index (biểu thức coalesce + plan) để PUT không vấp thứ tự ghi; service bảo đảm.
 
@@ -58,7 +58,7 @@ v1 APPROVED (hiện hành) --create-version--> v2 DRAFT/EDITING --submit--> PEND
 v2 APPROVED ⇒ v1 "đã thay thế" (tính bằng truy vấn); tài liệu lớp của v1: chỉ xem, duyệt/trả lại hồ sơ đang chờ, sửa adjustments
 ```
 
-## 6. Migration V29 (nội dung)
+## 6. Migration V32 (nội dung)
 
 ```sql
 ALTER TABLE edu_year_plans
@@ -91,4 +91,4 @@ ALTER TABLE edu_class_docs
 CREATE INDEX idx_edu_class_docs_source_doc_id ON edu_class_docs (source_doc_id);
 ```
 
-Rollback (thủ công, chỉ khi chưa có phiên bản ≥2): DROP các cột/index trên, tạo lại `uk_edu_year_plans_school_year_age_group`. Dữ liệu cũ hợp lệ ngay sau V29 (version_no = 1, source NULL, lineage NULL, adjustments '{}').
+Rollback (thủ công, chỉ khi chưa có phiên bản ≥2): DROP các cột/index trên, tạo lại `uk_edu_year_plans_school_year_age_group`. Dữ liệu cũ hợp lệ ngay sau V32 (version_no = 1, source NULL, lineage NULL, adjustments '{}').

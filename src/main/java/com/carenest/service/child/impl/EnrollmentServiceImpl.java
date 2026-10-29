@@ -7,8 +7,11 @@ import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.service.child.EnrollmentService;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -54,6 +57,26 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                     .toList();
             log.info("{}|END", logPrefix);
             return children;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, Long> findActiveClassroomIdByChildIds(Collection<Long> childIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveClassroomIdByChildIds|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> classroomByChild = new HashMap<>();
+            if (!childIds.isEmpty()) {
+                // Query sắp mới nhất trước: giữ bản ghi đầu tiên của mỗi trẻ
+                for (Enrollment enrollment : enrollmentRepository.findActiveByChildIdIn(childIds, date)) {
+                    classroomByChild.putIfAbsent(enrollment.getChildId(), enrollment.getClassroomId());
+                }
+            }
+            log.info("{}|END", logPrefix);
+            return classroomByChild;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

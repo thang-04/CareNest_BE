@@ -2,9 +2,9 @@
 ## Phase 1: Setup
 - [x] T001 Ghi approval và tạo spec/plan/research/data-model/contracts/quickstart tại specs/006-year-plan-goal-hierarchy (FR-001..008).
 ## Phase 2: Foundational regression
-- [x] T002 Viết và chạy RED test V31→V32 ở src/test/java/com/carenest/repository/eduplan/EduGoalHierarchyMigrationTest.java (FR-001/002/004, SC-001/004).
+- [x] T002 Viết và chạy RED test V34→V35 ở src/test/java/com/carenest/repository/eduplan/EduGoalHierarchyMigrationTest.java (FR-001/002/004, SC-001/004).
 ## Phase 3: US1 — Nâng cấp và entity
-- [x] T003 [US1] Tạo V32__split_edu_goal_hierarchy.sql với backfill, sequence và FK; tạo ba entity/repository, sửa EduGoalContent; bỏ persistence cũ (FR-001/002/004).
+- [x] T003 [US1] Tạo V35__split_edu_goal_hierarchy.sql với backfill, sequence và FK; tạo ba entity/repository, sửa EduGoalContent; bỏ persistence cũ (FR-001/002/004).
 ## Phase 4: US2 — CRUD cây
 - [x] T004 [US2] Sửa EduYearPlanServiceImpl đọc/lưu/xóa, validate ID/type/ownership và chuyển cha an toàn; giữ mapper/API (FR-003/004/007, SC-002/004).
 - [x] T005 [US2] Regression schema/service ở EduYearPlanSchemaIntegrationTest và EduYearPlanServiceIntegrationTest cho thiếu cấp, nhiều nhóm, chuyển/xóa cha, ID sai/lặp (FR-001/003/004, SC-002/004).

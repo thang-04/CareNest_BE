@@ -21,7 +21,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Danh mục Chương trình GDMN của Bộ (EDU-28) nạp bằng V30/V31, đọc qua service thật. Cần Docker. */
+/** Danh mục Chương trình GDMN của Bộ (EDU-28) nạp bằng V33/V34, đọc qua service thật. Cần Docker. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
