@@ -112,7 +112,7 @@ docker compose up -d postgres keycloak mailpit
 | Keycloak Admin Console | `http://localhost:8180/admin` (realm `carenest`) |
 | Mailpit (email dev) | `http://localhost:8025` |
 
-Compose chạy profile `dev`: có 8 user dev (`admin.dev`, `teacher.a`, `parent.a`, ...) và dữ liệu giả — bảng user/phạm vi ở `docs/system/KEYCLOAK.md` mục 5.
+Compose chạy profile `dev`: có 8 user dev (`admin@gmail.com`, `teacher1@gmail.com`, `parent1@gmail.com`, ... mật khẩu `demo123`) và dữ liệu giả — bảng user/phạm vi ở `docs/system/KEYCLOAK.md` mục 5.
 
 ### Gọi API có bảo vệ
 
@@ -120,8 +120,8 @@ Mọi API dưới `{API_PREFIX}` cần `Authorization: Bearer <access token Keyc
 
 ```bash
 TOKEN=$(curl -s -X POST "http://localhost:8180/realms/carenest/protocol/openid-connect/token" \
-  -d grant_type=password -d client_id=carenest-dev -d username=teacher.a \
-  -d "password=$KEYCLOAK_DEV_USER_PASSWORD" | jq -r .access_token)
+  -d grant_type=password -d client_id=carenest-dev -d username=teacher1 \
+  -d "password=demo123" | jq -r .access_token)
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/accounts/me
 ```
 

@@ -44,8 +44,6 @@ services:
       CARENEST_DEV_CLIENT_ENABLED: ${CARENEST_DEV_CLIENT_ENABLED:-true}
       CARENEST_SMTP_HOST: ${CARENEST_SMTP_HOST:-mailpit}
       CARENEST_SMTP_PORT: ${CARENEST_SMTP_PORT:-1025}
-      # Mật khẩu chung của user dev (docker/keycloak/dev/carenest-users-0.json) — chỉ dev
-      KEYCLOAK_DEV_USER_PASSWORD: ${KEYCLOAK_DEV_USER_PASSWORD:?KEYCLOAK_DEV_USER_PASSWORD is required, copy .env.example to .env}
     ports:
       - "${KEYCLOAK_PORT:-8180}:8080"
     volumes:

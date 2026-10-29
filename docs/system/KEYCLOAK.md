@@ -136,18 +136,20 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/accounts/me
 
 ### User dev và dữ liệu giả
 
-Compose mount `docker/keycloak/dev/carenest-users-0.json` (8 user, id cố định, mật khẩu chung `KEYCLOAK_DEV_USER_PASSWORD` trong `.env`) và API chạy profile `dev` nạp `db/dev/R__dev_seed.sql` (hồ sơ `user_accounts` cùng id, 2 campus, 2 lớp, 3 trẻ, phân công, liên kết). Chạy API ngoài compose thì bật profile: `mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev`.
+Compose mount `docker/keycloak/dev/carenest-users-0.json` (8 user, id cố định, đăng nhập bằng email `<user>@gmail.com` hoặc username, mật khẩu chung `demo123` lưu dạng hash nên không bị chính sách `length(8)` chặn lúc import) và API chạy profile `dev` nạp `db/dev/R__dev_seed.sql` (hồ sơ `user_accounts` cùng id, 2 campus, 2 lớp, 3 trẻ, phân công, liên kết). Chạy API ngoài compose thì bật profile: `mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev`.
+
+Keycloak đã có realm thì `--import-realm` bỏ qua file user dev: đổi file này ⇒ partial import `ifResourceExists=OVERWRITE` (`docs/knowledge/TROUBLESHOOTING.md`) hoặc tạo lại DB `keycloak`.
 
 | User | Role | Phạm vi trong seed (năm học 2026-2027) |
 | --- | --- | --- |
-| `admin.dev` | ADMIN | Không có phạm vi dữ liệu trẻ |
-| `principal.dev` | PRINCIPAL | Toàn trường |
-| `viceprincipal.a` | VICE_PRINCIPAL | Cơ sở A |
-| `teacher.a` | TEACHER | Lớp A1 |
-| `teacher.b` | TEACHER | Lớp A1 tới 30/09/2026 (đã hết), Lớp B1 từ 01/10/2026 |
-| `parent.a` | PARENT | Trẻ Demo A1-01 |
-| `parent.b` | PARENT | Trẻ Demo B1-01 (user không có email) |
-| `kitchen.a` | KITCHEN_STAFF | Bếp Cơ sở A |
+| `admin` | ADMIN | Không có phạm vi dữ liệu trẻ |
+| `principal` | PRINCIPAL | Toàn trường |
+| `viceprincipal` | VICE_PRINCIPAL | Cơ sở A |
+| `teacher1` | TEACHER | Lớp A1 |
+| `teacher2` | TEACHER | Lớp A1 tới 30/09/2026 (đã hết), Lớp B1 từ 01/10/2026 |
+| `parent1` | PARENT | Trẻ Demo A1-01 |
+| `parent2` | PARENT | Trẻ Demo B1-01 |
+| `kitchen` | KITCHEN_STAFF | Bếp Cơ sở A |
 
 Lớp A1 có `Trẻ Demo A1-01`, `Trẻ Demo A1-02`; lớp B1 có `Trẻ Demo B1-01`. Tất cả là dữ liệu giả.
 
@@ -155,13 +157,13 @@ Thử phân quyền với `GET /api/children/{id}` (id thật xem bằng `docker
 
 | User | A1-01 | A1-02 | B1-01 | id không tồn tại |
 | --- | --- | --- | --- | --- |
-| `teacher.a` | 200 | 200 | 403 | 403 |
-| `teacher.b` (A1 đã hết hạn) | 403 | 403 | 200 | 403 |
-| `viceprincipal.a` | 200 | 200 | 403 | 403 |
-| `principal.dev` | 200 | 200 | 200 | 403 |
-| `parent.a` | 200 | 403 | 403 | 403 |
-| `parent.b` | 403 | 403 | 200 | 403 |
-| `kitchen.a`, `admin.dev` | 403 | 403 | 403 | 403 |
+| `teacher1` | 200 | 200 | 403 | 403 |
+| `teacher2` (A1 đã hết hạn) | 403 | 403 | 200 | 403 |
+| `viceprincipal` | 200 | 200 | 403 | 403 |
+| `principal` | 200 | 200 | 200 | 403 |
+| `parent1` | 200 | 403 | 403 | 403 |
+| `parent2` | 403 | 403 | 200 | 403 |
+| `kitchen`, `admin` | 403 | 403 | 403 | 403 |
 
 User tạo tay trên console (mục 4 bước 10) chưa có hồ sơ CareNest ⇒ `/api/accounts/me` trả 403 `Account is not provisioned`; thêm tay khi cần thử:
 
@@ -178,7 +180,7 @@ docker compose exec postgres psql -U carenest -d carenest -c "INSERT INTO user_a
 
 Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo tay trên console: một lệnh tạo cả user Keycloak lẫn hồ sơ `user_accounts`. Contract đầy đủ: `docs/contracts/AUTH_CONTRACT.md`.
 
-1. Lấy token `admin.dev` (mục 5).
+1. Lấy token `admin` (mục 5).
 2. Tạo tài khoản:
 
    ```powershell
@@ -207,7 +209,7 @@ Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo 
 - `docker/keycloak/import/carenest-realm.json` là **nguồn chuẩn** cấu hình realm ở dev. Muốn đổi thì sửa file này rồi kiểm lại trên console.
 - User dev nằm riêng ở `docker/keycloak/dev/carenest-users-0.json` (cùng thư mục import với file realm trong container); server thật không mount file này. Đổi user dev thì sửa cả file này và `db/dev/R__dev_seed.sql` (cùng `id` ↔ `keycloak_user_id`).
 - Client `carenest-dev` trong realm có `"enabled": "${CARENEST_DEV_CLIENT_ENABLED:false}"`: mặc định **tắt**, compose dev đặt `true`. SMTP lấy từ `CARENEST_SMTP_HOST`/`CARENEST_SMTP_PORT` (mặc định `mailpit:1025`). Placeholder dạng `${TEN_BIEN:mac_dinh}` đã kiểm chạy được trên KC 26.8.0.
-- Secret và giá trị theo môi trường dùng placeholder `${TEN_BIEN}` (Keycloak thay bằng biến môi trường của container lúc import): `KEYCLOAK_ADMIN_CLIENT_SECRET`, `CARENEST_WEB_ORIGIN`, `CARENEST_MOBILE_REDIRECT_URI`, `KEYCLOAK_DEV_USER_PASSWORD`.
+- Secret và giá trị theo môi trường dùng placeholder `${TEN_BIEN}` (Keycloak thay bằng biến môi trường của container lúc import): `KEYCLOAK_ADMIN_CLIENT_SECRET`, `CARENEST_WEB_ORIGIN`, `CARENEST_MOBILE_REDIRECT_URI`.
 - Tránh thêm mảng `clientScopes` ở cấp realm trong file import: Keycloak chỉ tự tạo bộ client scope mặc định (`profile`, `email`, `roles`, `basic`…) khi file không khai báo mảng này, nên khai báo thiếu có thể làm token mất `sub`/role (chưa thử thực tế, tránh cho an toàn). Vì vậy audience mapper đặt trên từng client.
 - `--import-realm` **bỏ qua realm đã tồn tại**. Muốn áp lại file ở dev, reset DB Keycloak (mất user tạo tay/tạo qua API; các `user_accounts` tương ứng thành mồ côi):
 
