@@ -8,9 +8,83 @@ modules: [education-plan, school-structure]
 rules: [EDU-01, EDU-02, EDU-03, EDU-04, EDU-05, EDU-06, EDU-07, EDU-08, EDU-09, AUTH-03]
 risk: high
 created: 2026-10-22
-updated: 2026-10-27
+updated: 2026-10-29
 ---
 # Mục tiêu năm học — API và nghiệp vụ
+
+## Bổ sung 29/10/2026 — Ba bảng cha–con (DONE, user duyệt 29/10/2026)
+
+Phần này có cổng duyệt riêng; trạng thái in-progress của plan gốc không phê duyệt phần bổ sung.
+
+### Context và làm rõ nghiệp vụ
+- Actor: Tổ trưởng/Phó HT; outcome: lưu cấu trúc mục tiêu bằng quan hệ cha–con tường minh.
+- Nguồn yêu cầu: user 29/10/2026 yêu cầu ba bảng vật lý, xác nhận giữ cấp cha tùy chọn.
+- Rule giữ nguyên: EDU-09/24/25/26/28 (CONFIRMED); quyền, phiên sửa, revision và lưu tay giữ nguyên.
+- Flow: [B] soạn/lưu/gửi/ban hành → [S] lưu cây ba bảng; đọc ra cấu trúc rows hiện có.
+- Hiện trạng: `entity/eduplan/EduGoalRow.java:18` dùng một bảng và kind, chưa có FK cha.
+- Lưu theo vị trí: `service/eduplan/impl/EduYearPlanServiceImpl.java:846`; chép phiên bản tại `:1017`.
+- Tham chiếu học liệu: `service/eduplan/impl/LearningResourceServiceImpl.java:199`; giáo án qua compareVersions tại `EduClassDocServiceImpl.java:541`.
+- Test hiện có cho phép sub→goal và goal trực tiếp: `EduYearPlanServiceIntegrationTest.java:276`, `:293`.
+- Các đường dẫn Java trên tương đối với `src/main/java/com/carenest/`; test với `src/test/java/com/carenest/service/eduplan/impl/`.
+- Sơ đồ ngoài repo chỉ là thiết kế đề xuất; khi triển khai phải bổ sung đường cha tùy chọn theo quyết định mới.
+
+### Quyết định đã chốt cho yêu cầu
+1. Ba bảng riêng: `edu_plan_sub_domains`, `edu_plan_expected_results`, `edu_plan_goals` — user, 29/10/2026.
+2. Giữ các cấp cha tùy chọn, bảo toàn dữ liệu/cách dùng hiện tại — user chọn phương án đề xuất, 29/10/2026.
+3. Các quyết định kỹ thuật dưới đây đã được user duyệt toàn phần bổ sung, 29/10/2026.
+
+### Câu hỏi mở
+Không còn câu hỏi nghiệp vụ; user đã duyệt phương án triển khai ở mục Key decisions, 29/10/2026.
+
+### Key decisions
+| Quyết định | Đề xuất | Phương án khác | Lý do |
+| --- | --- | --- | --- |
+| Lưu trữ | Ba entity/repository và FK thật; bỏ lưu kind trong DB | Giữ một bảng + parent_id | User yêu cầu đúng ba bảng |
+| Cấp cha tùy chọn | Nhóm có sub_domain_id nullable; mục tiêu có expected_result_id nullable và sub_domain_id nullable để giữ goal trực tiếp dưới sub | Tạo tiêu đề cha giả | Không tự thêm nội dung nghiệp vụ |
+| Ownership | Cả ba bảng giữ year_plan_id, domain_id; FK ghép kiểm tra cha cùng kế hoạch/lĩnh vực, và sub của goal khớp sub của nhóm khi có nhóm | Chỉ FK id đơn | Chặn liên kết khác phiên bản/lĩnh vực ở DB và service |
+| API | Giữ domains[].rows[] và kind như hiện tại, service chuyển đổi với ba bảng | DTO cây lồng nhau | Tránh buộc Web đổi đồng thời; snapshot phải chứng minh |
+| ID/thứ tự | Giữ id, lineage_id, sort_order cũ; dùng chung sequence cho ba bảng để ID dòng không trùng khi đưa ra API | Sequence riêng + đổi định dạng ID API | Bảo toàn khóa dòng Web, JSON giáo án và học liệu |
+| Migration | Flyway mới (V32 nếu chưa được dùng), backfill từng plan/domain theo thứ tự cũ; đổi FK nội dung sang goal_id | Sửa V8/V29/V30 | Không sửa migration đã commit; không làm mất tham chiếu |
+| Dữ liệu bất hợp lệ | Kiểm tra trước; FK/nội dung trỏ dòng không phải goal hoặc thứ tự mơ hồ thì fail transaction, báo để xử lý | Tự bỏ dòng/sửa dữ liệu | Không làm mất dữ liệu âm thầm |
+| Triển khai | Một đợt BE gồm migration và source tương thích; tạo ADR theo convention repo | Tách deploy migration và service | Không chạy service cũ với bảng đã thay thế |
+
+### Acceptance criteria
+- **DB-AC1** (EDU-09): Given dữ liệu đủ/thiếu tiêu đề cha, When nâng cấp DB và đọc/lưu, Then ba bảng và FK cha đúng, chữ/thứ tự/ID giữ nguyên; không tạo tiêu đề giả.
+- **DB-AC2** (EDU-09): Given ID cha khác plan/domain hoặc sub không khớp nhóm, When ghi, Then service và DB từ chối, transaction không lưu dở.
+- **DB-AC3** (EDU-09/24/28): Given nháp có thêm/xóa/chuyển dòng và mục tiêu Bộ, When lưu rồi mở lại, Then đúng cha, số MT, nội dung/dấu tích và liên kết Bộ.
+- **DB-AC4** (EDU-25/26): Given bản đã ban hành và giáo án/học liệu, When tạo phiên bản và so sánh, Then remap ba cấp theo lineage, giữ tham chiếu mục tiêu, bản cũ bất biến.
+- **DB-AC5** (EDU-09/26): Given client hiện tại, When chạy snapshot và luồng lớp/học liệu, Then request/response hiện có và kiểm quyền/thuộc chủ đề được giữ đúng.
+
+### Phase DB-1 — Chuyển dữ liệu và module đồng bộ
+- Files C: migration mới; ba entity/repository; ADR theo số kế tiếp; test nâng cấp DB cũ.
+- Files M: EduGoalContent, EduYearPlanServiceImpl, EduYearPlanMapper, LearningResourceServiceImpl và các repository liên quan; test schema/service/giáo án/học liệu.
+- Files M: DATA_DICTIONARY, ERD, DOMAIN_MODEL, module card; đồng bộ hai tài liệu sơ đồ ngoài repo theo phạm vi đã yêu cầu.
+- Files D: EduGoalRow/entity converter/repository khi đã thay hết caller; chỉ bỏ enum nếu DTO không còn dùng.
+- Steps: migration/backfill/constraints → CRUD và query ba bảng → copy/diff/ownership → tài liệu và regression.
+- >8 file: đề xuất chia review thành hai nhóm schema/backfill và service/caller; cùng một bản phát hành để tránh schema/source lệch nhau.
+- Consumer cần kiểm: Web `src/services/education-plan/api/yearPlanMapper.js:63,140` vẫn dùng rows/kind; không sửa FE/APP. Mobile chưa triển khai màn này theo CROSS_REPO_MAP.
+- Tests: DB-AC1/2 → EduYearPlanSchemaIntegrationTest + test nâng cấp V31; DB-AC3 → EduYearPlanServiceIntegrationTest; DB-AC4 → version/copy/diff; DB-AC5 → EduClassDocServiceIntegrationTest, LearningResourceServiceImplTest và snapshot OpenAPI.
+- Tên DisplayName dùng EDU-09/24/25/26/28 tương ứng; test mới kiểm trường hợp khó, không chỉ phản chiếu implementation.
+- Exit: `node scripts/verify.mjs` → VERIFY PASS full, skip 0; PostgreSQL Testcontainers chạy thật; snapshot không đổi; `node scripts/check-ai-layer.mjs` exit 0.
+- **Dừng chờ user review sau phase.**
+
+### Rủi ro và rollback
+- Backfill sai cha: fixture đủ/thiếu cấp, nhiều nhóm, nhiều lĩnh vực/phiên bản; đối chiếu số dòng, ID, lineage, nội dung và dấu tích trước/sau.
+- Đổi kind hoặc kéo dòng có thể đụng ID: kiểm ownership theo cả bảng/loại, không nhận lại ID thuộc loại khác; kiểm round-trip Web contract.
+- Xóa/đổi cha: xử lý theo snapshot request trong một transaction; không cascade xóa mục tiêu đang được chuyển cha trước khi cập nhật.
+- Rollback: sao lưu trước khi nâng cấp môi trường dùng chung; không tự chạy migration trên DB đang dùng; không hạ source về bản cũ sau khi đổi schema. Khi cần khôi phục phải dừng ghi và phục hồi toàn bộ snapshot tương ứng.
+
+### Validation log DB
+- Đã đối chiếu source/test và consumer cụ thể; giữ nguyên API là mục tiêu cần kiểm chứng, chưa là kết quả.
+- Đã đưa ra phương án và chia nhóm review cho >8 file; phạm vi một module, không sửa repo client, không thêm dependency.
+- Mỗi AC có nhóm test và exit rõ; không dùng rule PENDING/OPEN như đã chốt.
+- Tự review: xử lý thiếu cấp cha, giữ ID duy nhất qua ba bảng, lineage và ownership; chưa sửa product code.
+
+### Progress log DB — 29/10/2026
+- User chọn cấp cha tùy chọn và nhắc lại đúng ba bảng vật lý có quan hệ cha–con.
+- Đã chuẩn bị phần bổ sung DRAFT; chưa code/migration, chưa commit/push/tạo branch.
+- Verify sản phẩm: chưa chạy vì mới lập kế hoạch. `node scripts/check-ai-layer.mjs`: 0 lỗi, 0 cảnh báo; E6 bỏ qua theo output công cụ.
+- Tiếp: user duyệt phần bổ sung DB rồi triển khai DB-1.
 
 ## Context
 - **UI là chuẩn.** CareNest_FE nhánh `feature/G94-178-FE-FEAT-41-lesson-assessment-parent` có đủ các màn: `GoalListPage.jsx`, `GoalFormPage.jsx`, `GoalDetailPage.jsx`.
@@ -359,3 +433,28 @@ Thay đổi vượt 8 file: tách hai đợt review BE và Web; mỗi đợt ch�
 - FE (CareNest_FE): CSS hàng đầu trang chi tiết kế hoạch năm (B1, Tiền duyệt, chỉ ≥1024px); Playwright IT-05b, IT-16, ST-03b, ST-05b; 31/31 Pass trên BE dev.
 - Không đổi contract/migration; không commit/push.
 
+
+### 29/10/2026 — Duyệt DB-1 và vòng lặp Spec Kit
+- User: "duyệt, dùng vòng lặp spec"; duyệt toàn bộ bổ sung DB và triển khai DB-1.
+- Feature artifacts: specs/006-year-plan-goal-hierarchy; ba bảng/FK thật, cấp cha tùy chọn; không tạo branch/commit.
+
+### 29/10/2026 — DB-1 triển khai và review, đang kiểm chứng cuối
+- Source: V32 backfill giữ ID/lineage; ba bảng/entity/repository, FK cha optional kiểm ownership; mapped superclass thay entity bảng cũ; API rows/kind giữ nguyên.
+- Lưu/đọc/copy/diff và membership học liệu đã chuyển sang ba bảng. Test chuyển/xóa cha kiểm giữ ID/nội dung/dấu tích, copy remap FK/lineage.
+- Regression đợt đầu: 46 tests fail 0 err 0 skip 0; upgrade trên PostgreSQL 17 Testcontainers. Lỗi deferred-trigger DDL có RED/GREEN và incident BUG-261029-hierarchy-deferred-ddl.
+- Verify trước convergence: VERIFY PASS full | tests 432 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 250s | log target/verify.log (đã giữ bản log tại target/hierarchy-full-before-convergence.log).
+- Review độc lập vòng 2: PASS, không còn finding chặn. Converge 1 append T011 cho fixture nhiều domain/phiên bản/sequence; đã implement. Converge 2 không còn gap source/test, không sửa tasks.
+- Khác plan: giữ EduGoalRow là mapped superclass để giảm lặp mapper/logic, không có bảng cha thứ tư; thêm tab V32 của drawio để bảo toàn bản vẽ user đang chỉnh. ADR-0019 ghi quyết định.
+- Cổng sau T011 đang chạy; chưa chốt DB-1 trước output cuối. Không chạy migration trên DB đang dùng, không sửa FE/APP, không commit/push/branch. Plan gốc có phạm vi rộng nên giữ in-progress.
+
+### 29/10/2026 — DB-1 DONE, chờ user review kết quả
+- Commit: chưa commit.
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 433 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 247s | log target/verify.log`.
+- Migration PostgreSQL 17: 5/5 test upgrade, skip 0; full gate gồm HBM validate, schema, service/copy, class-doc/học liệu, quyền và snapshot.
+- API: snapshot ok và `git diff --exit-code -- docs/api/openapi.yaml` exit 0. Không thay DTO/endpoint.
+- Docs: dictionary/ERD/domain model/module card + ADR-0019; markdown ngoài repo và tab drawio V32; XML/ID/edge valid, bản vẽ user đang chỉnh được giữ lại.
+- Memory: BUG-261029-hierarchy-deferred-ddl fixed (RED/GREEN); ISSUE_INDEX và module pitfalls cập nhật.
+- Spec loop: 8 FR/4 SC/3 US được đối chiếu; converge 1 append T011, implement; converge 2 không còn gap, không thêm task. 11/11 tasks done.
+- DoD DB-1: phạm vi/quyền/ID/dữ liệu cũ/phiên bản đúng, full verify skip0, schema docs/ADR và check-ai-layer 0 lỗi/0 cảnh báo (E6 bỏ qua theo output).
+- Giới hạn: chưa migration DB đang dùng hoặc production, chưa browser E2E Web; không commit/push/branch, không sửa FE/APP. Không cần test AI-off mới vì không chạm AI.
+- Tiếp: user review DB-1; dừng triển khai tại đây. Giữ plan gốc active/in-progress vì phạm vi lịch sử còn rộng hơn DB-1; không tự đóng/chuyển cả plan cũ.

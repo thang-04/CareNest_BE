@@ -306,8 +306,8 @@ class EduClassDocServiceIntegrationTest {
     void learningResourcesRespectScopeAndActivityIdentity() throws Exception {
         approveBranch();
         String key = "tp_" + classId + "_" + theme1;
-        String goal = String.valueOf(jdbc.queryForObject(
-                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        String goal = String.valueOf(
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
         ObjectNode doc = theme(theme1);
         ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "- HĐ học:\n+ Vận động A\n+ Vận động B");
         service.saveClassDoc(teacher, "theme", key, doc);
@@ -367,8 +367,8 @@ class EduClassDocServiceIntegrationTest {
     void learningResourcesRejectRenamedZipAndInvalidGoal() throws Exception {
         approveBranch();
         String key = "tp_" + classId + "_" + theme1;
-        String goal = String.valueOf(jdbc.queryForObject(
-                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        String goal = String.valueOf(
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
         ObjectNode doc = theme(theme1);
         ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "A");
         service.saveClassDoc(teacher, "theme", key, doc);
@@ -423,8 +423,8 @@ class EduClassDocServiceIntegrationTest {
     void versionedClassDocsNeedFixes() {
         approveBranch();
         String oldTheme2Key = "tp_" + classId + "_" + theme2;
-        String goal = String.valueOf(jdbc.queryForObject(
-                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        String goal = String.valueOf(
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
         ObjectNode oldTheme = theme(theme2);
         ((ObjectNode) oldTheme.path("rows")).putObject(goal).put("activities", "Trò chuyện: Gia đình");
         service.saveClassDoc(teacher, "theme", oldTheme2Key, oldTheme);

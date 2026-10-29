@@ -7,8 +7,8 @@ import static org.mockito.Mockito.*;
 import com.carenest.dto.eduplan.LearningResourceBinding;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.integration.storage.StorageService;
-import com.carenest.repository.eduplan.EduGoalRowRepository;
 import com.carenest.repository.eduplan.EduLearningResourceRepository;
+import com.carenest.repository.eduplan.EduPlanGoalRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -30,7 +30,7 @@ class LearningResourceServiceImplTest {
     void failedMetadataTransactionCleansOnlyUploadedObject() {
         var docs = mock(EduClassDocService.class);
         var resources = mock(EduLearningResourceRepository.class);
-        var goals = mock(EduGoalRowRepository.class);
+        var goals = mock(EduPlanGoalRepository.class);
         var storage = mock(StorageService.class);
         var service = new LearningResourceServiceImpl(
                 docs,

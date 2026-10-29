@@ -16,6 +16,9 @@ import com.carenest.entity.eduplan.EduDomain;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduPlanEvent;
+import com.carenest.entity.eduplan.EduPlanExpectedResult;
+import com.carenest.entity.eduplan.EduPlanGoal;
+import com.carenest.entity.eduplan.EduPlanSubDomain;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.entity.eduplan.EduYearPlan;
 import com.carenest.exception.GlobalException;
@@ -24,8 +27,10 @@ import com.carenest.repository.eduplan.EduBreakRepository;
 import com.carenest.repository.eduplan.EduContentThemeTickRepository;
 import com.carenest.repository.eduplan.EduDomainRepository;
 import com.carenest.repository.eduplan.EduGoalContentRepository;
-import com.carenest.repository.eduplan.EduGoalRowRepository;
 import com.carenest.repository.eduplan.EduPlanEventRepository;
+import com.carenest.repository.eduplan.EduPlanExpectedResultRepository;
+import com.carenest.repository.eduplan.EduPlanGoalRepository;
+import com.carenest.repository.eduplan.EduPlanSubDomainRepository;
 import com.carenest.repository.eduplan.EduThemeRepository;
 import com.carenest.repository.eduplan.EduYearPlanRepository;
 import com.carenest.security.CurrentUser;
@@ -83,7 +88,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private static final String TONE_ERR = "err";
 
     private final EduYearPlanRepository yearPlanRepository;
-    private final EduGoalRowRepository goalRowRepository;
+    private final EduPlanSubDomainRepository subDomainRepository;
+    private final EduPlanExpectedResultRepository expectedResultRepository;
+    private final EduPlanGoalRepository goalRepository;
     private final EduGoalContentRepository goalContentRepository;
     private final EduThemeRepository themeRepository;
     private final EduBreakRepository breakRepository;
@@ -122,7 +129,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             List<Long> planIds =
                     page.getContent().stream().map(EduYearPlan::getId).toList();
             Map<Long, Long> goalCounts =
-                    planIds.isEmpty() ? Map.of() : toCountMap(goalRowRepository.countGoalsByPlan(planIds));
+                    planIds.isEmpty() ? Map.of() : toCountMap(goalRepository.countGoalsByPlan(planIds));
             Map<Long, Long> themeCounts =
                     planIds.isEmpty() ? Map.of() : toCountMap(themeRepository.countByPlan(planIds));
             Map<Long, String> names = accountService.findFullNames(page.getContent().stream()
@@ -768,13 +775,12 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 throw GlobalException.of(ApiCode.THEME_END_BEFORE_START);
             }
         }
-        if (goalRowRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
+        if (findRows(plan.getId()).stream()
                 .anyMatch(row ->
                         row.getKind() == EduGoalRowKind.GOAL && row.getText().isBlank())) {
             throw GlobalException.of(ApiCode.GOAL_CONTENT_REQUIRED);
         }
-        boolean hasGoal = goalRowRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
-                .anyMatch(row -> row.getKind() == EduGoalRowKind.GOAL);
+        boolean hasGoal = findRows(plan.getId()).stream().anyMatch(row -> row.getKind() == EduGoalRowKind.GOAL);
         if (!hasGoal) {
             throw GlobalException.of(ApiCode.PLAN_GOAL_REQUIRED);
         }
@@ -822,8 +828,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
         Map<Long, EduDomain> domains =
                 domainRepository.findAll().stream().collect(Collectors.toMap(EduDomain::getId, Function.identity()));
-        Map<Long, EduGoalRow> existingRows = goalRowRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId).stream()
-                .collect(Collectors.toMap(EduGoalRow::getId, Function.identity()));
+        Map<Long, EduGoalRow> existingRows =
+                findRows(planId).stream().collect(Collectors.toMap(EduGoalRow::getId, Function.identity()));
         Map<Long, EduGoalContent> existingContents = existingRows.isEmpty()
                 ? Map.of()
                 : goalContentRepository.findAllByGoalRowIdInOrderBySortOrderAsc(existingRows.keySet()).stream()
@@ -831,7 +837,30 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
         List<YearPlanRequest.Domain> requestDomains = new ArrayList<>(nullToEmpty(request.domains()));
         Map<Long, CurriculumGoalRef> curriculum = requireCurriculumGoals(plan, requestDomains);
+        Set<Long> requestedDomainIds = new HashSet<>();
+        Set<Long> requestedRowIds = new HashSet<>();
+        Set<Long> requestedContentIds = new HashSet<>();
         for (YearPlanRequest.Domain domain : requestDomains) {
+            if (!requestedDomainIds.add(domain.domainId())) {
+                throw GlobalException.of(ApiCode.INVALID_VALUE, "lĩnh vực trùng");
+            }
+            for (YearPlanRequest.Row row : nullToEmpty(domain.rows())) {
+                if (row.id() != null) {
+                    EduGoalRow existing = existingRows.get(row.id());
+                    if (existing == null
+                            || existing.getKind() != rowKind(row.kind())
+                            || !requestedRowIds.add(row.id())) {
+                        throw GlobalException.of(ApiCode.INVALID_VALUE, "dòng mục tiêu");
+                    }
+                }
+                for (YearPlanRequest.Content content : nullToEmpty(row.contents())) {
+                    if (content.id() != null
+                            && (!existingContents.containsKey(content.id())
+                                    || !requestedContentIds.add(content.id()))) {
+                        throw GlobalException.of(ApiCode.INVALID_VALUE, "nội dung mục tiêu");
+                    }
+                }
+            }
             if (!domains.containsKey(domain.domainId())) {
                 throw GlobalException.of(ApiCode.EDU_DOMAIN_NOT_FOUND, domain.domainId());
             }
@@ -845,6 +874,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         short goalNo = 0;
         for (YearPlanRequest.Domain domain : requestDomains) {
             short sortOrder = 0;
+            Long subDomainId = null;
+            Long expectedResultId = null;
             for (YearPlanRequest.Row requestRow : nullToEmpty(domain.rows())) {
                 String text = trimToEmpty(requestRow.text());
                 if (text.isEmpty()) {
@@ -853,13 +884,22 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 EduGoalRowKind kind = rowKind(requestRow.kind());
                 EduGoalRow row = Optional.ofNullable(requestRow.id())
                         .map(existingRows::get)
-                        .orElseGet(() -> EduGoalRow.create(planId));
+                        .orElseGet(() -> EduGoalRow.create(planId, kind));
                 row.place(domain.domainId(), sortOrder++, kind, text, kind == EduGoalRowKind.GOAL ? ++goalNo : null);
                 row.linkCurriculum(
                         requestRow.curriculumGoalId() == null || !curriculum.containsKey(requestRow.curriculumGoalId())
                                 ? null
                                 : requestRow.curriculumGoalId());
-                row = goalRowRepository.save(row);
+                row.attachParents(
+                        kind == EduGoalRowKind.SUB ? null : subDomainId,
+                        kind == EduGoalRowKind.GOAL ? expectedResultId : null);
+                row = saveRow(row);
+                if (kind == EduGoalRowKind.SUB) {
+                    subDomainId = row.getId();
+                    expectedResultId = null;
+                } else if (kind == EduGoalRowKind.GROUP) {
+                    expectedResultId = row.getId();
+                }
                 keptRowIds.add(row.getId());
                 if (kind != EduGoalRowKind.GOAL) {
                     continue;
@@ -903,12 +943,45 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         goalContentRepository.deleteAllInBatch(existingContents.values().stream()
                 .filter(content -> !keptContentIds.contains(content.getId()))
                 .toList());
-        goalRowRepository.deleteAllInBatch(existingRows.values().stream()
+        // Cập nhật cha trước khi xóa tiêu đề cũ để CASCADE không xóa mục tiêu đang chuyển.
+        goalRepository.flush();
+        List<EduGoalRow> removedRows = existingRows.values().stream()
                 .filter(row -> !keptRowIds.contains(row.getId()))
+                .toList();
+        goalRepository.deleteAllInBatch(removedRows.stream()
+                .filter(EduPlanGoal.class::isInstance)
+                .map(EduPlanGoal.class::cast)
+                .toList());
+        expectedResultRepository.deleteAllInBatch(removedRows.stream()
+                .filter(EduPlanExpectedResult.class::isInstance)
+                .map(EduPlanExpectedResult.class::cast)
+                .toList());
+        subDomainRepository.deleteAllInBatch(removedRows.stream()
+                .filter(EduPlanSubDomain.class::isInstance)
+                .map(EduPlanSubDomain.class::cast)
                 .toList());
         tickRepository.saveAll(ticks.stream()
                 .filter(tick -> !existingKeys.contains(tick.key()))
                 .toList());
+    }
+
+    private List<EduGoalRow> findRows(Long planId) {
+        List<EduGoalRow> rows = new ArrayList<>();
+        rows.addAll(subDomainRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId));
+        rows.addAll(expectedResultRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId));
+        rows.addAll(goalRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId));
+        rows.sort(Comparator.comparing(EduGoalRow::getDomainId)
+                .thenComparing(EduGoalRow::getSortOrder)
+                .thenComparing(EduGoalRow::getId));
+        return rows;
+    }
+
+    private EduGoalRow saveRow(EduGoalRow row) {
+        return switch (row.getKind()) {
+            case SUB -> subDomainRepository.save((EduPlanSubDomain) row);
+            case GROUP -> expectedResultRepository.save((EduPlanExpectedResult) row);
+            case GOAL -> goalRepository.save((EduPlanGoal) row);
+        };
     }
 
     private Map<String, Long> saveThemes(Long planId, List<YearPlanRequest.Theme> requestThemes) {
@@ -1014,10 +1087,10 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 .map(b -> EduBreak.copyFor(targetId, b))
                 .toList());
         Map<Long, Long> rowIds = new HashMap<>();
-        for (EduGoalRow row : goalRowRepository.findAllByYearPlanIdOrderBySortOrderAsc(sourceId)) {
-            rowIds.put(
-                    row.getId(),
-                    goalRowRepository.save(EduGoalRow.copyFor(targetId, row)).getId());
+        for (EduGoalRow row : findRows(sourceId)) {
+            EduGoalRow copy = EduGoalRow.copyFor(targetId, row);
+            copy.attachParents(rowIds.get(row.getSubDomainId()), rowIds.get(row.getExpectedResultId()));
+            rowIds.put(row.getId(), saveRow(copy).getId());
         }
         Map<Long, Long> contentIds = new HashMap<>();
         if (!rowIds.isEmpty()) {
@@ -1048,7 +1121,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private YearPlanVersionDiff.Snapshot snapshot(EduYearPlan plan) {
         List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
         Map<Long, Long> themeLineage = themes.stream().collect(Collectors.toMap(EduTheme::getId, EduTheme::lineage));
-        List<EduGoalRow> goals = goalRowRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
+        List<EduGoalRow> goals = findRows(plan.getId()).stream()
                 .filter(r -> r.getKind() == EduGoalRowKind.GOAL)
                 .sorted(Comparator.comparing(EduGoalRow::getGoalNo))
                 .toList();
@@ -1084,7 +1157,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     private YearPlanDetailResponse toDetail(CurrentUser user, EduYearPlan plan) {
         Long planId = plan.getId();
-        List<EduGoalRow> rows = goalRowRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId);
+        List<EduGoalRow> rows = findRows(planId);
         List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId);
         List<EduGoalContent> contents = rows.isEmpty()
                 ? List.of()

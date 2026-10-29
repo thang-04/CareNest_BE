@@ -288,8 +288,10 @@ Migration: `V8__create_edu_year_plans.sql`, `V9__relax_edu_theme_draft_constrain
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
 | edu_year_plans | code VARCHAR(30), school_year_id, age_group_id, title VARCHAR(150) (rỗng được khi soạn), description VARCHAR(500), status, owner_id/owner_title, sent_by/sent_at, issued_by/issued_at, editing_by/editing_since/editing_at/editing_from, edit_session_id UUID, content_revision BIGINT DEFAULT 0, last_save_request_id UUID, created_request_id UUID, version_no INTEGER DEFAULT 1 (V29), source_plan_id (V29, phiên bản được chép), created_at, updated_at | UNIQUE code; UNIQUE (school_year_id, age_group_id, version_no) và UNIQUE partial (school_year_id, age_group_id) WHERE status <> 'APPROVED' (V29 thay UNIQUE cũ); CHECK version_no ≥ 1, (version_no = 1) ⇔ source_plan_id NULL; UNIQUE (owner_id, created_request_id); status ∈ DRAFT/EDITING/PENDING_VP/REJECTED/APPROVED; phiên đủ trường hoặc rỗng hoàn toàn; EDITING từ DRAFT/REJECTED, PENDING_VP giữ trạng thái khi có phiên; FK user_accounts | EDU-01..05, EDU-10/22/23/25 |
-| edu_goal_rows | year_plan_id, domain_id, sort_order, kind, text, goal_no, lineage_id (V29, NULL = chính id) | kind ∈ sub/group/goal; `goal_no` có ⇔ kind = goal; xóa theo kế hoạch | EDU-09 |
-| edu_goal_contents | goal_row_id, sort_order, text, lineage_id (V29) | xóa theo dòng | — |
+| edu_plan_sub_domains | year_plan_id, domain_id, sort_order, text, lineage_id | V32: lĩnh vực con; FK plan CASCADE; ID/sequence chung ba bảng | EDU-09 |
+| edu_plan_expected_results | year_plan_id, domain_id, sort_order, text, lineage_id, sub_domain_id, sub_domain_key | V32: nhóm KQMĐ; sub tùy chọn; FK ghép cùng plan/domain; key = COALESCE(sub_domain_id,0) | EDU-09 |
+| edu_plan_goals | year_plan_id, domain_id, sort_order, text, lineage_id, goal_no, sub_domain_id, expected_result_id, sub_domain_key, curriculum_goal_id | V32: MT; cha tùy chọn; goal_no NOT NULL; FK ghép kiểm plan/domain/sub kể cả NULL; FK cha CASCADE, deferred | EDU-09/25/28 |
+| edu_goal_contents | goal_id, sort_order, text, lineage_id (V29) | V32: FK edu_plan_goals CASCADE; ID nội dung giữ nguyên | EDU-09 |
 | edu_themes | year_plan_id, lineage_id (V29), sort_order, name VARCHAR(150), abbr VARCHAR(20) mặc định rỗng, start_date, end_date, festivals, note | Không ràng buộc viết tắt/ngày ở DB (V9): bản nháp lưu được khi còn soạn dở; service kiểm khi gửi/ban hành | EDU-04, EDU-05 |
 | edu_breaks | year_plan_id, lineage_id (V29), sort_order, label VARCHAR(150), start_date, end_date | Không CHECK ngày (V9), như chủ đề | — |
 | edu_content_theme_ticks | content_id, theme_id | PK 2 cột; xóa theo nội dung/chủ đề | EDU-09 |
@@ -318,4 +320,6 @@ User yêu cầu tất cả tệp dùng S3 private và đồng ý AWS SDK v2. Met
 | edu_curriculum_goals | source_id, age_group_id, domain_id, sub_domain, group_no, group_text, goal_no, goal_text, section_ref, sort_order (unique theo nguồn + nhóm tuổi) | Mục D "Kết quả mong đợi": câu đánh số = mục tiêu |
 | edu_curriculum_goal_contents | curriculum_goal_id (CASCADE), text, sort_order | Gạch đầu dòng dưới mục tiêu = nội dung |
 | edu_curriculum_contents | source_id, age_group_id, domain_id, sub_domain, category_no, category, label, text, section_ref, sort_order | Mục C "Nội dung giáo dục theo độ tuổi" = gợi ý nội dung |
-| edu_goal_rows.curriculum_goal_id | FK edu_curriculum_goals ON DELETE SET NULL | Mục tiêu trong kế hoạch lấy từ Bộ; chép theo phiên bản (EDU-25) |
+| edu_plan_goals.curriculum_goal_id | FK edu_curriculum_goals ON DELETE SET NULL | Mục tiêu trong kế hoạch lấy từ Bộ; chép theo phiên bản (EDU-25) |
+
+V32 thay bảng `edu_goal_rows` bằng ba bảng trên, giữ id/lineage/sort_order và chuyển FK nội dung. Ba bảng dùng `edu_plan_rows_seq`; `kind` chỉ còn ở DTO. Không tự tạo cha khi dữ liệu cũ thiếu cấp. FK cha được deferred để chuyển cha trong cùng transaction; service flush cập nhật trước xóa tiêu đề cũ.

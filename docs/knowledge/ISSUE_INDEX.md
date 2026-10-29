@@ -6,6 +6,7 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261029-hierarchy-deferred-ddl](incidents/BUG-261029-hierarchy-deferred-ddl.md) | education-plan | Flyway CREATE INDEX: pending trigger events (55006) | Backfill FK deferred còn trigger chờ trước DDL; kiểm constraints trước DDL | fixed |
 | [ENV-261028-e2e-fixture-database-mismatch](incidents/ENV-261028-e2e-fixture-database-mismatch.md) | education-plan / E2E | Tạo kế hoạch 404 Không tìm thấy năm học sau đăng nhập thành công | Helper SQL mặc định carenest nhưng Backend dùng carenest_merge; đặt E2E_PG_DB đúng | fixed |
 | [CASE-261028-year-plan-import-first-sub-reparent](incidents/CASE-261028-year-plan-import-first-sub-reparent.md) | education-plan / lấy mục tiêu | Thêm sub đầu vào đích không-sub có thể đổi cha goal cũ sau normalize/mở lại | toRows/nestUnderFirstSub đưa sub đầu lên đầu; đã có guard và regression round-trip | fixed |
 | CASE-261027-activity-media-positional-identity | education-plan | Reorder hoạt động làm day pick cùng ID đổi nội dung | goalId#index theo vị trí; phải kiểm saved text và fingerprint khi ghép media | fixed |

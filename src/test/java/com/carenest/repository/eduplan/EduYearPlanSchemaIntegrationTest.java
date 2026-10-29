@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.carenest.entity.eduplan.EduContentThemeTick;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
+import com.carenest.entity.eduplan.EduPlanGoal;
+import com.carenest.entity.eduplan.EduPlanSubDomain;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.entity.eduplan.EduYearPlan;
 import com.carenest.utils.enums.EduGoalRowKind;
@@ -48,7 +50,10 @@ class EduYearPlanSchemaIntegrationTest {
     private EduYearPlanRepository yearPlanRepository;
 
     @Autowired
-    private EduGoalRowRepository goalRowRepository;
+    private EduPlanGoalRepository goalRepository;
+
+    @Autowired
+    private EduPlanSubDomainRepository subDomainRepository;
 
     @Autowired
     private EduGoalContentRepository goalContentRepository;
@@ -124,11 +129,13 @@ class EduYearPlanSchemaIntegrationTest {
         long domain =
                 domainRepository.findAllByActiveTrueOrderBySortOrderAsc().get(0).getId();
 
-        EduGoalRow sub = EduGoalRow.create(plan.getId());
+        EduPlanSubDomain sub = (EduPlanSubDomain) EduGoalRow.create(plan.getId(), EduGoalRowKind.SUB);
         sub.place(domain, (short) 0, EduGoalRowKind.SUB, "Phát triển vận động", null);
-        EduGoalRow goal = EduGoalRow.create(plan.getId());
+        EduPlanGoal goal = (EduPlanGoal) EduGoalRow.create(plan.getId(), EduGoalRowKind.GOAL);
         goal.place(domain, (short) 1, EduGoalRowKind.GOAL, "Trẻ thực hiện đủ động tác", (short) 1);
-        goalRowRepository.saveAllAndFlush(List.of(sub, goal));
+        subDomainRepository.saveAndFlush(sub);
+        goal.attachParents(sub.getId(), null);
+        goalRepository.saveAndFlush(goal);
 
         EduGoalContent content = EduGoalContent.create();
         content.place(goal.getId(), (short) 0, "Hô hấp: hít vào, thở ra");
@@ -138,16 +145,17 @@ class EduYearPlanSchemaIntegrationTest {
         themeRepository.saveAndFlush(theme);
         tickRepository.saveAndFlush(EduContentThemeTick.of(content.getId(), theme.getId()));
 
-        assertThat(jdbc.queryForObject("SELECT kind FROM edu_goal_rows WHERE id = ?", String.class, goal.getId()))
-                .isEqualTo("goal");
-        assertThat(goalRowRepository.countGoalsByPlan(Set.of(plan.getId())))
+        assertThat(jdbc.queryForObject(
+                        "SELECT sub_domain_id FROM edu_plan_goals WHERE id = ?", Long.class, goal.getId()))
+                .isEqualTo(sub.getId());
+        assertThat(goalRepository.countGoalsByPlan(Set.of(plan.getId())))
                 .singleElement()
                 .satisfies(row -> assertThat(row[1]).isEqualTo(1L));
 
         jdbc.update("DELETE FROM edu_year_plans WHERE id = ?", plan.getId());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_content_theme_ticks", Integer.class))
                 .isZero();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_goal_rows", Integer.class))
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_plan_goals", Integer.class))
                 .isZero();
     }
 
@@ -159,8 +167,8 @@ class EduYearPlanSchemaIntegrationTest {
                 domainRepository.findAllByActiveTrueOrderBySortOrderAsc().get(0).getId();
 
         assertThatThrownBy(() -> jdbc.update(
-                        "INSERT INTO edu_goal_rows (year_plan_id, domain_id, sort_order, kind, text) "
-                                + "VALUES (?, ?, 0, 'goal', 'MT thiếu số')",
+                        "INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text) "
+                                + "VALUES (?, ?, 0, 'MT thiếu số')",
                         plan.getId(),
                         domain))
                 .isInstanceOf(DataIntegrityViolationException.class);

@@ -67,3 +67,24 @@ erDiagram
         VARCHAR relationship
     }
 ```
+
+## education-plan — Ba bảng mục tiêu (V32)
+
+```mermaid
+erDiagram
+    edu_year_plans ||--o{ edu_plan_sub_domains : owns
+    edu_year_plans ||--o{ edu_plan_expected_results : owns
+    edu_year_plans ||--o{ edu_plan_goals : owns
+    edu_domains ||--o{ edu_plan_sub_domains : categorizes
+    edu_domains ||--o{ edu_plan_expected_results : categorizes
+    edu_domains ||--o{ edu_plan_goals : categorizes
+    edu_plan_sub_domains |o--o{ edu_plan_expected_results : groups
+    edu_plan_sub_domains |o--o{ edu_plan_goals : goals
+    edu_plan_expected_results |o--o{ edu_plan_goals : goals
+    edu_plan_goals ||--o{ edu_goal_contents : contents
+    edu_curriculum_goals |o--o{ edu_plan_goals : source
+    edu_goal_contents ||--o{ edu_content_theme_ticks : ticks
+    edu_themes ||--o{ edu_content_theme_ticks : ticks
+```
+
+Ba bảng có ID từ sequence chung; FK cha ghép với year_plan_id/domain_id. FK goal→group kiểm sub_domain_key để sub của goal và group khớp kể cả NULL. Cấp cha tùy chọn theo user 29/10/2026; không đổi rows/kind API. Chi tiết: [ADR-0019](../decisions/ADR-0019-year-plan-goal-hierarchy.md).

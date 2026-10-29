@@ -21,7 +21,7 @@ public class EduGoalContent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "goal_row_id", nullable = false)
+    @Column(name = "goal_id", nullable = false)
     private Long goalRowId;
 
     // Định danh ổn định qua các phiên bản (NULL = dòng gốc, lineage là chính id), spec 004

@@ -700,6 +700,191 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(copied.curriculumSectionRef()).isEqualTo("Phần ba › D › I › a) › 2 › 2.1");
     }
 
+    @Test
+    @DisplayName("EDU-09: chuyển nhóm và MT giữ lại trước khi xóa lĩnh vực con cũ, không mất nội dung/dấu tích")
+    void storesThreeTablesAndReparentsBeforeDeletingHeadings() {
+        var rows = List.of(
+                new YearPlanRequest.Row(null, "sub", "Lĩnh vực con A", List.of()),
+                new YearPlanRequest.Row(null, "group", "Nhóm A1", List.of()),
+                new YearPlanRequest.Row(
+                        null,
+                        "goal",
+                        "MT 1",
+                        List.of(new YearPlanRequest.Content(null, "Nội dung demo", List.of("t-1")))),
+                new YearPlanRequest.Row(null, "group", "Nhóm A2", List.of()),
+                new YearPlanRequest.Row(null, "goal", "MT 2", List.of()),
+                new YearPlanRequest.Row(null, "sub", "Lĩnh vực con B", List.of()),
+                new YearPlanRequest.Row(null, "group", "Nhóm B1", List.of()),
+                new YearPlanRequest.Row(null, "goal", "MT 3", List.of()));
+        var created = service.createYearPlan(
+                leader3,
+                request(
+                        ageGroup3,
+                        List.of(new YearPlanRequest.Domain(domainPhysical, rows)),
+                        List.of(theme("t-1", null))),
+                new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        var saved = domain(created, domainPhysical).rows();
+        var content = saved.get(2).contents().get(0);
+        long subB = saved.get(5).id();
+        long groupA2 = saved.get(3).id();
+        long goal1 = saved.get(2).id();
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT expected_result_id FROM edu_plan_goals WHERE id=?", Long.class, goal1))
+                .isEqualTo(saved.get(1).id());
+        var changed = List.of(
+                new YearPlanRequest.Row(subB, "sub", "Lĩnh vực con B", List.of()),
+                new YearPlanRequest.Row(groupA2, "group", "Nhóm A2", List.of()),
+                new YearPlanRequest.Row(
+                        goal1,
+                        "goal",
+                        "MT 1",
+                        List.of(new YearPlanRequest.Content(content.id(), content.text(), List.of("t-1")))),
+                new YearPlanRequest.Row(saved.get(4).id(), "goal", "MT 2", List.of()),
+                new YearPlanRequest.Row(saved.get(6).id(), "group", "Nhóm B1", List.of()),
+                new YearPlanRequest.Row(saved.get(7).id(), "goal", "MT 3", List.of()));
+        var updated = service.updateYearPlan(
+                leader3,
+                created.id(),
+                request(
+                        ageGroup3,
+                        List.of(new YearPlanRequest.Domain(domainPhysical, changed)),
+                        List.of(theme("t-1", created.themes().get(0).id()))),
+                edit(leader3, created.id(), true));
+        entityManager.flush();
+        assertThat(jdbc.queryForObject("SELECT sub_domain_id FROM edu_plan_goals WHERE id=?", Long.class, goal1))
+                .isEqualTo(subB);
+        assertThat(jdbc.queryForObject("SELECT expected_result_id FROM edu_plan_goals WHERE id=?", Long.class, goal1))
+                .isEqualTo(groupA2);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM edu_plan_sub_domains WHERE year_plan_id=?", Long.class, created.id()))
+                .isEqualTo(1L);
+        assertThat(domain(updated, domainPhysical).rows().get(2).contents())
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.id()).isEqualTo(content.id());
+                    assertThat(c.themeIds())
+                            .containsExactly(created.themes().get(0).id());
+                });
+        entityManager.clear();
+        assertThat(domain(service.getYearPlan(leader3, created.id()), domainPhysical)
+                        .rows())
+                .extracting(YearPlanDetailResponse.Row::id)
+                .containsExactlyElementsOf(
+                        changed.stream().map(YearPlanRequest.Row::id).toList());
+        service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true));
+        service.issueYearPlan(vicePrincipal, created.id(), "Đạt", edit(vicePrincipal, created.id(), true));
+        var copied = service.createVersion(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false));
+        var copiedRows = domain(copied, domainPhysical).rows();
+        entityManager.flush();
+        assertThat(copiedRows)
+                .extracting(YearPlanDetailResponse.Row::kind)
+                .containsExactly("sub", "group", "goal", "goal", "group", "goal");
+        assertThat(jdbc.queryForObject(
+                        "SELECT sub_domain_id FROM edu_plan_expected_results WHERE id=?",
+                        Long.class,
+                        copiedRows.get(1).id()))
+                .isEqualTo(copiedRows.get(0).id());
+        assertThat(jdbc.queryForObject(
+                        "SELECT expected_result_id FROM edu_plan_goals WHERE id=?",
+                        Long.class,
+                        copiedRows.get(2).id()))
+                .isEqualTo(copiedRows.get(1).id());
+        assertThat(jdbc.queryForObject(
+                        "SELECT sub_domain_id FROM edu_plan_goals WHERE id=?",
+                        Long.class,
+                        copiedRows.get(2).id()))
+                .isEqualTo(copiedRows.get(0).id());
+        assertThat(jdbc.queryForObject(
+                        "SELECT lineage_id FROM edu_plan_sub_domains WHERE id=?",
+                        Long.class,
+                        copiedRows.get(0).id()))
+                .isEqualTo(subB);
+        assertThat(jdbc.queryForObject(
+                        "SELECT lineage_id FROM edu_plan_expected_results WHERE id=?",
+                        Long.class,
+                        copiedRows.get(1).id()))
+                .isEqualTo(groupA2);
+        assertThat(jdbc.queryForObject(
+                        "SELECT lineage_id FROM edu_plan_goals WHERE id=?",
+                        Long.class,
+                        copiedRows.get(2).id()))
+                .isEqualTo(goal1);
+        assertThat(copiedRows.get(2).contents())
+                .singleElement()
+                .satisfies(c -> assertThat(c.themeIds())
+                        .containsExactly(copied.themes().get(0).id()));
+        assertThat(jdbc.queryForObject("SELECT sub_domain_id FROM edu_plan_goals WHERE id=?", Long.class, goal1))
+                .isEqualTo(subB);
+    }
+
+    @Test
+    @DisplayName("EDU-09: từ chối tái sử dụng ID mục tiêu cho dòng nhóm")
+    void rejectsRowIdOfDifferentKind() {
+        var created = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        var row = domain(created, domainPhysical).rows().get(1);
+        var wrongKind = new YearPlanRequest.Row(row.id(), "group", "Không đổi loại ID", List.of());
+        assertErrorCode(
+                () -> service.updateYearPlan(
+                        leader3,
+                        created.id(),
+                        request(
+                                ageGroup3,
+                                List.of(new YearPlanRequest.Domain(domainPhysical, List.of(wrongKind))),
+                                List.of()),
+                        edit(leader3, created.id(), true)),
+                ApiCode.INVALID_VALUE);
+    }
+
+    @Test
+    @DisplayName("EDU-09: từ chối ID dòng lặp trong một request")
+    void rejectsDuplicateRowIds() {
+        var created = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        var row = domain(created, domainPhysical).rows().get(1);
+        var existing = new YearPlanRequest.Row(row.id(), "goal", row.text(), List.of());
+        assertErrorCode(
+                () -> service.updateYearPlan(
+                        leader3,
+                        created.id(),
+                        request(
+                                ageGroup3,
+                                List.of(new YearPlanRequest.Domain(domainPhysical, List.of(existing, existing))),
+                                List.of()),
+                        edit(leader3, created.id(), true)),
+                ApiCode.INVALID_VALUE);
+    }
+
+    @Test
+    @DisplayName("EDU-09: từ chối ID không thuộc kế hoạch")
+    void rejectsForeignRowIds() {
+        var created = service.createYearPlan(
+                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        var row = domain(created, domainPhysical).rows().get(1);
+        var other = service.createYearPlan(
+                leader4,
+                request(
+                        ageGroup4,
+                        List.of(new YearPlanRequest.Domain(
+                                domainPhysical,
+                                List.of(new YearPlanRequest.Row(null, "goal", "MT nguồn khác", List.of())))),
+                        List.of()),
+                new YearPlanEditRequest(session(leader4), 0L, UUID.randomUUID()));
+        long foreignId = domain(other, domainPhysical).rows().getFirst().id();
+        assertErrorCode(
+                () -> service.updateYearPlan(
+                        leader3,
+                        created.id(),
+                        request(
+                                ageGroup3,
+                                List.of(new YearPlanRequest.Domain(
+                                        domainPhysical,
+                                        List.of(new YearPlanRequest.Row(foreignId, "goal", "Demo", List.of())))),
+                                List.of()),
+                        edit(leader3, created.id(), true)),
+                ApiCode.INVALID_VALUE);
+    }
+
     private YearPlanRequest sampleRequest() {
         return request(
                 ageGroup3,

@@ -10,7 +10,7 @@ Soạn và duyệt kế hoạch giáo dục theo mẫu MN Thái Dương, nối b
 - Luồng đầy đủ: `docs/business/flows/education-plan.md`.
 
 ## Owns
-- Kế hoạch năm: `EduYearPlan` (kèm khóa Đang sửa), `EduGoalRow`, `EduGoalContent`, `EduTheme`, `EduBreak`, `EduContentThemeTick`, lịch sử `EduPlanEvent`.
+- Kế hoạch năm: `EduYearPlan` (kèm khóa Đang sửa), `EduPlanSubDomain`, `EduPlanExpectedResult`, `EduPlanGoal`, `EduGoalContent`, `EduTheme`, `EduBreak`, `EduContentThemeTick`, lịch sử `EduPlanEvent`.
 - Danh mục và cấu hình: `EduDomain`, `EduExpectedResult`, `EduSettings` (chuỗi người ký, dòng hoạt động tuần).
 - Tài liệu của lớp: `EduClassDoc`, một bảng cho chủ đề nhánh, kế hoạch chủ đề, giáo án tuần + 5 kế hoạch ngày. Khóa, trạng thái là cột thường có ràng buộc; nội dung, người duyệt, lịch sử là JSONB (bảng tuần đổi theo cấu hình dòng, luôn đọc cả tài liệu).
 
@@ -39,6 +39,10 @@ EDU-01..24 (`docs/business/BUSINESS_RULES.md`), OBS-07, AI-*, AUTH-03. ADR-0017,
 Không có câu hỏi nghiệp vụ mở. Còn lại: AI gợi ý (EDU-20), đọc giáo án đã duyệt cho đánh giá trẻ (EDU-19).
 
 ## Known pitfalls
+
+- V32 backfill với FK deferred phải SET CONSTRAINTS ALL IMMEDIATE trước DDL; [incident](../knowledge/incidents/BUG-261029-hierarchy-deferred-ddl.md). Lưu chuyển cha phải flush trước khi xóa tiêu đề cũ để CASCADE không xóa MT còn giữ.
+
+- Thiết kế ba bảng cha–con (user, 29/10/2026): yêu cầu tách lĩnh vực con, nhóm kết quả mong đợi, mục tiêu thành ba bảng vật lý có FK; user chọn giữ cấp cha tùy chọn để bảo toàn dữ liệu đang có. Source dùng ba entity/repository và V32 chuyển dữ liệu từ `edu_goal_rows`; `EduGoalRow` chỉ là mapped superclass. Migration giữ ID/lineage, API giữ rows/kind. Xem phần bổ sung DB trong [plan mục tiêu năm](../plans/active/2026-10-22-muc-tieu-nam-hoc.md).
 - Status do BE quyết định. Không nhận status từ client.
 - Khóa Đang sửa (EDU-10): mọi thao tác ghi đọc kế hoạch bằng `findForUpdateById` (khóa dòng) để hai người bấm sửa cùng lúc không cùng lấy được khóa; khóa quá hạn coi như trống ngay cả khi job (1 phút/lần) chưa chạy.
 - Tài liệu lớp: lịch tuần (`teachingWeeks`) phải tính giống Web (`yearWeeks` trong `CareNest_FE/src/models/education-plan/classPlan.js`): bỏ tuần trùng đợt nghỉ, chủ đề bắt đầu T7/CN thì từ Thứ Hai kế tiếp; lệch thì giáo án tuần bị từ chối hoặc gửi bị chặn.
