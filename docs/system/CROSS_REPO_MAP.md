@@ -18,10 +18,10 @@ Lỗi liên quan contract/nghiệp vụ phát hiện ở FE/APP ⇒ ghi ở BE `
 | Actor | Client | Module BE chính |
 | --- | --- | --- |
 | System Admin | Web | identity-access (kỹ thuật: tài khoản PRINCIPAL, khóa/mở), school-structure, child (cấu hình) |
-| Principal / Vice Principal | Web (App: sau, nếu có yêu cầu) | identity-access (HT: phân quyền, cấp tài khoản — AUTH-06, ADR-0017), reporting, nutrition (xác nhận/duyệt), learning-observation, health, facility-issue |
-| Teacher | Web + App | attendance, learning-observation, health, facility-issue |
-| Parent | App (đăng nhập bằng SĐT — AUTH-18) | attendance (gửi báo nghỉ — ATT-05), đọc: attendance, nutrition, health, learning (theo PAR-*) |
-| Kitchen Staff | App (+Web) | nutrition (suất đã chốt, thực đơn, định lượng) |
+| Principal / Vice Principal | Web (không dùng App — AUTH-21, user chốt 2026-10-27) | identity-access (HT: phân quyền, cấp tài khoản — AUTH-06, ADR-0017), reporting, nutrition (xác nhận/duyệt), education-plan (duyệt — EDU-02, EDU-03), learning-observation, health, notification (thông báo của trường — PAR-05) |
+| Teacher | Web + App (App: điểm danh + nhiệt độ đầu ngày, đón trẻ, sức khỏe, đánh giá, thông báo — ATT-01, PCK-02, HLT-07, HLT-14, AUTH-21) | attendance (gồm đón trẻ), learning-observation, health, education-plan |
+| Parent | App (đăng nhập bằng SĐT; nhận tài khoản qua SMS, in phiếu dự phòng — AUTH-18) | attendance (gửi báo nghỉ — ATT-05), đọc: attendance (gồm ai đã đón con — PCK-04), nutrition (thực đơn tuần/ngày, ảnh suất — PAR-01), health, learning-observation, education-plan (tên hoạt động — EDU-09), notification (theo PAR-*) |
+| Kitchen Staff | App (chỉ App, màn tối thiểu; gateway Web từ chối — AUTH-21; 1 tài khoản chung/cơ sở — AUTH-22) | nutrition (suất đã xác nhận theo lớp từng bữa, thực đơn, định lượng, số suất dị ứng không tên trẻ — AUTH-05; ảnh mẫu bữa, sổ lưu mẫu — NUT-16, NUT-21) |
 
 ## Điểm chạm cần kiểm tra khi đổi BE
 

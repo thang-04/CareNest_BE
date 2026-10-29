@@ -16,7 +16,7 @@ AUTH-01..03, AUTH-05, AUTH-15, AUTH-16. ADR-0002 (campus scoping), ADR-0003, ADR
 
 ## Phụ thuộc
 - Dùng: common/utils. Tham chiếu userId bằng ID, không import identity.
-- Được dùng bởi: child, attendance, nutrition, health, learning-observation, facility-issue, reporting, kiểm tra scope (`security/`).
+- Được dùng bởi: child, attendance, nutrition, health, learning-observation, education-plan (năm học, nhóm tuổi, phân công tổ trưởng), reporting, kiểm tra scope (`security/`).
 
 ## API & bảng
 - Bảng: `campuses`, `school_years`, `classrooms`, `staff_assignments` (`V2__create_school_structure.sql`, `docs/database/DATA_DICTIONARY.md`).
@@ -25,7 +25,7 @@ AUTH-01..03, AUTH-05, AUTH-15, AUTH-16. ADR-0002 (campus scoping), ADR-0003, ADR
 - API đọc: `GET /campuses`, `GET /classrooms?campusId=` (lớp của năm học đang diễn ra) — `SchoolStructureService`, lọc theo `StaffAccessPolicy`. Ghi phân công: `StaffAssignmentService.createAssignment/endAssignment` (kiểm hình dạng theo V2 CHECK, campus/lớp tồn tại, trùng phân công mở ⇒ 409), gọi từ `StaffingService` (feature account — kiểm quyền ở đó). Chưa có API tạo/sửa campus/lớp/năm học (dev dùng seed `db/dev/R__dev_seed.sql`).
 
 ## PENDING
-P-06 (bếp theo campus), P-14 (Hiệu phó).
+P-18 (học kỳ, trông hè), P-19 (ngày nghỉ tự khóa điểm danh). Đã đóng: P-14 (2026-10-27 — AUTH-02, AUTH-20), P-06 (2026-10-28 — mỗi cơ sở một bếp, AUTH-05). Cấu hình HT cần cho nghiệp vụ: giờ chốt theo mùa (ATT-06), số bữa theo nhóm tuổi (NUT-17), giá suất theo nhóm tuổi (NUT-19).
 
 ## Known pitfalls
 - Không biến School thành tenant: không thêm `school_id` vào mọi bảng; chiều phân vùng là `campus_id`.

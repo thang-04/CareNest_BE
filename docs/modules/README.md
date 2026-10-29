@@ -7,11 +7,11 @@
 | [identity-access](identity-access.md) | Tài khoản, role, permission, kiểm tra access scope |
 | [school-structure](school-structure.md) | Trường, campus, năm học, lớp, phân công nhân sự |
 | [child](child.md) | Hồ sơ trẻ, ghi danh lớp, liên kết phụ huynh, dị ứng |
-| [attendance](attendance.md) | Điểm danh, báo ăn, đơn nghỉ |
+| [attendance](attendance.md) | Điểm danh, báo ăn, đơn nghỉ, đón trẻ |
 | [nutrition](nutrition.md) | Thực phẩm, món, thực đơn, số suất, định lượng, bếp |
-| [health](health.md) | Đo sức khỏe định kỳ, trend, diễn giải AI có duyệt |
-| [learning-observation](learning-observation.md) | Quan sát, ngữ cảnh hoạt động, đánh giá, summary, hồ sơ phát triển |
-| [facility-issue](facility-issue.md) | Báo và theo dõi sự cố CSVC |
+| [health](health.md) | Cân đo định kỳ (WHO), sức khỏe đầu ngày/trong ngày, diễn giải AI có duyệt |
+| [learning-observation](learning-observation.md) | Đánh giá ngày, nhận xét định kỳ, khen thưởng, hồ sơ phát triển |
+| [education-plan](education-plan.md) | Mục tiêu năm học, chủ đề, kế hoạch ngày, luồng duyệt |
 | [notification](notification.md) | Gửi thông báo theo event |
 | [audit](audit.md) | Nhật ký thay đổi nhạy cảm |
 | [ai-assistance](ai-assistance.md) | Port + adapter AI provider, guardrail, data minimization |

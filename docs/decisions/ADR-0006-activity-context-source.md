@@ -1,6 +1,6 @@
 # ADR-0006 — Nguồn ngữ cảnh hoạt động/học tập
 
-- Status: **OPEN** — chờ khảo sát P-01
+- Status: SUPERSEDED by ADR-0019 (2026-10-29) — kế hoạch giáo dục soạn trong CareNest; ngữ cảnh hoạt động lấy từ kế hoạch ngày (OBS-07). P-01 đã đóng. Phần dưới giữ để truy vết.
 - Date: 2026-10-03
 - Liên quan: OBS-07, OBS-08, module learning-observation
 

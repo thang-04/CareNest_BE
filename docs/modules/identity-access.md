@@ -29,7 +29,7 @@ AUTH-01..17 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business
 - Kiểm tra scope: `security/authorization/` — `CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy` (role trong token ∧ phân công/liên kết còn hiệu lực; bảng quy tắc ở `docs/architecture/SECURITY.md`). Đây là tên thật thay cho `AccessScopeService` (tên minh họa trong docs cũ).
 
 ## PENDING
-P-14 (scope Hiệu phó), P-16 (Admin xem dữ liệu trẻ).
+P-16 (Admin xem dữ liệu trẻ). P-14 đã đóng 2026-10-27 (AUTH-02, AUTH-20).
 
 ## Known pitfalls
 - Auth React: ADR-0013 là ngoại lệ Web dùng gateway/extension, không phải PKCE. Phase 2 có source API/session/OTP opt-in và V4; FE thuộc Phase3. Provider setup chỉ qua capability một lần; recovery/current-password exchange đòi assertion HMAC60s sau xác minh.
