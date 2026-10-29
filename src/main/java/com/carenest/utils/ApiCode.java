@@ -283,6 +283,44 @@ public enum ApiCode {
     LESSON_ROW_REQUIRED(7206, HttpStatus.BAD_REQUEST, "Không bỏ được dòng giờ học"),
     DOMAIN_NAME_EXISTS(7207, HttpStatus.CONFLICT, "Tên lĩnh vực {0} đã tồn tại"),
 
+    // ========== 73xx ĐÁNH GIÁ TRẺ ==========
+    ASSESSMENT_FUTURE_DATE(7301, HttpStatus.BAD_REQUEST, "Chỉ đánh giá cho hôm nay hoặc ngày đã qua"),
+    ASSESSMENT_NOT_SCHOOL_DAY(7302, HttpStatus.BAD_REQUEST, "Ngày đã chọn không phải ngày học"),
+    ASSESSMENT_DATE_OUT_OF_YEAR(7303, HttpStatus.BAD_REQUEST, "Chọn ngày trong năm học của lớp, từ {0} đến hôm nay"),
+    ASSESSMENT_YEAR_NOT_ACTIVE(
+            7304, HttpStatus.CONFLICT, "Lớp thuộc năm học đã kết thúc hoặc chưa bắt đầu, chỉ xem được"),
+    ASSESSMENT_DAY_LOCKED(
+            7305,
+            HttpStatus.CONFLICT,
+            "Ngày này đã khóa. Gửi mail cho Phó hiệu trưởng điểm trường hoặc Hiệu trưởng để mở lại"),
+    ASSESSMENT_NO_APPROVED_LESSON(7306, HttpStatus.CONFLICT, "Chưa có giáo án duyệt cho ngày này"),
+    ASSESSMENT_CHILD_NOT_PRESENT(7307, HttpStatus.CONFLICT, "{0} chưa được điểm danh có mặt nên chưa đánh giá được"),
+    ASSESSMENT_ACTIVITY_NOT_IN_LESSON(
+            7308, HttpStatus.BAD_REQUEST, "Hoạt động không có trong giáo án đã duyệt của ngày"),
+    ASSESSMENT_GOAL_NOT_IN_ACTIVITY(7309, HttpStatus.BAD_REQUEST, "Mục tiêu không thuộc hoạt động này của giáo án"),
+    ASSESSMENT_GOAL_TWO_RESULTS(
+            7310, HttpStatus.BAD_REQUEST, "Một mục tiêu chỉ chọn một mức Đạt, Cần cố gắng hoặc Chưa đạt"),
+    ASSESSMENT_DIAGNOSTIC_TERM(
+            7311, HttpStatus.BAD_REQUEST, "Không dùng thuật ngữ chẩn đoán (\"{0}\"). Hãy mô tả hành vi quan sát được"),
+    ASSESSMENT_NOTHING_TO_SAVE(7312, HttpStatus.BAD_REQUEST, "Chưa có thay đổi nào để lưu"),
+    ASSESSMENT_UNLOCK_YEAR_NOT_ACTIVE(7313, HttpStatus.CONFLICT, "Chỉ mở lại lớp thuộc năm học đang hoạt động"),
+    ASSESSMENT_UNLOCK_DATE_OUT_OF_RANGE(7314, HttpStatus.BAD_REQUEST, "Chọn một ngày học từ đầu năm học đến hôm qua"),
+    ASSESSMENT_DAY_NOT_LOCKED_YET(7315, HttpStatus.CONFLICT, "Ngày này chưa khóa, giáo viên vẫn đánh giá được"),
+    ASSESSMENT_UNLOCK_DEADLINE_INVALID(
+            7316, HttpStatus.BAD_REQUEST, "Chọn hạn mở lại sau thời điểm hiện tại và không quá ngày kết thúc năm học"),
+    ASSESSMENT_UNLOCK_ALREADY_ACTIVE(7317, HttpStatus.CONFLICT, "Lớp / ngày này đang có lần mở lại còn hiệu lực"),
+    ASSESSMENT_UNLOCK_ALREADY_ENDED(7318, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
+    ASSESSMENT_UNLOCK_NOT_FOUND(7319, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại ngày đánh giá"),
+    ASSESSMENT_UNLOCK_FORBIDDEN(
+            7320, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng hoặc Phó hiệu trưởng điểm trường của lớp được mở lại"),
+    ASSESSMENT_OVERVIEW_FORBIDDEN(
+            7321, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng và Phó hiệu trưởng xem tổng quan đánh giá"),
+    CLASS_COMMENT_TOO_LONG(7322, HttpStatus.BAD_REQUEST, "Nhận xét chung của lớp tối đa 500 ký tự"),
+    CLASS_COMMENT_DIAGNOSTIC_TERM(
+            7323,
+            HttpStatus.BAD_REQUEST,
+            "Nhận xét chung của lớp không dùng thuật ngữ chẩn đoán, hãy mô tả điều quan sát được"),
+
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),
     AI_TIMEOUT(8002, HttpStatus.GATEWAY_TIMEOUT, "Trợ lý AI phản hồi quá lâu, vui lòng thử lại"),

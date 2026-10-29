@@ -13,6 +13,9 @@ public interface DailyHealthEntryRepository extends JpaRepository<DailyHealthEnt
 
     List<DailyHealthEntry> findByChildIdAndDateOrderByRecordedAtDescIdDesc(Long childId, LocalDate date);
 
+    List<DailyHealthEntry> findByChildIdInAndDateBetweenOrderByRecordedAtDescIdDesc(
+            Collection<Long> childIds, LocalDate from, LocalDate to);
+
     List<DailyHealthEntry> findByClassroomIdInAndDateOrderByRecordedAtDescIdDesc(
             Collection<Long> classroomIds, LocalDate date);
 }

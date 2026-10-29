@@ -167,6 +167,150 @@ paths:
           description: OK
       tags:
       - teacher-assignment-controller
+  /api/assessment/day-unlocks:
+    get:
+      operationId: getUnlocks_1
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: active
+        required: false
+        schema:
+          type: boolean
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAssessmentDayUnlockResponse"
+          description: OK
+      tags:
+      - assessment-day-unlock-controller
+    post:
+      operationId: unlockDay_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssessmentDayUnlockRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAssessmentDayUnlockResponse"
+          description: OK
+      tags:
+      - assessment-day-unlock-controller
+  /api/assessment/day-unlocks/{unlockId}/revoke:
+    post:
+      operationId: revokeUnlock_1
+      parameters:
+      - in: path
+        name: unlockId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAssessmentDayUnlockResponse"
+          description: OK
+      tags:
+      - assessment-day-unlock-controller
+  /api/assessment/overview:
+    get:
+      operationId: getOverview_1
+      parameters:
+      - in: query
+        name: period
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: ageGroupId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassAssessmentOverviewResponse"
+          description: OK
+      tags:
+      - class-assessment-overview-controller
+  /api/assessment/overview/classes/{classId}:
+    get:
+      operationId: getClassDetail
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: period
+        required: false
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassAssessmentDetailResponse"
+          description: OK
+      tags:
+      - class-assessment-overview-controller
   /api/attendance/classes:
     get:
       operationId: getClasses
@@ -834,6 +978,81 @@ paths:
           description: OK
       tags:
       - daily-health-controller
+  /api/classes/{classId}/daily-assessment:
+    get:
+      operationId: getDailySheet
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDailySheetResponse"
+          description: OK
+      tags:
+      - daily-assessment-controller
+  /api/classes/{classId}/daily-assessment/general:
+    put:
+      operationId: saveGeneral
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveDailyGeneralRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveDailyResponse"
+          description: OK
+      tags:
+      - daily-assessment-controller
+  /api/classes/{classId}/daily-assessment/skills:
+    put:
+      operationId: saveSkills
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaveDailySkillsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSaveDailyResponse"
+          description: OK
+      tags:
+      - daily-assessment-controller
   /api/classes/{classId}/teacher-assignments/history:
     get:
       operationId: getClassTeacherHistory
@@ -2376,6 +2595,35 @@ components:
           minLength: 1
       required:
       - confirmName
+    Activity:
+      type: object
+      properties:
+        goalsEffort:
+          type: array
+          items:
+            type: integer
+            format: int64
+        goalsMet:
+          type: array
+          items:
+            type: integer
+            format: int64
+        goalsNotMet:
+          type: array
+          items:
+            type: integer
+            format: int64
+        key:
+          type: string
+          minLength: 1
+        participation:
+          type: string
+          enum:
+          - TICH_CUC
+          - BINH_THUONG
+          - CHUA_TICH_CUC
+      required:
+      - key
     Adjustment:
       type: object
       properties:
@@ -2506,6 +2754,139 @@ components:
         sortOrder:
           type: integer
           format: int32
+    ApprovedDayLessonResponse:
+      type: object
+      properties:
+        activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/Activity"
+        classDocId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        weekLabel:
+          type: string
+        weekStart:
+          type: string
+          format: date
+    AssessmentClassRow:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        assessed:
+          type: integer
+          format: int32
+        assessedDays:
+          type: integer
+          format: int32
+        campusId:
+          type: integer
+          format: int64
+        canCoGang:
+          type: integer
+          format: int32
+        chuaDat:
+          type: integer
+          format: int32
+        classComments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassCommentResponse"
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        dat:
+          type: integer
+          format: int32
+        flags:
+          type: integer
+          format: int32
+        healthChildren:
+          type: integer
+          format: int32
+        lockedDays:
+          type: integer
+          format: int32
+        present:
+          type: integer
+          format: int32
+        reopenedDays:
+          type: integer
+          format: int32
+        schoolDays:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+    AssessmentDayUnlockRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+        validUntil:
+          type: string
+          format: date-time
+      required:
+      - classId
+      - date
+      - reason
+      - validUntil
+    AssessmentDayUnlockResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: integer
+          format: int64
+        revokedByName:
+          type: string
+        unlockedAt:
+          type: string
+          format: date-time
+        unlockedBy:
+          type: integer
+          format: int64
+        unlockedByName:
+          type: string
+        validUntil:
+          type: string
+          format: date-time
     AssignmentHistoryResponse:
       type: object
       properties:
@@ -2623,6 +3004,14 @@ components:
         startDate:
           type: string
           format: date
+    Brief:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     CampusBrief:
       type: object
       properties:
@@ -2840,6 +3229,8 @@ components:
       properties:
         child:
           $ref: "#/components/schemas/ChildBrief"
+        health:
+          $ref: "#/components/schemas/HealthSummary"
         record:
           $ref: "#/components/schemas/RecordView"
     ChildTotal:
@@ -2859,6 +3250,68 @@ components:
         unexcused:
           type: integer
           format: int32
+    ClassAssessmentDetailResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildRow"
+        classComments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassCommentResponse"
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        end:
+          type: string
+          format: date
+        period:
+          type: string
+        schoolDays:
+          type: integer
+          format: int32
+        start:
+          type: string
+          format: date
+    ClassAssessmentOverviewResponse:
+      type: object
+      properties:
+        ageGroups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Brief"
+        campuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/Brief"
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassBrief"
+        end:
+          type: string
+          format: date
+        period:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssessmentClassRow"
+        schoolDays:
+          type: integer
+          format: int32
+        start:
+          type: string
+          format: date
+        totals:
+          $ref: "#/components/schemas/Totals"
     ClassAttendanceResponse:
       type: object
       properties:
@@ -2911,6 +3364,25 @@ components:
           format: int64
         name:
           type: string
+    ClassCommentResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        recordedBy:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+        text:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
     ClassDocActionRequest:
       type: object
       properties:
@@ -3506,6 +3978,52 @@ components:
       - date
       - observation
       - requestId
+    DailySheetResponse:
+      type: object
+      properties:
+        attendanceTaken:
+          type: boolean
+        campusId:
+          type: integer
+          format: int64
+        canRecord:
+          type: boolean
+        classComment:
+          $ref: "#/components/schemas/ClassCommentResponse"
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        lesson:
+          $ref: "#/components/schemas/ApprovedDayLessonResponse"
+        locked:
+          type: boolean
+        mealSessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/Row"
+        today:
+          type: string
+          format: date
+        unlock:
+          $ref: "#/components/schemas/AssessmentDayUnlockResponse"
+        yearReadOnly:
+          type: boolean
+        yearStart:
+          type: string
+          format: date
     DayInfoResponse:
       type: object
       properties:
@@ -3776,6 +4294,46 @@ components:
         planned:
           type: integer
           format: int64
+    HealthSummary:
+      type: object
+      properties:
+        checked:
+          type: boolean
+        entryCount:
+          type: integer
+          format: int32
+        note:
+          type: string
+        observation:
+          type: string
+          enum:
+          - NO_CONCERN
+          - NOTED
+        recordedAt:
+          type: string
+          format: date-time
+        symptoms:
+          type: array
+          items:
+            type: string
+            enum:
+            - FEVER
+            - COUGH
+            - RUNNY_NOSE
+            - FLU
+            - TIRED
+            - OTHER
+        temperature:
+          type: number
+        temperatureLevel:
+          type: string
+          enum:
+          - LOW
+          - NORMAL
+          - WATCH
+          - FEVER
+          - HIGH
+          - VERY_HIGH
     History:
       type: object
       properties:
@@ -4450,6 +5008,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonAssessmentDayUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AssessmentDayUnlockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAutoPlaceResponse:
       type: object
       properties:
@@ -4510,6 +5081,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ChildProfileResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassAssessmentDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassAssessmentDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassAssessmentOverviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassAssessmentOverviewResponse"
         desc:
           type: string
         errorCode:
@@ -4632,6 +5229,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonDailySheetResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DailySheetResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonDayInfoResponse:
       type: object
       properties:
@@ -4694,6 +5304,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgeGroupDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListAssessmentDayUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AssessmentDayUnlockResponse"
         desc:
           type: string
         errorCode:
@@ -5051,6 +5676,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonSaveDailyResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SaveDailyResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonSchoolStructureResponse:
       type: object
       properties:
@@ -5317,6 +5955,44 @@ components:
         savedAt:
           type: string
           format: date-time
+    SaveDailyGeneralRequest:
+      type: object
+      properties:
+        classComment:
+          type: string
+        date:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Entry"
+      required:
+      - date
+      - entries
+    SaveDailyResponse:
+      type: object
+      properties:
+        saved:
+          type: integer
+          format: int32
+        savedAt:
+          type: string
+          format: date-time
+    SaveDailySkillsRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Entry"
+          minItems: 1
+      required:
+      - date
+      - entries
     SavePlacementsRequest:
       type: object
       properties:

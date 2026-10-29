@@ -91,6 +91,14 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | OBS-09 | Biểu mẫu/chu kỳ assessment & follow-up | PENDING P-16b | — |
 | OBS-10 | Khen thưởng "phiếu bé ngoan" (tuần/tháng) và "bé ngoan toàn diện" dựa trên đánh giá hằng ngày; hệ thống chỉ gợi ý từ dữ liệu, GV/BGH quyết định | PROPOSED; tiêu chí PENDING P-11 | Review 24/09 L101, L310; Roadmap (Must) |
 | OBS-11 | Thuật ngữ: dùng "đánh giá" (assessment), không dùng "feedback" cho nhận xét trẻ | CONFIRMED | Review 24/09 L311-313 |
+| OBS-12 | Đánh giá hằng ngày chỉ cho trẻ đã điểm danh **Có mặt** ngày đó; lớp chưa điểm danh ⇒ danh sách rỗng kèm cờ. Hai view dùng chung một bảng ngày: Hoạt động chung (sức khỏe theo tiêu chí, Ăn, Ngủ trưa, Cảm xúc, Hành vi, Tham gia, 1 cờ/ngày) và Kiến thức kỹ năng (Đạt / Cần cố gắng / Chưa đạt theo MT); **một nhận xét / trẻ / ngày** dùng chung cho cả hai | CONFIRMED | Cần 15/10, 28/10 |
+| OBS-13 | Ô Sức khỏe điền sẵn từ lần ghi nhận mới nhất của sức khỏe trong ngày (không gồm thân nhiệt); GV sửa được | CONFIRMED | Cần 28/10 |
+| OBS-14 | Trẻ / MT chưa chấm thì không lưu; hệ thống không tự ghi "Đạt". Nhận xét không chứa thuật ngữ chẩn đoán | CONFIRMED | Cần 28/10; AGENTS.md (không chẩn đoán) |
+| OBS-15 | Ngày D tự khóa lúc hết 23:59:59 ngày D (giờ Asia/Ho_Chi_Minh). Sau khóa chỉ ghi khi có lần mở lại còn hiệu lực cho đúng lớp + ngày. Năm học không ACTIVE chỉ xem | CONFIRMED | Cần 28/10; CFG-YR-01 |
+| OBS-16 | Mở lại ngày đánh giá: HT mọi lớp, PHT lớp điểm trường mình; ngày là ngày học từ đầu năm học tới hôm qua; hạn "Mở đến" sau hiện tại và không quá hết ngày kết thúc năm học; mỗi lớp/ngày tối đa một lần mở còn hiệu lực; Kết thúc sớm = hạn về lúc thu hồi, giữ lịch sử | CONFIRMED | Cần 28/10 (giống ATT-06) |
+| OBS-17 | Phạm vi: GV lớp đang dạy ghi; GV xem lớp đã dạy của năm đã qua; PHT xem lớp điểm trường mình; HT toàn trường | CONFIRMED | AUTH-01..03 |
+| OBS-18 | Tổng quan đánh giá lớp cho PHT/HT theo kỳ ngày / tuần (thứ 2–6) / tháng dương lịch, tính tới hôm nay: sĩ số, có mặt, đã đánh giá / có mặt, ngày đã đánh giá / ngày học, trẻ có dấu hiệu sức khỏe, Đạt / Cần cố gắng / Chưa đạt, cờ, ngày khóa / mở lại; chi tiết lớp theo từng trẻ kèm nhận xét | CONFIRMED | Cần 27/10 |
+| OBS-19 | GV ghi nhận xét chung riêng theo lớp/ngày (không giới hạn số ký tự, mô tả điều quan sát được); lưu cùng Hoạt động chung hoặc riêng, không thay nhận xét/kết quả/cờ từng trẻ. PHT xem campus mình, HT toàn trường, kèm người ghi và thời gian cập nhật. Ngày/khóa/mở lại/năm theo OBS-15, OBS-17; tuần/tháng xem lại các nhận xét ngày, không thêm báo cáo bắt buộc/AI. Thiếu/null giữ nguyên; chuỗi rỗng xóa nội dung | CONFIRMED | Người dùng duyệt 29/10; bỏ giới hạn ký tự 30/10/2026 |
 
 ## EDU — Kế hoạch giáo dục (module: education-plan)
 

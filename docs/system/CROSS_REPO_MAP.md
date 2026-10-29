@@ -39,6 +39,13 @@ Repo URL: CareNest_FE `https://github.com/thang-04/CareNest_FE.git`, CareNest_AP
 
 BE bổ sung `/auth/**`, PUT `/me/password`, mã HTTP 428, cookie phiên mã hóa/CSRF theo ADR-0013 và ADR-0015 (`/auth/refresh` trả `Set-Cookie` mới; FE dùng `withCredentials`, không cần sửa); chi tiết `docs/contracts/AUTH_CONTRACT.md`. Consumer FE: các form login/forgot/OTP/reset/change-password, AuthContext và HTTP client; tích hợp ở Phase 3, chưa sửa FE trong Phase 2. APP tiếp tục PKCE S256, issuer/audience, role/scope và `/accounts/me` hiện có; không chuyển APP sang Direct Grant. Regenerate types từ OpenAPI sau khi snapshot được kiểm chứng.
 
+## Nhận xét chung lớp — 29/10/2026
+
+- GET daily-assessment thêm `classComment` (classId, date, text, recordedBy, recordedByName, updatedAt).
+- PUT General thêm `classComment` optional: thiếu/null = giữ, rỗng = xóa; cho entries rỗng khi chỉ lưu lớp. Lưu cùng transaction với kết quả trẻ, không tạo đánh giá trẻ từ nhận xét lớp.
+- GET overview/detail thêm `classComments` theo scope lớp/campus và kỳ; schema lớp đánh giá tên `AssessmentClassRow` để không trùng `ClassRow` của sức khỏe.
+- FE: `assessmentApi.js`, mock assessment, `DailyAssessmentPage`, `ClassAssessmentOverviewPage`, component `ClassComments`; mã lỗi 7322/7323 vào classComment. APP không sửa trong task; client cũ giữ tương thích khi bỏ qua field mới.
+
 ## Consumer của API kế hoạch giáo dục (G94-226)
 
 | API BE | Consumer FE |

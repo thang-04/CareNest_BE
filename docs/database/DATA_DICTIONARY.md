@@ -227,6 +227,50 @@ Mục đích: mở lại điểm danh một lớp/ngày đã khóa (HT mọi l�
 | revoked_by, revoked_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Kết thúc sớm | — |
 Mỗi lớp/ngày tối đa một lần mở còn hiệu lực (service kiểm). Index: `(classroom_id, date)`.
 
+## daily_observations  (module: learning-observation, scope: CHILD)
+Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V32__create_daily_observations.sql`. Dữ liệu quan sát — không log.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id / classroom_id / campus_id | BIGINT FK | không | Trẻ, lớp, điểm trường lúc ghi; UNIQUE `(child_id, date)` | OBS-12, OBS-17 |
+| date | DATE | không | Ngày đánh giá | OBS-15 |
+| health_overridden / health_signs / health_note | BOOLEAN / VARCHAR(100) / VARCHAR(500) | không | GV sửa ô Sức khỏe; false ⇒ đọc từ sức khỏe trong ngày | OBS-13 |
+| meals | JSONB | không | Bữa của lớp ⇒ `AN_HET` / `AN_IT` / `KHONG_AN` | OBS-12 |
+| nap / emotion | VARCHAR(20) | có | `NGU_TOT`/`NGU_IT`/`KHONG_NGU`; `HAPPY`/`CALM`/`SAD`/`UPSET` | OBS-12 |
+| participation | VARCHAR(20) | có | Tham gia cả ngày `TICH_CUC`/`BINH_THUONG`/`CHUA_TICH_CUC`; không phụ thuộc giáo án (tham gia theo hoạt động ở `daily_activity_results`) | OBS-12 |
+| behaviors / behavior_note | VARCHAR(200) / VARCHAR(500) | không | Danh sách hành vi quan sát, ghi chú | OBS-12 |
+| flag | BOOLEAN | có | 1 cờ / trẻ / ngày | OBS-12 |
+| comment | VARCHAR(500) | không | Nhận xét chung (dùng chung 2 view) | OBS-12, OBS-14 |
+| recorded_by/at, updated_by/at | BIGINT FK user_accounts, TIMESTAMPTZ | | | — |
+
+## daily_activity_results  (module: learning-observation, scope: CHILD)
+Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt động của giáo án tuần đã duyệt. Migration: V32.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id / classroom_id / campus_id, date | BIGINT FK, DATE | không | UNIQUE `(child_id, date, activity_key)` | OBS-12 |
+| activity_key | VARCHAR(40) | không | Khóa dòng hoạt động trong `edu_settings.week_rows` | EDU-19 |
+| class_doc_id | BIGINT FK edu_class_docs | không | Giáo án tuần đã duyệt dùng khi chấm | EDU-19 |
+| participation | VARCHAR(20) | có | `TICH_CUC` / `BINH_THUONG` / `CHUA_TICH_CUC` | OBS-12 |
+| goals_met / goals_effort / goals_not_met | VARCHAR(500) | không | id `edu_goal_rows` dạng `1,2`; một MT chỉ một kết quả; không tự ghi Đạt | OBS-14 |
+
+## assessment_day_unlocks  (module: learning-observation, scope: CLASS)
+
+Mục đích: mở lại đánh giá một lớp/ngày đã khóa. Cột giống `attendance_day_unlocks`. Migration: V32. | OBS-16
+
+## class_daily_comments (module: learning-observation, scope: CLASS)
+
+Nhận xét chung lớp/ngày (OBS-19), migration mới `V33__create_class_daily_comments.sql`; không lưu vào nhận xét của trẻ và không tính là trẻ đã đánh giá.
+
+| Cột | Kiểu | Null | Ý nghĩa |
+| --- | --- | --- | --- |
+| id | BIGINT | không | PK identity |
+| classroom_id, campus_id | BIGINT | không | FK lớp/điểm trường, scope do BE suy từ lớp |
+| date | DATE | không | Ngày học, unique cùng classroom_id |
+| text | VARCHAR(500) | không | Nội dung quan sát; chuỗi rỗng nghĩa là đã xóa nội dung |
+| recorded_by | BIGINT | không | FK user cập nhật gần nhất |
+| updated_at | TIMESTAMPTZ | không | Thời điểm cập nhật do server ghi |
+
+Ngày/khóa/mở lại theo OBS-15. Đọc tuần/tháng chỉ lấy nhận xét đúng lớp và ngày trong kỳ/năm; người ghi/timestamp trả về cùng nội dung, không log text.
+
 ## daily_health_entries  (module: attendance, scope: CHILD)
 Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nhận khi tiếp nhận trẻ đã lưu Có mặt (chỉ thêm, không sửa). Giáo viên quan sát, không chẩn đoán. Migration: `V19__create_daily_health_entries.sql`. Dữ liệu sức khỏe — không log.
 | Column | Type | Null | Ý nghĩa | Rule ID |

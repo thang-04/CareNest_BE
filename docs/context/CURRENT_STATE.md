@@ -4,6 +4,10 @@ Cập nhật: 2026-10-24. **Agent: cập nhật file này khi một feature bắ
 
 ## Tổng quan
 
+### Bổ sung source 29/10/2026
+
+Observation có WIP đánh giá ngày/mở lại/tổng quan lớp (V32) và nhận xét chung lớp (V33, OBS-19), đổi số sau merge Tiền để giữ V27–V31 đã commit. PUT General lưu trẻ và nhận xét trong cùng transaction; FE có ô nhập và PHT/HT đọc theo ngày/tuần/tháng. Baseline trước merge: BE full 403/403 không skip, FE dashboard/hardening 56/56, full FE lỗi seed menu cũ. Kết quả sau merge ở [plan merge](../plans/active/2026-10-29-merge-tien-education.md). Chưa áp migration DB người dùng, chưa kiểm browser, chưa commit/push WIP. Bảng trạng thái cũ bên dưới chưa phản ánh đầy đủ WIP này.
+
 Auth React cập nhật2026-10-12: extension Phase1 và backend gateway Phase2 opt-in đã có source, V4/session/OTP/cookie-CSRF; FE Phase3 chưa triển khai. Bằng chứng/lưu ý: báo cáo react-auth-phase2 ngày 2026-10-12 (chưa có trong repo). Không thay trạng thái merge hay triển khai thật của phần Resource Server bên dưới.
 
 | Hạng mục | Trạng thái |

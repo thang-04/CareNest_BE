@@ -33,6 +33,7 @@ Mỗi lỗi là một dòng trong `ApiCode`: mã 4 số + HTTP status + câu ti�
 | 50xx | Sức khỏe |
 | 60xx | Dinh dưỡng (báo ăn & sổ báo ăn) |
 | 70xx–72xx | Kế hoạch giáo dục (kế hoạch năm, tài liệu lớp, cấu hình) |
+| 73xx | Đánh giá trẻ (đánh giá hằng ngày, mở lại ngày, tổng quan lớp) |
 | 80xx | AI & tệp |
 | 90xx | Chung & hệ thống (validation 9001, sai định dạng 9002, không tìm thấy 9009, lỗi hệ thống 9010…) |
 
@@ -41,6 +42,8 @@ Mã chung không có `errorCode` (`SUCCESSFUL 200`, `CREATED 201`, `BAD_REQUEST`
 ADR-0013: `PASSWORD_CHANGE_REQUIRED` (1010, HTTP 428) cho Web gateway: mật khẩu tạm đã xác minh cần đổi lần đầu; `data` chỉ chứa challenge opaque và hạn dùng, không có access/refresh token. FE xử lý 428 bằng màn hình đổi mật khẩu; Mobile PKCE không dùng endpoint này.
 
 ## Dùng theo tình huống nghiệp vụ
+
+Nhận xét chung lớp (OBS-19, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và `CLASS_COMMENT_DIAGNOSTIC_TERM` 7323, HTTP 400, FE gắn lỗi vào `classComment`. Các lỗi ngày/khóa/quyền của đánh giá ngày tiếp tục dùng dải 7301–7321. PUT General cho phép `entries: []` khi gửi `classComment`; thiếu/null giữ nội dung cũ, chuỗi rỗng xóa nội dung.
 
 | Tình huống | ApiCode (errorCode) | Rule |
 | --- | --- | --- |
