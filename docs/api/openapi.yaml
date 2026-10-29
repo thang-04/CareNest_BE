@@ -1095,6 +1095,27 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
+  /api/education-plans/class-docs/week/{docKey}/adjustments:
+    put:
+      operationId: saveAdjustments
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassDocAdjustmentsRequest"
+        required: true
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/{kind}/{docKey}:
     put:
       operationId: saveClassDoc
@@ -1174,6 +1195,56 @@ paths:
           description: OK
       tags:
       - edu-config-controller
+  /api/education-plans/curriculum/contents:
+    get:
+      operationId: getContents
+      parameters:
+      - in: query
+        name: ageGroupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListCurriculumContentResponse"
+          description: OK
+      tags:
+      - edu-curriculum-controller
+  /api/education-plans/curriculum/goals:
+    get:
+      operationId: getGoals
+      parameters:
+      - in: query
+        name: ageGroupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListCurriculumGoalResponse"
+          description: OK
+      tags:
+      - edu-curriculum-controller
+  /api/education-plans/curriculum/sources:
+    get:
+      operationId: getSources
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListCurriculumSourceResponse"
+          description: OK
+      tags:
+      - edu-curriculum-controller
   /api/education-plans/expected-results:
     get:
       operationId: getExpectedResults
@@ -1370,6 +1441,31 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/changes:
+    get:
+      operationId: getChanges
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: fromPlanId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanChangesResponse"
           description: OK
       tags:
       - edu-year-plan-controller
@@ -1609,6 +1705,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
           description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/versions:
+    post:
+      operationId: createVersion
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: Created
       tags:
       - edu-year-plan-controller
   /api/locations:
@@ -2790,6 +2923,15 @@ components:
           minLength: 0
       required:
       - action
+    ClassDocAdjustmentsRequest:
+      type: object
+      properties:
+        adjustments:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+      - adjustments
     ClassOption:
       type: object
       properties:
@@ -3132,6 +3274,94 @@ components:
         headerName:
           type: string
         token:
+          type: string
+    CurriculumContentResponse:
+      type: object
+      properties:
+        category:
+          type: string
+        categoryNo:
+          type: string
+        domainId:
+          type: integer
+          format: int64
+        domainName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+        sectionRef:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+        sourceId:
+          type: integer
+          format: int64
+        subDomain:
+          type: string
+        text:
+          type: string
+    CurriculumGoalResponse:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            type: string
+        domainId:
+          type: integer
+          format: int64
+        domainName:
+          type: string
+        goalNo:
+          type: string
+        goalText:
+          type: string
+        groupNo:
+          type: string
+        groupText:
+          type: string
+        id:
+          type: integer
+          format: int64
+        sectionRef:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+        sourceId:
+          type: integer
+          format: int64
+        subDomain:
+          type: string
+    CurriculumSourceResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        documentNo:
+          type: string
+        id:
+          type: integer
+          format: int64
+        issuedDate:
+          type: string
+          format: date
+        issuer:
+          type: string
+        officialUrl:
+          type: string
+        retrievedAt:
+          type: string
+          format: date
+        retrievedFromUrl:
+          type: string
+        scopeNote:
+          type: string
+        title:
           type: string
     CutoffRequest:
       type: object
@@ -3498,6 +3728,39 @@ components:
           minLength: 0
       required:
       - email
+    Goal:
+      type: object
+      properties:
+        change:
+          type: string
+          enum:
+          - UNCHANGED
+          - CHANGED
+          - REMOVED
+          - ADDED
+        fields:
+          type: array
+          items:
+            type: string
+        fromGoalNo:
+          type: integer
+          format: int32
+        fromId:
+          type: integer
+          format: int64
+        fromText:
+          type: string
+        goalNo:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        text:
+          type: string
     GroupStat:
       type: object
       properties:
@@ -3992,6 +4255,8 @@ components:
     Permissions:
       type: object
       properties:
+        canCreateVersion:
+          type: boolean
         canDelete:
           type: boolean
         canEdit:
@@ -4479,6 +4744,51 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListCurriculumContentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurriculumContentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListCurriculumGoalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurriculumGoalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListCurriculumSourceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurriculumSourceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListDayUnlockResponse:
       type: object
       properties:
@@ -4818,6 +5128,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonYearPlanChangesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/YearPlanChangesResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonYearPlanDetailResponse:
       type: object
       properties:
@@ -4954,6 +5277,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Content"
+        curriculumGoalId:
+          type: integer
+          format: int64
         id:
           type: integer
           format: int64
@@ -5404,6 +5730,37 @@ components:
           pattern: "[0-9]{6}"
       required:
       - otp
+    VersionSummary:
+      type: object
+      properties:
+        code:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        issuedAt:
+          type: string
+          format: date-time
+        issuedByName:
+          type: string
+        ownerName:
+          type: string
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - EDITING
+          - PENDING_VP
+          - REJECTED
+          - APPROVED
+        versionNo:
+          type: integer
+          format: int32
     WeekRow:
       type: object
       properties:
@@ -5454,6 +5811,33 @@ components:
           format: int64
         name:
           type: string
+    YearPlanChangesResponse:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Content"
+        fromPlanId:
+          type: integer
+          format: int64
+        fromVersionNo:
+          type: integer
+          format: int32
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Goal"
+        planId:
+          type: integer
+          format: int64
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Theme"
+        versionNo:
+          type: integer
+          format: int32
     YearPlanDetailResponse:
       type: object
       properties:
@@ -5471,6 +5855,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        current:
+          type: boolean
         description:
           type: string
         domains:
@@ -5507,6 +5893,9 @@ components:
           type: string
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
+        sourcePlanId:
+          type: integer
+          format: int64
         status:
           type: string
           enum:
@@ -5524,6 +5913,13 @@ components:
         updatedAt:
           type: string
           format: date-time
+        versionNo:
+          type: integer
+          format: int32
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VersionSummary"
     YearPlanRequest:
       type: object
       properties:
@@ -5568,6 +5964,8 @@ components:
         createdAt:
           type: string
           format: date-time
+        current:
+          type: boolean
         editExpiresAt:
           type: string
           format: date-time
@@ -5593,6 +5991,9 @@ components:
           type: string
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
+        sourcePlanId:
+          type: integer
+          format: int64
         status:
           type: string
           enum:
@@ -5609,6 +6010,9 @@ components:
         updatedAt:
           type: string
           format: date-time
+        versionNo:
+          type: integer
+          format: int32
     YearReadinessResponse:
       type: object
       properties:

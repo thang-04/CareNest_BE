@@ -215,9 +215,13 @@ class EduYearPlanControllerTest {
                 List.of(),
                 List.of(),
                 null,
-                new YearPlanDetailResponse.Permissions(true, true, false, false, true),
+                new YearPlanDetailResponse.Permissions(true, true, false, false, true, false),
                 0L,
-                null);
+                null,
+                1,
+                null,
+                false,
+                List.of());
     }
 
     private CurrentUser authenticateAs(CareNestRole role) {

@@ -26,6 +26,10 @@ public class EduGoalRow {
     @Column(name = "year_plan_id", nullable = false, updatable = false)
     private Long yearPlanId;
 
+    // Định danh ổn định qua các phiên bản (NULL = dòng gốc, lineage là chính id), spec 004
+    @Column(name = "lineage_id", updatable = false)
+    private Long lineageId;
+
     @Column(name = "domain_id", nullable = false)
     private Long domainId;
 
@@ -42,6 +46,10 @@ public class EduGoalRow {
     @Column(name = "goal_no")
     private Short goalNo;
 
+    /** Mục tiêu của Bộ đã dùng để tạo dòng (EDU-28); câu trong kế hoạch là bản chép độc lập. */
+    @Column(name = "curriculum_goal_id")
+    private Long curriculumGoalId;
+
     public static EduGoalRow create(Long yearPlanId) {
         EduGoalRow row = new EduGoalRow();
         row.yearPlanId = yearPlanId;
@@ -54,5 +62,22 @@ public class EduGoalRow {
         this.kind = kind;
         this.text = text;
         this.goalNo = goalNo;
+    }
+
+    public void linkCurriculum(Long curriculumGoalId) {
+        this.curriculumGoalId = kind == EduGoalRowKind.GOAL ? curriculumGoalId : null;
+    }
+
+    public Long lineage() {
+        return lineageId == null ? id : lineageId;
+    }
+
+    /** Bản chép sang phiên bản mới: cùng vị trí, chữ, lineage. */
+    public static EduGoalRow copyFor(Long yearPlanId, EduGoalRow source) {
+        EduGoalRow row = create(yearPlanId);
+        row.lineageId = source.lineage();
+        row.place(source.domainId, source.sortOrder, source.kind, source.text, source.goalNo);
+        row.curriculumGoalId = source.curriculumGoalId;
+        return row;
     }
 }

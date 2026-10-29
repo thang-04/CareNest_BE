@@ -2,6 +2,7 @@ package com.carenest.controller.eduplan;
 
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.PlanActionRequest;
+import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
@@ -217,6 +218,34 @@ public class EduYearPlanController {
                 currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Editing session renewed", plan);
+    }
+
+    @PostMapping("/{planId}/versions")
+    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createVersion(
+            @PathVariable Long planId,
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
+        String logPrefix = LOG_PREFIX + "|createVersion|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan = eduYearPlanService.createVersion(
+                currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
+        log.info("{}|newPlanId={}|END", logPrefix, plan.id());
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create year plan version success", plan);
+    }
+
+    @GetMapping("/{planId}/changes")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<YearPlanChangesResponse>> getChanges(
+            @PathVariable Long planId, @RequestParam(required = false) Long fromPlanId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getChanges|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanChangesResponse changes = eduYearPlanService.getChanges(currentUser, planId, fromPlanId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plan changes success", changes);
     }
 
     @DeleteMapping("/{planId}")

@@ -388,6 +388,215 @@ class EduClassDocServiceIntegrationTest {
         assertThat(learningResources.list(teacher, key)).isEmpty();
     }
 
+    @Test
+    @DisplayName("EDU-27: kế hoạch điều chỉnh ghi được cả khi đã duyệt, không đổi trạng thái/nội dung; chỉ GV lớp")
+    void adjustmentsSaveAfterApproval() {
+        approveBranch();
+        String key = "wp_" + classId + "_2026-09-07";
+        service.saveClassDoc(teacher, "theme", "tp_" + classId + "_" + theme1, theme(theme1));
+        service.saveClassDoc(teacher, "week", key, week("2026-09-07"));
+        jdbc.update("UPDATE edu_class_docs SET status='APPROVED' WHERE doc_key=?", key);
+        entityManager.clear();
+
+        ObjectNode saved = service.saveAdjustments(teacher, key, java.util.Map.of("2026-09-08", "  Đổi giờ học  "));
+        assertThat(saved.path("status").asString()).isEqualTo("APPROVED");
+        assertThat(saved.path("adjustments").path("2026-09-08").asString()).isEqualTo("Đổi giờ học");
+        assertThat(saved.path("aims").path("knowledge").asString()).isEqualTo("Trẻ biết tên trường");
+        assertThat(saved.path("history")
+                        .get(saved.path("history").size() - 1)
+                        .path("action")
+                        .asString())
+                .isEqualTo("Cập nhật kế hoạch điều chỉnh và bổ sung");
+
+        assertApiError(
+                () -> service.saveAdjustments(otherTeacher, key, java.util.Map.of("2026-09-08", "x")),
+                ApiCode.FORBIDDEN);
+        assertApiError(
+                () -> service.saveAdjustments(teacher, key, java.util.Map.of("2026-09-14", "x")), ApiCode.BAD_REQUEST);
+        assertApiError(
+                () -> service.saveAdjustments(teacher, key, java.util.Map.of("2026-09-08", "x".repeat(4001))),
+                ApiCode.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("EDU-25/26: phiên bản mới — bản cũ chỉ xem; bản chép có ô đỏ thì chặn gửi tới khi sửa/đánh dấu")
+    void versionedClassDocsNeedFixes() {
+        approveBranch();
+        String oldTheme2Key = "tp_" + classId + "_" + theme2;
+        String goal = String.valueOf(jdbc.queryForObject(
+                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        ObjectNode oldTheme = theme(theme2);
+        ((ObjectNode) oldTheme.path("rows")).putObject(goal).put("activities", "Trò chuyện: Gia đình");
+        service.saveClassDoc(teacher, "theme", oldTheme2Key, oldTheme);
+
+        // Tổ trưởng không tạo được khi còn bản mở; PHT tạo v2, đổi câu MT và ngày chủ đề 2, ban hành
+        java.util.UUID session = java.util.UUID.randomUUID();
+        YearPlanDetailResponse v2 = yearPlanService.createVersion(
+                vicePrincipal,
+                plan.id(),
+                new com.carenest.dto.eduplan.YearPlanEditRequest(
+                        session, plan.revision(), java.util.UUID.randomUUID()));
+        assertThat(v2.versionNo()).isEqualTo(2);
+        assertThat(v2.sourcePlanId()).isEqualTo(plan.id());
+        assertThat(v2.code()).isEqualTo(plan.code() + "-V2");
+        assertThat(v2.themes()).hasSize(2);
+        assertThat(v2.domains().stream().flatMap(d -> d.rows().stream()).toList())
+                .hasSize(1);
+        assertApiError(
+                () -> yearPlanService.createVersion(
+                        leader,
+                        plan.id(),
+                        new com.carenest.dto.eduplan.YearPlanEditRequest(
+                                java.util.UUID.randomUUID(), plan.revision(), java.util.UUID.randomUUID())),
+                ApiCode.CONFLICT);
+        YearPlanDetailResponse edited = yearPlanService.updateYearPlan(
+                vicePrincipal,
+                v2.id(),
+                requestOf(
+                        v2,
+                        "Trẻ thực hiện đủ động tác theo nhạc",
+                        LocalDate.of(2026, 10, 26),
+                        LocalDate.of(2026, 10, 30)),
+                new com.carenest.dto.eduplan.YearPlanEditRequest(session, v2.revision(), java.util.UUID.randomUUID()));
+        YearPlanDetailResponse issued = yearPlanService.issueYearPlan(
+                vicePrincipal,
+                v2.id(),
+                null,
+                new com.carenest.dto.eduplan.YearPlanEditRequest(
+                        session, edited.revision(), java.util.UUID.randomUUID()));
+        assertThat(issued.current()).isTrue();
+        assertThat(yearPlanService.getYearPlan(teacher, plan.id()).current()).isFalse();
+        assertThat(yearPlanService
+                        .getYearPlan(teacher, plan.id())
+                        .domains()
+                        .getFirst()
+                        .rows()
+                        .getFirst()
+                        .text())
+                .isEqualTo("Trẻ thực hiện đủ động tác");
+
+        var changes = yearPlanService.getChanges(teacher, v2.id(), null);
+        assertThat(changes.goals()).singleElement().satisfies(g -> {
+            assertThat(g.change()).isEqualTo(com.carenest.dto.eduplan.YearPlanChangesResponse.Change.CHANGED);
+            assertThat(g.fromId()).isEqualTo(Long.valueOf(goal));
+        });
+        assertThat(changes.themes())
+                .extracting(com.carenest.dto.eduplan.YearPlanChangesResponse.Theme::change)
+                .containsExactly(
+                        com.carenest.dto.eduplan.YearPlanChangesResponse.Change.UNCHANGED,
+                        com.carenest.dto.eduplan.YearPlanChangesResponse.Change.CHANGED);
+        // v1 chỉ còn để xem; không tạo phiên bản từ bản không mới nhất
+        assertApiError(() -> service.saveClassDoc(teacher, "theme", oldTheme2Key, oldTheme), ApiCode.CONFLICT);
+        assertApiError(
+                () -> yearPlanService.createVersion(
+                        vicePrincipal,
+                        plan.id(),
+                        new com.carenest.dto.eduplan.YearPlanEditRequest(
+                                java.util.UUID.randomUUID(), plan.revision(), java.util.UUID.randomUUID())),
+                ApiCode.CONFLICT);
+
+        String newGoal =
+                String.valueOf(issued.domains().getFirst().rows().getFirst().id());
+        String newTheme2 = String.valueOf(issued.themes().get(1).id());
+        String branchKey = "bp_" + classId + "_" + v2.id();
+        ObjectNode branch = branch(names("2026-09-07", "2026-09-21", "2026-09-28", "2026-10-26"));
+        branch.put("yearPlanId", String.valueOf(v2.id()));
+        branch.put("sourceDocKey", "bp_" + classId + "_" + plan.id());
+        assertThat(service.saveClassDoc(teacher, "branch", branchKey, branch)
+                        .path("sourceDocKey")
+                        .asString())
+                .isEqualTo("bp_" + classId + "_" + plan.id());
+        // Chủ đề 2 đổi ngày, chưa đánh dấu kiểm tra ⇒ chặn gửi
+        assertApiError(() -> service.actOnClassDoc(teacher, "branch", branchKey, submit()), ApiCode.CONFLICT);
+        branch.putArray("versionChecks").add("theme:" + newTheme2);
+        service.saveClassDoc(teacher, "branch", branchKey, branch);
+        service.actOnClassDoc(teacher, "branch", branchKey, submit());
+        service.actOnClassDoc(leader, "branch", branchKey, approve());
+        service.actOnClassDoc(vicePrincipal, "branch", branchKey, approve());
+
+        String themeKey = "tp_" + classId + "_" + newTheme2;
+        ObjectNode copy = theme(newTheme2);
+        copy.put("yearPlanId", String.valueOf(v2.id()));
+        copy.put("sourceDocKey", oldTheme2Key);
+        ((ObjectNode) copy.path("rows")).putObject(newGoal).put("activities", "Trò chuyện: Gia đình");
+        service.saveClassDoc(teacher, "theme", themeKey, copy);
+        String weekKey = "wp_" + classId + "_2026-10-26_" + v2.id();
+        assertApiError(
+                () -> service.saveClassDoc(
+                        teacher, "week", "wp_" + classId + "_2026-10-26", weekOf(v2.id(), newTheme2)),
+                ApiCode.BAD_REQUEST);
+        service.saveClassDoc(teacher, "week", weekKey, weekOf(v2.id(), newTheme2));
+        assertThatThrownBy(() -> service.actOnClassDoc(teacher, "theme", themeKey, submit()))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CLASS_DOC_VERSION_FIX_REQUIRED);
+        copy.putArray("versionChecks").add("goal:" + newGoal);
+        service.saveClassDoc(teacher, "theme", themeKey, copy);
+        assertThat(service.actOnClassDoc(teacher, "theme", themeKey, submit())
+                        .path("status")
+                        .asString())
+                .isEqualTo("PENDING_TL");
+        // Bản v1 giữ nguyên
+        assertThat(service.getClassDocs(teacher, schoolYear).classThemePlans())
+                .filteredOn(d -> d.path("id").asString().equals(oldTheme2Key))
+                .singleElement()
+                .satisfies(d -> {
+                    assertThat(d.path("status").asString()).isEqualTo("DRAFT");
+                    assertThat(d.path("superseded").asBoolean()).isTrue();
+                    assertThat(d.path("yearPlanVersion").asInt()).isEqualTo(1);
+                });
+    }
+
+    private YearPlanRequest requestOf(YearPlanDetailResponse detail, String goalText, LocalDate start, LocalDate end) {
+        List<YearPlanRequest.Domain> domains = detail.domains().stream()
+                .filter(d -> !d.rows().isEmpty())
+                .map(d -> new YearPlanRequest.Domain(
+                        d.domainId(),
+                        d.rows().stream()
+                                .map(r -> new YearPlanRequest.Row(
+                                        r.id(),
+                                        r.kind(),
+                                        goalText,
+                                        r.contents().stream()
+                                                .map(c -> new YearPlanRequest.Content(
+                                                        c.id(),
+                                                        c.text(),
+                                                        c.themeIds().stream()
+                                                                .map(String::valueOf)
+                                                                .toList()))
+                                                .toList()))
+                                .toList()))
+                .toList();
+        List<YearPlanRequest.Theme> themes = detail.themes().stream()
+                .map(t -> new YearPlanRequest.Theme(
+                        String.valueOf(t.id()),
+                        t.id(),
+                        t.name(),
+                        t.abbr(),
+                        t.id().equals(detail.themes().get(1).id()) ? start : t.startDate(),
+                        t.id().equals(detail.themes().get(1).id()) ? end : t.endDate(),
+                        t.festivals(),
+                        t.note()))
+                .toList();
+        return new YearPlanRequest(
+                null,
+                null,
+                detail.title(),
+                detail.description(),
+                domains,
+                themes,
+                detail.breaks().stream()
+                        .map(b -> new YearPlanRequest.Break(b.id(), b.label(), b.startDate(), b.endDate()))
+                        .toList());
+    }
+
+    private ObjectNode weekOf(Long yearPlanId, String themeId) {
+        ObjectNode doc = week("2026-10-26");
+        doc.put("yearPlanId", String.valueOf(yearPlanId));
+        doc.put("themeId", themeId);
+        return doc;
+    }
+
     private ObjectNode names(String... weeks) {
         ObjectNode names = objectMapper.createObjectNode();
         for (String w : weeks) {

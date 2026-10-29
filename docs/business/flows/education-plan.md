@@ -33,6 +33,7 @@ Kế hoạch năm: nội dung của MT tích vào chủ đề
       Chờ duyệt: chỉ Phó HT sửa và cũng giữ quyền theo phiên, không đổi trạng thái chờ
       Web giữ ẩn bản chưa lưu trên máy để khôi phục khi mở lại; phải kiểm quyền/revision, không ghi đè bản mới
 [S] Tab Mục tiêu: lĩnh vực > lĩnh vực con > nhóm kết quả mong đợi > MT n > nội dung; tích nội dung vào chủ đề
+      Lấy từ Chương trình của Bộ (EDU-28): chọn MT theo nhóm tuổi, kèm nội dung; gợi ý nội dung mục C; trang nguồn để đối chiếu
 [S] Lấy từ kế hoạch có sẵn (EDU-24, yêu cầu đã chốt; chưa triển khai): chọn năm học/nhóm tuổi và một nguồn;
       giữ quyền EDU-06 (chỉ Phó HT khác nhóm tuổi, Tổ trưởng chỉ nhóm tuổi mình), tích từng MT hoặc tất cả;
       chỉ chép MT và nội dung, không chép chủ đề/đợt nghỉ/lịch/dấu tích, giữ dữ liệu đích; Lưu theo EDU-22
@@ -43,6 +44,10 @@ Kế hoạch năm: nội dung của MT tích vào chủ đề
       Phó HT tự lập thì ban hành thẳng từ Nháp
 [S] Xuất Word / in PDF theo mẫu ở mọi bước
 [B] Phó HT, Tổ trưởng ký tay trên bản in
+[S] Sửa sau ban hành (EDU-25): Tạo phiên bản điều chỉnh ⇒ phiên bản n+1 Nháp chép đủ nội dung ⇒ TT gửi → PHT ban hành
+      (PHT tự tạo thì ban hành thẳng); bản cũ giữ nguyên, lớp dùng bản cũ tới khi bản mới ban hành
+[S] Bản mới ban hành ⇒ tài liệu lớp của bản cũ chỉ xem; giáo viên tạo tài liệu trên bản mới từ bản mẫu hoặc chép bản cũ,
+      ô gắn MT/chủ đề đổi hoặc bị bỏ hiện đỏ, sửa/đánh dấu xong mới gửi; đi lại chủ đề nhánh → hồ sơ chủ đề (EDU-26)
 ```
 
 ## 2. Chủ đề nhánh (giáo viên lớp, cả năm) — EDU-12, EDU-14, EDU-18
@@ -93,7 +98,8 @@ Kế hoạch năm: nội dung của MT tích vào chủ đề
 ```text
 [S] Giáo án tuần đã duyệt ⇒ nút "Đánh giá trẻ ngày này" mở trang Đánh giá hằng ngày
 [S] Mỗi giờ có MT là một cột chấm Đạt / Chưa đạt theo MT; lớp chưa có giáo án duyệt ⇒ khóa phần này
-[B] Bản in giáo án để trống "Đánh giá trẻ trong ngày", "Kế hoạch điều chỉnh và bổ sung" để viết tay
+[B] Bản in giáo án để trống "Đánh giá trẻ trong ngày" để viết tay
+[S] "Kế hoạch điều chỉnh và bổ sung" của từng ngày: giáo viên lớp ghi trong hệ thống ở mọi trạng thái, kể cả đã duyệt (EDU-27); in kèm nội dung
 ```
 
 ## Lưu ý cho implementation

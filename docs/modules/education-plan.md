@@ -44,7 +44,8 @@ Không có câu hỏi nghiệp vụ mở. Còn lại: AI gợi ý (EDU-20), đ�
 - Tài liệu lớp: lịch tuần (`teachingWeeks`) phải tính giống Web (`yearWeeks` trong `CareNest_FE/src/models/education-plan/classPlan.js`): bỏ tuần trùng đợt nghỉ, chủ đề bắt đầu T7/CN thì từ Thứ Hai kế tiếp; lệch thì giáo án tuần bị từ chối hoặc gửi bị chặn.
 - Gửi / duyệt hồ sơ chủ đề đổi trạng thái cả kế hoạch chủ đề và giáo án các tuần nhánh trong cùng giao dịch (khóa dòng tài liệu chính).
 - MT đánh số lại khi xóa hoặc chèn dòng; module khác tham chiếu MT qua id dòng, không qua số.
-- Kế hoạch đã ban hành bị khóa sửa, vì lớp dùng chủ đề, đợt nghỉ và MT của nó.
+- Kế hoạch đã ban hành bị khóa sửa, vì lớp dùng chủ đề, đợt nghỉ và MT của nó; sửa = tạo phiên bản mới (EDU-25), không sửa dòng của bản đã ban hành.
+- So sánh phiên bản dùng lineage hiệu dụng `COALESCE(lineage_id, id)`; MT đánh lại số không phải là đổi. Tra "hiện hành" bằng truy vấn chuỗi, không lưu cờ.
 - Thứ tự chủ đề, đợt nghỉ = thứ tự mảng trong PUT (`sort_order`); dấu tích lưu theo chênh lệch, không xóa JPQL rồi ghi lại ([BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)).
 - Kế hoạch chủ đề lưu luôn MT, nội dung lấy từ kế hoạch năm để bản đã duyệt không đổi theo (EDU-15).
 - Hai chỗ comment FE lệch code, làm BE theo code: mock ghi chủ đề nhánh "Phó HT duyệt" nhưng chuỗi mặc định là Tổ trưởng → Phó HT; gợi ý người ký `week` ghi "mỗi tuần duyệt riêng" nhưng code duyệt cả hồ sơ chủ đề một lần (EDU-17).
@@ -69,6 +70,14 @@ Mọi binary ảnh/video/slide/tệp lưu S3 private, metadata riêng trong edu_
 ## Mã lỗi (chuẩn ERROR_CONTRACT, merge daily-attendance 28/10/2026)
 Mọi lỗi của module ném `GlobalException.of(ApiCode.X)`; response có `errorCode` 4 số, Web/App phân biệt bằng mã, không so `desc`. Dải: 70xx kế hoạch năm (7006 `Đang được {0} sửa`, 7020 mất phiên sửa, 7021 revision cũ, 7022 chờ duyệt chỉ Phó HT sửa…), 71xx tài liệu lớp + học liệu (7115–7120), 72xx cấu hình; tệp/S3 dùng 80xx (8003 kho lỗi, 8004 loại tệp, 8005 quá cỡ, 8006–8013). Thiếu part multipart/header ⇒ 9003. Danh sách đầy đủ: `ApiCode.java`, `docs/contracts/ERROR_CONTRACT.md`.
 
+## Phiên bản kế hoạch năm, kế hoạch điều chỉnh (Tiền chốt 28/10/2026)
+
+EDU-25/26/27: mỗi phiên bản là một dòng `edu_year_plans` (`version_no`, `source_plan_id`); dòng con chép giữ `lineage_id` (NULL = chính id). `POST /goals/{id}/versions` tạo phiên bản n+1, `GET /goals/{id}/changes?fromPlanId=` so sánh theo lineage (`YearPlanVersionDiff`). Tài liệu lớp tách theo `year_plan_id`; khóa tuần phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<id kế hoạch>`; bản chép nhớ `source_doc_id`, chặn gửi 7121 khi còn ô đỏ, ghi trên phiên bản cũ 7122. Ô "Kế hoạch điều chỉnh và bổ sung" ở cột `adjustments`, `PUT /class-docs/week/{key}/adjustments`. V29. Chi tiết: [feature004](../../specs/004-year-plan-versioning/spec.md).
+
 ## Lấy mục tiêu từ kế hoạch có sẵn (user chốt 28/10/2026)
 
 EDU-24: giữ quyền nguồn EDU-06; chỉ Phó HT lấy khác nhóm tuổi, Tổ trưởng chỉ nhóm tuổi mình (có thể khác năm). Tích từng mục tiêu hoặc tất cả trong một nguồn; chỉ chép mục tiêu/nội dung, không chép chủ đề, đợt nghỉ, lịch hoặc dấu tích. Giữ dữ liệu đích, bản nguồn và luồng sửa ba bước. Source Web đã triển khai, 13/13 E2E thật đạt và T019/T021 hoàn tất: [feature003](../../specs/003-import-year-plan-goals/spec.md).
+
+## Lấy mục tiêu từ Chương trình của Bộ (Tiền chốt 28/10/2026)
+
+EDU-28: danh mục chỉ đọc nạp bằng V30/V31 (`edu_curriculum_*`) từ VBHN 01/VBHN-BGDĐT: 327 mục tiêu (nhà trẻ 41, 3–4 tuổi 84, 4–5 tuổi 99, 5–6 tuổi 103) kèm nội dung, 423 gợi ý nội dung (mục C). API `GET /education-plans/curriculum/{sources,goals,contents}`; kế hoạch năm gửi/trả `curriculumGoalId` (+ `curriculumGoalText`, `curriculumSectionRef`), sai nhóm tuổi ⇒ 7030. Lấy vào kế hoạch làm ở Web như EDU-24 rồi lưu tay. Công cụ tách và kiểm: specs/005-ministry-goal-catalog/research.md.

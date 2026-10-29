@@ -653,6 +653,53 @@ class EduYearPlanServiceIntegrationTest {
                 ApiCode.BAD_REQUEST);
     }
 
+    @Test
+    @DisplayName("EDU-28: mục tiêu lấy từ danh mục của Bộ giữ liên kết, trả câu gốc; sai nhóm tuổi bị từ chối")
+    void curriculumGoalLinkKeptAndValidated() {
+        Long ministryGoal = jdbc.queryForObject(
+                "SELECT g.id FROM edu_curriculum_goals g JOIN age_groups a ON a.id = g.age_group_id "
+                        + "WHERE a.code = 'ag-3' AND g.goal_no = '2.1' AND g.section_ref LIKE '%› I › a) › 2 › 2.1'",
+                Long.class);
+        String ministryText = jdbc.queryForObject(
+                "SELECT goal_text FROM edu_curriculum_goals WHERE id = ?", String.class, ministryGoal);
+        YearPlanRequest linked = request(
+                ageGroup3,
+                List.of(new YearPlanRequest.Domain(
+                        domainPhysical,
+                        List.of(new YearPlanRequest.Row(null, "goal", ministryText, List.of(), ministryGoal)))),
+                List.of());
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3, linked, new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+
+        YearPlanDetailResponse.Row row = domain(created, domainPhysical).rows().getFirst();
+        assertThat(row.curriculumGoalId()).isEqualTo(ministryGoal);
+        assertThat(row.curriculumGoalText()).isEqualTo("Giữ được thăng bằng cơ thể khi thực hiện vận động");
+        assertThat(row.curriculumSectionRef()).isEqualTo("Phần ba › D › I › a) › 2 › 2.1");
+
+        Long otherAgeGoal = jdbc.queryForObject(
+                "SELECT g.id FROM edu_curriculum_goals g JOIN age_groups a ON a.id = g.age_group_id "
+                        + "WHERE a.code = 'ag-5' ORDER BY g.sort_order LIMIT 1",
+                Long.class);
+        YearPlanRequest wrongAge = request(
+                ageGroup3,
+                List.of(new YearPlanRequest.Domain(
+                        domainPhysical,
+                        List.of(new YearPlanRequest.Row(row.id(), "goal", ministryText, List.of(), otherAgeGoal)))),
+                List.of());
+        assertErrorCode(
+                () -> service.updateYearPlan(leader3, created.id(), wrongAge, edit(leader3, created.id(), true)),
+                ApiCode.CURRICULUM_GOAL_INVALID);
+
+        // Phiên bản điều chỉnh (EDU-25) chép cả liên kết nguồn của Bộ
+        service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true));
+        service.issueYearPlan(vicePrincipal, created.id(), "Đạt", edit(vicePrincipal, created.id(), true));
+        YearPlanDetailResponse v2 =
+                service.createVersion(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false));
+        YearPlanDetailResponse.Row copied = domain(v2, domainPhysical).rows().getFirst();
+        assertThat(copied.curriculumGoalId()).isEqualTo(ministryGoal);
+        assertThat(copied.curriculumSectionRef()).isEqualTo("Phần ba › D › I › a) › 2 › 2.1");
+    }
+
     private YearPlanRequest sampleRequest() {
         return request(
                 ageGroup3,

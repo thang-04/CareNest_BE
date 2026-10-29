@@ -1,6 +1,7 @@
 package com.carenest.service.eduplan;
 
 import com.carenest.dto.common.PageResponse;
+import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
@@ -36,6 +37,15 @@ public interface EduYearPlanService {
     YearPlanDetailResponse finishEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
     YearPlanDetailResponse heartbeat(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
+
+    /** EDU-25: phiên bản n+1 chép từ phiên bản ban hành mới nhất; người tạo giữ phiên sửa. */
+    YearPlanDetailResponse createVersion(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
+
+    /** EDU-25: so sánh theo lineage; fromPlanId null ⇒ phiên bản nguồn. Quyền xem EDU-06 trên cả hai bản. */
+    YearPlanChangesResponse getChanges(CurrentUser currentUser, Long planId, Long fromPlanId);
+
+    /** Dùng trong module (tài liệu lớp, EDU-26): so sánh không theo người xem. */
+    YearPlanChangesResponse compareVersions(Long fromPlanId, Long planId);
 
     /** EDU-10: nhả các khóa quá hạn (job định kỳ); trả số kế hoạch đã nhả. */
     int releaseExpiredEditLocks();

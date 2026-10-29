@@ -22,4 +22,7 @@ public record YearPlanSummaryResponse(
         Instant createdAt,
         Instant updatedAt,
         long revision,
-        Instant editExpiresAt) {}
+        Instant editExpiresAt,
+        int versionNo,
+        Long sourcePlanId,
+        boolean current) {}

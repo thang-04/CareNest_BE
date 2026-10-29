@@ -32,12 +32,25 @@ public record YearPlanDetailResponse(
         String lastReturnNote,
         Permissions permissions,
         long revision,
-        Instant editExpiresAt) {
+        Instant editExpiresAt,
+        int versionNo,
+        Long sourcePlanId,
+        boolean current,
+        List<VersionSummary> versions) {
 
     public record Domain(Long domainId, String name, String label, List<Row> rows) {}
 
     /** goalNo chỉ có ở dòng kind = goal (MT n, EDU-09). */
-    public record Row(Long id, String kind, String text, Short goalNo, List<Content> contents) {}
+    /** curriculumGoalText/SectionRef: câu gốc và mục trong văn bản của Bộ khi mục tiêu lấy từ danh mục (EDU-28). */
+    public record Row(
+            Long id,
+            String kind,
+            String text,
+            Short goalNo,
+            List<Content> contents,
+            Long curriculumGoalId,
+            String curriculumGoalText,
+            String curriculumSectionRef) {}
 
     public record Content(Long id, String text, List<Long> themeIds) {}
 
@@ -56,5 +69,22 @@ public record YearPlanDetailResponse(
             Instant at) {}
 
     public record Permissions(
-            boolean canEdit, boolean canSubmit, boolean canIssue, boolean canReturn, boolean canDelete) {}
+            boolean canEdit,
+            boolean canSubmit,
+            boolean canIssue,
+            boolean canReturn,
+            boolean canDelete,
+            boolean canCreateVersion) {}
+
+    /** Một phiên bản trong chuỗi (spec 004); current = phiên bản ban hành mới nhất. */
+    public record VersionSummary(
+            Long id,
+            int versionNo,
+            String code,
+            EduPlanStatus status,
+            String ownerName,
+            Instant createdAt,
+            String issuedByName,
+            Instant issuedAt,
+            boolean current) {}
 }

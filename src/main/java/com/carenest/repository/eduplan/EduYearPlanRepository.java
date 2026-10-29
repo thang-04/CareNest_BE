@@ -24,6 +24,9 @@ public interface EduYearPlanRepository extends JpaRepository<EduYearPlan, Long> 
 
     boolean existsByCode(String code);
 
+    // Spec 004: chuỗi phiên bản của một (năm học, nhóm tuổi)
+    List<EduYearPlan> findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(Long schoolYearId, Long ageGroupId);
+
     // Mọi thao tác ghi khóa dòng: hai người cùng bấm sửa thì người sau thấy khóa của người trước (EDU-10)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from EduYearPlan p where p.id = :id")

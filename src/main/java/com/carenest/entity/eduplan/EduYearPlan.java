@@ -37,6 +37,13 @@ public class EduYearPlan {
     @Column(name = "age_group_id", nullable = false, updatable = false)
     private Long ageGroupId;
 
+    // Spec 004: số phiên bản trong chuỗi (năm học, nhóm tuổi) và phiên bản được chép
+    @Column(name = "version_no", nullable = false, updatable = false)
+    private int versionNo = 1;
+
+    @Column(name = "source_plan_id", updatable = false)
+    private Long sourcePlanId;
+
     @Column(nullable = false, length = 150)
     private String title;
 
@@ -119,6 +126,23 @@ public class EduYearPlan {
         plan.status = EduPlanStatus.DRAFT;
         plan.updatedAt = now;
         plan.startEditing(ownerId, now);
+        return plan;
+    }
+
+    /** Phiên bản n+1 chép từ bản đã ban hành; nội dung con do service chép, người tạo là owner (EDU-02). */
+    public static EduYearPlan createVersion(
+            EduYearPlan source, String code, Long ownerId, String ownerTitle, Instant now) {
+        EduYearPlan plan = createDraft(
+                code,
+                source.schoolYearId,
+                source.ageGroupId,
+                source.title,
+                source.description,
+                ownerId,
+                ownerTitle,
+                now);
+        plan.versionNo = source.versionNo + 1;
+        plan.sourcePlanId = source.id;
         return plan;
     }
 

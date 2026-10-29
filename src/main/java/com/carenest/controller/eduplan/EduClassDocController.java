@@ -1,6 +1,7 @@
 package com.carenest.controller.eduplan;
 
 import com.carenest.dto.eduplan.ClassDocActionRequest;
+import com.carenest.dto.eduplan.ClassDocAdjustmentsRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
@@ -56,6 +57,20 @@ public class EduClassDocController {
         ObjectNode saved = classDocService.saveClassDoc(currentUser, kind, docKey, doc);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save class document success", saved);
+    }
+
+    // EDU-27: ô "Kế hoạch điều chỉnh và bổ sung" của kế hoạch ngày, ghi riêng để sửa được cả sau khi duyệt
+    @PutMapping("/week/{docKey}/adjustments")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ResponseJson<ObjectNode>> saveAdjustments(
+            @PathVariable String docKey,
+            @Valid @RequestBody ClassDocAdjustmentsRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|saveAdjustments|userId=" + currentUser.userId() + "|docKey=" + docKey;
+        log.info("{}|START", logPrefix);
+        ObjectNode saved = classDocService.saveAdjustments(currentUser, docKey, request.adjustments());
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save lesson adjustments success", saved);
     }
 
     @PostMapping("/{kind}/{docKey}/actions")

@@ -3,6 +3,7 @@ package com.carenest.service.eduplan;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.security.CurrentUser;
+import java.util.Map;
 import tools.jackson.databind.node.ObjectNode;
 
 /** Tài liệu kế hoạch của lớp: chủ đề nhánh, kế hoạch chủ đề, giáo án tuần (EDU-12..18). */
@@ -18,4 +19,7 @@ public interface EduClassDocService {
 
     /** Gửi / duyệt / trả lại chủ đề nhánh hoặc hồ sơ chủ đề theo chuỗi người ký đã cấu hình. */
     ObjectNode actOnClassDoc(CurrentUser currentUser, String kind, String docKey, ClassDocActionRequest request);
+
+    /** EDU-27: "Kế hoạch điều chỉnh và bổ sung" của giáo án tuần; giáo viên lớp sửa ở mọi trạng thái. */
+    ObjectNode saveAdjustments(CurrentUser currentUser, String docKey, Map<String, String> adjustments);
 }

@@ -71,6 +71,15 @@ public class EduClassDoc {
     @Column(nullable = false, columnDefinition = "jsonb")
     private String history;
 
+    // Spec 004: bản chép từ tài liệu cùng lớp ở phiên bản kế hoạch năm cũ
+    @Column(name = "source_doc_id")
+    private Long sourceDocId;
+
+    // "Kế hoạch điều chỉnh và bổ sung" theo ngày của giáo án tuần; tách khỏi nội dung để sửa được sau khi duyệt
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    private String adjustments;
+
     @Column(name = "created_by", nullable = false, updatable = false)
     private Long createdBy;
 
@@ -107,6 +116,7 @@ public class EduClassDoc {
         doc.content = "{}";
         doc.approvals = "[]";
         doc.history = "[]";
+        doc.adjustments = "{}";
         doc.createdBy = userId;
         doc.updatedBy = userId;
         return doc;
@@ -120,6 +130,16 @@ public class EduClassDoc {
     public void changeStatus(EduClassDocStatus status, String approvals, String history, Long userId) {
         this.status = status;
         this.approvals = approvals;
+        this.history = history;
+        this.updatedBy = userId;
+    }
+
+    public void linkSource(Long sourceDocId) {
+        this.sourceDocId = sourceDocId;
+    }
+
+    public void changeAdjustments(String adjustments, String history, Long userId) {
+        this.adjustments = adjustments;
         this.history = history;
         this.updatedBy = userId;
     }

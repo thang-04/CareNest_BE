@@ -1,5 +1,6 @@
 package com.carenest.mapper.eduplan;
 
+import com.carenest.dto.eduplan.CurriculumGoalRef;
 import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.dto.eduplan.ExpectedResultResponse;
 import com.carenest.dto.eduplan.PlanActorResponse;
@@ -28,7 +29,8 @@ public class EduYearPlanMapper {
             long goalCount,
             long themeCount,
             Map<Long, String> userNames,
-            Instant editExpiresAt) {
+            Instant editExpiresAt,
+            boolean current) {
         return new YearPlanSummaryResponse(
                 plan.getId(),
                 plan.getCode(),
@@ -47,7 +49,10 @@ public class EduYearPlanMapper {
                 plan.getCreatedAt(),
                 plan.getUpdatedAt(),
                 plan.getContentRevision(),
-                editExpiresAt);
+                editExpiresAt,
+                plan.getVersionNo(),
+                plan.getSourcePlanId(),
+                current);
     }
 
     public PlanActorResponse toOwner(EduYearPlan plan, Map<Long, String> userNames) {
@@ -58,9 +63,17 @@ public class EduYearPlanMapper {
         return userId == null ? null : new PlanActorResponse(userId, userNames.get(userId), null, at);
     }
 
-    public YearPlanDetailResponse.Row toRow(EduGoalRow row, List<YearPlanDetailResponse.Content> contents) {
+    public YearPlanDetailResponse.Row toRow(
+            EduGoalRow row, List<YearPlanDetailResponse.Content> contents, CurriculumGoalRef curriculum) {
         return new YearPlanDetailResponse.Row(
-                row.getId(), row.getKind().code(), row.getText(), row.getGoalNo(), contents);
+                row.getId(),
+                row.getKind().code(),
+                row.getText(),
+                row.getGoalNo(),
+                contents,
+                curriculum == null ? null : curriculum.id(),
+                curriculum == null ? null : curriculum.goalText(),
+                curriculum == null ? null : curriculum.sectionRef());
     }
 
     public YearPlanDetailResponse.Content toContent(EduGoalContent content, List<Long> themeIds) {

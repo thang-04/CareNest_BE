@@ -237,6 +237,12 @@ public enum ApiCode {
     BREAK_END_BEFORE_START(7024, HttpStatus.BAD_REQUEST, "Ngày kết thúc đợt nghỉ không được trước ngày bắt đầu"),
     GOAL_CONTENT_REQUIRED(7025, HttpStatus.BAD_REQUEST, "Mỗi mục tiêu cần có nội dung trước khi gửi"),
     EDU_DOMAIN_NOT_FOUND(7026, HttpStatus.BAD_REQUEST, "Không có lĩnh vực giáo dục: {0}"),
+    YEAR_PLAN_VERSION_SOURCE_INVALID(
+            7027, HttpStatus.CONFLICT, "Chỉ tạo phiên bản mới từ phiên bản đã ban hành mới nhất"),
+    YEAR_PLAN_OPEN_VERSION_EXISTS(
+            7028, HttpStatus.CONFLICT, "Đã có phiên bản {0} đang soạn. Hãy sửa tiếp phiên bản đó"),
+    YEAR_PLAN_VERSION_COMPARE_INVALID(7029, HttpStatus.BAD_REQUEST, "Hai kế hoạch không cùng chuỗi phiên bản"),
+    CURRICULUM_GOAL_INVALID(7030, HttpStatus.BAD_REQUEST, "Mục tiêu của Bộ không thuộc nhóm tuổi của kế hoạch"),
 
     // ========== 71xx TÀI LIỆU LỚP (KẾ HOẠCH CHỦ ĐỀ, GIÁO ÁN) (module Tiền) ==========
     CLASS_DOC_NOT_FOUND(7101, HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"),
@@ -261,6 +267,12 @@ public enum ApiCode {
     LEARNING_RESOURCE_NOT_FOUND(7118, HttpStatus.NOT_FOUND, "Không tìm thấy học liệu"),
     LEARNING_RESOURCE_UNBOUND(7119, HttpStatus.NOT_FOUND, "Học liệu chưa gắn với hoạt động hiện tại"),
     ACTIVITY_CHANGED(7120, HttpStatus.CONFLICT, "Hoạt động đã thay đổi. Lưu và chọn lại hoạt động trước khi gắn tệp"),
+    CLASS_DOC_VERSION_FIX_REQUIRED(
+            7121, HttpStatus.CONFLICT, "Còn {0} mục đổi theo kế hoạch năm mới chưa sửa (ô đỏ). Sửa hết rồi mới gửi"),
+    YEAR_PLAN_SUPERSEDED(
+            7122, HttpStatus.CONFLICT, "Kế hoạch năm đã có phiên bản mới. Tạo tài liệu trên phiên bản hiện hành"),
+    CLASS_DOC_ADJUSTMENT_INVALID(
+            7123, HttpStatus.BAD_REQUEST, "Kế hoạch điều chỉnh chỉ ghi cho ngày Thứ 2–6 của tuần, tối đa 4000 ký tự"),
 
     // ========== 72xx CẤU HÌNH KẾ HOẠCH GIÁO DỤC (module Tiền) ==========
     EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng hoặc Phó Hiệu trưởng sửa được cấu hình"),

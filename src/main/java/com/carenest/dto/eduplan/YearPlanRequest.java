@@ -23,11 +23,18 @@ public record YearPlanRequest(
 
     public record Domain(@NotNull Long domainId, @Valid List<Row> rows) {}
 
+    /** curriculumGoalId: mục tiêu lấy từ danh mục Chương trình của Bộ (EDU-28); chỉ dùng cho dòng goal. */
     public record Row(
             Long id,
             @NotBlank @Pattern(regexp = "sub|group|goal") String kind,
             String text,
-            @Valid List<Content> contents) {}
+            @Valid List<Content> contents,
+            Long curriculumGoalId) {
+
+        public Row(Long id, String kind, String text, List<Content> contents) {
+            this(id, kind, text, contents, null);
+        }
+    }
 
     /** themeKeys trỏ tới {@link Theme#key()} của cùng request, nên tích được cả chủ đề vừa thêm chưa có id. */
     public record Content(Long id, String text, List<String> themeKeys) {}
