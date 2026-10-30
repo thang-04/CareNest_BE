@@ -305,6 +305,48 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("EDU-42: tên viết tắt chủ đề trùng (bỏ khoảng trắng, không phân biệt hoa thường) bị chặn ngay khi lưu")
+    void rejectsDuplicateThemeAbbrOnSave() {
+        // Nhóm tuổi khác để lần tạo hợp lệ phía dưới không vướng kiểm tra trùng (năm học, nhóm tuổi)
+        assertApiError(
+                () -> service.createYearPlan(
+                        vicePrincipal,
+                        request(
+                                ageGroup4,
+                                List.of(),
+                                List.of(
+                                        namedTheme("t-1", null, "Trường mầm non", "TMN"),
+                                        namedTheme("t-2", null, "Thế giới động vật", " tmn "))),
+                        new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID())),
+                ApiCode.THEME_ABBR_DUPLICATE);
+
+        // Ô viết tắt còn trống chưa tính là trùng (nháp chưa điền xong)
+        YearPlanDetailResponse created = service.createYearPlan(
+                leader3,
+                request(
+                        ageGroup3,
+                        List.of(),
+                        List.of(
+                                namedTheme("t-1", null, "Trường mầm non", ""),
+                                namedTheme("t-2", null, "Bản thân", ""))),
+                new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        Long first = created.themes().get(0).id();
+        Long second = created.themes().get(1).id();
+        assertApiError(
+                () -> service.updateYearPlan(
+                        leader3,
+                        created.id(),
+                        request(
+                                ageGroup3,
+                                List.of(),
+                                List.of(
+                                        namedTheme(String.valueOf(first), first, "Trường mầm non", "BT"),
+                                        namedTheme(String.valueOf(second), second, "Bản thân", "BT"))),
+                        edit(leader3, created.id(), true)),
+                ApiCode.THEME_ABBR_DUPLICATE);
+    }
+
+    @Test
     @DisplayName("EDU-09: đổi thứ tự hoặc xóa chủ đề, đợt nghỉ thì lưu theo thứ tự gửi lên, giữ id và dấu tích")
     void reordersThemesAndBreaksKeepingIdsAndTicks() {
         YearPlanDetailResponse created = service.createYearPlan(
@@ -472,7 +514,7 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-06: GV chỉ xem bản đã ban hành; HT không xem nháp; TT khác khối không xem")
+    @DisplayName("EDU-06: GV chỉ xem bản đã ban hành; HT không xem nháp; TT khác khối chỉ đọc bản đã ban hành")
     void viewScopeByRole() {
         YearPlanDetailResponse plan = service.createYearPlan(
                 leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
@@ -480,6 +522,7 @@ class EduYearPlanServiceIntegrationTest {
         assertApiError(() -> service.getYearPlan(teacher3, plan.id()), ApiCode.FORBIDDEN);
         assertApiError(() -> service.getYearPlan(principal, plan.id()), ApiCode.FORBIDDEN);
         assertApiError(() -> service.getYearPlan(leader4, plan.id()), ApiCode.FORBIDDEN);
+        assertThat(list(leader4).items()).isEmpty();
         assertThat(list(teacher3).items()).isEmpty();
         assertThat(list(vicePrincipal).items())
                 .extracting(YearPlanSummaryResponse::id)
@@ -490,6 +533,21 @@ class EduYearPlanServiceIntegrationTest {
 
         assertThat(service.getYearPlan(teacher3, plan.id()).permissions().canEdit())
                 .isFalse();
+        // Tổ trưởng khối khác đọc bản đã ban hành để lấy chủ đề/mục tiêu, không sửa được
+        YearPlanDetailResponse seenByOtherLeader = service.getYearPlan(leader4, plan.id());
+        assertThat(seenByOtherLeader.permissions().canEdit()).isFalse();
+        assertThat(list(leader4).items())
+                .extracting(YearPlanSummaryResponse::id)
+                .containsExactly(plan.id());
+        assertApiError(
+                () -> service.startEditing(leader4, plan.id(), edit(leader4, plan.id(), false)), ApiCode.FORBIDDEN);
+        assertApiError(
+                () -> service.updateYearPlan(leader4, plan.id(), sampleRequest(), edit(leader4, plan.id(), true)),
+                ApiCode.FORBIDDEN);
+        assertApiError(
+                () -> service.createVersion(
+                        leader4, plan.id(), new YearPlanEditRequest(session(leader4), 0L, UUID.randomUUID())),
+                ApiCode.FORBIDDEN);
         PageResponse<YearPlanSummaryResponse> teacherList = list(teacher3);
         assertThat(teacherList.items()).singleElement().satisfies(summary -> {
             assertThat(summary.goalCount()).isEqualTo(2);
