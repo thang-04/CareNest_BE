@@ -1,6 +1,6 @@
 ---
 title: Căn chỉnh auth + phân quyền theo khảo sát team 27/10
-status: approved
+status: in-progress
 owner: thangnd
 jira: G94-60 / BE-FEAT-01
 branch: feature/G94-60-BE-FEAT-01-authentication
@@ -229,3 +229,29 @@ Không còn câu chặn plan này. Ghi nhận cho phần dinh dưỡng (chủ nh
 ### 2026-10-30 — Phase 6–9 approved
 - User duyệt plan bổ sung trong phiên ("Duyệt plan", 30/10).
 - Tiếp: điều kiện trước đợt 1 (commit phần dở + merge `dev`) khi user cho phép trong tin nhắn lúc làm, rồi Phase 6.
+
+### 2026-10-30 — Điều kiện trước đợt 1 (user cho phép: commit bằng G94-60 + merge dev)
+- Commit `388b77b` (phase 2, 3, 5 + plan + báo cáo FE); không đưa `MEAL_NUTRITION_AI_*`, `ADR-0018` (mảng dinh dưỡng, để nguyên untracked). Merge `origin/dev` ⇒ `dd4af6d`, không xung đột; `dev` chỉ đổi docs + `.githooks/pre-push`, không thêm migration (V10 chưa trùng số).
+- Verify trước commit và sau merge: `VERIFY PASS full | tests 327 fail 0 err 0 skip 38 | archunit ok | snapshot SKIP | spotless ok`. Docker Desktop không khởi động được (mở 2 lần, WSL `docker-desktop` Stopped) ⇒ 38 integration test + snapshot **chưa kiểm chứng lại hôm nay** (lần PASS đủ gần nhất: 27/10, cùng code).
+- `check-ai-layer`: 0 lỗi, 4 cảnh báo E2 có sẵn từ `dev` (plan `2026-10-29-survey-full-alignment.md` trỏ file facility đã xóa).
+
+### 2026-10-30 — Phase 6 (chờ review)
+- Commit: commit ghi tri thức + Progress log này (sau `4a829ee`)
+- Sửa: `BUSINESS_RULES.md` (AUTH-03 cùng cơ sở + dạy thay; AUTH-21 quên mật khẩu chặn im lặng, chặn App để sau; AUTH-22 không chặn tài khoản thứ hai), `USER_ROLES.md` (dòng GV), `modules/identity-access.md` (AUTH-01..23), `context/CURRENT_STATE.md` (dòng identity-access).
+- Khác plan: chưa sửa `AUTH_CONTRACT.md`, `SECURITY.md` — hai file mô tả hành vi code hiện có; sửa cùng code ở Phase 7 (quên mật khẩu) và Phase 8 (`canRead*`) để docs không đi trước code.
+- Tiếp: Phase 7 sau khi user review.
+
+### 2026-10-30 — Phase 7 (chờ review)
+- Commit: `606c8a7`
+- Sửa: `AuthServiceImpl.forgot` lọc thêm `mayUseWeb` (`primary_role` null hoặc thuộc `WEB_ROLES`) ⇒ email bếp/phụ huynh đi nhánh như không tồn tại: token OTP không gắn user, không gửi OTP, cùng response; `resend`/`verify`/`reset` theo token nên không dùng được. Test `AuthServiceImplTest#appOnlyRecoveryLooksLikeUnknownEmailAndSendsNoOtp` (AC-9, fail trước khi sửa). Docs: `AUTH_CONTRACT.md` (dòng forgot), `BUSINESS_RULES.md` AUTH-21 + `CURRENT_STATE.md` (trạng thái code).
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 328 fail 0 err 0 skip 38 | archunit ok | snapshot SKIP | spotless ok | 53s` (lần đầu FAIL spotless, đã `mvnw spotless:apply`). Docker tắt ⇒ 38 integration test + snapshot chưa kiểm chứng; thay đổi không đụng DTO/endpoint nên snapshot không đổi.
+- Khác plan: email dùng chung cho một TK Web và một TK bếp/phụ huynh trước đây không gửi OTP (2 kết quả); nay TK Web nhận OTP vì TK App bị lọc trước khi đếm.
+- Tiếp: Phase 8 (`canRead*`) sau khi user review.
+
+### 2026-10-30 — Phase 8 (chờ review)
+- Commit: `4a829ee`
+- Sửa: `CampusAccessPolicy` (`canViewCampus` về cơ sở mình; thêm `canReadCampus`/`checkCanReadCampus` có `ALL_CAMPUS_VIEW`), `ClassroomAccessPolicy` (`canReadClassroom`/`checkCanReadClassroom`, helper `isAssignedTeacher`, `inCampus`), `ChildAccessPolicy` (`canReadChild`/`checkCanReadChild`, helper `canAccessChild`), `ChildServiceImpl.getChildProfile` ⇒ `checkCanReadChild`. Test: `CampusAccessPolicyTest` (AC-1, AC-2, AC-4 chuyển sang `canReadCampus`; AC-10 `allCampusViewNeverWidensActionScope`), `ClassroomAccessPolicyTest`, `ChildAccessPolicyTest` (đọc liên cơ sở được, thao tác không), `ChildServiceImplTest`. Docs: `SECURITY.md` (bảng policy + quy ước `canView*`/`canRead*`), `modules/identity-access.md` (Known pitfalls), `backend-coding-guide.md` (mục scope), `CURRENT_STATE.md`.
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 333 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 52s` (Docker đã chạy ⇒ lần này phủ cả commit `388b77b`, merge `dd4af6d`, Phase 7). `check-ai-layer`: 0 lỗi, 4 cảnh báo có sẵn từ `dev`.
+- AC-11 kiểm khi module ghi (G94-236 `canUnlock`) vào `dev`: hàm đó gọi `canViewCampus` nên giờ chỉ cơ sở mình.
+- Consumer FE: không đổi contract; `GET /children/{id}` cho PHT có `ALL_CAMPUS_VIEW` như trước.
+- Tiếp: đợt 2 (Phase 9, AUTH-03) sau khi G94-236/226 vào `dev`.

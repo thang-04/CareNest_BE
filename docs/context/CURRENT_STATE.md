@@ -25,7 +25,7 @@ Phân quyền cấu hình được (ADR-0017) cập nhật 2026-10-16 trên `fea
 
 | Module (feature) | Thiết kế | Code | Ghi chú |
 | --- | --- | --- | --- |
-| identity-access (`account`, `security/`) | Có | Gần xong | Resource Server, CurrentUser, policy, phân quyền cấu hình được (ADR-0017), HT/PHT cấp/khóa tài khoản, mật khẩu tạm, danh sách nhân sự, phân công (AUTH-15..17) xong (chưa commit), tài khoản phụ huynh gắn trẻ (AUTH-18, AUTH-19) xong (chưa commit). AUTH-03 mở rộng 29/10 (GV cũ xem lại lớp/năm từng dạy, chỉ đọc): code chưa làm — policy hiện chỉ theo phân công còn hiệu lực |
+| identity-access (`account`, `security/`) | Có | Gần xong | Resource Server, CurrentUser, policy, phân quyền cấu hình được (ADR-0017), HT/PHT cấp/khóa tài khoản, mật khẩu tạm, danh sách nhân sự, phân công (AUTH-15..17), tài khoản phụ huynh gắn trẻ (AUTH-18, AUTH-19) đã vào `dev`. Khảo sát 27/10: xem liên cơ sở (AUTH-20), chặn Web cho bếp/phụ huynh ở đăng nhập/refresh/quên mật khẩu (AUTH-21), cột Tổ trưởng (AUTH-23) xong trên nhánh G94-60, chưa vào `dev`. Xem liên cơ sở chỉ qua `canRead*`, đường ghi giữ `canView*`. Còn: AUTH-03 mở rộng — plan `2026-10-27-survey-auth-alignment.md` |
 | school-structure (`organization`) | Có | Bảng scope + phân công + đọc campus/lớp | Chưa có API tạo/sửa campus/lớp/năm học |
 | child (`child`) | Có | Bảng scope + `GET /children/{childId}` | Mới có hồ sơ cơ bản. Rule chốt 28/10: CHD-01..05, dị ứng HLT-06; gửi tài khoản phụ huynh qua SMS (AUTH-18) chưa làm — code hiện in phiếu |
 | attendance (`attendance`) | Có | — | Rule chốt 28/10 theo khảo sát team: một giờ chốt HT cấu hình, không nhận trẻ đến muộn, PHT mở lại có lý do, có mặt là ăn (ATT-01..11). Đón trẻ chốt 29/10 (PCK-01..04). Còn P-19, P-20, P-33 |
