@@ -1,9 +1,11 @@
 package com.carenest.controller.child;
 
 import com.carenest.dto.account.AccountResponse;
+import com.carenest.dto.account.PhoneLookupRequest;
 import com.carenest.dto.account.UpdateAccountStatusRequest;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
+import com.carenest.dto.child.GuardianCandidateResponse;
 import com.carenest.dto.child.GuardianResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
 import com.carenest.security.CurrentUser;
@@ -44,6 +46,18 @@ public class GuardianController {
         List<GuardianResponse> guardians = guardianAccountService.listGuardians(currentUser, childId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "List guardians success", guardians);
+    }
+
+    @PostMapping("/children/{childId}/guardians/lookup")
+    @PreAuthorize("@permissionGuard.has('PARENT_ACCOUNT_MANAGE')")
+    public ResponseEntity<ResponseJson<GuardianCandidateResponse>> findGuardianCandidate(
+            @PathVariable Long childId, @Valid @RequestBody PhoneLookupRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|findGuardianCandidate|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        GuardianCandidateResponse candidate =
+                guardianAccountService.findGuardianCandidate(currentUser, childId, request.phone());
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Find guardian candidate success", candidate);
     }
 
     @PostMapping("/children/{childId}/guardians")

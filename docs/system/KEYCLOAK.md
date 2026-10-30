@@ -12,6 +12,7 @@ Quyết định kiến trúc: ADR-0011. Contract cho FE/APP: `docs/contracts/AUT
 | Realm role | Role toàn cục: `ADMIN`, `PRINCIPAL`, `VICE_PRINCIPAL`, `TEACHER`, `KITCHEN_STAFF`, `PARENT`. Phạm vi lớp/campus/con nằm trong DB CareNest, **không** làm thành role |
 | Client | Ứng dụng xin token: `carenest-web`, `carenest-mobile` (public + PKCE), `carenest-backend` (confidential, service account gọi Admin API), `carenest-dev` (**chỉ dev**, lấy token bằng curl) |
 | Audience mapper | Thêm `carenest-api` vào claim `aud` của access token. API từ chối token không có `aud` này (vd. ID token, token của client khác) |
+| Client ⇒ nền tảng | API đọc claim `azp` để biết Web/App (ADR-0022): `CARENEST_WEB_CLIENT_IDS`, `CARENEST_MOBILE_CLIENT_IDS`, `CARENEST_DEV_CLIENT_IDS` (profile `dev` = `carenest-dev`). Thêm client mới mà không khai ⇒ 403 mọi API |
 | User ID (`sub`) | UUID của user trong Keycloak = `user_accounts.keycloak_user_id` ở CareNest |
 | Access token | JWT RS256, sống 5 phút, gửi trong header `Authorization: Bearer` |
 | Refresh token | Client đổi lấy access token mới; mỗi refresh token chỉ dùng 1 lần. **CareNest không lưu** |
@@ -184,7 +185,7 @@ Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo 
 2. Tạo tài khoản:
 
    ```powershell
-   $body = @{ username="teacher.c"; fullName="Giáo viên C"; email="teacher.c@example.test"; role="TEACHER"; temporaryPassword="<mật khẩu tạm>" } | ConvertTo-Json
+   $body = @{ phone="0912000001"; fullName="Giáo viên C"; email="teacher.c@example.test"; role="TEACHER"; temporaryPassword="<mật khẩu tạm>" } | ConvertTo-Json
    Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/accounts" -Headers @{Authorization="Bearer $t"} -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
    ```
 

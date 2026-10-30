@@ -19,12 +19,13 @@ import com.carenest.service.account.AuthService.SessionCookie;
 import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.Constants.Auth;
+import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.ClientPlatform;
 import com.carenest.utils.enums.PasswordTokenPurpose;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -41,8 +42,7 @@ public class AuthServiceImpl implements AuthService {
     private static final String COOKIE_VERSION = "s1";
     private static final int MAX_COOKIE_LENGTH = 4096;
     // AUTH-21: bếp và phụ huynh chỉ dùng App, gateway Web không cấp phiên cho họ
-    private static final Set<CareNestRole> WEB_ROLES = Collections.unmodifiableSet(
-            EnumSet.of(CareNestRole.ADMIN, CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER));
+    private static final Set<CareNestRole> WEB_ROLES = ClientPlatform.WEB.allowedRoles();
 
     private final AuthProperties properties;
     private final AuthCrypto crypto;
@@ -106,7 +106,9 @@ public class AuthServiceImpl implements AuthService {
             AuthGatewayClient.Tokens tokens = null;
             boolean issued = false;
             try {
-                tokens = keycloak.login(request.identifier().trim(), request.password());
+                // Gõ SĐT kiểu nào (+84, dấu cách) cũng về đúng tên đăng nhập; email/tên cũ giữ nguyên
+                String identifier = request.identifier().trim();
+                tokens = keycloak.login(PhoneNumbers.normalize(identifier).orElse(identifier), request.password());
                 Jwt jwt = decode(tokens.accessToken());
                 CurrentUser current = currentUsers.getCurrentUser(jwt);
                 ensureWebRole(current.roles());

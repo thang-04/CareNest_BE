@@ -264,3 +264,4 @@ Không còn câu chặn plan này. Ghi nhận cho phần dinh dưỡng (chủ nh
 - AC-11: `AttendanceIntegrationTest#lockedAfterCutoffUntilUnlockedAndAfterRevoke` thêm PHT cơ sở B có `ALL_CAMPUS_VIEW` mở lại điểm danh cơ sở A ⇒ 403.
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 570 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 342s`. `check-ai-layer`: 0 lỗi, 5 cảnh báo E2 có sẵn từ `dev`.
 - Tiếp: user review rồi commit merge; Phase 9 (AUTH-03 policy chung, thay `AttendanceDayRules.taughtClosedYear`) — chốt file, >8 file thì tách plan.
+- User chốt (30/10): giữ `FORBIDDEN` 1101 cho chặn role Web, không thêm `ApiCode` riêng. FE phân biệt với lỗi CSRF bằng cách lấy lại CSRF và gửi lại 1 lần; ghi ở `AUTH_CONTRACT.md` mục Tác động FE/APP.

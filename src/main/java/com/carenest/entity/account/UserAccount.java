@@ -45,7 +45,7 @@ public class UserAccount {
 
     // Bản sao role Keycloak để lọc/kiểm phạm vi quản lý (V8); token vẫn là nguồn quyền
     @Enumerated(EnumType.STRING)
-    @Column(name = "primary_role", updatable = false, length = 20)
+    @Column(name = "primary_role", length = 20)
     private CareNestRole primaryRole;
 
     @CreationTimestamp
@@ -78,5 +78,15 @@ public class UserAccount {
 
     public void changeStatus(UserStatus newStatus) {
         this.status = newStatus;
+    }
+
+    /** Phụ huynh được nhận làm nhân sự: cùng tài khoản, vai trò nhân sự thành vai trò chính. */
+    public void becomeStaff(CareNestRole staffRole) {
+        this.primaryRole = staffRole;
+    }
+
+    /** Thu hồi vai trò nhân sự của người vẫn là phụ huynh: tài khoản còn lại chỉ là phụ huynh. */
+    public void becomeParentOnly() {
+        this.primaryRole = CareNestRole.PARENT;
     }
 }

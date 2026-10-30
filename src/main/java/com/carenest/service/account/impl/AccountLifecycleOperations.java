@@ -11,6 +11,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -54,6 +55,45 @@ class AccountLifecycleOperations {
                 throw GlobalException.withCause(ApiCode.ACCOUNT_EXISTS, ex);
             }
             throw ex;
+        }
+    }
+
+    /** Thêm realm role cho tài khoản có sẵn nếu chưa có. Gọi trước khi ghi DB: role thừa không mở dữ liệu vì policy còn kiểm liên kết/phân công. */
+    void grantRealmRole(UserAccount account, CareNestRole role) {
+        try {
+            if (!identityProviderClient
+                    .getRealmRoleNames(account.getKeycloakUserId())
+                    .contains(role.name())) {
+                identityProviderClient.assignRealmRole(account.getKeycloakUserId(), role.name());
+            }
+        } catch (IdentityProviderException ex) {
+            throw toGlobalException(ex);
+        }
+    }
+
+    /** Thêm realm role rồi ghi DB trong một transaction; DB lỗi thì gọi lại được (thêm role là idempotent). */
+    <T> T addRealmRole(UserAccount account, CareNestRole role, Supplier<T> persist) {
+        grantRealmRole(account, role);
+        return transactionTemplate.execute(status -> persist.get());
+    }
+
+    /**
+     * Gỡ realm role trước rồi mới ghi DB: DB lỗi thì gọi lại vẫn chạy (gỡ role là idempotent), còn token mới không
+     * mang role đã gỡ. Sau cùng hủy mọi phiên để token cũ còn role không dùng tiếp được.
+     */
+    void revokeRealmRole(String logPrefix, UserAccount account, CareNestRole role, Runnable persist) {
+        try {
+            identityProviderClient.removeRealmRole(account.getKeycloakUserId(), role.name());
+        } catch (IdentityProviderException ex) {
+            throw toGlobalException(ex);
+        }
+        transactionTemplate.executeWithoutResult(status -> persist.run());
+        authState.revokeAccountAuth(account.getId());
+        try {
+            identityProviderClient.logoutUser(account.getKeycloakUserId());
+        } catch (IdentityProviderException ex) {
+            log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
+            throw GlobalException.withCause(ApiCode.IDENTITY_SYNC_FAILED, ex);
         }
     }
 

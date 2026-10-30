@@ -3,6 +3,7 @@ package com.carenest.service.account.impl;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
+import com.carenest.dto.child.GuardianCandidateResponse;
 import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.child.GuardianResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
@@ -17,6 +18,7 @@ import com.carenest.service.account.GuardianAccountService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.PersonNames;
 import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
@@ -83,6 +85,31 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
     }
 
     @Override
+    public GuardianCandidateResponse findGuardianCandidate(CurrentUser actor, Long childId, String phone) {
+        String logPrefix = LOG_PREFIX + "|findGuardianCandidate|actorUserId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            checkChild(actor, childId);
+            String username =
+                    PhoneNumbers.normalize(phone).orElseThrow(() -> GlobalException.of(ApiCode.PHONE_NUMBER_INVALID));
+            GuardianCandidateResponse candidate = userAccountRepository
+                    .findByUsername(username)
+                    .map(account -> new GuardianCandidateResponse(
+                            true,
+                            account.getId(),
+                            PersonNames.mask(account.getFullName()),
+                            account.getPrimaryRole() != CareNestRole.PARENT,
+                            guardianChildLinkService.isGuardianOf(account.getId(), childId)))
+                    .orElseGet(GuardianCandidateResponse::none);
+            log.info("{}|exists={}|END", logPrefix, candidate.exists());
+            return candidate;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public AddGuardianResponse addGuardian(CurrentUser actor, Long childId, AddGuardianRequest request) {
         String logPrefix = LOG_PREFIX + "|addGuardian|actorUserId=" + actor.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
@@ -94,14 +121,10 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
 
             Optional<UserAccount> existing = userAccountRepository.findByUsername(username);
             if (existing.isPresent()) {
-                // Anh/chị em học cùng trường: dùng lại tài khoản phụ huynh, giữ mật khẩu (AUTH-18)
-                UserAccount parent = existing.get();
-                if (parent.getPrimaryRole() != CareNestRole.PARENT) {
-                    throw GlobalException.of(ApiCode.PHONE_BELONGS_TO_STAFF);
-                }
-                guardianChildLinkService.createLink(parent.getId(), childId, request.relationship());
-                log.info("{}|userId={}|newAccount=false|END", logPrefix, parent.getId());
-                return response(parent, request, false, null);
+                UserAccount account = existing.get();
+                linkExistingAccount(logPrefix, actor, account, childId, request);
+                log.info("{}|userId={}|newAccount=false|END", logPrefix, account.getId());
+                return response(account, request, false, null);
             }
 
             String temporaryPassword = passwordGenerator.generate(); // carenest:allow-secret
@@ -169,6 +192,24 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // AUTH-18: một người một tài khoản, giữ mật khẩu; không liên kết chỉ vì trùng SĐT khi chưa xác nhận đúng người
+    private void linkExistingAccount(
+            String logPrefix, CurrentUser actor, UserAccount account, Long childId, AddGuardianRequest request) {
+        if (!account.getId().equals(request.confirmUserId())) {
+            throw GlobalException.of(ApiCode.GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED);
+        }
+        if (account.getId().equals(actor.userId())) {
+            throw GlobalException.of(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
+        }
+        if (account.getPrimaryRole() != CareNestRole.PARENT) {
+            // Thêm vai trò phụ huynh vào tài khoản nhân sự là thao tác trên tài khoản đó ⇒ theo phạm vi AUTH-17
+            staffAccessPolicy.checkCanManageAccount(actor, account.getId(), account.getPrimaryRole());
+            accountLifecycle.grantRealmRole(account, CareNestRole.PARENT);
+            log.info("{}|userId={}|parentRoleGranted", logPrefix, account.getId());
+        }
+        guardianChildLinkService.createLink(account.getId(), childId, request.relationship());
     }
 
     // Kiểm phạm vi trước: với PHT, trẻ không tồn tại và trẻ ngoài campus cùng 403 (không dò được id)

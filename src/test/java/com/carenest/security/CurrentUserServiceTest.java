@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -55,6 +56,10 @@ class CurrentUserServiceTest {
     @Mock
     private TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
 
+    @Spy
+    private KeycloakRealmRoleConverter realmRoleConverter =
+            new KeycloakRealmRoleConverter(KeycloakRealmRoleConverterTest.PLATFORMS);
+
     @InjectMocks
     private CurrentUserService currentUserService;
 
@@ -74,11 +79,28 @@ class CurrentUserServiceTest {
                 .issuedAt(Instant.parse("2026-10-12T01:00:00Z"))
                 .expiresAt(Instant.parse("2026-10-12T01:05:00Z"))
                 .claim("realm_access", java.util.Map.of("roles", java.util.List.of("TEACHER")))
+                .claim("azp", "carenest-auth-gateway")
                 .build();
         var currentUser = currentUserService.getCurrentUser(jwt);
         assertThat(currentUser.userId()).isEqualTo(47L);
         assertThat(currentUser.roles()).containsExactly(CareNestRole.TEACHER);
         assertThat(currentUser.fullName()).isEqualTo("Giáo viên Web");
+    }
+
+    @Test
+    @DisplayName("AUTH-21: GV kiêm phụ huynh đăng nhập Web gateway chỉ còn role GV")
+    void webGatewayTokenDropsParentRole() {
+        UserAccount account = UserAccount.create("kc-web-user", "0912345678", null, "Giáo viên Phụ huynh");
+        ReflectionTestUtils.setField(account, "id", 48L);
+        when(userAccountRepository.findByKeycloakUserId("kc-web-user")).thenReturn(Optional.of(account));
+        Jwt jwt = Jwt.withTokenValue("validated-web-token")
+                .header("alg", "RS256")
+                .subject("kc-web-user")
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("TEACHER", "PARENT")))
+                .claim("azp", "carenest-auth-gateway")
+                .build();
+
+        assertThat(currentUserService.getCurrentUser(jwt).roles()).containsExactly(CareNestRole.TEACHER);
     }
 
     @Test

@@ -9,7 +9,7 @@ Dữ liệu cần bảo vệ: thông tin trẻ em, sức khỏe, quan hệ phụ
 **Keycloak + Spring Security OAuth2 Resource Server** (ADR-0011). Contract: `docs/contracts/AUTH_CONTRACT.md`; vận hành: `docs/system/KEYCLOAK.md`.
 
 - Keycloak: đăng nhập (Authorization Code + PKCE), băm mật khẩu, password policy, reset mật khẩu, khóa tạm khi sai 5 lần (PROPOSED), session, access token 5 phút + refresh token xoay vòng, realm role toàn cục.
-- BE: kiểm JWT tại chỗ bằng JWKS có cache (chữ ký, `iss`, `aud=carenest-api`, `exp`/`nbf`), map `realm_access.roles` → `ROLE_*`, `@PreAuthorize`; 401/403 dạng `ResponseJson`. Stateless, tắt CSRF (chỉ xác thực bằng header Bearer, không cookie), CORS theo danh sách origin.
+- BE: kiểm JWT tại chỗ bằng JWKS có cache (chữ ký, `iss`, `aud=carenest-api`, `exp`/`nbf`), map `realm_access.roles` → `ROLE_*` chỉ giữ role của nền tảng theo claim `azp` (ADR-0022: Web = ADMIN/PRINCIPAL/VICE_PRINCIPAL/TEACHER, App = TEACHER/KITCHEN_STAFF/PARENT; hết role, client lạ hoặc thiếu `azp` ⇒ 403 mọi API), `@PreAuthorize`; 401/403 dạng `ResponseJson`. Stateless, tắt CSRF (chỉ xác thực bằng header Bearer, không cookie), CORS theo danh sách origin.
 - BE **không** có login/refresh, không lưu mật khẩu hay refresh token, không tự ký JWT, không log token/header `Authorization`.
 - Ngoại lệ Web (ADR-0013, ADR-0015): gateway opt-in `/auth/**` nhận mật khẩu qua confidential client Direct Grant, refresh token mã hóa trong cookie HttpOnly + CSRF cookie/header cho POST `/auth/**`; dòng PKCE/CSRF ở trên áp cho API Bearer, Mobile và Web legacy. Gateway chỉ cấp phiên cho role ADMIN/PRINCIPAL/VICE_PRINCIPAL/TEACHER (AUTH-21).
 - `ActiveAccountInterceptor`: **mọi** request API có token phải thuộc tài khoản `user_accounts` ACTIVE (403 `Account is not provisioned` / `Account is inactive`), không phụ thuộc controller có khai báo `CurrentUser` hay không.
@@ -39,6 +39,7 @@ Client (Web/Mobile)          Keycloak (realm carenest)              CareNest API
 | Thiếu token, sai chữ ký, hết hạn, sai `iss`/`aud` | 401 `Unauthorized` + `WWW-Authenticate: Bearer` | `RestAuthenticationEntryPoint` |
 | Chưa lấy được JWKS (Keycloak tắt, API chưa cache key) | 503 `Authentication service unavailable` | `RestAuthenticationEntryPoint` (failure handler của `BearerTokenAuthenticationFilter`, BUG-261006-jwks-unavailable-returns-500) |
 | Token hợp lệ nhưng chưa cấp tài khoản / `INACTIVE` | 403 `Account is not provisioned` / `Account is inactive` | `ActiveAccountInterceptor` |
+| Token không còn role nào dùng được trên nền tảng của client (`azp`) | 403 `FORBIDDEN` 1101 | `SecurityConfig` (authority `PLATFORM_DENIED`) ⇒ `RestAccessDeniedHandler` |
 | Không có quyền (permission) của endpoint | 403 `Forbidden` | `@PreAuthorize` ⇒ `GlobalExceptionHandler`; trong filter chain ⇒ `RestAccessDeniedHandler` |
 | Ngoài phạm vi campus/lớp/trẻ (kể cả id không tồn tại) | 403 | `*AccessPolicy.checkCanXxx` |
 

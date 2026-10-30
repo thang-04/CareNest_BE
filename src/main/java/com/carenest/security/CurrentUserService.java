@@ -34,6 +34,7 @@ public class CurrentUserService {
     private final RolePermissionRepository rolePermissionRepository;
     private final UserPermissionOverrideRepository userPermissionOverrideRepository;
     private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
+    private final KeycloakRealmRoleConverter realmRoleConverter;
 
     @Transactional(readOnly = true)
     public CurrentUser getCurrentUser() {
@@ -52,7 +53,7 @@ public class CurrentUserService {
             throw GlobalException.of(ApiCode.UNAUTHENTICATED);
         }
         JwtAuthenticationToken verifiedAuthentication =
-                new JwtAuthenticationToken(validatedToken, new KeycloakRealmRoleConverter().convert(validatedToken));
+                new JwtAuthenticationToken(validatedToken, realmRoleConverter.convert(validatedToken));
         return getCurrentUser(validatedToken, rolesOf(verifiedAuthentication));
     }
 

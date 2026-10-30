@@ -194,6 +194,17 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("Đăng nhập Web bằng SĐT gõ kiểu +84/dấu cách vẫn gửi Keycloak đúng tên đăng nhập 10 số")
+    void loginNormalizesPhoneIdentifier() {
+        given(keycloak.login("0912345678", "guess")).willThrow(mock(AuthGatewayClient.InvalidCredentials.class));
+
+        assertThatThrownBy(() -> service.login(
+                        new com.carenest.dto.account.AuthRequests.Login(" +84 912 345 678 ", "guess", false)))
+                .hasMessage(ApiCode.INVALID_CREDENTIALS.getDefaultDesc());
+        verify(keycloak).login("0912345678", "guess");
+    }
+
+    @Test
     void provisionedInactiveAccountCannotAcquireAWebSession() {
         given(keycloak.login("teacher.a", "correct-password"))
                 .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 36000));

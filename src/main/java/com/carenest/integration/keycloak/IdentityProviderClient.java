@@ -13,6 +13,9 @@ public interface IdentityProviderClient {
 
     void assignRealmRole(String userId, String roleName);
 
+    /** Gỡ realm role đang gán trực tiếp; user không có role đó thì bỏ qua. */
+    void removeRealmRole(String userId, String roleName);
+
     /** Tên các realm role đang gán trực tiếp cho user (gồm cả role không thuộc CareNest). */
     List<String> getRealmRoleNames(String userId);
 

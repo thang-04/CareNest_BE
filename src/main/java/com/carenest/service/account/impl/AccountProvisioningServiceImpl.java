@@ -1,6 +1,7 @@
 package com.carenest.service.account.impl;
 
 import com.carenest.config.AuthProperties;
+import com.carenest.dto.account.AccountCandidateResponse;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
@@ -18,8 +19,11 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.AccountProvisioningService;
+import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.PersonNames;
+import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
 import com.carenest.utils.enums.UserStatus;
@@ -27,6 +31,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.EnumSet;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -57,7 +62,28 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
     private final StaffAssignmentService staffAssignmentService;
     private final ManagedAccountLoader managedAccountLoader;
     private final AccountLifecycleOperations accountLifecycle;
+    private final GuardianChildLinkService guardianChildLinkService;
     private final Clock clock;
+
+    @Override
+    public AccountCandidateResponse findAccountCandidate(CurrentUser actor, String phone) {
+        String logPrefix = LOG_PREFIX + "|findAccountCandidate|actorUserId=" + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            String username =
+                    PhoneNumbers.normalize(phone).orElseThrow(() -> GlobalException.of(ApiCode.PHONE_NUMBER_INVALID));
+            AccountCandidateResponse candidate = userAccountRepository
+                    .findByUsername(username)
+                    .map(account -> new AccountCandidateResponse(
+                            true, account.getId(), PersonNames.mask(account.getFullName()), account.getPrimaryRole()))
+                    .orElseGet(AccountCandidateResponse::none);
+            log.info("{}|exists={}|END", logPrefix, candidate.exists());
+            return candidate;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     public CreateAccountResponse createAccount(CurrentUser actor, CreateAccountRequest request) {
@@ -74,16 +100,21 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                     : staffAssignmentService.resolveCampusId(scope.staffRole(), scope.campusId(), scope.classroomId());
             staffAccessPolicy.checkCanCreate(actor, request.role(), campusId);
 
-            String username = request.username().trim().toLowerCase(Locale.ROOT);
+            // Đăng nhập bằng SĐT (user chốt 2026-10-30); bếp dùng SĐT bếp của cơ sở
+            String username = PhoneNumbers.normalize(request.phone())
+                    .orElseThrow(() -> GlobalException.of(ApiCode.PHONE_NUMBER_INVALID));
+            Optional<UserAccount> existing = userAccountRepository.findByUsername(username);
+            if (existing.isPresent()) {
+                CreateAccountResponse added = addStaffRoleToParent(actor, existing.get(), request, scope);
+                log.info("{}|userId={}|existingAccount=true|END", logPrefix, added.userId());
+                return added;
+            }
             String email = StringUtils.hasText(request.email())
                     ? request.email().trim().toLowerCase(Locale.ROOT)
                     : null;
             boolean sendSetupEmail = email != null && identityProviderClient.canSendSetupEmail();
             if (request.temporaryPassword() == null && !sendSetupEmail) {
                 throw GlobalException.of(ApiCode.TEMP_PASSWORD_REQUIRED);
-            }
-            if (userAccountRepository.existsByUsername(username)) {
-                throw GlobalException.of(ApiCode.USERNAME_OR_EMAIL_EXISTS);
             }
 
             // Tài khoản và phân công cùng 1 transaction: không có tài khoản PHT tạo ra mà nằm ngoài campus
@@ -158,6 +189,67 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public AccountResponse revokeStaffRole(CurrentUser actor, Long userId) {
+        String logPrefix = LOG_PREFIX + "|revokeStaffRole|actorUserId=" + actor.userId() + "|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            if (userId.equals(actor.userId())) {
+                throw GlobalException.of(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
+            }
+            // AUTH-17: cùng phạm vi với khóa/mở tài khoản nhân sự
+            UserAccount account = managedAccountLoader.loadManageable(actor, userId);
+            CareNestRole staffRole = account.getPrimaryRole();
+            if (!PROVISIONABLE_ROLES.contains(staffRole)) {
+                throw GlobalException.of(ApiCode.STAFF_ROLE_NOT_REVOCABLE);
+            }
+            // Không còn con học ở trường thì tài khoản không còn việc gì ⇒ khóa thay vì thu hồi
+            if (guardianChildLinkService.findChildIdsOfGuardian(userId).isEmpty()) {
+                throw GlobalException.of(ApiCode.STAFF_ROLE_REVOKE_REQUIRES_CHILD);
+            }
+            LocalDate today = LocalDate.now(clock);
+            accountLifecycle.revokeRealmRole(logPrefix, account, staffRole, () -> {
+                endOpenAssignments(userId, today);
+                account.becomeParentOnly();
+                userAccountRepository.saveAndFlush(account);
+            });
+            log.info("{}|END", logPrefix);
+            return accountMapper.toAccountResponse(account);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // Phân công chưa bắt đầu kết thúc ở ngày bắt đầu (không đặt được trước đó); không còn role nên không mở dữ liệu
+    private void endOpenAssignments(Long userId, LocalDate today) {
+        staffAssignmentService.findAssignments(userId).stream()
+                .filter(assignment ->
+                        assignment.validTo() == null || !assignment.validTo().isBefore(today))
+                .forEach(assignment -> staffAssignmentService.endAssignment(
+                        assignment.id(), assignment.validFrom().isAfter(today) ? assignment.validFrom() : today));
+    }
+
+    // Phụ huynh được nhận làm nhân sự: một tài khoản, giữ SĐT/mật khẩu; chỉ khi người tạo đã xác nhận đúng người
+    private CreateAccountResponse addStaffRoleToParent(
+            CurrentUser actor, UserAccount account, CreateAccountRequest request, AssignmentScope scope) {
+        if (account.getPrimaryRole() != CareNestRole.PARENT) {
+            throw GlobalException.of(ApiCode.USERNAME_OR_EMAIL_EXISTS);
+        }
+        if (!account.getId().equals(request.confirmUserId())) {
+            throw GlobalException.of(ApiCode.ACCOUNT_CONFIRMATION_REQUIRED);
+        }
+        if (account.getId().equals(actor.userId())) {
+            throw GlobalException.of(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
+        }
+        StaffAssignmentResponse assignment = accountLifecycle.addRealmRole(account, request.role(), () -> {
+            account.becomeStaff(request.role());
+            userAccountRepository.saveAndFlush(account);
+            return scope == null ? null : staffAssignmentService.createAssignment(scope.forUser(account.getId()));
+        });
+        return accountMapper.toCreateAccountResponse(account, request.role(), false, assignment);
     }
 
     // HT tự có phân công toàn trường; phụ huynh không có phân công; nhân sự khác theo request (có thể trống)

@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
 import com.carenest.dto.child.AddGuardianResponse;
+import com.carenest.dto.child.GuardianCandidateResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
@@ -76,6 +77,24 @@ class GuardianControllerTest {
     }
 
     @Test
+    @DisplayName("AUTH-18: tra SĐT trả tài khoản có sẵn với họ tên đã che")
+    void vicePrincipalLooksUpGuardianCandidate() throws Exception {
+        CurrentUser vice = authenticate(CareNestRole.VICE_PRINCIPAL);
+        given(guardianAccountService.findGuardianCandidate(vice, 101L, "0912 345 678"))
+                .willReturn(new GuardianCandidateResponse(true, 61L, "N***** T** L**", true, false));
+
+        mockMvc.perform(post("/api/children/101/guardians/lookup")
+                        .with(token(CareNestRole.VICE_PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"0912 345 678\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.exists").value(true))
+                .andExpect(jsonPath("$.data.userId").value(61))
+                .andExpect(jsonPath("$.data.maskedFullName").value("N***** T** L**"))
+                .andExpect(jsonPath("$.data.staffAccount").value(true));
+    }
+
+    @Test
     void teacherCannotManageParents() throws Exception {
         authenticate(CareNestRole.TEACHER);
 
@@ -85,6 +104,11 @@ class GuardianControllerTest {
                         .content(ADD_JSON))
                 .andExpect(status().isForbidden());
         mockMvc.perform(get("/api/children/101/guardians").with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/api/children/101/guardians/lookup")
+                        .with(token(CareNestRole.TEACHER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"0912 345 678\"}"))
                 .andExpect(status().isForbidden());
         mockMvc.perform(delete("/api/children/101/guardians/50").with(token(CareNestRole.TEACHER)))
                 .andExpect(status().isForbidden());
