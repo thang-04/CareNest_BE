@@ -4348,6 +4348,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolYearResponse"
+        signerNames:
+          $ref: "#/components/schemas/SignerNames"
         signers:
           $ref: "#/components/schemas/Signers"
         weekRows:
@@ -6576,6 +6578,25 @@ components:
           format: int64
         updatedByName:
           type: string
+    SignerNames:
+      type: object
+      properties:
+        principals:
+          type: array
+          items:
+            type: string
+        teamLeaders:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: array
+              items:
+                type: string
+        vicePrincipals:
+          type: array
+          items:
+            type: string
     Signers:
       type: object
       properties:
