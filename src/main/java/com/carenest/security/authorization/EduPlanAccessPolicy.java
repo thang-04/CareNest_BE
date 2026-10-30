@@ -72,6 +72,11 @@ public class EduPlanAccessPolicy {
             LocalDate today = LocalDate.now(clock);
             full = staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), today);
             approved = staffAssignmentService.findActiveTeacherAgeGroupIds(user.userId(), today);
+            // EDU-06: Tổ trưởng xem (chỉ đọc) bản đã ban hành của mọi nhóm tuổi để lấy chủ đề, mục tiêu (EDU-24,
+            // EDU-43)
+            if (!full.isEmpty()) {
+                schoolWide.add(EduPlanStatus.APPROVED);
+            }
         }
         return new ViewScope(Set.copyOf(schoolWide), full, approved);
     }
