@@ -28,7 +28,12 @@ public record ClassAssessmentDetailResponse(
             int canCoGang,
             int chuaDat,
             int flags,
-            List<Comment> comments) {}
+            List<Comment> comments,
+            int eatingDays,
+            int napDays,
+            int emotionDays,
+            int behaviorDays,
+            int participationDays) {}
 
     public record Comment(LocalDate date, String text) {}
 }

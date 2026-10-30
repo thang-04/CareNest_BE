@@ -54,4 +54,11 @@ public interface AttendanceService {
 
     /** Điểm danh của các trẻ trong khoảng ngày; ngày chưa điểm danh thì không có dòng (đánh giá trẻ đọc, EDU-19). */
     List<ChildDayStatus> findDayStatuses(Collection<Long> childIds, LocalDate from, LocalDate to);
+
+    /** Một dòng điểm danh của lớp: trạng thái và các bữa trẻ ăn (chỉ dùng nội bộ, module gọi tự kiểm quyền). */
+    record ClassChildDay(
+            Long classroomId, Long childId, LocalDate date, AttendanceStatus status, List<MealSession> meals) {}
+
+    /** Điểm danh của các lớp trong khoảng ngày (báo cáo chất lượng tháng đọc); ngày chưa điểm danh thì không có dòng. */
+    List<ClassChildDay> findClassDays(Collection<Long> classroomIds, LocalDate from, LocalDate to);
 }

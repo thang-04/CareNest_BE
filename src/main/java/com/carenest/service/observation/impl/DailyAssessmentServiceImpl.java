@@ -55,7 +55,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
 
     private static final String LOG_PREFIX = "[DailyAssessmentServiceImpl]";
     // Thuật ngữ chẩn đoán không dùng trong nhận xét / ghi chú (giáo viên mô tả hành vi quan sát được)
-    private static final List<String> DIAGNOSTIC_TERMS = List.of(
+    static final List<String> DIAGNOSTIC_TERMS = List.of(
             "tự kỷ",
             "tăng động",
             "giảm chú ý",

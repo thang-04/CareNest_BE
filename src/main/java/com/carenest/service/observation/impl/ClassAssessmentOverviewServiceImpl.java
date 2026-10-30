@@ -30,7 +30,12 @@ import com.carenest.service.observation.ClassAssessmentOverviewService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.EatingLevel;
+import com.carenest.utils.enums.Emotion;
 import com.carenest.utils.enums.HealthSymptom;
+import com.carenest.utils.enums.NapLevel;
+import com.carenest.utils.enums.ObservedBehavior;
+import com.carenest.utils.enums.Participation;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
@@ -44,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -85,6 +91,12 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         private int chuaDat;
         private int flags;
         private final List<Comment> comments = new ArrayList<>();
+        // Số ngày cần chú ý theo từng mục GV ghi ở Hoạt động chung
+        private int eatingDays;
+        private int napDays;
+        private int emotionDays;
+        private int behaviorDays;
+        private int participationDays;
 
         private ChildStats(ClassChildResponse child) {
             this.child = child;
@@ -93,21 +105,31 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
 
     @Override
     public ClassAssessmentOverviewResponse getOverview(
-            CurrentUser currentUser, String period, Long schoolYearId, Long campusId, Long ageGroupId, Long classId) {
-        String logPrefix = LOG_PREFIX + "|getOverview|userId=" + currentUser.userId() + "|period=" + period;
+            CurrentUser currentUser,
+            String period,
+            LocalDate date,
+            Long schoolYearId,
+            Long campusId,
+            Long ageGroupId,
+            Long classId) {
+        String logPrefix =
+                LOG_PREFIX + "|getOverview|userId=" + currentUser.userId() + "|period=" + period + "|date=" + date;
         log.info("{}|START", logPrefix);
         try {
             if (!rules.isLeader(currentUser)) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_OVERVIEW_FORBIDDEN);
             }
             String p = checkPeriod(period);
+            checkDate(date);
             // PHT chỉ lớp điểm trường mình, HT toàn trường (AUTH-01, AUTH-02)
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> rules.leadsCampus(currentUser, c.campusId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();
-            Range range = scoped.isEmpty() ? rangeOf(p, rules.today(), null, null) : rangeOf(p, scoped.getFirst());
+            Range range = scoped.isEmpty()
+                    ? rangeOf(p, rules.today(), date, null, null)
+                    : rangeOf(p, date, scoped.getFirst());
             List<ClassroomInfoResponse> visible = scoped.stream()
                     .filter(c -> (campusId == null || campusId.equals(c.campusId()))
                             && (ageGroupId == null || ageGroupId.equals(c.ageGroupId()))
@@ -147,7 +169,8 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
     }
 
     @Override
-    public ClassAssessmentDetailResponse getClassDetail(CurrentUser currentUser, Long classId, String period) {
+    public ClassAssessmentDetailResponse getClassDetail(
+            CurrentUser currentUser, Long classId, String period, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|getClassDetail|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
@@ -155,7 +178,9 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
             if (!rules.leadsCampus(currentUser, cls.campusId())) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
-            Range range = rangeOf(checkPeriod(period), cls);
+            String p = checkPeriod(period);
+            checkDate(date);
+            Range range = rangeOf(p, date, cls);
             List<ChildRow> children = statsOf(cls, range).stream()
                     .map(s -> new ChildRow(
                             s.child.id(),
@@ -168,7 +193,12 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
                             s.canCoGang,
                             s.chuaDat,
                             s.flags,
-                            s.comments))
+                            s.comments,
+                            s.eatingDays,
+                            s.napDays,
+                            s.emotionDays,
+                            s.behaviorDays,
+                            s.participationDays))
                     .toList();
             ClassAssessmentDetailResponse response = new ClassAssessmentDetailResponse(
                     cls.id(),
@@ -196,15 +226,25 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         return p;
     }
 
-    private Range rangeOf(String period, ClassroomInfoResponse cls) {
-        return rangeOf(period, rules.today(), cls.yearStart(), cls.yearEnd());
+    // Ngày xem không được ở tương lai
+    private void checkDate(LocalDate date) {
+        if (date != null && date.isAfter(rules.today())) {
+            throw GlobalException.of(ApiCode.INVALID_VALUE, "ngày xem");
+        }
     }
 
-    // Năm đang chạy neo hôm nay; năm đã qua neo ngày cuối năm, năm chưa tới neo ngày đầu năm
-    private static Range rangeOf(String period, LocalDate today, LocalDate yearStart, LocalDate yearEnd) {
-        LocalDate anchor = yearEnd != null && today.isAfter(yearEnd)
+    private Range rangeOf(String period, LocalDate date, ClassroomInfoResponse cls) {
+        return rangeOf(period, rules.today(), date, cls.yearStart(), cls.yearEnd());
+    }
+
+    // Neo theo ngày chọn (mặc định hôm nay); ngày sau cuối năm neo ngày cuối năm, trước đầu năm neo ngày đầu năm.
+    // Ngày học trong kỳ tính tới hôm nay.
+    private static Range rangeOf(
+            String period, LocalDate today, LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
+        LocalDate base = date != null ? date : today;
+        LocalDate anchor = yearEnd != null && base.isAfter(yearEnd)
                 ? yearEnd
-                : yearStart != null && today.isBefore(yearStart) ? yearStart : today;
+                : yearStart != null && base.isBefore(yearStart) ? yearStart : base;
         LocalDate start;
         LocalDate end;
         switch (period) {
@@ -221,7 +261,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
                 end = anchor;
             }
         }
-        LocalDate last = end.isAfter(anchor) ? anchor : end;
+        LocalDate last = end.isAfter(today) ? today : end;
         List<LocalDate> days = new ArrayList<>();
         for (LocalDate d = start; !d.isAfter(last); d = d.plusDays(1)) {
             if (ObservationDayRules.isSchoolDay(d)
@@ -289,12 +329,46 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
                 if (o != null && Boolean.TRUE.equals(o.getFlag())) {
                     s.flags++;
                 }
+                if (o != null) {
+                    countConcerns(s, o);
+                }
                 if (o != null && !o.getComment().isBlank()) {
                     s.comments.add(new Comment(d, o.getComment()));
                 }
             }
         }
         return stats;
+    }
+
+    private static final Set<ObservedBehavior> CONCERN_BEHAVIORS = Set.of(
+            ObservedBehavior.CHUA_HOP_TAC,
+            ObservedBehavior.TRANH_GIANH,
+            ObservedBehavior.KHONG_TAP_TRUNG,
+            ObservedBehavior.RUT_RE);
+
+    // Mục cần chú ý: bữa ăn ít / không ăn, ngủ ít / không ngủ, buồn / khó chịu, hành vi chưa tốt, chưa tích cực tham
+    // gia
+    private static void countConcerns(ChildStats s, DailyObservation o) {
+        String meals = o.getMeals() == null ? "" : o.getMeals();
+        if (meals.contains(EatingLevel.AN_IT.name()) || meals.contains(EatingLevel.KHONG_AN.name())) {
+            s.eatingDays++;
+        }
+        if (o.getNap() == NapLevel.NGU_IT || o.getNap() == NapLevel.KHONG_NGU) {
+            s.napDays++;
+        }
+        if (o.getEmotion() == Emotion.SAD || o.getEmotion() == Emotion.UPSET) {
+            s.emotionDays++;
+        }
+        if (o.getBehaviors() != null && o.getBehaviors().stream().anyMatch(CONCERN_BEHAVIORS::contains)) {
+            s.behaviorDays++;
+        }
+        if (o.getParticipation() == Participation.CHUA_TICH_CUC) {
+            s.participationDays++;
+        }
+    }
+
+    private static int childrenWith(List<ChildStats> stats, ToIntFunction<ChildStats> days) {
+        return (int) stats.stream().filter(s -> days.applyAsInt(s) > 0).count();
     }
 
     private Map<Long, List<ClassCommentResponse>> classComments(List<ClassroomInfoResponse> classes, Range range) {
@@ -351,7 +425,12 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
                 (int) range.days().stream().filter(assessed::contains).count(),
                 locked,
                 (int) range.days().stream().filter(reopened::contains).count(),
-                comments);
+                comments,
+                childrenWith(stats, s -> s.eatingDays),
+                childrenWith(stats, s -> s.napDays),
+                childrenWith(stats, s -> s.emotionDays),
+                childrenWith(stats, s -> s.behaviorDays),
+                childrenWith(stats, s -> s.participationDays));
     }
 
     private static Totals totalsOf(List<ClassRow> rows) {

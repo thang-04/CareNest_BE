@@ -38,7 +38,22 @@ public record ClassAssessmentOverviewResponse(
             int assessedDays,
             int lockedDays,
             int reopenedDays,
-            List<ClassCommentResponse> classComments) {}
+            List<ClassCommentResponse> classComments,
+
+            @Schema(description = "Số trẻ có ít nhất một ngày ăn ít / không ăn")
+            int eatingChildren,
+
+            @Schema(description = "Số trẻ có ít nhất một ngày ngủ ít / không ngủ")
+            int napChildren,
+
+            @Schema(description = "Số trẻ có ít nhất một ngày buồn / khó chịu")
+            int emotionChildren,
+
+            @Schema(description = "Số trẻ có ít nhất một ngày có hành vi cần chú ý")
+            int behaviorChildren,
+
+            @Schema(description = "Số trẻ có ít nhất một ngày chưa tích cực tham gia")
+            int participationChildren) {}
 
     public record Totals(
             int classes,

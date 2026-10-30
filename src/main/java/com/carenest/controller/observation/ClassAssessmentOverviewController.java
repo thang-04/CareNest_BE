@@ -6,8 +6,10 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.ClassAssessmentOverviewService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
+import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -28,6 +30,7 @@ public class ClassAssessmentOverviewController {
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
     public ResponseEntity<ResponseJson<ClassAssessmentOverviewResponse>> getOverview(
             @RequestParam(required = false) String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(required = false) Long campusId,
             @RequestParam(required = false) Long ageGroupId,
@@ -36,7 +39,7 @@ public class ClassAssessmentOverviewController {
         String logPrefix = LOG_PREFIX + "|getOverview|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         ClassAssessmentOverviewResponse overview = classAssessmentOverviewService.getOverview(
-                currentUser, period, schoolYearId, campusId, ageGroupId, classId);
+                currentUser, period, date, schoolYearId, campusId, ageGroupId, classId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get assessment overview success", overview);
     }
@@ -44,11 +47,14 @@ public class ClassAssessmentOverviewController {
     @GetMapping("/assessment/overview/classes/{classId}")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
     public ResponseEntity<ResponseJson<ClassAssessmentDetailResponse>> getClassDetail(
-            @PathVariable Long classId, @RequestParam(required = false) String period, CurrentUser currentUser) {
+            @PathVariable Long classId,
+            @RequestParam(required = false) String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getClassDetail|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         ClassAssessmentDetailResponse detail =
-                classAssessmentOverviewService.getClassDetail(currentUser, classId, period);
+                classAssessmentOverviewService.getClassDetail(currentUser, classId, period, date);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class assessment detail success", detail);
     }

@@ -328,6 +328,69 @@ public enum ApiCode {
             7323,
             HttpStatus.BAD_REQUEST,
             "Nhận xét chung của lớp không dùng thuật ngữ chẩn đoán, hãy mô tả điều quan sát được"),
+    QUALITY_REPORT_FORBIDDEN(
+            7324, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng và Phó hiệu trưởng xem báo cáo chất lượng tháng"),
+    QUALITY_REPORT_MONTH_OUT_OF_YEAR(
+            7325, HttpStatus.BAD_REQUEST, "Chọn tháng trong năm học, từ tháng {0} đến tháng {1}"),
+    QUALITY_REPORT_FUTURE_MONTH(7326, HttpStatus.BAD_REQUEST, "Chưa có số liệu của tháng sau tháng hiện tại"),
+    TICKET_FORBIDDEN(7327, HttpStatus.FORBIDDEN, "Chỉ giáo viên đang phụ trách lớp được phát phiếu bé ngoan"),
+    TICKET_VIEW_FORBIDDEN(7328, HttpStatus.FORBIDDEN, "Bạn không xem được phiếu bé ngoan của lớp này"),
+    TICKET_PERIOD_INVALID(
+            7329,
+            HttpStatus.BAD_REQUEST,
+            "Kỳ phát phiếu không hợp lệ: tuần bắt đầu thứ Hai, tháng bắt đầu ngày 1 và nằm trong năm học của lớp"),
+    TICKET_PERIOD_NOT_ENDED(7330, HttpStatus.BAD_REQUEST, "Chỉ phát phiếu khi kỳ đã kết thúc (sau ngày {0})"),
+    TICKET_NO_CHILDREN(7331, HttpStatus.BAD_REQUEST, "Chọn ít nhất một trẻ để phát phiếu"),
+    TICKET_TOO_MANY_CHILDREN(7332, HttpStatus.BAD_REQUEST, "Danh sách trẻ có mã trùng hoặc nhiều hơn sĩ số lớp"),
+    TICKET_CHILD_NOT_IN_CLASS(7333, HttpStatus.BAD_REQUEST, "Có trẻ không thuộc lớp trong kỳ này"),
+    TICKET_ALREADY_ISSUED(7334, HttpStatus.CONFLICT, "{0} đã được phát phiếu cho kỳ này, hãy tải lại danh sách"),
+    TICKET_NOT_ELIGIBLE(7335, HttpStatus.BAD_REQUEST, "{0} chưa đủ điều kiện nhận phiếu {1}"),
+    EVALUATION_NOT_FOUND(7336, HttpStatus.NOT_FOUND, "Không tìm thấy đánh giá"),
+    EVALUATION_VIEW_FORBIDDEN(7337, HttpStatus.FORBIDDEN, "Bạn không xem được đánh giá của lớp này"),
+    EVALUATION_EDIT_FORBIDDEN(
+            7338, HttpStatus.FORBIDDEN, "Chỉ giáo viên đang phụ trách lớp được sửa và xác nhận đánh giá"),
+    EVALUATION_ALREADY_CONFIRMED(7339, HttpStatus.CONFLICT, "Đánh giá đã được xác nhận, không sửa được nữa"),
+    EVALUATION_CONTENT_REQUIRED(7340, HttpStatus.BAD_REQUEST, "Nhập nội dung đánh giá"),
+    EVALUATION_CONTENT_TOO_SHORT(7341, HttpStatus.BAD_REQUEST, "Nội dung đánh giá cần ít nhất {0} ký tự"),
+    EVALUATION_CONTENT_TOO_LONG(7342, HttpStatus.BAD_REQUEST, "Nội dung đánh giá tối đa {0} ký tự"),
+    EVALUATION_DIAGNOSTIC_TERM(
+            7343, HttpStatus.BAD_REQUEST, "Không dùng từ mang tính chẩn đoán \"{0}\", hãy mô tả điều cô quan sát được"),
+    EVALUATION_PROGRAM_NOT_APPLICABLE(
+            7345,
+            HttpStatus.BAD_REQUEST,
+            "Chỉ đánh dấu hoàn thành chương trình ở đánh giá cuối năm của trẻ lớp 5–6 tuổi"),
+    EVALUATION_PROGRAM_REQUIRED(
+            7346, HttpStatus.BAD_REQUEST, "Chọn Hoàn thành hoặc Chưa hoàn thành chương trình cho trẻ"),
+    PROGRAM_REPORT_FORBIDDEN(
+            7347, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng và Phó hiệu trưởng xem báo cáo trẻ hoàn thành chương trình"),
+    DEVELOPMENT_CHILD_NO_CLASS(7348, HttpStatus.NOT_FOUND, "Trẻ chưa được xếp lớp trong kỳ đã chọn"),
+    REWARD_LIST_NOT_FOUND(7349, HttpStatus.NOT_FOUND, "Không tìm thấy danh sách khen thưởng"),
+    REWARD_VIEW_FORBIDDEN(7350, HttpStatus.FORBIDDEN, "Bạn không xem được danh sách khen thưởng của lớp này"),
+    REWARD_EDIT_FORBIDDEN(
+            7351,
+            HttpStatus.FORBIDDEN,
+            "Chỉ giáo viên đang phụ trách lớp được lập danh sách khen thưởng, khi danh sách là bản nháp hoặc bị trả lại"),
+    REWARD_STATUS_CHANGED(7352, HttpStatus.CONFLICT, "Danh sách đã chuyển trạng thái, tải lại trang để xem"),
+    REWARD_LIST_EMPTY(7353, HttpStatus.BAD_REQUEST, "Chọn danh hiệu cho ít nhất một trẻ trước khi gửi"),
+    REWARD_CHILD_NOT_IN_CLASS(7354, HttpStatus.BAD_REQUEST, "Có trẻ không thuộc lớp, tải lại trang"),
+    REWARD_CHILD_DUPLICATE(7355, HttpStatus.BAD_REQUEST, "Một trẻ xuất hiện hai lần trong danh sách"),
+    REWARD_TITLE_INVALID(7356, HttpStatus.BAD_REQUEST, "Danh hiệu \"{0}\" không có trong danh sách"),
+    REWARD_PROGRAM_TITLE_INVALID(
+            7357, HttpStatus.BAD_REQUEST, "{0} chưa được xác nhận hoàn thành chương trình ở đánh giá cuối năm"),
+    REWARD_YEAR_END_REQUIRED(7358, HttpStatus.BAD_REQUEST, "{0} chưa có đánh giá cuối năm đã xác nhận"),
+    REWARD_NOTE_TOO_LONG(7359, HttpStatus.BAD_REQUEST, "Ghi chú của {0} tối đa {1} ký tự"),
+    REWARD_NOTE_DIAGNOSTIC(
+            7360,
+            HttpStatus.BAD_REQUEST,
+            "Ghi chú của {0} có từ mang tính chẩn đoán \"{1}\", hãy mô tả điều cô quan sát được"),
+    REWARD_DECISION_INVALID(7361, HttpStatus.BAD_REQUEST, "Quyết định không hợp lệ"),
+    REWARD_COMMENT_REQUIRED(7362, HttpStatus.BAD_REQUEST, "Nhập lý do trả lại"),
+    REWARD_COMMENT_TOO_LONG(7363, HttpStatus.BAD_REQUEST, "Ý kiến tối đa {0} ký tự"),
+    REWARD_REVIEW_FORBIDDEN(
+            7364,
+            HttpStatus.FORBIDDEN,
+            "Chỉ Phó hiệu trưởng điểm trường xem xét, Hiệu trưởng phê duyệt danh sách khen thưởng"),
+    EVALUATION_MONTH_INVALID(7344, HttpStatus.BAD_REQUEST, "Chọn tháng trong năm học, từ tháng {0} đến tháng {1}"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),

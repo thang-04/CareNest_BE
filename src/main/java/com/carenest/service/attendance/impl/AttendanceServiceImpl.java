@@ -519,6 +519,30 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClassChildDay> findClassDays(Collection<Long> classroomIds, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findClassDays|classes=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            List<ClassChildDay> result = classroomIds.isEmpty()
+                    ? List.of()
+                    : recordRepository.findByClassroomIdInAndDateBetween(classroomIds, from, to).stream()
+                            .map(r -> new ClassChildDay(
+                                    r.getClassroomId(),
+                                    r.getChildId(),
+                                    r.getDate(),
+                                    r.getStatus(),
+                                    r.getMeals() == null ? List.of() : List.copyOf(r.getMeals())))
+                            .toList();
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private static HealthSummary toHealth(List<DailyHealthEntry> entries) {
         if (entries.isEmpty()) {
             return new HealthSummary(false, 0, null, null, null, List.of(), "", null);
