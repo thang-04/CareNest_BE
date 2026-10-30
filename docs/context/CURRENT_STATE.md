@@ -19,7 +19,7 @@ Phân quyền cấu hình được (ADR-0017) cập nhật 2026-10-16 trên `fea
 | Schema/migration nghiệp vụ | Bắt đầu — V1 `user_accounts`, V2 campus/năm học/lớp/phân công, V3 trẻ/enrollment/liên kết PH, V7 phân quyền, V8 `primary_role`, V9 quyền phụ huynh; seed dev `db/dev` |
 | OpenAPI export (`docs/api/`) | Chưa |
 | AI provider | Chốt Gemini API, Groq (AI-09, ADR-0007); chưa có adapter |
-| Hạ tầng deploy | Chưa chốt (có Dockerfile, compose dev/demo: API + PostgreSQL + Keycloak + Mailpit) |
+| Hạ tầng deploy | VPS demo qua Docker Hub private + Caddy (`docs/system/DEPLOYMENT.md`, `compose.vps.yaml`); dữ liệu seed dev; compose dev/demo giữ cho máy dev |
 
 ## Feature
 

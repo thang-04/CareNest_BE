@@ -15,7 +15,7 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | system | `system/SYSTEM_ARCHITECTURE.md` | BE + FE + APP, AI layer, scope | FULL |
 | | `system/MODULE_MAP.md` | Dependency, thứ tự lớp, cycle đã phá | FULL |
 | | `system/CROSS_REPO_MAP.md` | Ownership BE/FE/APP, điểm chạm | FULL |
-| | `system/DEPLOYMENT.md` | Hạ tầng | SKELETON |
+| | `system/DEPLOYMENT.md` | VPS demo: Docker Hub, mạng host, cổng, Caddy, rollback, chuyển dữ liệu thật | FULL |
 | | `system/KEYCLOAK.md` | Chạy/cấu hình Keycloak, lấy token, lỗi thường gặp | FULL |
 | guide | `backend-coding-guide.md` | **Quy tắc code bắt buộc** (layer, response, logging, exception, migration, checklist) | FULL — nguồn chuẩn code |
 | architecture | `architecture/BACKEND_ARCHITECTURE.md` | Layered monolith, giao tiếp feature, dẫn xuất | FULL |
