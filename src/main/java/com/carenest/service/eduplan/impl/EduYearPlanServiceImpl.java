@@ -1015,10 +1015,16 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 .collect(Collectors.toMap(EduTheme::getId, Function.identity()));
         Map<String, Long> idByKey = new LinkedHashMap<>();
         Set<Long> kept = new HashSet<>();
+        Set<String> abbrs = new HashSet<>();
         short sortOrder = 0;
         for (YearPlanRequest.Theme requestTheme : requestThemes) {
             if (idByKey.containsKey(requestTheme.key())) {
                 throw GlobalException.of(ApiCode.THEME_KEY_DUPLICATE, requestTheme.key());
+            }
+            // EDU-42: viết tắt trùng chặn ngay khi lưu nháp; ô trống chưa tính, gửi mới bắt buộc
+            String abbrKey = trimToEmpty(requestTheme.abbr()).toLowerCase(Locale.ROOT);
+            if (!abbrKey.isEmpty() && !abbrs.add(abbrKey)) {
+                throw GlobalException.of(ApiCode.THEME_ABBR_DUPLICATE);
             }
             EduTheme theme =
                     Optional.ofNullable(requestTheme.id()).map(existing::get).orElseGet(() -> EduTheme.create(planId));
