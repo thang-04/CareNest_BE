@@ -41,6 +41,7 @@ class CampusAccessPolicyTest {
 
         assertThat(policy.canViewCampus(principal, CAMPUS_A)).isTrue();
         assertThat(policy.canViewCampus(principal, CAMPUS_B)).isTrue();
+        assertThat(policy.canReadCampus(principal, CAMPUS_B)).isTrue();
     }
 
     @Test
@@ -64,23 +65,42 @@ class CampusAccessPolicyTest {
     }
 
     @Test
-    @DisplayName("AUTH-20: PHT không có quyền xem liên cơ sở thì không xem được campus khác")
-    void vicePrincipalWithoutAllCampusViewCannotViewOtherCampus() {
+    @DisplayName("AUTH-20: PHT không có quyền xem liên cơ sở thì không đọc được campus khác")
+    void vicePrincipalWithoutAllCampusViewCannotReadOtherCampus() {
         CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
         given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
                 .willReturn(Set.of(CAMPUS_A));
 
-        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isFalse();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_A)).isTrue();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isFalse();
     }
 
     @Test
-    @DisplayName("AUTH-20: PHT được cấp xem liên cơ sở thì xem được campus khác")
-    void vicePrincipalWithAllCampusViewCanViewOtherCampus() {
+    @DisplayName("AUTH-20: PHT được cấp xem liên cơ sở thì đọc được campus khác")
+    void vicePrincipalWithAllCampusViewCanReadOtherCampus() {
         CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
         given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
                 .willReturn(Set.of(CAMPUS_A));
 
-        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isTrue();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isTrue();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: xem liên cơ sở chỉ mở đường đọc; phạm vi thao tác vẫn chỉ campus được phân công")
+    void allCampusViewNeverWidensActionScope() {
+        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+
+        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_A)).isTrue();
+        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isFalse();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isTrue();
     }
 
     @Test
@@ -90,8 +110,8 @@ class CampusAccessPolicyTest {
         given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
                 .willReturn(Set.of());
 
-        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_A)).isFalse();
-        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isFalse();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_A)).isFalse();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isFalse();
     }
 
     @Test
@@ -99,7 +119,7 @@ class CampusAccessPolicyTest {
     void allCampusViewIsIgnoredForOtherRoles() {
         CurrentUser teacher = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.TEACHER);
 
-        assertThat(policy.canViewCampus(teacher, CAMPUS_B)).isFalse();
+        assertThat(policy.canReadCampus(teacher, CAMPUS_B)).isFalse();
         verifyNoInteractions(staffAssignmentService);
     }
 
@@ -125,6 +145,11 @@ class CampusAccessPolicyTest {
         CurrentUser admin = user(CareNestRole.ADMIN);
 
         assertThatThrownBy(() -> policy.checkCanViewCampus(admin, CAMPUS_A))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("You do not have access to this campus")
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.FORBIDDEN);
+        assertThatThrownBy(() -> policy.checkCanReadCampus(admin, CAMPUS_A))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage("You do not have access to this campus")
                 .extracting("apiCode")

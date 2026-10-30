@@ -72,9 +72,12 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 
 | Policy | Cho phép khi | Không bao giờ |
 | --- | --- | --- |
-| `CampusAccessPolicy.canViewCampus` | PRINCIPAL + phân công PRINCIPAL còn hiệu lực (mọi campus); VICE_PRINCIPAL + phân công VP tại campus đó; hoặc VICE_PRINCIPAL có `ALL_CAMPUS_VIEW` + phân công VP còn hiệu lực ở campus bất kỳ (mọi campus, chỉ đường đọc — AUTH-20) | Bếp (phân công campus của bếp chỉ cho dữ liệu bếp), GV, PH, Admin |
-| `ClassroomAccessPolicy.canViewClassroom` | TEACHER + phân công lớp đó còn hiệu lực; hoặc `canViewCampus(campus của lớp)` | Phân công lớp đã kết thúc/năm trước |
-| `ChildAccessPolicy.canViewChild` | PARENT + liên kết với trẻ; hoặc TEACHER/VP/PRINCIPAL có `canViewClassroom(lớp trẻ đang học hôm nay)` | Bếp, Admin (không bypass), trẻ không có enrollment hiện tại |
+| `CampusAccessPolicy.canViewCampus` | PRINCIPAL + phân công PRINCIPAL còn hiệu lực (mọi campus); VICE_PRINCIPAL + phân công VP tại campus đó | Bếp (phân công campus của bếp chỉ cho dữ liệu bếp), GV, PH, Admin; `ALL_CAMPUS_VIEW` không mở rộng hàm này |
+| `CampusAccessPolicy.canReadCampus` | `canViewCampus`; hoặc VICE_PRINCIPAL có `ALL_CAMPUS_VIEW` + phân công VP còn hiệu lực ở campus bất kỳ (mọi campus — AUTH-20) | Như `canViewCampus`; không dùng cho đường ghi |
+| `ClassroomAccessPolicy.canViewClassroom` / `canReadClassroom` | TEACHER + phân công lớp đó còn hiệu lực; hoặc `canViewCampus` / `canReadCampus` (campus của lớp) | Phân công lớp đã kết thúc/năm trước (AUTH-03 mở rộng chưa làm) |
+| `ChildAccessPolicy.canViewChild` / `canReadChild` | PARENT + liên kết với trẻ; hoặc TEACHER/VP/PRINCIPAL có `canViewClassroom` / `canReadClassroom` (lớp trẻ đang học hôm nay) | Bếp, Admin (không bypass), trẻ không có enrollment hiện tại |
+
+`canView*` = phạm vi được thao tác: mọi đường ghi dùng nhóm này. `canRead*` rộng hơn (xem liên cơ sở), chỉ cho endpoint đọc tự chọn; module quên chuyển sang `canRead*` thì chỉ thiếu xem, không mở quyền ghi.
 | `StaffAccessPolicy` (AUTH-15..17) | Tạo: Admin → PRINCIPAL; HT có phân công PRINCIPAL → PHT/GV/bếp; PHT → GV/bếp kèm phân công campus mình. Quản lý (khóa/mở, mật khẩu tạm, chi tiết): Admin mọi tài khoản; HT → PHT/GV/bếp; PHT → GV/bếp đang phân công trong campus mình. Phân công: HT → PHT/GV/bếp; PHT → GV/bếp campus mình | Thao tác HT/Admin (trừ Admin), chính mình, tài khoản `primary_role` null (trừ Admin) |
 
 - Mỗi policy có `canXxx` (boolean) và `checkCanXxx` (ném `GlobalException(FORBIDDEN, ...)`, log warn kèm id — không log dữ liệu cá nhân).

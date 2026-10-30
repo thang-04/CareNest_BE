@@ -73,14 +73,14 @@ class ChildServiceImplTest {
 
         assertThat(response.id()).isEqualTo(101L);
         assertThat(response.classroomId()).isEqualTo(11L);
-        verify(childAccessPolicy).checkCanViewChild(TEACHER, 101L);
+        verify(childAccessPolicy).checkCanReadChild(TEACHER, 101L);
     }
 
     @Test
     void shouldNotLoadChildWhenOutOfScope() {
         willThrow(new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this child"))
                 .given(childAccessPolicy)
-                .checkCanViewChild(TEACHER, 201L);
+                .checkCanReadChild(TEACHER, 201L);
 
         assertThatThrownBy(() -> childService.getChildProfile(TEACHER, 201L))
                 .isInstanceOf(GlobalException.class)

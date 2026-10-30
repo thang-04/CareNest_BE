@@ -288,7 +288,7 @@ Lỗi PHẢI ném exception (mục 11) để handler trả thống nhất. Chỉ
 | Quản trị viên | Quản lý tài khoản/cấu hình; không mặc định được xem dữ liệu trẻ |
 
 - Truy cập ngoài phạm vi: ném `GlobalException(ApiCode.FORBIDDEN, ...)`.
-- Kiểm tra scope dùng policy trong `security/authorization/` (`CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy`): service gọi `checkCanXxx(currentUser, id)` **trước** khi load dữ liệu (id không tồn tại cũng trả 403, không lộ id). KHÔNG viết `if (role == TEACHER)` rải rác trong service; thêm rule mới vào policy và test policy trực tiếp. Chi tiết: `docs/architecture/SECURITY.md`.
+- Kiểm tra scope dùng policy trong `security/authorization/` (`CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy`): service gọi `checkCanXxx(currentUser, id)` **trước** khi load dữ liệu (id không tồn tại cũng trả 403, không lộ id). Ghi dùng `checkCanView*` (phạm vi thao tác); đọc có thể dùng `checkCanRead*` (thêm xem liên cơ sở — AUTH-20). KHÔNG viết `if (role == TEACHER)` rải rác trong service; thêm rule mới vào policy và test policy trực tiếp. Chi tiết: `docs/architecture/SECURITY.md`.
 - NÊN có test cho trường hợp bị từ chối (lớp khác, cơ sở khác, phụ huynh không liên kết).
 
 ## 10. Logging
