@@ -6,6 +6,7 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [ENV-261031-ci-shallow-checkout-spotless-ratchet](incidents/ENV-261031-ci-shallow-checkout-spotless-ratchet.md) | deployment | CI Deploy VPS: `VERIFY FAIL` dù `tests 611 fail 0`, Spotless `spotless:check failed: No such reference`; local pass | `ratchetFrom origin/main` cần ref mà `actions/checkout` mặc định chỉ lấy 1 commit (đã thử UTC, container Linux) ⇒ `fetch-depth: 0` ở job verify | fixed |
 | [ENV-261030-flyway-renumbered-stale-db](incidents/ENV-261030-flyway-renumbered-stale-db.md) | deployment | Chạy app lỗi `Validate failed` `Migration checksum mismatch for migration version 7`…31 | DB local migrate theo số version cũ trước khi merge dev đổi số migration; dựng lại DB, giữ bản backup | workaround |
 | [BUG-261029-hierarchy-deferred-ddl](incidents/BUG-261029-hierarchy-deferred-ddl.md) | education-plan | Flyway CREATE INDEX: pending trigger events (55006) | Backfill FK deferred còn trigger chờ trước DDL; kiểm constraints trước DDL | fixed |
 | [ENV-261028-e2e-fixture-database-mismatch](incidents/ENV-261028-e2e-fixture-database-mismatch.md) | education-plan / E2E | Tạo kế hoạch 404 Không tìm thấy năm học sau đăng nhập thành công | Helper SQL mặc định carenest nhưng Backend dùng carenest_merge; đặt E2E_PG_DB đúng | fixed |
