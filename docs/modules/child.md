@@ -20,8 +20,9 @@ AUTH-04, AUTH-18, CHD-01..05, HLT-06, NUT-09, NUT-23.
 - **Không** đọc ngược health/learning (tránh cycle).
 
 ## API & bảng
-- Bảng: `children` (khung tối thiểu), `enrollments`, `guardian_child_links` (`V3__create_children.sql`, `docs/database/DATA_DICTIONARY.md`).
+- Bảng: `children` (khung tối thiểu), `enrollments`, `guardian_child_links`, `class_placements` (V19) (`V3__create_children.sql`, `docs/database/DATA_DICTIONARY.md`).
 - API: `GET /children/{childId}` (`ChildController` → `ChildService.getChildProfile`: `ChildAccessPolicy.checkCanViewChild` trước khi load; DTO `ChildProfileResponse` chỉ id, họ tên, ngày sinh, lớp hiện tại).
+- Chuyển năm học (PROPOSED — chờ nhóm/ADR, ghi trong plan `2026-10-22-cau-hinh-truong.md`): bảng `class_placements` (V19), API `/school-years/{id}/placements` (GET/PUT), `/placements/auto`, `/readiness`, `/activate` — `YearTransitionController`, `YearTransitionService`. Đặt ở child vì kích hoạt năm phải ghi `enrollments`; đọc cấu hình năm qua `YearSetupService` và kích hoạt qua `SchoolYearService` (school-structure) trong cùng transaction.
 - API phụ huynh (AUTH-18, AUTH-19; quyền `PARENT_ACCOUNT_MANAGE`, phạm vi `StaffAccessPolicy`): `GET /children` (`ChildService.searchChildren` — HT mọi trẻ, PHT trẻ đang học trong lớp thuộc campus mình), `GET|POST /children/{id}/guardians`, `DELETE /children/{id}/guardians/{userId}` (`GuardianController` → `GuardianAccountService` của feature account; ghi liên kết qua `GuardianChildLinkService.createLink/deleteLink`). Quan hệ: enum `GuardianRelationship` + CHECK V9.
 - Service cho kiểm tra scope: `EnrollmentService.findActiveClassroomIds(childId, date)`, `GuardianChildLinkService.isGuardianOf(userId, childId)`, `findChildIdsOfGuardian(userId)`. Không gọi ngược `security/authorization`.
 - Query còn cần khi làm nghiệp vụ: `childrenInClass(classroomId, date)`, `allergySummary(campusId|classroomId)` — trả số đếm theo chất, mức, lớp; không danh tính (AUTH-05) (`guardiansOf`, `childrenOfGuardian` đã có).

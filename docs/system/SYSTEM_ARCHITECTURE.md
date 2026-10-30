@@ -9,7 +9,7 @@
                                           │                    ├─ File storage (ảnh mẫu bữa, file Word kế hoạch — PENDING)
                                           │                    ├─ Push provider (PENDING)
                                           │                    └─ AI provider qua adapter: Gemini API, Groq (ADR-0007)
- PMS / GoKids / Zalo / hệ thống ngành: hệ thống ngoài. CareNest bao phủ + mở rộng workflow cần thiết của PMS/GoKids (PROJECT_CONTEXT "Định vị"); không thay hệ thống ngành, không thay Zalo chat; kế hoạch giáo dục làm trong CareNest (ADR-0019)
+ PMS / GoKids / Zalo / hệ thống ngành: hệ thống ngoài. CareNest bao phủ + mở rộng workflow cần thiết của PMS/GoKids (PROJECT_CONTEXT "Định vị"); không thay hệ thống ngành, không thay Zalo chat; kế hoạch giáo dục, giáo án soạn và duyệt trong CareNest, không import GoKids (ADR-0020, ADR-0006)
 ```
 
 - BE: layered monolith, ranh giới theo feature (ADR-0001, `docs/backend-coding-guide.md`). Module: `docs/system/MODULE_MAP.md`.

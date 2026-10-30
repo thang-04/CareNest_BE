@@ -10,7 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
-import com.carenest.dto.organization.CampusResponse;
+import com.carenest.dto.organization.CampusOptionResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
@@ -45,9 +45,10 @@ class SchoolStructureControllerTest {
         CurrentUser principal = TestPermissions.userWithDefaults(2L, CareNestRole.PRINCIPAL);
         given(currentUserService.getCurrentUser()).willReturn(principal);
         given(schoolStructureService.listCampuses(eq(principal)))
-                .willReturn(List.of(new CampusResponse(1L, "CS-A", "Cơ sở A (demo)")));
+                .willReturn(List.of(new CampusOptionResponse(1L, "CS-A", "Cơ sở A (demo)")));
 
-        mockMvc.perform(get("/api/campuses").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"))))
+        mockMvc.perform(get("/api/campuses/options")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].code").value("CS-A"));
     }
@@ -56,7 +57,8 @@ class SchoolStructureControllerTest {
     void teacherCannotReadStructureForAssignmentAndCampusIdIsRequired() throws Exception {
         given(currentUserService.getCurrentUser())
                 .willReturn(TestPermissions.userWithDefaults(4L, CareNestRole.TEACHER));
-        mockMvc.perform(get("/api/campuses").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
+        mockMvc.perform(get("/api/campuses/options")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isForbidden());
 
         given(currentUserService.getCurrentUser())

@@ -134,7 +134,7 @@ Cấu trúc `.ai/`, `.claude/`, `.agents/`, `AGENTS.md`, `CLAUDE.md`, `docs/know
 | FE | `docs/architecture/ROUTE_MAP.md`, `FRONTEND_ARCHITECTURE.md`, `STATE_MANAGEMENT.md`, `FOLDER_STRUCTURE.md` | Màn hình/route theo role → permission BE → card BE |
 | FE | `docs/features/README.md` | Tính năng web ↔ module/flow BE |
 | APP | `docs/features/{parent,teacher,kitchen}/README.md` | Màn hình theo role ↔ flow/rule BE |
-| APP | `docs/architecture/NAVIGATION.md`, `MOBILE_ARCHITECTURE.md` | Navigation theo role |
+| APP | NAVIGATION.md, MOBILE_ARCHITECTURE.md (repo CareNest_APP) | Navigation theo role |
 | FE, APP | `docs/integration/` | Cách gọi BE, auth, push (APP) — chỉ hành vi phía client, contract ở BE |
 | FE, APP | `docs/context/REPOSITORY_CONTEXT.md`, `CURRENT_STATE.md` | Vai trò repo, trạng thái màn hình |
 

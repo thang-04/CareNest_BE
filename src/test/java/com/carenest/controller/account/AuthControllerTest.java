@@ -155,13 +155,11 @@ class AuthControllerTest {
     @Test
     @DisplayName("AUTH-07: refresh 401 xóa cookie, 503 giữ cookie để client retry")
     void refreshClearsCookieOnlyWhenSessionIsInvalid() throws Exception {
-        given(service.refresh(OPAQUE))
-                .willThrow(new GlobalException(ApiCode.UNAUTHORIZED, "Web session is invalid or expired"));
+        given(service.refresh(OPAQUE)).willThrow(GlobalException.of(ApiCode.WEB_SESSION_INVALID));
         mvc.perform(csrf(post("/api/auth/refresh")).cookie(new Cookie("CARENEST_SESSION", OPAQUE)))
                 .andExpect(status().isUnauthorized())
                 .andExpect(cookie().maxAge("CARENEST_SESSION", 0));
-        given(service.refresh("b".repeat(43)))
-                .willThrow(new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable"));
+        given(service.refresh("b".repeat(43))).willThrow(GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE));
         mvc.perform(csrf(post("/api/auth/refresh")).cookie(new Cookie("CARENEST_SESSION", "b".repeat(43))))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(cookie().doesNotExist("CARENEST_SESSION"));

@@ -17,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -61,7 +62,8 @@ public class AuthController {
         var result = service.login(request);
         if (result.data().passwordChangeRequired()) {
             log.info("{}|passwordChangeRequired|END", logPrefix);
-            return response(ApiCode.PRECONDITION_REQUIRED, "Password change required", result.data());
+            return response(
+                    ApiCode.PASSWORD_CHANGE_REQUIRED, ApiCode.PASSWORD_CHANGE_REQUIRED.getDefaultDesc(), result.data());
         }
         setSessionCookie(
                 servletResponse, result.cookie().value(), result.cookie().maxAgeSeconds());
@@ -81,7 +83,7 @@ public class AuthController {
             result = service.refresh(cookie);
         } catch (GlobalException ex) {
             // Phiên hỏng/hết hạn thì xóa cookie; 503 giữ cookie để client retry.
-            if (ex.getApiCode() == ApiCode.UNAUTHORIZED) setSessionCookie(servletResponse, "", 0);
+            if (ex.getApiCode().getHttpStatus() == HttpStatus.UNAUTHORIZED) setSessionCookie(servletResponse, "", 0);
             throw ex;
         }
         setSessionCookie(

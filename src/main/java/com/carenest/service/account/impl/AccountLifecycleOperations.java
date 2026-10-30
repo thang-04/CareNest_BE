@@ -51,7 +51,7 @@ class AccountLifecycleOperations {
                 throw toGlobalException(idpEx);
             }
             if (ex instanceof DataIntegrityViolationException) {
-                throw new GlobalException(ApiCode.CONFLICT, "Account already exists", ex);
+                throw GlobalException.withCause(ApiCode.ACCOUNT_EXISTS, ex);
             }
             throw ex;
         }
@@ -69,10 +69,7 @@ class AccountLifecycleOperations {
             }
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderSyncFailed", logPrefix, ex);
-            throw new GlobalException(
-                    ApiCode.SERVICE_UNAVAILABLE,
-                    "Account status saved but identity provider sync failed, please retry",
-                    ex);
+            throw GlobalException.withCause(ApiCode.IDENTITY_SYNC_FAILED, ex);
         }
     }
 
@@ -88,10 +85,7 @@ class AccountLifecycleOperations {
             identityProviderClient.logoutUser(account.getKeycloakUserId());
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
-            throw new GlobalException(
-                    ApiCode.SERVICE_UNAVAILABLE,
-                    "Password reset but existing sessions could not be revoked, please retry",
-                    ex);
+            throw GlobalException.withCause(ApiCode.PASSWORD_RESET_SESSION_REVOKE_FAILED, ex);
         }
     }
 
@@ -107,13 +101,9 @@ class AccountLifecycleOperations {
 
     static GlobalException toGlobalException(IdentityProviderException ex) {
         return switch (ex.getReason()) {
-            case CONFLICT -> new GlobalException(ApiCode.CONFLICT, "Username or email already exists", ex);
-            case REJECTED ->
-                new GlobalException(
-                        ApiCode.BAD_REQUEST,
-                        "Account data rejected by identity provider (check password policy and full name)",
-                        ex);
-            case UNAVAILABLE -> new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Identity provider unavailable", ex);
+            case CONFLICT -> GlobalException.withCause(ApiCode.USERNAME_OR_EMAIL_EXISTS, ex);
+            case REJECTED -> GlobalException.withCause(ApiCode.IDENTITY_DATA_REJECTED, ex);
+            case UNAVAILABLE -> GlobalException.withCause(ApiCode.IDENTITY_PROVIDER_UNAVAILABLE, ex);
         };
     }
 }

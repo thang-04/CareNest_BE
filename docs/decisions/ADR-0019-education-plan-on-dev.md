@@ -1,6 +1,7 @@
 # ADR-0019 — Module kế hoạch giáo dục làm lại trên `dev`
 
-- Status: ACCEPTED
+- Status: **SUPERSEDED** bởi ADR-0020 (user chốt 29/10/2026: merge `dev` vào G94-226, kế hoạch giáo dục theo code nhánh)
+- Ghi chú merge (2026-10-29): user đã merge `dev` vào nhánh G94-226 thay vì làm lại, và chốt kế hoạch giáo dục theo code nhánh — quyết định "không merge nguyên trạng" dưới đây không còn hiệu lực. Khi merge: rule EDU-01..10 của ADR này đổi số thành EDU-29..38 (EDU-01..28 là rule của G94-226); `ADR-0017-education-plan-module.md` đổi thành ADR-0020; migration của nhánh dời thành V10–V35 sau V7–V9 của `dev`.
 - Date: 2026-10-29
 - Liên quan: EDU-01..10, OBS-07, OBS-08 (REMOVED), AUTH-23, ADR-0006 (SUPERSEDED), ADR-0017; P-01 (đóng), P-29
 

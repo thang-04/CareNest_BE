@@ -3,19 +3,19 @@
 Feature: `observation` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thiết kế
 
 ## Mục đích
-Hồ sơ phát triển liên tục của trẻ: đánh giá hằng ngày có cấu trúc, nhận xét định kỳ, khen thưởng; nhận xét chung về lớp mỗi ngày cho báo cáo BGH (RPT-02).
+Hồ sơ phát triển liên tục của trẻ: đánh giá hằng ngày có cấu trúc, đánh giá hằng ngày theo MT của giáo án đã duyệt, nhận xét định kỳ, khen thưởng; nhận xét chung về lớp mỗi ngày cho báo cáo BGH (RPT-02).
 
 ## Owns
-ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), nhận xét định kỳ (tuần/tháng/học kỳ/năm, DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
+ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ (tuần/tháng/học kỳ/năm, DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
 
 ## KHÔNG owns
-Kế hoạch giáo dục, mục tiêu hoạt động (education-plan — chỉ đọc, OBS-07); dữ liệu sức khỏe/điểm danh/bữa ăn (chỉ đọc).
+Kế hoạch giáo dục, giáo án và hoạt động, MT của chúng (module education-plan, ADR-0020 — chỉ đọc bản đã duyệt, OBS-07); dữ liệu sức khỏe/điểm danh/bữa ăn (chỉ đọc).
 
 ## Rules
-OBS-01..14 (OBS-08 REMOVED), AI-01..08, AI-10, PAR-03. Flow: `docs/business/flows/child-observation.md`.
+OBS-01..14 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/business/flows/child-observation.md`.
 
 ## Phụ thuộc
-- Dùng: service `child`, service `attendance`, service `meals`, service `health`, service `eduplan` (chỉ query), `AiClient` (`integration/`).
+- Dùng: service `child`, service `attendance`, service `meals`, service `health`, service `eduplan` (giáo án đã duyệt) — chỉ query; `AiClient` (`integration/`).
 - Được dùng bởi: reporting.
 - Module downstream nhất trong child record — không module domain nào được import learning.
 
@@ -34,9 +34,10 @@ P-11 (tiêu chí cố định theo Bộ hay trường cấu hình), P-30 (mẫu 
 - Không có mục theo dõi/can thiệp riêng trong hồ sơ phát triển (OBS-03).
 - DevelopmentProfile không copy dữ liệu nguồn vào bảng riêng; đọc qua service của các feature nguồn.
 - Mẫu nhận xét nền phải chạy khi AI tắt (OBS-04).
+- Không lưu bản sao hoạt động/MT của giáo án; tham chiếu giáo án và MT bằng id, đọc qua service education-plan. Lớp chưa có giáo án duyệt thì khóa phần chấm theo MT (EDU-19).
 
 ## Related issues
 Chưa có.
 
 ## Đọc thêm khi
-Đụng ngữ cảnh hoạt động ⇒ card education-plan, ADR-0019. Đụng AI nháp nhận xét ⇒ card ai-assistance, ADR-0008. Đụng hiển thị phụ huynh ⇒ ADR-0010.
+Đụng đánh giá theo MT / ngữ cảnh hoạt động ⇒ ADR-0006, card education-plan. Đụng AI nháp nhận xét ⇒ card ai-assistance, ADR-0008. Đụng hiển thị phụ huynh ⇒ ADR-0010.

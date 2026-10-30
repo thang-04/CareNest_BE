@@ -49,10 +49,10 @@ class StaffAssignmentServiceImplTest {
 
         assertThatThrownBy(() -> service.resolveCampusId(StaffRole.VICE_PRINCIPAL, 99L, null))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.NOT_FOUND);
+                .isEqualTo(ApiCode.CAMPUS_NOT_FOUND);
         assertThatThrownBy(() -> service.resolveCampusId(StaffRole.TEACHER, null, 99L))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.NOT_FOUND);
+                .isEqualTo(ApiCode.CLASS_NOT_FOUND);
     }
 
     @Test
@@ -64,7 +64,7 @@ class StaffAssignmentServiceImplTest {
         assertThatThrownBy(() -> service.createAssignment(
                         new NewStaffAssignment(40L, StaffRole.KITCHEN_STAFF, 10L, null, START, null)))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.CONFLICT);
+                .isEqualTo(ApiCode.ASSIGNMENT_OVERLAP);
         verify(repository, never()).saveAndFlush(any());
     }
 
@@ -76,15 +76,23 @@ class StaffAssignmentServiceImplTest {
 
         assertThatThrownBy(() -> service.endAssignment(5L, START.minusDays(1)))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .isEqualTo(ApiCode.ASSIGNMENT_END_BEFORE_START);
         assertThatThrownBy(() -> service.endAssignment(5L, START.plusDays(9)))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.CONFLICT);
+                .isEqualTo(ApiCode.ASSIGNMENT_ALREADY_ENDED);
     }
 
+    @Test
+    void teamLeaderIsNotAssignedThroughGenericStaffAssignment() {
+        assertThatThrownBy(() -> service.resolveCampusId(StaffRole.AGE_GROUP_TEAM_LEADER, null, null))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.TEAM_LEADER_ASSIGNMENT_NOT_HERE);
+    }
+
+    // Mỗi sai hình dạng phạm vi có mã riêng; helper chỉ cần biết là 400
     private void assertBadRequest(StaffRole role, Long campusId, Long classroomId) {
         assertThatThrownBy(() -> service.resolveCampusId(role, campusId, classroomId))
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.BAD_REQUEST);
+                .extracting("apiCode.httpStatus")
+                .isEqualTo(ApiCode.BAD_REQUEST.getHttpStatus());
     }
 }

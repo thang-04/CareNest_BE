@@ -1,6 +1,6 @@
 # Module — nutrition
 
-Feature: `meals` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thiết kế
+Feature: `meals` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: sổ báo ăn đã làm (đợt 2 điểm danh), phần còn lại thiết kế
 
 ## Mục đích
 Pipeline dinh dưỡng xác định: thực phẩm → món → thực đơn (công bố) → số suất đã xác nhận → định lượng; kho khô rút gọn, kiểm nhận hàng tươi, danh mục NCC, sổ lưu mẫu, ảnh mẫu bữa; màn bếp trên App.
@@ -17,11 +17,13 @@ NUT-01..23 (NUT-14, NUT-15 REMOVED), AI-01..06. Flow: `docs/business/flows/meal-
 ## Phụ thuộc
 - Dùng: service `attendance` (trẻ có mặt), service `child` (allergySummary: số trẻ theo chất, mức, lớp — không danh tính), service `organization` (nhóm tuổi, số bữa), `AiClient` (`integration/`).
 - Được dùng bởi: learning-observation (meal history), reporting.
-- Event nghe (PROPOSED, ADR-0004): `AttendanceChanged` → nếu số suất đã xác nhận ⇒ đánh dấu thay đổi, yêu cầu xác nhận lại.
+- Event nghe (ADR-0004): `AttendanceChangedEvent` sau commit (`MealCountAttendanceListener`) → số của lớp đổi ⇒ sổ đã xác nhận chuyển chờ xác nhận lại.
 - Event phát: `MealCountConfirmed`, `MealPlanApproved` (notification bếp).
 
 ## API & bảng
-Chưa có API. Thiết kế bảng (PROPOSED, chưa migration): `docs/database/MEAL_NUTRITION_AI_SCHEMA.md` §3–§6; nháp AI theo ADR-0018 (`ai_drafts`).
+`GET /meal-counts`, `POST /meal-counts/{id}/confirm`, `POST /meal-counts/adjustments` (`MealCountController`). Bảng `meal_counts`, `meal_count_lines`, `meal_count_history` (V26), vai trò người xác nhận (V29). Tổng hợp lười: lần đầu mở sổ sau giờ chốt (chưa có job). Code: xác nhận theo bản Cần chốt 27/10 (HT mọi điểm trường, PHT điểm trường mình); điều chỉnh (có lý do) chỉ PHT điểm trường — đối chiếu lại NUT-01..04 (khảo sát 28/10: có mặt là ăn, HT xác nhận thay khi PHT vắng, sai thì trả GV qua mở lại điểm danh). Bếp chưa có BE: FE bếp đọc số đã xác nhận từ `GET /meal-counts`, `confirmedAt` mới ⇒ nhãn "Mới" thay thông báo.
+
+Phần chưa có API — thiết kế bảng (PROPOSED, chưa migration): `MEAL_NUTRITION_AI_SCHEMA.md` (file thiết kế của dev, chưa có trong repo) §3–§6; nháp AI (`ai_drafts`).
 
 ## PENDING
 P-24 (sĩ số dự kiến lấy trước bao lâu), P-25 (chọn lô khi trừ, kho không đủ), P-26 (mẫu sổ lưu mẫu), P-27 (kiểm thực ba bước). Đã đóng 28/10: P-04..P-10.

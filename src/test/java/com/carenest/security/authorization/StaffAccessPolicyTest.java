@@ -172,8 +172,8 @@ class StaffAccessPolicyTest {
     private static void assertDenied(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .extracting("apiCode.httpStatus")
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     private static CurrentUser user(Long id, CareNestRole role) {

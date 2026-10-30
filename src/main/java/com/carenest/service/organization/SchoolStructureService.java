@@ -1,14 +1,28 @@
 package com.carenest.service.organization;
 
-import com.carenest.dto.organization.CampusResponse;
+import com.carenest.dto.organization.AgeGroupResponse;
+import com.carenest.dto.organization.CampusOptionResponse;
 import com.carenest.dto.organization.ClassroomResponse;
+import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.security.CurrentUser;
 import java.util.List;
+import java.util.Optional;
 
-/** Đọc cấu trúc trường cho form phân công; lọc theo phạm vi người xem (AUTH-01, AUTH-02). */
+/**
+ * Danh mục năm học, nhóm tuổi cho module khác (education-plan) đọc qua service, không qua repository; danh sách
+ * campus/lớp cho form phân công lọc theo phạm vi người xem (AUTH-01, AUTH-02).
+ */
 public interface SchoolStructureService {
 
-    List<CampusResponse> listCampuses(CurrentUser actor);
+    List<SchoolYearResponse> findSchoolYears();
+
+    Optional<SchoolYearResponse> findSchoolYear(Long schoolYearId);
+
+    List<AgeGroupResponse> findAgeGroups();
+
+    Optional<AgeGroupResponse> findAgeGroup(Long ageGroupId);
+
+    List<CampusOptionResponse> listCampuses(CurrentUser actor);
 
     /** Lớp của năm học đang diễn ra tại campus. */
     List<ClassroomResponse> listCurrentClassrooms(CurrentUser actor, Long campusId);

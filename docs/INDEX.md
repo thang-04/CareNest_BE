@@ -46,7 +46,7 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | 0003 | Role × Permission ∩ Scope | ACCEPTED |
 | 0004 | Giao tiếp feature: gọi service + event khi ngược chiều | ACCEPTED / event PROPOSED |
 | 0005 | Số suất đã xác nhận: lịch sử + xác nhận lại | ACCEPTED (chi tiết chốt 28/10) |
-| 0006 | Nguồn ngữ cảnh hoạt động / GoKids | SUPERSEDED by 0019 |
+| 0006 | Nguồn ngữ cảnh hoạt động = giáo án đã duyệt trong CareNest | ACCEPTED |
 | 0007 | AI provider abstraction + data minimization | ACCEPTED (provider Gemini/Groq) |
 | 0008 | Human-in-the-loop AI | ACCEPTED |
 | 0009 | Phạm vi kho/NCC | ACCEPTED (cập nhật 28/10) |
@@ -56,4 +56,9 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | 0013 | React-owned Web auth gateway (Direct Grant qua confidential client) | ACCEPTED |
 | 0014 | Service interface + Impl; enum/hằng dùng chung ở `utils/` | ACCEPTED |
 | 0015 | Phiên Web trong cookie mã hóa, Keycloak giữ phiên | ACCEPTED |
-| 0019 | Module kế hoạch giáo dục làm lại trên `dev` | ACCEPTED |
+| 0016 | Log START/END đơn giản cho controller và service | ACCEPTED |
+| 0017 | Phân quyền cấu hình được: ma trận theo role + ngoại lệ từng người | ACCEPTED |
+| 0018 | Học liệu hoạt động trên S3 private | ACCEPTED |
+| 0019 | Module kế hoạch giáo dục làm lại trên `dev` | SUPERSEDED bởi ADR-0020 (user chốt 29/10: theo code G94-226) |
+| 0020 | Module education-plan: CareNest soạn/duyệt kế hoạch giáo dục (số cũ 0017 trên G94-226) | ACCEPTED |
+| 0021 | Ba bảng mục tiêu năm học cha–con (số cũ 0019 trên G94-226) | ACCEPTED |

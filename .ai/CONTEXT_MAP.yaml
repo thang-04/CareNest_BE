@@ -24,11 +24,11 @@ keywords:
   "sức khỏe|health|healthrecord|healthinterpretation|chiều cao|cân nặng|measurement|tăng trưởng|trend": [health]
   "sức khỏe trong ngày|tai nạn|xử trí|khám bác sĩ|who|suy dinh dưỡng|thừa cân|công bố cân đo": [health]
   "quan sát|observation|tiêu chí|criteria|nhận xét|summary|đánh giá|assessment|follow-up|phát triển|development profile|developmentprofile|bé ngoan|cắm cờ|khen thưởng|khen cuối năm|reward|nhận xét định kỳ": [learning-observation]
-  "kế hoạch giáo dục|giáo án|mục tiêu năm học|chủ đề nhánh|chủ đề tuần|kế hoạch ngày|eduplan|tổ trưởng duyệt": [education-plan]   # ADR-0019
-  "hoạt động|activity|activitycontext|mục tiêu học|gokids": [education-plan, learning-observation]   # OBS-07
+  "hoạt động|activity|activitycontext|gokids|đánh giá theo mt": [learning-observation, education-plan]   # OBS-07, ADR-0006
+  "giáo án|kế hoạch giáo dục|mục tiêu năm|mục tiêu năm học|mục tiêu học|year plan|yearplan|eduplan|chủ đề|chủ đề nhánh|chủ đề tuần|kế hoạch tuần|kế hoạch ngày|hồ sơ chủ đề|người ký|đợt nghỉ|lĩnh vực|kết quả mong đợi|tổ trưởng duyệt|học liệu": [education-plan]   # ADR-0020
   # CSVC, sự cố thiết bị, tài sản: FAC REMOVED 29/10 — ngoài scope (ROUTER Bảng 3)
   "đăng nhập|login|token|role|permission|phân quyền|scope|accessscope|account|useraccount|tài khoản": [identity-access]
-  "điểm trường|campus|lớp|classroom|năm học|schoolyear|phân công|assignment|staffassignment|hiệu phó|hiệu trưởng": [school-structure, identity-access]
+  "điểm trường|campus|lớp|classroom|năm học|schoolyear|phân công|assignment|staffassignment|hiệu phó|hiệu trưởng|nhóm tuổi|age group|agegroup|tổ trưởng": [school-structure, identity-access]
   "thông báo|notification|push|thông báo của trường": [notification]
   "audit|auditevent|nhật ký|lịch sử thay đổi": [audit]
   "ai|aiclient|llm|gợi ý|prompt|provider|openai|gemini|groq|ollama": [ai-assistance]
@@ -62,8 +62,8 @@ modules:
   attendance:           {card: docs/modules/attendance.md, feature: attendance, rules: [ATT, PCK], flows: [docs/business/flows/attendance.md, docs/business/flows/leave-request.md, docs/business/flows/pickup.md], adr: [0005]}
   nutrition:            {card: docs/modules/nutrition.md, feature: meals, rules: [NUT, AI], flows: [docs/business/flows/meal-management.md, docs/business/flows/attendance.md], adr: [0005, 0007, 0008, 0009]}
   health:               {card: docs/modules/health.md, feature: health, rules: [HLT, AI], flows: [docs/business/flows/health-check.md], adr: [0007, 0008, 0010]}
-  learning-observation: {card: docs/modules/learning-observation.md, feature: observation, rules: [OBS, AI], flows: [docs/business/flows/child-observation.md], adr: [0008, 0010, 0019]}
-  education-plan:       {card: docs/modules/education-plan.md, feature: eduplan, rules: [EDU, OBS-07, AUTH-23], flows: [docs/business/flows/education-plan.md], adr: [0017, 0019]}
+  learning-observation: {card: docs/modules/learning-observation.md, feature: observation, rules: [OBS, AI], flows: [docs/business/flows/child-observation.md], adr: [0006, 0008, 0010]}
+  education-plan:       {card: docs/modules/education-plan.md, feature: eduplan, rules: [EDU, OBS-07, AUTH-23], flows: [docs/business/flows/education-plan.md], adr: [0020, 0021, 0018, 0006, 0017]}
   notification:         {card: docs/modules/notification.md, feature: notification, rules: [PAR-05], adr: [0004]}
   audit:                {card: docs/modules/audit.md, feature: audit}
   ai-assistance:        {card: docs/modules/ai-assistance.md, package: com.carenest.integration, rules: [AI], adr: [0007, 0008]}

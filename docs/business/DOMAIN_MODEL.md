@@ -9,10 +9,11 @@ Tổng quan cho task L3/L4. Task trong 1 module: đọc `docs/modules/<module>.m
  FOUNDATION    identity-access → school-structure → child
  OPERATIONS    attendance (leave, attendance, pickup)
                nutrition (food, dish, menu, meal count, food quantity, kitchen view)
-               education-plan (year goals, sub-theme, weekly theme, daily plan)
+               education-plan (kế hoạch năm, cấu hình, chủ đề nhánh, kế hoạch chủ đề,
+                               giáo án tuần/ngày, học liệu)
  CHILD RECORD  health
-               learning-observation (daily assessment, periodic summary, reward,
-                                     development profile)
+               learning-observation (daily assessment, đánh giá theo MT, periodic summary,
+                                     reward, development profile)
  READ          reporting (chỉ đọc)
 ```
 
@@ -46,12 +47,13 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | health | Đợt khám bác sĩ | CHILD | 2 lần/năm (HLT-08); nội dung ghi: chưa có rule |
 | health | Ghi nhận sức khỏe trong ngày (childId, time, symptom, handling, note) | CHILD | Báo phụ huynh ngay (HLT-14) |
 | health | HealthInterpretation (childId, period, text, source, status) | CHILD | AI DRAFT → APPROVED |
-| education-plan | Mục tiêu năm học (schoolYear, ageGroup, status, version) | SCHOOL | 1 bộ/(năm học, nhóm tuổi); tổ trưởng soạn, PHT duyệt/ban hành (EDU-02) |
-| education-plan | Chủ đề nhánh + kế hoạch theo chủ đề nhánh (classroom, status, version) | CLASS | Duyệt GV → tổ trưởng → PHT (EDU-03) |
-| education-plan | Chủ đề tuần, kế hoạch ngày (classroom, date, activities[], objective, materials) | CLASS | Không duyệt (EDU-04); ngữ cảnh đánh giá (OBS-07) |
-| education-plan | Lịch sử duyệt (actor, time, action, reason) | — | Bấm duyệt, không ký (EDU-05); nhân bản để sửa (EDU-08) |
+| education-plan | EduYearPlan (schoolYear, ageGroup, status, owner, sent/issued, editing lock) | AGE GROUP | 1 bản / (năm học, nhóm tuổi); DRAFT ⇄ EDITING → PENDING_VP → APPROVED / REJECTED (EDU-01..10) |
+| education-plan | EduPlanSubDomain, EduPlanExpectedResult, EduPlanGoal (goalNo), EduGoalContent, EduTheme, EduBreak, EduContentThemeTick, EduPlanEvent | AGE GROUP | Cây mục tiêu 5 tầng, chủ đề, đợt nghỉ, dấu tích, lịch sử (EDU-09) |
+| education-plan | EduDomain; cấu hình người ký, dòng hoạt động tuần | SCHOOL | EDU-11 (người ký, dòng tuần: BE chưa có) |
+| education-plan | Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần (kế hoạch tuần + 5 ngày), hồ sơ chủ đề | CLASS | EDU-12..18; `edu_class_docs` |
 | learning-observation | ObservationCriteria, CriteriaOption | SCHOOL | 7 mặt, 3 mức; cố định hay cấu hình: P-11 |
 | learning-observation | Observation (childId, date, values[], note) | CLASS | Đánh giá ngày; mọi trẻ có mặt, mặc định "bình thường"; khóa hết ngày (OBS-01, OBS-12) |
+| learning-observation | Đánh giá hằng ngày theo MT (childId, date, giờ, MT, đạt/chưa) | CLASS/CHILD | Đọc giáo án đã duyệt (EDU-19, ADR-0006) |
 | learning-observation | Summary (childId, period tuần/tháng/học kỳ/năm, text, source, status) | CHILD | Nháp → GV xác nhận, không BGH duyệt (OBS-05, OBS-06) |
 | learning-observation | Nhận xét lớp hằng ngày (classroomId, date, text) | CLASS | RPT-02; BGH đọc qua reporting |
 | learning-observation | Reward (childId, period, type, decidedBy) | CHILD | Cờ ngày, phiếu bé ngoan tuần (OBS-10); khen cuối năm GV → PHT → HT (OBS-14) |
@@ -71,6 +73,10 @@ MealPlan *─* Dish 1─* Recipe line ─→ Food 1─* NutrientValue
 Child 1─* HealthRecord, Observation, Summary, Reward
 Classroom 1─* kế hoạch ngày ──(mục tiêu hoạt động)──→ Observation (OBS-07)
 Child ──(read model)──→ DevelopmentProfile
+SchoolYear × AgeGroup 1─1 EduYearPlan 1─* EduPlanSubDomain 0..1─* EduPlanExpectedResult 0..1─* EduPlanGoal 1─* EduGoalContent *─* EduTheme
+Classroom × EduTheme ─→ kế hoạch chủ đề (hoạt động theo MT) ─→ giáo án tuần (ô nhớ MT) ─→ đánh giá trẻ theo MT
 ```
 
 Tham chiếu xuyên module bằng **ID**; không dùng JPA relationship xuyên module (xem `docs/architecture/PACKAGE_STRUCTURE.md`).
+
+Ba bảng mục tiêu (V35, user duyệt 29/10/2026): nhóm có lĩnh vực con tùy chọn; MT có nhóm tùy chọn và có thể nằm trực tiếp dưới lĩnh vực con/lĩnh vực. FK ghép chặn cha khác kế hoạch/lĩnh vực; không thêm tiêu đề giả. `EduGoalRow` là mapped superclass chung, không còn entity/bảng riêng. Xem ADR-0021.

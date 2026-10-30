@@ -134,13 +134,12 @@ public class PermissionServiceImpl implements PermissionService {
         try {
             // AUTH-11: quyền ADMIN/PRINCIPAL/PARENT cố định trong code, không sửa qua API
             if (!Permission.isConfigurableRole(role)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Permissions of this role are fixed");
+                throw GlobalException.of(ApiCode.ROLE_PERMISSIONS_FIXED);
             }
             Set<Permission> requested = toEnumSet(request.permissions());
             for (Permission permission : requested) {
                 if (!permission.isConfigurableFor(role)) {
-                    throw new GlobalException(
-                            ApiCode.BAD_REQUEST, "Permission " + permission + " cannot be configured for role " + role);
+                    throw GlobalException.of(ApiCode.PERMISSION_NOT_CONFIGURABLE_FOR_ROLE, permission, role);
                 }
             }
 
@@ -214,7 +213,7 @@ public class PermissionServiceImpl implements PermissionService {
         try {
             // AUTH-12: không ai tự cấp/thu quyền của chính mình
             if (userId.equals(actor.userId())) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "You cannot change your own permissions");
+                throw GlobalException.of(ApiCode.CANNOT_CHANGE_OWN_PERMISSIONS);
             }
             UserAccount account = findAccount(userId);
             Set<CareNestRole> roles = rolesOf(account);
@@ -222,7 +221,7 @@ public class PermissionServiceImpl implements PermissionService {
             boolean hasFixedPrivilegedRole =
                     roles.contains(CareNestRole.PRINCIPAL) || roles.contains(CareNestRole.ADMIN);
             if (hasFixedPrivilegedRole || roles.stream().noneMatch(Permission::isConfigurableRole)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "Permissions of this account cannot be overridden");
+                throw GlobalException.of(ApiCode.PERMISSIONS_NOT_OVERRIDABLE);
             }
             Map<Permission, PermissionEffect> requested = toRequestedOverrides(request.overrides(), roles);
 
@@ -247,7 +246,7 @@ public class PermissionServiceImpl implements PermissionService {
         log.info("{}|START", logPrefix);
         try {
             if (targetRole != null && targetUserId != null) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Filter by either targetRole or targetUserId");
+                throw GlobalException.of(ApiCode.PERMISSION_LOG_FILTER_INVALID);
             }
             PageRequest pageable = PageRequest.of(page, size, CHANGE_LOG_ORDER);
             Page<PermissionChangeLog> logs;
@@ -310,12 +309,10 @@ public class PermissionServiceImpl implements PermissionService {
         Map<Permission, PermissionEffect> requested = new EnumMap<>(Permission.class);
         for (OverrideItem item : items) {
             if (requested.put(item.permission(), item.effect()) != null) {
-                throw new GlobalException(ApiCode.BAD_REQUEST, "Duplicate permission " + item.permission());
+                throw GlobalException.of(ApiCode.PERMISSION_DUPLICATED, item.permission());
             }
             if (!EffectivePermissionResolver.isConfigurableForAny(item.permission(), roles)) {
-                throw new GlobalException(
-                        ApiCode.BAD_REQUEST,
-                        "Permission " + item.permission() + " cannot be configured for this account");
+                throw GlobalException.of(ApiCode.PERMISSION_NOT_CONFIGURABLE_FOR_ACCOUNT, item.permission());
             }
         }
         return requested;
@@ -363,9 +360,7 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     private UserAccount findAccount(Long userId) {
-        return userAccountRepository
-                .findById(userId)
-                .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Account not found"));
+        return userAccountRepository.findById(userId).orElseThrow(() -> GlobalException.of(ApiCode.ACCOUNT_NOT_FOUND));
     }
 
     // Keycloak là nguồn role (ADR-0011); bỏ qua role không thuộc CareNest
@@ -376,7 +371,7 @@ public class PermissionServiceImpl implements PermissionService {
                     .flatMap(Optional::stream)
                     .collect(Collectors.toCollection(() -> EnumSet.noneOf(CareNestRole.class)));
         } catch (IdentityProviderException ex) {
-            throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Identity provider is unavailable", ex);
+            throw GlobalException.withCause(ApiCode.IDENTITY_PROVIDER_UNAVAILABLE, ex);
         }
     }
 

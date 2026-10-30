@@ -34,7 +34,7 @@ Nguồn chuẩn cho code: `docs/backend-coding-guide.md` (từ `CareNest_Backend
 
 - Campus/class/child scope kiểm tra ở service/security, đối chiếu assignment; không tin `campusId` client gửi (guide mục 9).
 - Dữ liệu campus-scoped có campus; dữ liệu theo trẻ suy campus qua lớp tại ngày dữ liệu.
-- Ngoài scope ⇒ `GlobalException(ApiCode.FORBIDDEN, ...)`. Test bắt buộc cho trường hợp bị từ chối.
+- Ngoài scope ⇒ `GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED | CLASS_ACCESS_DENIED | CHILD_ACCESS_DENIED)`. Test bắt buộc cho trường hợp bị từ chối.
 
 ## AI (ADR-0007, ADR-0008; guide 13.3)
 

@@ -82,7 +82,7 @@ class AuthRefreshCoalescerTest {
     void failureIsNotCached() {
         var coalescer = new AuthRefreshCoalescer(Clock.fixed(NOW, ZoneOffset.UTC));
         assertThatThrownBy(() -> coalescer.run("cookie-hash", () -> {
-                    throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+                    throw GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
                 }))
                 .isInstanceOf(GlobalException.class);
         assertThat(coalescer.run("cookie-hash", () -> result("retried")).data().accessToken())
