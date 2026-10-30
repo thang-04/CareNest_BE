@@ -36,6 +36,19 @@ public class SchoolYear {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    // Học kỳ I / II do Hiệu trưởng chọn trong khoảng năm học (V46); cả 4 null = chưa cấu hình
+    @Column(name = "semester1_start")
+    private LocalDate semester1Start;
+
+    @Column(name = "semester1_end")
+    private LocalDate semester1End;
+
+    @Column(name = "semester2_start")
+    private LocalDate semester2Start;
+
+    @Column(name = "semester2_end")
+    private LocalDate semester2End;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private SchoolYearStatus status;
@@ -73,6 +86,14 @@ public class SchoolYear {
         this.name = name;
         this.startDate = startDate;
         this.endDate = endDate;
+    }
+
+    public void changeSemesters(
+            LocalDate semester1Start, LocalDate semester1End, LocalDate semester2Start, LocalDate semester2End) {
+        this.semester1Start = semester1Start;
+        this.semester1End = semester1End;
+        this.semester2Start = semester2Start;
+        this.semester2End = semester2End;
     }
 
     public void activate(Long userId, Instant at) {

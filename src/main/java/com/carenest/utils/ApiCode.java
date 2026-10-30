@@ -90,6 +90,12 @@ public enum ApiCode {
     SCHOOL_YEAR_OUT_OF_SEQUENCE(2019, HttpStatus.BAD_REQUEST, "Năm học tiếp theo phải là {0} (sau năm {1})"),
     SCHOOL_YEAR_START_BEFORE_LATEST_END(
             2020, HttpStatus.BAD_REQUEST, "Ngày bắt đầu phải sau ngày kết thúc năm học {0} ({1})"),
+    SEMESTER_OUT_OF_YEAR(2021, HttpStatus.BAD_REQUEST, "{0} phải nằm trong năm học ({1} – {2})"),
+    YEAR_COPY_TARGET_NOT_PLANNED(2022, HttpStatus.CONFLICT, "Chỉ sao chép vào năm học chưa bắt đầu ({0} đang {1})"),
+    YEAR_COPY_PARTS_REQUIRED(2023, HttpStatus.BAD_REQUEST, "Chọn ít nhất một phần để sao chép"),
+    SEMESTER_START_AFTER_END(2024, HttpStatus.BAD_REQUEST, "{0}: ngày bắt đầu không được sau ngày kết thúc"),
+    SEMESTER_OVERLAP(2025, HttpStatus.BAD_REQUEST, "Học kỳ II phải bắt đầu sau ngày kết thúc học kỳ I ({0})"),
+    SEMESTER_DATE_REQUIRED(2026, HttpStatus.BAD_REQUEST, "Chọn {0}"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
     SCHOOL_CONFIG_ACCESS_DENIED(2101, HttpStatus.FORBIDDEN, "Bạn không có quyền xem cấu hình trường"),

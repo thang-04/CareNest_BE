@@ -3,6 +3,7 @@ package com.carenest.service.organization.impl;
 import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
+import com.carenest.dto.organization.SchoolYearSemesterRequest;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
@@ -19,6 +20,8 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -132,10 +135,43 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                     throw GlobalException.of(ApiCode.SCHOOL_YEAR_HAS_CLASSES);
                 }
             }
+            // Đổi ngày năm học: học kỳ đã đặt phải còn nằm trong năm
+            if (schoolYear.getSemester1Start() != null) {
+                checkSemesters(
+                        new SchoolYearSemesterRequest(
+                                schoolYear.getSemester1Start(),
+                                schoolYear.getSemester1End(),
+                                schoolYear.getSemester2Start(),
+                                schoolYear.getSemester2End()),
+                        request.startDate(),
+                        request.endDate());
+            }
             schoolYear.changeInfo(name, request.startDate(), request.endDate());
             schoolYearRepository.flush();
             log.info("{}|END", logPrefix);
             return schoolStructureMapper.toDetailResponse(schoolYear, classCount);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public SchoolYearDetailResponse updateSemester(
+            CurrentUser currentUser, Long schoolYearId, SchoolYearSemesterRequest request) {
+        String logPrefix =
+                LOG_PREFIX + "|updateSemester|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            checkCanManage(currentUser);
+            SchoolYear schoolYear = findSchoolYear(schoolYearId);
+            SchoolYearRules.checkOpen(schoolYear);
+            checkSemesters(request, schoolYear.getStartDate(), schoolYear.getEndDate());
+            schoolYear.changeSemesters(
+                    request.semester1Start(), request.semester1End(), request.semester2Start(), request.semester2End());
+            schoolYearRepository.flush();
+            log.info("{}|END", logPrefix);
+            return toDetail(schoolYear);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -342,6 +378,40 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                     ApiCode.SCHOOL_YEAR_DATES_OVERLAP, overlapping.getFirst().getName());
         }
         return name;
+    }
+
+    private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+    // Cả 4 ngày bắt buộc, nằm trong năm học; mỗi học kỳ bắt đầu ≤ kết thúc; HK II bắt đầu sau khi HK I kết thúc
+    private static void checkSemesters(SchoolYearSemesterRequest r, LocalDate startDate, LocalDate endDate) {
+        Map<String, LocalDate> dates = new LinkedHashMap<>();
+        dates.put("ngày bắt đầu học kỳ I", r.semester1Start());
+        dates.put("ngày kết thúc học kỳ I", r.semester1End());
+        dates.put("ngày bắt đầu học kỳ II", r.semester2Start());
+        dates.put("ngày kết thúc học kỳ II", r.semester2End());
+        dates.forEach((label, date) -> {
+            if (date == null) {
+                throw GlobalException.of(ApiCode.SEMESTER_DATE_REQUIRED, label);
+            }
+        });
+        dates.forEach((label, date) -> {
+            if (date.isBefore(startDate) || date.isAfter(endDate)) {
+                throw GlobalException.of(
+                        ApiCode.SEMESTER_OUT_OF_YEAR,
+                        Character.toUpperCase(label.charAt(0)) + label.substring(1),
+                        startDate.format(DMY),
+                        endDate.format(DMY));
+            }
+        });
+        if (r.semester1Start().isAfter(r.semester1End())) {
+            throw GlobalException.of(ApiCode.SEMESTER_START_AFTER_END, "Học kỳ I");
+        }
+        if (r.semester2Start().isAfter(r.semester2End())) {
+            throw GlobalException.of(ApiCode.SEMESTER_START_AFTER_END, "Học kỳ II");
+        }
+        if (!r.semester2Start().isAfter(r.semester1End())) {
+            throw GlobalException.of(ApiCode.SEMESTER_OVERLAP, r.semester1End().format(DMY));
+        }
     }
 
     private SchoolYear findSchoolYear(Long schoolYearId) {
