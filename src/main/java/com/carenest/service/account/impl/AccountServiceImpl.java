@@ -10,6 +10,7 @@ import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
+import com.carenest.utils.enums.UserStatus;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -53,10 +54,31 @@ public class AccountServiceImpl implements AccountService {
                     currentUser.fullName(),
                     currentUser.email(),
                     currentUser.roles().stream().sorted().toList(),
+                    currentUser.permissions().stream().sorted().toList(),
                     assignments,
                     childIds);
             log.info("{}|END", logPrefix);
             return account;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<String> findActiveFullNamesByRole(CareNestRole role) {
+        String logPrefix = LOG_PREFIX + "|findActiveFullNamesByRole|role=" + role;
+        log.info("{}|START", logPrefix);
+        try {
+            List<String> names =
+                    userAccountRepository
+                            .findAllByPrimaryRoleAndStatusOrderByFullNameAsc(role, UserStatus.ACTIVE)
+                            .stream()
+                            .map(UserAccount::getFullName)
+                            .toList();
+            log.info("{}|END", logPrefix);
+            return names;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

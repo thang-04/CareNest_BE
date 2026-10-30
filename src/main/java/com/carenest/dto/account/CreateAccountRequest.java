@@ -1,6 +1,7 @@
 package com.carenest.dto.account;
 
 import com.carenest.utils.enums.CareNestRole;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,7 +19,9 @@ public record CreateAccountRequest(
         @NotBlank @Size(max = 150) String fullName,
         @Email @Size(max = 255) String email,
         @NotNull CareNestRole role,
-        @Size(min = 8, max = 128) String temporaryPassword) {
+        @Size(min = 8, max = 128) String temporaryPassword,
+        // AUTH-15: bắt buộc khi người tạo là PHT (để biết campus); HT bỏ trống được
+        @Valid StaffAssignmentScopeRequest assignment) {
 
     @Override
     public String toString() {

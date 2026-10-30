@@ -2,7 +2,7 @@
 
 - Status: ACCEPTED
 - Date: 2026-10-03
-- Liên quan: AUTH-01..08, P-06, P-14
+- Liên quan: AUTH-01..08, AUTH-20; P-14 (đóng 27/10), P-06 (đóng 28/10: mỗi cơ sở một bếp)
 
 ## Bối cảnh
 1 trường, 2 campus sau sáp nhập. HT xem toàn trường, HP chủ yếu 1 campus, báo cáo theo lớp/campus/trường. Không phải nhiều trường.

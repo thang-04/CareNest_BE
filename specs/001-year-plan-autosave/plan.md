@@ -36,7 +36,7 @@ Lưu nội dung đang soạn, kể cả chưa đầy đủ, sau 2 giây ngừng 
 
 ### Source Code (repository roots)
 
-- BE: entity/repository/DTO/service/controller `eduplan`, cấu hình quyền sửa, Flyway V24, unit/controller/schema/service integration tests và snapshot OpenAPI.
+- BE: entity/repository/DTO/service/controller `eduplan`, cấu hình quyền sửa, Flyway V30, unit/controller/schema/service integration tests và snapshot OpenAPI.
 - FE: `GoalFormPage.jsx`, `useYearPlanAutosave.js`, `yearPlanAutosave.mjs`, `yearPlanRecovery.js`, facade/provider/API mapper và tests/education-plan.
 - `useManualSave` và các màn khác giữ nghiệp vụ lưu hiện hành; giai đoạn tiếp theo có đặc tả riêng.
 

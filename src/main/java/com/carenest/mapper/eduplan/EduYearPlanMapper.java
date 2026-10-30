@@ -1,19 +1,18 @@
 package com.carenest.mapper.eduplan;
 
-import com.carenest.dto.eduplan.CurriculumGoalRef;
+import com.carenest.dto.eduplan.CurriculumRef;
 import com.carenest.dto.eduplan.EduConfigResponse;
-import com.carenest.dto.eduplan.ExpectedResultResponse;
 import com.carenest.dto.eduplan.PlanActorResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.entity.eduplan.EduBreak;
 import com.carenest.entity.eduplan.EduDomain;
-import com.carenest.entity.eduplan.EduExpectedResult;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduPlanEvent;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.utils.enums.EduGoalRowKind;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -64,16 +63,22 @@ public class EduYearPlanMapper {
     }
 
     public YearPlanDetailResponse.Row toRow(
-            EduGoalRow row, List<YearPlanDetailResponse.Content> contents, CurriculumGoalRef curriculum) {
+            EduGoalRow row, List<YearPlanDetailResponse.Content> contents, CurriculumRef curriculum) {
+        EduGoalRowKind kind = row.getKind();
+        Long id = curriculum == null ? null : curriculum.id();
+        boolean goal = kind == EduGoalRowKind.GOAL;
         return new YearPlanDetailResponse.Row(
                 row.getId(),
-                row.getKind().code(),
+                kind.code(),
                 row.getText(),
                 row.getGoalNo(),
                 contents,
-                curriculum == null ? null : curriculum.id(),
-                curriculum == null ? null : curriculum.goalText(),
-                curriculum == null ? null : curriculum.sectionRef());
+                goal ? id : null,
+                goal && curriculum != null ? curriculum.text() : null,
+                goal && curriculum != null ? curriculum.sectionRef() : null,
+                kind == EduGoalRowKind.SUB ? id : null,
+                kind == EduGoalRowKind.GROUP ? id : null,
+                !goal && curriculum != null ? curriculum.text() : null);
     }
 
     public YearPlanDetailResponse.Content toContent(EduGoalContent content, List<Long> themeIds) {
@@ -114,10 +119,5 @@ public class EduYearPlanMapper {
                 domain.getShortLabel(),
                 domain.getSortOrder(),
                 domain.isStandard());
-    }
-
-    public ExpectedResultResponse toExpectedResult(EduExpectedResult result) {
-        return new ExpectedResultResponse(
-                result.getId(), result.getDomainId(), result.getSubDomain(), result.getText());
     }
 }

@@ -32,7 +32,7 @@ Không có câu hỏi chặn trong phạm vi user giao chọn đề xuất; các
 - AC-4: presenter theme/day đúng hoạt động/MT, private media, keyboard/fullscreen.
 
 ## Key decisions
-Metadata mới V25 + S3 private; không binary JSONB. Fingerprint toàn hàng thay đổi → cần gắn lại; tránh đổi ID cũ. Gỡ giữ tệp. Không Office converter mới.
+Metadata mới V31 + S3 private; không binary JSONB. Fingerprint toàn hàng thay đổi → cần gắn lại; tránh đổi ID cũ. Gỡ giữ tệp. Không Office converter mới.
 
 ## Phases
 1. Spec/Clarify/Plan/Database/Tasks/Analyze: kiểm tra tài liệu trước code.

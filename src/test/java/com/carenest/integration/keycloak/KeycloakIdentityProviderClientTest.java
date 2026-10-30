@@ -122,6 +122,36 @@ class KeycloakIdentityProviderClientTest {
     }
 
     @Test
+    void resetsTemporaryPassword() {
+        expectAdminToken();
+        server.expect(requestTo(USERS_URL + "/kc-1/reset-password"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(jsonPath("$.type").value("password"))
+                .andExpect(jsonPath("$.value").value("New-Temp-1"))
+                .andExpect(jsonPath("$.temporary").value(true))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+        client.resetTemporaryPassword("kc-1", "New-Temp-1");
+
+        server.verify();
+    }
+
+    @Test
+    void readsAssignedRealmRoleNames() {
+        expectAdminToken();
+        server.expect(requestTo(USERS_URL + "/kc-1/role-mappings/realm"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "[{\"id\":\"r-teacher\",\"name\":\"TEACHER\"},{\"id\":\"r-default\","
+                                + "\"name\":\"default-roles-carenest\",\"composite\":true}]",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(client.getRealmRoleNames("kc-1")).containsExactly("TEACHER", "default-roles-carenest");
+
+        server.verify();
+    }
+
+    @Test
     void disablingUserKeepsOtherAttributes() {
         expectAdminToken();
         server.expect(requestTo(USERS_URL + "/kc-1"))

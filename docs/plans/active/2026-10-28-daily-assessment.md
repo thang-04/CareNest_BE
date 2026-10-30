@@ -5,7 +5,7 @@ owner: Nhữ Đình Cần
 jira: G94-236 / BE-FEAT-29
 branch: feature/G94-236-BE-FEAT-29-daily-attendance
 modules: [learning-observation]
-rules: [OBS-12, OBS-13, OBS-14, OBS-15, OBS-16, OBS-17, OBS-18, OBS-19, EDU-19]
+rules: [OBS-15, OBS-16, OBS-17, OBS-18, OBS-19, OBS-20, OBS-21, OBS-22, EDU-19]
 risk: high
 created: 2026-10-28
 updated: 2026-10-29
@@ -33,13 +33,13 @@ EDU-19 (khóa khi chưa có giáo án duyệt), chỉ trẻ có mặt, ngày D k
 - 2026-10-28: viết plan; giả định: mã lỗi dải mới 73xx "Đánh giá trẻ"; tiêu chí ăn / ngủ / cảm xúc / hành vi / tham gia theo danh mục FE hiện có (P-11 còn PENDING, đổi được bằng migration sau).
 
 ## Progress log
-- 2026-10-28: V27, service, 3 controller, 5 integration test (pass); tài liệu BUSINESS_RULES OBS-12..18, DATA_DICTIONARY, ERROR_CONTRACT 73xx, module card. Chen lỗi nhãn sức khỏe ở bảng điểm danh (`health` trong ClassAttendanceResponse, TemperatureLevel). verify PASS. Còn: nối FE.
+- 2026-10-28: V27, service, 3 controller, 5 integration test (pass); tài liệu BUSINESS_RULES OBS-15..21, DATA_DICTIONARY, ERROR_CONTRACT 73xx, module card. Chen lỗi nhãn sức khỏe ở bảng điểm danh (`health` trong ClassAttendanceResponse, TemperatureLevel). verify PASS. Còn: nối FE.
 
 ## Bổ sung đã được người dùng duyệt — Nhận xét chung lớp, 29/10/2026
 
 Người dùng yêu cầu nhận xét tình hình chung lớp để PHT/HT nắm bắt và trả lời "bạn làm đi" sau đề xuất: GV nhập dưới bảng Hoạt động chung, lưu cùng nút Lưu đánh giá; PHT campus mình/HT toàn trường xem trong Tổng quan; tuần/tháng xem lại nhận xét từng ngày, không thêm báo cáo/AI. Đây là nguồn duyệt phạm vi bổ sung, không tự mở rộng APP.
 
-- Actor: GV đang dạy ghi, PHT/HT xem trong scope. Ngày/năm/khóa/mở lại theo OBS-15, OBS-17; không đổi quyền.
+- Actor: GV đang dạy ghi, PHT/HT xem trong scope. Ngày/năm/khóa/mở lại theo OBS-18, OBS-20; không đổi quyền.
 - Dữ liệu riêng lớp + ngày, tối đa 500 ký tự theo convention nhận xét hiện có; không dùng thuật ngữ chẩn đoán. Lưu tên người cập nhật và thời gian. Không sao chép vào nhận xét từng trẻ.
 - Migration **V33** sau merge Tiền (trước đây WIP V28); bảng `class_daily_comments`, unique lớp/ngày. Giữ migration đã commit của Tiền; không chạy migration trên DB người dùng trong task.
 - Contract thêm tương thích: GET daily sheet thêm `classComment`; PUT General thêm `classComment` optional (null/thiếu = giữ, chuỗi rỗng = xóa nội dung), cho `entries: []` khi chỉ lưu nhận xét lớp. Endpoint giữ nguyên, một transaction lưu trẻ + nhận xét.

@@ -165,7 +165,7 @@ class EduClassDocServiceIntegrationTest {
                                         null,
                                         "Gia đình",
                                         "GĐ",
-                                        LocalDate.of(2026, 9, 27),
+                                        LocalDate.of(2026, 9, 28),
                                         LocalDate.of(2026, 10, 2),
                                         "",
                                         "")),
@@ -279,7 +279,7 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Lịch tuần: bỏ tuần nghỉ, chủ đề bắt đầu Chủ nhật tính từ Thứ Hai kế tiếp")
+    @DisplayName("Lịch tuần: bỏ tuần nghỉ trọn tuần, tuần học đánh số liên tục qua các chủ đề")
     void teachingWeeksSkipBreaks() {
         assertThat(service.getClassDocs(teacher, schoolYear).branchPlans()).isEmpty();
         ObjectNode doc = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
@@ -306,8 +306,8 @@ class EduClassDocServiceIntegrationTest {
     void learningResourcesRespectScopeAndActivityIdentity() throws Exception {
         approveBranch();
         String key = "tp_" + classId + "_" + theme1;
-        String goal = String.valueOf(jdbc.queryForObject(
-                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        String goal = String.valueOf(
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
         ObjectNode doc = theme(theme1);
         ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "- HĐ học:\n+ Vận động A\n+ Vận động B");
         service.saveClassDoc(teacher, "theme", key, doc);
@@ -367,8 +367,8 @@ class EduClassDocServiceIntegrationTest {
     void learningResourcesRejectRenamedZipAndInvalidGoal() throws Exception {
         approveBranch();
         String key = "tp_" + classId + "_" + theme1;
-        String goal = String.valueOf(jdbc.queryForObject(
-                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        String goal = String.valueOf(
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
         ObjectNode doc = theme(theme1);
         ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "A");
         service.saveClassDoc(teacher, "theme", key, doc);
@@ -423,8 +423,8 @@ class EduClassDocServiceIntegrationTest {
     void versionedClassDocsNeedFixes() {
         approveBranch();
         String oldTheme2Key = "tp_" + classId + "_" + theme2;
-        String goal = String.valueOf(jdbc.queryForObject(
-                "SELECT id FROM edu_goal_rows WHERE year_plan_id=? AND kind='goal'", Long.class, plan.id()));
+        String goal = String.valueOf(
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
         ObjectNode oldTheme = theme(theme2);
         ((ObjectNode) oldTheme.path("rows")).putObject(goal).put("activities", "Trò chuyện: Gia đình");
         service.saveClassDoc(teacher, "theme", oldTheme2Key, oldTheme);

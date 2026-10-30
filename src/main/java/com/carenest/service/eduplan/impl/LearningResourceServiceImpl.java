@@ -32,7 +32,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     private static final String LOG_PREFIX = "[LearningResourceServiceImpl]";
     private final EduClassDocService classDocs;
     private final EduLearningResourceRepository resources;
-    private final EduGoalRowRepository goals;
+    private final EduPlanGoalRepository goals;
     private final StaffAssignmentService assignments;
     private final StorageService storage;
     private final ObjectMapper mapper;

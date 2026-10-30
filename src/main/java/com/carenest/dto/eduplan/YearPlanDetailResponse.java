@@ -41,7 +41,10 @@ public record YearPlanDetailResponse(
     public record Domain(Long domainId, String name, String label, List<Row> rows) {}
 
     /** goalNo chỉ có ở dòng kind = goal (MT n, EDU-09). */
-    /** curriculumGoalText/SectionRef: câu gốc và mục trong văn bản của Bộ khi mục tiêu lấy từ danh mục (EDU-28). */
+    /**
+     * Liên kết danh mục của Bộ (EDU-28): curriculumGoalId/GoalText cho mục tiêu, curriculumSubDomainId hoặc
+     * curriculumExpectedResultId + curriculumText (câu gốc) cho lĩnh vực con/nhóm; curriculumSectionRef chỉ mục tiêu có.
+     */
     public record Row(
             Long id,
             String kind,
@@ -50,7 +53,10 @@ public record YearPlanDetailResponse(
             List<Content> contents,
             Long curriculumGoalId,
             String curriculumGoalText,
-            String curriculumSectionRef) {}
+            String curriculumSectionRef,
+            Long curriculumSubDomainId,
+            Long curriculumExpectedResultId,
+            String curriculumText) {}
 
     public record Content(Long id, String text, List<Long> themeIds) {}
 

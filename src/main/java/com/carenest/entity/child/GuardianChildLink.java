@@ -34,4 +34,12 @@ public class GuardianChildLink {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    public static GuardianChildLink create(Long userId, Long childId, String relationship) {
+        GuardianChildLink link = new GuardianChildLink();
+        link.userId = userId;
+        link.childId = childId;
+        link.relationship = relationship;
+        return link;
+    }
 }

@@ -1,10 +1,13 @@
 package com.carenest.config;
 
+import com.carenest.security.CurrentUserService;
 import com.carenest.security.KeycloakRealmRoleConverter;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.security.authorization.PermissionGuard;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -123,6 +126,13 @@ public class SecurityConfig {
         return new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(issuerUri),
                 new JwtClaimValidator<List<String>>(JwtClaimNames.AUD, aud -> aud != null && aud.contains(audience)));
+    }
+
+    // Khai báo ở đây (không @Component) để mọi WebMvcTest đã import SecurityConfig có sẵn bean cho SpEL
+    // @permissionGuard
+    @Bean
+    public PermissionGuard permissionGuard(ObjectProvider<CurrentUserService> currentUserService) {
+        return new PermissionGuard(currentUserService);
     }
 
     private JwtAuthenticationConverter jwtAuthenticationConverter() {

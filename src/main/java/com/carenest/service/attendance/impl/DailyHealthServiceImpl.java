@@ -115,8 +115,8 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 throw GlobalException.of(ApiCode.HEALTH_YEAR_NOT_ACTIVE);
             }
             childInClass(cls.id(), request.childId(), request.date());
-            // HLT-07: ghi cả sau giờ chốt, khóa khi hết ngày
-            // TODO(Cần): khi có BE Đón trẻ, khóa từ lúc trẻ được trả cho phụ huynh (HLT-07)
+            // HLT-15: ghi cả sau giờ chốt, khóa khi hết ngày
+            // TODO(Cần): khi có BE Đón trẻ, khóa từ lúc trẻ được trả cho phụ huynh (HLT-15)
             if (!request.date().equals(rules.today())) {
                 throw GlobalException.of(ApiCode.HEALTH_TODAY_ONLY);
             }

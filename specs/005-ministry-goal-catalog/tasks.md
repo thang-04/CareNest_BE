@@ -4,8 +4,8 @@
 
 ## Phase 1: Dữ liệu & DB
 
-- [X] T001 Migration `src/main/resources/db/migration/V30__add_edu_curriculum_catalog.sql` theo data-model.md (4 bảng, FK, unique, index, cột `edu_goal_rows.curriculum_goal_id`).
-- [X] T002 Sinh `V31__seed_edu_curriculum_vbhn_01_2021.sql` từ dữ liệu đã tách (1 nguồn, 327 mục tiêu + nội dung, 423 gợi ý), tra `age_groups.code`/`edu_domains.name`, nguyên văn, có `section_ref`.
+- [X] T001 Migration `src/main/resources/db/migration/V33__add_edu_curriculum_catalog.sql` theo data-model.md (4 bảng, FK, unique, index, cột `edu_goal_rows.curriculum_goal_id`).
+- [X] T002 Sinh `V34__seed_edu_curriculum_vbhn_01_2021.sql` từ dữ liệu đã tách (1 nguồn, 327 mục tiêu + nội dung, 423 gợi ý), tra `age_groups.code`/`edu_domains.name`, nguyên văn, có `section_ref`.
 - [X] T003 [P] Entity + repository: `EduCurriculumSource`, `EduCurriculumGoal`, `EduCurriculumGoalContent`, `EduCurriculumContent`; `EduGoalRow.curriculumGoalId` (+ `copyFor`).
 
 ## Phase 2: BE API (US1, US2)

@@ -5,7 +5,7 @@ owner: Nhữ Đình Cần
 jira: G94-236 / BE-FEAT-29
 branch: feature/G94-236-BE-FEAT-29-daily-attendance
 modules: [education-plan, learning-observation]
-rules: [EDU-19, OBS-19]
+rules: [EDU-19, OBS-22]
 risk: high
 created: 2026-10-29
 updated: 2026-10-29

@@ -12,7 +12,7 @@
 
 **Language/Version**: BE Java 21, Spring Boot 4.1.1, JPA, Flyway, PostgreSQL 17; FE React 18.3, Vite, JS/JSX.
 **Primary Dependencies**: có sẵn; không thêm dependency.
-**Storage**: Migration mới `V29__add_edu_plan_versions.sql` ([data-model.md](data-model.md)). Không sửa V8–V28.
+**Storage**: Migration mới `V32__add_edu_plan_versions.sql` ([data-model.md](data-model.md)). Không sửa V11–V31.
 **Testing**: BE `mvnw verify` (unit + integration Testcontainers nếu Docker có) qua `node scripts/verify.mjs`; FE `node --test` qua `node scripts/verify.mjs`; Playwright real-BE nếu dev stack chạy.
 **Target Platform**: Web; Mobile không đổi.
 **Performance Goals**: Tạo phiên bản với 300 MT/1000 nội dung < 2 s; so sánh < 500 ms (một truy vấn mỗi bảng, ghép trong bộ nhớ).
@@ -27,7 +27,7 @@ Constitution là template chưa ban hành; cổng thực tế = AGENTS.md + BUSI
 | --- | --- |
 | Rule nghiệp vụ có nguồn | Đạt: Tiền chốt 28/10 (coordinator) + 7 mặc định; cập nhật EDU-01/03/12, thêm EDU-25/26 |
 | Status do BE quyết định | Đạt: tạo phiên bản/so sánh/chặn gửi ở BE; FE chỉ hiển thị |
-| Migration mới, không sửa cũ | Đạt: V29 |
+| Migration mới, không sửa cũ | Đạt: V32 |
 | Contract đổi có liệt kê tác động FE/APP | Đạt: contracts/; APP không dùng education-plan |
 | Không dependency mới | Đạt |
 | Không commit/push/branch | Đạt |
@@ -38,7 +38,7 @@ Constitution là template chưa ban hành; cổng thực tế = AGENTS.md + BUSI
 specs/004-year-plan-versioning/{spec,plan,research,data-model,quickstart,tasks}.md, contracts/api.md, checklists/requirements.md
 
 CareNest_BE/
-  src/main/resources/db/migration/V29__add_edu_plan_versions.sql              C
+  src/main/resources/db/migration/V32__add_edu_plan_versions.sql              C
   entity/eduplan/{EduYearPlan,EduGoalRow,EduGoalContent,EduTheme,EduBreak,EduClassDoc}.java  M
   dto/eduplan/{YearPlanDetailResponse,YearPlanSummaryResponse}.java           M
   dto/eduplan/{YearPlanChangesResponse,ClassDocAdjustmentsRequest}.java       C
@@ -73,7 +73,7 @@ CareNest_FE/
 [research.md](research.md): R1 phiên bản = dòng mới vs bảng snapshot; R2 lineage nullable; R3 nơi lưu ô điều chỉnh; R4 khóa giáo án tuần; R5 chặn gửi ở BE; R6 phạm vi "đổi"; R7 phiên bản bị thay thế.
 
 ## Phase 1 — Design
-- [data-model.md](data-model.md): thiết kế DB V29 + invariant.
+- [data-model.md](data-model.md): thiết kế DB V32 + invariant.
 - [contracts/api.md](contracts/api.md): 3 endpoint mới, field mới, mã lỗi.
 - [quickstart.md](quickstart.md): lệnh test và ma trận chấp nhận.
 
@@ -88,8 +88,8 @@ CareNest_FE/
 
 - 2026-10-28: specify + clarify (7 mặc định + A1/A2 tự chọn). Plan, research, data-model, contracts viết theo chế độ tự chạy.
 - 2026-10-28: analyze 2 lượt (3 điểm lượt 1 đã sửa, lượt 2 sạch — analysis.md).
-- 2026-10-28: implement BE (V29, entity, service, controller, ApiCode, test) + FE (planVersions.mjs, mock/API/hook, VersionWidgets, 6 trang). Snapshot OpenAPI cập nhật có chủ đích.
+- 2026-10-28: implement BE (V32, entity, service, controller, ApiCode, test) + FE (planVersions.mjs, mock/API/hook, VersionWidgets, 6 trang). Snapshot OpenAPI cập nhật có chủ đích.
 - 2026-10-28: converge lượt 1 thêm C001–C005 (chặn gửi ở Web, hồ sơ chủ đề chỉ xem trên phiên bản cũ, xem bản cũ qua ?plan=, docs, in ô điều chỉnh); lượt 2 thêm chặn học liệu trên phiên bản cũ (requireThemeAccess), không còn mục thiếu.
-- Kiểm chứng: BE `node scripts/verify.mjs` PASS (414 test trước converge 2; chạy lại sau converge 2), FE `node scripts/verify.mjs` PASS, check-ai-layer BE 0 lỗi / FE 0 lỗi. Playwright: dev stack đang chạy nhưng BE là tiến trình IntelliJ chạy code cũ (chưa V29) và thiếu biến E2E_DEV_PASSWORD ⇒ không chạy.
+- Kiểm chứng: BE `node scripts/verify.mjs` PASS (414 test trước converge 2; chạy lại sau converge 2), FE `node scripts/verify.mjs` PASS, check-ai-layer BE 0 lỗi / FE 0 lỗi. Playwright: dev stack đang chạy nhưng BE là tiến trình IntelliJ chạy code cũ (chưa V32) và thiếu biến E2E_DEV_PASSWORD ⇒ không chạy.
 - Giả định cần Tiền soát: A1–A8 trong spec (đặc biệt A1 tài liệu phiên bản cũ chỉ xem, A2 cách hết đỏ, A4 khóa tuần có hậu tố id kế hoạch).
 

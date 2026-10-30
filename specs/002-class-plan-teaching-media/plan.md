@@ -9,7 +9,7 @@ Java21/Spring Boot/PostgreSQL/Flyway; React18/Vite/JavaScript; dependency hiện
 Constitution chưa phê chuẩn (template); áp dụng AGENTS. User giao chọn đề xuất và thực hiện trong scope BE/FE; không tạo branch/commit/deploy, chỉ thêm AWS SDK v2 đã được user đồng ý. API mới Web consume, Mobile giữ nguyên contract cũ. Không ghi các lựa chọn kỹ thuật thành quyết định của trường.
 
 ## Design
-Metadata edu_learning_resources riêng, binary S3 private theo UUID key; không binary JSONB/localStorage. Mock dùng IndexedDB Blob. Migration mới V25, giữ dữ liệu cũ. Parent doc khóa bằng findForUpdateByDocKey đồng bộ với gửi/duyệt. Assigned teacher mới mutate DRAFT/REJECTED; read theo scope sẵn có.
+Metadata edu_learning_resources riêng, binary S3 private theo UUID key; không binary JSONB/localStorage. Mock dùng IndexedDB Blob. Migration mới V31, giữ dữ liệu cũ. Parent doc khóa bằng findForUpdateByDocKey đồng bộ với gửi/duyệt. Assigned teacher mới mutate DRAFT/REJECTED; read theo scope sẵn có.
 
 Giữ activity ID goalId#index của themeActivities. SHA256 toàn chuỗi activities của hàng MT, chuẩn hóa CRLF thành LF. Nếu đổi nội dung/thứ tự, học liệu chuyển phần cần gắn lại, không tự đoán. Gỡ bỏ liên kết, giữ tệp để gắn lại.
 

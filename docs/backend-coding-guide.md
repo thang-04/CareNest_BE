@@ -18,7 +18,7 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 
 | Trong v1 | Không thuộc v1 |
 | --- | --- |
-| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; kho/NCC (OPEN — ADR-0009); tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
+| Điểm danh, đón trẻ, tổng hợp suất ăn; thực đơn, kho khô rút gọn (ADR-0009); hồ sơ sức khỏe và đánh giá trẻ; kế hoạch giáo dục (ADR-0020); cổng thông tin phụ huynh; thông báo; báo cáo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; sự cố cơ sở vật chất (đã loại 29/10); kiểm kê kho, thu tiền ăn; tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
 
 ## 2. Tech stack
 
@@ -70,7 +70,7 @@ CareNest_BE/
     └── test/java/.../carenest/
 ```
 
-- Mỗi package lớp NÊN chia tiếp theo chức năng: `controller/attendance/`, `service/attendance/`, `dto/attendance/`, ... (attendance, child, meals, facilities, ...).
+- Mỗi package lớp NÊN chia tiếp theo chức năng: `controller/attendance/`, `service/attendance/`, `dto/attendance/`, ... (attendance, child, meals, ...).
 - KHÔNG tạo package `domain/` hay tách module theo DDD.
 - Service PHẢI tách interface + implementation (ADR-0014): `service/child/ChildService.java` (interface) và `service/child/impl/ChildServiceImpl.java`. Interface giữ tên gốc để caller và mock không phụ thuộc implementation.
 - Enum và hằng dùng chung PHẢI tập trung ở `utils/` (ADR-0014): mục 6.3.
@@ -410,7 +410,7 @@ Entity và quan hệ: `docs/business/DOMAIN_MODEL.md` (tên chuẩn, vd. `Classr
 2. **Đăng nhập và phạm vi:** user/role, campus/class assignment, liên kết guardian-child, test quyền.
 3. **Luồng ưu tiên:** điểm danh → BGH xác nhận số ăn → bếp xem số liệu.
 4. **Hồ sơ trẻ:** observation/health record, chia sẻ phụ huynh, audit, lịch sử.
-5. **Mở rộng:** facility report, notification, thực đơn; AI chỉ sau khi dữ liệu và baseline sẵn sàng.
+5. **Mở rộng:** notification, thực đơn, kế hoạch giáo dục; AI chỉ sau khi dữ liệu và baseline sẵn sàng.
 
 ## 16. Khi guide chưa đủ
 

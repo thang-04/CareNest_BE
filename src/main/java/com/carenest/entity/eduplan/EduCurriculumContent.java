@@ -30,8 +30,8 @@ public class EduCurriculumContent {
     @Column(name = "domain_id", nullable = false)
     private Long domainId;
 
-    @Column(name = "sub_domain", length = 150)
-    private String subDomain;
+    @Column(name = "sub_domain_id")
+    private Long subDomainId;
 
     @Column(name = "category_no", length = 10)
     private String categoryNo;

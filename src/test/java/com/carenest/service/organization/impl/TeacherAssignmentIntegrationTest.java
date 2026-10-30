@@ -35,7 +35,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Phân công GV/tổ trưởng trên PostgreSQL thật (V15) và tác động lên scope của security. Cần Docker. */
+/** Phân công GV/tổ trưởng trên PostgreSQL thật (V18) và tác động lên scope của security. Cần Docker. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)

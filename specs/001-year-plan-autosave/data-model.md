@@ -1,6 +1,6 @@
 # Thiết kế dữ liệu — quyền sửa và tự lưu
 
-Migration mới: `src/main/resources/db/migration/V27__add_edu_year_plan_edit_sessions.sql`. Không sửa migration cũ.
+Migration mới: `src/main/resources/db/migration/V30__add_edu_year_plan_edit_sessions.sql`. Không sửa migration cũ.
 
 ## edu_year_plans
 
@@ -16,7 +16,7 @@ Migration mới: `src/main/resources/db/migration/V27__add_edu_year_plan_edit_se
 - Khóa đang giữ: tất cả trường quyền sửa có giá trị. Draft/Rejected dùng EDITING và editing_from tương ứng; PENDING_VP giữ nguyên PENDING_VP và editing_from=PENDING_VP.
 - Khóa hết hạn được coi là không chặn lấy quyền mới ngay, không phụ thuộc lịch cleanup. Cleanup khóa dòng trước khi nhả để không đua với heartbeat.
 - Gửi/ban hành/trả lại xóa phiên và tăng revision. Release chỉ nhả khi đúng cả user/session; yêu cầu release cũ không đụng phiên mới.
-- Khi nâng cấp: nhả khóa V21 không có phiên, đưa EDITING về editing_from; không sửa nội dung, ID, các tick chủ đề hoặc bản đã ban hành.
+- Khi nâng cấp: nhả khóa V24 không có phiên, đưa EDITING về editing_from; không sửa nội dung, ID, các tick chủ đề hoặc bản đã ban hành.
 - Không nới giới hạn độ dài/link/quyền; title cho chuỗi trống khi nháp nhưng không null. Validation semantic ngày/mục tiêu/chủ đề chạy trước gửi/ban hành.
 
 ## Bản phục hồi thiết bị

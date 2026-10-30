@@ -6,8 +6,9 @@ import com.carenest.dto.eduplan.ApprovedDayLessonResponse.Goal;
 import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduGoalRow;
+import com.carenest.entity.eduplan.EduPlanGoal;
 import com.carenest.repository.eduplan.EduClassDocRepository;
-import com.carenest.repository.eduplan.EduGoalRowRepository;
+import com.carenest.repository.eduplan.EduPlanGoalRepository;
 import com.carenest.service.eduplan.EduConfigService;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.utils.enums.EduClassDocStatus;
@@ -38,7 +39,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
     private static final int SCHOOL_DAYS = 5;
 
     private final EduClassDocRepository classDocRepository;
-    private final EduGoalRowRepository goalRowRepository;
+    private final EduPlanGoalRepository goalRepository;
     private final EduConfigService eduConfigService;
     private final ObjectMapper objectMapper;
 
@@ -64,7 +65,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
                         eduConfigService.getEduConfig().weekRows();
                 List<JsonNode> contents =
                         weeks.stream().map(d -> readContent(d.getContent())).toList();
-                Map<Long, EduGoalRow> goals = goalsOf(contents);
+                Map<Long, EduPlanGoal> goals = goalsOf(contents);
                 for (int w = 0; w < weeks.size(); w++) {
                     EduClassDoc doc = weeks.get(w);
                     for (int day = 0; day < SCHOOL_DAYS; day++) {
@@ -91,7 +92,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
         try {
             Map<Long, Long> result = goalIds.isEmpty()
                     ? Map.of()
-                    : goalRowRepository.findAllById(goalIds).stream()
+                    : goalRepository.findAllById(goalIds).stream()
                             .collect(Collectors.toMap(EduGoalRow::getId, EduGoalRow::lineage));
             log.info("{}|mapped={}|END", logPrefix, result.size());
             return result;
@@ -105,7 +106,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
         return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
     }
 
-    private Map<Long, EduGoalRow> goalsOf(List<JsonNode> contents) {
+    private Map<Long, EduPlanGoal> goalsOf(List<JsonNode> contents) {
         Set<Long> ids = new LinkedHashSet<>();
         contents.forEach(c -> c.path("picks")
                 .forEach(list -> list.forEach(p -> {
@@ -114,7 +115,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
                         ids.add(id);
                     }
                 })));
-        return goalRowRepository.findAllById(ids).stream()
+        return goalRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(EduGoalRow::getId, Function.identity()));
     }
 
@@ -130,7 +131,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             int day,
             LocalDate date,
             List<EduConfigResponse.WeekRow> rows,
-            Map<Long, EduGoalRow> goals) {
+            Map<Long, EduPlanGoal> goals) {
         List<Activity> activities = new ArrayList<>();
         for (EduConfigResponse.WeekRow row : rows) {
             JsonNode cell = content.path("grid").path(row.key());
@@ -142,7 +143,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             for (String key : keys) {
                 content.path("picks").path(key).forEach(p -> {
                     Long id = goalId(p);
-                    EduGoalRow goal = id == null ? null : goals.get(id);
+                    EduPlanGoal goal = id == null ? null : goals.get(id);
                     if (goal != null && seen.add(id)) {
                         picked.add(new Goal(id, goal.getGoalNo(), goal.getText()));
                     }

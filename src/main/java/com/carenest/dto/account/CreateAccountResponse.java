@@ -1,9 +1,10 @@
 package com.carenest.dto.account;
 
+import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
 
-/** setupEmailSent = false: Admin phải giao mật khẩu tạm cho người dùng. */
+/** setupEmailSent = false: người tạo phải giao mật khẩu tạm; assignment = phân công vừa tạo kèm (null nếu không). */
 public record CreateAccountResponse(
         Long userId,
         String username,
@@ -11,4 +12,5 @@ public record CreateAccountResponse(
         String email,
         CareNestRole role,
         UserStatus status,
-        boolean setupEmailSent) {}
+        boolean setupEmailSent,
+        StaffAssignmentResponse assignment) {}

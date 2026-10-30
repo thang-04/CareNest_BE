@@ -21,7 +21,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Danh mục Chương trình GDMN của Bộ (EDU-28) nạp bằng V30/V31, đọc qua service thật. Cần Docker. */
+/** Danh mục Chương trình GDMN của Bộ (EDU-28) nạp bằng V33/V34, đọc qua service thật. Cần Docker. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -114,6 +114,34 @@ class EduCurriculumServiceIntegrationTest {
                     assertThat(c.sectionRef()).isEqualTo("Phần ba › C › I › a) › 2");
                     assertThat(c.domainName()).isEqualTo("Phát triển thể chất");
                 });
+    }
+
+    @Test
+    @DisplayName(
+            "EDU-28: danh mục 3 tầng — mục tiêu cùng nhóm dùng chung id nhóm; nội dung mục C trỏ cùng lĩnh vực con")
+    void threeTiersShareIds() {
+        List<CurriculumGoalResponse> goals = service.getGoals(ageGroup("ag-3"));
+        assertThat(goals).allMatch(g -> g.expectedResultId() != null);
+        assertThat(goals)
+                .filteredOn(g -> g.sectionRef().contains("› I › a) › 2 › "))
+                .hasSizeGreaterThan(1)
+                .extracting(CurriculumGoalResponse::expectedResultId)
+                .containsOnly(goals.stream()
+                        .filter(g -> g.sectionRef().endsWith("› I › a) › 2 › 2.1"))
+                        .findFirst()
+                        .orElseThrow()
+                        .expectedResultId());
+        Long movement = goals.getFirst().subDomainId();
+        assertThat(movement).isNotNull();
+        assertThat(goals)
+                .filteredOn(g -> "Phát triển vận động".equals(g.subDomain()))
+                .extracting(CurriculumGoalResponse::subDomainId)
+                .containsOnly(movement);
+        assertThat(service.getContents(ageGroup("ag-3")))
+                .filteredOn(c -> "Phát triển vận động".equals(c.subDomain()))
+                .isNotEmpty()
+                .extracting(CurriculumContentResponse::subDomainId)
+                .containsOnly(movement);
     }
 
     @Test

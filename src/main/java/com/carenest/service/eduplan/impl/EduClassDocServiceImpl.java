@@ -615,8 +615,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /**
-     * Lịch tuần cả năm (giống Web): tuần học đánh số liên tục theo các chủ đề, bỏ tuần trùng đợt nghỉ; chủ đề bắt đầu
-     * Thứ 7 / Chủ nhật thì tuần đầu là Thứ Hai kế tiếp.
+     * Lịch tuần cả năm (giống Web): tuần học đánh số liên tục theo các chủ đề; tuần chỉ bị bỏ khi đợt nghỉ phủ cả Thứ 2
+     * → Thứ 6, nghỉ vài ngày thì vẫn là tuần học (EDU-41). Chủ đề bắt đầu Thứ 7 / Chủ nhật (dữ liệu trước EDU-40) thì
+     * tuần đầu là Thứ Hai kế tiếp.
      */
     static List<TeachingWeek> teachingWeeks(List<EduTheme> themes, List<EduBreak> breaks) {
         List<TeachingWeek> weeks = new ArrayList<>();
@@ -629,18 +630,20 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             for (LocalDate monday = firstTeachingMonday(theme.getStartDate());
                     !monday.isAfter(theme.getEndDate());
                     monday = monday.plusDays(7)) {
-                LocalDate friday = monday.plusDays(4);
-                LocalDate start = monday;
-                boolean onBreak = breaks.stream()
-                        .filter(b -> b.getStartDate() != null)
-                        .anyMatch(b -> !start.isAfter(b.getEndDate() == null ? b.getStartDate() : b.getEndDate())
-                                && !friday.isBefore(b.getStartDate()));
-                if (!onBreak) {
+                boolean wholeWeekOff = monday.datesUntil(monday.plusDays(5)).allMatch(day -> isBreakDay(breaks, day));
+                if (!wholeWeekOff) {
                     weeks.add(new TeachingWeek(++no, monday, theme.getId()));
                 }
             }
         }
         return weeks;
+    }
+
+    private static boolean isBreakDay(List<EduBreak> breaks, LocalDate day) {
+        return breaks.stream()
+                .filter(b -> b.getStartDate() != null)
+                .anyMatch(b -> !day.isBefore(b.getStartDate())
+                        && !day.isAfter(b.getEndDate() == null ? b.getStartDate() : b.getEndDate()));
     }
 
     private static LocalDate firstTeachingMonday(LocalDate date) {

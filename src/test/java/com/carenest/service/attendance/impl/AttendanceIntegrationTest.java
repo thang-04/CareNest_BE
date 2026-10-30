@@ -50,7 +50,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Điểm danh trên PostgreSQL thật (V18). Hôm nay = thứ 4, 21/10/2026; giờ chốt năm học 08:30. */
+/** Điểm danh trên PostgreSQL thật (V21). Hôm nay = thứ 4, 21/10/2026; giờ chốt năm học 08:30. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -430,7 +430,7 @@ class AttendanceIntegrationTest {
     @Test
     void healthStaysOpenAfterCutoffAndLocksWhenTheDayEnds() {
         service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1)));
-        // HLT-07: sau giờ chốt điểm danh vẫn ghi thêm sức khỏe; sang ngày hôm sau thì ngày cũ đã khóa
+        // HLT-15: sau giờ chốt điểm danh vẫn ghi thêm sức khỏe; sang ngày hôm sau thì ngày cũ đã khóa
         clock.now = AFTER_CUTOFF;
         assertThat(healthService
                         .addEntry(teacherA, health("r-late", child1, HealthObservation.NO_CONCERN))

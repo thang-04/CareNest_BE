@@ -1,9 +1,10 @@
 package com.carenest.service.eduplan;
 
 import com.carenest.dto.eduplan.CurriculumContentResponse;
-import com.carenest.dto.eduplan.CurriculumGoalRef;
 import com.carenest.dto.eduplan.CurriculumGoalResponse;
+import com.carenest.dto.eduplan.CurriculumRef;
 import com.carenest.dto.eduplan.CurriculumSourceResponse;
+import com.carenest.utils.enums.EduGoalRowKind;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,6 @@ public interface EduCurriculumService {
 
     List<CurriculumContentResponse> getContents(Long ageGroupId);
 
-    /** Mục tiêu của Bộ theo id (để kế hoạch năm kiểm nhóm tuổi và trả câu gốc). */
-    Map<Long, CurriculumGoalRef> findGoalRefs(Collection<Long> ids);
+    /** Dòng danh mục của Bộ theo tầng và id, để kế hoạch năm kiểm nhóm tuổi và trả câu gốc. */
+    Map<Long, CurriculumRef> findRefs(EduGoalRowKind kind, Collection<Long> ids);
 }

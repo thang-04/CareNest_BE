@@ -114,7 +114,7 @@ class ClassCommentServiceTest {
     }
 
     @Test
-    @DisplayName("OBS-19: save and update one class comment without child results")
+    @DisplayName("OBS-22: save and update one class comment without child results")
     void noteOnlyPersistsMetadataWithoutFabricatingChildAssessment() {
         assertThat(service.saveGeneral(teacher, 10L, request(TODAY, "  Class note  "))
                         .saved())
@@ -132,7 +132,7 @@ class ClassCommentServiceTest {
     }
 
     @Test
-    @DisplayName("OBS-19: class comments remain class-scoped in week and month views")
+    @DisplayName("OBS-22: class comments remain class-scoped in week and month views")
     void overviewScopesAndFiltersDaysWithoutCountingChildren() {
         service.saveGeneral(teacher, 10L, request(TODAY, "Today"));
         var yesterday = ClassDailyComment.create(10L, 100L, TODAY.minusDays(1));
@@ -160,7 +160,7 @@ class ClassCommentServiceTest {
     }
 
     @Test
-    @DisplayName("OBS-15: closed years and locked days reject class comments until reopened")
+    @DisplayName("OBS-18: closed years and locked days reject class comments until reopened")
     void sameDayAndYearLocksApplyToClassComment() {
         when(unlocks.findFirstByClassroomIdAndDateAndValidUntilAfterOrderByIdDesc(10L, TODAY.minusDays(1), NOW))
                 .thenReturn(Optional.empty());
@@ -177,7 +177,7 @@ class ClassCommentServiceTest {
     }
 
     @Test
-    @DisplayName("OBS-17: leaders and teachers from other classes cannot write class comments")
+    @DisplayName("OBS-20: leaders and teachers from other classes cannot write class comments")
     void permissionCheckedBeforeNotesAreWritten() {
         assertThatThrownBy(() -> service.saveGeneral(vp, 10L, request(TODAY, "Leader")))
                 .isInstanceOf(GlobalException.class);
@@ -187,7 +187,7 @@ class ClassCommentServiceTest {
     }
 
     @Test
-    @DisplayName("OBS-19: clear is explicit and invalid text/no-op does not replace a comment")
+    @DisplayName("OBS-22: clear is explicit and invalid text/no-op does not replace a comment")
     void validatesAndClearsWithoutImplicitDeletion() {
         service.saveGeneral(teacher, 10L, request(TODAY, "Keep"));
         service.saveGeneral(teacher, 10L, request(TODAY, "x".repeat(10000)));

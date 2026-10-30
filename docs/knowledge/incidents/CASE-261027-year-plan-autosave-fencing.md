@@ -29,7 +29,7 @@ Quyền theo tài khoản không phân biệt hai tab; nhận quyền sửa khô
 
 ## Fix
 
-V27 (trước merge daily-attendance là V24) thêm phiên/revision/request ID; mọi ghi kiểm phiên/revision. Web queue tuần tự, giữ keystroke mới khi ánh xạ ID; retry cùng request ID; service phục hồi lưu mỗi phiên riêng, không tự ghi đè khi nối mạng lại.
+V30 (trước merge daily-attendance là V24, trước merge `dev` là V27) thêm phiên/revision/request ID; mọi ghi kiểm phiên/revision. Web queue tuần tự, giữ keystroke mới khi ánh xạ ID; retry cùng request ID; service phục hồi lưu mỗi phiên riêng, không tự ghi đè khi nối mạng lại.
 
 ## Regression test
 
@@ -42,7 +42,7 @@ Không tự nâng expected revision bằng bản trả về từ lấy khóa n�
 ## Kiểm tra bổ sung
 
 - Queue sau lỗi 400 từng giữ snapshot bị từ chối mãi; test RED tái hiện, sửa để lấy snapshot mới sau validation error, giữ ID cũ chỉ cho retry mạng/5xx.
-- PostgreSQL CHECK cho phép UNKNOWN: editing_from=NULL từng lọt điều kiện. Schema test RED trên PostgreSQL tái hiện; V24 mới (chưa commit) thêm IS NOT NULL, chờ gate GREEN.
+- PostgreSQL CHECK cho phép UNKNOWN: editing_from=NULL từng lọt điều kiện. Schema test RED trên PostgreSQL tái hiện; V24 mới (nay V30; chưa commit) thêm IS NOT NULL, chờ gate GREEN.
 - Browser mock smoke xác nhận tự lưu, bàn giao /new→/edit và một phiên sửa giữa hai tab; sau đóng phiên giữ quyền, tab còn lại nhận quyền qua nút thử lại. Không coi đây là browser E2E với BE thật.
 
 ## Kết quả kiểm chứng 27/10/2026

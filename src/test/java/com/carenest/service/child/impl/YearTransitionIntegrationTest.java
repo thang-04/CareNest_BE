@@ -42,7 +42,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Chuyển năm học trên PostgreSQL thật (V16): xếp lớp, readiness, kích hoạt chuyển trẻ. Hôm nay = 30/08/2027. */
+/** Chuyển năm học trên PostgreSQL thật (V19): xếp lớp, readiness, kích hoạt chuyển trẻ. Hôm nay = 30/08/2027. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)

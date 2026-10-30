@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "448e264f-2a22-5e60-954c-26c00b43a41e",
     "name": "CareNest BE — Auth & phân quyền",
-    "description": "API hiện có của CareNest BE (Keycloak + Spring Security Resource Server + phân quyền theo phạm vi).\n\n**Chuẩn bị**\n1. `docker compose up --build` (profile `dev`: có 8 user dev + dữ liệu giả).\n2. Import kèm environment `CareNest-local.postman_environment.json`, chọn environment đó.\n3. Điền `devPassword` = giá trị `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` (để trống `newAccountTempPassword` thì tự sinh).\n4. Chạy folder **0. Đăng nhập** trước (token sống 5 phút — hết hạn thì chạy lại). Có thể Run cả collection theo thứ tự.\n\n**API hiện có**\n| API | Role | Xử lý |\n| --- | --- | --- |\n| GET /api/accounts/me | mọi user đã đăng nhập | Profile, roles, phân công đang hiệu lực, id con (PH) |\n| GET /api/children/{childId} | TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT | Hồ sơ cơ bản trẻ, kiểm phạm vi lớp/campus/liên kết |\n| POST /api/accounts | ADMIN | Cấp tài khoản (Keycloak + CareNest, bù trừ khi lỗi) |\n| PATCH /api/accounts/{userId}/status | ADMIN | Khóa/mở khóa (CareNest chặn ngay + Keycloak disable/logout) |\n| GET /actuator/health, /v3/api-docs | public | Health, OpenAPI |\n\nMọi response API (trừ Actuator/OpenAPI) dạng `{code, desc, data}` với `code` = HTTP status. Đăng nhập/refresh/logout là của Keycloak, CareNest không có endpoint login.\n\nChi tiết: `docs/contracts/AUTH_CONTRACT.md`, `docs/system/KEYCLOAK.md`.",
+    "description": "API hiện có của CareNest BE (Keycloak + Spring Security Resource Server + phân quyền theo phạm vi).\n\n**Chuẩn bị**\n1. `docker compose up --build` (profile `dev`: có 8 user dev + dữ liệu giả).\n2. Import kèm environment `CareNest-local.postman_environment.json`, chọn environment đó.\n3. `devPassword` mặc định `demo123` (mật khẩu chung user dev; để trống `newAccountTempPassword` thì tự sinh).\n4. Chạy folder **0. Đăng nhập** trước (token sống 5 phút — hết hạn thì chạy lại). Có thể Run cả collection theo thứ tự.\n\n**API hiện có**\n| API | Role | Xử lý |\n| --- | --- | --- |\n| GET /api/accounts/me | mọi user đã đăng nhập | Profile, roles, phân công đang hiệu lực, id con (PH) |\n| GET /api/children/{childId} | TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT | Hồ sơ cơ bản trẻ, kiểm phạm vi lớp/campus/liên kết |\n| POST /api/accounts | ADMIN | Cấp tài khoản (Keycloak + CareNest, bù trừ khi lỗi) |\n| PATCH /api/accounts/{userId}/status | ADMIN | Khóa/mở khóa (CareNest chặn ngay + Keycloak disable/logout) |\n| GET /actuator/health, /v3/api-docs | public | Health, OpenAPI |\n\nMọi response API (trừ Actuator/OpenAPI) dạng `{code, desc, data}` với `code` = HTTP status. Đăng nhập/refresh/logout là của Keycloak, CareNest không có endpoint login.\n\nChi tiết: `docs/contracts/AUTH_CONTRACT.md`, `docs/system/KEYCLOAK.md`.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -14,7 +14,7 @@
       "description": "Lấy access token cho 8 user dev qua password grant (client `carenest-dev`). Chạy đầu tiên.",
       "item": [
         {
-          "name": "Login admin.dev",
+          "name": "Login admin",
           "event": [
             {
               "listen": "test",
@@ -48,7 +48,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "admin.dev"
+                  "value": "admin"
                 },
                 {
                   "key": "password",
@@ -56,11 +56,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `admin.dev` — ADMIN — chỉ quản lý tài khoản, không có phạm vi dữ liệu trẻ.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_admin`."
+            "description": "Lấy access token (5 phút) cho `admin` — ADMIN — chỉ quản lý tài khoản, không có phạm vi dữ liệu trẻ.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_admin`."
           }
         },
         {
-          "name": "Login principal.dev",
+          "name": "Login principal",
           "event": [
             {
               "listen": "test",
@@ -94,7 +94,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "principal.dev"
+                  "value": "principal"
                 },
                 {
                   "key": "password",
@@ -102,11 +102,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `principal.dev` — PRINCIPAL — toàn trường.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_principal`."
+            "description": "Lấy access token (5 phút) cho `principal` — PRINCIPAL — toàn trường.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_principal`."
           }
         },
         {
-          "name": "Login viceprincipal.a",
+          "name": "Login viceprincipal",
           "event": [
             {
               "listen": "test",
@@ -140,7 +140,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "viceprincipal.a"
+                  "value": "viceprincipal"
                 },
                 {
                   "key": "password",
@@ -148,11 +148,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `viceprincipal.a` — VICE_PRINCIPAL — Cơ sở A.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_vp_a`."
+            "description": "Lấy access token (5 phút) cho `viceprincipal` — VICE_PRINCIPAL — Cơ sở A.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_vp_a`."
           }
         },
         {
-          "name": "Login teacher.a",
+          "name": "Login teacher1",
           "event": [
             {
               "listen": "test",
@@ -187,7 +187,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "teacher.a"
+                  "value": "teacher1"
                 },
                 {
                   "key": "password",
@@ -195,11 +195,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `teacher.a` — TEACHER — Lớp A1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_a`."
+            "description": "Lấy access token (5 phút) cho `teacher1` — TEACHER — Lớp A1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_a`."
           }
         },
         {
-          "name": "Login teacher.b",
+          "name": "Login teacher2",
           "event": [
             {
               "listen": "test",
@@ -233,7 +233,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "teacher.b"
+                  "value": "teacher2"
                 },
                 {
                   "key": "password",
@@ -241,11 +241,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `teacher.b` — TEACHER — Lớp A1 đã hết hạn (tới 30/09/2026), đang dạy Lớp B1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_b`."
+            "description": "Lấy access token (5 phút) cho `teacher2` — TEACHER — Lớp A1 đã hết hạn (tới 30/09/2026), đang dạy Lớp B1.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_teacher_b`."
           }
         },
         {
-          "name": "Login parent.a",
+          "name": "Login parent1",
           "event": [
             {
               "listen": "test",
@@ -279,7 +279,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "parent.a"
+                  "value": "parent1"
                 },
                 {
                   "key": "password",
@@ -287,11 +287,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `parent.a` — PARENT — con: Trẻ Demo A1-01.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_a`."
+            "description": "Lấy access token (5 phút) cho `parent1` — PARENT — con: Trẻ Demo A1-01.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_a`."
           }
         },
         {
-          "name": "Login parent.b",
+          "name": "Login parent2",
           "event": [
             {
               "listen": "test",
@@ -325,7 +325,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "parent.b"
+                  "value": "parent2"
                 },
                 {
                   "key": "password",
@@ -333,11 +333,11 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `parent.b` — PARENT — con: Trẻ Demo B1-01.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_b`."
+            "description": "Lấy access token (5 phút) cho `parent2` — PARENT — con: Trẻ Demo B1-01.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_parent_b`."
           }
         },
         {
-          "name": "Login kitchen.a",
+          "name": "Login kitchen",
           "event": [
             {
               "listen": "test",
@@ -371,7 +371,7 @@
                 },
                 {
                   "key": "username",
-                  "value": "kitchen.a"
+                  "value": "kitchen"
                 },
                 {
                   "key": "password",
@@ -379,7 +379,7 @@
                 }
               ]
             },
-            "description": "Lấy access token (5 phút) cho `kitchen.a` — KITCHEN_STAFF — bếp Cơ sở A.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_kitchen_a`."
+            "description": "Lấy access token (5 phút) cho `kitchen` — KITCHEN_STAFF — bếp Cơ sở A.\n\nPassword grant qua client `carenest-dev` **chỉ có ở dev**; Web/Mobile thật dùng Authorization Code + PKCE. Token lưu vào biến collection `token_kitchen_a`."
           }
         },
         {
@@ -572,10 +572,10 @@
     },
     {
       "name": "2. Tài khoản hiện tại — GET /accounts/me",
-      "description": "Chạy trước folder 3 (lưu id con của parent.a/parent.b vào biến).",
+      "description": "Chạy trước folder 3 (lưu id con của parent1/parent2 vào biến).",
       "item": [
         {
-          "name": "me — teacher.a (TEACHER, Lớp A1)",
+          "name": "me — teacher1 (TEACHER, Lớp A1)",
           "request": {
             "method": "GET",
             "header": [],
@@ -611,12 +611,12 @@
           ]
         },
         {
-          "name": "me — teacher.b (phân công A1 đã hết hạn)",
+          "name": "me — teacher2 (phân công A1 đã hết hạn)",
           "request": {
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}{{apiPrefix}}/accounts/me",
-            "description": "teacher.b từng dạy A1 tới 30/09/2026 rồi chuyển B1 ⇒ chỉ còn 1 phân công đang hiệu lực.",
+            "description": "teacher2 từng dạy A1 tới 30/09/2026 rồi chuyển B1 ⇒ chỉ còn 1 phân công đang hiệu lực.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -644,7 +644,7 @@
           ]
         },
         {
-          "name": "me — parent.a (lấy id con A1-01)",
+          "name": "me — parent1 (lấy id con A1-01)",
           "request": {
             "method": "GET",
             "header": [],
@@ -677,7 +677,7 @@
           ]
         },
         {
-          "name": "me — parent.b (lấy id con B1-01)",
+          "name": "me — parent2 (lấy id con B1-01)",
           "request": {
             "method": "GET",
             "header": [],
@@ -709,7 +709,7 @@
           ]
         },
         {
-          "name": "me — kitchen.a (KITCHEN_STAFF)",
+          "name": "me — kitchen (KITCHEN_STAFF)",
           "request": {
             "method": "GET",
             "header": [],
@@ -787,7 +787,7 @@
       "description": "GET /children/{childId} — hồ sơ cơ bản của trẻ (id, họ tên, ngày sinh, lớp hiện tại).\n\nLớp 1 (role): TEACHER, VICE_PRINCIPAL, PRINCIPAL, PARENT; KITCHEN_STAFF/ADMIN bị chặn.\nLớp 2 (phạm vi): GV — lớp đang được phân công; HP — campus được phân công; HT — toàn trường; PH — con có liên kết. Ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id).",
       "item": [
         {
-          "name": "teacher.a → A1-01 (lớp mình) → 200",
+          "name": "teacher1 → A1-01 (lớp mình) → 200",
           "request": {
             "method": "GET",
             "header": [],
@@ -819,7 +819,7 @@
           ]
         },
         {
-          "name": "teacher.a → B1-01 (lớp khác) → 403",
+          "name": "teacher1 → B1-01 (lớp khác) → 403",
           "request": {
             "method": "GET",
             "header": [],
@@ -850,7 +850,7 @@
           ]
         },
         {
-          "name": "teacher.a → id không tồn tại → 403",
+          "name": "teacher1 → id không tồn tại → 403",
           "request": {
             "method": "GET",
             "header": [],
@@ -881,7 +881,7 @@
           ]
         },
         {
-          "name": "teacher.b → A1-01 (phân công đã hết hạn) → 403",
+          "name": "teacher2 → A1-01 (phân công đã hết hạn) → 403",
           "request": {
             "method": "GET",
             "header": [],
@@ -912,7 +912,7 @@
           ]
         },
         {
-          "name": "teacher.b → B1-01 (lớp hiện tại) → 200",
+          "name": "teacher2 → B1-01 (lớp hiện tại) → 200",
           "request": {
             "method": "GET",
             "header": [],
@@ -942,7 +942,7 @@
           ]
         },
         {
-          "name": "viceprincipal.a → A1-01 (campus mình) → 200",
+          "name": "viceprincipal → A1-01 (campus mình) → 200",
           "request": {
             "method": "GET",
             "header": [],
@@ -972,7 +972,7 @@
           ]
         },
         {
-          "name": "viceprincipal.a → B1-01 (campus khác) → 403",
+          "name": "viceprincipal → B1-01 (campus khác) → 403",
           "request": {
             "method": "GET",
             "header": [],
@@ -1003,7 +1003,7 @@
           ]
         },
         {
-          "name": "principal.dev → A1-01 → 200",
+          "name": "principal → A1-01 → 200",
           "request": {
             "method": "GET",
             "header": [],
@@ -1033,7 +1033,7 @@
           ]
         },
         {
-          "name": "principal.dev → B1-01 → 200",
+          "name": "principal → B1-01 → 200",
           "request": {
             "method": "GET",
             "header": [],
@@ -1063,7 +1063,7 @@
           ]
         },
         {
-          "name": "parent.a → con mình (A1-01) → 200",
+          "name": "parent1 → con mình (A1-01) → 200",
           "request": {
             "method": "GET",
             "header": [],
@@ -1093,7 +1093,7 @@
           ]
         },
         {
-          "name": "parent.a → con người khác (B1-01) → 403",
+          "name": "parent1 → con người khác (B1-01) → 403",
           "request": {
             "method": "GET",
             "header": [],
@@ -1124,7 +1124,7 @@
           ]
         },
         {
-          "name": "parent.b → con mình (B1-01) → 200",
+          "name": "parent2 → con mình (B1-01) → 200",
           "request": {
             "method": "GET",
             "header": [],
@@ -1154,7 +1154,7 @@
           ]
         },
         {
-          "name": "kitchen.a → A1-01 → 403 (role bị chặn)",
+          "name": "kitchen → A1-01 → 403 (role bị chặn)",
           "request": {
             "method": "GET",
             "header": [],
@@ -1185,7 +1185,7 @@
           ]
         },
         {
-          "name": "admin.dev → A1-01 → 403 (Admin không bypass)",
+          "name": "admin → A1-01 → 403 (Admin không bypass)",
           "request": {
             "method": "GET",
             "header": [],
@@ -1291,7 +1291,7 @@
     },
     {
       "name": "4. Cấp / khóa tài khoản (ADMIN)",
-      "description": "Tạo tài khoản mới (username tự sinh mỗi lần chạy) và khóa/mở teacher.b.",
+      "description": "Tạo tài khoản mới (username tự sinh mỗi lần chạy) và khóa/mở teacher2.",
       "item": [
         {
           "name": "create — PRINCIPAL gọi → 403",
@@ -1628,7 +1628,7 @@
           }
         },
         {
-          "name": "status — khóa teacher.b (INACTIVE) → 200",
+          "name": "status — khóa teacher2 (INACTIVE) → 200",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1674,7 +1674,7 @@
           ]
         },
         {
-          "name": "me — teacher.b dùng token cũ (còn hạn) → 403",
+          "name": "me — teacher2 dùng token cũ (còn hạn) → 403",
           "request": {
             "method": "GET",
             "header": [],
@@ -1705,7 +1705,7 @@
           ]
         },
         {
-          "name": "status — mở khóa teacher.b (ACTIVE) → 200",
+          "name": "status — mở khóa teacher2 (ACTIVE) → 200",
           "request": {
             "method": "PATCH",
             "header": [
@@ -1904,10 +1904,10 @@
     },
     {
       "name": "5. Keycloak — refresh & logout (chạy cuối)",
-      "description": "Vòng đời token phía Keycloak. Chạy cuối vì logout hủy session của teacher.a.",
+      "description": "Vòng đời token phía Keycloak. Chạy cuối vì logout hủy session của teacher1.",
       "item": [
         {
-          "name": "Refresh token teacher.a",
+          "name": "Refresh token teacher1",
           "event": [
             {
               "listen": "test",
@@ -1950,7 +1950,7 @@
           }
         },
         {
-          "name": "Logout teacher.a (hủy session)",
+          "name": "Logout teacher1 (hủy session)",
           "event": [
             {
               "listen": "test",
@@ -2029,10 +2029,10 @@
     },
     {
       "name": "6. Năm học — /school-years (Cấu hình trường)",
-      "description": "Chạy folder 0 (Login principal.dev, viceprincipal.a) trước. Thứ tự request là một kịch bản: tạo → sửa → kích hoạt/kết thúc bị chặn → xóa.",
+      "description": "Chạy folder 0 (Login principal, viceprincipal) trước. Thứ tự request là một kịch bản: tạo → sửa → kích hoạt/kết thúc bị chặn → xóa.",
       "item": [
         {
-          "name": "list — principal.dev → 200",
+          "name": "list — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -2067,7 +2067,7 @@
           }
         },
         {
-          "name": "list ACTIVE — viceprincipal.a → 200",
+          "name": "list ACTIVE — viceprincipal → 200",
           "event": [
             {
               "listen": "test",
@@ -2098,7 +2098,7 @@
           }
         },
         {
-          "name": "create — viceprincipal.a → 403",
+          "name": "create — viceprincipal → 403",
           "event": [
             {
               "listen": "test",
@@ -2178,7 +2178,7 @@
           }
         },
         {
-          "name": "create — principal.dev → 201 (PLANNED)",
+          "name": "create — principal → 201 (PLANNED)",
           "event": [
             {
               "listen": "test",
@@ -2579,10 +2579,10 @@
     },
     {
       "name": "7. Điểm trường — /campuses (Cấu hình trường)",
-      "description": "Chạy folder 0 (principal.dev, viceprincipal.a, teacher.a) trước.",
+      "description": "Chạy folder 0 (principal, viceprincipal, teacher1) trước.",
       "item": [
         {
-          "name": "list — principal.dev → 200",
+          "name": "list — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -2616,7 +2616,7 @@
           }
         },
         {
-          "name": "list — viceprincipal.a → chỉ điểm trường mình",
+          "name": "list — viceprincipal → chỉ điểm trường mình",
           "event": [
             {
               "listen": "test",
@@ -2648,7 +2648,7 @@
           }
         },
         {
-          "name": "list — teacher.a → 403",
+          "name": "list — teacher1 → 403",
           "event": [
             {
               "listen": "test",
@@ -2710,7 +2710,7 @@
           }
         },
         {
-          "name": "create — viceprincipal.a → 403",
+          "name": "create — viceprincipal → 403",
           "event": [
             {
               "listen": "test",
@@ -2790,7 +2790,7 @@
           }
         },
         {
-          "name": "create — principal.dev → 201",
+          "name": "create — principal → 201",
           "event": [
             {
               "listen": "test",
@@ -3019,7 +3019,7 @@
       "description": "Chạy folder 0 và 7 trước. Phòng tạo ở đây được folder 9 dùng làm phòng của lớp.",
       "item": [
         {
-          "name": "list — principal.dev → 200",
+          "name": "list — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -3050,7 +3050,7 @@
           }
         },
         {
-          "name": "list — viceprincipal.a → phòng điểm trường mình",
+          "name": "list — viceprincipal → phòng điểm trường mình",
           "event": [
             {
               "listen": "test",
@@ -3081,7 +3081,7 @@
           }
         },
         {
-          "name": "list — teacher.a → 403",
+          "name": "list — teacher1 → 403",
           "event": [
             {
               "listen": "test",
@@ -3152,7 +3152,7 @@
           }
         },
         {
-          "name": "create — principal.dev → 201",
+          "name": "create — principal → 201",
           "event": [
             {
               "listen": "test",
@@ -3359,7 +3359,7 @@
       "description": "Chạy folder 0, 6 (lấy activeYearId), 7, 8 trước.",
       "item": [
         {
-          "name": "age groups — kitchen.a → 200",
+          "name": "age groups — kitchen → 200",
           "event": [
             {
               "listen": "test",
@@ -3432,7 +3432,7 @@
           }
         },
         {
-          "name": "age group — principal.dev → 201",
+          "name": "age group — principal → 201",
           "event": [
             {
               "listen": "test",
@@ -3544,7 +3544,7 @@
           }
         },
         {
-          "name": "structure — principal.dev → 200",
+          "name": "structure — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -3575,7 +3575,7 @@
           }
         },
         {
-          "name": "structure — teacher.a → chỉ lớp mình",
+          "name": "structure — teacher1 → chỉ lớp mình",
           "event": [
             {
               "listen": "test",
@@ -3646,7 +3646,7 @@
           }
         },
         {
-          "name": "class — principal.dev → 201",
+          "name": "class — principal → 201",
           "event": [
             {
               "listen": "test",
@@ -3906,7 +3906,7 @@
       "description": "Chạy folder 0 và 6 (lấy activeYearId) trước.",
       "item": [
         {
-          "name": "get — kitchen.a → 200",
+          "name": "get — kitchen → 200",
           "event": [
             {
               "listen": "test",
@@ -3937,7 +3937,7 @@
           }
         },
         {
-          "name": "save — viceprincipal.a → 403",
+          "name": "save — viceprincipal → 403",
           "event": [
             {
               "listen": "test",
@@ -4057,7 +4057,7 @@
           }
         },
         {
-          "name": "save — principal.dev → 200",
+          "name": "save — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -4143,7 +4143,7 @@
       "description": "Chạy folder 0, 6, 9 (lấy ageGroupId) trước.",
       "item": [
         {
-          "name": "overview — principal.dev → 200",
+          "name": "overview — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -4179,7 +4179,7 @@
           }
         },
         {
-          "name": "overview — viceprincipal.a → điểm trường mình",
+          "name": "overview — viceprincipal → điểm trường mình",
           "event": [
             {
               "listen": "test",
@@ -4210,7 +4210,7 @@
           }
         },
         {
-          "name": "overview — teacher.a → 403",
+          "name": "overview — teacher1 → 403",
           "event": [
             {
               "listen": "test",
@@ -4281,7 +4281,7 @@
           }
         },
         {
-          "name": "class teachers — principal.dev → 200",
+          "name": "class teachers — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -4303,7 +4303,7 @@
               }
             ],
             "url": "{{baseUrl}}{{apiPrefix}}/classes/{{assignClassId}}/teachers",
-            "description": "Cần 2 GV cùng điểm trường của lớp. Seed dev chỉ có teacher.a, teacher.b ở hai lớp khác nhau; nếu chỉ có 1 GV cùng điểm trường sẽ trả 400.",
+            "description": "Cần 2 GV cùng điểm trường của lớp. Seed dev chỉ có teacher1, teacher2 ở hai lớp khác nhau; nếu chỉ có 1 GV cùng điểm trường sẽ trả 400.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -4321,7 +4321,7 @@
           }
         },
         {
-          "name": "team leaders — principal.dev → 200",
+          "name": "team leaders — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -4352,7 +4352,7 @@
           }
         },
         {
-          "name": "team leader — viceprincipal.a → 403",
+          "name": "team leader — viceprincipal → 403",
           "event": [
             {
               "listen": "test",
@@ -4392,7 +4392,7 @@
           }
         },
         {
-          "name": "team leader — principal.dev gán → 200",
+          "name": "team leader — principal gán → 200",
           "event": [
             {
               "listen": "test",
@@ -4478,7 +4478,7 @@
       "description": "Chạy folder 0 và request create của folder 6 trước (năm PLANNED `newYearId`).",
       "item": [
         {
-          "name": "readiness — principal.dev → 200",
+          "name": "readiness — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -4509,7 +4509,7 @@
           }
         },
         {
-          "name": "readiness — viceprincipal.a → 403",
+          "name": "readiness — viceprincipal → 403",
           "event": [
             {
               "listen": "test",
@@ -4540,7 +4540,7 @@
           }
         },
         {
-          "name": "placements — principal.dev → 200",
+          "name": "placements — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -4571,7 +4571,7 @@
           }
         },
         {
-          "name": "placements — teacher.a → 403",
+          "name": "placements — teacher1 → 403",
           "event": [
             {
               "listen": "test",
@@ -4602,7 +4602,7 @@
           }
         },
         {
-          "name": "auto place — principal.dev → 200",
+          "name": "auto place — principal → 200",
           "event": [
             {
               "listen": "test",
@@ -4725,7 +4725,7 @@
     },
     {
       "name": "13. Kiểm tra khớp FE — dạng dữ liệu theo FE (có response mẫu)",
-      "description": "Mỗi request có Example là response thật. So với mock FE (CareNest_FE 8fca8d5). Chạy folder 0 (principal.dev, kitchen.a) trước.",
+      "description": "Mỗi request có Example là response thật. So với mock FE (CareNest_FE 8fca8d5). Chạy folder 0 (principal, kitchen) trước.",
       "item": [
         {
           "name": "School years — data là MẢNG (trước: data.items) → 200",

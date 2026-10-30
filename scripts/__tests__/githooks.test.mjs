@@ -174,6 +174,24 @@ test("pre-push: commit tạo bằng --no-verify vẫn bị bắt; force push b�
   assert.ok(git(root, ["push", "-q", "--force", "origin", branch], { CARENEST_ALLOW_FORCE_PUSH: "1" }).ok);
 });
 
+test("pre-push: merge nhánh khác vào không kiểm lại commit đã có trên remote", () => {
+  const root = makeRepo();
+  const branch = "feature/G94-1-BE-FEAT-1-add-a";
+  git(root, ["checkout", "-q", "-b", branch]);
+  assert.equal(commit(root, "G94-1: Add a").ok, true);
+  assert.ok(git(root, ["push", "-q", "origin", branch]).ok);
+  // dev có commit cũ sai định dạng, đã lên remote từ trước khi có hook
+  git(root, ["checkout", "-q", "-b", "dev", "main"]);
+  write(root, { "b.txt": "b\n" });
+  git(root, ["add", "-A"]);
+  git(root, ["commit", "-q", "--no-verify", "-m", "feat: old style"]);
+  assert.ok(git(root, ["push", "-q", "--no-verify", "origin", "dev"]).ok);
+  git(root, ["checkout", "-q", branch]);
+  assert.ok(git(root, ["merge", "-q", "--no-ff", "-m", "G94-1: Merge dev", "dev"]).ok);
+  const merged = git(root, ["push", "-q", "origin", branch]);
+  assert.ok(merged.ok, merged.out);
+});
+
 test("pre-push: cấm push trực tiếp lên main (trừ khi được cho phép)", () => {
   const root = makeRepo();
   git(root, ["commit", "-q", "--allow-empty", "-m", "G94-1: Add a"]);

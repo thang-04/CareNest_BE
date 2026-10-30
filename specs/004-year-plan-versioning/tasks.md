@@ -3,7 +3,7 @@
 **Input**: spec.md, plan.md, research.md, data-model.md, contracts/api.md · **Tests**: có (BE unit/IT, FE node:test) · `[P]` = chạy song song được (khác file).
 
 ## Phase 1 — Setup / nền DB (BE)
-- [X] T001 Tạo `src/main/resources/db/migration/V29__add_edu_plan_versions.sql` theo data-model §6
+- [X] T001 Tạo `src/main/resources/db/migration/V32__add_edu_plan_versions.sql` theo data-model §6
 - [X] T002 [P] Thêm `versionNo`, `sourcePlanId`, factory `createVersion(...)` vào `entity/eduplan/EduYearPlan.java`
 - [X] T003 [P] Thêm `lineageId` + `effectiveLineage()` + factory chép vào `EduGoalRow`, `EduGoalContent`, `EduTheme`, `EduBreak`
 - [X] T004 [P] Thêm `sourceDocId`, `adjustments`, `changeAdjustments(...)`, `linkSource(...)` vào `EduClassDoc.java`

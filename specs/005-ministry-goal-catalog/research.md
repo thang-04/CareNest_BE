@@ -14,7 +14,7 @@
 - Văn bản hợp nhất đã gồm câu đang có hiệu lực; dấu chú thích "[nn]" bị bỏ; dòng chỉ còn chú thích (đoạn đã bãi bỏ theo TT 28/2016) bị bỏ.
 - Nhà trẻ mục IV "Tình cảm, kỹ năng xã hội và thẩm mỹ": nhóm/mục về hát, vận động theo nhạc, vẽ, nặn, xem tranh (D nhóm 4, C mục 3) → Phát triển thẩm mỹ; còn lại → Phát triển tình cảm và kỹ năng xã hội; tham chiếu mục giữ "IV".
 - Kết quả: 327 mục tiêu (41/84/99/103), 423 gợi ý nội dung (77/119/121/106). Mẫu đối chiếu: nhóm "Thực hiện được các động tác phát triển các nhóm cơ và hô hấp", MT 3–4 tuổi "Thực hiện đủ các động tác trong bài tập thể dục theo hướng dẫn." khớp gợi ý Thái Dương đang có ở FE.
-- Công cụ tách (không commit, nằm scratchpad của phiên): `tables.py`, `gridlib.py`, `extract.py`, `extract_contents.py`; migration V31 sinh từ JSON kết quả.
+- Công cụ tách (không commit, nằm scratchpad của phiên): `tables.py`, `gridlib.py`, `extract.py`, `extract_contents.py`; migration V34 sinh từ JSON kết quả.
 
 ## R3. Lưu trữ
 

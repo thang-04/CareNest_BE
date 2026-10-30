@@ -510,11 +510,11 @@ class DailyAssessmentIntegrationTest {
                 + "SELECT 'KH-T-V2', school_year_id, age_group_id, title, status, owner_id, 2, id "
                 + "FROM edu_year_plans WHERE id = (SELECT year_plan_id FROM edu_class_docs WHERE id = "
                 + weekDoc + ") RETURNING id");
-        long domain = jdbc.queryForObject("SELECT domain_id FROM edu_goal_rows WHERE id = ?", Long.class, goal1);
+        long domain = jdbc.queryForObject("SELECT domain_id FROM edu_plan_goals WHERE id = ?", Long.class, goal1);
         long copiedGoal = goal(nextPlan, domain, 1, "Trẻ nhận biết màu");
         long addedGoal = goal(nextPlan, domain, 2, "Trẻ nhảy bật");
-        jdbc.update("UPDATE edu_goal_rows SET lineage_id = ? WHERE id = ?", goal1, copiedGoal);
-        jdbc.update("UPDATE edu_goal_rows SET lineage_id = ? WHERE id = ?", goal3, addedGoal);
+        jdbc.update("UPDATE edu_plan_goals SET lineage_id = ? WHERE id = ?", goal1, copiedGoal);
+        jdbc.update("UPDATE edu_plan_goals SET lineage_id = ? WHERE id = ?", goal3, addedGoal);
         long nextTheme = insertId("INSERT INTO edu_themes (year_plan_id, sort_order, name, abbr, lineage_id) "
                 + "SELECT " + nextPlan + ", 1, name, abbr, id FROM edu_themes "
                 + "WHERE id = (SELECT theme_id FROM edu_class_docs WHERE id = " + weekDoc + ") RETURNING id");
@@ -597,8 +597,8 @@ class DailyAssessmentIntegrationTest {
     }
 
     private long goal(long plan, long domain, int no, String text) {
-        return insertId("INSERT INTO edu_goal_rows (year_plan_id, domain_id, sort_order, kind, text, goal_no) VALUES ("
-                + plan + ", " + domain + ", " + no + ", 'goal', '" + text + "', " + no + ") RETURNING id");
+        return insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no) VALUES ("
+                + plan + ", " + domain + ", " + no + ", '" + text + "', " + no + ") RETURNING id");
     }
 
     private CurrentUser user(String username, CareNestRole role) {

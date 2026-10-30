@@ -1,6 +1,6 @@
 # Flow — Kế hoạch giáo dục và giáo án
 
-Module: education-plan → learning-observation (đánh giá theo MT). Rule: EDU-01..24, OBS-07. `[B]` = ngoài hệ thống, `[S]` = hệ thống.
+Module: education-plan → learning-observation (đánh giá theo MT). Rule: EDU-01..41, OBS-07, AI-07. ADR: 0020, 0006. `[B]` = ngoài hệ thống, `[S]` = hệ thống.
 Nguồn: UI CareNest_FE (Tiền chốt UI là chuẩn, 20/10, 22/10), mẫu MN Thái Dương, `huong_dan_nghiep_vu/phan_viec_cac_actor_giao_an.md`.
 
 Kế hoạch năm theo **nhóm tuổi**, áp dụng toàn trường. Chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày theo **từng lớp**. Sợi dây xuyên suốt là **số MT 1..n** của kế hoạch năm:
@@ -112,3 +112,20 @@ Kế hoạch năm: nội dung của MT tích vào chủ đề
 
 ## Học liệu và dạy học
 Giáo viên lớp lưu activities trước khi upload; S3 giữ binary private và DB metadata. Chỉ Nháp/Bị trả lại được upload/gắn lại/gỡ. Các mutation khóa parent cùng luồng gửi/duyệt. Người xem scope hiện hành đọc học liệu active; editor thấy phần cần gắn lại. Trình chiếu không đổi trạng thái duyệt, giữ MT và nội dung đã xếp ngày; stale pick không ghép media theo ID vị trí. Ảnh/video/PDF trực tiếp, Office tải. Xem specs/002-class-plan-teaching-media và ADR-0018.
+
+## Đối chiếu khảo sát team 27/10 (từ `dev`, EDU-29..38)
+
+Khảo sát G94-254 viết trên `dev` thành EDU-01..10; khi merge G94-226 đổi số thành EDU-29..38. Luồng trên (EDU-01..28) là luồng code đang chạy. Khớp: EDU-30 (soạn/ban hành mục tiêu năm), EDU-33 (duyệt không ký), EDU-34 (mẫu có cấu trúc + Word), EDU-36 (nhân bản bản đã duyệt — EDU-25, EDU-26). Mới, chưa làm:
+
+```text
+[S] Phụ huynh: tên các hoạt động trong ngày của lớp con   (EDU-37, PAR-01)
+[S] AI gợi ý nội dung hoạt động từ mục tiêu, GV sửa       (AI-07, EDU-20)
+```
+
+Mâu thuẫn với code — user chốt 29/10/2026 theo code, dòng khảo sát SUPERSEDED:
+- EDU-31 (Tổ trưởng duyệt kế hoạch chính lớp mình) ⇒ theo EDU-18: bỏ bước Tổ trưởng khi Tổ trưởng dạy chính lớp đó.
+- EDU-32 (chỉ duyệt một lần đầu năm, tuần/ngày không duyệt) ⇒ theo EDU-17..19: hồ sơ chủ đề gồm giáo án tuần/ngày duyệt theo từng chủ đề; đánh giá theo giáo án đã duyệt.
+- EDU-35 (GV tự thêm mục kế hoạch ngày) ⇒ theo EDU-11, EDU-16: dòng hoạt động do HT/PHT cấu hình.
+- EDU-38 (quyền theo ma trận ADR-0017) ⇒ theo EDU-08: `goals.*`, `plans.config` gán theo role tại `EduPlanAccessPolicy`.
+
+Lịch chủ đề (đóng P-29, user chốt 30/10 theo mẫu Thái Dương): thời lượng do người lập đặt, mỗi tuần học là một chủ đề nhánh (EDU-39); chủ đề bắt đầu Thứ 2, kết thúc Thứ 6, không trùng nhau — kiểm khi gửi/ban hành (EDU-39, EDU-40); đợt nghỉ ghi được từng ngày, tuần chỉ thành tuần nghỉ khi nghỉ trọn Thứ 2 → Thứ 6 (EDU-41).

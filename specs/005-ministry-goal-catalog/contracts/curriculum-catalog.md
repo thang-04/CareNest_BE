@@ -1,6 +1,6 @@
 # Contract: Danh mục Chương trình GDMN
 
-Quyền: PRINCIPAL, VICE_PRINCIPAL, TEACHER (như `GET /education-plans/expected-results`). Envelope `{code, errorCode, desc, data}`.
+Quyền: PRINCIPAL, VICE_PRINCIPAL, TEACHER (như `GET /education-plans/config`). Envelope `{code, errorCode, desc, data}`.
 
 ## GET /api/education-plans/curriculum/sources
 

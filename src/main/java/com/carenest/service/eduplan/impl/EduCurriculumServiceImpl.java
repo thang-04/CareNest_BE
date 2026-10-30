@@ -1,21 +1,26 @@
 package com.carenest.service.eduplan.impl;
 
 import com.carenest.dto.eduplan.CurriculumContentResponse;
-import com.carenest.dto.eduplan.CurriculumGoalRef;
 import com.carenest.dto.eduplan.CurriculumGoalResponse;
+import com.carenest.dto.eduplan.CurriculumRef;
 import com.carenest.dto.eduplan.CurriculumSourceResponse;
+import com.carenest.entity.eduplan.EduCurriculumExpectedResult;
 import com.carenest.entity.eduplan.EduCurriculumGoal;
 import com.carenest.entity.eduplan.EduCurriculumGoalContent;
+import com.carenest.entity.eduplan.EduCurriculumSubDomain;
 import com.carenest.entity.eduplan.EduDomain;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduCurriculumContentRepository;
+import com.carenest.repository.eduplan.EduCurriculumExpectedResultRepository;
 import com.carenest.repository.eduplan.EduCurriculumGoalContentRepository;
 import com.carenest.repository.eduplan.EduCurriculumGoalRepository;
 import com.carenest.repository.eduplan.EduCurriculumSourceRepository;
+import com.carenest.repository.eduplan.EduCurriculumSubDomainRepository;
 import com.carenest.repository.eduplan.EduDomainRepository;
 import com.carenest.service.eduplan.EduCurriculumService;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.EduGoalRowKind;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +39,8 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
     private static final String LOG_PREFIX = "[EduCurriculumServiceImpl]";
 
     private final EduCurriculumSourceRepository sourceRepository;
+    private final EduCurriculumSubDomainRepository subDomainRepository;
+    private final EduCurriculumExpectedResultRepository expectedResultRepository;
     private final EduCurriculumGoalRepository goalRepository;
     private final EduCurriculumGoalContentRepository goalContentRepository;
     private final EduCurriculumContentRepository contentRepository;
@@ -85,20 +92,32 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
                                     EduCurriculumGoalContent::getCurriculumGoalId,
                                     Collectors.mapping(EduCurriculumGoalContent::getText, Collectors.toList())));
             Map<Long, String> domainNames = domainNames();
+            Map<Long, EduCurriculumSubDomain> subDomains = subDomains(ageGroupId);
+            Map<Long, EduCurriculumExpectedResult> groups =
+                    expectedResultRepository.findAllByAgeGroupIdOrderBySourceIdAscSortOrderAsc(ageGroupId).stream()
+                            .collect(Collectors.toMap(EduCurriculumExpectedResult::getId, Function.identity()));
             List<CurriculumGoalResponse> result = goals.stream()
-                    .map(g -> new CurriculumGoalResponse(
-                            g.getId(),
-                            g.getSourceId(),
-                            g.getDomainId(),
-                            domainNames.get(g.getDomainId()),
-                            g.getSubDomain(),
-                            g.getGroupNo(),
-                            g.getGroupText(),
-                            g.getGoalNo(),
-                            g.getGoalText(),
-                            g.getSectionRef(),
-                            g.getSortOrder(),
-                            contents.getOrDefault(g.getId(), List.of())))
+                    .map(g -> {
+                        EduCurriculumExpectedResult group = groups.get(g.getExpectedResultId());
+                        Long subDomainId = group.getSubDomainId();
+                        return new CurriculumGoalResponse(
+                                g.getId(),
+                                g.getSourceId(),
+                                g.getDomainId(),
+                                domainNames.get(g.getDomainId()),
+                                subDomainId,
+                                subDomainId == null
+                                        ? null
+                                        : subDomains.get(subDomainId).getText(),
+                                group.getId(),
+                                group.getGroupNo(),
+                                group.getText(),
+                                g.getGoalNo(),
+                                g.getGoalText(),
+                                g.getSectionRef(),
+                                g.getSortOrder(),
+                                contents.getOrDefault(g.getId(), List.of()));
+                    })
                     .toList();
             log.info("{}|END", logPrefix);
             return result;
@@ -115,6 +134,7 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
         try {
             requireAgeGroup(ageGroupId);
             Map<Long, String> domainNames = domainNames();
+            Map<Long, EduCurriculumSubDomain> subDomains = subDomains(ageGroupId);
             List<CurriculumContentResponse> result =
                     contentRepository.findAllByAgeGroupIdOrderBySourceIdAscSortOrderAsc(ageGroupId).stream()
                             .map(c -> new CurriculumContentResponse(
@@ -122,7 +142,10 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
                                     c.getSourceId(),
                                     c.getDomainId(),
                                     domainNames.get(c.getDomainId()),
-                                    c.getSubDomain(),
+                                    c.getSubDomainId(),
+                                    c.getSubDomainId() == null
+                                            ? null
+                                            : subDomains.get(c.getSubDomainId()).getText(),
                                     c.getCategoryNo(),
                                     c.getCategory(),
                                     c.getLabel(),
@@ -139,16 +162,29 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
     }
 
     @Override
-    public Map<Long, CurriculumGoalRef> findGoalRefs(Collection<Long> ids) {
-        String logPrefix = LOG_PREFIX + "|findGoalRefs|count=" + ids.size();
+    public Map<Long, CurriculumRef> findRefs(EduGoalRowKind kind, Collection<Long> ids) {
+        String logPrefix = LOG_PREFIX + "|findRefs|kind=" + kind + "|count=" + ids.size();
         log.info("{}|START", logPrefix);
         try {
-            Map<Long, CurriculumGoalRef> refs = ids.isEmpty()
-                    ? Map.of()
-                    : goalRepository.findAllById(ids).stream()
-                            .map(g -> new CurriculumGoalRef(
-                                    g.getId(), g.getAgeGroupId(), g.getGoalText(), g.getSectionRef()))
-                            .collect(Collectors.toMap(CurriculumGoalRef::id, Function.identity()));
+            List<CurriculumRef> found = ids.isEmpty()
+                    ? List.of()
+                    : switch (kind) {
+                        case SUB ->
+                            subDomainRepository.findAllById(ids).stream()
+                                    .map(s -> new CurriculumRef(s.getId(), s.getAgeGroupId(), s.getText(), null))
+                                    .toList();
+                        case GROUP ->
+                            expectedResultRepository.findAllById(ids).stream()
+                                    .map(r -> new CurriculumRef(r.getId(), r.getAgeGroupId(), r.getText(), null))
+                                    .toList();
+                        case GOAL ->
+                            goalRepository.findAllById(ids).stream()
+                                    .map(g -> new CurriculumRef(
+                                            g.getId(), g.getAgeGroupId(), g.getGoalText(), g.getSectionRef()))
+                                    .toList();
+                    };
+            Map<Long, CurriculumRef> refs =
+                    found.stream().collect(Collectors.toMap(CurriculumRef::id, Function.identity()));
             log.info("{}|END", logPrefix);
             return refs;
         } catch (RuntimeException ex) {
@@ -162,6 +198,11 @@ public class EduCurriculumServiceImpl implements EduCurriculumService {
                 || schoolStructureService.findAgeGroup(ageGroupId).isEmpty()) {
             throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
         }
+    }
+
+    private Map<Long, EduCurriculumSubDomain> subDomains(Long ageGroupId) {
+        return subDomainRepository.findAllByAgeGroupIdOrderBySourceIdAscSortOrderAsc(ageGroupId).stream()
+                .collect(Collectors.toMap(EduCurriculumSubDomain::getId, Function.identity()));
     }
 
     private Map<Long, String> domainNames() {
