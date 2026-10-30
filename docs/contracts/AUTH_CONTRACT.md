@@ -111,7 +111,7 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: quyền (`@PreAuthorize("
 
 Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIPAL, khóa/mở mọi tài khoản; HT (có phân công PRINCIPAL) → PHT/GV/bếp toàn trường; PHT (khi HT bật quyền) → GV/bếp trong campus mình. Không ai thao tác chính mình.
 
-`POST {API_PREFIX}/accounts/lookup` (`ACCOUNT_MANAGE`) — body `{ "phone": "0912 000 001" }` ⇒ `{ exists, userId, maskedFullName, primaryRole }` (`exists=false` ⇒ còn lại `null`). Gọi trước khi tạo để biết SĐT đã có tài khoản chưa.
+`POST {API_PREFIX}/accounts/lookup` (`ACCOUNT_MANAGE`) — body `{ "phone": "0912 000 001" }` ⇒ `{ exists, userId, maskedFullName, primaryRole, status }` (`exists=false` ⇒ còn lại `null`). Gọi trước khi tạo để biết SĐT đã có tài khoản chưa.
 
 `POST {API_PREFIX}/accounts`
 
@@ -125,14 +125,14 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 - `temporaryPassword` (8–128 ký tự): bắt buộc trừ khi có `email` và server bật gửi email đặt mật khẩu. Người dùng phải đổi ở lần đăng nhập đầu. CareNest không lưu/log mật khẩu.
 - `assignment` (AUTH-15): PHT/bếp ⇒ `campusId`, GV ⇒ `classroomId`; `validFrom` bỏ trống = hôm nay. Bắt buộc khi người tạo là PHT; HT bỏ trống được. PRINCIPAL không gửi (tự có phân công toàn trường); PARENT không có phân công.
 - 201: `{ userId, username, fullName, email, role, status: "ACTIVE", setupEmailSent, assignment }` (`assignment` = phân công vừa tạo hoặc `null`).
-- SĐT đã là tài khoản **phụ huynh** (`primaryRole=PARENT`): phụ huynh được nhận làm nhân sự ⇒ gửi `confirmUserId` = `userId` của `lookup` sau khi xác nhận đúng người; BE thêm role nhân sự + phân công vào chính tài khoản đó, giữ SĐT/mật khẩu (bỏ qua `temporaryPassword`, `email`), `setupEmailSent=false`. Thiếu/sai `confirmUserId` ⇒ 409 `errorCode` 1129; chính mình ⇒ 400 1114. SĐT đã là nhân sự ⇒ 409 `USERNAME_OR_EMAIL_EXISTS`.
+- SĐT đã là tài khoản **phụ huynh** (`primaryRole=PARENT`): phụ huynh được nhận làm nhân sự ⇒ gửi `confirmUserId` = `userId` của `lookup` sau khi xác nhận đúng người; BE thêm role nhân sự + phân công vào chính tài khoản đó, giữ SĐT/mật khẩu (bỏ qua `temporaryPassword`, `email`), `setupEmailSent=false`. Thiếu/sai `confirmUserId` ⇒ 409 `errorCode` 1129; chính mình ⇒ 400 1114; người tạo phải quản được phụ huynh này (AUTH-19: HT, hoặc PHT có con của họ ở campus mình) ⇒ không thì 403 1112. Ghi DB lỗi ⇒ BE gỡ role vừa thêm. `status=INACTIVE` (vd. hết con đang học) ⇒ gộp xong vẫn khóa tới khi mở lại. SĐT đã là nhân sự ⇒ 409 `USERNAME_OR_EMAIL_EXISTS`.
 - Đăng nhập Web: `identifier` dạng SĐT (`+84 912 …`, dấu cách) được chuẩn hóa trước khi gửi Keycloak. Màn đăng nhập Keycloak của App không chuẩn hóa ⇒ App nhắc nhập 10 số bắt đầu bằng 0.
 
 `PATCH {API_PREFIX}/accounts/{userId}/status` — body `{ "status": "INACTIVE" | "ACTIVE" }` ⇒ 200 `{ userId, username, fullName, email, status }`. INACTIVE có hiệu lực ngay (kể cả token còn hạn) và hủy session Keycloak.
 
-`POST {API_PREFIX}/accounts/{userId}/staff-role/revoke` (`ACCOUNT_MANAGE`, phạm vi như khóa/mở) — nhân sự nghỉ việc nhưng con vẫn học: gỡ role nhân sự ở Keycloak, kết thúc mọi phân công chưa hết, tài khoản còn lại là phụ huynh (`primary_role = PARENT`), hủy mọi phiên ⇒ 200 `{ userId, username, fullName, email, status }`. Không còn liên kết trẻ ⇒ 400 `errorCode` 1128 (dùng khóa tài khoản); tài khoản không phải nhân sự (phụ huynh, Admin) ⇒ 400 1127; chính mình ⇒ 400 1114; Keycloak lỗi ⇒ 503, DB chưa đổi, gọi lại được.
+`POST {API_PREFIX}/accounts/{userId}/staff-role/revoke` (`ACCOUNT_MANAGE`, phạm vi như khóa/mở) — nhân sự nghỉ việc nhưng con vẫn học: gỡ role nhân sự ở Keycloak, kết thúc mọi phân công chưa hết, tài khoản còn lại là phụ huynh (`primary_role = PARENT`), hủy mọi phiên ⇒ 200 `{ userId, username, fullName, email, status }`. Không còn con đang học ⇒ 400 `errorCode` 1128 (dùng khóa tài khoản); tài khoản không phải nhân sự (phụ huynh, Admin) ⇒ 400 1127; chính mình ⇒ 400 1114; Keycloak lỗi khi gỡ role ⇒ 503, DB chưa đổi, gọi lại được; logout Keycloak lỗi sau khi đã ghi ⇒ vẫn 200 (log lỗi).
 
-`POST {API_PREFIX}/accounts/{userId}/temporary-password` (`ACCOUNT_MANAGE`) — body `{ "temporaryPassword": "..." }` (8–128) ⇒ 200 `{ userId, username, fullName, email, status }`. Bắt đổi ở lần đăng nhập kế tiếp; hủy mọi phiên web và session Keycloak đang mở.
+`POST {API_PREFIX}/accounts/{userId}/temporary-password` (`ACCOUNT_MANAGE`; tài khoản nhân sự có liên kết trẻ ⇒ người không quản toàn trường phải quản được phụ huynh đó — AUTH-19, không thì 403 1112) — body `{ "temporaryPassword": "..." }` (8–128) ⇒ 200 `{ userId, username, fullName, email, status }`. Bắt đổi ở lần đăng nhập kế tiếp; hủy mọi phiên web và session Keycloak đang mở.
 
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
@@ -213,7 +213,7 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 | --- | --- | --- |
 | `GET /children` | `campusId`, `classroomId`, `q` (họ tên), `page`, `size` (1–100) | `PageResponse` của `{ id, fullName, dateOfBirth, classroomId, campusId, guardianCount }` (lớp/campus hiện tại, `null` nếu chưa có lớp) |
 | `GET /children/{childId}/guardians` | — | `[{ userId, username, fullName, relationship, status, linkedAt }]` (`username` = SĐT) |
-| `POST /children/{childId}/guardians/lookup` | `{ "phone": "0912 345 678" }` | `{ exists, userId, maskedFullName, staffAccount, alreadyLinked }` (`exists=false` ⇒ các field khác `null`/`false`) |
+| `POST /children/{childId}/guardians/lookup` | `{ "phone": "0912 345 678" }` | `{ exists, userId, maskedFullName, staffAccount, alreadyLinked, status }` (`exists=false` ⇒ các field khác `null`/`false`) |
 | `POST /children/{childId}/guardians` | `{ "phone": "0912 345 678", "fullName": "...", "relationship": "MOTHER" \| "FATHER" \| "GUARDIAN" \| "OTHER", "confirmUserId": 61 }` | 201 `{ userId, username, fullName, relationship, status, newAccount, temporaryPassword }` |
 | `DELETE /children/{childId}/guardians/{userId}` | — | 200, `data` rỗng; tài khoản giữ nguyên |
 | `PATCH /parent-accounts/{userId}/status` | `{ "status": "INACTIVE" \| "ACTIVE" }` | `{ userId, username, fullName, email, status }` |

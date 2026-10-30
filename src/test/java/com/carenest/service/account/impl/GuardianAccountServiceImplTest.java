@@ -149,6 +149,21 @@ class GuardianAccountServiceImplTest {
     }
 
     @Test
+    @DisplayName("Liên kết tài khoản nhân sự lỗi (đã liên kết) ⇒ gỡ role PARENT vừa thêm")
+    void staffLinkFailureRemovesGrantedParentRole() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(61L, CareNestRole.TEACHER)));
+        given(identity.getRealmRoleNames("kc-61")).willReturn(List.of("TEACHER"));
+        willThrow(GlobalException.of(ApiCode.GUARDIAN_ALREADY_LINKED))
+                .given(links)
+                .createLink(61L, CHILD, GuardianRelationship.MOTHER);
+
+        assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(61L)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.GUARDIAN_ALREADY_LINKED);
+        verify(identity).removeRealmRole("kc-61", "PARENT");
+    }
+
+    @Test
     void staffAccountAlreadyParentIsNotReassigned() {
         given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(61L, CareNestRole.TEACHER)));
         given(identity.getRealmRoleNames("kc-61")).willReturn(List.of("TEACHER", "PARENT"));

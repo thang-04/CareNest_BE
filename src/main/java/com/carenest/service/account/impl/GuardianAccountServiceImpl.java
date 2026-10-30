@@ -99,7 +99,8 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
                             account.getId(),
                             PersonNames.mask(account.getFullName()),
                             account.getPrimaryRole() != CareNestRole.PARENT,
-                            guardianChildLinkService.isGuardianOf(account.getId(), childId)))
+                            guardianChildLinkService.isGuardianOf(account.getId(), childId),
+                            account.getStatus()))
                     .orElseGet(GuardianCandidateResponse::none);
             log.info("{}|exists={}|END", logPrefix, candidate.exists());
             return candidate;
@@ -206,8 +207,12 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
         if (account.getPrimaryRole() != CareNestRole.PARENT) {
             // Thêm vai trò phụ huynh vào tài khoản nhân sự là thao tác trên tài khoản đó ⇒ theo phạm vi AUTH-17
             staffAccessPolicy.checkCanManageAccount(actor, account.getId(), account.getPrimaryRole());
-            accountLifecycle.grantRealmRole(account, CareNestRole.PARENT);
+            accountLifecycle.addRealmRole(logPrefix, account, CareNestRole.PARENT, () -> {
+                guardianChildLinkService.createLink(account.getId(), childId, request.relationship());
+                return null;
+            });
             log.info("{}|userId={}|parentRoleGranted", logPrefix, account.getId());
+            return;
         }
         guardianChildLinkService.createLink(account.getId(), childId, request.relationship());
     }

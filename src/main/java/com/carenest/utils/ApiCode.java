@@ -90,7 +90,7 @@ public enum ApiCode {
     STAFF_ROLE_REVOKE_REQUIRES_CHILD(
             1128,
             HttpStatus.BAD_REQUEST,
-            "Tài khoản không còn liên kết trẻ nào, hãy khóa tài khoản thay vì thu hồi vai trò nhân sự"),
+            "Tài khoản không còn con đang học, hãy khóa tài khoản thay vì thu hồi vai trò nhân sự"),
     ACCOUNT_CONFIRMATION_REQUIRED(
             1129,
             HttpStatus.CONFLICT,

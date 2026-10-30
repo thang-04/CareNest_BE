@@ -14,4 +14,10 @@ public record AddGuardianRequest(
         @NotBlank @Size(max = 20) String phone,
         @NotBlank @Size(max = 150) String fullName,
         @NotNull GuardianRelationship relationship,
-        @Positive Long confirmUserId) {}
+        @Positive Long confirmUserId) {
+
+    @Override
+    public String toString() {
+        return "AddGuardianRequest[relationship=" + relationship + ", confirmUserId=" + confirmUserId + "]";
+    }
+}

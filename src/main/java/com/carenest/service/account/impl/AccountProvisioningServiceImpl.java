@@ -19,6 +19,7 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.AccountProvisioningService;
+import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
@@ -30,6 +31,7 @@ import com.carenest.utils.enums.UserStatus;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
@@ -63,6 +65,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
     private final ManagedAccountLoader managedAccountLoader;
     private final AccountLifecycleOperations accountLifecycle;
     private final GuardianChildLinkService guardianChildLinkService;
+    private final EnrollmentService enrollmentService;
     private final Clock clock;
 
     @Override
@@ -75,7 +78,11 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             AccountCandidateResponse candidate = userAccountRepository
                     .findByUsername(username)
                     .map(account -> new AccountCandidateResponse(
-                            true, account.getId(), PersonNames.mask(account.getFullName()), account.getPrimaryRole()))
+                            true,
+                            account.getId(),
+                            PersonNames.mask(account.getFullName()),
+                            account.getPrimaryRole(),
+                            account.getStatus()))
                     .orElseGet(AccountCandidateResponse::none);
             log.info("{}|exists={}|END", logPrefix, candidate.exists());
             return candidate;
@@ -182,6 +189,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                 throw GlobalException.of(ApiCode.USE_CHANGE_PASSWORD_FOR_SELF);
             }
             UserAccount account = managedAccountLoader.loadManageable(actor, userId);
+            checkCanManageLinkedParent(actor, account);
             accountLifecycle.resetTemporaryPassword(logPrefix, account, temporaryPassword);
             log.info("{}|END", logPrefix);
             return accountMapper.toAccountResponse(account);
@@ -205,16 +213,18 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             if (!PROVISIONABLE_ROLES.contains(staffRole)) {
                 throw GlobalException.of(ApiCode.STAFF_ROLE_NOT_REVOCABLE);
             }
-            // Không còn con học ở trường thì tài khoản không còn việc gì ⇒ khóa thay vì thu hồi
-            if (guardianChildLinkService.findChildIdsOfGuardian(userId).isEmpty()) {
+            LocalDate today = LocalDate.now(clock);
+            // CHD-04: không còn con đang học thì tài khoản không còn việc gì ⇒ khóa thay vì thu hồi
+            List<Long> childIds = guardianChildLinkService.findChildIdsOfGuardian(userId);
+            Set<Long> left = enrollmentService.findChildIdsLeftSchool(childIds, today);
+            if (childIds.stream().allMatch(left::contains)) {
                 throw GlobalException.of(ApiCode.STAFF_ROLE_REVOKE_REQUIRES_CHILD);
             }
-            LocalDate today = LocalDate.now(clock);
             accountLifecycle.revokeRealmRole(logPrefix, account, staffRole, () -> {
                 endOpenAssignments(userId, today);
-                account.becomeParentOnly();
-                userAccountRepository.saveAndFlush(account);
+                userAccountRepository.updatePrimaryRole(userId, CareNestRole.PARENT.name());
             });
+            account.becomeParentOnly();
             log.info("{}|END", logPrefix);
             return accountMapper.toAccountResponse(account);
         } catch (RuntimeException ex) {
@@ -232,6 +242,15 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                         assignment.id(), assignment.validFrom().isAfter(today) ? assignment.validFrom() : today));
     }
 
+    // Nhân sự kiêm phụ huynh: mật khẩu tạm mở luôn quyền xem con ⇒ người không quản toàn trường cần quản được phụ
+    // huynh này (AUTH-19), không chỉ quản được nhân sự
+    private void checkCanManageLinkedParent(CurrentUser actor, UserAccount account) {
+        if (actor.hasRole(CareNestRole.ADMIN)) return;
+        if (!guardianChildLinkService.findChildIdsOfGuardian(account.getId()).isEmpty()) {
+            staffAccessPolicy.checkCanManageParent(actor, account.getId());
+        }
+    }
+
     // Phụ huynh được nhận làm nhân sự: một tài khoản, giữ SĐT/mật khẩu; chỉ khi người tạo đã xác nhận đúng người
     private CreateAccountResponse addStaffRoleToParent(
             CurrentUser actor, UserAccount account, CreateAccountRequest request, AssignmentScope scope) {
@@ -244,11 +263,18 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         if (account.getId().equals(actor.userId())) {
             throw GlobalException.of(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
         }
-        StaffAssignmentResponse assignment = accountLifecycle.addRealmRole(account, request.role(), () -> {
-            account.becomeStaff(request.role());
-            userAccountRepository.saveAndFlush(account);
-            return scope == null ? null : staffAssignmentService.createAssignment(scope.forUser(account.getId()));
-        });
+        // AUTH-19: chỉ người quản lý được phụ huynh này (HT, hoặc PHT có con của họ ở campus mình) mới gộp được;
+        // gộp xong người tạo quản lý tài khoản ⇒ không để PHT chiếm tài khoản phụ huynh campus khác
+        staffAccessPolicy.checkCanManageParent(actor, account.getId());
+        StaffAssignmentResponse assignment =
+                accountLifecycle.addRealmRole(LOG_PREFIX + "|addStaffRoleToParent", account, request.role(), () -> {
+                    userAccountRepository.updatePrimaryRole(
+                            account.getId(), request.role().name());
+                    return scope == null
+                            ? null
+                            : staffAssignmentService.createAssignment(scope.forUser(account.getId()));
+                });
+        account.becomeStaff(request.role());
         return accountMapper.toCreateAccountResponse(account, request.role(), false, assignment);
     }
 

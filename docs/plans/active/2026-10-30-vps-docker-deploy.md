@@ -126,3 +126,11 @@ Không đổi nghiệp vụ, API contract hay migration; chỉ hạ tầng. Dữ
 - Khác plan: mẫu env đặt ở `deploy/vps.env.example` (hook repo chặn tên `.env.*`); thêm cập nhật `docs/INDEX.md`, `.ai/CONTEXT_MAP.yaml`, `.ai/workflows/deploy.md` (DEPLOYMENT hết SKELETON); Caddy chặn thêm `/realms/master*`; `KC_HOSTNAME_ADMIN=http://localhost:18320` để admin console chạy qua tunnel; `CARENEST_AUTH_ENABLED` mặc định `false`, bật trong `.env` sau `bootstrap.mjs --apply --enable`; smoke CI chỉ kiểm issuer Keycloak (AC-4 cần FE đổi Caddy trước).
 - Tiếp: user review Phase 1 ⇒ Phase 2 (DNS, Docker Hub Private, secrets, `.env` VPS, push `dev`).
 - 2026-10-30 (user cho phép sửa FE): phần FE của Phase 2 đã sửa sẵn, chưa commit — `FE:deploy/caddy/carenest-web.caddy` `/api/*` ⇒ 18310; build arg `VITE_AUTH_MODE` (mặc định `mock`) trong `Dockerfile`, `compose.yaml`, workflow FE. Còn: bật Variables FE sau khi gateway BE bật.
+
+### 2026-10-30 — Phase 2 (chờ merge PR vào `dev`)
+- Commit: `a728906` (G94-255, Phase 1), `adb049a` (merge `origin/dev`; migration TEAM_LEADER V10 ⇒ V38 vì trùng V10 `dev`, user duyệt); đã push nhánh, PR vào `dev` user tạo.
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 570 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok` (cây sau merge).
+- User xác nhận xong: `.env` VPS (14 biến, owner `thangnd`, 600, 2 khóa base64 44 ký tự), DNS `auth` (cùng IP `web`), repo Docker Hub Private + 2 token, `docker login` user `thangnd`, secrets GitHub BE/FE.
+- Quyết định: giữ image Docker Hub (Quyết định 1); không rsync jar/`.class` lên VPS — user hỏi, so sánh rồi chọn giữ (rollback theo tag, Keycloak cùng cơ chế).
+- Media S3 (`CARENEST_EDUCATION_MEDIA_*`) chưa có bucket ⇒ `compose.vps.yaml` chưa truyền; API vẫn khởi động, chỉ upload/tải học liệu lỗi khi gọi. Có bucket ⇒ thêm biến vào compose + mẫu env.
+- Tiếp: merge PR ⇒ workflow Deploy VPS ⇒ AC-1..AC-3 ⇒ bootstrap gateway qua tunnel ⇒ `CARENEST_AUTH_ENABLED=true` ⇒ FE Variables.

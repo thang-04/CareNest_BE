@@ -81,7 +81,7 @@ class GuardianControllerTest {
     void vicePrincipalLooksUpGuardianCandidate() throws Exception {
         CurrentUser vice = authenticate(CareNestRole.VICE_PRINCIPAL);
         given(guardianAccountService.findGuardianCandidate(vice, 101L, "0912 345 678"))
-                .willReturn(new GuardianCandidateResponse(true, 61L, "N***** T** L**", true, false));
+                .willReturn(new GuardianCandidateResponse(true, 61L, "N***** T** L**", true, false, UserStatus.ACTIVE));
 
         mockMvc.perform(post("/api/children/101/guardians/lookup")
                         .with(token(CareNestRole.VICE_PRINCIPAL))

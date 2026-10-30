@@ -4,6 +4,9 @@ import com.carenest.entity.account.UserAccount;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface UserAccountRepository extends JpaRepository<UserAccount, Long>, JpaSpecificationExecutor<UserAccount> {
 
@@ -12,6 +15,12 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
     boolean existsByUsername(String username);
 
     Optional<UserAccount> findByUsername(String username);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+            value = "UPDATE user_accounts SET primary_role = :role, updated_at = now() WHERE id = :id",
+            nativeQuery = true)
+    int updatePrimaryRole(@Param("id") Long id, @Param("role") String role);
 
     java.util.List<UserAccount> findByEmailIgnoreCase(String email);
 }

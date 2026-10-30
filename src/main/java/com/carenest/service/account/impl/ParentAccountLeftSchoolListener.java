@@ -6,7 +6,6 @@ import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.utils.enums.CareNestRole;
-import com.carenest.utils.enums.UserStatus;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -36,8 +35,10 @@ class ParentAccountLeftSchoolListener {
     private final EnrollmentService enrollmentService;
     private final AccountLifecycleOperations accountLifecycle;
 
+    // NOT_SUPPORTED: không chạy trong transaction đã commit; mỗi tài khoản một transaction riêng, Keycloak gọi ngoài
+    // transaction
     @TransactionalEventListener
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void onChildrenLeftSchool(YearTransitionService.ChildrenLeftSchoolEvent event) {
         String logPrefix = LOG_PREFIX + "|onChildrenLeftSchool|children="
                 + event.childIds().size();
@@ -52,10 +53,10 @@ class ParentAccountLeftSchoolListener {
             if (account.getPrimaryRole() != CareNestRole.PARENT || !account.isActive()) continue;
             if (hasChildStillStudying(account.getId(), effectiveDate)) continue;
             try {
-                accountLifecycle.applyStatus(logPrefix + "|userId=" + account.getId(), account, UserStatus.INACTIVE);
+                accountLifecycle.deactivateQuietly(logPrefix + "|userId=" + account.getId(), account);
                 deactivated++;
             } catch (RuntimeException ex) {
-                // DB đã INACTIVE trước bước Keycloak nên tài khoản vẫn bị chặn; chỉ log để đồng bộ Keycloak sau
+                // Lỗi DB của một tài khoản không làm hỏng các tài khoản khác; policy vẫn chặn xem trẻ đã ra trường
                 log.warn(
                         "{}|userId={}|ERROR|type={}",
                         logPrefix,

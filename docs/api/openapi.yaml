@@ -2926,6 +2926,11 @@ components:
           - KITCHEN_STAFF
           - PARENT
           - TEAM_LEADER
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
         userId:
           type: integer
           format: int64
@@ -4553,6 +4558,11 @@ components:
           type: string
         staffAccount:
           type: boolean
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
         userId:
           type: integer
           format: int64

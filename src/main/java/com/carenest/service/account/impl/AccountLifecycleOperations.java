@@ -58,23 +58,26 @@ class AccountLifecycleOperations {
         }
     }
 
-    /** Thêm realm role cho tài khoản có sẵn nếu chưa có. Gọi trước khi ghi DB: role thừa không mở dữ liệu vì policy còn kiểm liên kết/phân công. */
-    void grantRealmRole(UserAccount account, CareNestRole role) {
+    /**
+     * Thêm realm role (nếu chưa có) rồi ghi DB trong một transaction. DB lỗi ⇒ gỡ role vừa thêm, không để tài khoản
+     * mang role nhân sự/phụ huynh mà DB không biết (API thu hồi dựa trên DB nên không gỡ được role mồ côi).
+     */
+    <T> T addRealmRole(String logPrefix, UserAccount account, CareNestRole role, Supplier<T> persist) {
+        boolean granted;
         try {
-            if (!identityProviderClient
+            granted = !identityProviderClient
                     .getRealmRoleNames(account.getKeycloakUserId())
-                    .contains(role.name())) {
-                identityProviderClient.assignRealmRole(account.getKeycloakUserId(), role.name());
-            }
+                    .contains(role.name());
+            if (granted) identityProviderClient.assignRealmRole(account.getKeycloakUserId(), role.name());
         } catch (IdentityProviderException ex) {
             throw toGlobalException(ex);
         }
-    }
-
-    /** Thêm realm role rồi ghi DB trong một transaction; DB lỗi thì gọi lại được (thêm role là idempotent). */
-    <T> T addRealmRole(UserAccount account, CareNestRole role, Supplier<T> persist) {
-        grantRealmRole(account, role);
-        return transactionTemplate.execute(status -> persist.get());
+        try {
+            return transactionTemplate.execute(status -> persist.get());
+        } catch (RuntimeException ex) {
+            if (granted) removeRealmRoleQuietly(logPrefix, account, role);
+            throw ex;
+        }
     }
 
     /**
@@ -92,8 +95,27 @@ class AccountLifecycleOperations {
         try {
             identityProviderClient.logoutUser(account.getKeycloakUserId());
         } catch (IdentityProviderException ex) {
+            // DB đã ghi, role đã gỡ: refresh token Keycloak cấp lại token không còn role đó nên chỉ log, không báo lỗi
             log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
-            throw GlobalException.withCause(ApiCode.IDENTITY_SYNC_FAILED, ex);
+        }
+    }
+
+    /**
+     * Khóa tài khoản do hệ thống tự làm (không có người chờ kết quả): DB INACTIVE + hủy phiên web trong một
+     * transaction riêng, rồi mới gọi Keycloak ngoài transaction; Keycloak lỗi chỉ log vì CurrentUserService đã chặn
+     * tài khoản INACTIVE ở mọi request.
+     */
+    void deactivateQuietly(String logPrefix, UserAccount account) {
+        transactionTemplate.executeWithoutResult(status -> {
+            account.changeStatus(UserStatus.INACTIVE);
+            userAccountRepository.saveAndFlush(account);
+            authState.revokeAccountAuth(account.getId());
+        });
+        try {
+            identityProviderClient.setUserEnabled(account.getKeycloakUserId(), false);
+            identityProviderClient.logoutUser(account.getKeycloakUserId());
+        } catch (IdentityProviderException ex) {
+            log.error("{}|identityProviderSyncFailed", logPrefix, ex);
         }
     }
 
@@ -126,6 +148,20 @@ class AccountLifecycleOperations {
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
             throw GlobalException.withCause(ApiCode.PASSWORD_RESET_SESSION_REVOKE_FAILED, ex);
+        }
+    }
+
+    private void removeRealmRoleQuietly(String logPrefix, UserAccount account, CareNestRole role) {
+        try {
+            identityProviderClient.removeRealmRole(account.getKeycloakUserId(), role.name());
+            log.warn("{}|userId={}|role={}|compensated", logPrefix, account.getId(), role);
+        } catch (IdentityProviderException ex) {
+            log.error(
+                    "{}|userId={}|role={}|compensationFailed|manualCleanupRequired",
+                    logPrefix,
+                    account.getId(),
+                    role,
+                    ex);
         }
     }
 
