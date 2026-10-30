@@ -19,11 +19,15 @@ import com.carenest.service.account.AuthService.SessionCookie;
 import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.Constants.Auth;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.PasswordTokenPurpose;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -36,6 +40,9 @@ public class AuthServiceImpl implements AuthService {
     private static final String COOKIE_CONTEXT = "session-cookie";
     private static final String COOKIE_VERSION = "s1";
     private static final int MAX_COOKIE_LENGTH = 4096;
+    // AUTH-21: bếp và phụ huynh chỉ dùng App, gateway Web không cấp phiên cho họ
+    private static final Set<CareNestRole> WEB_ROLES = Collections.unmodifiableSet(
+            EnumSet.of(CareNestRole.ADMIN, CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER));
 
     private final AuthProperties properties;
     private final AuthCrypto crypto;
@@ -103,6 +110,7 @@ public class AuthServiceImpl implements AuthService {
                 tokens = keycloak.login(request.identifier().trim(), request.password());
                 Jwt jwt = decode(tokens.accessToken());
                 CurrentUser current = currentUsers.getCurrentUser(jwt);
+                ensureWebRole(current.roles());
                 MyAccountResponse profile = accountService.getMyAccount(current);
                 if (tokens.refreshToken() == null) throw invalidSession();
                 Instant now = clock.instant();
@@ -117,6 +125,8 @@ public class AuthServiceImpl implements AuthService {
                 UserAccount account = accounts.findByKeycloakUserId(challenge.userId())
                         .orElseThrow(() -> new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned"));
                 if (!account.isActive()) throw new GlobalException(ApiCode.FORBIDDEN, "Account is inactive");
+                // Chưa có token nên dựa vào primary_role; tài khoản cũ chưa có primary_role để lần login sau kiểm
+                if (account.getPrimaryRole() != null) ensureWebRole(Set.of(account.getPrimaryRole()));
                 String handle = crypto.randomToken();
                 String hash = crypto.hash(handle);
                 Instant now = clock.instant();
@@ -182,7 +192,8 @@ public class AuthServiceImpl implements AuthService {
         boolean issued = false;
         try {
             if (tokens.refreshToken() == null) throw invalidSession();
-            currentUsers.getCurrentUser(decode(tokens.accessToken()));
+            ensureWebRole(
+                    currentUsers.getCurrentUser(decode(tokens.accessToken())).roles());
             SessionCookie cookie = sessionCookie(tokens.refreshToken(), session.remember(), session.loginAt(), now);
             issued = true;
             return new RefreshResult(
@@ -493,6 +504,11 @@ public class AuthServiceImpl implements AuthService {
     private void ensureEnabled() {
         if (!properties.enabled())
             throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Web authentication gateway is disabled");
+    }
+
+    private static void ensureWebRole(Set<CareNestRole> roles) {
+        if (Collections.disjoint(roles, WEB_ROLES))
+            throw new GlobalException(ApiCode.FORBIDDEN, "This account cannot sign in on the Web app");
     }
 
     private static GlobalException malformed() {

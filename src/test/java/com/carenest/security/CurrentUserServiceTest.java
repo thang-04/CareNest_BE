@@ -13,6 +13,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.repository.account.RolePermissionRepository;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.repository.account.UserPermissionOverrideRepository;
+import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
@@ -50,6 +51,9 @@ class CurrentUserServiceTest {
 
     @Mock
     private UserPermissionOverrideRepository userPermissionOverrideRepository;
+
+    @Mock
+    private TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
 
     @InjectMocks
     private CurrentUserService currentUserService;
@@ -108,6 +112,38 @@ class CurrentUserServiceTest {
                         10L, "CHILD_PROFILE_VIEW", PermissionEffect.REVOKE, "Tạm nghỉ", 1L)));
 
         assertThat(currentUserService.getCurrentUser().permissions()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("AUTH-23: GV đang có phân công tổ trưởng đọc thêm cột TEAM_LEADER của ma trận, role token giữ nguyên")
+    void activeTeamLeaderAlsoReadsTeamLeaderMatrixColumn() {
+        authenticateWithJwt("ROLE_TEACHER");
+        given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
+                .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+        given(teamLeaderAssignmentChecker.isActiveTeamLeader(10L, Set.of(CareNestRole.TEACHER)))
+                .willReturn(true);
+        given(rolePermissionRepository.findByRoleIn(Set.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)))
+                .willReturn(List.of(RolePermission.create(CareNestRole.TEACHER, "CHILD_PROFILE_VIEW", null)));
+        given(userPermissionOverrideRepository.findByUserId(10L)).willReturn(List.of());
+
+        CurrentUser currentUser = currentUserService.getCurrentUser();
+
+        assertThat(currentUser.roles()).containsExactly(CareNestRole.TEACHER);
+        assertThat(currentUser.permissions()).containsExactly(Permission.CHILD_PROFILE_VIEW);
+    }
+
+    @Test
+    @DisplayName("AUTH-23: token tự mang role TEAM_LEADER không được nhận")
+    void teamLeaderRoleInTokenIsIgnored() {
+        authenticateWithJwt("ROLE_TEAM_LEADER");
+        given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
+                .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+
+        CurrentUser currentUser = currentUserService.getCurrentUser();
+
+        assertThat(currentUser.roles()).isEmpty();
+        assertThat(currentUser.permissions()).isEmpty();
+        verifyNoInteractions(rolePermissionRepository, userPermissionOverrideRepository);
     }
 
     @Test

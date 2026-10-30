@@ -13,12 +13,14 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class CampusAccessPolicyTest {
@@ -62,6 +64,46 @@ class CampusAccessPolicyTest {
     }
 
     @Test
+    @DisplayName("AUTH-20: PHT không có quyền xem liên cơ sở thì không xem được campus khác")
+    void vicePrincipalWithoutAllCampusViewCannotViewOtherCampus() {
+        CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+
+        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: PHT được cấp xem liên cơ sở thì xem được campus khác")
+    void vicePrincipalWithAllCampusViewCanViewOtherCampus() {
+        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+
+        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isTrue();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: hết phân công PHT thì quyền xem liên cơ sở không còn tác dụng")
+    void allCampusViewNeedsActiveVicePrincipalAssignment() {
+        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of());
+
+        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_A)).isFalse();
+        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: quyền xem liên cơ sở chỉ áp cho PHT")
+    void allCampusViewIsIgnoredForOtherRoles() {
+        CurrentUser teacher = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.TEACHER);
+
+        assertThat(policy.canViewCampus(teacher, CAMPUS_B)).isFalse();
+        verifyNoInteractions(staffAssignmentService);
+    }
+
+    @Test
     void kitchenStaffCannotViewCampusDataEvenWithCampusAssignment() {
         CurrentUser kitchen = user(CareNestRole.KITCHEN_STAFF);
 
@@ -91,5 +133,9 @@ class CampusAccessPolicyTest {
 
     static CurrentUser user(CareNestRole... roles) {
         return new CurrentUser(7L, "kc-7", "demo.user", "Demo User", null, Set.of(roles));
+    }
+
+    static CurrentUser userWith(Set<Permission> permissions, CareNestRole... roles) {
+        return new CurrentUser(7L, "kc-7", "demo.user", "Demo User", null, Set.of(roles), permissions);
     }
 }

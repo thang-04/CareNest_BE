@@ -11,6 +11,7 @@ Dữ liệu cần bảo vệ: thông tin trẻ em, sức khỏe, quan hệ phụ
 - Keycloak: đăng nhập (Authorization Code + PKCE), băm mật khẩu, password policy, reset mật khẩu, khóa tạm khi sai 5 lần (PROPOSED), session, access token 5 phút + refresh token xoay vòng, realm role toàn cục.
 - BE: kiểm JWT tại chỗ bằng JWKS có cache (chữ ký, `iss`, `aud=carenest-api`, `exp`/`nbf`), map `realm_access.roles` → `ROLE_*`, `@PreAuthorize`; 401/403 dạng `ResponseJson`. Stateless, tắt CSRF (chỉ xác thực bằng header Bearer, không cookie), CORS theo danh sách origin.
 - BE **không** có login/refresh, không lưu mật khẩu hay refresh token, không tự ký JWT, không log token/header `Authorization`.
+- Ngoại lệ Web (ADR-0013, ADR-0015): gateway opt-in `/auth/**` nhận mật khẩu qua confidential client Direct Grant, refresh token mã hóa trong cookie HttpOnly + CSRF cookie/header cho POST `/auth/**`; dòng PKCE/CSRF ở trên áp cho API Bearer, Mobile và Web legacy. Gateway chỉ cấp phiên cho role ADMIN/PRINCIPAL/VICE_PRINCIPAL/TEACHER (AUTH-21).
 - `ActiveAccountInterceptor`: **mọi** request API có token phải thuộc tài khoản `user_accounts` ACTIVE (403 `Account is not provisioned` / `Account is inactive`), không phụ thuộc controller có khai báo `CurrentUser` hay không.
 - Keycloak tắt khi API chưa cache JWKS ⇒ 503 `Authentication service unavailable` (BUG-261006-jwks-unavailable-returns-500); đã cache thì token còn hạn vẫn kiểm được.
 - Client `carenest-dev` (password grant) chỉ bật khi `CARENEST_DEV_CLIENT_ENABLED=true` (compose dev); realm import mặc định tắt.
@@ -71,7 +72,7 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 
 | Policy | Cho phép khi | Không bao giờ |
 | --- | --- | --- |
-| `CampusAccessPolicy.canViewCampus` | PRINCIPAL + phân công PRINCIPAL còn hiệu lực (mọi campus); VICE_PRINCIPAL + phân công VP tại campus đó | Bếp (phân công campus của bếp chỉ cho dữ liệu bếp), GV, PH, Admin |
+| `CampusAccessPolicy.canViewCampus` | PRINCIPAL + phân công PRINCIPAL còn hiệu lực (mọi campus); VICE_PRINCIPAL + phân công VP tại campus đó; hoặc VICE_PRINCIPAL có `ALL_CAMPUS_VIEW` + phân công VP còn hiệu lực ở campus bất kỳ (mọi campus, chỉ đường đọc — AUTH-20) | Bếp (phân công campus của bếp chỉ cho dữ liệu bếp), GV, PH, Admin |
 | `ClassroomAccessPolicy.canViewClassroom` | TEACHER + phân công lớp đó còn hiệu lực; hoặc `canViewCampus(campus của lớp)` | Phân công lớp đã kết thúc/năm trước |
 | `ChildAccessPolicy.canViewChild` | PARENT + liên kết với trẻ; hoặc TEACHER/VP/PRINCIPAL có `canViewClassroom(lớp trẻ đang học hôm nay)` | Bếp, Admin (không bypass), trẻ không có enrollment hiện tại |
 | `StaffAccessPolicy` (AUTH-15..17) | Tạo: Admin → PRINCIPAL; HT có phân công PRINCIPAL → PHT/GV/bếp; PHT → GV/bếp kèm phân công campus mình. Quản lý (khóa/mở, mật khẩu tạm, chi tiết): Admin mọi tài khoản; HT → PHT/GV/bếp; PHT → GV/bếp đang phân công trong campus mình. Phân công: HT → PHT/GV/bếp; PHT → GV/bếp campus mình | Thao tác HT/Admin (trừ Admin), chính mình, tài khoản `primary_role` null (trừ Admin) |

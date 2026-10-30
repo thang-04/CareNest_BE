@@ -25,6 +25,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       - in: query
         name: status
         required: false
@@ -640,6 +641,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       - in: query
         name: targetUserId
         required: false
@@ -712,6 +714,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       responses:
         "200":
           content:
@@ -736,6 +739,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       requestBody:
         content:
           application/json:
@@ -824,6 +828,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         status:
           type: string
           enum:
@@ -871,6 +876,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         status:
           type: string
           enum:
@@ -1026,6 +1032,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         temporaryPassword:
           type: string
           maxLength: 128
@@ -1057,6 +1064,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         setupEmailSent:
           type: boolean
         status:
@@ -1195,6 +1203,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         roles:
           type: array
@@ -1207,6 +1216,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         userId:
           type: integer
           format: int64
@@ -1239,6 +1249,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
       required:
       - effect
@@ -1354,6 +1365,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         targetUserId:
           type: integer
           format: int64
@@ -1373,6 +1385,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
         reason:
           type: string
@@ -1393,6 +1406,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -1405,6 +1419,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         defaultRoles:
           type: array
           items:
@@ -1416,6 +1431,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         description:
           type: string
         module:
@@ -1722,6 +1738,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -1735,6 +1752,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         role:
           type: string
@@ -1745,6 +1763,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
     StaffAssignmentResponse:
       type: object
       properties:
@@ -1844,6 +1863,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -1865,6 +1885,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -1876,6 +1897,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         overrides:
           type: array
@@ -1892,6 +1914,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         userId:
           type: integer
           format: int64

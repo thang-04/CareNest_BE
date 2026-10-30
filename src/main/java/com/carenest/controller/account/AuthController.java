@@ -80,8 +80,10 @@ public class AuthController {
         try {
             result = service.refresh(cookie);
         } catch (GlobalException ex) {
-            // Phiên hỏng/hết hạn thì xóa cookie; 503 giữ cookie để client retry.
-            if (ex.getApiCode() == ApiCode.UNAUTHORIZED) setSessionCookie(servletResponse, "", 0);
+            // Phiên hỏng/hết hạn, hoặc 403 (inactive, không còn role Web — token vừa xoay đã bị thu hồi) thì xóa
+            // cookie; 503 giữ cookie để client retry.
+            if (ex.getApiCode() == ApiCode.UNAUTHORIZED || ex.getApiCode() == ApiCode.FORBIDDEN)
+                setSessionCookie(servletResponse, "", 0);
             throw ex;
         }
         setSessionCookie(

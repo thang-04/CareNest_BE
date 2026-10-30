@@ -19,6 +19,9 @@ public interface StaffAssignmentService {
 
     boolean hasActivePrincipalAssignment(Long userId, LocalDate date);
 
+    /** Phân công tổ trưởng nhóm tuổi còn hiệu lực (AUTH-23). */
+    boolean hasActiveTeamLeaderAssignment(Long userId, LocalDate date);
+
     boolean hasActiveCampusAssignment(Long userId, StaffRole staffRole, Long campusId, LocalDate date);
 
     boolean hasActiveTeacherAssignment(Long userId, Long classroomId, LocalDate date);

@@ -27,6 +27,7 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.repository.account.UserPermissionOverrideRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
+import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
@@ -67,6 +68,9 @@ class PermissionServiceImplTest {
     @Mock
     private IdentityProviderClient identityProviderClient;
 
+    @Mock
+    private TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
+
     private PermissionServiceImpl permissionService;
 
     private final CurrentUser principal = TestPermissions.userWithDefaults(PRINCIPAL_ID, CareNestRole.PRINCIPAL);
@@ -80,7 +84,8 @@ class PermissionServiceImplTest {
                 userAccountRepository,
                 identityProviderClient,
                 new PermissionMapper(),
-                new TransactionTemplate(mock(PlatformTransactionManager.class)));
+                new TransactionTemplate(mock(PlatformTransactionManager.class)),
+                teamLeaderAssignmentChecker);
     }
 
     @Test
@@ -131,6 +136,41 @@ class PermissionServiceImplTest {
         });
         assertThat(response.permissions()).isEmpty();
         assertThat(response.editable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("AUTH-23: ma trận có cột TEAM_LEADER HT sửa được; chưa có quyền nào cấu hình được cho cột này")
+    void teamLeaderColumnIsEditableButHasNoPermissionYet() {
+        given(rolePermissionRepository.findAll()).willReturn(List.of());
+
+        assertThat(permissionService.getRolePermissions())
+                .filteredOn(role -> role.role() == CareNestRole.TEAM_LEADER)
+                .singleElement()
+                .satisfies(role -> {
+                    assertThat(role.editable()).isTrue();
+                    assertThat(role.configurablePermissions()).isEmpty();
+                    assertThat(role.permissions()).isEmpty();
+                });
+        assertThatThrownBy(() -> permissionService.updateRolePermissions(
+                        principal,
+                        CareNestRole.TEAM_LEADER,
+                        new UpdateRolePermissionsRequest(List.of(Permission.CHILD_PROFILE_VIEW), "thử")))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.BAD_REQUEST);
+    }
+
+    @Test
+    @DisplayName("AUTH-23: GV đang là tổ trưởng có thêm TEAM_LEADER trong role tính quyền khi xem ngoại lệ")
+    void activeTeamLeaderTargetIncludesTeamLeaderColumn() {
+        givenTarget(TEACHER_ID, "TEACHER");
+        given(teamLeaderAssignmentChecker.isActiveTeamLeader(TEACHER_ID, java.util.EnumSet.of(CareNestRole.TEACHER)))
+                .willReturn(true);
+        given(rolePermissionRepository.findByRoleIn(any())).willReturn(List.of());
+        given(userPermissionOverrideRepository.findByUserId(TEACHER_ID)).willReturn(List.of());
+
+        UserPermissionOverridesResponse response = permissionService.getPermissionOverrides(TEACHER_ID);
+
+        assertThat(response.roles()).containsExactly(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER);
     }
 
     @Test

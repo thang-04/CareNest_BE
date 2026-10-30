@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -21,6 +22,16 @@ class KeycloakRealmRoleConverterTest {
         assertThat(converter.convert(jwt))
                 .extracting(GrantedAuthority::getAuthority)
                 .containsExactlyInAnyOrder("ROLE_TEACHER", "ROLE_PARENT");
+    }
+
+    @Test
+    @DisplayName("AUTH-23: realm role TEAM_LEADER trong token không thành authority")
+    void shouldIgnoreTeamLeaderRealmRole() {
+        Jwt jwt = jwtWithClaim("realm_access", Map.of("roles", List.of("TEACHER", "TEAM_LEADER")));
+
+        assertThat(converter.convert(jwt))
+                .extracting(GrantedAuthority::getAuthority)
+                .containsExactly("ROLE_TEACHER");
     }
 
     @Test

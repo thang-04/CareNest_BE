@@ -168,6 +168,17 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("AUTH-21: refresh 403 (không còn role Web / inactive) xóa cookie vì token trong đó đã bị thu hồi")
+    void refreshClearsCookieWhenForbidden() throws Exception {
+        given(service.refresh(OPAQUE))
+                .willThrow(new GlobalException(ApiCode.FORBIDDEN, "This account cannot sign in on the Web app"));
+        mvc.perform(csrf(post("/api/auth/refresh")).cookie(new Cookie("CARENEST_SESSION", OPAQUE)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.desc").value("This account cannot sign in on the Web app"))
+                .andExpect(cookie().maxAge("CARENEST_SESSION", 0));
+    }
+
+    @Test
     void unknownAuthPathsAndWrongHttpMethodsStayProtected() throws Exception {
         mvc.perform(get("/api/auth/unknown")).andExpect(status().isUnauthorized());
         mvc.perform(csrf(post("/api/auth/unknown"))).andExpect(status().isUnauthorized());

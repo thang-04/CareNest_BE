@@ -23,6 +23,7 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.repository.account.UserPermissionOverrideRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EffectivePermissionResolver;
+import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.service.account.PermissionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -70,6 +71,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final IdentityProviderClient identityProviderClient;
     private final PermissionMapper permissionMapper;
     private final TransactionTemplate transactionTemplate;
+    private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
 
     @Override
     public List<PermissionResponse> getPermissionCatalog() {
@@ -368,16 +370,20 @@ public class PermissionServiceImpl implements PermissionService {
                 .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Account not found"));
     }
 
-    // Keycloak là nguồn role (ADR-0011); bỏ qua role không thuộc CareNest
+    // Keycloak là nguồn role (ADR-0011); bỏ qua role không thuộc CareNest. Cộng TEAM_LEADER khi đang là tổ trưởng
+    // để ngoại lệ từng người áp được cho quyền của cột này (AUTH-23)
     private Set<CareNestRole> rolesOf(UserAccount account) {
+        Set<CareNestRole> loginRoles;
         try {
-            return identityProviderClient.getRealmRoleNames(account.getKeycloakUserId()).stream()
+            loginRoles = identityProviderClient.getRealmRoleNames(account.getKeycloakUserId()).stream()
                     .map(CareNestRole::fromKeycloakRole)
                     .flatMap(Optional::stream)
                     .collect(Collectors.toCollection(() -> EnumSet.noneOf(CareNestRole.class)));
         } catch (IdentityProviderException ex) {
             throw new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Identity provider is unavailable", ex);
         }
+        return EffectivePermissionResolver.permissionRoles(
+                loginRoles, teamLeaderAssignmentChecker.isActiveTeamLeader(account.getId(), loginRoles));
     }
 
     private static Set<Permission> toEnumSet(List<Permission> permissions) {

@@ -4,7 +4,7 @@
 
 ## Cơ chế (đã chốt)
 
-Web React dùng gateway opt-in theo ADR-0013 (`docs/decisions/ADR-0013-react-auth-gateway.md`). Backend Phase 2 đã có source API/session/OTP; xem trạng thái kiểm chứng trong plan. Tích hợp FE thuộc Phase 3: source gateway FE có trên nhánh FE `feature/G94-209-FE-FEAT-53-permission-management` nhưng chưa vào FE `dev` (FE `dev` vẫn mock); đối chiếu `docs/quality/reports/2026-10-22-auth-fe-integration-gap.md`. Mobile và Web legacy tiếp tục PKCE. Hướng dẫn extension: `docker/keycloak/auth/README.md`.
+Web React dùng gateway opt-in theo ADR-0013 (`docs/decisions/ADR-0013-react-auth-gateway.md`). Backend Phase 2 đã có source API/session/OTP; xem trạng thái kiểm chứng trong plan. Tích hợp FE thuộc Phase 3: source gateway FE đã có trên FE `dev` (`8896d90`) nhưng mặc định `VITE_AUTH_MODE=mock`; bật `VITE_AUTH_MODE=gateway` để dùng gateway. Đối chiếu `docs/quality/reports/2026-10-22-auth-fe-integration-gap.md` (một số dòng về FE `dev` đã cũ). Mobile và Web legacy tiếp tục PKCE. Hướng dẫn extension: `docker/keycloak/auth/README.md`.
 
 - **Keycloak** (realm `carenest`) xác minh mật khẩu và phát token. Mobile/Web legacy dùng **OAuth2 Authorization Code + PKCE (S256)**; gateway React nhận mật khẩu tại backend qua confidential client riêng, không đưa client secret ra browser.
 - Client gửi `Authorization: Bearer <access_token>` cho mọi API (trừ `/actuator/health`, Swagger).
@@ -49,7 +49,7 @@ Recovery/current-password dùng assertion HMAC hạn 60 giây, nonce một lần
 
 Khi gateway bật, cleanup chạy mỗi60 giây: xóa session/quota hết hạn; challenge được dọn sau1 giờ kể từ expiresAt để vẫn giữ metadata/cooldown trong cửa sổ recovery. Tắt feature dừng cleanup; cần bật lại hoặc vận hành retention riêng nếu ngừng gateway lâu dài.
 
-Lỗi gateway: 401 sai credentials/phiên hết hạn; 403 chưa provision/inactive/CSRF; 404 challenge không hợp lệ; 409 cooldown/hết lượt; 428 đổi mật khẩu lần đầu; 503 provider/storage không khả dụng. Không trả OTP, provider proof, refresh token hoặc lỗi nội bộ ra client. Access JWT đã cấp có thể còn hiệu lực tối đa 5 phút sau logout/đổi mật khẩu; ACTIVE check tại server tiếp tục áp dụng.
+Lỗi gateway: 401 sai credentials/phiên hết hạn; 403 chưa provision/inactive/CSRF; 403 `This account cannot sign in on the Web app` khi tài khoản không có role ADMIN/PRINCIPAL/VICE_PRINCIPAL/TEACHER (bếp, phụ huynh — AUTH-21) ở login, đổi mật khẩu lần đầu (theo `primary_role`) và refresh, token vừa cấp bị thu hồi, không set cookie (refresh 401/403 xóa cookie phiên; 503 giữ cookie để retry); 404 challenge không hợp lệ; 409 cooldown/hết lượt; 428 đổi mật khẩu lần đầu; 503 provider/storage không khả dụng. Không trả OTP, provider proof, refresh token hoặc lỗi nội bộ ra client. Access JWT đã cấp có thể còn hiệu lực tối đa 5 phút sau logout/đổi mật khẩu; ACTIVE check tại server tiếp tục áp dụng.
 
 ## Lỗi (đã có)
 
@@ -101,7 +101,7 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: quyền (`@PreAuthorize("
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
 | Không có `CHILD_PROFILE_VIEW` (KITCHEN_STAFF, ADMIN, người bị thu hồi) | 403 | `Forbidden` |
-| Trẻ ngoài phạm vi hoặc id không tồn tại | 403 | `You do not have access to this child` |
+| Trẻ ngoài phạm vi hoặc id không tồn tại (PHT có `ALL_CAMPUS_VIEW` xem được trẻ đang học ở mọi campus — AUTH-20) | 403 | `You do not have access to this child` |
 | `childId` không phải số | 400 | `Malformed request` |
 
 `classroomId` = lớp trẻ đang học hôm nay (`null` nếu không có enrollment hiện tại — khi đó chỉ phụ huynh liên kết xem được).
@@ -175,7 +175,7 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 | Method + path | Body | `data` |
 | --- | --- | --- |
 | `GET /permissions` | — | `[{ code, module, description, defaultRoles[], configurableRoles[] }]` |
-| `GET /role-permissions` | — | `[{ role, editable, configurablePermissions[], permissions[] }]` cho cả 6 role |
+| `GET /role-permissions` | — | `[{ role, editable, configurablePermissions[], permissions[] }]` cho 6 role đăng nhập + cột `TEAM_LEADER` (AUTH-23: không phải role đăng nhập, áp cho GV đang có phân công tổ trưởng; chưa có quyền nào cấu hình được) |
 | `GET /role-permissions/{role}` | — | 1 phần tử như trên |
 | `PUT /role-permissions/{role}` | `{ "permissions": ["CHILD_PROFILE_VIEW"], "reason": "..." }` (thay toàn bộ ô đang bật) | như GET |
 | `GET /accounts/{userId}/permission-overrides` | — | `{ userId, roles[], configurablePermissions[], overrides: [{ permission, effect, reason, updatedBy, updatedAt }], effectivePermissions[] }` |
@@ -234,9 +234,9 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 
 - Web Phase 3: ghép các màn hình login/forgot-password/verify-otp/reset-password/change-password và AuthContext/HTTP client vào gateway phía trên. Public client `carenest-web` vẫn giữ PKCE cho legacy; Mobile `carenest-mobile` tiếp tục public + PKCE S256, cùng issuer/audience.
 - Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; refresh: Web gateway gọi `POST /auth/refresh` (cookie + `withCredentials`), PKCE tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.
-- 403 `Account is not provisioned` / `Account is inactive` ⇒ báo liên hệ nhà trường, không retry. 403 khác ⇒ báo không có quyền. 503 `Authentication service unavailable` ⇒ báo thử lại sau.
+- 403 `Account is not provisioned` / `Account is inactive` ⇒ báo liên hệ nhà trường, không retry. 403 `This account cannot sign in on the Web app` (Web) ⇒ báo tài khoản này dùng ứng dụng di động. 403 khác ⇒ báo không có quyền. 503 `Authentication service unavailable` ⇒ báo thử lại sau.
 - Sau đăng nhập gọi `GET /accounts/me` lấy `roles`, `permissions`, `assignments`, `childIds` để dựng menu/màn hình (menu/route theo `permissions`); ẩn nút ở UI không phải phân quyền (AUTH-07).
-- Web: màn ma trận quyền/ngoại lệ/lịch sử (`/school/roles`) đổi sang API phân quyền ở trên; bỏ mức F/R/N, mã dạng `user.manage` và role TEAM_LEADER của mock.
+- Web: màn ma trận quyền/ngoại lệ/lịch sử (`/school/roles`) đổi sang API phân quyền ở trên; bỏ mức F/R/N, mã dạng `user.manage` và role đăng nhập TEAM_LEADER của mock; tổ trưởng là GV có phân công, ma trận có cột `TEAM_LEADER` (AUTH-23).
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
 - Types: sinh lại từ `docs/api/openapi.yaml`.

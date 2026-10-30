@@ -426,6 +426,93 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("AUTH-21: bếp và phụ huynh không login được Web, không có cookie, token vừa cấp bị thu hồi")
+    void appOnlyRolesCannotSignInOnWeb() {
+        for (CareNestRole role : List.of(CareNestRole.KITCHEN_STAFF, CareNestRole.PARENT)) {
+            org.mockito.Mockito.reset(keycloak, decoder, currentUsers, accounts);
+            given(keycloak.login("app.user", "current-secret"))
+                    .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 1800));
+            given(decoder.decode("signed-access")).willReturn(jwt("signed-access"));
+            given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(userWithRoles(role));
+
+            assertThatThrownBy(() -> service.login(new AuthRequests.Login("app.user", "current-secret", true)))
+                    .isInstanceOf(GlobalException.class)
+                    .hasMessage("This account cannot sign in on the Web app")
+                    .extracting("apiCode")
+                    .isEqualTo(ApiCode.FORBIDDEN);
+            verify(keycloak).logout("private-refresh");
+            verifyNoInteractions(accounts);
+        }
+    }
+
+    @Test
+    @DisplayName("AUTH-21: Admin, HT, PHT, GV login Web được; người có thêm role App vẫn được nếu có role Web")
+    void webRolesCanSignInOnWeb() {
+        for (CareNestRole role : List.of(
+                CareNestRole.ADMIN, CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER)) {
+            org.mockito.Mockito.reset(keycloak, decoder, currentUsers, accounts);
+            current = userWithRoles(role, CareNestRole.PARENT);
+            stubLogin("private-refresh");
+
+            var result = service.login(new AuthRequests.Login("teacher.a", "current-secret", true));
+
+            assertThat(result.cookie()).isNotNull();
+            verify(keycloak, never()).logout(any());
+        }
+    }
+
+    @Test
+    @DisplayName("AUTH-21: tài khoản bếp đổi mật khẩu lần đầu trên Web bị từ chối, không tạo mã đổi mật khẩu")
+    void appOnlyFirstLoginIsRejectedOnWeb() throws Exception {
+        var proof = mock(AuthGatewayClient.FirstLoginRequired.class);
+        when(proof.userId()).thenReturn("kc-kitchen");
+        UserAccount kitchen = UserAccount.create(
+                "kc-kitchen", "kitchen.a", "kitchen@example.test", "Bếp Demo", CareNestRole.KITCHEN_STAFF);
+        given(keycloak.login("kitchen.a", "issued-password")).willThrow(proof);
+        given(userAccounts.findByKeycloakUserId("kc-kitchen")).willReturn(Optional.of(kitchen));
+
+        assertCode(
+                () -> service.login(new AuthRequests.Login("kitchen.a", "issued-password", false)), ApiCode.FORBIDDEN);
+        verify(state, never()).savePasswordToken(any());
+    }
+
+    @Test
+    @DisplayName(
+            "AUTH-21: phiên Web của tài khoản không còn role Web thì refresh bị từ chối, token vừa xoay bị thu hồi")
+    void refreshRejectsAccountWithoutWebRole() {
+        String cookie = sessionCookie(clock.instant(), true, "old-refresh");
+        given(keycloak.refresh("old-refresh"))
+                .willReturn(new AuthGatewayClient.Tokens("rotated-access", "rotated-refresh", 300, 1800));
+        given(decoder.decode("rotated-access")).willReturn(jwt("rotated-access"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willReturn(userWithRoles(CareNestRole.KITCHEN_STAFF));
+
+        assertCode(() -> service.refresh(cookie), ApiCode.FORBIDDEN);
+        verify(keycloak).logout("rotated-refresh");
+    }
+
+    @Test
+    @DisplayName(
+            "AUTH-21: tài khoản cũ chưa có primary_role vẫn được đổi mật khẩu lần đầu; lần login sau mới kiểm role")
+    void firstLoginWithoutPrimaryRoleStillIssuesChallenge() {
+        var proof = mock(AuthGatewayClient.FirstLoginRequired.class);
+        when(proof.userId()).thenReturn("kc-user-1");
+        when(proof.setupToken()).thenReturn("provider-one-use-proof");
+        when(proof.expiresIn()).thenReturn(600L);
+        given(keycloak.login("teacher.a", "issued-password")).willThrow(proof);
+        given(userAccounts.findByKeycloakUserId("kc-user-1")).willReturn(Optional.of(account));
+
+        var result = service.login(new AuthRequests.Login("teacher.a", "issued-password", false));
+
+        assertThat(account.getPrimaryRole()).isNull();
+        assertThat(result.data().passwordChangeRequired()).isTrue();
+        verify(state).savePasswordToken(any());
+    }
+
+    private static CurrentUser userWithRoles(CareNestRole... roles) {
+        return new CurrentUser(92L, "kc-user-2", "app.user", "Tài khoản Demo", null, Set.of(roles));
+    }
+
+    @Test
     @DisplayName("AUTH-07: logout thu hồi refresh token ở Keycloak; cookie hỏng không lỗi")
     void logoutRevokesProviderTokenAndIgnoresBrokenCookie() {
         service.logout(sessionCookie(clock.instant(), true, "old-refresh"));
