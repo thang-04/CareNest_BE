@@ -21,8 +21,12 @@ public class EduGoalContent {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "goal_row_id", nullable = false)
+    @Column(name = "goal_id", nullable = false)
     private Long goalRowId;
+
+    // Định danh ổn định qua các phiên bản (NULL = dòng gốc, lineage là chính id), spec 004
+    @Column(name = "lineage_id", updatable = false)
+    private Long lineageId;
 
     @Column(name = "sort_order", nullable = false)
     private Short sortOrder;
@@ -38,5 +42,16 @@ public class EduGoalContent {
         this.goalRowId = goalRowId;
         this.sortOrder = sortOrder;
         this.text = text;
+    }
+
+    public Long lineage() {
+        return lineageId == null ? id : lineageId;
+    }
+
+    public static EduGoalContent copyFor(Long goalRowId, EduGoalContent source) {
+        EduGoalContent content = create();
+        content.lineageId = source.lineage();
+        content.place(goalRowId, source.sortOrder, source.text);
+        return content;
     }
 }

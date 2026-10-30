@@ -25,6 +25,10 @@ public class EduBreak {
     @Column(name = "year_plan_id", nullable = false, updatable = false)
     private Long yearPlanId;
 
+    // Định danh ổn định qua các phiên bản (NULL = dòng gốc, lineage là chính id), spec 004
+    @Column(name = "lineage_id", updatable = false)
+    private Long lineageId;
+
     @Column(name = "sort_order", nullable = false)
     private Short sortOrder;
 
@@ -48,5 +52,16 @@ public class EduBreak {
         this.label = label;
         this.startDate = startDate;
         this.endDate = endDate;
+    }
+
+    public Long lineage() {
+        return lineageId == null ? id : lineageId;
+    }
+
+    public static EduBreak copyFor(Long yearPlanId, EduBreak source) {
+        EduBreak item = create(yearPlanId);
+        item.lineageId = source.lineage();
+        item.update(source.sortOrder, source.label, source.startDate, source.endDate);
+        return item;
     }
 }

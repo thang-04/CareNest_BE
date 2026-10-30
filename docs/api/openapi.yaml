@@ -25,6 +25,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       - in: query
         name: status
         required: false
@@ -87,6 +88,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonCreateAccountResponse"
           description: Created
+      tags:
+      - account-controller
+  /api/accounts/lookup:
+    post:
+      operationId: findAccountCandidate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneLookupRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountCandidateResponse"
+          description: OK
       tags:
       - account-controller
   /api/accounts/me:
@@ -163,6 +182,25 @@ paths:
           description: OK
       tags:
       - permission-controller
+  /api/accounts/{userId}/staff-role/revoke:
+    post:
+      operationId: revokeStaffRole
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountResponse"
+          description: OK
+      tags:
+      - account-controller
   /api/accounts/{userId}/status:
     patch:
       operationId: updateAccountStatus
@@ -669,6 +707,18 @@ paths:
           description: Created
       tags:
       - campus-controller
+  /api/campuses/options:
+    get:
+      operationId: listCampuses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListCampusOptionResponse"
+          description: OK
+      tags:
+      - school-structure-controller
   /api/campuses/{campusId}:
     delete:
       operationId: deleteCampus
@@ -1011,6 +1061,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonAddGuardianResponse"
           description: Created
+      tags:
+      - guardian-controller
+  /api/children/{childId}/guardians/lookup:
+    post:
+      operationId: findGuardianCandidate
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneLookupRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGuardianCandidateResponse"
+          description: OK
       tags:
       - guardian-controller
   /api/children/{childId}/guardians/{userId}:
@@ -1375,6 +1450,167 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources:
+    get:
+      operationId: list
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+    post:
+      operationId: upload
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                activityKey:
+                  type: string
+                activityLabel:
+                  type: string
+                activitySignature:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+              required:
+              - activityKey
+              - activityLabel
+              - activitySignature
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}:
+    delete:
+      operationId: detach
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonString"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/activity:
+    patch:
+      operationId: bind
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningResourceBinding"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/content:
+    get:
+      operationId: content
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/week/{docKey}/adjustments:
+    put:
+      operationId: saveAdjustments
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassDocAdjustmentsRequest"
+        required: true
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/{kind}/{docKey}:
     put:
       operationId: saveClassDoc
@@ -1454,9 +1690,9 @@ paths:
           description: OK
       tags:
       - edu-config-controller
-  /api/education-plans/expected-results:
+  /api/education-plans/curriculum/contents:
     get:
-      operationId: getExpectedResults
+      operationId: getContents
       parameters:
       - in: query
         name: ageGroupId
@@ -1469,10 +1705,41 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResponseJsonListExpectedResultResponse"
+                $ref: "#/components/schemas/ResponseJsonListCurriculumContentResponse"
           description: OK
       tags:
-      - edu-config-controller
+      - edu-curriculum-controller
+  /api/education-plans/curriculum/goals:
+    get:
+      operationId: getGoals
+      parameters:
+      - in: query
+        name: ageGroupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListCurriculumGoalResponse"
+          description: OK
+      tags:
+      - edu-curriculum-controller
+  /api/education-plans/curriculum/sources:
+    get:
+      operationId: getSources
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListCurriculumSourceResponse"
+          description: OK
+      tags:
+      - edu-curriculum-controller
   /api/education-plans/goals:
     get:
       operationId: getYearPlans
@@ -1522,6 +1789,25 @@ paths:
       - edu-year-plan-controller
     post:
       operationId: createYearPlan
+      parameters:
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
@@ -1547,6 +1833,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -1583,12 +1887,92 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/YearPlanRequest"
         required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/changes:
+    get:
+      operationId: getChanges
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: fromPlanId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanChangesResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/editing-heartbeat:
+    post:
+      operationId: heartbeat
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -1608,6 +1992,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -1627,6 +2029,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
@@ -1651,6 +2071,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
@@ -1676,6 +2114,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       responses:
         "200":
           content:
@@ -1695,6 +2151,24 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
       requestBody:
         content:
           application/json:
@@ -1707,6 +2181,43 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
           description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/versions:
+    post:
+      operationId: createVersion
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Edit-Session
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Request-Id
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: Created
       tags:
       - edu-year-plan-controller
   /api/locations:
@@ -1965,6 +2476,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       - in: query
         name: targetUserId
         required: false
@@ -2037,6 +2549,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       responses:
         "200":
           content:
@@ -2061,6 +2574,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       requestBody:
         content:
           application/json:
@@ -2530,6 +3044,31 @@ components:
         expiresAt:
           type: string
           format: date-time
+    AccountCandidateResponse:
+      type: object
+      properties:
+        exists:
+          type: boolean
+        maskedFullName:
+          type: string
+        primaryRole:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+          - TEAM_LEADER
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
     AccountDetailResponse:
       type: object
       properties:
@@ -2550,6 +3089,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         status:
           type: string
           enum:
@@ -2597,6 +3137,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         status:
           type: string
           enum:
@@ -2618,6 +3159,10 @@ components:
     AddGuardianRequest:
       type: object
       properties:
+        confirmUserId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
         email:
           type: string
           format: email
@@ -2966,6 +3511,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StaffBriefResponse"
+    CampusOptionResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     CampusRequest:
       type: object
       properties:
@@ -3500,6 +4055,15 @@ components:
           minLength: 0
       required:
       - action
+    ClassDocAdjustmentsRequest:
+      type: object
+      properties:
+        adjustments:
+          type: object
+          additionalProperties:
+            type: string
+      required:
+      - adjustments
     ClassOption:
       type: object
       properties:
@@ -3790,6 +4354,10 @@ components:
       properties:
         assignment:
           $ref: "#/components/schemas/StaffAssignmentScopeRequest"
+        confirmUserId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
         email:
           type: string
           format: email
@@ -3798,6 +4366,10 @@ components:
         fullName:
           type: string
           maxLength: 150
+          minLength: 0
+        phone:
+          type: string
+          maxLength: 20
           minLength: 0
         role:
           type: string
@@ -3808,19 +4380,15 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         temporaryPassword:
           type: string
           maxLength: 128
           minLength: 8
-        username:
-          type: string
-          maxLength: 100
-          minLength: 3
-          pattern: "^[A-Za-z0-9._-]+$"
       required:
       - fullName
+      - phone
       - role
-      - username
     CreateAccountResponse:
       type: object
       properties:
@@ -3839,6 +4407,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         setupEmailSent:
           type: boolean
         status:
@@ -3877,6 +4446,103 @@ components:
         headerName:
           type: string
         token:
+          type: string
+    CurriculumContentResponse:
+      type: object
+      properties:
+        category:
+          type: string
+        categoryNo:
+          type: string
+        domainId:
+          type: integer
+          format: int64
+        domainName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+        sectionRef:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+        sourceId:
+          type: integer
+          format: int64
+        subDomain:
+          type: string
+        subDomainId:
+          type: integer
+          format: int64
+        text:
+          type: string
+    CurriculumGoalResponse:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            type: string
+        domainId:
+          type: integer
+          format: int64
+        domainName:
+          type: string
+        expectedResultId:
+          type: integer
+          format: int64
+        goalNo:
+          type: string
+        goalText:
+          type: string
+        groupNo:
+          type: string
+        groupText:
+          type: string
+        id:
+          type: integer
+          format: int64
+        sectionRef:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+        sourceId:
+          type: integer
+          format: int64
+        subDomain:
+          type: string
+        subDomainId:
+          type: integer
+          format: int64
+    CurriculumSourceResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        documentNo:
+          type: string
+        id:
+          type: integer
+          format: int64
+        issuedDate:
+          type: string
+          format: date
+        issuer:
+          type: string
+        officialUrl:
+          type: string
+        retrievedAt:
+          type: string
+          format: date
+        retrievedFromUrl:
+          type: string
+        scopeNote:
+          type: string
+        title:
           type: string
     CutoffRequest:
       type: object
@@ -4285,19 +4951,6 @@ components:
           format: int64
         userName:
           type: string
-    ExpectedResultResponse:
-      type: object
-      properties:
-        domainId:
-          type: integer
-          format: int64
-        id:
-          type: integer
-          format: int64
-        subDomain:
-          type: string
-        text:
-          type: string
     Forgot:
       type: object
       properties:
@@ -4308,6 +4961,39 @@ components:
           minLength: 0
       required:
       - email
+    Goal:
+      type: object
+      properties:
+        change:
+          type: string
+          enum:
+          - UNCHANGED
+          - CHANGED
+          - REMOVED
+          - ADDED
+        fields:
+          type: array
+          items:
+            type: string
+        fromGoalNo:
+          type: integer
+          format: int32
+        fromId:
+          type: integer
+          format: int64
+        fromText:
+          type: string
+        goalNo:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        text:
+          type: string
     GroupStat:
       type: object
       properties:
@@ -4343,6 +5029,25 @@ components:
           enum:
           - SENT
           - FAILED
+    GuardianCandidateResponse:
+      type: object
+      properties:
+        alreadyLinked:
+          type: boolean
+        exists:
+          type: boolean
+        maskedFullName:
+          type: string
+        staffAccount:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
     GuardianCheckRequest:
       type: object
       properties:
@@ -4526,6 +5231,54 @@ components:
           type: string
         shortName:
           type: string
+    LearningResourceBinding:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          maxLength: 180
+          minLength: 0
+        activityLabel:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        activitySignature:
+          type: string
+          minLength: 1
+          pattern: "[a-f0-9]{64}"
+      required:
+      - activityKey
+      - activityLabel
+      - activitySignature
+    LearningResourceResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        activityKey:
+          type: string
+        activityLabel:
+          type: string
+        activitySignature:
+          type: string
+        byteSize:
+          type: integer
+          format: int64
+        contentType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        docKey:
+          type: string
+        fileName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        uploadedBy:
+          type: integer
+          format: int64
     Line:
       type: object
       properties:
@@ -4771,6 +5524,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         roles:
           type: array
@@ -4783,6 +5537,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         userId:
           type: integer
           format: int64
@@ -4844,6 +5599,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
       required:
       - effect
@@ -5037,6 +5793,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         targetUserId:
           type: integer
           format: int64
@@ -5059,6 +5816,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
         reason:
           type: string
@@ -5082,6 +5840,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -5094,6 +5853,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         defaultRoles:
           type: array
           items:
@@ -5105,6 +5865,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         description:
           type: string
         module:
@@ -5112,6 +5873,8 @@ components:
     Permissions:
       type: object
       properties:
+        canCreateVersion:
+          type: boolean
         canDelete:
           type: boolean
         canEdit:
@@ -5122,6 +5885,15 @@ components:
           type: boolean
         canSubmit:
           type: boolean
+    PhoneLookupRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 0
+      required:
+      - phone
     Placement:
       type: object
       properties:
@@ -5314,6 +6086,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AccessToken"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAccountCandidateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AccountCandidateResponse"
         desc:
           type: string
         errorCode:
@@ -5631,6 +6416,32 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonGuardianCandidateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/GuardianCandidateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonLearningResourceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/LearningResourceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListAgeGroupDetailResponse:
       type: object
       properties:
@@ -5676,6 +6487,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListCampusOptionResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampusOptionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListCampusResponse:
       type: object
       properties:
@@ -5706,6 +6532,51 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListCurriculumContentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurriculumContentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListCurriculumGoalResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurriculumGoalResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListCurriculumSourceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CurriculumSourceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListDayUnlockResponse:
       type: object
       properties:
@@ -5721,21 +6592,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonListExpectedResultResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/ExpectedResultResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonListGuardianResponse:
       type: object
       properties:
@@ -5746,6 +6602,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GuardianResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListLearningResourceResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/LearningResourceResponse"
         desc:
           type: string
         errorCode:
@@ -6130,6 +7001,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonString:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: string
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonTeacherAssignmentResponse:
       type: object
       properties:
@@ -6181,6 +7065,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonYearPlanChangesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/YearPlanChangesResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonYearPlanDetailResponse:
       type: object
       properties:
@@ -6223,6 +7120,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -6239,6 +7137,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         role:
           type: string
@@ -6249,6 +7148,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
     RoomRequest:
       type: object
       properties:
@@ -6359,6 +7259,15 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Content"
+        curriculumExpectedResultId:
+          type: integer
+          format: int64
+        curriculumGoalId:
+          type: integer
+          format: int64
+        curriculumSubDomainId:
+          type: integer
+          format: int64
         id:
           type: integer
           format: int64
@@ -6879,6 +7788,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -6903,6 +7813,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -6917,6 +7828,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         overrides:
           type: array
@@ -6933,6 +7845,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         userId:
           type: integer
           format: int64
@@ -6944,6 +7857,37 @@ components:
           pattern: "[0-9]{6}"
       required:
       - otp
+    VersionSummary:
+      type: object
+      properties:
+        code:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        issuedAt:
+          type: string
+          format: date-time
+        issuedByName:
+          type: string
+        ownerName:
+          type: string
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - EDITING
+          - PENDING_VP
+          - REJECTED
+          - APPROVED
+        versionNo:
+          type: integer
+          format: int32
     WeekRow:
       type: object
       properties:
@@ -6994,6 +7938,33 @@ components:
           format: int64
         name:
           type: string
+    YearPlanChangesResponse:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            $ref: "#/components/schemas/Content"
+        fromPlanId:
+          type: integer
+          format: int64
+        fromVersionNo:
+          type: integer
+          format: int32
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Goal"
+        planId:
+          type: integer
+          format: int64
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Theme"
+        versionNo:
+          type: integer
+          format: int32
     YearPlanDetailResponse:
       type: object
       properties:
@@ -7011,12 +7982,17 @@ components:
         createdAt:
           type: string
           format: date-time
+        current:
+          type: boolean
         description:
           type: string
         domains:
           type: array
           items:
             $ref: "#/components/schemas/Domain"
+        editExpiresAt:
+          type: string
+          format: date-time
         editing:
           $ref: "#/components/schemas/PlanActorResponse"
         history:
@@ -7034,6 +8010,9 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         permissions:
           $ref: "#/components/schemas/Permissions"
+        revision:
+          type: integer
+          format: int64
         schoolYearId:
           type: integer
           format: int64
@@ -7041,6 +8020,9 @@ components:
           type: string
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
+        sourcePlanId:
+          type: integer
+          format: int64
         status:
           type: string
           enum:
@@ -7058,6 +8040,13 @@ components:
         updatedAt:
           type: string
           format: date-time
+        versionNo:
+          type: integer
+          format: int32
+        versions:
+          type: array
+          items:
+            $ref: "#/components/schemas/VersionSummary"
     YearPlanRequest:
       type: object
       properties:
@@ -7102,6 +8091,11 @@ components:
         createdAt:
           type: string
           format: date-time
+        current:
+          type: boolean
+        editExpiresAt:
+          type: string
+          format: date-time
         editing:
           $ref: "#/components/schemas/PlanActorResponse"
         goalCount:
@@ -7114,6 +8108,9 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         owner:
           $ref: "#/components/schemas/PlanActorResponse"
+        revision:
+          type: integer
+          format: int64
         schoolYearId:
           type: integer
           format: int64
@@ -7121,6 +8118,9 @@ components:
           type: string
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
+        sourcePlanId:
+          type: integer
+          format: int64
         status:
           type: string
           enum:
@@ -7137,6 +8137,9 @@ components:
         updatedAt:
           type: string
           format: date-time
+        versionNo:
+          type: integer
+          format: int32
     YearReadinessResponse:
       type: object
       properties:

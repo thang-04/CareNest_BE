@@ -42,6 +42,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,6 +65,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     private final StaffAssignmentService staffAssignmentService;
     private final Clock clock;
     private final DevActivationProperties devActivation;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -289,7 +291,14 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             SchoolYearDetailResponse activated =
                     schoolYearService.activateSchoolYear(currentUser, schoolYearId, confirmName);
             int moved = applyPlacements(setup, board);
-            log.info("{}|moved={}|END", logPrefix, moved);
+            List<Long> leftSchool = board.placements.values().stream()
+                    .filter(placement -> !placement.getAction().keepsChildInClass())
+                    .map(ClassPlacement::getChildId)
+                    .toList();
+            if (!leftSchool.isEmpty()) {
+                eventPublisher.publishEvent(new ChildrenLeftSchoolEvent(leftSchool, transitionStart(setup)));
+            }
+            log.info("{}|moved={}|leftSchool={}|END", logPrefix, moved, leftSchool.size());
             return activated;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -299,9 +308,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
 
     // Trẻ rời lớp cũ hết ngày trước ngày bắt đầu mới; lên lớp/ở lại thì vào lớp mới từ ngày đó
     private int applyPlacements(YearSetupResponse setup, Board board) {
-        LocalDate today = LocalDate.now(clock);
-        LocalDate start =
-                today.isAfter(setup.year().startDate()) ? today : setup.year().startDate();
+        LocalDate start = transitionStart(setup);
         int changed = 0;
         for (ClassPlacement placement : board.placements.values()) {
             for (Enrollment enrollment : enrollmentRepository.findOpenByChildId(placement.getChildId(), start)) {
@@ -321,6 +328,11 @@ public class YearTransitionServiceImpl implements YearTransitionService {
         }
         enrollmentRepository.flush();
         return changed;
+    }
+
+    private LocalDate transitionStart(YearSetupResponse setup) {
+        LocalDate today = LocalDate.now(clock);
+        return today.isAfter(setup.year().startDate()) ? today : setup.year().startDate();
     }
 
     private YearReadinessResponse buildReadiness(YearSetupResponse setup, Board board) {

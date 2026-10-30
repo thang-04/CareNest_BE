@@ -1,18 +1,18 @@
 package com.carenest.mapper.eduplan;
 
+import com.carenest.dto.eduplan.CurriculumRef;
 import com.carenest.dto.eduplan.EduConfigResponse;
-import com.carenest.dto.eduplan.ExpectedResultResponse;
 import com.carenest.dto.eduplan.PlanActorResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.entity.eduplan.EduBreak;
 import com.carenest.entity.eduplan.EduDomain;
-import com.carenest.entity.eduplan.EduExpectedResult;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduPlanEvent;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.utils.enums.EduGoalRowKind;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -27,7 +27,9 @@ public class EduYearPlanMapper {
             String ageGroupName,
             long goalCount,
             long themeCount,
-            Map<Long, String> userNames) {
+            Map<Long, String> userNames,
+            Instant editExpiresAt,
+            boolean current) {
         return new YearPlanSummaryResponse(
                 plan.getId(),
                 plan.getCode(),
@@ -44,7 +46,12 @@ public class EduYearPlanMapper {
                 toActor(plan.getIssuedBy(), plan.getIssuedAt(), userNames),
                 toActor(plan.getEditingBy(), plan.getEditingSince(), userNames),
                 plan.getCreatedAt(),
-                plan.getUpdatedAt());
+                plan.getUpdatedAt(),
+                plan.getContentRevision(),
+                editExpiresAt,
+                plan.getVersionNo(),
+                plan.getSourcePlanId(),
+                current);
     }
 
     public PlanActorResponse toOwner(EduYearPlan plan, Map<Long, String> userNames) {
@@ -55,9 +62,23 @@ public class EduYearPlanMapper {
         return userId == null ? null : new PlanActorResponse(userId, userNames.get(userId), null, at);
     }
 
-    public YearPlanDetailResponse.Row toRow(EduGoalRow row, List<YearPlanDetailResponse.Content> contents) {
+    public YearPlanDetailResponse.Row toRow(
+            EduGoalRow row, List<YearPlanDetailResponse.Content> contents, CurriculumRef curriculum) {
+        EduGoalRowKind kind = row.getKind();
+        Long id = curriculum == null ? null : curriculum.id();
+        boolean goal = kind == EduGoalRowKind.GOAL;
         return new YearPlanDetailResponse.Row(
-                row.getId(), row.getKind().code(), row.getText(), row.getGoalNo(), contents);
+                row.getId(),
+                kind.code(),
+                row.getText(),
+                row.getGoalNo(),
+                contents,
+                goal ? id : null,
+                goal && curriculum != null ? curriculum.text() : null,
+                goal && curriculum != null ? curriculum.sectionRef() : null,
+                kind == EduGoalRowKind.SUB ? id : null,
+                kind == EduGoalRowKind.GROUP ? id : null,
+                !goal && curriculum != null ? curriculum.text() : null);
     }
 
     public YearPlanDetailResponse.Content toContent(EduGoalContent content, List<Long> themeIds) {
@@ -98,10 +119,5 @@ public class EduYearPlanMapper {
                 domain.getShortLabel(),
                 domain.getSortOrder(),
                 domain.isStandard());
-    }
-
-    public ExpectedResultResponse toExpectedResult(EduExpectedResult result) {
-        return new ExpectedResultResponse(
-                result.getId(), result.getDomainId(), result.getSubDomain(), result.getText());
     }
 }

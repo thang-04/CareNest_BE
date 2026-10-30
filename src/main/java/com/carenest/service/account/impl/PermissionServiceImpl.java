@@ -23,6 +23,7 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.repository.account.UserPermissionOverrideRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EffectivePermissionResolver;
+import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.service.account.PermissionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -70,6 +71,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final IdentityProviderClient identityProviderClient;
     private final PermissionMapper permissionMapper;
     private final TransactionTemplate transactionTemplate;
+    private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
 
     @Override
     public List<PermissionResponse> getPermissionCatalog() {
@@ -221,7 +223,7 @@ public class PermissionServiceImpl implements PermissionService {
             boolean hasFixedPrivilegedRole =
                     roles.contains(CareNestRole.PRINCIPAL) || roles.contains(CareNestRole.ADMIN);
             if (hasFixedPrivilegedRole || roles.stream().noneMatch(Permission::isConfigurableRole)) {
-                throw GlobalException.of(ApiCode.ACCOUNT_PERMISSIONS_FIXED);
+                throw GlobalException.of(ApiCode.PERMISSIONS_NOT_OVERRIDABLE);
             }
             Map<Permission, PermissionEffect> requested = toRequestedOverrides(request.overrides(), roles);
 
@@ -246,7 +248,7 @@ public class PermissionServiceImpl implements PermissionService {
         log.info("{}|START", logPrefix);
         try {
             if (targetRole != null && targetUserId != null) {
-                throw GlobalException.of(ApiCode.CHANGE_LOG_FILTER_CONFLICT);
+                throw GlobalException.of(ApiCode.PERMISSION_LOG_FILTER_INVALID);
             }
             PageRequest pageable = PageRequest.of(page, size, CHANGE_LOG_ORDER);
             Page<PermissionChangeLog> logs;
@@ -309,7 +311,7 @@ public class PermissionServiceImpl implements PermissionService {
         Map<Permission, PermissionEffect> requested = new EnumMap<>(Permission.class);
         for (OverrideItem item : items) {
             if (requested.put(item.permission(), item.effect()) != null) {
-                throw GlobalException.of(ApiCode.DUPLICATE_PERMISSION, item.permission());
+                throw GlobalException.of(ApiCode.PERMISSION_DUPLICATED, item.permission());
             }
             if (!EffectivePermissionResolver.isConfigurableForAny(item.permission(), roles)) {
                 throw GlobalException.of(ApiCode.PERMISSION_NOT_CONFIGURABLE_FOR_ACCOUNT, item.permission());
@@ -363,16 +365,20 @@ public class PermissionServiceImpl implements PermissionService {
         return userAccountRepository.findById(userId).orElseThrow(() -> GlobalException.of(ApiCode.ACCOUNT_NOT_FOUND));
     }
 
-    // Keycloak là nguồn role (ADR-0011); bỏ qua role không thuộc CareNest
+    // Keycloak là nguồn role (ADR-0011); bỏ qua role không thuộc CareNest. Cộng TEAM_LEADER khi đang là tổ trưởng
+    // để ngoại lệ từng người áp được cho quyền của cột này (AUTH-23)
     private Set<CareNestRole> rolesOf(UserAccount account) {
+        Set<CareNestRole> loginRoles;
         try {
-            return identityProviderClient.getRealmRoleNames(account.getKeycloakUserId()).stream()
+            loginRoles = identityProviderClient.getRealmRoleNames(account.getKeycloakUserId()).stream()
                     .map(CareNestRole::fromKeycloakRole)
                     .flatMap(Optional::stream)
                     .collect(Collectors.toCollection(() -> EnumSet.noneOf(CareNestRole.class)));
         } catch (IdentityProviderException ex) {
             throw GlobalException.withCause(ApiCode.IDENTITY_PROVIDER_UNAVAILABLE, ex);
         }
+        return EffectivePermissionResolver.permissionRoles(
+                loginRoles, teamLeaderAssignmentChecker.isActiveTeamLeader(account.getId(), loginRoles));
     }
 
     private static Set<Permission> toEnumSet(List<Permission> permissions) {

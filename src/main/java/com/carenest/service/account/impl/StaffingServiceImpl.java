@@ -79,8 +79,8 @@ public class StaffingServiceImpl implements StaffingService {
             StaffAssignmentResponse assignment = staffAssignmentService
                     .findAssignment(assignmentId)
                     .orElseThrow(() -> fullScope
-                            ? GlobalException.of(ApiCode.ASSIGNMENT_NOT_FOUND)
-                            : GlobalException.of(ApiCode.ASSIGNMENT_MANAGE_DENIED));
+                            ? GlobalException.of(ApiCode.STAFF_ASSIGNMENT_NOT_FOUND)
+                            : GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED));
             if (assignment.userId().equals(actor.userId())) {
                 throw GlobalException.of(ApiCode.CANNOT_CHANGE_OWN_ASSIGNMENTS);
             }

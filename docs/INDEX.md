@@ -7,15 +7,15 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | context | `context/PROJECT_CONTEXT.md` | Trường, actor, vấn đề, scope V1, exclusions, quy ước trạng thái | FULL |
 | | `context/CURRENT_STATE.md` | Đã làm / đang làm / chưa làm | FULL |
 | | `context/GLOSSARY.md` | Thuật ngữ VN ↔ code | FULL |
-| modules | `modules/README.md` + 12 card | **Điểm đọc chính** theo module | FULL |
+| modules | `modules/README.md` + 12 card (thêm education-plan, xóa card CSVC 29/10) | **Điểm đọc chính** theo module | FULL |
 | business | `business/BUSINESS_RULES.md` | Rule có ID + status; Pending register | FULL |
 | | `business/USER_ROLES.md` | Role, scope, permission | FULL |
 | | `business/DOMAIN_MODEL.md` | Entity theo module, quan hệ | FULL |
-| | `business/flows/*.md` | attendance, leave-request, meal-management, health-check, facility-issue, child-observation | FULL |
+| | `business/flows/*.md` | attendance, pickup, leave-request, meal-management, health-check, education-plan, child-observation | FULL |
 | system | `system/SYSTEM_ARCHITECTURE.md` | BE + FE + APP, AI layer, scope | FULL |
 | | `system/MODULE_MAP.md` | Dependency, thứ tự lớp, cycle đã phá | FULL |
 | | `system/CROSS_REPO_MAP.md` | Ownership BE/FE/APP, điểm chạm | FULL |
-| | `system/DEPLOYMENT.md` | Hạ tầng | SKELETON |
+| | `system/DEPLOYMENT.md` | VPS demo: Docker Hub, mạng host, cổng, Caddy, rollback, chuyển dữ liệu thật | FULL |
 | | `system/KEYCLOAK.md` | Chạy/cấu hình Keycloak, lấy token, lỗi thường gặp | FULL |
 | guide | `backend-coding-guide.md` | **Quy tắc code bắt buộc** (layer, response, logging, exception, migration, checklist) | FULL — nguồn chuẩn code |
 | architecture | `architecture/BACKEND_ARCHITECTURE.md` | Layered monolith, giao tiếp feature, dẫn xuất | FULL |
@@ -45,15 +45,20 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | 0002 | Campus data scoping (không multi-tenant) | ACCEPTED |
 | 0003 | Role × Permission ∩ Scope | ACCEPTED |
 | 0004 | Giao tiếp feature: gọi service + event khi ngược chiều | ACCEPTED / event PROPOSED |
-| 0005 | Số suất đã xác nhận: lịch sử + xác nhận lại | ACCEPTED (P-04 pending) |
+| 0005 | Số suất đã xác nhận: lịch sử + xác nhận lại | ACCEPTED (chi tiết chốt 28/10) |
 | 0006 | Nguồn ngữ cảnh hoạt động = giáo án đã duyệt trong CareNest | ACCEPTED |
-| 0007 | AI provider abstraction + data minimization | ACCEPTED / provider OPEN |
+| 0007 | AI provider abstraction + data minimization | ACCEPTED (provider Gemini/Groq) |
 | 0008 | Human-in-the-loop AI | ACCEPTED |
-| 0009 | Phạm vi kho/NCC | **OPEN** |
-| 0010 | Parent visibility default-deny | ACCEPTED (field pending) |
+| 0009 | Phạm vi kho/NCC | ACCEPTED (cập nhật 28/10) |
+| 0010 | Parent visibility default-deny | ACCEPTED (danh sách chốt 29/10) |
 | 0011 | Keycloak + Spring Security Resource Server; scope ở CareNest | ACCEPTED |
 | 0012 | Engineering harness: làn S/M/L, Iron Law, hook, cổng Maven | ACCEPTED |
 | 0013 | React-owned Web auth gateway (Direct Grant qua confidential client) | ACCEPTED |
 | 0014 | Service interface + Impl; enum/hằng dùng chung ở `utils/` | ACCEPTED |
 | 0015 | Phiên Web trong cookie mã hóa, Keycloak giữ phiên | ACCEPTED |
-| 0017 | Module education-plan: CareNest soạn/duyệt kế hoạch giáo dục | ACCEPTED |
+| 0016 | Log START/END đơn giản cho controller và service | ACCEPTED |
+| 0017 | Phân quyền cấu hình được: ma trận theo role + ngoại lệ từng người | ACCEPTED |
+| 0018 | Học liệu hoạt động trên S3 private | ACCEPTED |
+| 0019 | Module kế hoạch giáo dục làm lại trên `dev` | SUPERSEDED bởi ADR-0020 (user chốt 29/10: theo code G94-226) |
+| 0020 | Module education-plan: CareNest soạn/duyệt kế hoạch giáo dục (số cũ 0017 trên G94-226) | ACCEPTED |
+| 0021 | Ba bảng mục tiêu năm học cha–con (số cũ 0019 trên G94-226) | ACCEPTED |

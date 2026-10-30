@@ -45,7 +45,7 @@ updated: 2026-10-22
 
 ## Phases
 ### Phase 1 — Năm học
-- Files: C `db/migration/V14__add_school_year_lifecycle.sql` · C `utils/enums/SchoolYearStatus` · M `entity/organization/SchoolYear` · M `repository/organization/SchoolYearRepository`, `ClassroomRepository` · C `dto/organization/SchoolYearRequest`, `ActivateSchoolYearRequest`, `SchoolYearDetailResponse` · M `mapper/organization/SchoolStructureMapper` · C `service/organization/SchoolYearService` + `impl/SchoolYearServiceImpl` · C `controller/organization/SchoolYearController`.
+- Files: C `db/migration/V13__add_school_year_lifecycle.sql` · C `utils/enums/SchoolYearStatus` · M `entity/organization/SchoolYear` · M `repository/organization/SchoolYearRepository`, `ClassroomRepository` · C `dto/organization/SchoolYearRequest`, `ActivateSchoolYearRequest`, `SchoolYearDetailResponse` · M `mapper/organization/SchoolStructureMapper` · C `service/organization/SchoolYearService` + `impl/SchoolYearServiceImpl` · C `controller/organization/SchoolYearController`.
 - Tests: `SchoolYearServiceImplTest`, `SchoolYearControllerTest`, `SchoolYearServiceIntegrationTest`.
 - Exit: `node scripts/verify.mjs` → `VERIFY PASS full`, skip 0; snapshot `docs/api/openapi.yaml`; Postman folder "Năm học".
 
@@ -64,7 +64,7 @@ updated: 2026-10-22
 ## Rủi ro & rollback
 | Rủi ro | Tác động | Giảm thiểu | Rollback |
 | --- | --- | --- | --- |
-| V10 suy trạng thái năm cũ theo ngày hiện tại | Năm dev seed có thể thành ACTIVE/CLOSED khác mong muốn | Rule rõ trong migration; HT chỉnh lại qua API | Migration mới bỏ cột/index |
+| V13 suy trạng thái năm cũ theo ngày hiện tại | Năm dev seed có thể thành ACTIVE/CLOSED khác mong muốn | Rule rõ trong migration; HT chỉnh lại qua API | Migration mới bỏ cột/index |
 | FE đang dùng tên năm làm id | FE phải đổi sang id số | Ghi trong tác động FE | — |
 
 ## Validation log
@@ -72,6 +72,6 @@ updated: 2026-10-22
 
 ## Progress log
 - 2026-10-22: Phase 1 (năm học) xong trên working tree, chưa commit. `node scripts/verify.mjs` → `VERIFY PASS full | tests 262 fail 0 err 0 skip 0`. Snapshot OpenAPI và Postman folder "6. Năm học" đã cập nhật.
-- 2026-10-22: Mở rộng phạm vi theo yêu cầu Cần (toàn menu Cấu hình trường trừ Phân công PHT, Vai trò & quyền). Xong: điểm trường (V11), phòng (V12), nhóm tuổi & lớp + cấu trúc năm học + sao chép lớp (V13), giờ chốt điểm danh (V14, bỏ reopenWindowMinutes theo Cần 21/10). `node scripts/verify.mjs` → `VERIFY PASS full | tests 304 fail 0 err 0 skip 0`.
+- 2026-10-22: Mở rộng phạm vi theo yêu cầu Cần (toàn menu Cấu hình trường trừ Phân công PHT, Vai trò & quyền). Xong: điểm trường (V14), phòng (V15), nhóm tuổi & lớp + cấu trúc năm học + sao chép lớp (V16), giờ chốt điểm danh (V17, bỏ reopenWindowMinutes theo Cần 21/10). `node scripts/verify.mjs` → `VERIFY PASS full | tests 304 fail 0 err 0 skip 0`.
 - 2026-10-22: Dừng trước Phân công giáo viên/tổ trưởng, Xếp lớp năm mới, Tài khoản nhân sự: DB chưa biết vai trò/điểm trường của nhân sự (role chỉ ở Keycloak, `user_accounts` không có campus) và xếp lớp phải ghi `enrollments` (module child, school-structure không được gọi ngược). Chờ quyết định.
-- 2026-10-22: Phân công GV & tổ trưởng (V15) xong theo phương án C tạm (TeacherDirectory). Xếp lớp năm mới + readiness + kích hoạt chuyển trẻ (V16) đặt ở module child — **PROPOSED**, chờ Cần/nhóm xác nhận (ADR-0004); `POST /school-years/{id}/activate` chuyển sang `YearTransitionController`. Tài khoản nhân sự: chờ chọn A/B/C.
+- 2026-10-22: Phân công GV & tổ trưởng (V18) xong theo phương án C tạm (TeacherDirectory). Xếp lớp năm mới + readiness + kích hoạt chuyển trẻ (V19) đặt ở module child — **PROPOSED**, chờ Cần/nhóm xác nhận (ADR-0004); `POST /school-years/{id}/activate` chuyển sang `YearTransitionController`. Tài khoản nhân sự: chờ chọn A/B/C.

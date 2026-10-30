@@ -1,5 +1,6 @@
 package com.carenest.dto.eduplan;
 
+import com.carenest.utils.enums.EduGoalRowKind;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -15,7 +16,7 @@ import java.util.List;
 public record YearPlanRequest(
         Long schoolYearId,
         Long ageGroupId,
-        @NotBlank @Size(max = 150) String title,
+        @NotNull @Size(max = 150) String title,
         @Size(max = 500) String description,
         @Valid List<Domain> domains,
         @Valid List<Theme> themes,
@@ -23,11 +24,34 @@ public record YearPlanRequest(
 
     public record Domain(@NotNull Long domainId, @Valid List<Row> rows) {}
 
+    /**
+     * Liên kết danh mục Chương trình của Bộ (EDU-28), mỗi tầng một field: curriculumSubDomainId cho dòng sub,
+     * curriculumExpectedResultId cho dòng group, curriculumGoalId cho dòng goal; field của tầng khác bị bỏ qua.
+     */
     public record Row(
             Long id,
             @NotBlank @Pattern(regexp = "sub|group|goal") String kind,
             String text,
-            @Valid List<Content> contents) {}
+            @Valid List<Content> contents,
+            Long curriculumGoalId,
+            Long curriculumSubDomainId,
+            Long curriculumExpectedResultId) {
+        public Row(Long id, String kind, String text, List<Content> contents) {
+            this(id, kind, text, contents, null, null, null);
+        }
+
+        public Row(Long id, String kind, String text, List<Content> contents, Long curriculumGoalId) {
+            this(id, kind, text, contents, curriculumGoalId, null, null);
+        }
+
+        public Long curriculumId(EduGoalRowKind rowKind) {
+            return switch (rowKind) {
+                case SUB -> curriculumSubDomainId;
+                case GROUP -> curriculumExpectedResultId;
+                case GOAL -> curriculumGoalId;
+            };
+        }
+    }
 
     /** themeKeys trỏ tới {@link Theme#key()} của cùng request, nên tích được cả chủ đề vừa thêm chưa có id. */
     public record Content(Long id, String text, List<String> themeKeys) {}

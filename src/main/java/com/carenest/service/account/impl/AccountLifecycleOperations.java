@@ -13,6 +13,7 @@ import com.carenest.utils.enums.UserStatus;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -87,6 +88,67 @@ class AccountLifecycleOperations {
         }
     }
 
+    /**
+     * Thêm realm role (nếu chưa có) rồi ghi DB trong một transaction. DB lỗi ⇒ gỡ role vừa thêm, không để tài khoản
+     * mang role nhân sự/phụ huynh mà DB không biết (API thu hồi dựa trên DB nên không gỡ được role mồ côi).
+     */
+    <T> T addRealmRole(String logPrefix, UserAccount account, CareNestRole role, Supplier<T> persist) {
+        boolean granted;
+        try {
+            granted = !identityProviderClient
+                    .getRealmRoleNames(account.getKeycloakUserId())
+                    .contains(role.name());
+            if (granted) identityProviderClient.assignRealmRole(account.getKeycloakUserId(), role.name());
+        } catch (IdentityProviderException ex) {
+            throw toGlobalException(ex);
+        }
+        try {
+            return transactionTemplate.execute(status -> persist.get());
+        } catch (RuntimeException ex) {
+            if (granted) removeRealmRoleQuietly(logPrefix, account, role);
+            throw ex;
+        }
+    }
+
+    /**
+     * Gỡ realm role trước rồi mới ghi DB: DB lỗi thì gọi lại vẫn chạy (gỡ role là idempotent), còn token mới không
+     * mang role đã gỡ. Sau cùng hủy mọi phiên để token cũ còn role không dùng tiếp được.
+     */
+    void revokeRealmRole(String logPrefix, UserAccount account, CareNestRole role, Runnable persist) {
+        try {
+            identityProviderClient.removeRealmRole(account.getKeycloakUserId(), role.name());
+        } catch (IdentityProviderException ex) {
+            throw toGlobalException(ex);
+        }
+        transactionTemplate.executeWithoutResult(status -> persist.run());
+        authState.revokeAccountAuth(account.getId());
+        try {
+            identityProviderClient.logoutUser(account.getKeycloakUserId());
+        } catch (IdentityProviderException ex) {
+            // DB đã ghi, role đã gỡ: refresh token Keycloak cấp lại token không còn role đó nên chỉ log, không báo lỗi
+            log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
+        }
+    }
+
+    /**
+     * Khóa tài khoản do hệ thống tự làm (không có người chờ kết quả): DB INACTIVE + hủy phiên web trong một
+     * transaction riêng, rồi mới gọi Keycloak ngoài transaction; Keycloak lỗi chỉ log vì CurrentUserService đã chặn
+     * tài khoản INACTIVE ở mọi request.
+     */
+    void deactivateQuietly(String logPrefix, UserAccount account) {
+        transactionTemplate.executeWithoutResult(status -> {
+            account.changeStatus(UserStatus.INACTIVE);
+            userAccountRepository.saveAndFlush(account);
+            authState.revokeAccountAuth(account.getId());
+        });
+        try {
+            identityProviderClient.setUserEnabled(account.getKeycloakUserId(), false);
+            identityProviderClient.logoutUser(account.getKeycloakUserId());
+        } catch (IdentityProviderException ex) {
+            log.error("{}|identityProviderSyncFailed", logPrefix, ex);
+        }
+    }
+
     /** Ghi DB trước: CurrentUserService chặn ngay từ request kế tiếp kể cả khi bước Keycloak lỗi. */
     void applyStatus(String logPrefix, UserAccount account, UserStatus status) {
         account.changeStatus(status);
@@ -115,7 +177,21 @@ class AccountLifecycleOperations {
             identityProviderClient.logoutUser(account.getKeycloakUserId());
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
-            throw GlobalException.withCause(ApiCode.SESSIONS_NOT_REVOKED, ex);
+            throw GlobalException.withCause(ApiCode.PASSWORD_RESET_SESSION_REVOKE_FAILED, ex);
+        }
+    }
+
+    private void removeRealmRoleQuietly(String logPrefix, UserAccount account, CareNestRole role) {
+        try {
+            identityProviderClient.removeRealmRole(account.getKeycloakUserId(), role.name());
+            log.warn("{}|userId={}|role={}|compensated", logPrefix, account.getId(), role);
+        } catch (IdentityProviderException ex) {
+            log.error(
+                    "{}|userId={}|role={}|compensationFailed|manualCleanupRequired",
+                    logPrefix,
+                    account.getId(),
+                    role,
+                    ex);
         }
     }
 

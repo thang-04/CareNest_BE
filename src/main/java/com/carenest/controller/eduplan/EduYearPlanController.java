@@ -2,7 +2,9 @@ package com.carenest.controller.eduplan;
 
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.PlanActionRequest;
+import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
+import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.security.CurrentUser;
@@ -12,6 +14,7 @@ import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -26,6 +29,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -80,11 +84,16 @@ public class EduYearPlanController {
     // Để OpenAPI ghi 201 khớp ApiCode.CREATED
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createYearPlan(
-            @Valid @RequestBody YearPlanRequest request, CurrentUser currentUser) {
+            @Valid @RequestBody YearPlanRequest request,
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
         String logPrefix =
                 LOG_PREFIX + "|createYearPlan|userId=" + currentUser.userId() + "|ageGroupId=" + request.ageGroupId();
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan = eduYearPlanService.createYearPlan(currentUser, request);
+        YearPlanDetailResponse plan = eduYearPlanService.createYearPlan(
+                currentUser, request, new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|planId={}|END", logPrefix, plan.id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create year plan success", plan);
     }
@@ -92,10 +101,16 @@ public class EduYearPlanController {
     @PutMapping("/{planId}")
     @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> updateYearPlan(
-            @PathVariable Long planId, @Valid @RequestBody YearPlanRequest request, CurrentUser currentUser) {
+            @PathVariable Long planId,
+            @Valid @RequestBody YearPlanRequest request,
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|updateYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan = eduYearPlanService.updateYearPlan(currentUser, planId, request);
+        YearPlanDetailResponse plan = eduYearPlanService.updateYearPlan(
+                currentUser, planId, request, new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update year plan success", plan);
     }
@@ -105,11 +120,17 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> submitYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody(required = false) PlanActionRequest.Note request,
-            CurrentUser currentUser) {
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|submitYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan =
-                eduYearPlanService.submitYearPlan(currentUser, planId, request == null ? null : request.note());
+        YearPlanDetailResponse plan = eduYearPlanService.submitYearPlan(
+                currentUser,
+                planId,
+                request == null ? null : request.note(),
+                new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Submit year plan success", plan);
     }
@@ -119,11 +140,17 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> issueYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody(required = false) PlanActionRequest.Note request,
-            CurrentUser currentUser) {
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|issueYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan =
-                eduYearPlanService.issueYearPlan(currentUser, planId, request == null ? null : request.note());
+        YearPlanDetailResponse plan = eduYearPlanService.issueYearPlan(
+                currentUser,
+                planId,
+                request == null ? null : request.note(),
+                new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Issue year plan success", plan);
     }
@@ -133,10 +160,14 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> returnYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody PlanActionRequest.RequiredNote request,
-            CurrentUser currentUser) {
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|returnYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan = eduYearPlanService.returnYearPlan(currentUser, planId, request.note());
+        YearPlanDetailResponse plan = eduYearPlanService.returnYearPlan(
+                currentUser, planId, request.note(), new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Return year plan success", plan);
     }
@@ -144,10 +175,15 @@ public class EduYearPlanController {
     @PostMapping("/{planId}/start-editing")
     @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> startEditing(
-            @PathVariable Long planId, CurrentUser currentUser) {
+            @PathVariable Long planId,
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|startEditing|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan = eduYearPlanService.startEditing(currentUser, planId);
+        YearPlanDetailResponse plan = eduYearPlanService.startEditing(
+                currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Start editing year plan success", plan);
     }
@@ -155,20 +191,74 @@ public class EduYearPlanController {
     @PostMapping("/{planId}/finish-editing")
     @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> finishEditing(
-            @PathVariable Long planId, CurrentUser currentUser) {
+            @PathVariable Long planId,
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|finishEditing|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        YearPlanDetailResponse plan = eduYearPlanService.finishEditing(currentUser, planId);
+        YearPlanDetailResponse plan = eduYearPlanService.finishEditing(
+                currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Finish editing year plan success", plan);
     }
 
+    @PostMapping("/{planId}/editing-heartbeat")
+    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> heartbeat(
+            @PathVariable Long planId,
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
+        String logPrefix = LOG_PREFIX + "|heartbeat|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan = eduYearPlanService.heartbeat(
+                currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Editing session renewed", plan);
+    }
+
+    @PostMapping("/{planId}/versions")
+    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createVersion(
+            @PathVariable Long planId,
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
+        String logPrefix = LOG_PREFIX + "|createVersion|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan = eduYearPlanService.createVersion(
+                currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
+        log.info("{}|newPlanId={}|END", logPrefix, plan.id());
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create year plan version success", plan);
+    }
+
+    @GetMapping("/{planId}/changes")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<YearPlanChangesResponse>> getChanges(
+            @PathVariable Long planId, @RequestParam(required = false) Long fromPlanId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getChanges|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanChangesResponse changes = eduYearPlanService.getChanges(currentUser, planId, fromPlanId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plan changes success", changes);
+    }
+
     @DeleteMapping("/{planId}")
     @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
-    public ResponseEntity<ResponseJson<Void>> deleteYearPlan(@PathVariable Long planId, CurrentUser currentUser) {
+    public ResponseEntity<ResponseJson<Void>> deleteYearPlan(
+            @PathVariable Long planId,
+            CurrentUser currentUser,
+            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader("X-Plan-Revision") Long revision,
+            @RequestHeader("X-Request-Id") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|deleteYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
-        eduYearPlanService.deleteYearPlan(currentUser, planId);
+        eduYearPlanService.deleteYearPlan(currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Delete year plan success");
     }

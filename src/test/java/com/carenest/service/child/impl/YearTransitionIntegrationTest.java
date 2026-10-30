@@ -37,14 +37,17 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Chuyển năm học trên PostgreSQL thật (V16): xếp lớp, readiness, kích hoạt chuyển trẻ. Hôm nay = 30/08/2027. */
+/** Chuyển năm học trên PostgreSQL thật (V19): xếp lớp, readiness, kích hoạt chuyển trẻ. Hôm nay = 30/08/2027. */
 @SpringBootTest
 @Transactional
+@RecordApplicationEvents
 @Testcontainers(disabledWithoutDocker = true)
 class YearTransitionIntegrationTest {
 
@@ -72,6 +75,9 @@ class YearTransitionIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private ApplicationEvents events;
 
     @Autowired
     private RoomService roomService;
@@ -215,6 +221,18 @@ class YearTransitionIntegrationTest {
         assertThat(enrollmentService.findActiveClassroomIds(child1, firstDay.minusDays(1)))
                 .containsExactly(oldClass);
         assertThat(enrollmentService.findActiveClassroomIds(child2, firstDay)).isEmpty();
+        // CHD-04: trẻ nghỉ học là "đã rời trường" từ ngày bắt đầu năm mới; module tài khoản nhận event để khóa phụ
+        // huynh
+        assertThat(enrollmentService.findChildIdsLeftSchool(List.of(child1, child2), firstDay))
+                .containsExactly(child2);
+        assertThat(enrollmentService.findChildIdsLeftSchool(List.of(child2), firstDay.minusDays(1)))
+                .isEmpty();
+        assertThat(events.stream(YearTransitionService.ChildrenLeftSchoolEvent.class))
+                .singleElement()
+                .satisfies(event -> {
+                    assertThat(event.childIds()).containsExactly(child2);
+                    assertThat(event.effectiveDate()).isEqualTo(firstDay);
+                });
 
         // CFG-YR-02: năm cũ giữ như lúc kết thúc dù năm mới đổi tên / xóa phòng
         jdbc.update("UPDATE rooms SET name = 'Đổi tên', status = 'DELETED', deleted_at = now() WHERE code = 'P.1'");

@@ -3,6 +3,7 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.dto.eduplan.EduConfigResponse;
+import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.organization.AgeGroupResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.eduplan.EduBreak;
@@ -19,6 +20,7 @@ import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
+import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -39,11 +41,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -74,8 +78,23 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private static final DateTimeFormatter HISTORY_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     // Trường do hệ thống quản lý: không lấy từ nội dung client gửi
-    private static final Set<String> META_FIELDS =
-            Set.of("id", "kind", "classId", "yearPlanId", "themeId", "weekStart", "status", "approvals", "history");
+    private static final Set<String> META_FIELDS = Set.of(
+            "id",
+            "kind",
+            "classId",
+            "yearPlanId",
+            "themeId",
+            "weekStart",
+            "status",
+            "approvals",
+            "history",
+            "sourceDocKey",
+            "adjustments",
+            "yearPlanVersion",
+            "superseded");
+    private static final int ADJUSTMENT_MAX_LENGTH = 4000;
+    private static final String CHECK_GOAL = "goal:";
+    private static final String CHECK_THEME = "theme:";
     private static final Map<String, EduClassDocStatus> PENDING_OF = Map.of(
             ROLE_TEAM_LEADER, EduClassDocStatus.PENDING_TL,
             ROLE_VICE_PRINCIPAL, EduClassDocStatus.PENDING_VP,
@@ -99,6 +118,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private final EduThemeRepository themeRepository;
     private final EduBreakRepository breakRepository;
     private final EduConfigService eduConfigService;
+    private final EduYearPlanService yearPlanService;
     private final EduPlanAccessPolicy accessPolicy;
     private final ClassroomService classroomService;
     private final StaffAssignmentService staffAssignmentService;
@@ -109,6 +129,39 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     /** Tuần học của kế hoạch năm: số thứ tự cả năm, thứ Hai đầu tuần, chủ đề. */
     record TeachingWeek(int no, LocalDate start, Long themeId) {}
+
+    @Override
+    @Transactional
+    public EduClassDoc requireThemeAccess(CurrentUser currentUser, String docKey, boolean write) {
+        String logPrefix = LOG_PREFIX + "|requireThemeAccess|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            requireView(currentUser);
+            EduClassDoc doc = (write
+                            ? classDocRepository.findForUpdateByDocKey(docKey)
+                            : classDocRepository.findByDocKey(docKey))
+                    .orElseThrow(() -> GlobalException.of(ApiCode.THEME_PLAN_NOT_FOUND));
+            if (!EduClassDoc.THEME.equals(doc.getKind())) throw GlobalException.of(ApiCode.RESOURCE_THEME_ONLY);
+            ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
+            LocalDate today = LocalDate.now(clock);
+            if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            if (write) {
+                if (!currentUser.hasRole(CareNestRole.TEACHER)
+                        || !staffAssignmentService
+                                .findCurrentTeacherClassroomIds(currentUser.userId(), today)
+                                .contains(cls.id())) throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+                if (!doc.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                // EDU-26: học liệu của tài liệu trên phiên bản đã thay thế cũng chỉ xem
+                if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
+            }
+            log.info("{}|END", logPrefix);
+            return doc;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -186,15 +239,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Long yearPlanId = requireLong(doc, "yearPlanId");
             Long themeId = EduClassDoc.BRANCH.equals(kind) ? null : requireLong(doc, "themeId");
             LocalDate weekStart = EduClassDoc.WEEK.equals(kind) ? requireDate(doc, "weekStart") : null;
-            String expectedKey =
-                    switch (kind) {
-                        case EduClassDoc.BRANCH -> "bp_" + classId + "_" + yearPlanId;
-                        case EduClassDoc.THEME -> "tp_" + classId + "_" + themeId;
-                        default -> "wp_" + classId + "_" + weekStart;
-                    };
-            if (!expectedKey.equals(docKey)) {
-                throw GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH);
-            }
 
             ClassroomInfoResponse cls = requireClass(classId);
             LocalDate today = LocalDate.now(clock);
@@ -205,6 +249,13 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
             }
             EduYearPlan plan = requireIssuedPlan(yearPlanId, cls);
+            if (!expectedKey(kind, classId, plan, themeId, weekStart).equals(docKey)) {
+                throw GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH);
+            }
+            // EDU-26: phiên bản kế hoạch năm đã bị thay thế thì tài liệu của nó chỉ xem
+            if (isSuperseded(plan.getId())) {
+                throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
+            }
             List<TeachingWeek> weeks = teachingWeeks(plan.getId());
             if (themeId != null
                     && themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
@@ -224,6 +275,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 requireCanCreate(kind, cls.id(), plan.getId(), themeId);
                 entity = EduClassDoc.create(
                         docKey, kind, classId, plan.getId(), themeId, weekStart, currentUser.userId());
+                String sourceKey = doc.path("sourceDocKey").asString("").trim();
+                if (!sourceKey.isEmpty()) {
+                    entity.linkSource(
+                            requireCopySource(sourceKey, kind, classId, plan).getId());
+                }
             } else {
                 entity = current.get();
                 // EDU-18: chỉ sửa khi Nháp hoặc Bị trả lại
@@ -300,7 +356,17 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     if (!doc.getStatus().editable()) {
                         throw GlobalException.of(ApiCode.CLASS_DOC_SUBMITTED);
                     }
+                    if (isSuperseded(doc.getYearPlanId())) {
+                        throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
+                    }
                     requireCanSubmit(doc);
+                    // EDU-26: bản chép từ phiên bản cũ còn ô đỏ thì chưa gửi được (kể cả gọi API trực tiếp)
+                    long unresolved = all.stream()
+                            .mapToLong(d -> unresolvedVersionFixes(d, today))
+                            .sum();
+                    if (unresolved > 0) {
+                        throw GlobalException.of(ApiCode.CLASS_DOC_VERSION_FIX_REQUIRED, unresolved);
+                    }
                     next = chain.isEmpty() ? EduClassDocStatus.APPROVED : PENDING_OF.get(chain.getFirst());
                     action = chain.isEmpty()
                             ? "Gửi (không cần duyệt)"
@@ -373,9 +439,185 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
     }
 
+    @Override
+    @Transactional
+    public ObjectNode saveAdjustments(CurrentUser currentUser, String docKey, Map<String, String> adjustments) {
+        String logPrefix = LOG_PREFIX + "|saveAdjustments|userId=" + currentUser.userId() + "|docKey=" + docKey;
+        log.info("{}|START", logPrefix);
+        try {
+            EduClassDoc doc = classDocRepository
+                    .findForUpdateByDocKey(docKey)
+                    .filter(d -> EduClassDoc.WEEK.equals(d.getKind()))
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
+            LocalDate today = LocalDate.now(clock);
+            // EDU-27: chỉ giáo viên của lớp; mọi trạng thái, kể cả đã duyệt hoặc phiên bản đã thay thế
+            if (!staffAssignmentService
+                    .findCurrentTeacherClassroomIds(currentUser.userId(), today)
+                    .contains(doc.getClassroomId())) {
+                throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+            }
+            ObjectNode next = objectMapper.createObjectNode();
+            new TreeMap<>(adjustments).forEach((day, text) -> {
+                LocalDate date;
+                try {
+                    date = LocalDate.parse(day);
+                } catch (DateTimeParseException ex) {
+                    throw GlobalException.withCause(ApiCode.CLASS_DOC_ADJUSTMENT_INVALID, ex);
+                }
+                String value = text == null ? "" : text.trim();
+                if (date.isBefore(doc.getWeekStart())
+                        || date.isAfter(doc.getWeekStart().plusDays(4))
+                        || value.length() > ADJUSTMENT_MAX_LENGTH) {
+                    throw GlobalException.of(ApiCode.CLASS_DOC_ADJUSTMENT_INVALID);
+                }
+                if (!value.isEmpty()) {
+                    next.put(day, value);
+                }
+            });
+            if (!next.equals(readObject(doc.getAdjustments()))) {
+                ArrayNode history = readArray(doc.getHistory());
+                ObjectNode entry = objectMapper.createObjectNode();
+                entry.put("action", "Cập nhật kế hoạch điều chỉnh và bổ sung");
+                entry.put("by", currentUser.fullName());
+                entry.put("role", ROLE_LABELS.get("TEACHER"));
+                entry.put("at", now());
+                entry.put("tone", TONE_NONE);
+                history.add(entry);
+                doc.changeAdjustments(
+                        objectMapper.writeValueAsString(next),
+                        objectMapper.writeValueAsString(history),
+                        currentUser.userId());
+                classDocRepository.saveAndFlush(doc);
+            }
+            ObjectNode response = toNode(doc);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // Khóa Web: giáo án tuần phiên bản ≥2 thêm id kế hoạch để không trùng tuần của phiên bản cũ (spec 004 A4)
+    private static String expectedKey(String kind, Long classId, EduYearPlan plan, Long themeId, LocalDate weekStart) {
+        return switch (kind) {
+            case EduClassDoc.BRANCH -> "bp_" + classId + "_" + plan.getId();
+            case EduClassDoc.THEME -> "tp_" + classId + "_" + themeId;
+            default -> "wp_" + classId + "_" + weekStart + (plan.getVersionNo() > 1 ? "_" + plan.getId() : "");
+        };
+    }
+
+    /** Tài liệu nguồn của bản chép: cùng lớp, cùng loại, phiên bản thấp hơn của cùng chuỗi kế hoạch năm. */
+    private EduClassDoc requireCopySource(String sourceKey, String kind, Long classId, EduYearPlan plan) {
+        EduClassDoc source = classDocRepository
+                .findByDocKey(sourceKey)
+                .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH));
+        EduYearPlan sourcePlan = yearPlanRepository
+                .findById(source.getYearPlanId())
+                .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH));
+        if (!source.getKind().equals(kind)
+                || !source.getClassroomId().equals(classId)
+                || !sourcePlan.getSchoolYearId().equals(plan.getSchoolYearId())
+                || !sourcePlan.getAgeGroupId().equals(plan.getAgeGroupId())
+                || sourcePlan.getVersionNo() >= plan.getVersionNo()) {
+            throw GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH);
+        }
+        return source;
+    }
+
     /**
-     * Lịch tuần cả năm (giống Web): tuần học đánh số liên tục theo các chủ đề, bỏ tuần trùng đợt nghỉ; chủ đề bắt đầu
-     * Thứ 7 / Chủ nhật thì tuần đầu là Thứ Hai kế tiếp.
+     * EDU-26 (research R5): số ô đỏ còn lại của bản chép. Tham chiếu MT/tuần không thuộc phiên bản của tài liệu, hoặc
+     * MT/chủ đề đã đổi so với phiên bản nguồn mà chưa đánh dấu "Đã kiểm tra". Chủ đề đã kết thúc không tính.
+     */
+    private long unresolvedVersionFixes(EduClassDoc doc, LocalDate today) {
+        if (doc.getSourceDocId() == null) {
+            return 0;
+        }
+        Optional<EduClassDoc> source = classDocRepository.findById(doc.getSourceDocId());
+        if (source.isEmpty() || source.get().getYearPlanId().equals(doc.getYearPlanId())) {
+            return 0;
+        }
+        YearPlanChangesResponse changes =
+                yearPlanService.compareVersions(source.get().getYearPlanId(), doc.getYearPlanId());
+        Set<Long> goalIds = changes.goals().stream()
+                .map(YearPlanChangesResponse.Goal::id)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<Long> changedGoals = changes.goals().stream()
+                .filter(g -> g.change() == YearPlanChangesResponse.Change.CHANGED)
+                .map(YearPlanChangesResponse.Goal::id)
+                .collect(Collectors.toSet());
+        Set<Long> changedThemes = changes.themes().stream()
+                .filter(t -> t.change() == YearPlanChangesResponse.Change.CHANGED)
+                .map(YearPlanChangesResponse.Theme::id)
+                .collect(Collectors.toSet());
+        Map<Long, EduTheme> themes =
+                themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(doc.getYearPlanId()).stream()
+                        .collect(Collectors.toMap(EduTheme::getId, t -> t));
+        ObjectNode content = readObject(doc.getContent());
+        Set<String> checks = new HashSet<>();
+        content.path("versionChecks").forEach(c -> checks.add(c.asString("")));
+
+        if (EduClassDoc.BRANCH.equals(doc.getKind())) {
+            List<TeachingWeek> weeks = teachingWeeks(doc.getYearPlanId());
+            Set<String> starts = weeks.stream().map(w -> w.start().toString()).collect(Collectors.toSet());
+            long dangling = content.path("names").properties().stream()
+                    .filter(e -> !e.getValue().asString("").isBlank() && !starts.contains(e.getKey()))
+                    .filter(e -> !LocalDate.parse(e.getKey()).plusDays(4).isBefore(today))
+                    .count();
+            long unchecked = changedThemes.stream()
+                    .filter(id -> isOngoing(themes.get(id), today))
+                    .filter(id -> !checks.contains(CHECK_THEME + id))
+                    .count();
+            return dangling + unchecked;
+        }
+        if (!isOngoing(themes.get(doc.getThemeId()), today)) {
+            return 0;
+        }
+        Set<Long> referenced = new LinkedHashSet<>();
+        if (EduClassDoc.THEME.equals(doc.getKind())) {
+            content.path("rows").properties().forEach(e -> referenced.add(parseId(e.getKey())));
+        } else {
+            content.path("picks")
+                    .forEach(list -> list.forEach(
+                            p -> referenced.add(parseId(p.path("goalId").asString("")))));
+        }
+        return referenced.stream()
+                .filter(id -> !goalIds.contains(id) || (changedGoals.contains(id) && !checks.contains(CHECK_GOAL + id)))
+                .count();
+    }
+
+    // EDU-26: có phiên bản ban hành số lớn hơn trong cùng chuỗi (năm học, nhóm tuổi)
+    private boolean isSuperseded(Long yearPlanId) {
+        return yearPlanRepository
+                .findById(yearPlanId)
+                .map(plan -> yearPlanRepository
+                        .findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
+                                plan.getSchoolYearId(), plan.getAgeGroupId())
+                        .stream()
+                        .anyMatch(
+                                p -> p.getStatus() == EduPlanStatus.APPROVED && p.getVersionNo() > plan.getVersionNo()))
+                .orElse(false);
+    }
+
+    private static boolean isOngoing(EduTheme theme, LocalDate today) {
+        return theme != null
+                && (theme.getEndDate() == null || !theme.getEndDate().isBefore(today));
+    }
+
+    // Id chuỗi không phải số (dữ liệu cũ, id tạm) coi là tham chiếu không thuộc phiên bản
+    private static Long parseId(String value) {
+        try {
+            return Long.valueOf(value.trim());
+        } catch (NumberFormatException ex) {
+            return -1L;
+        }
+    }
+
+    /**
+     * Lịch tuần cả năm (giống Web): tuần học đánh số liên tục theo các chủ đề; tuần chỉ bị bỏ khi đợt nghỉ phủ cả Thứ 2
+     * → Thứ 6, nghỉ vài ngày thì vẫn là tuần học (EDU-41). Chủ đề bắt đầu Thứ 7 / Chủ nhật (dữ liệu trước EDU-40) thì
+     * tuần đầu là Thứ Hai kế tiếp.
      */
     static List<TeachingWeek> teachingWeeks(List<EduTheme> themes, List<EduBreak> breaks) {
         List<TeachingWeek> weeks = new ArrayList<>();
@@ -388,18 +630,20 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             for (LocalDate monday = firstTeachingMonday(theme.getStartDate());
                     !monday.isAfter(theme.getEndDate());
                     monday = monday.plusDays(7)) {
-                LocalDate friday = monday.plusDays(4);
-                LocalDate start = monday;
-                boolean onBreak = breaks.stream()
-                        .filter(b -> b.getStartDate() != null)
-                        .anyMatch(b -> !start.isAfter(b.getEndDate() == null ? b.getStartDate() : b.getEndDate())
-                                && !friday.isBefore(b.getStartDate()));
-                if (!onBreak) {
+                boolean wholeWeekOff = monday.datesUntil(monday.plusDays(5)).allMatch(day -> isBreakDay(breaks, day));
+                if (!wholeWeekOff) {
                     weeks.add(new TeachingWeek(++no, monday, theme.getId()));
                 }
             }
         }
         return weeks;
+    }
+
+    private static boolean isBreakDay(List<EduBreak> breaks, LocalDate day) {
+        return breaks.stream()
+                .filter(b -> b.getStartDate() != null)
+                .anyMatch(b -> !day.isBefore(b.getStartDate())
+                        && !day.isAfter(b.getEndDate() == null ? b.getStartDate() : b.getEndDate()));
     }
 
     private static LocalDate firstTeachingMonday(LocalDate date) {
@@ -611,6 +855,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         node.put("status", doc.getStatus().name());
         node.set("approvals", readArray(doc.getApprovals()));
         node.set("history", readArray(doc.getHistory()));
+        yearPlanRepository
+                .findById(doc.getYearPlanId())
+                .ifPresent(plan -> node.put("yearPlanVersion", plan.getVersionNo()));
+        node.put("superseded", isSuperseded(doc.getYearPlanId()));
+        if (doc.getSourceDocId() != null) {
+            classDocRepository
+                    .findById(doc.getSourceDocId())
+                    .ifPresent(source -> node.put("sourceDocKey", source.getDocKey()));
+        }
+        node.set("adjustments", readObject(doc.getAdjustments()));
         return node;
     }
 

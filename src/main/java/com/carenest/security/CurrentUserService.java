@@ -6,6 +6,7 @@ import com.carenest.repository.account.RolePermissionRepository;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.repository.account.UserPermissionOverrideRepository;
 import com.carenest.security.authorization.EffectivePermissionResolver;
+import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
@@ -32,6 +33,8 @@ public class CurrentUserService {
     private final UserAccountRepository userAccountRepository;
     private final RolePermissionRepository rolePermissionRepository;
     private final UserPermissionOverrideRepository userPermissionOverrideRepository;
+    private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
+    private final KeycloakRealmRoleConverter realmRoleConverter;
 
     @Transactional(readOnly = true)
     public CurrentUser getCurrentUser() {
@@ -50,7 +53,7 @@ public class CurrentUserService {
             throw GlobalException.of(ApiCode.UNAUTHENTICATED);
         }
         JwtAuthenticationToken verifiedAuthentication =
-                new JwtAuthenticationToken(validatedToken, new KeycloakRealmRoleConverter().convert(validatedToken));
+                new JwtAuthenticationToken(validatedToken, realmRoleConverter.convert(validatedToken));
         return getCurrentUser(validatedToken, rolesOf(verifiedAuthentication));
     }
 
@@ -80,7 +83,9 @@ public class CurrentUserService {
     }
 
     // Đọc DB mỗi request nên HT đổi quyền là có hiệu lực ngay, không chờ token mới (ADR-0017)
-    private Set<Permission> resolvePermissions(Long userId, Set<CareNestRole> roles) {
+    private Set<Permission> resolvePermissions(Long userId, Set<CareNestRole> loginRoles) {
+        Set<CareNestRole> roles = EffectivePermissionResolver.permissionRoles(
+                loginRoles, teamLeaderAssignmentChecker.isActiveTeamLeader(userId, loginRoles));
         Set<CareNestRole> configurableRoles =
                 roles.stream().filter(Permission::isConfigurableRole).collect(Collectors.toSet());
         if (configurableRoles.isEmpty()) {

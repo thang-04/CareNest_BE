@@ -25,6 +25,10 @@ public class EduTheme {
     @Column(name = "year_plan_id", nullable = false, updatable = false)
     private Long yearPlanId;
 
+    // Định danh ổn định qua các phiên bản (NULL = dòng gốc, lineage là chính id), spec 004
+    @Column(name = "lineage_id", updatable = false)
+    private Long lineageId;
+
     @Column(name = "sort_order", nullable = false)
     private Short sortOrder;
 
@@ -67,5 +71,23 @@ public class EduTheme {
         this.endDate = endDate;
         this.festivals = festivals;
         this.note = note;
+    }
+
+    public Long lineage() {
+        return lineageId == null ? id : lineageId;
+    }
+
+    public static EduTheme copyFor(Long yearPlanId, EduTheme source) {
+        EduTheme theme = create(yearPlanId);
+        theme.lineageId = source.lineage();
+        theme.update(
+                source.sortOrder,
+                source.name,
+                source.abbr,
+                source.startDate,
+                source.endDate,
+                source.festivals,
+                source.note);
+        return theme;
     }
 }

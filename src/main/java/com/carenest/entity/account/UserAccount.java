@@ -49,6 +49,7 @@ public class UserAccount {
 
     // Bản sao role Keycloak để lọc/kiểm phạm vi quản lý (V8); token vẫn là nguồn quyền
     @Enumerated(EnumType.STRING)
+    // Không updatable: merge entity đọc trước đó không ghi đè role mới; đổi qua UserAccountRepository.updatePrimaryRole
     @Column(name = "primary_role", updatable = false, length = 20)
     private CareNestRole primaryRole;
 
@@ -97,5 +98,15 @@ public class UserAccount {
 
     public void changeStatus(UserStatus newStatus) {
         this.status = newStatus;
+    }
+
+    /** Phụ huynh được nhận làm nhân sự (chỉ bản trong bộ nhớ, DB ghi bằng updatePrimaryRole). */
+    public void becomeStaff(CareNestRole staffRole) {
+        this.primaryRole = staffRole;
+    }
+
+    /** Thu hồi vai trò nhân sự của người vẫn là phụ huynh (chỉ bản trong bộ nhớ, DB ghi bằng updatePrimaryRole). */
+    public void becomeParentOnly() {
+        this.primaryRole = CareNestRole.PARENT;
     }
 }

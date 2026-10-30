@@ -1,5 +1,6 @@
 package com.carenest.config;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
@@ -15,6 +16,7 @@ import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.utils.ApiCode;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -36,6 +38,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class SecurityConfigTest {
 
     private static final String TEACHER_ENDPOINT = "/api/security-test/teacher";
+    private static final String AUTHENTICATED_ENDPOINT = "/api/security-test/authenticated";
+    private static final String WEB_CLIENT = "carenest-auth-gateway";
+    private static final String MOBILE_CLIENT = "carenest-mobile";
     private static final String ALLOWED_ORIGIN = "http://localhost:3000";
 
     @Autowired
@@ -87,7 +92,7 @@ class SecurityConfigTest {
 
     @Test
     void shouldForbidParentOnTeacherEndpoint() throws Exception {
-        given(jwtDecoder.decode("parent-token")).willReturn(jwtWithRealmRoles("parent-token", "PARENT"));
+        given(jwtDecoder.decode("parent-token")).willReturn(clientJwt("parent-token", MOBILE_CLIENT, "PARENT"));
 
         mockMvc.perform(get(TEACHER_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer parent-token"))
                 .andExpect(status().isForbidden())
@@ -95,13 +100,56 @@ class SecurityConfigTest {
     }
 
     @Test
+    @DisplayName("AUTH-21: token Web của tài khoản chỉ có PARENT bị từ chối mọi API")
+    void shouldForbidParentOnlyWebTokenOnEveryEndpoint() throws Exception {
+        given(jwtDecoder.decode("web-parent-token")).willReturn(clientJwt("web-parent-token", WEB_CLIENT, "PARENT"));
+
+        mockMvc.perform(get(AUTHENTICATED_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer web-parent-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.desc").value(ApiCode.FORBIDDEN.getDefaultDesc()));
+    }
+
+    @Test
+    @DisplayName("AUTH-21: GV kiêm phụ huynh dùng Web với quyền GV")
+    void shouldAllowTeacherAndParentWebTokenAsTeacher() throws Exception {
+        given(jwtDecoder.decode("web-teacher-parent"))
+                .willReturn(clientJwt("web-teacher-parent", WEB_CLIENT, "TEACHER", "PARENT"));
+
+        mockMvc.perform(get(TEACHER_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer web-teacher-parent"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: Ban giám hiệu không dùng App")
+    void shouldForbidPrincipalOnMobileToken() throws Exception {
+        given(jwtDecoder.decode("mobile-principal"))
+                .willReturn(clientJwt("mobile-principal", MOBILE_CLIENT, "PRINCIPAL"));
+
+        mockMvc.perform(get(AUTHENTICATED_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-principal"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: token của client không khai báo bị từ chối")
+    void shouldForbidTokenFromUnknownClient() throws Exception {
+        given(jwtDecoder.decode("unknown-client")).willReturn(clientJwt("unknown-client", "other-app", "TEACHER"));
+
+        mockMvc.perform(get(AUTHENTICATED_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer unknown-client"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void shouldAllowCorsPreflightFromConfiguredOrigin() throws Exception {
         mockMvc.perform(options(TEACHER_ENDPOINT)
                         .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, HttpHeaders.AUTHORIZATION))
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "Authorization, X-Edit-Session, X-Plan-Revision, X-Request-Id, Range"))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN));
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("X-Edit-Session")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("Range")));
     }
 
     @Test
@@ -113,9 +161,14 @@ class SecurityConfigTest {
     }
 
     private static Jwt jwtWithRealmRoles(String tokenValue, String... roles) {
+        return clientJwt(tokenValue, WEB_CLIENT, roles);
+    }
+
+    private static Jwt clientJwt(String tokenValue, String clientId, String... roles) {
         return Jwt.withTokenValue(tokenValue)
                 .header("alg", "RS256")
                 .subject("kc-user-1")
+                .claim("azp", clientId)
                 .claim("realm_access", Map.of("roles", List.of(roles)))
                 .build();
     }

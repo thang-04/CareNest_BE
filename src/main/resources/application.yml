@@ -16,13 +16,19 @@ spring:
     ignore-migration-patterns: "*:future,repeatable:missing"
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 10MB
+      max-file-size: 100MB
+      max-request-size: 102MB
 
 server:
   port: ${SERVER_PORT:8080}
 
 carenest:
+  education-media:
+    bucket: ${CARENEST_EDUCATION_MEDIA_BUCKET:}
+    region: ${AWS_REGION:ap-southeast-1}
+    endpoint: ${CARENEST_EDUCATION_MEDIA_ENDPOINT:}
+    path-style: ${CARENEST_EDUCATION_MEDIA_PATH_STYLE:false}
+    prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}
@@ -41,6 +47,12 @@ carenest:
       issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/carenest}
       jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/carenest/protocol/openid-connect/certs}
       audience: ${KEYCLOAK_AUDIENCE:carenest-api}
+    platform:
+      # AUTH-21: client Keycloak (claim azp) ⇒ nền tảng; client lạ hoặc token thiếu azp bị từ chối mọi API
+      web-clients: ${CARENEST_WEB_CLIENT_IDS:carenest-auth-gateway,carenest-web}
+      mobile-clients: ${CARENEST_MOBILE_CLIENT_IDS:carenest-mobile}
+      # Chỉ dev: client lấy token bằng curl, giữ mọi role
+      dev-clients: ${CARENEST_DEV_CLIENT_IDS:}
     cors:
       # Danh sách origin, phân tách bằng dấu phẩy; không dùng "*"
       allowed-origins: ${CARENEST_CORS_ALLOWED_ORIGINS:http://localhost:3000}
@@ -57,7 +69,7 @@ carenest:
     read-timeout: 5s
   edu-plan:
     # EDU-10: khóa "Đang sửa" kế hoạch năm tự nhả sau khoảng này kể từ lần lưu cuối
-    edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:30m}
+    edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:90s}
 
 management:
   endpoints:

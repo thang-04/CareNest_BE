@@ -78,7 +78,7 @@ public class StaffAccessPolicy {
                         && campusId != null
                         && managedCampusIds(actor).contains(campusId));
         if (!allowed) {
-            deny("checkCanCreate", actor, ApiCode.ROLE_CREATE_DENIED);
+            deny("checkCanCreate", actor, ApiCode.ACCOUNT_ROLE_CREATE_DENIED);
         }
     }
 
@@ -111,7 +111,7 @@ public class StaffAccessPolicy {
                         && campusId != null
                         && managedCampusIds(actor).contains(campusId));
         if (!allowed) {
-            deny("checkCanAssign", actor, ApiCode.ASSIGNMENT_MANAGE_DENIED);
+            deny("checkCanAssign", actor, ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
         }
     }
 
@@ -119,7 +119,7 @@ public class StaffAccessPolicy {
     public void checkCanManageChildGuardians(CurrentUser actor, Long childId) {
         if (!managesWholeSchool(actor)
                 && Collections.disjoint(managedCampusIds(actor), currentCampusesOfChildren(Set.of(childId)))) {
-            deny("checkCanManageChildGuardians", actor, ApiCode.CHILD_GUARDIANS_MANAGE_DENIED);
+            deny("checkCanManageChildGuardians", actor, ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
         }
     }
 
@@ -158,8 +158,8 @@ public class StaffAccessPolicy {
         return LocalDate.now(clock);
     }
 
-    private static void deny(String check, CurrentUser actor, ApiCode code) {
+    private static void deny(String check, CurrentUser actor, ApiCode apiCode) {
         log.warn("[{}]|userId={}|denied", check, actor.userId());
-        throw GlobalException.of(code);
+        throw GlobalException.of(apiCode);
     }
 }

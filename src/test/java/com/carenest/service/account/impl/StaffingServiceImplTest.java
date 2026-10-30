@@ -88,14 +88,14 @@ class StaffingServiceImplTest {
     void outOfScopeAssignmentIsDeniedBeforeWriting() {
         givenAccount(40L, CareNestRole.TEACHER);
         given(assignments.resolveCampusId(StaffRole.TEACHER, null, 99L)).willReturn(20L);
-        willThrow(GlobalException.of(ApiCode.ASSIGNMENT_MANAGE_DENIED))
+        willThrow(GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED))
                 .given(policy)
                 .checkCanAssign(VICE, StaffRole.TEACHER, 20L);
 
         assertThatThrownBy(
                         () -> service.assignStaff(VICE, new CreateStaffAssignmentRequest(40L, null, 99L, null, null)))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.ASSIGNMENT_MANAGE_DENIED);
+                .isEqualTo(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
         verify(assignments, never()).createAssignment(any());
     }
 
@@ -106,7 +106,7 @@ class StaffingServiceImplTest {
 
         assertThatThrownBy(() -> service.endAssignment(VICE, 77L, TODAY))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.ASSIGNMENT_MANAGE_DENIED);
+                .isEqualTo(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
     }
 
     @Test

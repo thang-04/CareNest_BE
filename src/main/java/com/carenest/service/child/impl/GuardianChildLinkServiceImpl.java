@@ -96,7 +96,7 @@ public class GuardianChildLinkServiceImpl implements GuardianChildLinkService {
         log.info("{}|START", logPrefix);
         try {
             if (guardianChildLinkRepository.existsByUserIdAndChildId(userId, childId)) {
-                throw GlobalException.of(ApiCode.PARENT_ALREADY_LINKED);
+                throw GlobalException.of(ApiCode.GUARDIAN_ALREADY_LINKED);
             }
             GuardianChildLink saved = guardianChildLinkRepository.saveAndFlush(
                     GuardianChildLink.create(userId, childId, relationship.name()));

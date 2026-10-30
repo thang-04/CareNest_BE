@@ -82,9 +82,17 @@ class StaffAssignmentServiceImplTest {
                 .isEqualTo(ApiCode.ASSIGNMENT_ALREADY_ENDED);
     }
 
+    @Test
+    void teamLeaderIsNotAssignedThroughGenericStaffAssignment() {
+        assertThatThrownBy(() -> service.resolveCampusId(StaffRole.AGE_GROUP_TEAM_LEADER, null, null))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.TEAM_LEADER_ASSIGNMENT_NOT_HERE);
+    }
+
+    // Mỗi sai hình dạng phạm vi có mã riêng; helper chỉ cần biết là 400
     private void assertBadRequest(StaffRole role, Long campusId, Long classroomId) {
         assertThatThrownBy(() -> service.resolveCampusId(role, campusId, classroomId))
                 .extracting("apiCode.httpStatus")
-                .isEqualTo(org.springframework.http.HttpStatus.BAD_REQUEST);
+                .isEqualTo(ApiCode.BAD_REQUEST.getHttpStatus());
     }
 }

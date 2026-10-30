@@ -52,6 +52,20 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public boolean hasActiveTeamLeaderAssignment(Long userId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|hasActiveTeamLeaderAssignment|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean active = staffAssignmentRepository.existsActiveTeamLeader(userId, date);
+            log.info("{}|END", logPrefix);
+            return active;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public boolean hasActiveCampusAssignment(Long userId, StaffRole staffRole, Long campusId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|hasActiveCampusAssignment|userId=" + userId + "|role=" + staffRole
                 + "|campusId=" + campusId;
@@ -112,22 +126,6 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
-    public Set<Long> findActiveCampusIds(Long userId, StaffRole staffRole, LocalDate date) {
-        String logPrefix = LOG_PREFIX + "|findActiveCampusIds|userId=" + userId + "|role=" + staffRole;
-        log.info("{}|START", logPrefix);
-        try {
-            List<Long> campusIds = staffRole == StaffRole.TEACHER
-                    ? staffAssignmentRepository.findActiveTeacherCampusIds(userId, date)
-                    : staffAssignmentRepository.findActiveCampusIds(userId, staffRole, date);
-            log.info("{}|END", logPrefix);
-            return Set.copyOf(campusIds);
-        } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
-            throw ex;
-        }
-    }
-
-    @Override
     public Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderAgeGroupIds|userId=" + userId;
         log.info("{}|START", logPrefix);
@@ -135,24 +133,6 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             Set<Long> ageGroupIds = Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderAgeGroupIds(userId, date));
             log.info("{}|END", logPrefix);
             return ageGroupIds;
-        } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
-            throw ex;
-        }
-    }
-
-    @Override
-    public Set<Long> findActiveStaffUserIds(Collection<Long> campusIds, LocalDate date) {
-        String logPrefix = LOG_PREFIX + "|findActiveStaffUserIds|campuses=" + campusIds.size();
-        log.info("{}|START", logPrefix);
-        try {
-            Set<Long> userIds = new HashSet<>();
-            if (!campusIds.isEmpty()) {
-                userIds.addAll(staffAssignmentRepository.findActiveTeacherUserIds(campusIds, date));
-                userIds.addAll(staffAssignmentRepository.findActiveCampusStaffUserIds(campusIds, date));
-            }
-            log.info("{}|END", logPrefix);
-            return userIds;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -242,6 +222,40 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Set<Long> findActiveCampusIds(Long userId, StaffRole staffRole, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveCampusIds|userId=" + userId + "|role=" + staffRole;
+        log.info("{}|START", logPrefix);
+        try {
+            List<Long> campusIds = staffRole == StaffRole.TEACHER
+                    ? staffAssignmentRepository.findActiveTeacherCampusIds(userId, date)
+                    : staffAssignmentRepository.findActiveCampusIds(userId, staffRole, date);
+            log.info("{}|END", logPrefix);
+            return Set.copyOf(campusIds);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findActiveStaffUserIds(Collection<Long> campusIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveStaffUserIds|campuses=" + campusIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> userIds = new HashSet<>();
+            if (!campusIds.isEmpty()) {
+                userIds.addAll(staffAssignmentRepository.findActiveTeacherUserIds(campusIds, date));
+                userIds.addAll(staffAssignmentRepository.findActiveCampusStaffUserIds(campusIds, date));
+            }
+            log.info("{}|END", logPrefix);
+            return userIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Map<Long, List<StaffAssignmentSummaryResponse>> findActiveAssignmentsByUserIds(
             Collection<Long> userIds, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveAssignmentsByUserIds|users=" + userIds.size();
@@ -316,7 +330,7 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         try {
             resolveScope(assignment.staffRole(), assignment.campusId(), assignment.classroomId());
             if (assignment.validFrom() == null) {
-                throw GlobalException.of(ApiCode.ASSIGNMENT_START_REQUIRED);
+                throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "ngày bắt đầu phân công");
             }
             if (assignment.validTo() != null && assignment.validTo().isBefore(assignment.validFrom())) {
                 throw GlobalException.of(ApiCode.ASSIGNMENT_END_BEFORE_START);
@@ -352,7 +366,7 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         try {
             StaffAssignment assignment = staffAssignmentRepository
                     .findById(assignmentId)
-                    .orElseThrow(() -> GlobalException.of(ApiCode.ASSIGNMENT_NOT_FOUND));
+                    .orElseThrow(() -> GlobalException.of(ApiCode.STAFF_ASSIGNMENT_NOT_FOUND));
             if (lastDay.isBefore(assignment.getValidFrom())) {
                 throw GlobalException.of(ApiCode.ASSIGNMENT_END_BEFORE_START);
             }
@@ -375,7 +389,7 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         return switch (staffRole) {
             case PRINCIPAL -> {
                 if (campusId != null || classroomId != null) {
-                    throw GlobalException.of(ApiCode.PRINCIPAL_ASSIGNMENT_NO_SCOPE);
+                    throw GlobalException.of(ApiCode.PRINCIPAL_ASSIGNMENT_SCHOOL_WIDE);
                 }
                 yield null;
             }
@@ -390,14 +404,14 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             }
             case TEACHER -> {
                 if (classroomId == null || campusId != null) {
-                    throw GlobalException.of(ApiCode.TEACHER_CLASSROOM_REQUIRED);
+                    throw GlobalException.of(ApiCode.ASSIGNMENT_CLASS_REQUIRED);
                 }
                 yield classroomRepository
                         .findCampusIdById(classroomId)
                         .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
             }
-            // Tổ trưởng gắn nhóm tuổi + năm học, tạo qua TeacherAssignmentService (/team-leader-assignments)
-            case AGE_GROUP_TEAM_LEADER -> throw GlobalException.of(ApiCode.TEAM_LEADER_ASSIGNMENT_ELSEWHERE);
+            // Tổ trưởng gắn nhóm tuổi + năm học, phân công qua TeacherAssignmentService (luật 1 tổ trưởng/nhóm/năm)
+            case AGE_GROUP_TEAM_LEADER -> throw GlobalException.of(ApiCode.TEAM_LEADER_ASSIGNMENT_NOT_HERE);
         };
     }
 }

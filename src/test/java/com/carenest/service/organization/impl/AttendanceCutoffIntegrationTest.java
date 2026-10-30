@@ -31,7 +31,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Giờ chốt điểm danh trên PostgreSQL thật (V14): lịch sử và giờ áp dụng theo ngày. Cần Docker. */
+/** Giờ chốt điểm danh trên PostgreSQL thật (V17): lịch sử và giờ áp dụng theo ngày. Cần Docker. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)

@@ -27,7 +27,7 @@ while read -r lref lsha rref rsha; do
         cn_err "force push $rref viết lại lịch sử remote — cần user cho phép (CARENEST_ALLOW_FORCE_PUSH=1)"
       fi
     fi
-    # Bỏ commit đã có trên remote khác (vd. kéo dev về) — chỉ kiểm commit chưa từng push
+    # Bỏ commit đã có trên remote (vd. merge dev vào nhánh): commit cũ không sửa được nếu không viết lại lịch sử
     range=$(git rev-list "$lsha" --not "$rsha" --remotes)
   fi
 

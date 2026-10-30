@@ -18,7 +18,7 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 
 | Trong v1 | Không thuộc v1 |
 | --- | --- |
-| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; kho/NCC (OPEN — ADR-0009); tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
+| Điểm danh, đón trẻ, tổng hợp suất ăn; thực đơn, kho khô rút gọn (ADR-0009); hồ sơ sức khỏe và đánh giá trẻ; kế hoạch giáo dục (ADR-0020); cổng thông tin phụ huynh; thông báo; báo cáo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; sự cố cơ sở vật chất (đã loại 29/10); kiểm kê kho, thu tiền ăn; tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
 
 ## 2. Tech stack
 
@@ -70,7 +70,7 @@ CareNest_BE/
     └── test/java/.../carenest/
 ```
 
-- Mỗi package lớp NÊN chia tiếp theo chức năng: `controller/attendance/`, `service/attendance/`, `dto/attendance/`, ... (attendance, child, meals, facilities, ...).
+- Mỗi package lớp NÊN chia tiếp theo chức năng: `controller/attendance/`, `service/attendance/`, `dto/attendance/`, ... (attendance, child, meals, ...).
 - KHÔNG tạo package `domain/` hay tách module theo DDD.
 - Service PHẢI tách interface + implementation (ADR-0014): `service/child/ChildService.java` (interface) và `service/child/impl/ChildServiceImpl.java`. Interface giữ tên gốc để caller và mock không phụ thuộc implementation.
 - Enum và hằng dùng chung PHẢI tập trung ở `utils/` (ADR-0014): mục 6.3.
@@ -290,7 +290,7 @@ Lỗi PHẢI ném exception (mục 11) để handler trả thống nhất. Chỉ
 | Quản trị viên | Quản lý tài khoản/cấu hình; không mặc định được xem dữ liệu trẻ |
 
 - Truy cập ngoài phạm vi: ném `GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED)` / `CLASS_ACCESS_DENIED` / `CHILD_ACCESS_DENIED`.
-- Kiểm tra scope dùng policy trong `security/authorization/` (`CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy`): service gọi `checkCanXxx(currentUser, id)` **trước** khi load dữ liệu (id không tồn tại cũng trả 403, không lộ id). KHÔNG viết `if (role == TEACHER)` rải rác trong service; thêm rule mới vào policy và test policy trực tiếp. Chi tiết: `docs/architecture/SECURITY.md`.
+- Kiểm tra scope dùng policy trong `security/authorization/` (`CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy`): service gọi `checkCanXxx(currentUser, id)` **trước** khi load dữ liệu (id không tồn tại cũng trả 403, không lộ id). Ghi dùng `checkCanView*` (phạm vi thao tác); đọc có thể dùng `checkCanRead*` (thêm xem liên cơ sở — AUTH-20). KHÔNG viết `if (role == TEACHER)` rải rác trong service; thêm rule mới vào policy và test policy trực tiếp. Chi tiết: `docs/architecture/SECURITY.md`.
 - NÊN có test cho trường hợp bị từ chối (lớp khác, cơ sở khác, phụ huynh không liên kết).
 
 ## 10. Logging
@@ -410,7 +410,7 @@ Entity và quan hệ: `docs/business/DOMAIN_MODEL.md` (tên chuẩn, vd. `Classr
 2. **Đăng nhập và phạm vi:** user/role, campus/class assignment, liên kết guardian-child, test quyền.
 3. **Luồng ưu tiên:** điểm danh → BGH xác nhận số ăn → bếp xem số liệu.
 4. **Hồ sơ trẻ:** observation/health record, chia sẻ phụ huynh, audit, lịch sử.
-5. **Mở rộng:** facility report, notification, thực đơn; AI chỉ sau khi dữ liệu và baseline sẵn sàng.
+5. **Mở rộng:** notification, thực đơn, kế hoạch giáo dục; AI chỉ sau khi dữ liệu và baseline sẵn sàng.
 
 ## 16. Khi guide chưa đủ
 

@@ -28,7 +28,7 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 ### Dev user (`teacher.a`…) báo sai mật khẩu — Keycloak `user_not_found`
 - Nguyên nhân: realm `carenest` đã tồn tại trước khi mount `docker/keycloak/dev/carenest-users-0.json`; `--import-realm` dùng `IGNORE_EXISTING` nên log `Realm 'carenest' already exists. Import skipped` và user dev không bao giờ được tạo. DB app vẫn có seed `user_accounts` nên lệch hai bên. API map `invalid_grant` thành 401 sai mật khẩu (không lộ user tồn tại hay không).
 - Kiểm: `docker compose logs keycloak | grep LOGIN_ERROR` thấy `error="user_not_found"`; liệt kê user realm: `docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d keycloak -tAc "select username from user_entity u join realm r on r.id=u.realm_id where r.name=$carenest$"'`.
-- Xử lý (giữ realm, không xóa volume): partial import file user dev với `ifResourceExists=SKIP`, thay placeholder `${KEYCLOAK_DEV_USER_PASSWORD}` trước khi gửi (Admin REST `POST /admin/realms/carenest/partialImport`). Cách nặng hơn: xóa DB `keycloak` để import lại từ đầu — mất user/client tạo tay và cấu hình gateway đã bootstrap.
+- Xử lý (giữ realm, không xóa volume): partial import file user dev (mật khẩu đã hash sẵn, gửi nguyên file) với `ifResourceExists=SKIP` — hoặc `OVERWRITE` khi file user dev đổi username/email/mật khẩu (Admin REST `POST /admin/realms/carenest/partialImport`). Cách nặng hơn: xóa DB `keycloak` để import lại từ đầu — mất user/client tạo tay và cấu hình gateway đã bootstrap.
 - Incident: ENV-261013-keycloak-dev-users-missing
 
 ### `invalid_grant` — `Account is not fully set up` (Keycloak)
@@ -58,6 +58,19 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
   - Khai báo `DB_PASSWORD` (env hoặc IDE run config) khớp với `POSTGRES_PASSWORD`.
   - Hoặc xóa volume nếu dữ liệu local không cần giữ: `docker compose down -v`.
 - Nguồn: suy ra từ phân tích cấu hình (`.env.example`, `compose.yaml`, `application.yml`); chưa có incident.
+
+### VPS: `docker network create` lỗi `No chain/target/match by that name`; container bridge không ra Internet
+- Nguyên nhân: VPS `k8selchat` mất chain iptables của Docker (tầng k8s của server, ngoài quyền nhóm). Không sửa iptables, không restart Docker trên server chung.
+- Xử lý: mọi service CareNest chạy `network_mode: host`, bind `127.0.0.1:<port>`, gọi nhau qua `127.0.0.1` (`compose.vps.yaml`); image build ở GitHub Actions, VPS chỉ pull. Chi tiết chẩn đoán: `FE:docs/knowledge/TROUBLESHOOTING.md`.
+- Nguồn: user chạy lệnh trên VPS, 2026-10-21 (FE) và 2026-10-30.
+
+### VPS: cổng `8080` / `18080` đã bị chiếm; `web.carenest.edu.vn/api/*` trả nội dung lạ
+- Nguyên nhân: `*:8080` và `127.0.0.1:18080` là `java` của app khác trên server chung (`ss -ltnp`, 2026-10-30). Caddy FE ban đầu proxy `/api/*` ⇒ `127.0.0.1:8080` nên đi vào app đó.
+- Xử lý: API CareNest nghe `127.0.0.1:18310`; Caddy FE phải trỏ `/api/*` ⇒ `127.0.0.1:18310` (`FE:deploy/caddy/carenest-web.caddy`). Chọn cổng mới: `sudo ss -ltnp | grep :<port>` rỗng rồi ghi bảng cổng `docs/system/DEPLOYMENT.md`.
+
+### Hook chặn ghi file tên `.env.*` (vd. `.env.vps.example`): `Không đọc/ghi .env hay khóa bí mật`
+- Nguyên nhân: hook bảo vệ secret của repo khớp mọi tên `.env*`, kể cả file mẫu mới.
+- Xử lý: mẫu biến môi trường mới đặt tên không bắt đầu bằng `.env` — mẫu VPS ở `deploy/vps.env.example`. Không lách hook.
 
 ## Format
 

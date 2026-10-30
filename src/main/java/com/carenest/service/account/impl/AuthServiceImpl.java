@@ -19,12 +19,16 @@ import com.carenest.service.account.AuthService.SessionCookie;
 import com.carenest.service.account.AuthStateStore;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.Constants.Auth;
+import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.ClientPlatform;
 import com.carenest.utils.enums.PasswordTokenPurpose;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -37,6 +41,8 @@ public class AuthServiceImpl implements AuthService {
     private static final String COOKIE_CONTEXT = "session-cookie";
     private static final String COOKIE_VERSION = "s1";
     private static final int MAX_COOKIE_LENGTH = 4096;
+    // AUTH-21: bếp và phụ huynh chỉ dùng App, gateway Web không cấp phiên cho họ
+    private static final Set<CareNestRole> WEB_ROLES = ClientPlatform.WEB.allowedRoles();
 
     private final AuthProperties properties;
     private final AuthCrypto crypto;
@@ -100,9 +106,12 @@ public class AuthServiceImpl implements AuthService {
             AuthGatewayClient.Tokens tokens = null;
             boolean issued = false;
             try {
-                tokens = keycloak.login(request.identifier().trim(), request.password());
+                // Gõ SĐT kiểu nào (+84, dấu cách) cũng về đúng tên đăng nhập; email/tên cũ giữ nguyên
+                String identifier = request.identifier().trim();
+                tokens = keycloak.login(PhoneNumbers.normalize(identifier).orElse(identifier), request.password());
                 Jwt jwt = decode(tokens.accessToken());
                 CurrentUser current = currentUsers.getCurrentUser(jwt);
+                ensureWebRole(current.roles());
                 MyAccountResponse profile = accountService.getMyAccount(current);
                 if (tokens.refreshToken() == null) throw invalidSession();
                 Instant now = clock.instant();
@@ -117,6 +126,8 @@ public class AuthServiceImpl implements AuthService {
                 UserAccount account = accounts.findByKeycloakUserId(challenge.userId())
                         .orElseThrow(() -> GlobalException.of(ApiCode.ACCOUNT_NOT_PROVISIONED));
                 if (!account.isActive()) throw GlobalException.of(ApiCode.ACCOUNT_INACTIVE);
+                // Chưa có token nên dựa vào primary_role; tài khoản cũ chưa có primary_role để lần login sau kiểm
+                if (account.getPrimaryRole() != null) ensureWebRole(Set.of(account.getPrimaryRole()));
                 String handle = crypto.randomToken();
                 String hash = crypto.hash(handle);
                 Instant now = clock.instant();
@@ -182,7 +193,8 @@ public class AuthServiceImpl implements AuthService {
         boolean issued = false;
         try {
             if (tokens.refreshToken() == null) throw invalidSession();
-            currentUsers.getCurrentUser(decode(tokens.accessToken()));
+            ensureWebRole(
+                    currentUsers.getCurrentUser(decode(tokens.accessToken())).roles());
             SessionCookie cookie = sessionCookie(tokens.refreshToken(), session.remember(), session.loginAt(), now);
             issued = true;
             return new RefreshResult(
@@ -266,11 +278,10 @@ public class AuthServiceImpl implements AuthService {
                     crypto.keyedHash("recovery-rate:" + lookup + ":" + window),
                     Auth.RATE_LIMIT,
                     Instant.ofEpochSecond((window + 1) * 1800));
-            // AUTH-18: email phụ huynh chỉ để liên hệ ⇒ không khôi phục bằng email đó, và nhân sự trùng email
-            // với phụ huynh (vd. giáo viên có con học ở trường) vẫn nhận OTP
+            // AUTH-21: bếp/phụ huynh không khôi phục mật khẩu qua Web; coi như email không tồn tại để không lộ loại TK
             List<UserAccount> matches = accounts.findByEmailIgnoreCase(email).stream()
                     .filter(UserAccount::isActive)
-                    .filter(match -> match.getPrimaryRole() != CareNestRole.PARENT)
+                    .filter(AuthServiceImpl::mayUseWeb)
                     .toList();
             UserAccount account = matches.size() == 1 && allowed ? matches.getFirst() : null;
             String requestId = crypto.randomToken();
@@ -495,6 +506,15 @@ public class AuthServiceImpl implements AuthService {
 
     private void ensureEnabled() {
         if (!properties.enabled()) throw GlobalException.of(ApiCode.WEB_AUTH_GATEWAY_DISABLED);
+    }
+
+    private static void ensureWebRole(Set<CareNestRole> roles) {
+        if (Collections.disjoint(roles, WEB_ROLES)) throw GlobalException.of(ApiCode.FORBIDDEN);
+    }
+
+    // Tài khoản cũ chưa có primary_role cho qua, như nhánh đổi mật khẩu lần đầu
+    private static boolean mayUseWeb(UserAccount account) {
+        return account.getPrimaryRole() == null || WEB_ROLES.contains(account.getPrimaryRole());
     }
 
     private static GlobalException malformed() {

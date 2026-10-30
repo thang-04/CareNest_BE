@@ -20,6 +20,15 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     boolean existsActiveByRole(
             @Param("userId") Long userId, @Param("staffRole") StaffRole staffRole, @Param("date") LocalDate date);
 
+    // Native vì phân công tổ trưởng (AGE_GROUP_TEAM_LEADER) do module education-plan thêm vào bảng, chưa có trong
+    // enum StaffRole của module này
+    @Query(value = """
+            select exists (select 1 from staff_assignments a
+            where a.user_id = :userId and a.staff_role = 'AGE_GROUP_TEAM_LEADER'
+              and a.valid_from <= :date and (a.valid_to is null or a.valid_to >= :date))
+            """, nativeQuery = true)
+    boolean existsActiveTeamLeader(@Param("userId") Long userId, @Param("date") LocalDate date);
+
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
             where a.userId = :userId and a.staffRole = :staffRole and a.campusId = :campusId
@@ -79,47 +88,6 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date) order by a.staffRole, a.id")
     List<StaffAssignment> findActiveByUserId(@Param("userId") Long userId, @Param("date") LocalDate date);
 
-    List<StaffAssignment> findByUserIdOrderByValidFromDescIdDesc(Long userId);
-
-    @Query("select a from StaffAssignment a where a.userId in :userIds"
-            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date) order by a.staffRole, a.id")
-    List<StaffAssignment> findActiveByUserIdIn(
-            @Param("userIds") Collection<Long> userIds, @Param("date") LocalDate date);
-
-    // Campus của phân công campus (PHT/bếp) theo role
-    @Query("select distinct a.campusId from StaffAssignment a where a.userId = :userId and a.staffRole = :staffRole"
-            + " and a.campusId is not null and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
-    List<Long> findActiveCampusIds(
-            @Param("userId") Long userId, @Param("staffRole") StaffRole staffRole, @Param("date") LocalDate date);
-
-    // Campus của các lớp giáo viên đang được phân công
-    @Query("select distinct c.campusId from StaffAssignment a, Classroom c where a.classroomId = c.id"
-            + " and a.userId = :userId and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
-    List<Long> findActiveTeacherCampusIds(@Param("userId") Long userId, @Param("date") LocalDate date);
-
-    // PHT và bếp có phân công campus
-    @Query("select distinct a.userId from StaffAssignment a where a.campusId in :campusIds"
-            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
-    List<Long> findActiveCampusStaffUserIds(
-            @Param("campusIds") Collection<Long> campusIds, @Param("date") LocalDate date);
-
-    @Query("select distinct a.userId from StaffAssignment a, Classroom c where a.classroomId = c.id"
-            + " and c.campusId in :campusIds and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
-    List<Long> findActiveTeacherUserIds(@Param("campusIds") Collection<Long> campusIds, @Param("date") LocalDate date);
-
-    // Phân công cùng người, cùng role, cùng phạm vi chưa kết thúc trước ngày bắt đầu mới ⇒ trùng
-    @Query("""
-            select case when count(a) > 0 then true else false end from StaffAssignment a
-            where a.userId = :userId and a.staffRole = :staffRole
-              and a.campusId is not distinct from :campusId and a.classroomId is not distinct from :classroomId
-              and (a.validTo is null or a.validTo >= :validFrom)
-            """)
-    boolean existsOverlapping(
-            @Param("userId") Long userId,
-            @Param("staffRole") StaffRole staffRole,
-            @Param("campusId") Long campusId,
-            @Param("classroomId") Long classroomId,
-            @Param("validFrom") LocalDate validFrom);
     // Lớp GV đang dạy hoặc sắp dạy (phân công chưa kết thúc tính tới :date)
     @Query("select distinct a.classroomId from StaffAssignment a where a.userId = :userId"
             + " and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
@@ -184,4 +152,46 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
 
         Long getCampusId();
     }
+
+    List<StaffAssignment> findByUserIdOrderByValidFromDescIdDesc(Long userId);
+
+    @Query("select a from StaffAssignment a where a.userId in :userIds"
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date) order by a.staffRole, a.id")
+    List<StaffAssignment> findActiveByUserIdIn(
+            @Param("userIds") Collection<Long> userIds, @Param("date") LocalDate date);
+
+    // Campus của phân công campus (PHT/bếp) theo role
+    @Query("select distinct a.campusId from StaffAssignment a where a.userId = :userId and a.staffRole = :staffRole"
+            + " and a.campusId is not null and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findActiveCampusIds(
+            @Param("userId") Long userId, @Param("staffRole") StaffRole staffRole, @Param("date") LocalDate date);
+
+    // Campus của các lớp giáo viên đang được phân công
+    @Query("select distinct c.campusId from StaffAssignment a, Classroom c where a.classroomId = c.id"
+            + " and a.userId = :userId and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findActiveTeacherCampusIds(@Param("userId") Long userId, @Param("date") LocalDate date);
+
+    // PHT và bếp có phân công campus
+    @Query("select distinct a.userId from StaffAssignment a where a.campusId in :campusIds"
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findActiveCampusStaffUserIds(
+            @Param("campusIds") Collection<Long> campusIds, @Param("date") LocalDate date);
+
+    @Query("select distinct a.userId from StaffAssignment a, Classroom c where a.classroomId = c.id"
+            + " and c.campusId in :campusIds and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findActiveTeacherUserIds(@Param("campusIds") Collection<Long> campusIds, @Param("date") LocalDate date);
+
+    // Phân công cùng người, cùng role, cùng phạm vi chưa kết thúc trước ngày bắt đầu mới ⇒ trùng
+    @Query("""
+            select case when count(a) > 0 then true else false end from StaffAssignment a
+            where a.userId = :userId and a.staffRole = :staffRole
+              and a.campusId is not distinct from :campusId and a.classroomId is not distinct from :classroomId
+              and (a.validTo is null or a.validTo >= :validFrom)
+            """)
+    boolean existsOverlapping(
+            @Param("userId") Long userId,
+            @Param("staffRole") StaffRole staffRole,
+            @Param("campusId") Long campusId,
+            @Param("classroomId") Long classroomId,
+            @Param("validFrom") LocalDate validFrom);
 }

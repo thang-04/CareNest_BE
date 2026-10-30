@@ -44,19 +44,15 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     @Override
-    public Map<Long, Long> findActiveClassroomIdByChildIds(Collection<Long> childIds, LocalDate date) {
-        String logPrefix = LOG_PREFIX + "|findActiveClassroomIdByChildIds|children=" + childIds.size();
+    public Set<Long> findChildIdsLeftSchool(Collection<Long> childIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findChildIdsLeftSchool|count=" + childIds.size();
         log.info("{}|START", logPrefix);
         try {
-            Map<Long, Long> classroomByChild = new HashMap<>();
-            if (!childIds.isEmpty()) {
-                // Query sắp mới nhất trước: giữ bản ghi đầu tiên của mỗi trẻ
-                for (Enrollment enrollment : enrollmentRepository.findActiveByChildIdIn(childIds, date)) {
-                    classroomByChild.putIfAbsent(enrollment.getChildId(), enrollment.getClassroomId());
-                }
-            }
-            log.info("{}|END", logPrefix);
-            return classroomByChild;
+            Set<Long> left = childIds.isEmpty()
+                    ? Set.of()
+                    : Set.copyOf(enrollmentRepository.findChildIdsLeftSchool(childIds, date));
+            log.info("{}|left={}|END", logPrefix, left.size());
+            return left;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -77,6 +73,26 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                     .toList();
             log.info("{}|END", logPrefix);
             return children;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, Long> findActiveClassroomIdByChildIds(Collection<Long> childIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveClassroomIdByChildIds|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> classroomByChild = new HashMap<>();
+            if (!childIds.isEmpty()) {
+                // Query sắp mới nhất trước: giữ bản ghi đầu tiên của mỗi trẻ
+                for (Enrollment enrollment : enrollmentRepository.findActiveByChildIdIn(childIds, date)) {
+                    classroomByChild.putIfAbsent(enrollment.getChildId(), enrollment.getClassroomId());
+                }
+            }
+            log.info("{}|END", logPrefix);
+            return classroomByChild;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

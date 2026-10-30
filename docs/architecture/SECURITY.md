@@ -9,8 +9,9 @@ Dữ liệu cần bảo vệ: thông tin trẻ em, sức khỏe, quan hệ phụ
 **Keycloak + Spring Security OAuth2 Resource Server** (ADR-0011). Contract: `docs/contracts/AUTH_CONTRACT.md`; vận hành: `docs/system/KEYCLOAK.md`.
 
 - Keycloak: đăng nhập (Authorization Code + PKCE), băm mật khẩu, password policy, reset mật khẩu, khóa tạm khi sai 5 lần (PROPOSED), session, access token 5 phút + refresh token xoay vòng, realm role toàn cục.
-- BE: kiểm JWT tại chỗ bằng JWKS có cache (chữ ký, `iss`, `aud=carenest-api`, `exp`/`nbf`), map `realm_access.roles` → `ROLE_*`, `@PreAuthorize`; 401/403 dạng `ResponseJson`. Stateless, tắt CSRF (chỉ xác thực bằng header Bearer, không cookie), CORS theo danh sách origin.
+- BE: kiểm JWT tại chỗ bằng JWKS có cache (chữ ký, `iss`, `aud=carenest-api`, `exp`/`nbf`), map `realm_access.roles` → `ROLE_*` chỉ giữ role của nền tảng theo claim `azp` (ADR-0022: Web = ADMIN/PRINCIPAL/VICE_PRINCIPAL/TEACHER, App = TEACHER/KITCHEN_STAFF/PARENT; hết role, client lạ hoặc thiếu `azp` ⇒ 403 mọi API), `@PreAuthorize`; 401/403 dạng `ResponseJson`. Stateless, tắt CSRF (chỉ xác thực bằng header Bearer, không cookie), CORS theo danh sách origin.
 - BE **không** có login/refresh, không lưu mật khẩu hay refresh token, không tự ký JWT, không log token/header `Authorization`.
+- Ngoại lệ Web (ADR-0013, ADR-0015): gateway opt-in `/auth/**` nhận mật khẩu qua confidential client Direct Grant, refresh token mã hóa trong cookie HttpOnly + CSRF cookie/header cho POST `/auth/**`; dòng PKCE/CSRF ở trên áp cho API Bearer, Mobile và Web legacy. Gateway chỉ cấp phiên cho role ADMIN/PRINCIPAL/VICE_PRINCIPAL/TEACHER (AUTH-21).
 - `ActiveAccountInterceptor`: **mọi** request API có token phải thuộc tài khoản `user_accounts` ACTIVE (403 `Account is not provisioned` / `Account is inactive`), không phụ thuộc controller có khai báo `CurrentUser` hay không.
 - Keycloak tắt khi API chưa cache JWKS ⇒ 503 `Authentication service unavailable` (BUG-261006-jwks-unavailable-returns-500); đã cache thì token còn hạn vẫn kiểm được.
 - Client `carenest-dev` (password grant) chỉ bật khi `CARENEST_DEV_CLIENT_ENABLED=true` (compose dev); realm import mặc định tắt.
@@ -38,6 +39,7 @@ Client (Web/Mobile)          Keycloak (realm carenest)              CareNest API
 | Thiếu token, sai chữ ký, hết hạn, sai `iss`/`aud` | 401 `Unauthorized` + `WWW-Authenticate: Bearer` | `RestAuthenticationEntryPoint` |
 | Chưa lấy được JWKS (Keycloak tắt, API chưa cache key) | 503 `Authentication service unavailable` | `RestAuthenticationEntryPoint` (failure handler của `BearerTokenAuthenticationFilter`, BUG-261006-jwks-unavailable-returns-500) |
 | Token hợp lệ nhưng chưa cấp tài khoản / `INACTIVE` | 403 `Account is not provisioned` / `Account is inactive` | `ActiveAccountInterceptor` |
+| Token không còn role nào dùng được trên nền tảng của client (`azp`) | 403 `FORBIDDEN` 1101 | `SecurityConfig` (authority `PLATFORM_DENIED`) ⇒ `RestAccessDeniedHandler` |
 | Không có quyền (permission) của endpoint | 403 `Forbidden` | `@PreAuthorize` ⇒ `GlobalExceptionHandler`; trong filter chain ⇒ `RestAccessDeniedHandler` |
 | Ngoài phạm vi campus/lớp/trẻ (kể cả id không tồn tại) | 403 | `*AccessPolicy.checkCanXxx` |
 
@@ -71,9 +73,12 @@ Mọi lỗi đi qua `SecurityResponseWriter` / `GlobalExceptionHandler` ⇒ cùn
 
 | Policy | Cho phép khi | Không bao giờ |
 | --- | --- | --- |
-| `CampusAccessPolicy.canViewCampus` | PRINCIPAL + phân công PRINCIPAL còn hiệu lực (mọi campus); VICE_PRINCIPAL + phân công VP tại campus đó | Bếp (phân công campus của bếp chỉ cho dữ liệu bếp), GV, PH, Admin |
-| `ClassroomAccessPolicy.canViewClassroom` | TEACHER + phân công lớp đó còn hiệu lực; hoặc `canViewCampus(campus của lớp)` | Phân công lớp đã kết thúc/năm trước |
-| `ChildAccessPolicy.canViewChild` | PARENT + liên kết với trẻ; hoặc TEACHER/VP/PRINCIPAL có `canViewClassroom(lớp trẻ đang học hôm nay)` | Bếp, Admin (không bypass), trẻ không có enrollment hiện tại |
+| `CampusAccessPolicy.canViewCampus` | PRINCIPAL + phân công PRINCIPAL còn hiệu lực (mọi campus); VICE_PRINCIPAL + phân công VP tại campus đó | Bếp (phân công campus của bếp chỉ cho dữ liệu bếp), GV, PH, Admin; `ALL_CAMPUS_VIEW` không mở rộng hàm này |
+| `CampusAccessPolicy.canReadCampus` | `canViewCampus`; hoặc VICE_PRINCIPAL có `ALL_CAMPUS_VIEW` + phân công VP còn hiệu lực ở campus bất kỳ (mọi campus — AUTH-20) | Như `canViewCampus`; không dùng cho đường ghi |
+| `ClassroomAccessPolicy.canViewClassroom` / `canReadClassroom` | TEACHER + phân công lớp đó còn hiệu lực; hoặc `canViewCampus` / `canReadCampus` (campus của lớp) | Phân công lớp đã kết thúc/năm trước (AUTH-03 mở rộng chưa làm) |
+| `ChildAccessPolicy.canViewChild` / `canReadChild` | PARENT + liên kết với trẻ; hoặc TEACHER/VP/PRINCIPAL có `canViewClassroom` / `canReadClassroom` (lớp trẻ đang học hôm nay) | Bếp, Admin (không bypass), trẻ không có enrollment hiện tại |
+
+`canView*` = phạm vi được thao tác: mọi đường ghi dùng nhóm này. `canRead*` rộng hơn (xem liên cơ sở), chỉ cho endpoint đọc tự chọn; module quên chuyển sang `canRead*` thì chỉ thiếu xem, không mở quyền ghi.
 | `StaffAccessPolicy` (AUTH-15..17) | Tạo: Admin → PRINCIPAL; HT có phân công PRINCIPAL → PHT/GV/bếp; PHT → GV/bếp kèm phân công campus mình. Quản lý (khóa/mở, mật khẩu tạm, chi tiết): Admin mọi tài khoản; HT → PHT/GV/bếp; PHT → GV/bếp đang phân công trong campus mình. Phân công: HT → PHT/GV/bếp; PHT → GV/bếp campus mình | Thao tác HT/Admin (trừ Admin), chính mình, tài khoản `primary_role` null (trừ Admin) |
 
 - Mỗi policy có `canXxx` (boolean) và `checkCanXxx` (ném `GlobalException(FORBIDDEN, ...)`, log warn kèm id — không log dữ liệu cá nhân).

@@ -66,23 +66,6 @@ public class StaffAssignment {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    public static StaffAssignment create(
-            Long userId, StaffRole staffRole, Long campusId, Long classroomId, LocalDate validFrom, LocalDate validTo) {
-        StaffAssignment assignment = new StaffAssignment();
-        assignment.userId = userId;
-        assignment.staffRole = staffRole;
-        assignment.campusId = campusId;
-        assignment.classroomId = classroomId;
-        assignment.validFrom = validFrom;
-        assignment.validTo = validTo;
-        return assignment;
-    }
-
-    // Kết thúc bằng valid_to, không xóa dòng: giữ lịch sử ai từng có phạm vi
-    public void endOn(LocalDate lastDay) {
-        this.validTo = lastDay;
-    }
-
     public static StaffAssignment teacher(
             Long userId, Long classroomId, boolean homeroom, LocalDate validFrom, LocalDate validTo, Long assignedBy) {
         StaffAssignment a = new StaffAssignment();
@@ -116,5 +99,22 @@ public class StaffAssignment {
     /** Kết thúc phân công: còn hiệu lực tới hết hôm trước ngày end (lịch sử ai từng có quyền được giữ). */
     public void endBefore(LocalDate end) {
         this.validTo = end.minusDays(1);
+    }
+
+    public static StaffAssignment create(
+            Long userId, StaffRole staffRole, Long campusId, Long classroomId, LocalDate validFrom, LocalDate validTo) {
+        StaffAssignment assignment = new StaffAssignment();
+        assignment.userId = userId;
+        assignment.staffRole = staffRole;
+        assignment.campusId = campusId;
+        assignment.classroomId = classroomId;
+        assignment.validFrom = validFrom;
+        assignment.validTo = validTo;
+        return assignment;
+    }
+
+    // Kết thúc bằng valid_to, không xóa dòng: giữ lịch sử ai từng có phạm vi
+    public void endOn(LocalDate lastDay) {
+        this.validTo = lastDay;
     }
 }

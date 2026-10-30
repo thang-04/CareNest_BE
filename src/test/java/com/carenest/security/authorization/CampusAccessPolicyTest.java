@@ -13,12 +13,14 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class CampusAccessPolicyTest {
@@ -39,6 +41,7 @@ class CampusAccessPolicyTest {
 
         assertThat(policy.canViewCampus(principal, CAMPUS_A)).isTrue();
         assertThat(policy.canViewCampus(principal, CAMPUS_B)).isTrue();
+        assertThat(policy.canReadCampus(principal, CAMPUS_B)).isTrue();
     }
 
     @Test
@@ -59,6 +62,65 @@ class CampusAccessPolicyTest {
 
         assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_A)).isTrue();
         assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: PHT không có quyền xem liên cơ sở thì không đọc được campus khác")
+    void vicePrincipalWithoutAllCampusViewCannotReadOtherCampus() {
+        CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_A)).isTrue();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: PHT được cấp xem liên cơ sở thì đọc được campus khác")
+    void vicePrincipalWithAllCampusViewCanReadOtherCampus() {
+        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isTrue();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: xem liên cơ sở chỉ mở đường đọc; phạm vi thao tác vẫn chỉ campus được phân công")
+    void allCampusViewNeverWidensActionScope() {
+        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+
+        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_A)).isTrue();
+        assertThat(policy.canViewCampus(vicePrincipal, CAMPUS_B)).isFalse();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isTrue();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: hết phân công PHT thì quyền xem liên cơ sở không còn tác dụng")
+    void allCampusViewNeedsActiveVicePrincipalAssignment() {
+        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of());
+
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_A)).isFalse();
+        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: quyền xem liên cơ sở chỉ áp cho PHT")
+    void allCampusViewIsIgnoredForOtherRoles() {
+        CurrentUser teacher = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.TEACHER);
+
+        assertThat(policy.canReadCampus(teacher, CAMPUS_B)).isFalse();
+        verifyNoInteractions(staffAssignmentService);
     }
 
     @Test
@@ -87,9 +149,18 @@ class CampusAccessPolicyTest {
                 .hasMessage(ApiCode.CAMPUS_ACCESS_DENIED.getDefaultDesc())
                 .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
                 .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
+        assertThatThrownBy(() -> policy.checkCanReadCampus(admin, CAMPUS_A))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.CAMPUS_ACCESS_DENIED.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     static CurrentUser user(CareNestRole... roles) {
         return new CurrentUser(7L, "kc-7", "demo.user", "Demo User", null, Set.of(roles));
+    }
+
+    static CurrentUser userWith(Set<Permission> permissions, CareNestRole... roles) {
+        return new CurrentUser(7L, "kc-7", "demo.user", "Demo User", null, Set.of(roles), permissions);
     }
 }

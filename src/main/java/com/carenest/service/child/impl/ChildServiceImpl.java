@@ -132,8 +132,8 @@ public class ChildServiceImpl implements ChildService {
         String logPrefix = LOG_PREFIX + "|getChildProfile|userId=" + currentUser.userId() + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
-            // Kiểm phạm vi TRƯỚC khi load: id ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id)
-            childAccessPolicy.checkCanViewChild(currentUser, childId);
+            // Kiểm phạm vi đọc TRƯỚC khi load: id ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id)
+            childAccessPolicy.checkCanReadChild(currentUser, childId);
             Child child =
                     childRepository.findById(childId).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
             Long currentClassroomId = enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock)).stream()

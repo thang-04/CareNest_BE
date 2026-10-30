@@ -134,7 +134,7 @@ class ChildEnrollmentControllerTest {
     }
 
     @Test
-    @DisplayName("AUTH-18: CCCD/SĐT lệch phụ huynh đã có ⇒ 409 errorCode 3008 kèm ô")
+    @DisplayName("AUTH-18: CCCD/SĐT lệch phụ huynh đã có ⇒ 409 errorCode 3009 kèm ô")
     void guardianConflictIsConflictWithFields() throws Exception {
         authenticate(CareNestRole.PRINCIPAL);
         willThrow(GlobalException.withFieldErrors(
@@ -149,7 +149,7 @@ class ChildEnrollmentControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"guardians\":[{\"phone\":\"0912345678\",\"idNumber\":\"001234567890\"}]}"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.errorCode").value(3008))
+                .andExpect(jsonPath("$.errorCode").value(3009))
                 .andExpect(jsonPath("$.data[0].field").value("guardians.0.idNumber"));
     }
 

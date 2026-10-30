@@ -50,11 +50,11 @@ erDiagram
     }
     children {
         BIGINT id PK
-        VARCHAR code UK "V10"
+        VARCHAR code UK "V39"
         VARCHAR full_name
         DATE date_of_birth
-        VARCHAR status "V10: ACTIVE|PENDING_PLACEMENT|LEFT"
-        BIGINT intake_campus_id FK "V10: khi chưa có lớp"
+        VARCHAR status "V39: ACTIVE|PENDING_PLACEMENT|LEFT"
+        BIGINT intake_campus_id FK "V39: khi chưa có lớp"
     }
     enrollments {
         BIGINT id PK
@@ -71,7 +71,31 @@ erDiagram
     }
 ```
 
-## child — tiếp nhận trẻ, phụ huynh trên hồ sơ, khai báo sức khỏe (V10)
+## education-plan — Ba bảng mục tiêu (V35)
+
+```mermaid
+erDiagram
+    edu_year_plans ||--o{ edu_plan_sub_domains : owns
+    edu_year_plans ||--o{ edu_plan_expected_results : owns
+    edu_year_plans ||--o{ edu_plan_goals : owns
+    edu_domains ||--o{ edu_plan_sub_domains : categorizes
+    edu_domains ||--o{ edu_plan_expected_results : categorizes
+    edu_domains ||--o{ edu_plan_goals : categorizes
+    edu_plan_sub_domains |o--o{ edu_plan_expected_results : groups
+    edu_plan_sub_domains |o--o{ edu_plan_goals : goals
+    edu_plan_expected_results |o--o{ edu_plan_goals : goals
+    edu_plan_goals ||--o{ edu_goal_contents : contents
+    edu_curriculum_sub_domains |o--o{ edu_curriculum_expected_results : groups
+    edu_curriculum_expected_results ||--o{ edu_curriculum_goals : goals
+    edu_curriculum_sub_domains |o--o{ edu_plan_sub_domains : source
+    edu_curriculum_expected_results |o--o{ edu_plan_expected_results : source
+    edu_curriculum_goals |o--o{ edu_plan_goals : source
+    edu_goal_contents ||--o{ edu_content_theme_ticks : ticks
+    edu_themes ||--o{ edu_content_theme_ticks : ticks
+```
+
+Ba bảng có ID từ sequence chung; FK cha ghép với year_plan_id/domain_id. FK goal→group kiểm sub_domain_key để sub của goal và group khớp kể cả NULL. Cấp cha tùy chọn theo user 29/10/2026; không đổi rows/kind API. Chi tiết: [ADR-0021](../decisions/ADR-0021-year-plan-goal-hierarchy.md).
+## child — tiếp nhận trẻ, phụ huynh trên hồ sơ, khai báo sức khỏe (V39)
 
 ```mermaid
 erDiagram

@@ -19,7 +19,7 @@ Mọi response (thành công hay lỗi):
 
 Mỗi lỗi là một dòng trong `ApiCode`: mã 4 số + HTTP status + câu tiếng Việt. Service ném `GlobalException.of(ApiCode.X, args...)` (bọc lỗi: `GlobalException.withCause(ApiCode.X, ex, args...)`), không tự viết câu lỗi. Lỗi mới thêm vào cuối dải của phân hệ; mã đã dùng không đổi số, không dùng lại. Danh sách đầy đủ: `ApiCode.java` (bản Word "CareNest_Danh_sach_ma_loi" của Cần).
 
-Bổ sung 29/10/2026 (G94-180, khi gộp G94-236): tài khoản & phân quyền 1112–1127, phân công nhân sự 2308–2320, liên kết phụ huynh – trẻ 3004–3006 (thay các câu lỗi tiếng Anh cũ; bảng theo tình huống: `docs/contracts/AUTH_CONTRACT.md`); tiếp nhận trẻ 3007–3009 (bảng dưới). Cần thêm các mã này vào bản Word của Cần.
+Bổ sung 29/10/2026 (G94-180, khi gộp G94-236): tài khoản & phân quyền 1112–1127, phân công nhân sự 2308–2320, liên kết phụ huynh – trẻ 3004–3006 (thay các câu lỗi tiếng Anh cũ; bảng theo tình huống: `docs/contracts/AUTH_CONTRACT.md`); tiếp nhận trẻ 3008–3010 (bảng dưới; trước khi gộp `dev` 31/10 là 3007–3009 — 3007 nay là `GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED` của G94-60), SĐT tài khoản nhân sự ở form tiếp nhận 1130 `PHONE_OF_STAFF_ACCOUNT`. Số 11xx/23xx/30xx theo bảng của `dev` (G94-60 đánh lại). Cần thêm các mã này vào bản Word của Cần.
 
 Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
 
@@ -53,10 +53,13 @@ ADR-0013: `PASSWORD_CHANGE_REQUIRED` (1010, HTTP 428) cho Web gateway: mật kh�
 | Điểm danh sau giờ chốt | `ATTENDANCE_LOCKED` (409) | ATT-08 |
 | Sổ báo ăn đã xác nhận | `MEAL_COUNT_ALREADY_CONFIRMED` (409) | NUT-03 |
 | Tiếp nhận: form sai, lớp/điểm trường không nhận được (`classId`, `campusId`) | `INVALID_REQUEST_DATA` (9001) + ô | CHD-02, CHD-10 |
-| Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3007, 409, không có ô) | CHD-04 |
-| CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3008, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
-| Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3009, 409) | CHD-03 |
+| Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3008, 409, không có ô) | CHD-04 |
+| CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
+| Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
 | AI không khả dụng / quá thời gian | `AI_SERVICE_UNAVAILABLE` (503) / `AI_TIMEOUT` (504) | AI-03 |
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
+| Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |
+| Ghi tài liệu lớp trên phiên bản đã thay thế / gửi bản chép còn ô đỏ | `YEAR_PLAN_SUPERSEDED` (7122, 409) / `CLASS_DOC_VERSION_FIX_REQUIRED` (7121, 409) | EDU-26 |
+| Kế hoạch điều chỉnh sai ngày / quá dài | `CLASS_DOC_ADJUSTMENT_INVALID` (7123, 400) | EDU-27 |
 
 Không trả stack trace, tên class, SQL. Lỗi từ Spring Security ghi cùng format (guide 8.5, `docs/contracts/AUTH_CONTRACT.md`): 401 `UNAUTHENTICATED` (1002, kèm `WWW-Authenticate: Bearer`), 403 `FORBIDDEN` (1101), 503 `AUTH_SERVICE_UNAVAILABLE` (1013, không lấy được key kiểm token từ Keycloak).

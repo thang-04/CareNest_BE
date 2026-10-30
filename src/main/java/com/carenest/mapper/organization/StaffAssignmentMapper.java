@@ -1,8 +1,10 @@
 package com.carenest.mapper.organization;
 
+import com.carenest.dto.organization.CampusOptionResponse;
 import com.carenest.dto.organization.ClassroomResponse;
 import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
+import com.carenest.entity.organization.Campus;
 import com.carenest.entity.organization.Classroom;
 import com.carenest.entity.organization.StaffAssignment;
 import org.springframework.stereotype.Component;
@@ -29,6 +31,10 @@ public class StaffAssignmentMapper {
                 assignment.getClassroomId(),
                 assignment.getValidFrom(),
                 assignment.getValidTo());
+    }
+
+    public CampusOptionResponse toCampusOptionResponse(Campus campus) {
+        return new CampusOptionResponse(campus.getId(), campus.getCode(), campus.getName());
     }
 
     public ClassroomResponse toClassroomResponse(Classroom classroom) {

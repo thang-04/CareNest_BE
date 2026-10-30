@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -35,6 +36,13 @@ public class EduYearPlan {
 
     @Column(name = "age_group_id", nullable = false, updatable = false)
     private Long ageGroupId;
+
+    // Spec 004: số phiên bản trong chuỗi (năm học, nhóm tuổi) và phiên bản được chép
+    @Column(name = "version_no", nullable = false, updatable = false)
+    private int versionNo = 1;
+
+    @Column(name = "source_plan_id", updatable = false)
+    private Long sourcePlanId;
 
     @Column(nullable = false, length = 150)
     private String title;
@@ -64,7 +72,7 @@ public class EduYearPlan {
     @Column(name = "issued_at")
     private Instant issuedAt;
 
-    // EDU-10: khóa "Đang sửa"; editing_at = lần lưu cuối, quá hạn thì job trả về editing_from
+    // EDU-10: phiên sửa được duy trì độc lập với lưu nội dung.
     @Column(name = "editing_by")
     private Long editingBy;
 
@@ -77,6 +85,18 @@ public class EduYearPlan {
     @Enumerated(EnumType.STRING)
     @Column(name = "editing_from", length = 20)
     private EduPlanStatus editingFrom;
+
+    @Column(name = "edit_session_id")
+    private UUID editSessionId;
+
+    @Column(name = "content_revision", nullable = false)
+    private long contentRevision;
+
+    @Column(name = "last_save_request_id")
+    private UUID lastSaveRequestId;
+
+    @Column(name = "created_request_id", updatable = false)
+    private UUID createdRequestId;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -109,6 +129,23 @@ public class EduYearPlan {
         return plan;
     }
 
+    /** Phiên bản n+1 chép từ bản đã ban hành; nội dung con do service chép, người tạo là owner (EDU-02). */
+    public static EduYearPlan createVersion(
+            EduYearPlan source, String code, Long ownerId, String ownerTitle, Instant now) {
+        EduYearPlan plan = createDraft(
+                code,
+                source.schoolYearId,
+                source.ageGroupId,
+                source.title,
+                source.description,
+                ownerId,
+                ownerTitle,
+                now);
+        plan.versionNo = source.versionNo + 1;
+        plan.sourcePlanId = source.id;
+        return plan;
+    }
+
     /** Khóa cho {@code userId}; đang khóa bởi chính người đó thì chỉ gia hạn. */
     public void startEditing(Long userId, Instant now) {
         if (status == EduPlanStatus.EDITING && userId.equals(editingBy)) {
@@ -117,9 +154,10 @@ public class EduYearPlan {
         }
         // Khóa quá hạn của người khác: giữ trạng thái gốc của lượt sửa trước
         EduPlanStatus from = status == EduPlanStatus.EDITING ? editingFrom : status;
-        this.status = EduPlanStatus.EDITING;
+        this.status = from == EduPlanStatus.PENDING_VP ? from : EduPlanStatus.EDITING;
         this.editingFrom = from;
         this.editingBy = userId;
+        this.editSessionId = UUID.randomUUID();
         this.editingSince = now;
         this.editingAt = now;
     }
@@ -130,7 +168,7 @@ public class EduYearPlan {
 
     /** Nhả khóa, trả về Nháp / Bị trả lại như trước khi sửa. */
     public void finishEditing() {
-        if (status != EduPlanStatus.EDITING) {
+        if (editingBy == null) {
             return;
         }
         this.status = editingFrom;
@@ -143,11 +181,11 @@ public class EduYearPlan {
     }
 
     public boolean isEditingBy(Long userId) {
-        return status == EduPlanStatus.EDITING && userId.equals(editingBy);
+        return userId.equals(editingBy);
     }
 
     public boolean isEditLockExpired(Instant now, Duration ttl) {
-        return status == EduPlanStatus.EDITING && !editingAt.plus(ttl).isAfter(now);
+        return editingAt != null && !editingAt.plus(ttl).isAfter(now);
     }
 
     private void clearEditing() {
@@ -155,6 +193,25 @@ public class EduYearPlan {
         this.editingSince = null;
         this.editingAt = null;
         this.editingFrom = null;
+        this.editSessionId = null;
+    }
+
+    public void acquireSession(Long userId, UUID sessionId, Instant now) {
+        if (!userId.equals(editingBy) || !sessionId.equals(editSessionId)) {
+            startEditing(userId, now);
+        }
+        this.editSessionId = sessionId;
+        this.editingAt = now;
+    }
+
+    public void initializeSave(UUID requestId) {
+        this.createdRequestId = requestId;
+        recordSave(requestId);
+    }
+
+    public void recordSave(UUID requestId) {
+        this.lastSaveRequestId = requestId;
+        this.contentRevision++;
     }
 
     public void updateInfo(String title, String description, Instant now) {
@@ -180,6 +237,7 @@ public class EduYearPlan {
     }
 
     public void returnToOwner(Instant now) {
+        clearEditing();
         this.status = EduPlanStatus.REJECTED;
         this.updatedAt = now;
     }

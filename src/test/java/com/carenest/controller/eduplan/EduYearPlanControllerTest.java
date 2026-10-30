@@ -57,7 +57,11 @@ class EduYearPlanControllerTest {
     void kitchenStaffIsRejectedByRole() throws Exception {
         authenticateAs(CareNestRole.KITCHEN_STAFF);
 
-        mockMvc.perform(get(GOALS).with(token(CareNestRole.KITCHEN_STAFF)))
+        mockMvc.perform(get(GOALS)
+                        .with(token(CareNestRole.KITCHEN_STAFF))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
         verify(eduYearPlanService, never()).getYearPlans(any(), any(), any(), any(), any());
@@ -69,7 +73,12 @@ class EduYearPlanControllerTest {
         given(eduYearPlanService.getYearPlans(eq(teacher), eq(1L), eq(null), eq(null), any()))
                 .willReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
 
-        mockMvc.perform(get(GOALS).param("schoolYearId", "1").with(token(CareNestRole.TEACHER)))
+        mockMvc.perform(get(GOALS)
+                        .param("schoolYearId", "1")
+                        .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.items").isArray());
@@ -79,7 +88,12 @@ class EduYearPlanControllerTest {
     void pageSizeAbove200IsRejected() throws Exception {
         authenticateAs(CareNestRole.VICE_PRINCIPAL);
 
-        mockMvc.perform(get(GOALS).param("size", "500").with(token(CareNestRole.VICE_PRINCIPAL)))
+        mockMvc.perform(get(GOALS)
+                        .param("size", "500")
+                        .with(token(CareNestRole.VICE_PRINCIPAL))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
     }
@@ -87,10 +101,13 @@ class EduYearPlanControllerTest {
     @Test
     void createReturns201() throws Exception {
         CurrentUser leader = authenticateAs(CareNestRole.TEACHER);
-        given(eduYearPlanService.createYearPlan(eq(leader), any())).willReturn(detail(EduPlanStatus.DRAFT));
+        given(eduYearPlanService.createYearPlan(eq(leader), any(), any())).willReturn(detail(EduPlanStatus.DRAFT));
 
         mockMvc.perform(post(GOALS)
                         .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":\"Kế hoạch\",\"domains\":[]}"))
                 .andExpect(status().isCreated())
@@ -104,11 +121,14 @@ class EduYearPlanControllerTest {
 
         mockMvc.perform(post(GOALS)
                         .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":\" \"}"))
+                        .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":null}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
-        verify(eduYearPlanService, never()).createYearPlan(any(), any());
+        verify(eduYearPlanService, never()).createYearPlan(any(), any(), any());
     }
 
     @Test
@@ -118,28 +138,40 @@ class EduYearPlanControllerTest {
 
         mockMvc.perform(post(GOALS + "/5/return")
                         .with(token(CareNestRole.VICE_PRINCIPAL))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"note\":\"\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
-        verify(eduYearPlanService, never()).returnYearPlan(any(), any(), any());
+        verify(eduYearPlanService, never()).returnYearPlan(any(), any(), any(), any());
     }
 
     @Test
     void teacherCannotCallIssue() throws Exception {
         authenticateAs(CareNestRole.TEACHER);
 
-        mockMvc.perform(post(GOALS + "/5/issue").with(token(CareNestRole.TEACHER)))
+        mockMvc.perform(post(GOALS + "/5/issue")
+                        .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isForbidden());
-        verify(eduYearPlanService, never()).issueYearPlan(any(), any(), any());
+        verify(eduYearPlanService, never()).issueYearPlan(any(), any(), any(), any());
     }
 
     @Test
     void submitWithoutBodyPassesNullNote() throws Exception {
         CurrentUser leader = authenticateAs(CareNestRole.TEACHER);
-        given(eduYearPlanService.submitYearPlan(leader, 5L, null)).willReturn(detail(EduPlanStatus.PENDING_VP));
+        given(eduYearPlanService.submitYearPlan(eq(leader), eq(5L), eq(null), any()))
+                .willReturn(detail(EduPlanStatus.PENDING_VP));
 
-        mockMvc.perform(post(GOALS + "/5/submit").with(token(CareNestRole.TEACHER)))
+        mockMvc.perform(post(GOALS + "/5/submit")
+                        .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PENDING_VP"));
     }
@@ -147,14 +179,18 @@ class EduYearPlanControllerTest {
     @Test
     void serviceConflictKeepsEnvelope() throws Exception {
         CurrentUser leader = authenticateAs(CareNestRole.TEACHER);
-        given(eduYearPlanService.submitYearPlan(leader, 5L, null))
-                .willThrow(GlobalException.of(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER));
+        given(eduYearPlanService.submitYearPlan(eq(leader), eq(5L), eq(null), any()))
+                .willThrow(GlobalException.of(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER, "Tổ trưởng A"));
 
-        mockMvc.perform(post(GOALS + "/5/submit").with(token(CareNestRole.TEACHER)))
+        mockMvc.perform(post(GOALS + "/5/submit")
+                        .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409))
                 .andExpect(jsonPath("$.errorCode").value(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER.getErrorCode()))
-                .andExpect(jsonPath("$.desc").value(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER.getDefaultDesc()));
+                .andExpect(jsonPath("$.desc").value("Đang được Tổ trưởng A sửa"));
     }
 
     private static YearPlanDetailResponse detail(EduPlanStatus status) {
@@ -179,7 +215,13 @@ class EduYearPlanControllerTest {
                 List.of(),
                 List.of(),
                 null,
-                new YearPlanDetailResponse.Permissions(true, true, false, false, true));
+                new YearPlanDetailResponse.Permissions(true, true, false, false, true, false),
+                0L,
+                null,
+                1,
+                null,
+                false,
+                List.of());
     }
 
     private CurrentUser authenticateAs(CareNestRole role) {
