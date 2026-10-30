@@ -1,9 +1,9 @@
 # Module — health
 
-Feature: `health` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thiết kế
+Feature: `health` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt khám/kỳ cân đo và số đo trong kỳ đã có (2026-10-31); phiếu khám, phân loại WHO, trend, AI: thiết kế
 
 ## Mục đích
-Cân đo định kỳ (mặc định 3 lần/năm, cấu hình được — HLT-01), phân loại theo chuẩn WHO (HLT-03, HLT-10), trend xác định, diễn giải AI có duyệt; kiểm tra sức khỏe đầu ngày nhập cùng màn điểm danh (HLT-07); sức khỏe trong ngày báo phụ huynh ngay (HLT-14).
+Cân đo theo kỳ cân đo do HT/PHT mở (thường 3 tháng/lần, cảnh báo khi sát nhau — HLT-01), đợt khám bác sĩ 1 lần/năm học (HLT-08), phân loại theo chuẩn WHO (HLT-03, HLT-10), trend xác định, diễn giải AI có duyệt; kiểm tra sức khỏe đầu ngày nhập cùng màn điểm danh (HLT-07); sức khỏe trong ngày báo phụ huynh ngay (HLT-14).
 
 ## Owns
 HealthRecord (mỗi lần đo; sửa kèm lý do, có lịch sử — HLT-13), kết quả phân loại WHO + điều chỉnh của GV kèm lý do (HLT-10), đánh dấu suy dinh dưỡng/thừa cân (HLT-12), trạng thái công bố cho phụ huynh (HLT-11), đợt khám bác sĩ (HLT-08), ghi nhận sức khỏe trong ngày (triệu chứng, xử trí, tai nạn nhỏ — HLT-14), trend calculation, HealthInterpretation (DRAFT/APPROVED, source).
@@ -20,7 +20,12 @@ HLT-01..05, HLT-07..14, AI-01..06, AI-07 (giải thích xu hướng sức khỏe
 - Event: ghi nhận sức khỏe trong ngày, công bố kết quả cân đo ⇒ notification.
 
 ## API & bảng
-Chưa có. API nhập theo lớp/đợt đo; GV nhập cho lớp mình (HLT-09).
+Plan: `docs/plans/completed/2026-10-31-health-check-rounds.md` (phạm vi B1, mặc định B2–B8).
+- Bảng (V40): `health_check_campaigns`, `health_check_campaign_history`, `health_check_absences`, `health_measurements`, `health_measurement_edits` (`docs/database/DATA_DICTIONARY.md`).
+- `/health-checks` (GET danh sách lọc `campusId`, `kind`, `status`, `schoolYear`; POST tạo), `/health-checks/schedule-warnings`, `/health-checks/{id}` (GET, PUT), `/{id}/classes/{classId}/children`, `/{id}/cancel|close|reopen` — HT, PHT quản lý theo điểm trường; GV xem điểm trường của lớp mình.
+- `/children/{childId}/health` (GET sổ sức khỏe rút gọn), `/children/{childId}/health/measurements` (POST), `/{measurementId}` (PUT, bắt buộc lý do) — GV phụ trách lớp nhập trong kỳ cân đo đang diễn ra (HLT-09).
+- Mã lỗi 5009–5026 (`docs/contracts/ERROR_CONTRACT.md`).
+- Chưa có: phiếu khám Phụ lục II, phiếu theo dõi, phân loại WHO, trend, AI, thông báo khi mở đợt (chưa có module thông báo).
 
 ## PENDING
 P-21 (triệu chứng chọn nhanh), P-22 (trẻ bất thường lúc nhận), P-23 (ưu tiên sức khỏe đầu ngày). Nội dung ghi lại từ đợt khám bác sĩ (HLT-08), ngoài dị ứng: chưa có rule.
@@ -31,7 +36,11 @@ P-21 (triệu chứng chọn nhanh), P-22 (trẻ bất thường lúc nhận), P
 - Phụ huynh chỉ thấy kết quả cân đo sau khi GV/PHT công bố (HLT-11); sức khỏe trong ngày thì báo ngay (HLT-14).
 - Sửa số đo không ghi đè mất dấu: lưu lịch sử + lý do (HLT-13).
 - Prompt + kiểm tra output AI phải chặn ngôn ngữ chẩn đoán (HLT-04).
-- Không hard-code chu kỳ đo (HLT-01).
+- Không có chu kỳ đo cấu hình: HT/PHT mở kỳ cân đo, hệ thống chỉ cảnh báo khi ngày bắt đầu cách đợt/kỳ khác dưới 2 tháng 15 ngày (HLT-01, sửa 2026-10-31).
+- Mỗi điểm trường một đợt/kỳ chưa đóng, tính chung hai loại (index UNIQUE có điều kiện).
+- Đợt/kỳ thuộc năm học của ngày bắt đầu; lớp của đợt = lớp điểm trường trong năm đó (`findYearClassrooms(yearId)`, không truyền null vì null = năm đang hoạt động).
+- Tên record lồng trong DTO phải duy nhất toàn hệ thống: springdoc đặt tên schema theo tên đơn giản, trùng (vd. `History`) sẽ ghi đè schema của module khác trong `docs/api/openapi.yaml`.
+- HLT-11 ghi "GV hoặc PHT công bố" nhưng user chốt 2026-10-23 tự công bố khi lưu ⇒ BE theo user (plan B2), chờ user xác nhận sửa HLT-11.
 
 ## Related issues
 Chưa có.

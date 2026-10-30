@@ -267,6 +267,66 @@ Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nh�
 | recorded_by, recorded_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
 Index: `(child_id, date)`, `(classroom_id, date)`.
 
+## health_check_campaigns  (module: health, scope: CAMPUS)
+Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 lần/năm học) và kỳ cân đo (`MEASUREMENT`, giáo viên cân đo, khoảng 3 tháng/lần) của một điểm trường. Trạng thái (`UPCOMING`/`IN_PROGRESS`/`CLOSED`/`CANCELLED`) tính từ ngày và mốc đóng/hủy, không lưu. Đợt thuộc năm học của ngày bắt đầu (G94-180/HLT-08). Migration: `V40__create_health_checks.sql`.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| kind | VARCHAR(20) | không | `EXAM` / `MEASUREMENT`; không đổi sau khi tạo | HLT-01, HLT-08 |
+| campus_id | BIGINT FK campuses | không | Điểm trường (scope); không đổi sau khi tạo | AUTH-01, AUTH-02 |
+| name | VARCHAR(150) | không | Tên đợt/kỳ | — |
+| start_date, end_date | DATE | không | Khoảng ngày nhập kết quả; `end_date >= start_date` | HLT-01 |
+| examiner | VARCHAR(150) | không | Đơn vị khám/bác sĩ; kỳ cân đo luôn rỗng (CHECK) | HLT-08 |
+| note | VARCHAR(500) | không | Ghi chú | — |
+| created_by, created_at, updated_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
+| closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Đóng: khóa kết quả, trẻ chưa có kết quả thành vắng; cùng có hoặc cùng trống | — |
+| cancelled_at | TIMESTAMPTZ | có | Hủy (chỉ khi chưa có kết quả); không đồng thời đóng | — |
+Index: UNIQUE `uk_health_check_campaigns_campus_open` (`campus_id`) WHERE chưa đóng, chưa hủy — mỗi điểm trường một đợt/kỳ chưa đóng, tính chung hai loại; `(campus_id, start_date)`.
+
+## health_check_campaign_history  (module: health, scope: CAMPUS)
+Mục đích: lịch sử thao tác của đợt/kỳ, chỉ thêm. Migration: V40.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| campaign_id | BIGINT FK health_check_campaigns | không | | — |
+| action | VARCHAR(20) | không | `CREATED` / `UPDATED` / `CLOSED` / `REOPENED` / `CANCELLED` | — |
+| user_id | BIGINT FK user_accounts | không | Người thao tác | — |
+| reason | VARCHAR(300) | có | Lý do (bắt buộc khi mở lại) | — |
+| created_at | TIMESTAMPTZ | không | | — |
+
+## health_check_absences  (module: health, scope: CLASS)
+Mục đích: trẻ chưa có kết quả khi đóng đợt/kỳ ("Vắng"), kèm lớp lúc đóng; mở lại thì xóa. Migration: V40.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| campaign_id, child_id | BIGINT FK | không | Khóa chính ghép | — |
+| classroom_id | BIGINT FK classrooms | không | Lớp của trẻ lúc đóng | — |
+
+## health_measurements  (module: health, scope: CHILD)
+Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng lần đo). Hiện chỉ nhập trong kỳ cân đo; kết quả đợt khám (phiếu Phụ lục II) chưa có. Lưu/sửa là công bố cho phụ huynh (`published_at`, user chốt 2026-10-23). Dữ liệu sức khỏe — không log. Migration: V40.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id | BIGINT FK children | không | | — |
+| campaign_id | BIGINT FK health_check_campaigns | không | Đợt/kỳ; UNIQUE `(child_id, campaign_id)` | HLT-01 |
+| classroom_id | BIGINT FK classrooms | không | Lớp của trẻ tại ngày đo (scope, báo cáo theo lớp) | HLT-09 |
+| date | DATE | không | Ngày đo, trong khoảng của kỳ, không ở tương lai; UNIQUE `(child_id, date)` | HLT-13 |
+| height_cm, weight_kg | NUMERIC(4,1) | không | 40–150 cm, 3–60 kg (CHECK) | HLT-01 |
+| head_circumference_cm | NUMERIC(3,1) | có | 30–60 cm; chỉ lưu khi trẻ ≤60 tháng tại ngày đo | HLT-01 |
+| note | VARCHAR(500) | không | Ghi chú, không ghi chẩn đoán | — |
+| measured_by | BIGINT FK user_accounts | không | GV nhập | HLT-09 |
+| published_at | TIMESTAMPTZ | không | Lúc công bố (lưu, sửa) | HLT-11 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `(campaign_id, classroom_id)`.
+
+## health_measurement_edits  (module: health, scope: CHILD)
+Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V40.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| measurement_id | BIGINT FK health_measurements | không | | — |
+| user_id | BIGINT FK user_accounts | không | Người sửa | — |
+| reason | VARCHAR(300) | không | Lý do sửa (bắt buộc) | HLT-13 |
+| changes | JSONB | không | `[{ field, from, to }]` các ô đổi | HLT-13 |
+| created_at | TIMESTAMPTZ | không | | — |
+Index: `(measurement_id, created_at)`.
+
 ## meal_counts  (module: nutrition, feature `meals`, scope: CAMPUS)
 Mục đích: sổ báo ăn một bữa của một điểm trường trong ngày, tổng hợp từ điểm danh lúc qua giờ chốt (lần đầu mở sổ sau giờ chốt). Migration: `V26__create_meal_counts.sql`.
 | Column | Type | Null | Ý nghĩa | Rule ID |

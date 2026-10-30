@@ -125,14 +125,14 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
-| HLT-01 | Đo định kỳ chiều cao, cân nặng, tình trạng sức khỏe, ghi chú; mặc định 3 lần/năm, chu kỳ cấu hình được (không hard-code) | CONFIRMED | Khảo sát; khảo sát team 27/10 (HLT-01), user chốt 2026-10-28 (thay "khoảng 3 tháng/lần") |
+| HLT-01 | Đo định kỳ chiều cao, cân nặng, vòng đầu (trẻ ≤60 tháng), ghi chú theo **kỳ cân đo** do HT (mọi điểm trường) hoặc PHT (điểm trường của mình) mở, thường 3 tháng/lần; đợt khám (HLT-08) cũng là một kỳ cân đo. Tạo/sửa mà ngày bắt đầu cách đợt/kỳ khác chưa hủy cùng điểm trường dưới 2 tháng 15 ngày ⇒ cảnh báo, vẫn lưu được; không nhắc tự động, không chu kỳ cấu hình. Mỗi điểm trường tối đa một đợt/kỳ chưa đóng. GV chỉ nhập số đo trong kỳ đang diễn ra (không cân đo lẻ) | CONFIRMED | Khảo sát; khảo sát team 27/10 (HLT-01); user chốt 2026-10-31 (thay "mặc định 3 lần/năm, chu kỳ cấu hình được" của 2026-10-28) |
 | HLT-02 | Trend/biểu đồ tính xác định từ measurement đã lưu | CONFIRMED | Report 1 |
 | HLT-03 | Ngưỡng tham chiếu tăng trưởng theo chuẩn WHO (biểu đồ tăng trưởng) | CONFIRMED (đóng P-13) | Khảo sát team 27/10 (HLT-04) |
 | HLT-04 | AI chỉ giải thích dữ liệu, highlight trend, gợi ý điểm cần chú ý; **không** chẩn đoán bệnh/rối loạn phát triển, **không** khuyên điều trị | CONFIRMED | Report 1 |
 | HLT-05 | AI interpretation là DRAFT: giải thích ngắn cho GV, cần nhân viên duyệt trước khi hiển thị chính thức; phụ huynh chỉ thấy bản đã duyệt | CONFIRMED | Report 1; khảo sát team 27/10 (AI-06) |
 | HLT-06 | Dị ứng là thông tin cơ bản của trẻ (module child): phụ huynh khai khi nhập học, PHT chuyên môn ghi vào hồ sơ (CHD-01); nhà trường bổ sung khi các đợt khám sức khỏe phát hiện thêm. Chất gây dị ứng chọn từ danh mục cố định (sữa, trứng, hải sản, đậu phộng…) và mục "khác"; PHT thêm được mục. Mỗi dị ứng có mức nhẹ/nặng (NUT-23). Không có chế độ ăn đặc biệt khác | CONFIRMED (đóng P-17) | Brief; khảo sát team 27/10 (ALG-03, ALG-05, ALG-06), user chốt 2026-10-28 (mức) |
 | HLT-07 | Kiểm tra sức khỏe đầu ngày: khi nhận trẻ, GV quan sát và đo nhiệt độ mọi trẻ bằng nhiệt kế, nhập cùng màn điểm danh (App hoặc Web). Không chụp ảnh trẻ; dặn dò miệng của phụ huynh không ghi. Danh sách triệu chứng: P-21; trẻ có dấu hiệu bất thường có nhận không: P-22; mức ưu tiên Capstone: P-23 | CONFIRMED / PENDING | Khảo sát team 27/10 (ARR-01, ARR-02, ARR-04, ARR-06, ARR-07); Review 1 11/10 |
-| HLT-08 | Bác sĩ khám sức khỏe định kỳ 2 lần/năm (đợt khám) | CONFIRMED | Khảo sát team 27/10 (HLT-02) |
+| HLT-08 | Bác sĩ khám sức khỏe định kỳ 1 lần/năm học (đợt khám), không chặn cứng: tạo đợt khám khi năm học (theo ngày bắt đầu) đã có đợt khám khác chưa hủy ⇒ cảnh báo, vẫn tạo được. HT tạo cho mọi điểm trường, PHT cho điểm trường của mình | CONFIRMED | Khảo sát team 27/10 (HLT-02); user chốt 2026-10-31 (thay "2 lần/năm") |
 | HLT-09 | GV cân đo và nhập số đo cho lớp mình | CONFIRMED | Khảo sát team 27/10 (HLT-03) |
 | HLT-10 | Hệ thống tự phân loại kết quả cân đo theo chuẩn WHO (HLT-03); GV hoặc y tế trường được điều chỉnh kết quả phân loại, bắt buộc ghi lý do. Y tế trường chưa có vai trò trong hệ thống (USER_ROLES) | CONFIRMED | Khảo sát team 27/10 (HLT-05) |
 | HLT-11 | Phụ huynh thấy kết quả cân đo sau khi GV hoặc PHT công bố | CONFIRMED | Khảo sát team 27/10 (HLT-06) |

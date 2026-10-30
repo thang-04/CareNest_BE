@@ -21,6 +21,8 @@ Mỗi lỗi là một dòng trong `ApiCode`: mã 4 số + HTTP status + câu ti�
 
 Bổ sung 29/10/2026 (G94-180, khi gộp G94-236): tài khoản & phân quyền 1112–1127, phân công nhân sự 2308–2320, liên kết phụ huynh – trẻ 3004–3006 (thay các câu lỗi tiếng Anh cũ; bảng theo tình huống: `docs/contracts/AUTH_CONTRACT.md`); tiếp nhận trẻ 3008–3010 (bảng dưới; trước khi gộp `dev` 31/10 là 3007–3009 — 3007 nay là `GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED` của G94-60), SĐT tài khoản nhân sự ở form tiếp nhận 1130 `PHONE_OF_STAFF_ACCOUNT`. Số 11xx/23xx/30xx theo bảng của `dev` (G94-60 đánh lại). Cần thêm các mã này vào bản Word của Cần.
 
+Bổ sung 31/10/2026 (G94-180, đợt khám và kỳ cân đo): sức khỏe 5009–5026 — đợt/kỳ không tìm thấy 5009, không quản lý được 5010, điểm trường đang có đợt/kỳ chưa đóng 5011, đã đóng/hủy 5012, có kết quả không hủy được 5013, đóng/mở lại sai trạng thái 5014–5015, đổi ngày làm kết quả ra ngoài 5016, số đo ngoài kỳ cân đo 5017–5018, trùng số đo 5019–5020, ngày đo ngoài kỳ 5021, lần đo không tìm thấy 5022, không phải GV lớp 5023, thiếu lý do sửa 5024, không xem được sổ sức khỏe 5025, ngày kết thúc trước ngày bắt đầu 5026. Cần thêm vào bản Word của Cần.
+
 Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
 
 | Dải | Phân hệ |

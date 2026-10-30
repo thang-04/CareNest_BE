@@ -26,8 +26,12 @@ Còn mở: danh sách triệu chứng chọn nhanh (P-21), trẻ có dấu hiệ
 ## Cân đo định kỳ
 
 ```text
-[B] Đợt cân đo: mặc định 3 lần/năm, chu kỳ cấu hình được (HLT-01)
-[S] GV cân đo và nhập cho lớp mình: chiều cao, cân nặng, tình trạng, ghi chú   (HLT-09)
+[B] HT/PHT mở kỳ cân đo cho điểm trường (thường 3 tháng/lần)                    (HLT-01, sửa 2026-10-31)
+[S] Ngày bắt đầu cách đợt/kỳ khác chưa hủy dưới 2 tháng 15 ngày ⇒ cảnh báo, vẫn lưu
+    Mỗi điểm trường một đợt/kỳ chưa đóng (tính chung đợt khám)
+[S] GV nhập trong kỳ đang diễn ra cho lớp mình: chiều cao, cân nặng, vòng đầu, ghi chú (HLT-09)
+    Không cân đo lẻ ngoài kỳ; mỗi trẻ một lần đo/kỳ
+[B] HT/PHT đóng kỳ ⇒ trẻ chưa cân thành "Vắng", số đo khóa; mở lại cần lý do
       ↓
 [S] Lưu từng lần đo; trend, chênh lệch so với lần trước, biểu đồ             (HLT-02, HLT-13)
 [S] Tự phân loại theo chuẩn WHO; GV chỉnh được, bắt buộc lý do              (HLT-03, HLT-10)
@@ -46,9 +50,10 @@ DevelopmentProfile đọc measurement + trend + interpretation APPROVED (OBS-03)
 ## Khám bác sĩ (HLT-08)
 
 ```text
-[B] Bác sĩ khám định kỳ 2 lần/năm
+[B] HT/PHT mở đợt khám: bác sĩ khám định kỳ 1 lần/năm học, không chặn         (HLT-08, sửa 2026-10-31)
+[S] Năm học đã có đợt khám ⇒ cảnh báo khi tạo; đợt khám cũng là một kỳ cân đo
 [S] Phát hiện dị ứng mới ⇒ cập nhật hồ sơ trẻ (module child — HLT-06)
-    Nội dung khám khác ghi gì trên hệ thống: chưa có rule
+    Nội dung khám khác ghi gì trên hệ thống: chưa có rule (FE mock phiếu Phụ lục II; BE chưa làm)
 ```
 
 Dị ứng không thuộc module này (thuộc child — HLT-06).
