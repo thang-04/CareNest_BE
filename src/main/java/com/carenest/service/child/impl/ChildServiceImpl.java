@@ -113,13 +113,13 @@ public class ChildServiceImpl implements ChildService {
         if (classroomId != null) {
             Long classroomCampus = classroomService.findCampusId(classroomId).orElse(null);
             if (!wholeSchool && (classroomCampus == null || !managed.contains(classroomCampus))) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this classroom");
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             return List.of(classroomId);
         }
         if (campusId != null) {
             if (!wholeSchool && !managed.contains(campusId)) {
-                throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             return classroomService.findClassroomIdsOfCampuses(Set.of(campusId));
         }
@@ -134,9 +134,8 @@ public class ChildServiceImpl implements ChildService {
         try {
             // Kiểm phạm vi đọc TRƯỚC khi load: id ngoài phạm vi và id không tồn tại cùng trả 403 (chống dò id)
             childAccessPolicy.checkCanReadChild(currentUser, childId);
-            Child child = childRepository
-                    .findById(childId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"));
+            Child child =
+                    childRepository.findById(childId).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
             Long currentClassroomId = enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock)).stream()
                     .findFirst()
                     .orElse(null);

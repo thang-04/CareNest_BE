@@ -31,7 +31,7 @@ public class StaffAssignment {
     private Long userId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "staff_role", nullable = false, length = 20)
+    @Column(name = "staff_role", nullable = false, length = 30)
     private StaffRole staffRole;
 
     @Column(name = "campus_id")
@@ -40,11 +40,23 @@ public class StaffAssignment {
     @Column(name = "classroom_id")
     private Long classroomId;
 
+    @Column(name = "age_group_id")
+    private Long ageGroupId;
+
     @Column(name = "valid_from", nullable = false)
     private LocalDate validFrom;
 
     @Column(name = "valid_to")
     private LocalDate validTo;
+
+    @Column(name = "is_homeroom", nullable = false)
+    private boolean homeroom;
+
+    @Column(name = "school_year_id")
+    private Long schoolYearId;
+
+    @Column(name = "assigned_by")
+    private Long assignedBy;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -53,6 +65,41 @@ public class StaffAssignment {
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    public static StaffAssignment teacher(
+            Long userId, Long classroomId, boolean homeroom, LocalDate validFrom, LocalDate validTo, Long assignedBy) {
+        StaffAssignment a = new StaffAssignment();
+        a.userId = userId;
+        a.staffRole = StaffRole.TEACHER;
+        a.classroomId = classroomId;
+        a.homeroom = homeroom;
+        a.validFrom = validFrom;
+        a.validTo = validTo;
+        a.assignedBy = assignedBy;
+        return a;
+    }
+
+    public static StaffAssignment teamLeader(
+            Long userId, Long ageGroupId, Long schoolYearId, LocalDate validFrom, LocalDate validTo, Long assignedBy) {
+        StaffAssignment a = new StaffAssignment();
+        a.userId = userId;
+        a.staffRole = StaffRole.AGE_GROUP_TEAM_LEADER;
+        a.ageGroupId = ageGroupId;
+        a.schoolYearId = schoolYearId;
+        a.validFrom = validFrom;
+        a.validTo = validTo;
+        a.assignedBy = assignedBy;
+        return a;
+    }
+
+    public void markHomeroom(boolean homeroom) {
+        this.homeroom = homeroom;
+    }
+
+    /** Kết thúc phân công: còn hiệu lực tới hết hôm trước ngày end (lịch sử ai từng có quyền được giữ). */
+    public void endBefore(LocalDate end) {
+        this.validTo = end.minusDays(1);
+    }
 
     public static StaffAssignment create(
             Long userId, StaffRole staffRole, Long campusId, Long classroomId, LocalDate validFrom, LocalDate validTo) {

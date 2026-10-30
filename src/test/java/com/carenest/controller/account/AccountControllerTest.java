@@ -89,7 +89,7 @@ class AccountControllerTest {
                         List.of(CareNestRole.TEACHER, CareNestRole.PARENT),
                         List.of(Permission.CHILD_PROFILE_VIEW),
                         List.of(new StaffAssignmentSummaryResponse(
-                                StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 9, 1), null)),
+                                StaffRole.TEACHER, null, 11L, null, LocalDate.of(2026, 9, 1), null)),
                         List.of(101L)));
 
         mockMvc.perform(get(MY_ACCOUNT).with(jwt()))
@@ -106,13 +106,12 @@ class AccountControllerTest {
 
     @Test
     void shouldReturn403WhenAccountIsNotProvisioned() throws Exception {
-        given(currentUserService.getCurrentUser())
-                .willThrow(new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned"));
+        given(currentUserService.getCurrentUser()).willThrow(GlobalException.of(ApiCode.ACCOUNT_NOT_PROVISIONED));
 
         mockMvc.perform(get(MY_ACCOUNT).with(jwt()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403))
-                .andExpect(jsonPath("$.desc").value("Account is not provisioned"));
+                .andExpect(jsonPath("$.desc").value(ApiCode.ACCOUNT_NOT_PROVISIONED.getDefaultDesc()));
     }
 
     @Test

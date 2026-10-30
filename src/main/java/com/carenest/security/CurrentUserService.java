@@ -39,7 +39,7 @@ public class CurrentUserService {
     public CurrentUser getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken jwtAuthentication)) {
-            throw new GlobalException(ApiCode.UNAUTHORIZED, "Unauthorized");
+            throw GlobalException.of(ApiCode.UNAUTHENTICATED);
         }
 
         return getCurrentUser(jwtAuthentication.getToken(), rolesOf(authentication));
@@ -49,7 +49,7 @@ public class CurrentUserService {
     @Transactional(readOnly = true)
     public CurrentUser getCurrentUser(Jwt validatedToken) {
         if (validatedToken == null || validatedToken.getSubject() == null) {
-            throw new GlobalException(ApiCode.UNAUTHORIZED, "Unauthorized");
+            throw GlobalException.of(ApiCode.UNAUTHENTICATED);
         }
         JwtAuthenticationToken verifiedAuthentication =
                 new JwtAuthenticationToken(validatedToken, new KeycloakRealmRoleConverter().convert(validatedToken));
@@ -63,12 +63,12 @@ public class CurrentUserService {
                 .findByKeycloakUserId(keycloakUserId)
                 .orElseThrow(() -> {
                     log.warn("[getCurrentUser]|keycloakUserId={}|reason=notProvisioned", keycloakUserId);
-                    return new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned");
+                    return GlobalException.of(ApiCode.ACCOUNT_NOT_PROVISIONED);
                 });
         // Token còn hạn vẫn bị chặn khi CareNest đã khóa tài khoản
         if (!account.isActive()) {
             log.warn("[getCurrentUser]|userId={}|reason=inactive", account.getId());
-            throw new GlobalException(ApiCode.FORBIDDEN, "Account is inactive");
+            throw GlobalException.of(ApiCode.ACCOUNT_INACTIVE);
         }
 
         return new CurrentUser(

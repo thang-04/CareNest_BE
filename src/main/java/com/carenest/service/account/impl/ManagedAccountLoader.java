@@ -18,8 +18,6 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 class ManagedAccountLoader {
 
-    private static final String DENIED = "You cannot manage this account";
-
     private final UserAccountRepository userAccountRepository;
     private final StaffAccessPolicy staffAccessPolicy;
 
@@ -33,8 +31,8 @@ class ManagedAccountLoader {
         return userAccountRepository
                 .findById(userId)
                 .orElseThrow(() -> fullScope(actor)
-                        ? new GlobalException(ApiCode.NOT_FOUND, "Account not found")
-                        : new GlobalException(ApiCode.FORBIDDEN, DENIED));
+                        ? GlobalException.of(ApiCode.ACCOUNT_NOT_FOUND)
+                        : GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED));
     }
 
     private boolean fullScope(CurrentUser actor) {

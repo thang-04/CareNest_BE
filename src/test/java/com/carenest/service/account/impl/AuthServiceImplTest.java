@@ -189,7 +189,7 @@ class AuthServiceImplTest {
         assertThatThrownBy(() -> service.login(
                         new com.carenest.dto.account.AuthRequests.Login("missing@example.test", "guess", false)))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("Email hoặc mật khẩu không đúng");
+                .hasMessage(ApiCode.INVALID_CREDENTIALS.getDefaultDesc());
         verify(state, never()).savePasswordToken(any());
     }
 
@@ -198,12 +198,11 @@ class AuthServiceImplTest {
         given(keycloak.login("teacher.a", "correct-password"))
                 .willReturn(new AuthGatewayClient.Tokens("signed-access", "private-refresh", 300, 36000));
         given(decoder.decode("signed-access")).willReturn(jwt("signed-access"));
-        given(currentUsers.getCurrentUser(any(Jwt.class)))
-                .willThrow(new GlobalException(com.carenest.utils.ApiCode.FORBIDDEN, "Account is inactive"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willThrow(GlobalException.of(ApiCode.ACCOUNT_INACTIVE));
         assertThatThrownBy(() -> service.login(
                         new com.carenest.dto.account.AuthRequests.Login("teacher.a", "correct-password", false)))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("Account is inactive");
+                .hasMessage(ApiCode.ACCOUNT_INACTIVE.getDefaultDesc());
     }
 
     @Test
@@ -268,7 +267,7 @@ class AuthServiceImplTest {
         assertThatThrownBy(() -> service.login(
                         new com.carenest.dto.account.AuthRequests.Login("teacher.a", "issued-password", false)))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("Account is inactive");
+                .hasMessage(ApiCode.ACCOUNT_INACTIVE.getDefaultDesc());
         verify(state, never()).savePasswordToken(any());
     }
 
@@ -318,8 +317,8 @@ class AuthServiceImplTest {
     private static void assertCode(ThrowingCallable call, ApiCode code) {
         assertThatThrownBy(call)
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(code);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(code.getHttpStatus());
     }
 
     @Test
@@ -419,8 +418,7 @@ class AuthServiceImplTest {
         given(keycloak.refresh("old-refresh"))
                 .willReturn(new AuthGatewayClient.Tokens("rotated-access", "rotated-refresh", 300, 1800));
         given(decoder.decode("rotated-access")).willReturn(jwt("rotated-access"));
-        given(currentUsers.getCurrentUser(any(Jwt.class)))
-                .willThrow(new GlobalException(ApiCode.FORBIDDEN, "Account is inactive"));
+        given(currentUsers.getCurrentUser(any(Jwt.class))).willThrow(GlobalException.of(ApiCode.ACCOUNT_INACTIVE));
         assertCode(() -> service.refresh(cookie), ApiCode.FORBIDDEN);
         verify(keycloak).logout("rotated-refresh");
     }
@@ -437,7 +435,7 @@ class AuthServiceImplTest {
 
             assertThatThrownBy(() -> service.login(new AuthRequests.Login("app.user", "current-secret", true)))
                     .isInstanceOf(GlobalException.class)
-                    .hasMessage("This account cannot sign in on the Web app")
+                    .hasMessage(ApiCode.FORBIDDEN.getDefaultDesc())
                     .extracting("apiCode")
                     .isEqualTo(ApiCode.FORBIDDEN);
             verify(keycloak).logout("private-refresh");

@@ -1,6 +1,6 @@
 # Flow — Đánh giá hằng ngày, nhận xét định kỳ, khen thưởng, hồ sơ phát triển
 
-Module: learning-observation (đọc attendance, nutrition, health, education-plan; dùng ai-assistance). Rule: OBS-*, AI-*, PAR-03. ADR: 0008, 0019.
+Module: learning-observation (đọc attendance, nutrition, health, education-plan; dùng ai-assistance). Rule: OBS-*, AI-*, PAR-03, EDU-19. ADR: 0006, 0008.
 
 ## Đánh giá hằng ngày (OBS-01, OBS-02, OBS-12, OBS-13)
 
@@ -17,6 +17,16 @@ Module: learning-observation (đọc attendance, nutrition, health, education-pl
 [S] Khóa sửa (OBS-12)
 [S] GV viết nhận xét chung về lớp 1–2 câu ⇒ BGH xem trong báo cáo ngày (RPT-02)
 ```
+
+## Ngữ cảnh hoạt động và đánh giá theo MT (ADR-0006, OBS-07, EDU-19)
+
+```text
+[S] Giáo án tuần/ngày của lớp đã duyệt (education-plan): mỗi ô (giờ, ngày) có hoạt động và MT của kế hoạch năm
+[S] Đánh giá hằng ngày: mỗi giờ có MT là một cột, GV chấm Đạt / Chưa đạt cho từng trẻ
+      Lớp chưa có giáo án duyệt ⇒ khóa phần chấm theo MT
+```
+
+Không import GoKids, không nhập metadata hoạt động riêng. Luồng soạn, duyệt giáo án: `docs/business/flows/education-plan.md`.
 
 ## Nhận xét định kỳ (OBS-04, OBS-05, OBS-06)
 

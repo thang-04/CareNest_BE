@@ -133,7 +133,7 @@ class ChildAccessPolicyTest {
         assertThat(policy.canReadChild(kitchen, CHILD_IN_A1)).isFalse();
         assertThatThrownBy(() -> policy.checkCanReadChild(kitchen, CHILD_IN_A1))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("You do not have access to this child");
+                .hasMessage(ApiCode.CHILD_ACCESS_DENIED.getDefaultDesc());
     }
 
     @Test
@@ -190,9 +190,9 @@ class ChildAccessPolicyTest {
 
         assertThatThrownBy(() -> policy.checkCanViewChild(principal, CHILD_WITHOUT_ENROLLMENT))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("You do not have access to this child")
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .hasMessage(ApiCode.CHILD_ACCESS_DENIED.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     private CurrentUser teacherOf(long classroomId) {

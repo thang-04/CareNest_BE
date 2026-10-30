@@ -18,7 +18,7 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 
 | Trong v1 | Không thuộc v1 |
 | --- | --- |
-| Điểm danh, đón trẻ, tổng hợp suất ăn; thực đơn, kho khô rút gọn (ADR-0009); hồ sơ sức khỏe và đánh giá trẻ; kế hoạch giáo dục (ADR-0019); cổng thông tin phụ huynh; thông báo; báo cáo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; sự cố cơ sở vật chất (đã loại 29/10); kiểm kê kho, thu tiền ăn; tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
+| Điểm danh, đón trẻ, tổng hợp suất ăn; thực đơn, kho khô rút gọn (ADR-0009); hồ sơ sức khỏe và đánh giá trẻ; kế hoạch giáo dục (ADR-0020); cổng thông tin phụ huynh; thông báo; báo cáo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; sự cố cơ sở vật chất (đã loại 29/10); kiểm kê kho, thu tiền ăn; tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
 
 ## 2. Tech stack
 
@@ -92,7 +92,7 @@ HTTP Request → Controller → Service → Repository → PostgreSQL
 | Package | PHẢI | KHÔNG ĐƯỢC |
 | --- | --- | --- |
 | `controller/` | Nhận request, `@Valid` dữ liệu đầu vào, lấy user hiện tại, gọi service, trả `ResponseJson` | Chứa logic/tính toán nghiệp vụ; gọi repository; trả entity |
-| `service/` | Interface `XxxService` khai báo contract; `impl/XxxServiceImpl` xử lý nghiệp vụ, `@Transactional`, kiểm tra quyền theo scope, ném `GlobalException(ApiCode, desc)` khi lỗi nghiệp vụ, trả DTO hoặc dữ liệu nghiệp vụ | Dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; trả chuỗi lỗi để controller xử lý; inject `XxxServiceImpl` thay vì interface |
+| `service/` | Interface `XxxService` khai báo contract; `impl/XxxServiceImpl` xử lý nghiệp vụ, `@Transactional`, kiểm tra quyền theo scope, ném `GlobalException.of(ApiCode.X, args...)` khi lỗi nghiệp vụ, trả DTO hoặc dữ liệu nghiệp vụ | Dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; trả chuỗi lỗi để controller xử lý; inject `XxxServiceImpl` thay vì interface |
 | `repository/` | Interface Spring Data JPA, query; `XxxRepositoryCustom` + `XxxRepositoryImpl` chỉ khi cần query custom | Nghiệp vụ |
 | `entity/` | Ánh xạ bảng | Bị trả qua API; dùng làm request body |
 | `dto/`, `mapper/` | DTO request/response; mapper chuyển Entity ↔ DTO | Chứa nghiệp vụ |
@@ -180,20 +180,22 @@ carenest:
 **Mọi** response của API — thành công hay lỗi, kể cả lỗi từ Spring Security và lỗi framework — PHẢI có đúng một dạng:
 
 ```json
-{ "code": 200, "desc": "Get child profile success", "data": { "id": 123, "name": "Example" } }
+{ "code": 200, "errorCode": null, "desc": "Get child profile success", "data": { "id": 123, "name": "Example" } }
+{ "code": 409, "errorCode": 4007, "desc": "Điểm danh và báo ăn đã khóa sau 08:30", "data": null }
 ```
 
 | Trường | Kiểu | Ý nghĩa |
 | --- | --- | --- |
 | `code` | integer | Mã từ `ApiCode`, **trùng HTTP status** của response |
+| `errorCode` | integer / null | Mã lỗi nghiệp vụ 4 số của `ApiCode` (dải theo phân hệ, `docs/contracts/ERROR_CONTRACT.md`); `null` khi thành công |
 | `desc` | string | Thông báo ngắn cho kết quả/lỗi, hiển thị được cho người dùng |
 | `data` | object / array / null | Dữ liệu trả về; luôn có mặt, `null` khi không có dữ liệu |
 
 ### 8.1. Quy tắc
 
 - HTTP status thật của response PHẢI bằng `code`. KHÔNG ĐƯỢC trả HTTP 200 kèm `code` lỗi.
-- `code` chỉ lấy từ `ApiCode`. Thêm giá trị mới vào `ApiCode` chỉ khi cần một HTTP status chưa có; KHÔNG tự đặt mã số riêng.
-- Các lỗi cùng status phân biệt bằng `desc`.
+- `code` và `errorCode` chỉ lấy từ `ApiCode`. Mỗi lỗi nghiệp vụ là một dòng trong `ApiCode` (mã 4 số đúng dải phân hệ + HTTP status + câu tiếng Việt có `{0}`); lỗi mới thêm vào cuối dải, mã đã dùng không đổi số, không dùng lại.
+- Các lỗi cùng status phân biệt bằng `errorCode`; service KHÔNG tự viết câu lỗi.
 - Lỗi validation: `code = 400`, `data` = danh sách lỗi theo trường.
 - Danh sách phân trang: `data` = `PageResponse` (`items`, `page`, `size`, `totalElements`, `totalPages`), không trả trực tiếp `Page` của Spring.
 - Service KHÔNG tự đóng gói `ResponseJson`; chỉ controller, `GlobalExceptionHandler` và security handler tạo response.
@@ -287,7 +289,7 @@ Lỗi PHẢI ném exception (mục 11) để handler trả thống nhất. Chỉ
 | Nhà bếp | Chỉ xem thực đơn, số suất ăn và nội dung liên quan bếp; không xem hồ sơ sức khỏe/đánh giá trẻ |
 | Quản trị viên | Quản lý tài khoản/cấu hình; không mặc định được xem dữ liệu trẻ |
 
-- Truy cập ngoài phạm vi: ném `GlobalException(ApiCode.FORBIDDEN, ...)`.
+- Truy cập ngoài phạm vi: ném `GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED)` / `CLASS_ACCESS_DENIED` / `CHILD_ACCESS_DENIED`.
 - Kiểm tra scope dùng policy trong `security/authorization/` (`CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy`): service gọi `checkCanXxx(currentUser, id)` **trước** khi load dữ liệu (id không tồn tại cũng trả 403, không lộ id). Ghi dùng `checkCanView*` (phạm vi thao tác); đọc có thể dùng `checkCanRead*` (thêm xem liên cơ sở — AUTH-20). KHÔNG viết `if (role == TEACHER)` rải rác trong service; thêm rule mới vào policy và test policy trực tiếp. Chi tiết: `docs/architecture/SECURITY.md`.
 - NÊN có test cho trường hợp bị từ chối (lớp khác, cơ sở khác, phụ huynh không liên kết).
 
@@ -334,7 +336,7 @@ try {
 
 | File | Vai trò |
 | --- | --- |
-| `src/main/java/com/carenest/exception/GlobalException.java` | Lỗi nghiệp vụ: `new GlobalException(ApiCode.X, "desc")` hoặc kèm `cause` |
+| `src/main/java/com/carenest/exception/GlobalException.java` | Lỗi nghiệp vụ: `GlobalException.of(ApiCode.X, args...)`, kèm cause: `GlobalException.withCause(ApiCode.X, ex, args...)` |
 | `src/main/java/com/carenest/exception/GlobalExceptionHandler.java` | Map exception → `ResponseJson`: `GlobalException` (warn; error nếu 5xx), validation → 400 + field errors, request sai → 400, không tìm thấy path → 404, sai method → 405, sai content type → 415, upload quá cỡ → 413, còn lại → 500 với desc chung |
 | `src/main/java/com/carenest/dto/common/FieldErrorResponse.java` | Phần tử lỗi validation `{field, message}` |
 
@@ -344,13 +346,16 @@ try {
 ```java
 // service — lỗi nghiệp vụ
 Child child = childRepository.findById(childId)
-        .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"));
+        .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
+
+// có tham số {0}
+throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
 
 // bọc lỗi dịch vụ ngoài, giữ cause
 try {
     return aiClient.suggestMenu(request);
 } catch (AiTimeoutException ex) {
-    throw new GlobalException(ApiCode.GATEWAY_TIMEOUT, "Menu suggestion timed out", ex);
+    throw GlobalException.withCause(ApiCode.AI_TIMEOUT, ex);
 }
 ```
 
@@ -420,7 +425,7 @@ Chạy trên diff trước khi tạo PR hoặc báo task xong. Mục không áp 
 - [ ] Controller không inject/gọi repository; không chứa logic nghiệp vụ.
 - [ ] Không trả entity qua API; dùng DTO + mapper.
 - [ ] Service mới có interface `XxxService` + `impl/XxxServiceImpl`; enum/hằng dùng chung ở `utils/enums/` / `utils/Constants.java` (ADR-0014).
-- [ ] Service không dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; lỗi nghiệp vụ ném `GlobalException(ApiCode, desc)`.
+- [ ] Service không dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; lỗi nghiệp vụ ném `GlobalException.of(ApiCode.X, args...)` (mã tập trung trong `ApiCode`).
 - [ ] Controller không hardcode prefix API; prefix lấy từ `carenest.api.prefix`.
 - [ ] Mọi response (kể cả lỗi mới thêm) có dạng `{code, desc, data}`, `code` = HTTP status, lấy từ `ApiCode`.
 - [ ] Exception mới được `GlobalExceptionHandler` map đúng `ApiCode`, không rơi vào 500 ngoài ý muốn.

@@ -39,7 +39,7 @@ public class ChildAccessPolicy {
     public void checkCanViewChild(CurrentUser user, Long childId) {
         if (!canViewChild(user, childId)) {
             log.warn("[checkCanViewChild]|userId={}|childId={}|denied", user.userId(), childId);
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this child");
+            throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
         }
     }
 
@@ -51,7 +51,7 @@ public class ChildAccessPolicy {
     public void checkCanReadChild(CurrentUser user, Long childId) {
         if (!canReadChild(user, childId)) {
             log.warn("[checkCanReadChild]|userId={}|childId={}|denied", user.userId(), childId);
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this child");
+            throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
         }
     }
 

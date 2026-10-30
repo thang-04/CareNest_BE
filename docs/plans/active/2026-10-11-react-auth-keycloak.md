@@ -118,7 +118,7 @@ None for the approved scope. TEAM_LEADER is not mapped to a backend role; unsupp
 - Ruling: SMTP-refusal test uses a closed port on a resolvable service, replacing stopped-container DNS delay; DNS-outage timing remains unverified.
 - Transient Docker context metadata file lock: build retried without killing processes/config changes, then succeeded.
 - Engineering memory: RuntimeDelegate test runtime, immutable email attributes, auth flow ancestry and capability concurrency incidents recorded.
-- Detailed evidence/limits: `docs/quality/reports/2026-10-12-react-auth-phase1.md`.
+- Detailed evidence/limits: react-auth-phase1 report of 2026-10-12 (not committed).
 - Final BE verify: `VERIFY PASS full | tests 136 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 35s | log target/verify.log`.
 - AI layer: 0 errors/0 warnings; `git diff --check` clean. No stubs remain in provider. Test containers removed. Commit: none. FE/APP edits: none.
 - Next: user Phase 1 review gate, then Phase 2 APIs/session/OTP and Phase 3 React.
@@ -137,7 +137,7 @@ None for the approved scope. TEAM_LEADER is not mapped to a backend role; unsupp
 - Full verify after final source edits: `VERIFY PASS full | tests 196 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 48s | log target/verify.log`.
 - Provider Maven38 tests/0 skip; isolated Keycloak/PostgreSQL/Mailpit E2E26/26; test project cleaned. Provider E2E and gateway Spring tests are distinct; browser React-through-backend flow remains Phase3.
 - Snapshot intentional: add `/auth/**`, PUT `/me/password`,428 and schemas; existing business endpoints preserved. FE consumers and unchanged Mobile PKCE recorded in AUTH_CONTRACT/CROSS_REPO_MAP.
-- Engineering incidents/module/current-state/schema/contract/operations docs updated. Detailed evidence and operational limits: `docs/quality/reports/2026-10-12-react-auth-phase2.md`.
+- Engineering incidents/module/current-state/schema/contract/operations docs updated. Detailed evidence and operational limits: react-auth-phase2 report of 2026-10-12 (not committed).
 - Next: user Phase2 review gate, then explicit Phase3 permission to edit React repo.
 
 ### 2026-10-13 — Phase 3 React source verified; browser review pending

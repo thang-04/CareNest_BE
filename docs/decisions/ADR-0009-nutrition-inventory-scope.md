@@ -2,7 +2,7 @@
 
 - Status: **ACCEPTED — phương án B mở rộng** (kho khô theo lô, trừ dự kiến khi công bố thực đơn + điều chỉnh theo suất chốt; kiểm nhận hàng tươi do PHT ghi; danh mục NCC; sổ lưu mẫu). Lịch sử: ACCEPTED "không kho trong V1" 03/10 → OPEN 04/10 → ACCEPTED B (bản gọn) 21/10 → thu hẹp 23/10 khi user giới hạn thiết kế mới khoảng 10–15 bảng → sửa 28/10 theo khảo sát team (user chốt).
 - Date: 2026-10-04 (cập nhật 2026-10-28)
-- Liên quan: NUT-07, NUT-10..13, NUT-16, NUT-21, NUT-22; P-08, P-09 đã đóng 28/10; còn P-24, P-25, P-26; thiết kế bảng `docs/database/MEAL_NUTRITION_AI_SCHEMA.md` §5
+- Liên quan: NUT-07, NUT-10..13, NUT-16, NUT-21, NUT-22; P-08, P-09 đã đóng 28/10; còn P-24, P-25, P-26; thiết kế bảng `MEAL_NUTRITION_AI_SCHEMA.md` (file thiết kế của dev, chưa có trong repo) §5
 
 ## Bối cảnh
 
@@ -49,7 +49,7 @@ Bản 28/10 (khảo sát team 27/10: KIT-01..KIT-08, KIT-11, KIT-12, ORG-01; use
 
 ## Hệ quả
 
-- Bảng đề xuất ở `docs/database/MEAL_NUTRITION_AI_SCHEMA.md` §5: `stock_receipts`, `stock_receipt_lines`, `stock_issues`, `food_samples`. Bản 28/10 cần thêm bảng NCC và đổi `stock_issues` sang bút toán trừ dự kiến + điều chỉnh (§13 của file thiết kế). Vượt giới hạn 15 bảng ⇒ báo user khi thiết kế lại.
+- Bảng đề xuất ở `MEAL_NUTRITION_AI_SCHEMA.md` (file thiết kế của dev, chưa có trong repo) §5: `stock_receipts`, `stock_receipt_lines`, `stock_issues`, `food_samples`. Bản 28/10 cần thêm bảng NCC và đổi `stock_issues` sang bút toán trừ dự kiến + điều chỉnh (§13 của file thiết kế). Vượt giới hạn 15 bảng ⇒ báo user khi thiết kế lại.
 - Tồn hiện tại = tổng tồn còn lại của các dòng DRY; không có bảng tồn riêng.
 - FE có màn Nhà cung cấp: giữ được, chỉnh theo danh mục mới. Màn Dự báo tuần: vẫn không có bảng BE.
 - FoodQuantityPlan vẫn tính khi đọc, tách theo campus và FRESH/DRY.

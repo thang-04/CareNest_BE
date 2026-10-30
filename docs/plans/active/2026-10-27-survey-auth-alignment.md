@@ -255,3 +255,12 @@ Không còn câu chặn plan này. Ghi nhận cho phần dinh dưỡng (chủ nh
 - AC-11 kiểm khi module ghi (G94-236 `canUnlock`) vào `dev`: hàm đó gọi `canViewCampus` nên giờ chỉ cơ sở mình.
 - Consumer FE: không đổi contract; `GET /children/{id}` cho PHT có `ALL_CAMPUS_VIEW` như trước.
 - Tiếp: đợt 2 (Phase 9, AUTH-03) sau khi G94-236/226 vào `dev`.
+
+### 2026-10-30 — Merge `dev` sau G94-226/236 (chờ review, chưa commit merge)
+- User cho phép: merge `origin/dev` (PR #2 G94-226, đã gộp G94-236) + đổi migration V10 → V38; không commit merge, chờ review.
+- Xung đột 11 file đã giải: code `AuthController` (refresh xóa cookie khi HTTP 401 hoặc 403), `AuthServiceImpl` (mã lỗi mới `ACCOUNT_NOT_PROVISIONED`/`ACCOUNT_INACTIVE` + giữ `ensureWebRole` theo `primary_role`), `ChildServiceImpl` (`checkCanReadChild` + `CHILD_NOT_FOUND`); 2 test policy; docs `BUSINESS_RULES` (AUTH-03 gộp quyết định 30/10 + trạng thái code G94-236), `USER_ROLES`, `AUTH_CONTRACT`, `CURRENT_STATE`, coding guide; `openapi.yaml` sinh lại = bản `dev` + đúng 23 dòng enum `ALL_CAMPUS_VIEW`/`TEAM_LEADER` của nhánh.
+- Theo `dev` (constructor `GlobalException` private): `checkCanRead*` dùng cùng mã với `checkCanView*` (`CAMPUS_/CLASS_/CHILD_ACCESS_DENIED`); chặn Web cho bếp/phụ huynh dùng `FORBIDDEN` 1101 (chưa có mã riêng). `PermissionServiceImplTest` cột Tổ trưởng chờ `PERMISSION_NOT_CONFIGURABLE_FOR_ROLE`.
+- Migration: `V10__team_leader_permission_column.sql` → `V38__...` (dev đã có V10–V37); docs trỏ V38. Bản V10 cũ trong `target/classes` gây `Found more than one migration with version 10` (ENV-261016).
+- AC-11: `AttendanceIntegrationTest#lockedAfterCutoffUntilUnlockedAndAfterRevoke` thêm PHT cơ sở B có `ALL_CAMPUS_VIEW` mở lại điểm danh cơ sở A ⇒ 403.
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 570 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 342s`. `check-ai-layer`: 0 lỗi, 5 cảnh báo E2 có sẵn từ `dev`.
+- Tiếp: user review rồi commit merge; Phase 9 (AUTH-03 policy chung, thay `AttendanceDayRules.taughtClosedYear`) — chốt file, >8 file thì tách plan.

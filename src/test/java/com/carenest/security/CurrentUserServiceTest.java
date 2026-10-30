@@ -171,9 +171,9 @@ class CurrentUserServiceTest {
 
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("Account is not provisioned")
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .hasMessage(ApiCode.ACCOUNT_NOT_PROVISIONED.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     @Test
@@ -184,9 +184,9 @@ class CurrentUserServiceTest {
 
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("Account is inactive")
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .hasMessage(ApiCode.ACCOUNT_INACTIVE.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     @Test
@@ -195,8 +195,8 @@ class CurrentUserServiceTest {
 
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.UNAUTHORIZED);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.UNAUTHORIZED.getHttpStatus());
     }
 
     private static void authenticateWithJwt(String... authorities) {

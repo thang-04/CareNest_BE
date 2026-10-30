@@ -35,7 +35,7 @@ Trường đang dùng song song PMS, GoKids, Zalo, sổ giấy, hệ thống ng�
 
 CareNest tạo **hồ sơ có cấu trúc, lấy trẻ làm trung tâm, có lịch sử** — không phải kho tin nhắn/tài liệu rời.
 
-**Định vị (review 24/09, CONFIRMED):** CareNest **bao phủ, cải tiến và mở rộng** các chức năng của PMS/GoKids mà workflow của trường cần, để trường không phải dùng song song nhiều app rời rạc. Ví dụ: thực đơn phải nối liền chọn món → tính dinh dưỡng → định lượng/mua (PMS đang làm nhưng không tách theo điểm trường); quan sát/đánh giá cần ngữ cảnh hoạt động. Không viết "CareNest không trùng/không thay thế PMS/GoKids". Vẫn **không** thay hệ thống ngành/quốc gia và không thay Zalo cho chat. Kế hoạch giáo dục soạn và duyệt trong CareNest (EDU-01, ADR-0019; user chốt 2026-10-29); ngữ cảnh hoạt động lấy từ kế hoạch ngày (OBS-07).
+**Định vị (review 24/09, CONFIRMED):** CareNest **bao phủ, cải tiến và mở rộng** các chức năng của PMS/GoKids mà workflow của trường cần, để trường không phải dùng song song nhiều app rời rạc. Ví dụ: thực đơn phải nối liền chọn món → tính dinh dưỡng → định lượng/mua (PMS đang làm nhưng không tách theo điểm trường); quan sát/đánh giá cần ngữ cảnh hoạt động. Không viết "CareNest không trùng/không thay thế PMS/GoKids". Vẫn **không** thay hệ thống ngành/quốc gia và không thay Zalo cho chat. Kế hoạch giáo dục (mục tiêu năm học, chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày) soạn và duyệt trong CareNest theo mẫu MN Thái Dương, nối với đánh giá trẻ theo MT; ngữ cảnh hoạt động lấy từ giáo án đã duyệt (Tiền chốt 22/10; khảo sát team 27/10, user chốt 2026-10-29; rule EDU, OBS-07, module education-plan, ADR-0020, ADR-0006).
 
 ## Actor (CONFIRMED)
 
@@ -52,7 +52,8 @@ Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kit
 | — | ~~Chuẩn bị bếp + bàn giao suất cho lớp~~ — thay bằng ảnh mẫu bữa + sổ lưu mẫu trên App (NUT-16, NUT-21) | REMOVED (NUT-14, NUT-15) | nutrition | meal-management |
 | — | Kho khô rút gọn (nhập, trừ dự kiến khi công bố + điều chỉnh theo suất chốt, xem tồn), kiểm nhận hàng tươi do PHT ghi, danh mục NCC | CONFIRMED (ADR-0009, user chốt 28/10) | nutrition | meal-management |
 | FE-03 | Cân đo định kỳ (mặc định 3 lần/năm, cấu hình được), phân loại WHO, công bố cho phụ huynh, khám bác sĩ 2 lần/năm, trend, AI giải thích có duyệt; sức khỏe trong ngày báo phụ huynh ngay | CONFIRMED (HLT-01..14; khảo sát team 27/10) | health | health-check |
-| FE-04 | Kế hoạch giáo dục: mục tiêu năm → chủ đề nhánh → chủ đề tuần → kế hoạch ngày; duyệt GV → tổ trưởng → PHT một lần đầu năm | CONFIRMED (EDU-01..10, ADR-0019; user chốt 29/10) | education-plan | education-plan |
+| FE-04 | Kế hoạch giáo dục: mục tiêu năm học theo nhóm tuổi → chủ đề nhánh → kế hoạch chủ đề → giáo án tuần/ngày, duyệt trong hệ thống, in ký tay | CONFIRMED (Tiền 22/10; khảo sát team 27/10 — EDU-29..38; mục mâu thuẫn code đã chốt theo code 29/10) | education-plan | education-plan |
+| — | Đánh giá trẻ hằng ngày theo MT của giáo án đã duyệt (ngữ cảnh hoạt động) | CONFIRMED (Tiền 20/10, ADR-0006) | learning-observation, education-plan | child-observation |
 | FE-05 | Đánh giá hằng ngày có cấu trúc: 7 mặt, 3 mức, mặc định "bình thường" | CONFIRMED (OBS-01, OBS-02); tiêu chí P-11 | learning-observation | child-observation |
 | FE-06 | Hồ sơ phát triển (không có mục theo dõi riêng) | CONFIRMED (OBS-03) | learning-observation | child-observation |
 | — | Phiếu bé ngoan tuần, khen thưởng cuối năm | CONFIRMED (OBS-10, OBS-14); làm cả hai: P-31 | learning-observation | child-observation |
@@ -64,11 +65,11 @@ Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kit
 | — | Nhập danh sách trẻ từ Excel để tạo hồ sơ | CONFIRMED (khảo sát team 27/10: SCO-05) | child | — |
 | — | Đón trẻ: danh sách phụ huynh trên màn đón, người lạ thì gọi phụ huynh + ghi lý do, lưu người/giờ đón, báo phụ huynh | CONFIRMED (PCK-01..04) | attendance | pickup |
 
-**Ưu tiên MVP (khảo sát team 27/10, SCO-02, SCO-03):** cắt theo lõi "một ngày của trẻ" — đón trẻ, điểm danh, suất ăn, sức khỏe, đánh giá, phụ huynh; phần còn lại làm sau nếu kịp. Team chọn demo chạy thật: điểm danh → số suất → bếp; thực đơn, cân đối dinh dưỡng, định lượng; kho khô; sức khỏe định kỳ và đầu ngày/trong ngày; kế hoạch giáo dục và duyệt giáo án; đánh giá hằng ngày; nhận xét định kỳ có AI hỗ trợ; phiếu bé ngoan; ứng dụng phụ huynh và thông báo; đón trẻ; báo cáo BGH; phân quyền linh hoạt. Tiền: không thu tiền, chỉ giữ giá suất ăn theo nhóm tuổi để kiểm soát chi phí thực đơn (SCO-04). CareNest thay hẳn PMS (thực đơn, dinh dưỡng, kho) và phần duyệt kế hoạch nội bộ đang làm trên eDoc; CSDL ngành giữ riêng (SCO-01); giáo án theo nhóm rule EDU (ADR-0019). Bảng ước tính chi phí vận hành: chưa làm ở đợt này (SCO-06); mức chi phí trường chấp nhận: P-35.
+**Ưu tiên MVP (khảo sát team 27/10, SCO-02, SCO-03):** cắt theo lõi "một ngày của trẻ" — đón trẻ, điểm danh, suất ăn, sức khỏe, đánh giá, phụ huynh; phần còn lại làm sau nếu kịp. Team chọn demo chạy thật: điểm danh → số suất → bếp; thực đơn, cân đối dinh dưỡng, định lượng; kho khô; sức khỏe định kỳ và đầu ngày/trong ngày; kế hoạch giáo dục và duyệt giáo án; đánh giá hằng ngày; nhận xét định kỳ có AI hỗ trợ; phiếu bé ngoan; ứng dụng phụ huynh và thông báo; đón trẻ; báo cáo BGH; phân quyền linh hoạt. Tiền: không thu tiền, chỉ giữ giá suất ăn theo nhóm tuổi để kiểm soát chi phí thực đơn (SCO-04). CareNest thay hẳn PMS (thực đơn, dinh dưỡng, kho) và phần duyệt kế hoạch nội bộ đang làm trên eDoc; CSDL ngành giữ riêng (SCO-01); giáo án theo nhóm rule EDU (ADR-0020). Bảng ước tính chi phí vận hành: chưa làm ở đợt này (SCO-06); mức chi phí trường chấp nhận: P-35.
 
 ## Exclusions — KHÔNG làm trong V1
 
-Thay thế hệ thống ngành/quốc gia · tích hợp trực tiếp CSDL quốc gia · thay hoàn toàn Zalo (chat) · chẩn đoán y tế · chẩn đoán tâm lý/rối loạn phát triển · AI tự ra quyết định · kế toán đầy đủ · payroll · quản lý vòng đời tài sản (khấu hao, mua sắm, lịch bảo trì, kiểm kê) · thu tiền ăn · kiểm kê kho thực phẩm · theo dõi trạng thái nấu, ghi nhận bàn giao suất · đơn nghỉ của giáo viên · multi-school enterprise SaaS · kiến trúc production 24/7 · disaster recovery đầy đủ · báo và theo dõi sự cố CSVC (REMOVED 29/10) · đăng ký trước người đón hộ trên App (PCK-03) · theo dõi phụ huynh đã đọc thông báo (PAR-05) · quy trình can thiệp suy dinh dưỡng/thừa cân (HLT-12).
+Thay thế hệ thống ngành/quốc gia · tích hợp trực tiếp CSDL quốc gia · thay hoàn toàn Zalo (chat) · chẩn đoán y tế · chẩn đoán tâm lý/rối loạn phát triển · AI tự ra quyết định · ký ảnh/ký điện tử trên kế hoạch giáo dục (duyệt trong hệ thống, in ký tay — EDU-21) · kế toán đầy đủ · payroll · quản lý vòng đời tài sản (khấu hao, mua sắm, lịch bảo trì, kiểm kê) · thu tiền ăn · kiểm kê kho thực phẩm · theo dõi trạng thái nấu, ghi nhận bàn giao suất · đơn nghỉ của giáo viên · multi-school enterprise SaaS · kiến trúc production 24/7 · disaster recovery đầy đủ · báo và theo dõi sự cố CSVC (REMOVED 29/10) · đăng ký trước người đón hộ trên App (PCK-03) · theo dõi phụ huynh đã đọc thông báo (PAR-05) · quy trình can thiệp suy dinh dưỡng/thừa cân (HLT-12).
 
 ## Ràng buộc dự án
 
@@ -87,7 +88,7 @@ Thay thế hệ thống ngành/quốc gia · tích hợp trực tiếp CSDL qu�
 
 ## Quy trình nhóm (khảo sát team 27/10: INT)
 
-- Migration đánh số theo thứ tự merge vào `dev`; giữ số trước khi viết (INT-01). Nhánh G94-226 làm lại trên `dev` (INT-02, ADR-0019). Phần AI đánh giá trong worktree BE-ai giữ local tới khi xong (INT-03).
+- Migration đánh số theo thứ tự merge vào `dev`; giữ số trước khi viết (INT-01). Nhánh G94-226 làm lại trên `dev` (INT-02, ADR-0019) — 29/10 user đã chọn merge `dev` vào nhánh G94-226 thay vì làm lại (migration nhánh dời thành V10–V35, ADR 0017→0020); INT-02 không còn áp dụng (user chốt 29/10, ADR-0019 SUPERSEDED). Phần AI đánh giá trong worktree BE-ai giữ local tới khi xong (INT-03).
 - Mỗi người làm song song phần mình (INT-04). Mốc: đóng băng code 30/11 theo Report 2 (INT-08).
 - Mã rule BE là chuẩn; cần bảng đối chiếu mã GBR → BE (INT-06, việc riêng). Tranh luận nghiệp vụ: trưởng nhóm chốt sau khi nghe BA (INT-09).
 - App tập trung cho phụ huynh và GV; bếp giữ màn tối thiểu (INT-10, AUTH-21). Docs mỗi repo tự cập nhật (INT-11).
@@ -115,4 +116,6 @@ Dùng mã này ở cột Nguồn của rule. Bản gốc nằm ngoài repo (thư
 | Khảo sát | Khảo sát tại trường 21/09 (HT, 1 HP, 3 GV; trước đó 3 PH, 2 bếp) | 21/09/2026 | Biên bản xác nhận chưa ký; số liệu thời gian là ước tính tự báo |
 | Roadmap | CareNest_Roadmap_15W_SEP490.xlsx | 26/09/2026 | Kế hoạch team — chỉ là PROPOSED |
 | BP-BT-03 | Sơ đồ kho + chuẩn bị + bàn giao suất | 02/10/2026 | Flow team mới nhất — PROPOSED |
-| Team 02/10 | Quyết định trưởng nhóm (đơn nghỉ, giáo án, kho) | 02/10/2026 | CONFIRMED (team chốt) |
+| Team 02/10 | Quyết định trưởng nhóm (đơn nghỉ, kho) | 02/10/2026 | CONFIRMED (team chốt) |
+| Mẫu MN Thái Dương | File kế hoạch giáo dục năm học, chủ đề, tuần, ngày của trường MN Thái Dương | 10/2026 | Mẫu nghiệp vụ và mẫu in của kế hoạch giáo dục |
+| Tiền 14–23/10 | Quyết định nghiệp vụ kế hoạch giáo dục (MT liên tục, chuỗi duyệt, bỏ ký ảnh 16/10, UI CareNest_FE là chuẩn 20/10, đưa vào V1 22/10, khóa Đang sửa 23/10) | 14–23/10/2026 | CONFIRMED; tài liệu ở `huong_dan_nghiep_vu/` |

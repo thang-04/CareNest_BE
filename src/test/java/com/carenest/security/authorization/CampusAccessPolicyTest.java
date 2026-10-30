@@ -146,14 +146,14 @@ class CampusAccessPolicyTest {
 
         assertThatThrownBy(() -> policy.checkCanViewCampus(admin, CAMPUS_A))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("You do not have access to this campus")
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .hasMessage(ApiCode.CAMPUS_ACCESS_DENIED.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
         assertThatThrownBy(() -> policy.checkCanReadCampus(admin, CAMPUS_A))
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("You do not have access to this campus")
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .hasMessage(ApiCode.CAMPUS_ACCESS_DENIED.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     static CurrentUser user(CareNestRole... roles) {

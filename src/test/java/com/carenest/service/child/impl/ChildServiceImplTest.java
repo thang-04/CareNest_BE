@@ -78,14 +78,14 @@ class ChildServiceImplTest {
 
     @Test
     void shouldNotLoadChildWhenOutOfScope() {
-        willThrow(new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this child"))
+        willThrow(GlobalException.of(ApiCode.CHILD_ACCESS_DENIED))
                 .given(childAccessPolicy)
                 .checkCanReadChild(TEACHER, 201L);
 
         assertThatThrownBy(() -> childService.getChildProfile(TEACHER, 201L))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
         verify(childRepository, never()).findById(anyLong());
     }
 
@@ -95,8 +95,8 @@ class ChildServiceImplTest {
 
         assertThatThrownBy(() -> childService.getChildProfile(TEACHER, 101L))
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.NOT_FOUND);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.NOT_FOUND.getHttpStatus());
     }
 
     private static final CurrentUser VICE =
@@ -131,10 +131,10 @@ class ChildServiceImplTest {
 
         assertThatThrownBy(() -> childService.searchChildren(VICE, 20L, null, null, 0, 20))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.CAMPUS_ACCESS_DENIED);
         assertThatThrownBy(() -> childService.searchChildren(VICE, null, 21L, null, 0, 20))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .isEqualTo(ApiCode.CLASS_ACCESS_DENIED);
     }
 
     private static Child child(long id) {

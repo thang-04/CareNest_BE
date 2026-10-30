@@ -36,7 +36,7 @@ Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (
 | nutrition | `meals` | Thực đơn (MealPlan), số suất, định lượng |
 | health | `health` (PROPOSED) | |
 | learning-observation | `observation` (PROPOSED) | |
-| education-plan | `eduplan` (PROPOSED — tên nhánh G94-226) | Làm lại trên `dev` (ADR-0019) |
+| education-plan | `eduplan` | Kế hoạch giáo dục: kế hoạch năm, cấu hình, tài liệu lớp, học liệu (ADR-0020) |
 | notification | `notification` (PROPOSED) + `integration/` | |
 | audit | `audit` (PROPOSED) | AuditEvent |
 | ai-assistance | `integration/` (`AiClient`) | Không có service nghiệp vụ riêng |

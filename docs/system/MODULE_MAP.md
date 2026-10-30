@@ -13,7 +13,7 @@ Tổng quan dependency (L3/L4). Chi tiết từng module: `docs/modules/`.
  attendance       ──► child, school-structure
  nutrition        ──► attendance, child, school-structure, ai-assistance
  health           ──► child, ai-assistance
- education-plan   ──► school-structure, ai-assistance
+ education-plan   ──► school-structure, identity-access (tên người dùng), ai-assistance (gợi ý — chưa làm)
  learning-obs     ──► child, attendance, nutrition, health, education-plan, ai-assistance
  reporting        ──► mọi module domain (query only)
 
@@ -28,8 +28,8 @@ Thứ tự lớp (chỉ được phụ thuộc xuống dưới):
 L5  reporting
 L4  learning-observation
 L3  nutrition · health
-L2  attendance · education-plan
-L1  child
+L2  attendance
+L1  child · education-plan
 L0  school-structure · identity-access · ai-assistance · notification · audit · common/utils
 ```
 

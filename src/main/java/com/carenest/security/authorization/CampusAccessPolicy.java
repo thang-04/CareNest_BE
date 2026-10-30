@@ -43,7 +43,7 @@ public class CampusAccessPolicy {
     public void checkCanViewCampus(CurrentUser user, Long campusId) {
         if (!canViewCampus(user, campusId)) {
             log.warn("[checkCanViewCampus]|userId={}|campusId={}|denied", user.userId(), campusId);
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+            throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
         }
     }
 
@@ -62,7 +62,7 @@ public class CampusAccessPolicy {
     public void checkCanReadCampus(CurrentUser user, Long campusId) {
         if (!canReadCampus(user, campusId)) {
             log.warn("[checkCanReadCampus]|userId={}|campusId={}|denied", user.userId(), campusId);
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this campus");
+            throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
         }
     }
 }

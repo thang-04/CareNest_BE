@@ -1,6 +1,6 @@
 package com.carenest.mapper.organization;
 
-import com.carenest.dto.organization.CampusResponse;
+import com.carenest.dto.organization.CampusOptionResponse;
 import com.carenest.dto.organization.ClassroomResponse;
 import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
@@ -17,6 +17,7 @@ public class StaffAssignmentMapper {
                 assignment.getStaffRole(),
                 assignment.getCampusId(),
                 assignment.getClassroomId(),
+                assignment.getAgeGroupId(),
                 assignment.getValidFrom(),
                 assignment.getValidTo());
     }
@@ -32,8 +33,8 @@ public class StaffAssignmentMapper {
                 assignment.getValidTo());
     }
 
-    public CampusResponse toCampusResponse(Campus campus) {
-        return new CampusResponse(campus.getId(), campus.getCode(), campus.getName());
+    public CampusOptionResponse toCampusOptionResponse(Campus campus) {
+        return new CampusOptionResponse(campus.getId(), campus.getCode(), campus.getName());
     }
 
     public ClassroomResponse toClassroomResponse(Classroom classroom) {
