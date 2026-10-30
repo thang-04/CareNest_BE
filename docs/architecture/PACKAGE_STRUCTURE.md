@@ -25,7 +25,7 @@ Không tạo package `domain/`, không tách module theo DDD (guide mục 3).
 
 ## Module nghiệp vụ → feature sub-package
 
-Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (`controller/<feature>`, `service/<feature>`, ...). Tên feature: guide đã nêu ví dụ `attendance`, `child`, `meals`, `facilities`; các tên còn lại là **PROPOSED** — dùng tên đã có trong source nếu khác.
+Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (`controller/<feature>`, `service/<feature>`, ...). Tên feature: guide đã nêu ví dụ `attendance`, `child`, `meals` (ví dụ `facilities` trong guide thuộc mảng CSVC đã loại 29/10); các tên còn lại là **PROPOSED** — dùng tên đã có trong source nếu khác.
 
 | Module (docs) | Feature sub-package | Ghi chú |
 | --- | --- | --- |
@@ -36,7 +36,7 @@ Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (
 | nutrition | `meals` | Thực đơn (MealPlan), số suất, định lượng |
 | health | `health` (PROPOSED) | |
 | learning-observation | `observation` (PROPOSED) | |
-| facility-issue | `facilities` | FacilityReport |
+| education-plan | `eduplan` (PROPOSED — tên nhánh G94-226) | Làm lại trên `dev` (ADR-0019) |
 | notification | `notification` (PROPOSED) + `integration/` | |
 | audit | `audit` (PROPOSED) | AuditEvent |
 | ai-assistance | `integration/` (`AiClient`) | Không có service nghiệp vụ riêng |

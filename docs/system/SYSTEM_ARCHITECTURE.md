@@ -6,10 +6,10 @@
  Admin / BGH / GV ──► CareNest_FE (Web) ─┐
  PH / GV / Bếp ─────► CareNest_APP (Mobile)┼─ HTTPS/JSON ─► CareNest_BE (Spring Boot, 1 deployable)
                                           │                    ├─ PostgreSQL (1 database)
-                                          │                    ├─ File storage (ảnh sự cố — PENDING)
+                                          │                    ├─ File storage (ảnh mẫu bữa, file Word kế hoạch — PENDING)
                                           │                    ├─ Push provider (PENDING)
-                                          │                    └─ AI provider qua adapter (OPEN, ADR-0007)
- PMS / GoKids / Zalo / hệ thống ngành: hệ thống ngoài. CareNest bao phủ + mở rộng workflow cần thiết của PMS/GoKids (PROJECT_CONTEXT "Định vị"); không thay hệ thống ngành, không thay Zalo chat; GoKids: ADR-0006
+                                          │                    └─ AI provider qua adapter: Gemini API, Groq (ADR-0007)
+ PMS / GoKids / Zalo / hệ thống ngành: hệ thống ngoài. CareNest bao phủ + mở rộng workflow cần thiết của PMS/GoKids (PROJECT_CONTEXT "Định vị"); không thay hệ thống ngành, không thay Zalo chat; kế hoạch giáo dục làm trong CareNest (ADR-0019)
 ```
 
 - BE: layered monolith, ranh giới theo feature (ADR-0001, `docs/backend-coding-guide.md`). Module: `docs/system/MODULE_MAP.md`.
@@ -21,11 +21,12 @@
 | Flow | File |
 | --- | --- |
 | Điểm danh → báo ăn → suất đã chốt → bếp | `docs/business/flows/attendance.md` |
+| Đón trẻ → xác nhận trả trẻ → báo phụ huynh | `docs/business/flows/pickup.md` |
 | Đơn nghỉ → điểm danh → suất | `docs/business/flows/leave-request.md` |
 | Thực đơn → định lượng → bếp | `docs/business/flows/meal-management.md` |
-| Sức khỏe định kỳ | `docs/business/flows/health-check.md` |
-| Quan sát → hồ sơ phát triển → summary | `docs/business/flows/child-observation.md` |
-| Sự cố CSVC | `docs/business/flows/facility-issue.md` |
+| Sức khỏe đầu ngày, trong ngày, cân đo định kỳ | `docs/business/flows/health-check.md` |
+| Kế hoạch giáo dục: mục tiêu năm → chủ đề → kế hoạch ngày | `docs/business/flows/education-plan.md` |
+| Đánh giá ngày → nhận xét định kỳ → khen thưởng → hồ sơ phát triển | `docs/business/flows/child-observation.md` |
 
 ## Access scope (ADR-0002, ADR-0003)
 
