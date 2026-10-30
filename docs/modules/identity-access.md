@@ -12,7 +12,7 @@ UserAccount, Role, Permission, role↔permission; kiểm tra access scope (`Acce
 StaffAssignment (school-structure), GuardianChildLink (child), dữ liệu nghiệp vụ.
 
 ## Rules
-AUTH-01..17 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business/USER_ROLES.md`.
+AUTH-01..23 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business/USER_ROLES.md`.
 
 ## Phụ thuộc
 - Dùng: common/utils.
@@ -46,6 +46,7 @@ P-16 (Admin xem dữ liệu trẻ). P-14 đã đóng 2026-10-27 (AUTH-02, AUTH-2
 - User Keycloak thiếu email/lastName bị chặn đăng nhập nếu realm dùng user profile mặc định (ENV-261004-keycloak-user-profile-account-not-fully-set-up).
 - Thêm endpoint mới: dùng `@permissionGuard.has('CODE')`, không `hasRole`; mã phải có trong enum `Permission` (`ControllerSecurityCoverageTest` bắt mã sai). Quyền mới cho role cấu hình được ⇒ migration seed `role_permissions`.
 - Quyền ghi hiện dùng chung policy "xem" (vd. duyệt summary dùng `canViewChild`) ⇒ chỉ để `configurableRoles = TEACHER` cho quyền ghi tới khi có policy ghi; cho PHT quyền ghi sẽ ghi được mọi lớp trong campus.
+- `canView*` là phạm vi thao tác, `canRead*` thêm xem liên cơ sở (AUTH-20). Đường ghi không được gọi `canRead*`; endpoint đọc muốn PHT xem liên cơ sở thì dùng `checkCanRead*` (vd. `ChildServiceImpl.getChildProfile`).
 - User nhiều role (GV kiêm phụ huynh): REVOKE chỉ trừ phần ma trận, không trừ phần cố định của PARENT; scope vẫn do policy theo role.
 - Test WebMvc dựng `CurrentUser` phải kèm quyền (`TestPermissions.userWithDefaults`); constructor 6 tham số không có quyền nào ⇒ 403.
 - `primary_role` là bản sao role Keycloak chỉ ghi khi CareNest tạo tài khoản: đổi role trên Keycloak console làm lệch phạm vi quản lý; tài khoản `primary_role` null chỉ Admin quản lý được.

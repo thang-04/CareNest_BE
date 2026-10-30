@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
+import com.carenest.dto.child.GuardianCandidateResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
@@ -30,6 +31,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.UserStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,7 +49,7 @@ class GuardianAccountServiceImplTest {
             new CurrentUser(3L, "kc-3", "vp", "PHT", null, Set.of(CareNestRole.VICE_PRINCIPAL));
     private static final Long CHILD = 101L;
     private static final AddGuardianRequest REQUEST =
-            new AddGuardianRequest("+84 912 345 678", "Phụ huynh Demo", GuardianRelationship.MOTHER);
+            new AddGuardianRequest("+84 912 345 678", "Phụ huynh Demo", GuardianRelationship.MOTHER, null);
 
     private final UserAccountRepository accounts = mock(UserAccountRepository.class);
     private final GuardianChildLinkService links = mock(GuardianChildLinkService.class);
@@ -101,11 +103,11 @@ class GuardianAccountServiceImplTest {
     }
 
     @Test
-    @DisplayName("AUTH-18: SĐT đã là phụ huynh ⇒ chỉ thêm liên kết, không tạo user, không trả mật khẩu")
+    @DisplayName("AUTH-18: SĐT đã là phụ huynh, đã xác nhận ⇒ chỉ thêm liên kết, không tạo user, không trả mật khẩu")
     void existingParentIsOnlyLinked() {
         given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(60L, CareNestRole.PARENT)));
 
-        AddGuardianResponse response = service.addGuardian(VICE, CHILD, REQUEST);
+        AddGuardianResponse response = service.addGuardian(VICE, CHILD, confirmed(60L));
 
         verify(links).createLink(60L, CHILD, GuardianRelationship.MOTHER);
         verifyNoInteractions(identity);
@@ -114,19 +116,131 @@ class GuardianAccountServiceImplTest {
     }
 
     @Test
-    void staffPhoneNumberIsConflict() {
-        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(61L, CareNestRole.TEACHER)));
+    @DisplayName("AUTH-18: SĐT đã có tài khoản mà chưa xác nhận (hoặc xác nhận sai người) ⇒ 409, không liên kết")
+    void existingAccountNeedsConfirmation() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(60L, CareNestRole.PARENT)));
 
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, REQUEST))
                 .extracting("apiCode")
-                .isEqualTo(ApiCode.PHONE_BELONGS_TO_STAFF);
+                .isEqualTo(ApiCode.GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED);
+        assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(99L)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED);
         verify(links, never()).createLink(any(), any(), any());
+        verifyNoInteractions(identity);
+    }
+
+    @Test
+    @DisplayName("AUTH-18: SĐT của GV ⇒ một tài khoản: thêm role PARENT, giữ role GV, không tạo user mới")
+    void staffAccountGetsParentRole() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(61L, CareNestRole.TEACHER)));
+        given(identity.getRealmRoleNames("kc-61")).willReturn(List.of("TEACHER", "offline_access"));
+
+        AddGuardianResponse response = service.addGuardian(VICE, CHILD, confirmed(61L));
+
+        verify(policy).checkCanManageAccount(VICE, 61L, CareNestRole.TEACHER);
+        InOrder order = inOrder(identity, links);
+        order.verify(identity).assignRealmRole("kc-61", "PARENT");
+        order.verify(links).createLink(61L, CHILD, GuardianRelationship.MOTHER);
+        verify(identity, never()).createUser(any());
+        verify(identity, never()).removeRealmRole(any(), any());
+        assertThat(response.newAccount()).isFalse();
+        assertThat(response.temporaryPassword()).isNull();
+    }
+
+    @Test
+    @DisplayName("Liên kết tài khoản nhân sự lỗi (đã liên kết) ⇒ gỡ role PARENT vừa thêm")
+    void staffLinkFailureRemovesGrantedParentRole() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(61L, CareNestRole.TEACHER)));
+        given(identity.getRealmRoleNames("kc-61")).willReturn(List.of("TEACHER"));
+        willThrow(GlobalException.of(ApiCode.GUARDIAN_ALREADY_LINKED))
+                .given(links)
+                .createLink(61L, CHILD, GuardianRelationship.MOTHER);
+
+        assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(61L)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.GUARDIAN_ALREADY_LINKED);
+        verify(identity).removeRealmRole("kc-61", "PARENT");
+    }
+
+    @Test
+    void staffAccountAlreadyParentIsNotReassigned() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(61L, CareNestRole.TEACHER)));
+        given(identity.getRealmRoleNames("kc-61")).willReturn(List.of("TEACHER", "PARENT"));
+
+        service.addGuardian(VICE, CHILD, confirmed(61L));
+
+        verify(identity, never()).assignRealmRole(any(), any());
+        verify(links).createLink(61L, CHILD, GuardianRelationship.MOTHER);
+    }
+
+    @Test
+    @DisplayName("AUTH-17: tài khoản nhân sự ngoài phạm vi quản lý ⇒ không thêm role, không liên kết")
+    void staffAccountOutOfScopeIsDenied() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(61L, CareNestRole.TEACHER)));
+        willThrow(GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED))
+                .given(policy)
+                .checkCanManageAccount(VICE, 61L, CareNestRole.TEACHER);
+
+        assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(61L)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.ACCOUNT_MANAGE_DENIED);
+        verifyNoInteractions(identity);
+        verify(links, never()).createLink(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("AUTH-12: không tự liên kết tài khoản của chính mình làm phụ huynh")
+    void cannotLinkOwnAccount() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(account(3L, CareNestRole.VICE_PRINCIPAL)));
+
+        assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(3L)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
+        verifyNoInteractions(identity);
+    }
+
+    @Test
+    @DisplayName("AUTH-18: tra SĐT trả họ tên đã che để người nhập xác nhận đúng người")
+    void candidateLookupMasksFullName() {
+        UserAccount teacher = UserAccount.create("kc-61", "0912345678", null, "Nguyễn Thị Lan", CareNestRole.TEACHER);
+        ReflectionTestUtils.setField(teacher, "id", 61L);
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(teacher));
+        given(links.isGuardianOf(61L, CHILD)).willReturn(false);
+
+        GuardianCandidateResponse candidate = service.findGuardianCandidate(VICE, CHILD, "0912.345.678");
+
+        assertThat(candidate.exists()).isTrue();
+        assertThat(candidate.userId()).isEqualTo(61L);
+        assertThat(candidate.maskedFullName()).isEqualTo("N***** T** L**");
+        assertThat(candidate.staffAccount()).isTrue();
+        assertThat(candidate.alreadyLinked()).isFalse();
+    }
+
+    @Test
+    void candidateLookupForUnknownPhoneReturnsNone() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.empty());
+
+        assertThat(service.findGuardianCandidate(VICE, CHILD, "0912345678").exists())
+                .isFalse();
+    }
+
+    @Test
+    void candidateLookupChecksChildScopeFirst() {
+        willThrow(GlobalException.of(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED))
+                .given(policy)
+                .checkCanManageChildGuardians(VICE, CHILD);
+
+        assertThatThrownBy(() -> service.findGuardianCandidate(VICE, CHILD, "0912345678"))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        verifyNoInteractions(accounts);
     }
 
     @Test
     void invalidPhoneIsRejectedBeforeKeycloak() {
         assertThatThrownBy(() -> service.addGuardian(
-                        VICE, CHILD, new AddGuardianRequest("12345", "PH", GuardianRelationship.FATHER)))
+                        VICE, CHILD, new AddGuardianRequest("12345", "PH", GuardianRelationship.FATHER, null)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.PHONE_NUMBER_INVALID);
         verifyNoInteractions(identity);
@@ -192,6 +306,10 @@ class GuardianAccountServiceImplTest {
         verify(links).deleteLink(60L, CHILD);
         verifyNoInteractions(identity);
         verify(accounts, never()).delete(any(UserAccount.class));
+    }
+
+    private static AddGuardianRequest confirmed(Long userId) {
+        return new AddGuardianRequest(REQUEST.phone(), REQUEST.fullName(), REQUEST.relationship(), userId);
     }
 
     private static UserAccount account(Long id, CareNestRole role) {

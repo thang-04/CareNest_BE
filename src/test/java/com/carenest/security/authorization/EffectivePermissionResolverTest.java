@@ -63,6 +63,24 @@ class EffectivePermissionResolverTest {
     }
 
     @Test
+    @DisplayName("AUTH-23: chỉ thêm TEAM_LEADER vào role tính quyền khi đang là tổ trưởng")
+    void teamLeaderColumnAddedOnlyForActiveTeamLeader() {
+        assertThat(EffectivePermissionResolver.permissionRoles(Set.of(CareNestRole.TEACHER), false))
+                .containsExactly(CareNestRole.TEACHER);
+        assertThat(EffectivePermissionResolver.permissionRoles(Set.of(CareNestRole.TEACHER), true))
+                .containsExactlyInAnyOrder(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER);
+    }
+
+    @Test
+    @DisplayName("AUTH-23: ô ma trận cột TEAM_LEADER chỉ áp cho người đang là tổ trưởng")
+    void teamLeaderMatrixRowNeedsTeamLeaderRole() {
+        RolePermission teamLeaderRow = RolePermission.create(CareNestRole.TEAM_LEADER, "CHILD_PROFILE_VIEW", null);
+
+        assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(teamLeaderRow), List.of()))
+                .isEmpty();
+    }
+
+    @Test
     @DisplayName("AUTH-11: role cố định lấy quyền từ code, không từ ma trận")
     void fixedRolesIgnoreMatrix() {
         assertThat(resolve(Set.of(CareNestRole.ADMIN), List.of(TEACHER_CHILD_VIEW), List.of()))

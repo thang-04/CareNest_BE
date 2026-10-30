@@ -47,6 +47,12 @@ carenest:
       issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/carenest}
       jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/carenest/protocol/openid-connect/certs}
       audience: ${KEYCLOAK_AUDIENCE:carenest-api}
+    platform:
+      # AUTH-21: client Keycloak (claim azp) ⇒ nền tảng; client lạ hoặc token thiếu azp bị từ chối mọi API
+      web-clients: ${CARENEST_WEB_CLIENT_IDS:carenest-auth-gateway,carenest-web}
+      mobile-clients: ${CARENEST_MOBILE_CLIENT_IDS:carenest-mobile}
+      # Chỉ dev: client lấy token bằng curl, giữ mọi role
+      dev-clients: ${CARENEST_DEV_CLIENT_IDS:}
     cors:
       # Danh sách origin, phân tách bằng dấu phẩy; không dùng "*"
       allowed-origins: ${CARENEST_CORS_ALLOWED_ORIGINS:http://localhost:3000}

@@ -43,13 +43,19 @@ public enum Permission {
             "Cấp, khóa/mở tài khoản phụ huynh và liên kết với trẻ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // AUTH-20: PHT mặc định chỉ xem campus mình; HT cấp thì xem dữ liệu trường mọi campus, không mở quyền sửa
+    ALL_CAMPUS_VIEW(
+            "school",
+            "Xem dữ liệu trường ở mọi cơ sở (chỉ xem)",
+            EnumSet.noneOf(CareNestRole.class),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
     // Không giao được cho ai: nếu giao, người được giao tự cấp thêm quyền cho mình (AUTH-11)
     PERMISSION_MANAGE(
             "account", "Quản lý phân quyền", EnumSet.of(CareNestRole.PRINCIPAL), EnumSet.noneOf(CareNestRole.class));
 
-    /** Role có hàng trong ma trận; quyền các role khác cố định trong code (AUTH-11). */
-    public static final Set<CareNestRole> CONFIGURABLE_ROLES = Collections.unmodifiableSet(
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF));
+    /** Role có hàng trong ma trận; quyền các role khác cố định trong code (AUTH-11). TEAM_LEADER theo AUTH-23. */
+    public static final Set<CareNestRole> CONFIGURABLE_ROLES = Collections.unmodifiableSet(EnumSet.of(
+            CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF, CareNestRole.TEAM_LEADER));
 
     private final String module;
     private final String description;

@@ -3,6 +3,7 @@ package com.carenest.security.authorization;
 import static com.carenest.security.authorization.CampusAccessPolicyTest.FIXED_CLOCK;
 import static com.carenest.security.authorization.CampusAccessPolicyTest.TODAY;
 import static com.carenest.security.authorization.CampusAccessPolicyTest.user;
+import static com.carenest.security.authorization.CampusAccessPolicyTest.userWith;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -19,11 +20,13 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class ChildAccessPolicyTest {
@@ -84,6 +87,19 @@ class ChildAccessPolicyTest {
     }
 
     @Test
+    @DisplayName("CHD-04: trẻ đã nghỉ học/ra trường ⇒ phụ huynh không xem được dù còn liên kết")
+    void parentCannotViewChildWhoLeftSchool() {
+        CurrentUser parent = user(CareNestRole.PARENT);
+        given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1))
+                .willReturn(true);
+        given(enrollmentService.findChildIdsLeftSchool(Set.of(CHILD_IN_A1), TODAY))
+                .willReturn(Set.of(CHILD_IN_A1));
+
+        assertThat(policy.canViewChild(parent, CHILD_IN_A1)).isFalse();
+        assertThat(policy.canReadChild(parent, CHILD_IN_A1)).isFalse();
+    }
+
+    @Test
     void parentCannotViewAnotherParentsChildAndNoStaffLookupIsMade() {
         CurrentUser parent = user(CareNestRole.PARENT);
         given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1))
@@ -102,6 +118,35 @@ class ChildAccessPolicyTest {
 
         assertThat(policy.canViewChild(vicePrincipal, CHILD_IN_A1)).isTrue();
         assertThat(policy.canViewChild(vicePrincipal, CHILD_IN_B1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: PHT có xem liên cơ sở đọc được hồ sơ trẻ campus khác nhưng không thao tác được")
+    void allCampusViewOpensReadButNotActionOnOtherCampusChild() {
+        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+
+        assertThat(policy.canReadChild(vicePrincipal, CHILD_IN_B1)).isTrue();
+        assertThat(policy.canViewChild(vicePrincipal, CHILD_IN_B1)).isFalse();
+    }
+
+    @Test
+    void readScopeKeepsParentAndKitchenRules() {
+        CurrentUser parent = user(CareNestRole.PARENT);
+        given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1))
+                .willReturn(true);
+        CurrentUser kitchen = user(CareNestRole.KITCHEN_STAFF);
+
+        assertThat(policy.canReadChild(parent, CHILD_IN_A1)).isTrue();
+        assertThat(policy.canReadChild(parent, CHILD_IN_B1)).isFalse();
+        assertThat(policy.canReadChild(kitchen, CHILD_IN_A1)).isFalse();
+        assertThatThrownBy(() -> policy.checkCanReadChild(kitchen, CHILD_IN_A1))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.CHILD_ACCESS_DENIED.getDefaultDesc());
     }
 
     @Test

@@ -25,6 +25,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       - in: query
         name: status
         required: false
@@ -87,6 +88,24 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonCreateAccountResponse"
           description: Created
+      tags:
+      - account-controller
+  /api/accounts/lookup:
+    post:
+      operationId: findAccountCandidate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneLookupRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountCandidateResponse"
+          description: OK
       tags:
       - account-controller
   /api/accounts/me:
@@ -163,6 +182,25 @@ paths:
           description: OK
       tags:
       - permission-controller
+  /api/accounts/{userId}/staff-role/revoke:
+    post:
+      operationId: revokeStaffRole
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountResponse"
+          description: OK
+      tags:
+      - account-controller
   /api/accounts/{userId}/status:
     patch:
       operationId: updateAccountStatus
@@ -913,6 +951,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/ResponseJsonAddGuardianResponse"
           description: Created
+      tags:
+      - guardian-controller
+  /api/children/{childId}/guardians/lookup:
+    post:
+      operationId: findGuardianCandidate
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneLookupRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGuardianCandidateResponse"
+          description: OK
       tags:
       - guardian-controller
   /api/children/{childId}/guardians/{userId}:
@@ -2278,6 +2341,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       - in: query
         name: targetUserId
         required: false
@@ -2350,6 +2414,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       responses:
         "200":
           content:
@@ -2374,6 +2439,7 @@ paths:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
       requestBody:
         content:
           application/json:
@@ -2843,6 +2909,31 @@ components:
         expiresAt:
           type: string
           format: date-time
+    AccountCandidateResponse:
+      type: object
+      properties:
+        exists:
+          type: boolean
+        maskedFullName:
+          type: string
+        primaryRole:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+          - TEAM_LEADER
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
     AccountDetailResponse:
       type: object
       properties:
@@ -2863,6 +2954,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         status:
           type: string
           enum:
@@ -2910,6 +3002,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         status:
           type: string
           enum:
@@ -2931,6 +3024,10 @@ components:
     AddGuardianRequest:
       type: object
       properties:
+        confirmUserId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
         fullName:
           type: string
           maxLength: 150
@@ -3852,6 +3949,10 @@ components:
       properties:
         assignment:
           $ref: "#/components/schemas/StaffAssignmentScopeRequest"
+        confirmUserId:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
         email:
           type: string
           format: email
@@ -3860,6 +3961,10 @@ components:
         fullName:
           type: string
           maxLength: 150
+          minLength: 0
+        phone:
+          type: string
+          maxLength: 20
           minLength: 0
         role:
           type: string
@@ -3870,19 +3975,15 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         temporaryPassword:
           type: string
           maxLength: 128
           minLength: 8
-        username:
-          type: string
-          maxLength: 100
-          minLength: 3
-          pattern: "^[A-Za-z0-9._-]+$"
       required:
       - fullName
+      - phone
       - role
-      - username
     CreateAccountResponse:
       type: object
       properties:
@@ -3901,6 +4002,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         setupEmailSent:
           type: boolean
         status:
@@ -4445,6 +4547,25 @@ components:
         planned:
           type: integer
           format: int64
+    GuardianCandidateResponse:
+      type: object
+      properties:
+        alreadyLinked:
+          type: boolean
+        exists:
+          type: boolean
+        maskedFullName:
+          type: string
+        staffAccount:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        userId:
+          type: integer
+          format: int64
     GuardianResponse:
       type: object
       properties:
@@ -4861,6 +4982,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         roles:
           type: array
@@ -4873,6 +4995,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         userId:
           type: integer
           format: int64
@@ -4931,6 +5054,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
       required:
       - effect
@@ -5088,6 +5212,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
         targetUserId:
           type: integer
           format: int64
@@ -5107,6 +5232,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
         reason:
           type: string
@@ -5127,6 +5253,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - ALL_CAMPUS_VIEW
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -5139,6 +5266,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         defaultRoles:
           type: array
           items:
@@ -5150,6 +5278,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         description:
           type: string
         module:
@@ -5169,6 +5298,15 @@ components:
           type: boolean
         canSubmit:
           type: boolean
+    PhoneLookupRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 0
+      required:
+      - phone
     Placement:
       type: object
       properties:
@@ -5330,6 +5468,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AccessToken"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAccountCandidateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AccountCandidateResponse"
         desc:
           type: string
         errorCode:
@@ -5603,6 +5754,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EduConfigResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonGuardianCandidateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/GuardianCandidateResponse"
         desc:
           type: string
         errorCode:
@@ -6268,6 +6432,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -6281,6 +6446,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         role:
           type: string
@@ -6291,6 +6457,7 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - PARENT
+          - TEAM_LEADER
     RoomRequest:
       type: object
       properties:
@@ -6920,6 +7087,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -6941,6 +7109,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -6952,6 +7121,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
         overrides:
           type: array
@@ -6968,6 +7138,7 @@ components:
             - TEACHER
             - KITCHEN_STAFF
             - PARENT
+            - TEAM_LEADER
         userId:
           type: integer
           format: int64

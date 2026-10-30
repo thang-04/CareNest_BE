@@ -1,0 +1,11 @@
+# VPS: /data/thangnd/CAPSTONE/caddy/carenest-auth.caddy, import từ /etc/caddy/Caddyfile (cùng thư mục với site FE).
+# Keycloak cho Mobile (PKCE) và issuer của token; Web đăng nhập qua /api/auth của BE, không gọi thẳng site này.
+auth.carenest.edu.vn {
+	encode gzip
+
+	# Admin console/REST và realm master không mở ra Internet: quản trị qua SSH tunnel tới 127.0.0.1:18320
+	@internal path /admin /admin/* /realms/master /realms/master/*
+	respond @internal 404
+
+	reverse_proxy 127.0.0.1:18320
+}

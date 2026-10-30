@@ -52,6 +52,20 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public boolean hasActiveTeamLeaderAssignment(Long userId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|hasActiveTeamLeaderAssignment|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean active = staffAssignmentRepository.existsActiveTeamLeader(userId, date);
+            log.info("{}|END", logPrefix);
+            return active;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public boolean hasActiveCampusAssignment(Long userId, StaffRole staffRole, Long campusId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|hasActiveCampusAssignment|userId=" + userId + "|role=" + staffRole
                 + "|campusId=" + campusId;
