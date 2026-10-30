@@ -87,6 +87,19 @@ class ChildAccessPolicyTest {
     }
 
     @Test
+    @DisplayName("CHD-04: trẻ đã nghỉ học/ra trường ⇒ phụ huynh không xem được dù còn liên kết")
+    void parentCannotViewChildWhoLeftSchool() {
+        CurrentUser parent = user(CareNestRole.PARENT);
+        given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1))
+                .willReturn(true);
+        given(enrollmentService.findChildIdsLeftSchool(Set.of(CHILD_IN_A1), TODAY))
+                .willReturn(Set.of(CHILD_IN_A1));
+
+        assertThat(policy.canViewChild(parent, CHILD_IN_A1)).isFalse();
+        assertThat(policy.canReadChild(parent, CHILD_IN_A1)).isFalse();
+    }
+
+    @Test
     void parentCannotViewAnotherParentsChildAndNoStaffLookupIsMade() {
         CurrentUser parent = user(CareNestRole.PARENT);
         given(guardianChildLinkService.isGuardianOf(parent.userId(), CHILD_IN_A1))

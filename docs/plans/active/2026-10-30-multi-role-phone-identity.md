@@ -34,12 +34,13 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 ## Câu hỏi mở
 - [x] 1. Bếp dùng chung một tài khoản mỗi cơ sở (AUTH-22): tên đăng nhập là gì khi chuẩn là SĐT? Đề xuất: ngoại lệ, giữ tên đăng nhập trường đặt (vd. `bep.cs1`).
 - [x] 2. SĐT nhập khi thêm phụ huynh đã thuộc tài khoản có sẵn (phụ huynh hoặc nhân sự): bắt người nhập xác nhận đúng người (hiện tên che, gửi lại kèm `confirmUserId`) cho cả hai, hay chỉ khi là nhân sự? Đề xuất: cả hai (đổi AUTH-18 "tự thêm liên kết").
-- [ ] 3. Trẻ ra trường: phụ huynh còn xem dữ liệu lịch sử của trẻ không, bao lâu? Hiện vẫn xem mãi.
+- [x] 3. Trẻ ra trường: phụ huynh còn xem dữ liệu lịch sử của trẻ không, bao lâu? Hiện vẫn xem mãi.
 - [x] 4. Chưa có SMS: (a) kích hoạt giữ mật khẩu tạm in phiếu + bắt đổi lần đầu; (b) đổi SĐT tự phục vụ bằng OTP (case còn số cũ) hoãn tới khi team chốt nhà cung cấp SMS; (c) SĐT mới xác minh bằng cách nhà trường gọi số mới, ghi lý do. Đồng ý?
 - [ ] 5. Mã Jira cho việc này (và merge `dev` đang staged commit trước bằng G94-60?).
 
 | Câu hỏi | Trả lời | Ai | Ngày | Rule/doc đã cập nhật |
 | --- | --- | --- | --- | --- |
+| 3. Phụ huynh xem trẻ đã ra trường | Không xem trẻ đã ra trường; hết con đang học ⇒ tài khoản INACTIVE; còn con khác học thì xem được con đó | user | 2026-10-30 | CHD-04, `AUTH_CONTRACT.md` |
 | 1. Tên đăng nhập tài khoản bếp dùng chung | SĐT bếp của cơ sở | user | 2026-10-30 | AUTH-15, `AUTH_CONTRACT.md` |
 | 4. Chưa có SMS | Chờ có SMS: Phase 4 (đổi SĐT) hoãn; kích hoạt giữ mật khẩu tạm in phiếu như hiện tại | user | 2026-10-30 | plan này |
 | 2. Xác nhận đúng người khi SĐT đã có tài khoản | Cả phụ huynh có sẵn lẫn nhân sự | user | 2026-10-30 | AUTH-18, `AUTH_CONTRACT.md` |
@@ -144,3 +145,9 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 - User chọn "Chờ có SMS": không làm đổi SĐT bằng xác minh gọi điện. Phase 4 làm lại khi team chốt nhà cung cấp SMS (cần hỏi trước khi thêm dependency/hạ tầng). Tới lúc đó SĐT sai/đổi xử lý bằng cách cũ: HT/PHT tạo tài khoản mới với SĐT mới (mất liên tục lịch sử), hoặc giữ SĐT cũ làm tên đăng nhập.
 - Kích hoạt tài khoản giữ như hiện tại: mật khẩu tạm in phiếu, bắt đổi lần đầu; không gửi mật khẩu qua SMS.
 - Còn mở: câu hỏi 3 (phụ huynh xem lịch sử trẻ đã ra trường), câu hỏi 5 (mã Jira để commit Phase 1–3).
+
+### 2026-10-30 — Trẻ ra trường (câu hỏi mở 3, chờ review)
+- Commit: chưa commit (`af7b65a` đã chứa Phase 1–3).
+- Sửa: `EnrollmentRepository#findChildIdsLeftSchool` + `EnrollmentService(Impl)` ("đã rời trường" = có lịch sử xếp lớp, không còn lớp chưa kết thúc); `ChildAccessPolicy` (đường phụ huynh loại trẻ đã rời trường); `AccountServiceImpl` (`childIds` chỉ trẻ còn học); `YearTransitionService(Impl)` (`ChildrenLeftSchoolEvent` khi kích hoạt năm học, ngày hiệu lực = ngày bắt đầu chuyển lớp); C `ParentAccountLeftSchoolListener` (AFTER_COMMIT, ADR-0004: khóa tài khoản chỉ là phụ huynh hết con đang học; Keycloak lỗi thì DB vẫn INACTIVE). Test: `ChildAccessPolicyTest#parentCannotViewChildWhoLeftSchool`, `AccountServiceImplTest#parentChildIdsExcludeChildrenWhoLeftSchool`, `ParentAccountLeftSchoolListenerTest` (4), `YearTransitionIntegrationTest#activationMovesChildrenAndClosesOldYear` (query thật + event). Docs: CHD-04, `AUTH_CONTRACT.md`.
+- Giả định: kích hoạt sớm (tối đa 7 ngày trước ngày bắt đầu) thì khóa ngay lúc kích hoạt dù trẻ còn lớp tới hôm trước ngày bắt đầu; con mới nhập học không tự mở lại tài khoản (không phân biệt được khóa tay với khóa tự động) — HT/PHT mở; trẻ chưa từng xếp lớp coi như đang học; chưa có luồng thôi học giữa năm nên chỉ áp khi chuyển năm học; event mất khi crash sau commit ⇒ tài khoản không bị khóa nhưng vẫn không xem được trẻ.
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 604 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 196s`. `check-ai-layer`: 0 lỗi, 5 cảnh báo E2 có sẵn.

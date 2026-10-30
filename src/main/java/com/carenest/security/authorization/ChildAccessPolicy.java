@@ -56,8 +56,12 @@ public class ChildAccessPolicy {
     }
 
     private boolean canAccessChild(CurrentUser user, Long childId, BiPredicate<CurrentUser, Long> classroomScope) {
-        // AUTH-04: phụ huynh chỉ trẻ có liên kết với chính tài khoản đang đăng nhập
-        if (user.hasRole(CareNestRole.PARENT) && guardianChildLinkService.isGuardianOf(user.userId(), childId)) {
+        // AUTH-04: phụ huynh chỉ trẻ có liên kết với chính tài khoản; CHD-04: trẻ đã nghỉ học/ra trường thì không xem
+        if (user.hasRole(CareNestRole.PARENT)
+                && guardianChildLinkService.isGuardianOf(user.userId(), childId)
+                && enrollmentService
+                        .findChildIdsLeftSchool(Set.of(childId), LocalDate.now(clock))
+                        .isEmpty()) {
             return true;
         }
         if (STAFF_ROLES_WITH_CHILD_SCOPE.stream().noneMatch(user::hasRole)) {

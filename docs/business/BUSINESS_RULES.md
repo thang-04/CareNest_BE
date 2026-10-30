@@ -54,7 +54,7 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | CHD-01 | PHT chuyên môn tiếp nhận và nhập hồ sơ trẻ mới, bằng form hoặc nhập từ file Excel (danh sách lấy từ CSDL ngành hoặc trường tự lập) | CONFIRMED | Khảo sát team 27/10 (CHD-01, CHD-02, SCO-05) |
 | CHD-02 | Hồ sơ trẻ gồm: họ tên, ngày sinh, giới tính, địa chỉ, ảnh, tiền sử bệnh, dị ứng (HLT-06), bố mẹ/người giám hộ và SĐT, lưu ý đặc biệt (chế độ ăn, hành vi), số định danh/CCCD nếu có. Số định danh và tiền sử bệnh là dữ liệu nhạy cảm, hiển thị theo AUTH-03, AUTH-04, PAR-02 | CONFIRMED | Khảo sát team 27/10 (CHD-03) |
 | CHD-03 | Trẻ được chuyển lớp trong năm học; không chuyển cơ sở | CONFIRMED | Khảo sát team 27/10 (CHD-06); Review 1 11/10 |
-| CHD-04 | Trẻ thôi học ⇒ phụ huynh mất quyền xem trẻ đó ngay (tài khoản vẫn dùng cho trẻ khác còn học); dữ liệu giữ trong DB, không xóa | CONFIRMED | Khảo sát team 27/10 (CHD-07) |
+| CHD-04 | Trẻ thôi học/ra trường ⇒ phụ huynh mất quyền xem trẻ đó ngay (tài khoản vẫn dùng cho trẻ khác còn học); phụ huynh không còn con nào đang học ⇒ tài khoản chuyển INACTIVE (tài khoản nhân sự kiêm phụ huynh giữ nguyên). Dữ liệu giữ trong DB, không xóa. **Code: "đã rời trường" = có lịch sử xếp lớp mà không còn lớp chưa kết thúc; chặn xem + bỏ khỏi `childIds`; khóa tài khoản khi kích hoạt năm học (trẻ xếp Nghỉ học/Ra trường), xét theo ngày bắt đầu năm mới. Chưa có luồng thôi học giữa năm** | CONFIRMED | Khảo sát team 27/10 (CHD-07); user chốt 2026-10-30 (khóa tài khoản khi hết con đang học) |
 | CHD-05 | Phụ huynh tự sửa thông tin liên lạc của mình; thông tin của trẻ do nhà trường sửa | CONFIRMED | Khảo sát team 27/10 (CHD-08) |
 
 ## CFG — Năm học và cấu hình trường (module: school-structure)
