@@ -54,7 +54,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Đánh giá trẻ trên PostgreSQL thật (V32). Hôm nay = thứ 4, 28/10/2026, 08:00 giờ trường (trước giờ chốt điểm danh). */
+/** Đánh giá trẻ trên PostgreSQL thật (V39). Hôm nay = thứ 4, 28/10/2026, 08:00 giờ trường (trước giờ chốt điểm danh). */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)

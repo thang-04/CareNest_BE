@@ -229,7 +229,7 @@ Mục đích: mở lại điểm danh một lớp/ngày đã khóa (HT mọi l�
 Mỗi lớp/ngày tối đa một lần mở còn hiệu lực (service kiểm). Index: `(classroom_id, date)`.
 
 ## daily_observations  (module: learning-observation, scope: CHILD)
-Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V32__create_daily_observations.sql`. Dữ liệu quan sát — không log.
+Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V39__create_daily_observations.sql`. Dữ liệu quan sát — không log.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id / classroom_id / campus_id | BIGINT FK | không | Trẻ, lớp, điểm trường lúc ghi; UNIQUE `(child_id, date)` | OBS-12, OBS-17 |
@@ -244,7 +244,7 @@ Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét c
 | recorded_by/at, updated_by/at | BIGINT FK user_accounts, TIMESTAMPTZ | | | — |
 
 ## daily_activity_results  (module: learning-observation, scope: CHILD)
-Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt động của giáo án tuần đã duyệt. Migration: V32.
+Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt động của giáo án tuần đã duyệt. Migration: V39.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id / classroom_id / campus_id, date | BIGINT FK, DATE | không | UNIQUE `(child_id, date, activity_key)` | OBS-12 |
@@ -255,11 +255,11 @@ Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt 
 
 ## assessment_day_unlocks  (module: learning-observation, scope: CLASS)
 
-Mục đích: mở lại đánh giá một lớp/ngày đã khóa. Cột giống `attendance_day_unlocks`. Migration: V32. | OBS-16
+Mục đích: mở lại đánh giá một lớp/ngày đã khóa. Cột giống `attendance_day_unlocks`. Migration: V39. | OBS-16
 
 ## class_daily_comments (module: learning-observation, scope: CLASS)
 
-Nhận xét chung lớp/ngày (OBS-19), migration mới `V33__create_class_daily_comments.sql`; không lưu vào nhận xét của trẻ và không tính là trẻ đã đánh giá.
+Nhận xét chung lớp/ngày (OBS-19), migration mới `V40__create_class_daily_comments.sql`; không lưu vào nhận xét của trẻ và không tính là trẻ đã đánh giá.
 
 | Cột | Kiểu | Null | Ý nghĩa |
 | --- | --- | --- | --- |
