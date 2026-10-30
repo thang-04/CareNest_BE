@@ -508,6 +508,31 @@ class AuthServiceImplTest {
         verify(state).savePasswordToken(any());
     }
 
+    @Test
+    @DisplayName("AUTH-21: quên mật khẩu Web với email bếp/phụ huynh trả như email không tồn tại, không gửi OTP")
+    void appOnlyRecoveryLooksLikeUnknownEmailAndSendsNoOtp() {
+        given(state.takeRate(any(), org.mockito.ArgumentMatchers.eq(5), any())).willReturn(true);
+        UserAccount kitchen = UserAccount.create(
+                "kc-kitchen", "kitchen.a", "kitchen@example.test", "Bếp Demo", CareNestRole.KITCHEN_STAFF);
+        UserAccount parent = UserAccount.create(
+                "kc-parent", "0900000001", "parent@example.test", "Phụ huynh Demo", CareNestRole.PARENT);
+        given(userAccounts.findByEmailIgnoreCase("kitchen@example.test")).willReturn(List.of(kitchen));
+        given(userAccounts.findByEmailIgnoreCase("parent@example.test")).willReturn(List.of(parent));
+        given(userAccounts.findByEmailIgnoreCase("unknown@example.test")).willReturn(List.of());
+
+        var unknown = service.forgot(new AuthRequests.Forgot("unknown@example.test"));
+        var kitchenReply = service.forgot(new AuthRequests.Forgot("kitchen@example.test"));
+        var parentReply = service.forgot(new AuthRequests.Forgot("parent@example.test"));
+
+        assertThat(kitchenReply.expiresAt()).isEqualTo(unknown.expiresAt());
+        assertThat(parentReply.resendAvailableAt()).isEqualTo(unknown.resendAvailableAt());
+        var saved = ArgumentCaptor.forClass(com.carenest.entity.account.PasswordToken.class);
+        verify(state, org.mockito.Mockito.times(3)).savePasswordToken(saved.capture());
+        assertThat(saved.getAllValues())
+                .allSatisfy(token -> assertThat(token.getUserId()).isNull());
+        verify(keycloak, never()).sendOtp(any(), any());
+    }
+
     private static CurrentUser userWithRoles(CareNestRole... roles) {
         return new CurrentUser(92L, "kc-user-2", "app.user", "Tài khoản Demo", null, Set.of(roles));
     }

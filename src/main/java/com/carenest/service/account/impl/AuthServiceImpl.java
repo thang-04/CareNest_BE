@@ -277,8 +277,10 @@ public class AuthServiceImpl implements AuthService {
                     crypto.keyedHash("recovery-rate:" + lookup + ":" + window),
                     Auth.RATE_LIMIT,
                     Instant.ofEpochSecond((window + 1) * 1800));
+            // AUTH-21: bếp/phụ huynh không khôi phục mật khẩu qua Web; coi như email không tồn tại để không lộ loại TK
             List<UserAccount> matches = accounts.findByEmailIgnoreCase(email).stream()
                     .filter(UserAccount::isActive)
+                    .filter(AuthServiceImpl::mayUseWeb)
                     .toList();
             UserAccount account = matches.size() == 1 && allowed ? matches.getFirst() : null;
             String requestId = crypto.randomToken();
@@ -509,6 +511,11 @@ public class AuthServiceImpl implements AuthService {
     private static void ensureWebRole(Set<CareNestRole> roles) {
         if (Collections.disjoint(roles, WEB_ROLES))
             throw new GlobalException(ApiCode.FORBIDDEN, "This account cannot sign in on the Web app");
+    }
+
+    // Tài khoản cũ chưa có primary_role cho qua, như nhánh đổi mật khẩu lần đầu
+    private static boolean mayUseWeb(UserAccount account) {
+        return account.getPrimaryRole() == null || WEB_ROLES.contains(account.getPrimaryRole());
     }
 
     private static GlobalException malformed() {

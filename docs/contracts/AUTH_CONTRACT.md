@@ -34,7 +34,7 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 | POST `/auth/login` (mật khẩu tạm đã xác minh) | như trên | 428 `{expiresAt,passwordChangeRequired:true,changeToken}`; không phát cookie phiên/access/refresh token |
 | POST `/auth/refresh` | tùy chọn `{force:false}` | `{accessToken,expiresAt}` + `Set-Cookie` mới; đọc cookie `CARENEST_SESSION`, gộp request đồng thời; 401 kèm xóa cookie; `force` không còn tác dụng |
 | POST `/auth/logout` | — | 200, xóa cookie, best-effort logout Keycloak; cookie thiếu/hỏng vẫn 200 |
-| POST `/auth/password/forgot` | `{email}` | `{requestId,expiresAt,resendAvailableAt}`; cùng status/shape cho email không tồn tại, inactive hoặc bị giới hạn |
+| POST `/auth/password/forgot` | `{email}` | `{requestId,expiresAt,resendAvailableAt}`; cùng status/shape cho email không tồn tại, inactive, bị giới hạn hoặc thuộc tài khoản chỉ dùng App (bếp, phụ huynh — AUTH-21: không gửi OTP; mật khẩu mới do HT/PHT cấp lại mật khẩu tạm) |
 | GET `/auth/password/otp/{requestId}` | — | metadata cùng shape, không chứa email/OTP |
 | POST `/auth/password/otp/{requestId}/resend` | — | metadata; khoảng cách 60 giây |
 | POST `/auth/password/otp/{requestId}/verify` | `{otp}` | `{resetToken,expiresAt}`; OTP một lần |
