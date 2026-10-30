@@ -1113,6 +1113,81 @@ paths:
           description: OK
       tags:
       - guardian-controller
+  /api/children/{childId}/health:
+    get:
+      operationId: getHealthRecord
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildHealthRecordResponse"
+          description: OK
+      tags:
+      - health-measurement-controller
+  /api/children/{childId}/health/measurements:
+    post:
+      operationId: createMeasurement
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthMeasurementRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthMeasurementResponse"
+          description: Created
+      tags:
+      - health-measurement-controller
+  /api/children/{childId}/health/measurements/{measurementId}:
+    put:
+      operationId: updateMeasurement
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: measurementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthMeasurementRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthMeasurementResponse"
+          description: OK
+      tags:
+      - health-measurement-controller
   /api/children/{childId}/readmit:
     post:
       operationId: readmit
@@ -2220,6 +2295,236 @@ paths:
           description: Created
       tags:
       - edu-year-plan-controller
+  /api/health-checks:
+    get:
+      operationId: listHealthChecks
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - UPCOMING
+          - IN_PROGRESS
+          - CLOSED
+          - CANCELLED
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListHealthCheckResponse"
+          description: OK
+      tags:
+      - health-check-controller
+    post:
+      operationId: createHealthCheck
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthCheckRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthCheckResponse"
+          description: Created
+      tags:
+      - health-check-controller
+  /api/health-checks/schedule-warnings:
+    get:
+      operationId: getScheduleWarnings
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+      - in: query
+        name: startDate
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: excludeId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthScheduleWarningResponse"
+          description: OK
+      tags:
+      - health-check-controller
+  /api/health-checks/{campaignId}:
+    get:
+      operationId: getHealthCheck
+      parameters:
+      - in: path
+        name: campaignId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthCheckDetailResponse"
+          description: OK
+      tags:
+      - health-check-controller
+    put:
+      operationId: updateHealthCheck
+      parameters:
+      - in: path
+        name: campaignId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthCheckRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthCheckResponse"
+          description: OK
+      tags:
+      - health-check-controller
+  /api/health-checks/{campaignId}/cancel:
+    post:
+      operationId: cancelHealthCheck
+      parameters:
+      - in: path
+        name: campaignId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthCheckResponse"
+          description: OK
+      tags:
+      - health-check-controller
+  /api/health-checks/{campaignId}/classes/{classId}/children:
+    get:
+      operationId: getHealthCheckClass
+      parameters:
+      - in: path
+        name: campaignId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthCheckClassResponse"
+          description: OK
+      tags:
+      - health-check-controller
+  /api/health-checks/{campaignId}/close:
+    post:
+      operationId: closeHealthCheck
+      parameters:
+      - in: path
+        name: campaignId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthCheckCloseResponse"
+          description: OK
+      tags:
+      - health-check-controller
+  /api/health-checks/{campaignId}/reopen:
+    post:
+      operationId: reopenHealthCheck
+      parameters:
+      - in: path
+        name: campaignId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthCheckReopenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthCheckResponse"
+          description: OK
+      tags:
+      - health-check-controller
   /api/locations:
     get:
       operationId: getRooms
@@ -3790,6 +4095,23 @@ components:
           enum:
           - SENT
           - FAILED
+    ChildHealthRecordResponse:
+      type: object
+      properties:
+        canRecord:
+          type: boolean
+        childId:
+          type: integer
+          format: int64
+        headCircumferenceUntil:
+          type: string
+          format: date
+        measurements:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthMeasurementResponse"
+        openCampaign:
+          $ref: "#/components/schemas/HealthOpenCampaign"
     ChildHistoryResponse:
       type: object
       properties:
@@ -5098,6 +5420,286 @@ components:
           format: int64
         username:
           type: string
+    HealthCheckChild:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        code:
+          type: string
+        date:
+          type: string
+          format: date
+        dateOfBirth:
+          type: string
+          format: date
+        fullName:
+          type: string
+        heightCm:
+          type: number
+        measurementId:
+          type: integer
+          format: int64
+        published:
+          type: boolean
+        result:
+          type: string
+          enum:
+          - NOT_RECORDED
+          - RECORDED
+          - ABSENT
+        weightKg:
+          type: number
+    HealthCheckClassProgress:
+      type: object
+      properties:
+        absent:
+          type: integer
+          format: int32
+        ageGroupId:
+          type: integer
+          format: int64
+        canRecord:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        closeWatch:
+          type: integer
+          format: int32
+        inProgress:
+          type: integer
+          format: int32
+        notConcluded:
+          type: integer
+          format: int32
+        notRecorded:
+          type: integer
+          format: int32
+        recorded:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        watch:
+          type: integer
+          format: int32
+    HealthCheckClassRef:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    HealthCheckClassResponse:
+      type: object
+      properties:
+        campaign:
+          $ref: "#/components/schemas/HealthCheckResponse"
+        canRecord:
+          type: boolean
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthCheckChild"
+        cls:
+          $ref: "#/components/schemas/HealthCheckClassRef"
+    HealthCheckCloseResponse:
+      type: object
+      properties:
+        absentCount:
+          type: integer
+          format: int32
+        campaign:
+          $ref: "#/components/schemas/HealthCheckResponse"
+        notConcludedCount:
+          type: integer
+          format: int32
+        waitingFollowUpCount:
+          type: integer
+          format: int32
+    HealthCheckDetailResponse:
+      type: object
+      properties:
+        campaign:
+          $ref: "#/components/schemas/HealthCheckResponse"
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthCheckClassProgress"
+        watchList:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthCheckChild"
+    HealthCheckHistory:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+          - CREATED
+          - UPDATED
+          - CLOSED
+          - REOPENED
+          - CANCELLED
+        at:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
+    HealthCheckProgress:
+      type: object
+      properties:
+        absent:
+          type: integer
+          format: int32
+        closeWatch:
+          type: integer
+          format: int32
+        inProgress:
+          type: integer
+          format: int32
+        notConcluded:
+          type: integer
+          format: int32
+        notRecorded:
+          type: integer
+          format: int32
+        recorded:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        watch:
+          type: integer
+          format: int32
+    HealthCheckReopenRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+      required:
+      - reason
+    HealthCheckRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        endDate:
+          type: string
+          format: date
+        examiner:
+          type: string
+          maxLength: 150
+          minLength: 0
+        kind:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        startDate:
+          type: string
+          format: date
+      required:
+      - campusId
+      - endDate
+      - name
+      - startDate
+    HealthCheckResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        campusName:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+        closedAt:
+          type: string
+          format: date-time
+        closedBy:
+          type: integer
+          format: int64
+        closedByName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: integer
+          format: int64
+        createdByName:
+          type: string
+        endDate:
+          type: string
+          format: date
+        examiner:
+          type: string
+        hasResults:
+          type: boolean
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthCheckHistory"
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+        name:
+          type: string
+        note:
+          type: string
+        overdueFollowUpCount:
+          type: integer
+          format: int32
+        progress:
+          $ref: "#/components/schemas/HealthCheckProgress"
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - UPCOMING
+          - IN_PROGRESS
+          - CLOSED
+          - CANCELLED
+        waitingFollowUpCount:
+          type: integer
+          format: int32
     HealthDeclarationInput:
       type: object
       properties:
@@ -5109,6 +5711,173 @@ components:
           $ref: "#/components/schemas/MedicalHistoryInput"
         otherNotes:
           $ref: "#/components/schemas/DeclarationAnswerInput"
+    HealthMeasurementChange:
+      type: object
+      properties:
+        field:
+          type: string
+        from:
+          type: string
+        to:
+          type: string
+    HealthMeasurementEditView:
+      type: object
+      properties:
+        at:
+          type: string
+          format: date-time
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthMeasurementChange"
+        reason:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
+    HealthMeasurementRequest:
+      type: object
+      properties:
+        campaignId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        headCircumferenceCm:
+          type: number
+          maximum: 60.0
+          minimum: 30.0
+        heightCm:
+          type: number
+          maximum: 150.0
+          minimum: 40.0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+        weightKg:
+          type: number
+          maximum: 60.0
+          minimum: 3.0
+      required:
+      - date
+      - heightCm
+      - weightKg
+    HealthMeasurementResponse:
+      type: object
+      properties:
+        ageMonths:
+          type: integer
+          format: int32
+        bmi:
+          type: number
+        campaignId:
+          type: integer
+          format: int64
+        campaignKind:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+        campaignName:
+          type: string
+        childId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        date:
+          type: string
+          format: date
+        edits:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthMeasurementEditView"
+        headCircumferenceCm:
+          type: number
+        heightCm:
+          type: number
+        id:
+          type: integer
+          format: int64
+        locked:
+          type: boolean
+        measuredBy:
+          type: integer
+          format: int64
+        measuredByName:
+          type: string
+        note:
+          type: string
+        published:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+        weightKg:
+          type: number
+    HealthOpenCampaign:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+        name:
+          type: string
+        resultMeasurementId:
+          type: integer
+          format: int64
+        resultStatus:
+          type: string
+        startDate:
+          type: string
+          format: date
+    HealthScheduleWarningItem:
+      type: object
+      properties:
+        campaignId:
+          type: integer
+          format: int64
+        code:
+          type: string
+          enum:
+          - TOO_CLOSE
+          - EXAM_IN_SCHOOL_YEAR
+        kind:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+    HealthScheduleWarningResponse:
+      type: object
+      properties:
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthScheduleWarningItem"
     History:
       type: object
       properties:
@@ -6221,6 +6990,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonChildHealthRecordResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildHealthRecordResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonChildProfileResponse:
       type: object
       properties:
@@ -6429,6 +7211,84 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonHealthCheckClassResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthCheckClassResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthCheckCloseResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthCheckCloseResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthCheckDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthCheckDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthCheckResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthCheckResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthMeasurementResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthMeasurementResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthScheduleWarningResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthScheduleWarningResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonLearningResourceResponse:
       type: object
       properties:
@@ -6602,6 +7462,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/GuardianResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListHealthCheckResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthCheckResponse"
         desc:
           type: string
         errorCode:

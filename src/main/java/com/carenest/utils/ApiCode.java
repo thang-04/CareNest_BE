@@ -264,6 +264,34 @@ public enum ApiCode {
     HEALTH_ACTIONS_NOT_ALLOWED(5006, HttpStatus.BAD_REQUEST, "Chỉ ghi xử trí khi có dấu hiệu cần lưu ý"),
     HEALTH_REFERRAL_INCOMPLETE(5007, HttpStatus.BAD_REQUEST, "Nhập nơi chuyển trẻ đến và giờ chuyển"),
     HEALTH_CHILD_PICKED_UP(5008, HttpStatus.CONFLICT, "Trẻ đã được trả cho phụ huynh, không ghi thêm được"),
+    HEALTH_CHECK_NOT_FOUND(5009, HttpStatus.NOT_FOUND, "Không tìm thấy đợt khám hoặc kỳ cân đo"),
+    HEALTH_CHECK_ACCESS_DENIED(
+            5010, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý đợt khám, kỳ cân đo của điểm trường này"),
+    HEALTH_CHECK_CAMPUS_BUSY(
+            5011,
+            HttpStatus.CONFLICT,
+            "Điểm trường đang có {0} \"{1}\" chưa đóng. Đóng hoặc hủy trước khi tạo hoặc mở lại"),
+    HEALTH_CHECK_ENDED(5012, HttpStatus.CONFLICT, "Đợt khám/kỳ cân đo đã đóng hoặc đã hủy, không thay đổi được"),
+    HEALTH_CHECK_HAS_RESULTS(5013, HttpStatus.CONFLICT, "Đã có kết quả nên không hủy được. Đóng thay vì hủy"),
+    HEALTH_CHECK_NOT_IN_PROGRESS(5014, HttpStatus.CONFLICT, "Chỉ đóng được đợt khám/kỳ cân đo đang diễn ra"),
+    HEALTH_CHECK_NOT_CLOSED(5015, HttpStatus.CONFLICT, "Chỉ mở lại được đợt khám/kỳ cân đo đã đóng"),
+    HEALTH_CHECK_RESULT_OUTSIDE_DATES(5016, HttpStatus.BAD_REQUEST, "Đã có kết quả ngày {0} nằm ngoài khoảng ngày mới"),
+    HEALTH_ROUND_REQUIRED(
+            5017,
+            HttpStatus.BAD_REQUEST,
+            "Chỉ nhập số đo trong kỳ cân đo của điểm trường; kết quả đợt khám nhập bằng phiếu khám"),
+    HEALTH_ROUND_NOT_OPEN(
+            5018, HttpStatus.CONFLICT, "Kỳ cân đo chưa bắt đầu, đã đóng hoặc đã hủy; không nhập hay sửa được số đo"),
+    HEALTH_MEASUREMENT_EXISTS(5019, HttpStatus.CONFLICT, "Trẻ đã có số đo trong kỳ này. Sửa lần đo đã có"),
+    HEALTH_MEASUREMENT_DATE_TAKEN(5020, HttpStatus.CONFLICT, "Ngày này trẻ đã có kết quả đo"),
+    HEALTH_MEASUREMENT_DATE_OUTSIDE(
+            5021, HttpStatus.BAD_REQUEST, "Chọn ngày đo trong khoảng ngày của kỳ cân đo, không chọn ngày tương lai"),
+    HEALTH_MEASUREMENT_NOT_FOUND(5022, HttpStatus.NOT_FOUND, "Không tìm thấy lần đo"),
+    HEALTH_MEASUREMENT_ACCESS_DENIED(
+            5023, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được nhập hoặc sửa số đo"),
+    HEALTH_EDIT_REASON_REQUIRED(5024, HttpStatus.BAD_REQUEST, "Nhập lý do sửa số đo đã công bố"),
+    HEALTH_RECORD_ACCESS_DENIED(5025, HttpStatus.FORBIDDEN, "Bạn không có quyền xem sổ sức khỏe của trẻ này"),
+    HEALTH_CHECK_DATES_INVALID(5026, HttpStatus.BAD_REQUEST, "Ngày kết thúc không được trước ngày bắt đầu"),
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),

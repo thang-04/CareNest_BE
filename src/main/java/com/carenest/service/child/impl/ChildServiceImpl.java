@@ -1,5 +1,6 @@
 package com.carenest.service.child.impl;
 
+import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.child.ChildProfileResponse;
 import com.carenest.dto.child.ChildSummaryResponse;
 import com.carenest.dto.common.PageResponse;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -100,6 +102,24 @@ public class ChildServiceImpl implements ChildService {
             boolean exists = childRepository.existsById(childId);
             log.info("{}|END", logPrefix);
             return exists;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, ChildBriefResponse> findChildBriefs(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findChildBriefs|count=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, ChildBriefResponse> briefs = childRepository.findAllById(childIds).stream()
+                    .collect(Collectors.toMap(
+                            Child::getId,
+                            c -> new ChildBriefResponse(c.getId(), c.getCode(), c.getFullName(), c.getDateOfBirth())));
+            log.info("{}|END", logPrefix);
+            return briefs;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

@@ -5,7 +5,9 @@ import com.carenest.dto.organization.CampusOptionResponse;
 import com.carenest.dto.organization.ClassroomResponse;
 import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.security.CurrentUser;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -21,6 +23,9 @@ public interface SchoolStructureService {
     List<AgeGroupResponse> findAgeGroups();
 
     Optional<AgeGroupResponse> findAgeGroup(Long ageGroupId);
+
+    /** campusId → tên điểm trường; không kiểm phạm vi (nơi gọi đã kiểm). */
+    Map<Long, String> findCampusNames(Collection<Long> campusIds);
 
     List<CampusOptionResponse> listCampuses(CurrentUser actor);
 
