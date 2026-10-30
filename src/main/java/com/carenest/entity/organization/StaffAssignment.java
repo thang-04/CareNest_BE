@@ -92,6 +92,18 @@ public class StaffAssignment {
         return a;
     }
 
+    public static StaffAssignment vicePrincipal(
+            Long userId, Long campusId, LocalDate validFrom, LocalDate validTo, Long assignedBy) {
+        StaffAssignment a = new StaffAssignment();
+        a.userId = userId;
+        a.staffRole = StaffRole.VICE_PRINCIPAL;
+        a.campusId = campusId;
+        a.validFrom = validFrom;
+        a.validTo = validTo;
+        a.assignedBy = assignedBy;
+        return a;
+    }
+
     public void markHomeroom(boolean homeroom) {
         this.homeroom = homeroom;
     }

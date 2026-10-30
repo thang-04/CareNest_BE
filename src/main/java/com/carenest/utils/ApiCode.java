@@ -157,6 +157,8 @@ public enum ApiCode {
     TEACHER_ACCOUNT_LOCKED(2305, HttpStatus.CONFLICT, "Tài khoản giáo viên đã bị khóa"),
     TEACHER_ALREADY_ASSIGNED(2306, HttpStatus.CONFLICT, "Giáo viên {0} đang dạy lớp {1}, gỡ ở lớp đó trước"),
     TEAM_LEADER_INVALID(2307, HttpStatus.BAD_REQUEST, "Tổ trưởng phải là giáo viên đang làm việc"),
+    VICE_PRINCIPAL_INVALID(2308, HttpStatus.BAD_REQUEST, "Chỉ phân công tài khoản Phó hiệu trưởng"),
+    VICE_PRINCIPAL_ACCOUNT_LOCKED(2309, HttpStatus.CONFLICT, "Tài khoản Phó hiệu trưởng đã bị khóa"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),

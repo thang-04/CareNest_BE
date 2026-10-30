@@ -132,9 +132,37 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("yearStart") LocalDate yearStart,
             @Param("yearEnd") LocalDate yearEnd);
 
+    // Ứng viên PHT: người từng có phân công PHT (vai trò nằm ở Keycloak, chưa có API tài khoản để đọc)
+    @Query(
+            value = "select distinct u.id as userId, u.full_name as fullName, u.email as email, u.status as status"
+                    + " from staff_assignments a join user_accounts u on u.id = a.user_id"
+                    + " where a.staff_role = 'VICE_PRINCIPAL' order by u.full_name, u.id",
+            nativeQuery = true)
+    List<VicePrincipalRow> findVicePrincipalRows();
+
+    // Phân công PHT giao với khoảng [from, to]; mới nhất trước
+    @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL"
+            + " and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)"
+            + " order by a.validFrom desc, a.id desc")
+    List<StaffAssignment> findVicePrincipalAssignments(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL"
+            + " and a.userId = :userId and (a.validTo is null or a.validTo >= :from) order by a.validFrom, a.id")
+    List<StaffAssignment> findOpenVicePrincipalAssignments(@Param("userId") Long userId, @Param("from") LocalDate from);
+
     // Tài khoản bị khóa / ngừng (đọc bảng user_accounts của module tài khoản, chỉ đọc)
     @Query(value = "select u.id from user_accounts u where u.id in :ids and u.status <> 'ACTIVE'", nativeQuery = true)
     List<Long> findInactiveUserIds(@Param("ids") Collection<Long> ids);
+
+    interface VicePrincipalRow {
+        Long getUserId();
+
+        String getFullName();
+
+        String getEmail();
+
+        String getStatus();
+    }
 
     interface TeacherRow {
         Long getUserId();
