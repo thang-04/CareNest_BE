@@ -1,6 +1,6 @@
 # Module — attendance
 
-Feature: `attendance` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt 1 (điểm danh lớp/ngày, mở lại ngày, tổng hợp); đón trẻ (2026-10-31, V42)
+Feature: `attendance` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt 1 (điểm danh lớp/ngày, mở lại ngày, tổng hợp); đón trẻ (2026-10-31, V50)
 
 ## Mục đích
 Nguồn dữ liệu có mặt của trẻ theo ngày (số suất suy từ đây — ATT-02); mở lại điểm danh sau giờ chốt; đơn xin nghỉ; đón trẻ = xác nhận trả trẻ (người đón, giờ đón — PCK-01..04, ATT-10).

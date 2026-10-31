@@ -66,7 +66,7 @@ Không còn câu hỏi chặn; mặc định C1–C10 ghi ở trên.
 
 Đổi API đã có: danh sách/chi tiết/danh sách lớp/đóng đợt thêm số liệu phiếu khám, phiếu theo dõi; Sổ sức khỏe thêm `latestHealth`, `openFollowUp`, `externalResults`, trường phiếu khám ở mỗi lần đo; sửa số đo của phiếu khám qua API số đo trả 409.
 
-## DB (V41)
+## DB (V49)
 
 - `health_measurements`: thêm `exam`, `exam_status`, `concluded_at`, `published_by`; `height_cm`, `weight_kg`, `published_at` cho phép null chỉ với nháp (CHECK).
 - `health_follow_ups` (mỗi trẻ tối đa một phiếu mở), `health_follow_up_events` (dòng thời gian; mỗi lần khám thuộc tối đa một phiếu), `health_follow_up_images`.
@@ -97,6 +97,6 @@ Bằng chứng: `HealthExamFollowUpIntegrationTest` (4 test: nháp → kết lu�
 ## Progress log
 
 - 2026-10-31: tạo plan; agent trích đặc tả mock (phiếu khám, phiếu theo dõi, mức hiện tại).
-- 2026-10-31: V41; entity, repo; logic thuần (catalog, chuẩn hóa, kiểm phiếu, điểm cần xem lại, diff — agent port, đối chiếu FE); `HealthRecords` (đọc một lần), `HealthFollowUpState`, `HealthFollowUpTracker`; service + controller phiếu khám, phiếu theo dõi; nối số liệu vào đợt/kỳ, danh sách lớp, sổ sức khỏe; ghi tiền sử về khai báo (module child); ảnh S3 (`HealthImageStorage`); tự đóng phiếu khi trẻ ra trường.
+- 2026-10-31: V49; entity, repo; logic thuần (catalog, chuẩn hóa, kiểm phiếu, điểm cần xem lại, diff — agent port, đối chiếu FE); `HealthRecords` (đọc một lần), `HealthFollowUpState`, `HealthFollowUpTracker`; service + controller phiếu khám, phiếu theo dõi; nối số liệu vào đợt/kỳ, danh sách lớp, sổ sức khỏe; ghi tiền sử về khai báo (module child); ảnh S3 (`HealthImageStorage`); tự đóng phiếu khi trẻ ra trường.
 - 2026-10-31: rule HLT-08, HLT-10, HLT-11, HLT-12 sửa, thêm HLT-16; DATA_DICTIONARY, ERROR_CONTRACT (5027–5039), module card, flow, CURRENT_STATE, OpenAPI snapshot.
 - 2026-10-31: `node scripts/verify.mjs` PASS full (693 test, 0 lỗi; ArchUnit, snapshot OpenAPI, Spotless ok); `check-ai-layer` 0 lỗi. Chưa commit.

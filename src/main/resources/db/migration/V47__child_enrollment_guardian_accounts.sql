@@ -62,7 +62,7 @@ ALTER TABLE children
     ADD CONSTRAINT ck_children_left CHECK ((status = 'LEFT') = (left_on IS NOT NULL) AND (left_on IS NULL) = (left_reason IS NULL)),
     ADD CONSTRAINT ck_children_left_on CHECK (left_on IS NULL OR left_on >= enrolled_on);
 -- Hồ sơ mới/sửa phải đủ (CHD-08): có giới tính; trẻ chờ xếp lớp có điểm trường tiếp nhận (CHD-02).
--- NOT VALID: trẻ có trước V39 (chỉ dữ liệu demo) chưa có giới tính — nhập đủ khi sửa hồ sơ, seed dev đã nhập đủ (mục 3.9)
+-- NOT VALID: trẻ có trước V47 (chỉ dữ liệu demo) chưa có giới tính — nhập đủ khi sửa hồ sơ, seed dev đã nhập đủ (mục 3.9)
 ALTER TABLE children ADD CONSTRAINT ck_children_complete
     CHECK (gender IS NOT NULL AND (status <> 'PENDING_PLACEMENT' OR intake_campus_id IS NOT NULL)) NOT VALID;
 CREATE INDEX idx_children_intake_campus_id ON children (intake_campus_id);

@@ -284,7 +284,7 @@ Loại theo Report 1 v2 (17/10) và khảo sát team 27/10 (FAC-01, FAC-02), use
 
 ## G94-180 — Tiếp nhận trẻ, tài khoản phụ huynh: chờ đánh lại mã
 
-Gộp `dev` vào nhánh G94-180 (31/10/2026): nhánh G94-180 chốt các rule dưới đây (user chốt 2026-10-17…2026-10-28) trước khi `dev` viết lại BUSINESS_RULES theo khảo sát team 27/10. Mã bị trùng với rule khác nội dung ở trên nên giữ nguyên văn với tiền tố `G94-180/`. Code, docs, comment của luồng tiếp nhận trẻ (V39, `ChildEnrollment*`, `ChildIntake*`) và docs FE G94-180 đang ghi mã gốc (vd. `CHD-06`, `AUTH-20`) theo nghĩa ở bảng này.
+Gộp `dev` vào nhánh G94-180 (31/10/2026): nhánh G94-180 chốt các rule dưới đây (user chốt 2026-10-17…2026-10-28) trước khi `dev` viết lại BUSINESS_RULES theo khảo sát team 27/10. Mã bị trùng với rule khác nội dung ở trên nên giữ nguyên văn với tiền tố `G94-180/`. Code, docs, comment của luồng tiếp nhận trẻ (V47, `ChildEnrollment*`, `ChildIntake*`) và docs FE G94-180 đang ghi mã gốc (vd. `CHD-06`, `AUTH-20`) theo nghĩa ở bảng này.
 
 Lệch với rule ở trên, team cần chốt rồi đánh lại mã:
 - AUTH-18 (`dev`, user chốt 2026-10-30): không gửi mật khẩu qua SMS. G94-180/AUTH-18, G94-180/AUTH-20: lưu form tiếp nhận gửi SMS — code `ChildEnrollmentService` vẫn gửi SMS (cổng giả).

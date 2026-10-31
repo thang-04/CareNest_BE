@@ -44,7 +44,7 @@ Kế hoạch giáo dục (đã có BE, chưa vào ma trận): `goals.view` · `g
 | `CHILD_PROFILE_EDIT` (sửa hồ sơ, khai báo sức khỏe) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; trẻ campus mình — CHD-02) |
 | `CHILD_PLACEMENT` (xếp/chuyển lớp, cho nghỉ học) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; campus mình — CHD-01) |
 
-Ba mã `CHILD_*` chốt ngày 28/10 (D-1 A, plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`); có trong enum và seed ma trận PHT từ V39, API dùng các mã này làm theo các phase sau của plan. FE giao PHT mảng "Hồ sơ trẻ" theo Thêm/Sửa: Thêm = `CHILD_ENROLL`; Sửa = `CHILD_PROFILE_EDIT` + `CHILD_PLACEMENT` + `PARENT_ACCOUNT_MANAGE`. Phạm vi chốt 2026-10-28 (D-7 A): PHT chỉ trong campus được phân công (AUTH-02); không giao PHT phạm vi toàn trường — FE bỏ lựa chọn này ở màn giao quyền PHT.
+Ba mã `CHILD_*` chốt ngày 28/10 (D-1 A, plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`); có trong enum và seed ma trận PHT từ V47, API dùng các mã này làm theo các phase sau của plan. FE giao PHT mảng "Hồ sơ trẻ" theo Thêm/Sửa: Thêm = `CHILD_ENROLL`; Sửa = `CHILD_PROFILE_EDIT` + `CHILD_PLACEMENT` + `PARENT_ACCOUNT_MANAGE`. Phạm vi chốt 2026-10-28 (D-7 A): PHT chỉ trong campus được phân công (AUTH-02); không giao PHT phạm vi toàn trường — FE bỏ lựa chọn này ở màn giao quyền PHT.
 
 Theo khảo sát team 27/10 (đang triển khai — plan `2026-10-27-survey-auth-alignment.md` (chưa có trong repo)):
 - Mảng của PHT = mã quyền sửa của module, thêm cùng module; PHT mặc định tắt, HT cấp cho đúng người phụ trách mảng (AUTH-20). Không dùng mức Đầy đủ/Giới hạn/Không.

@@ -180,7 +180,7 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 
 ### 2026-10-31 — Gộp `dev` vào nhánh (G94-60, G94-226, G94-254, G94-255)
 - User: "kéo nhánh dev của cả BE và FE về" rồi chọn merge `dev` vào nhánh feature G94-180. Merge commit cục bộ, chưa push.
-- Migration: giữ số của `dev` (V10–V38, `dev` đã deploy); `V10__child_enrollment_guardian_accounts` đổi thành `V39__child_enrollment_guardian_accounts`, nội dung không đổi (chỉ sửa comment "trước V10"). DB local đã chạy số cũ của nhánh này phải tạo lại (ENV-261030-flyway-renumbered-stale-db).
+- Migration: giữ số của `dev` (V10–V38, `dev` đã deploy); `V10__child_enrollment_guardian_accounts` đổi thành `V47__child_enrollment_guardian_accounts`, nội dung không đổi (chỉ sửa comment "trước V10"). DB local đã chạy số cũ của nhánh này phải tạo lại (ENV-261030-flyway-renumbered-stale-db).
 - Mã lỗi: `dev` đánh lại 11xx/23xx/30xx (G94-60). Tiếp nhận trẻ đổi `CHILD_DUPLICATE` 3007→3008, `GUARDIAN_IDENTITY_CONFLICT` 3008→3009, `CHILD_NOT_LEFT` 3009→3010 (3007 thuộc `GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED`). FE nối API phải dùng số mới.
 - AUTH-18 của G94-60 (user chốt 2026-10-30) thay chốt 2026-10-28 của nhánh này: nhân sự đăng nhập bằng SĐT, một SĐT vừa nhân sự vừa phụ huynh. Bỏ `STAFF_USERNAME_IS_PHONE`, bỏ chặn SĐT nhân sự ở `POST /children/{id}/guardians` (nay tra số + `confirmUserId`, thêm role `PARENT`). `AddGuardianRequest` giữ cả `email` (liên hệ) lẫn `confirmUserId`.
 - Giả định (user soát): form tiếp nhận (`ChildEnrollmentService`) vẫn chặn SĐT thuộc tài khoản nhân sự, mã mới `PHONE_OF_STAFF_ACCOUNT` 1130 — chưa có bước xác nhận đúng người như thêm phụ huynh; làm theo multi-role là việc sau.

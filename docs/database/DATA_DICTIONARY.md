@@ -24,8 +24,8 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | full_name | VARCHAR(150) | không | Họ tên đầy đủ (= `firstName` bên Keycloak) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
 | primary_role | VARCHAR(20) | có | Bản sao role Keycloak khi CareNest tạo tài khoản (V8); lọc danh sách + kiểm phạm vi quản lý nhân sự; quyền người gọi vẫn theo token. NULL = chưa rõ (chỉ Admin quản lý) | AUTH-15..17 |
-| citizen_id | VARCHAR(12) | có | CCCD phụ huynh, khóa nhận diện phụ huynh; UNIQUE, CHECK 12 chữ số (V39). Nhân sự NULL; tài khoản phụ huynh cũ bổ sung khi hồ sơ trẻ ghi CCCD | AUTH-18 |
-| photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(36), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, bắt buộc; GV đối chiếu người đón). Tệp private S3 theo key UUID; JPG/PNG/WEBP ≤ 2 MB (V42) | PCK-02 |
+| citizen_id | VARCHAR(12) | có | CCCD phụ huynh, khóa nhận diện phụ huynh; UNIQUE, CHECK 12 chữ số (V47). Nhân sự NULL; tài khoản phụ huynh cũ bổ sung khi hồ sơ trẻ ghi CCCD | AUTH-18 |
+| photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(36), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, bắt buộc; GV đối chiếu người đón). Tệp private S3 theo key UUID; JPG/PNG/WEBP ≤ 2 MB (V50) | PCK-02 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Không có cột mật khẩu: Keycloak quản lý. Role gốc ở Keycloak (`primary_role` chỉ là bản sao).
 Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`, `uk_user_accounts_citizen_id`, `idx_user_accounts_primary_role`.
@@ -164,12 +164,12 @@ Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, 
 | left_on, left_reason | DATE, VARCHAR(300) | có | Ngày, lý do nghỉ học; có đúng khi `LEFT`, mở lại hồ sơ xóa cả hai; `left_on ≥ enrolled_on` | CHD-03 |
 | readmitted_on | DATE | có | Ngày mở lại hồ sơ gần nhất | CHD-03 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Ràng buộc: `ck_children_status`, `ck_children_gender`, `ck_children_left`, `ck_children_left_on`; `ck_children_complete` (có giới tính, chờ xếp lớp thì có điểm trường) là **NOT VALID**: áp cho mọi dòng thêm/sửa, không kiểm trẻ có trước V39 (chỉ dữ liệu demo — trẻ đó phải nhập đủ khi sửa hồ sơ). V39 sinh `code`, `status`, `enrolled_on`, `intake_campus_id` cho trẻ có sẵn (plan mục 3.9).
+Ràng buộc: `ck_children_status`, `ck_children_gender`, `ck_children_left`, `ck_children_left_on`; `ck_children_complete` (có giới tính, chờ xếp lớp thì có điểm trường) là **NOT VALID**: áp cho mọi dòng thêm/sửa, không kiểm trẻ có trước V47 (chỉ dữ liệu demo — trẻ đó phải nhập đủ khi sửa hồ sơ). V47 sinh `code`, `status`, `enrolled_on`, `intake_campus_id` cho trẻ có sẵn (plan mục 3.9).
 FE đọc `campusId` của trẻ = điểm trường theo lớp nếu có lớp, không thì `intake_campus_id`.
 Index: `uk_children_code`, `idx_children_intake_campus_id`, `idx_children_date_of_birth` (kiểm trùng hồ sơ — CHD-04).
 
 ## child_code_sequences  (module: child, scope: SCHOOL)
-Mục đích: số thứ tự mã trẻ theo năm; giao dịch tiếp nhận tăng bằng upsert nên nhiều người lưu cùng lúc không cấp trùng mã. Migration: V39.
+Mục đích: số thứ tự mã trẻ theo năm; giao dịch tiếp nhận tăng bằng upsert nên nhiều người lưu cùng lúc không cấp trùng mã. Migration: V47.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | code_prefix | VARCHAR(10) PK | không | `HS` + 2 số cuối năm, vd. `HS26` | — |
@@ -198,20 +198,20 @@ Mục đích: trẻ học lớp nào theo thời gian; campus của trẻ suy t�
 | classroom_id | BIGINT FK classrooms | không | | — |
 | valid_from | DATE | không | Tính cả ngày này | — |
 | valid_to | DATE | có | Tính cả ngày này; NULL = đang học | — |
-| reason | VARCHAR(300) | có | Lý do chuyển lớp (bắt buộc khi chuyển, V39) | — |
-| created_by | BIGINT FK user_accounts | có | Người xếp/chuyển lớp (V39); NULL ở dữ liệu cũ | — |
+| reason | VARCHAR(300) | có | Lý do chuyển lớp (bắt buộc khi chuyển, V47) | — |
+| created_by | BIGINT FK user_accounts | có | Người xếp/chuyển lớp (V47); NULL ở dữ liệu cũ | — |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Xếp lớp mở enrollment mới; chuyển lớp đóng enrollment đang mở rồi mở enrollment mới. `uk_enrollments_child_open` (V39, partial unique `valid_to IS NULL`): mỗi trẻ tối đa 1 enrollment đang mở; chồng thời gian giữa các enrollment đã đóng vẫn do service kiểm.
+Xếp lớp mở enrollment mới; chuyển lớp đóng enrollment đang mở rồi mở enrollment mới. `uk_enrollments_child_open` (V47, partial unique `valid_to IS NULL`): mỗi trẻ tối đa 1 enrollment đang mở; chồng thời gian giữa các enrollment đã đóng vẫn do service kiểm.
 Index: `child_id`, `classroom_id`, `uk_enrollments_child_open`.
 
 ## guardian_child_links  (module: child, scope: CHILD)
-Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/gỡ qua `/children/{id}/guardians` (AUTH-18, AUTH-19). Migration: V3, V9 (CHECK quan hệ), V39 (6 loại).
+Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/gỡ qua `/children/{id}/guardians` (AUTH-18, AUTH-19). Migration: V3, V9 (CHECK quan hệ), V47 (6 loại).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh | AUTH-04 |
 | child_id | BIGINT FK children | không | | AUTH-04 |
-| relationship | VARCHAR(30) | không | `FATHER` / `MOTHER` / `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` / `GUARDIAN` (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ — như hồ sơ trẻ); `OTHER` chỉ còn ở dữ liệu trước V39 (CHECK `ck_guardian_child_links_relationship`) | AUTH-18 |
+| relationship | VARCHAR(30) | không | `FATHER` / `MOTHER` / `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` / `GUARDIAN` (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ — như hồ sơ trẻ); `OTHER` chỉ còn ở dữ liệu trước V47 (CHECK `ck_guardian_child_links_relationship`) | AUTH-18 |
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `uk_guardian_child_links_user_child`, `idx_guardian_child_links_child_id`.
 
@@ -252,7 +252,7 @@ Mục đích: mở lại điểm danh một lớp/ngày đã khóa (HT mọi l�
 Mỗi lớp/ngày tối đa một lần mở còn hiệu lực (service kiểm). Index: `(classroom_id, date)`.
 
 ## pickup_records  (module: attendance, scope: CHILD)
-Mục đích: mỗi lần GV xác minh người đón khi trả trẻ (PCK-02, PCK-04, ATT-10). Khớp ảnh phụ huynh hoặc phụ huynh xác nhận qua điện thoại thì trả; lần không trả được vẫn lưu. Không sửa, không hủy. Migration: V42.
+Mục đích: mỗi lần GV xác minh người đón khi trả trẻ (PCK-02, PCK-04, ATT-10). Khớp ảnh phụ huynh hoặc phụ huynh xác nhận qua điện thoại thì trả; lần không trả được vẫn lưu. Không sửa, không hủy. Migration: V50.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id, classroom_id, campus_id | BIGINT FK | không | Trẻ, lớp, điểm trường lúc trả | ATT-10 |
@@ -268,7 +268,7 @@ Mục đích: mỗi lần GV xác minh người đón khi trả trẻ (PCK-02, P
 Index: `uk_pickup_records_child_date_handed_over`, `(classroom_id, date)`, `(child_id, date)`.
 
 ## notifications  (module: notification, scope: USER)
-Mục đích: thông báo theo người nhận để App hiện danh sách; đẩy tới thiết bị sau khi lưu. Migration: V42.
+Mục đích: thông báo theo người nhận để App hiện danh sách; đẩy tới thiết bị sau khi lưu. Migration: V50.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
@@ -280,7 +280,7 @@ Mục đích: thông báo theo người nhận để App hiện danh sách; đ�
 Index: `(user_id, created_at DESC, id DESC)`.
 
 ## device_tokens  (module: notification, scope: USER)
-Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một người dùng, máy đăng nhập người khác thì chuyển. Migration: V42.
+Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một người dùng, máy đăng nhập người khác thì chuyển. Migration: V50.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | | — |
@@ -307,7 +307,7 @@ Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nh�
 Index: `(child_id, date)`, `(classroom_id, date)`.
 
 ## health_check_campaigns  (module: health, scope: CAMPUS)
-Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 lần/năm học) và kỳ cân đo (`MEASUREMENT`, giáo viên cân đo, khoảng 3 tháng/lần) của một điểm trường. Trạng thái (`UPCOMING`/`IN_PROGRESS`/`CLOSED`/`CANCELLED`) tính từ ngày và mốc đóng/hủy, không lưu. Đợt thuộc năm học của ngày bắt đầu (G94-180/HLT-08). Migration: `V40__create_health_checks.sql`.
+Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 lần/năm học) và kỳ cân đo (`MEASUREMENT`, giáo viên cân đo, khoảng 3 tháng/lần) của một điểm trường. Trạng thái (`UPCOMING`/`IN_PROGRESS`/`CLOSED`/`CANCELLED`) tính từ ngày và mốc đóng/hủy, không lưu. Đợt thuộc năm học của ngày bắt đầu (G94-180/HLT-08). Migration: `V48__create_health_checks.sql`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -323,7 +323,7 @@ Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 l�
 Index: UNIQUE `uk_health_check_campaigns_campus_open` (`campus_id`) WHERE chưa đóng, chưa hủy — mỗi điểm trường một đợt/kỳ chưa đóng, tính chung hai loại; `(campus_id, start_date)`.
 
 ## health_check_campaign_history  (module: health, scope: CAMPUS)
-Mục đích: lịch sử thao tác của đợt/kỳ, chỉ thêm. Migration: V40.
+Mục đích: lịch sử thao tác của đợt/kỳ, chỉ thêm. Migration: V48.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | campaign_id | BIGINT FK health_check_campaigns | không | | — |
@@ -333,14 +333,14 @@ Mục đích: lịch sử thao tác của đợt/kỳ, chỉ thêm. Migration: V
 | created_at | TIMESTAMPTZ | không | | — |
 
 ## health_check_absences  (module: health, scope: CLASS)
-Mục đích: trẻ chưa có kết quả khi đóng đợt/kỳ ("Vắng"), kèm lớp lúc đóng; mở lại thì xóa. Migration: V40.
+Mục đích: trẻ chưa có kết quả khi đóng đợt/kỳ ("Vắng"), kèm lớp lúc đóng; mở lại thì xóa. Migration: V48.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | campaign_id, child_id | BIGINT FK | không | Khóa chính ghép | — |
 | classroom_id | BIGINT FK classrooms | không | Lớp của trẻ lúc đóng | — |
 
 ## health_measurements  (module: health, scope: CHILD)
-Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng lần đo). Kỳ cân đo: số đo GV nhập; đợt khám: phiếu khám Phụ lục II (`exam`, HLT-08). Lưu/sửa là công bố cho phụ huynh (`published_at`, HLT-11); phiếu khám nháp chưa công bố, chưa tính là kết quả. Dữ liệu sức khỏe — không log. Migration: V40, V41.
+Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng lần đo). Kỳ cân đo: số đo GV nhập; đợt khám: phiếu khám Phụ lục II (`exam`, HLT-08). Lưu/sửa là công bố cho phụ huynh (`published_at`, HLT-11); phiếu khám nháp chưa công bố, chưa tính là kết quả. Dữ liệu sức khỏe — không log. Migration: V48, V49.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id | BIGINT FK children | không | | — |
@@ -352,26 +352,26 @@ Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng 
 | note | VARCHAR(500) | không | Ghi chú, không ghi chẩn đoán | — |
 | measured_by | BIGINT FK user_accounts | không | GV nhập | HLT-09 |
 | published_at | TIMESTAMPTZ | có (chỉ phiếu khám nháp) | Lúc công bố (lưu, kết luận, sửa) | HLT-11 |
-| published_by | BIGINT FK user_accounts | có | Người công bố lần gần nhất (V41) | HLT-11 |
-| exam | JSONB | có | Phiếu khám Phụ lục II đã chuẩn hóa: hành chính, tiền sử, sinh tồn, dinh dưỡng, phát triển, tiêm chủng, lâm sàng, kết luận (`HealthExamForm`); null với số đo của kỳ cân đo (V41) | HLT-08 |
-| exam_status | VARCHAR(20) | có | `DRAFT` / `CONCLUDED`; có khi và chỉ khi có `exam` (V41) | HLT-08, HLT-11 |
-| concluded_at | TIMESTAMPTZ | có | Lần kết luận đầu tiên; có khi và chỉ khi `CONCLUDED` (V41) | HLT-08 |
+| published_by | BIGINT FK user_accounts | có | Người công bố lần gần nhất (V49) | HLT-11 |
+| exam | JSONB | có | Phiếu khám Phụ lục II đã chuẩn hóa: hành chính, tiền sử, sinh tồn, dinh dưỡng, phát triển, tiêm chủng, lâm sàng, kết luận (`HealthExamForm`); null với số đo của kỳ cân đo (V49) | HLT-08 |
+| exam_status | VARCHAR(20) | có | `DRAFT` / `CONCLUDED`; có khi và chỉ khi có `exam` (V49) | HLT-08, HLT-11 |
+| concluded_at | TIMESTAMPTZ | có | Lần kết luận đầu tiên; có khi và chỉ khi `CONCLUDED` (V49) | HLT-08 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `(campaign_id, classroom_id)`.
 
 ## health_measurement_edits  (module: health, scope: CHILD)
-Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V40.
+Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V48.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | measurement_id | BIGINT FK health_measurements | không | | — |
 | user_id | BIGINT FK user_accounts | không | Người sửa | — |
 | reason | VARCHAR(300) | không | Lý do sửa (bắt buộc) | HLT-13 |
-| changes | JSONB | không | `[{ field, label, from, to }]` các ô đổi, chuỗi hiển thị (phiếu khám: số định danh che, chỉ 3 số cuối; bản ghi trước V41 không có `label`) | HLT-13 |
+| changes | JSONB | không | `[{ field, label, from, to }]` các ô đổi, chuỗi hiển thị (phiếu khám: số định danh che, chỉ 3 số cuối; bản ghi trước V49 không có `label`) | HLT-13 |
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `(measurement_id, created_at)`.
 
 ## health_follow_ups  (module: health, scope: CHILD)
-Mục đích: phiếu theo dõi sức khỏe, mở khi kết luận phiếu khám "theo dõi sát" (chuyển khám chuyên khoa, nguy cơ lao...). Trạng thái, vòng trao đổi, hạn tính khi đọc từ `health_follow_up_events`, không lưu. Migration: V41.
+Mục đích: phiếu theo dõi sức khỏe, mở khi kết luận phiếu khám "theo dõi sát" (chuyển khám chuyên khoa, nguy cơ lao...). Trạng thái, vòng trao đổi, hạn tính khi đọc từ `health_follow_up_events`, không lưu. Migration: V49.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id | BIGINT FK children | không | Mỗi trẻ tối đa một phiếu mở (UNIQUE có điều kiện `closed_at IS NULL`) | HLT-16 |
@@ -385,7 +385,7 @@ Mục đích: phiếu theo dõi sức khỏe, mở khi kết luận phiếu khá
 Index: `uk_health_follow_ups_child_open`, `(child_id, opened_at)`.
 
 ## health_follow_up_events  (module: health, scope: CHILD)
-Mục đích: dòng thời gian của phiếu theo dõi; thứ tự `id` là thứ tự thời gian. Migration: V41.
+Mục đích: dòng thời gian của phiếu theo dõi; thứ tự `id` là thứ tự thời gian. Migration: V49.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | follow_up_id | BIGINT FK health_follow_ups | không | | — |
@@ -404,7 +404,7 @@ Mục đích: dòng thời gian của phiếu theo dõi; thứ tự `id` là th�
 Index: `(follow_up_id, id)`, `uk_health_follow_up_events_measurement`.
 
 ## health_follow_up_images  (module: health, scope: CHILD)
-Mục đích: ảnh kết quả khám chuyên khoa (tối đa 3 ảnh/lần ghi), tệp private ở S3 theo `storage_key` (prefix `CARENEST_HEALTH_MEDIA_PREFIX`); chỉ đọc qua API có kiểm phạm vi. Migration: V41.
+Mục đích: ảnh kết quả khám chuyên khoa (tối đa 3 ảnh/lần ghi), tệp private ở S3 theo `storage_key` (prefix `CARENEST_HEALTH_MEDIA_PREFIX`); chỉ đọc qua API có kiểm phạm vi. Migration: V49.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | event_id | BIGINT FK health_follow_up_events | không | Sự kiện `EXTERNAL_RESULT` | HLT-16 |
@@ -446,7 +446,7 @@ Mục đích: lịch sử sổ báo ăn (chỉ thêm). Migration: V26.
 | note | VARCHAR(200) | có | Lý do (bắt buộc khi điều chỉnh) | NUT-03 |
 | user_id, at | BIGINT FK user_accounts (có thể null: tự động), TIMESTAMPTZ | | | — |
 ## child_profiles  (module: child, scope: CHILD)
-Mục đích: hành chính của trẻ, 1–1 với `children`; phiếu khám sức khỏe đọc từ đây; danh sách trẻ không trả phần này. Migration: V39. Dữ liệu nhạy cảm (CHD-05).
+Mục đích: hành chính của trẻ, 1–1 với `children`; phiếu khám sức khỏe đọc từ đây; danh sách trẻ không trả phần này. Migration: V47. Dữ liệu nhạy cảm (CHD-05).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id | BIGINT PK, FK children | không | | — |
@@ -461,7 +461,7 @@ Mục đích: hành chính của trẻ, 1–1 với `children`; phiếu khám s�
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 
 ## child_guardians  (module: child, scope: CHILD)
-Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20); nguồn scope của phụ huynh vẫn là `guardian_child_links`. Migration: V39.
+Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20); nguồn scope của phụ huynh vẫn là `guardian_child_links`. Migration: V47.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -474,12 +474,12 @@ Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoả
 | email | VARCHAR(255) | có | Email liên hệ, chữ thường | AUTH-18 |
 | user_id | BIGINT FK user_accounts | có | Tài khoản đã kích hoạt cho trẻ này; NULL = chưa kích hoạt | AUTH-20 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Ràng buộc: UNIQUE (`child_id`, `position`), (`child_id`, `phone`), (`child_id`, `citizen_id`) dạng DEFERRABLE INITIALLY DEFERRED (Sửa hồ sơ đổi thông tin giữa hai phụ huynh trong một lần lưu); UNIQUE (`child_id`, `user_id`). `ck_child_guardians_citizen_id_required` **NOT VALID**: dòng thêm/sửa phải có CCCD; dòng V39 chuyển từ liên kết cũ chưa có CCCD (nhập bổ sung). V39 chuyển mỗi liên kết có sẵn có tên đăng nhập là SĐT thành 1 dòng (tối đa 3 mỗi trẻ).
+Ràng buộc: UNIQUE (`child_id`, `position`), (`child_id`, `phone`), (`child_id`, `citizen_id`) dạng DEFERRABLE INITIALLY DEFERRED (Sửa hồ sơ đổi thông tin giữa hai phụ huynh trong một lần lưu); UNIQUE (`child_id`, `user_id`). `ck_child_guardians_citizen_id_required` **NOT VALID**: dòng thêm/sửa phải có CCCD; dòng V47 chuyển từ liên kết cũ chưa có CCCD (nhập bổ sung). V47 chuyển mỗi liên kết có sẵn có tên đăng nhập là SĐT thành 1 dòng (tối đa 3 mỗi trẻ).
 `accountStatus` trả FE: `NOT_ACTIVATED` khi chưa có `guardian_child_links` với trẻ; có thì `user_accounts.status`.
 Index: `idx_child_guardians_phone`, `idx_child_guardians_citizen_id`, `idx_child_guardians_user_id` (kiểm một người một tài khoản trên mọi hồ sơ — AUTH-18).
 
 ## child_health_declarations  (module: child, scope: CHILD)
-Mục đích: khai báo sức khỏe khi tiếp nhận, 1–1 với trẻ; dị ứng có hiệu lực ngay cho bếp, điểm danh. Migration: V39. Dữ liệu sức khỏe nhạy cảm.
+Mục đích: khai báo sức khỏe khi tiếp nhận, 1–1 với trẻ; dị ứng có hiệu lực ngay cho bếp, điểm danh. Migration: V47. Dữ liệu sức khỏe nhạy cảm.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id | BIGINT PK, FK children | không | | — |
@@ -493,7 +493,7 @@ Mục đích: khai báo sức khỏe khi tiếp nhận, 1–1 với trẻ; dị 
 | declared_at | TIMESTAMPTZ | không | Lần lưu gần nhất | — |
 
 ## child_allergies  (module: child, scope: CHILD)
-Mục đích: dị ứng của khai báo sức khỏe, thứ tự theo `id`; bếp và điểm danh đọc bảng này. Migration: V39.
+Mục đích: dị ứng của khai báo sức khỏe, thứ tự theo `id`; bếp và điểm danh đọc bảng này. Migration: V47.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -502,12 +502,12 @@ Mục đích: dị ứng của khai báo sức khỏe, thứ tự theo `id`; b�
 Index: `idx_child_allergies_child_id`.
 
 ## child_health_declaration_history  (module: child, scope: CHILD)
-Mục đích: lịch sử khai báo sức khỏe, chỉ thêm. Migration: V39.
+Mục đích: lịch sử khai báo sức khỏe, chỉ thêm. Migration: V47.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | child_id | BIGINT FK children | không | | — |
-| action | VARCHAR(30) | không | `DECLARED` / `UPDATED` / `UPDATED_FROM_FOLLOW_UP` (đóng phiếu theo dõi "vấn đề đã biết") / `UPDATED_FROM_EXAM` (kết luận phiếu khám, V41) | HLT-06, HLT-08, HLT-16 |
+| action | VARCHAR(30) | không | `DECLARED` / `UPDATED` / `UPDATED_FROM_FOLLOW_UP` (đóng phiếu theo dõi "vấn đề đã biết") / `UPDATED_FROM_EXAM` (kết luận phiếu khám, V49) | HLT-06, HLT-08, HLT-16 |
 | user_id | BIGINT FK user_accounts | không | Người lưu | — |
 | note | VARCHAR(500) | có | Lý do thay đổi | — |
 | allergy_change, history_change | JSONB | có | `{ from, to }` khi dị ứng / tiền sử đổi | CHD-06, HLT-06 |
@@ -515,7 +515,7 @@ Mục đích: lịch sử khai báo sức khỏe, chỉ thêm. Migration: V39.
 Index: `idx_child_health_declaration_history_child_id` (`child_id`, `created_at`).
 
 ## child_history  (module: child, scope: CHILD)
-Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V39.
+Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V47.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -528,7 +528,7 @@ Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V39.
 Index: `idx_child_history_child_id` (`child_id`, `created_at`).
 
 ## parent_sms_logs  (module: identity-access, scope: ACCOUNT)
-Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V39.
+Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V47.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |

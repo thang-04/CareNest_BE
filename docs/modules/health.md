@@ -22,7 +22,7 @@ HLT-01..05, HLT-07..14, HLT-16, AI-01..06, AI-07 (giải thích xu hướng sứ
 
 ## API & bảng
 Plan: `docs/plans/completed/2026-10-31-health-check-rounds.md` (phạm vi B1, mặc định B2–B8), `docs/plans/completed/2026-10-31-health-exam-follow-ups.md` (mặc định C1–C10).
-- Bảng (V40): `health_check_campaigns`, `health_check_campaign_history`, `health_check_absences`, `health_measurements`, `health_measurement_edits`; (V41) cột phiếu khám ở `health_measurements`, `health_follow_ups`, `health_follow_up_events`, `health_follow_up_images` (`docs/database/DATA_DICTIONARY.md`).
+- Bảng (V48): `health_check_campaigns`, `health_check_campaign_history`, `health_check_absences`, `health_measurements`, `health_measurement_edits`; (V49) cột phiếu khám ở `health_measurements`, `health_follow_ups`, `health_follow_up_events`, `health_follow_up_images` (`docs/database/DATA_DICTIONARY.md`).
 - `/health-checks` (GET danh sách lọc `campusId`, `kind`, `status`, `schoolYear`; POST tạo), `/health-checks/schedule-warnings`, `/health-checks/{id}` (GET, PUT), `/{id}/classes/{classId}/children`, `/{id}/cancel|close|reopen` — HT, PHT quản lý theo điểm trường; GV xem điểm trường của lớp mình.
 - `/children/{childId}/health` (GET sổ sức khỏe rút gọn), `/children/{childId}/health/measurements` (POST), `/{measurementId}` (PUT, bắt buộc lý do) — GV phụ trách lớp nhập trong kỳ cân đo đang diễn ra (HLT-09).
 - `/health-checks/{id}/children/{childId}/exam` (GET; PUT lưu nháp/kết luận — GV lớp; POST `/review-preview`) — phiếu khám Phụ lục II của đợt khám.
