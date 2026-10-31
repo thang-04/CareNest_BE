@@ -59,6 +59,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,6 +86,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class ChildEnrollmentIntegrationTest {
+    // Mã phòng duy nhất trong lần chạy (nanoTime % 100000 trùng khi hai lần gọi sát nhau)
+    private static final AtomicInteger ROOM_SEQ = new AtomicInteger();
 
     @Container
     @ServiceConnection
@@ -692,7 +695,7 @@ class ChildEnrollmentIntegrationTest {
 
     private long classroom(long campusId, long yearId, String name, long ageGroupId, int capacity) {
         long room = insertId("INSERT INTO rooms (campus_id, code, name, room_type, capacity) VALUES (" + campusId
-                + ", 'R" + System.nanoTime() % 100000 + "', 'Phòng " + name + "', 'CLASS', 30) RETURNING id");
+                + ", 'R" + ROOM_SEQ.incrementAndGet() + "', 'Phòng " + name + "', 'CLASS', 30) RETURNING id");
         return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, room_id, capacity) "
                 + "VALUES (" + campusId + ", " + yearId + ", '" + name + "', " + ageGroupId + ", " + room + ", "
                 + capacity + ") RETURNING id");
