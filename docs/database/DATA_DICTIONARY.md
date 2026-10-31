@@ -52,7 +52,7 @@ Mục đích: năm học; lớp gắn với 1 năm học. Migration: V2.
 | name | VARCHAR(20) | không | Vd. `2026-2027`; UNIQUE | — |
 | start_date, end_date | DATE | không | CHECK `end_date > start_date`; service chặn chồng khoảng ngày với năm khác | — |
 | status | VARCHAR(20) | không | `PLANNED` / `ACTIVE` / `CLOSED` (V13, mặc định `PLANNED`); CLOSED chỉ đọc | — |
-| semester1_start, semester1_end, semester2_start, semester2_end | DATE | có | Thời gian HK I, HK II do Hiệu trưởng chọn (V42 semester1_end, V46 3 cột còn lại); CHECK `ck_school_years_semesters`: cả 4 NULL, hoặc start_date ≤ HK I bắt đầu ≤ HK I kết thúc < HK II bắt đầu ≤ HK II kết thúc ≤ end_date | — |
+| semester1_start, semester1_end, semester2_start, semester2_end | DATE | có | Thời gian HK I, HK II do Hiệu trưởng chọn (V44 semester1_end, V48 3 cột còn lại); CHECK `ck_school_years_semesters`: cả 4 NULL, hoặc start_date ≤ HK I bắt đầu ≤ HK I kết thúc < HK II bắt đầu ≤ HK II kết thúc ≤ end_date | — |
 | activated_at, activated_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lúc/người kích hoạt (V13) | AUTH-01 |
 | closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lúc/người kết thúc; kích hoạt năm mới tự đóng năm ACTIVE cũ (V13) | AUTH-01 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
@@ -210,7 +210,7 @@ Index: `(classroom_id, date)`.
 
 ## leave_requests  (module: attendance, scope: CHILD)
 
-Mục đích: đơn nghỉ phụ huynh gửi qua App (ATT-04, ATT-05, ATT-05b), không duyệt. Migration: V47. Tạo đơn ghi `attendance_records` Vắng có phép, không suất cho các ngày học chưa qua giờ chốt (`recorded_by` = phụ huynh); hủy bỏ các bản ghi đó từ ngày chưa qua giờ chốt.
+Mục đích: đơn nghỉ phụ huynh gửi qua App (ATT-04, ATT-05, ATT-05b), không duyệt. Migration: V49. Tạo đơn ghi `attendance_records` Vắng có phép, không suất cho các ngày học chưa qua giờ chốt (`recorded_by` = phụ huynh); hủy bỏ các bản ghi đó từ ngày chưa qua giờ chốt.
 
 | Cột | Kiểu | Null | Ghi chú |
 | --- | --- | --- | --- |
@@ -244,7 +244,7 @@ Mục đích: mở lại điểm danh một lớp/ngày đã khóa (HT mọi l�
 Mỗi lớp/ngày tối đa một lần mở còn hiệu lực (service kiểm). Index: `(classroom_id, date)`.
 
 ## daily_observations  (module: learning-observation, scope: CHILD)
-Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V39__create_daily_observations.sql`. Dữ liệu quan sát — không log.
+Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V41__create_daily_observations.sql`. Dữ liệu quan sát — không log.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id / classroom_id / campus_id | BIGINT FK | không | Trẻ, lớp, điểm trường lúc ghi; UNIQUE `(child_id, date)` | OBS-15, OBS-20 |
@@ -259,7 +259,7 @@ Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét c
 | recorded_by/at, updated_by/at | BIGINT FK user_accounts, TIMESTAMPTZ | | | — |
 
 ## daily_activity_results  (module: learning-observation, scope: CHILD)
-Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt động của giáo án tuần đã duyệt. Migration: V39.
+Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt động của giáo án tuần đã duyệt. Migration: V41.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id / classroom_id / campus_id, date | BIGINT FK, DATE | không | UNIQUE `(child_id, date, activity_key)` | OBS-15 |
@@ -270,11 +270,11 @@ Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt 
 
 ## assessment_day_unlocks  (module: learning-observation, scope: CLASS)
 
-Mục đích: mở lại đánh giá một lớp/ngày đã khóa. Cột giống `attendance_day_unlocks`. Migration: V39. | OBS-19
+Mục đích: mở lại đánh giá một lớp/ngày đã khóa. Cột giống `attendance_day_unlocks`. Migration: V41. | OBS-19
 
 ## class_daily_comments (module: learning-observation, scope: CLASS)
 
-Nhận xét chung lớp/ngày (OBS-22), migration mới `V40__create_class_daily_comments.sql`; không lưu vào nhận xét của trẻ và không tính là trẻ đã đánh giá.
+Nhận xét chung lớp/ngày (OBS-22), migration mới `V42__create_class_daily_comments.sql`; không lưu vào nhận xét của trẻ và không tính là trẻ đã đánh giá.
 
 | Cột | Kiểu | Null | Ý nghĩa |
 | --- | --- | --- | --- |

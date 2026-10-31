@@ -23,8 +23,8 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 - `GET /classes/{classId}/daily-assessment?date=` (GV/PHT/HT), `PUT .../daily-assessment/general`, `PUT .../daily-assessment/skills` (GV lớp).
 - `GET|POST /assessment/day-unlocks`, `POST /assessment/day-unlocks/{id}/revoke` (PHT/HT).
 - `GET /assessment/overview?period=DAY|WEEK|MONTH`, `GET /assessment/overview/classes/{classId}` (PHT/HT).
-- Bảng: `daily_observations`, `daily_activity_results`, `assessment_day_unlocks` (V39). Mã lỗi 73xx.
-- Nhận xét chung lớp: `class_daily_comments` (V40), PUT General thêm `classComment` optional (thiếu/null giữ, rỗng xóa); cho phép entries rỗng khi chỉ lưu nhận xét. GET sheet có `classComment`, overview/detail có `classComments` theo đúng lớp/ngày; kèm người ghi/thời gian, không tính vào số trẻ đã đánh giá (OBS-19).
+- Bảng: `daily_observations`, `daily_activity_results`, `assessment_day_unlocks` (V41). Mã lỗi 73xx.
+- Nhận xét chung lớp: `class_daily_comments` (V42), PUT General thêm `classComment` optional (thiếu/null giữ, rỗng xóa); cho phép entries rỗng khi chỉ lưu nhận xét. GET sheet có `classComment`, overview/detail có `classComments` theo đúng lớp/ngày; kèm người ghi/thời gian, không tính vào số trẻ đã đánh giá (OBS-19).
 - Đọc giáo án đã duyệt qua `EduLessonQueryService` (education-plan); điểm danh / sức khỏe qua `AttendanceService.findDayStatuses`, `DailyHealthService.findLatestDaySigns`.
 
 ## PENDING
