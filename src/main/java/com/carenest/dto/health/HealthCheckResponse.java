@@ -8,9 +8,9 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * Đợt khám hoặc kỳ cân đo. {@code progress} tính trên các lớp người xem được; số liệu phiếu khám, phiếu theo dõi
- * ({@code inProgress}, {@code notConcluded}, {@code watch}, {@code closeWatch}, {@code *FollowUpCount}) luôn 0 tới khi có
- * phiếu khám Phụ lục II.
+ * Đợt khám hoặc kỳ cân đo. {@code progress} tính trên các lớp người xem được: phiếu khám nháp ({@code inProgress}, đợt
+ * đã đóng {@code notConcluded}), trẻ cần theo dõi / theo dõi sát ({@code watch}, {@code closeWatch}); {@code
+ * *FollowUpCount}: phiếu theo dõi đang mở của trẻ trong danh sách chờ trao đổi phụ huynh, đã quá hạn.
  */
 public record HealthCheckResponse(
         Long id,

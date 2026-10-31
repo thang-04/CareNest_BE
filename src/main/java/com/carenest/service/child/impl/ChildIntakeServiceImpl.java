@@ -3,6 +3,7 @@ package com.carenest.service.child.impl;
 import com.carenest.dto.child.ChildAddressResponse;
 import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildHistoryResponse;
+import com.carenest.dto.child.ChildMedicalHistory;
 import com.carenest.dto.child.ChildProfileDetailResponse;
 import com.carenest.dto.child.ChildProfileDraft;
 import com.carenest.dto.child.ChildViewResponse;
@@ -48,6 +49,7 @@ import com.carenest.utils.enums.CampusStatus;
 import com.carenest.utils.enums.ChildHistoryAction;
 import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.ClassroomStatus;
+import com.carenest.utils.enums.DeclarationState;
 import com.carenest.utils.enums.DuplicateChildKind;
 import com.carenest.utils.enums.GuardianAccountStatus;
 import com.carenest.utils.enums.GuardianRelationship;
@@ -640,6 +642,71 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
 
     private static ChildHealthDeclaration.Answer answer(HealthDeclarationDraft.Answer answer) {
         return new ChildHealthDeclaration.Answer(answer.state(), answer.text());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<ChildMedicalHistory> findMedicalHistory(Long childId) {
+        String logPrefix = LOG_PREFIX + "|findMedicalHistory|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<ChildMedicalHistory> history = declarationRepository
+                    .findById(childId)
+                    .map(d -> new ChildMedicalHistory(
+                            d.getSelfHistoryState(),
+                            d.getSelfHistoryText(),
+                            d.getFamilyHistoryState(),
+                            d.getFamilyHistoryText(),
+                            d.getTbContactState(),
+                            d.getTbContactDate()));
+            log.info("{}|END", logPrefix);
+            return history;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void updateMedicalHistory(
+            Long childId,
+            ChildMedicalHistory history,
+            HealthDeclarationAction action,
+            String note,
+            Long userId,
+            Instant at) {
+        String logPrefix = LOG_PREFIX + "|updateMedicalHistory|childId=" + childId + "|action=" + action;
+        log.info("{}|START", logPrefix);
+        try {
+            ChildHealthDeclaration.Answer self = new ChildHealthDeclaration.Answer(history.self(), history.selfText());
+            ChildHealthDeclaration.Answer family =
+                    new ChildHealthDeclaration.Answer(history.family(), history.familyText());
+            Optional<ChildHealthDeclaration> existing = declarationRepository.findById(childId);
+            if (existing.isPresent()) {
+                existing.get().updateMedicalHistory(self, family, history.tbContact(), history.tbContactDate());
+            } else {
+                // Trẻ chưa có khai báo: các mục ngoài tiền sử là "chưa cung cấp"
+                ChildHealthDeclaration.Answer notProvided =
+                        new ChildHealthDeclaration.Answer(DeclarationState.NOT_PROVIDED, null);
+                declarationRepository.save(ChildHealthDeclaration.declare(
+                        childId,
+                        DeclarationState.NOT_PROVIDED,
+                        notProvided,
+                        notProvided,
+                        self,
+                        family,
+                        history.tbContact(),
+                        history.tbContactDate(),
+                        userId,
+                        at));
+            }
+            declarationHistoryRepository.save(ChildHealthDeclarationHistory.record(childId, action, userId, note, at));
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     private static ChildProfileDetailResponse toProfileResponse(ChildProfile p) {

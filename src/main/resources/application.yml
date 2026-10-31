@@ -29,6 +29,9 @@ carenest:
     endpoint: ${CARENEST_EDUCATION_MEDIA_ENDPOINT:}
     path-style: ${CARENEST_EDUCATION_MEDIA_PATH_STYLE:false}
     prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
+  # Ảnh kết quả khám chuyên khoa của phiếu theo dõi sức khỏe: cùng bucket với tài liệu giáo dục, prefix riêng
+  health-media:
+    prefix: ${CARENEST_HEALTH_MEDIA_PREFIX:health/follow-up-results/}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}

@@ -3,7 +3,7 @@ package com.carenest.dto.health;
 import java.util.List;
 
 /**
- * Chi tiết đợt/kỳ: tiến độ theo lớp người xem được. {@code watchList} (trẻ cần theo dõi) rỗng tới khi có phiếu khám.
+ * Chi tiết đợt/kỳ: tiến độ theo lớp người xem được. {@code watchList}: trẻ cần theo dõi, theo dõi sát trước rồi theo tên.
  */
 public record HealthCheckDetailResponse(
         HealthCheckResponse campaign,

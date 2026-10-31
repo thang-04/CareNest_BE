@@ -1,5 +1,6 @@
 package com.carenest.service.child;
 
+import com.carenest.dto.child.ChildMedicalHistory;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.DuplicateCheckResponse;
 import com.carenest.dto.child.EnrollChildRequest;
@@ -10,6 +11,8 @@ import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.GuardianRelationship;
+import com.carenest.utils.enums.HealthDeclarationAction;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -52,6 +55,21 @@ public interface ChildIntakeService {
 
     /** Trẻ theo id kèm trạng thái, lớp và điểm trường hiện tại. */
     List<GuardianChildSummary> findChildSummaries(Collection<Long> childIds);
+
+    /** Tiền sử trong khai báo sức khỏe của trẻ; rỗng khi trẻ chưa có khai báo. */
+    Optional<ChildMedicalHistory> findMedicalHistory(Long childId);
+
+    /**
+     * Ghi tiền sử mới vào khai báo sức khỏe (từ phiếu khám, phiếu theo dõi; HLT-06) và một dòng lịch sử khai báo. Trẻ
+     * chưa có khai báo ⇒ tạo khai báo, các mục khác "chưa cung cấp". Chạy trong giao dịch của người gọi.
+     */
+    void updateMedicalHistory(
+            Long childId,
+            ChildMedicalHistory history,
+            HealthDeclarationAction action,
+            String note,
+            Long userId,
+            Instant at);
 
     /** Quan hệ đã ghi cho tài khoản ở hồ sơ trẻ khác (gợi ý khi tiếp nhận anh/chị em). */
     Optional<GuardianRelationship> findRelationshipOfAccount(Long userId, String username);

@@ -103,4 +103,15 @@ public class ChildHealthDeclaration {
         declaration.declaredAt = declaredAt;
         return declaration;
     }
+
+    /** Cập nhật tiền sử (từ phiếu khám, phiếu theo dõi; HLT-06); các mục khác, người khai, lúc khai giữ nguyên. */
+    public void updateMedicalHistory(
+            Answer selfHistory, Answer familyHistory, DeclarationState tbContactState, LocalDate tbContactDate) {
+        this.selfHistoryState = selfHistory.state();
+        this.selfHistoryText = selfHistory.text();
+        this.familyHistoryState = familyHistory.state();
+        this.familyHistoryText = familyHistory.text();
+        this.tbContactState = tbContactState;
+        this.tbContactDate = tbContactDate;
+    }
 }

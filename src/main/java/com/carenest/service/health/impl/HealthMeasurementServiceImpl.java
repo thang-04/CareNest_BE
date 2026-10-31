@@ -14,7 +14,6 @@ import com.carenest.repository.health.HealthMeasurementEditRepository;
 import com.carenest.repository.health.HealthMeasurementRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
-import com.carenest.service.account.AccountService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.health.HealthMeasurementService;
@@ -23,24 +22,16 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckStatus;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.core.type.TypeReference;
-import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
@@ -48,13 +39,10 @@ import tools.jackson.databind.ObjectMapper;
 @Transactional
 public class HealthMeasurementServiceImpl implements HealthMeasurementService {
     private static final String LOG_PREFIX = "[HealthMeasurementServiceImpl]";
-    // Vòng đầu chỉ đo tới khi trẻ đủ 60 tháng tại ngày đo
-    private static final int HEAD_CIRCUMFERENCE_MAX_MONTHS = 60;
     private static final String RECORDED = "RECORDED";
-    private static final TypeReference<List<HealthMeasurementResponse.HealthMeasurementChange>> CHANGES =
-            new TypeReference<>() {};
 
     private final HealthCheckRules rules;
+    private final HealthRecords records;
     private final HealthMeasurementRepository measurementRepository;
     private final HealthMeasurementEditRepository editRepository;
     private final HealthCheckCampaignRepository campaignRepository;
@@ -62,8 +50,6 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
     private final ChildService childService;
     private final EnrollmentService enrollmentService;
     private final ClassroomService classroomService;
-    private final AccountService accountService;
-    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -81,11 +67,12 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                             campaignRepository.findFirstByCampusIdAndClosedAtIsNullAndCancelledAtIsNull(c.campusId()))
                     .filter(c -> c.statusOn(rules.today()) == HealthCheckStatus.IN_PROGRESS)
                     .orElse(null);
+            HealthRecords.Snapshot s = records.load(List.of(childId));
             ChildHealthRecordResponse.HealthOpenCampaign openView = null;
             if (open != null) {
-                Long resultId = measurementRepository
-                        .findByChildIdAndCampaignId(childId, open.getId())
-                        .map(HealthMeasurement::getId)
+                HealthMeasurement result = s.measurements(childId).stream()
+                        .filter(m -> m.getCampaignId().equals(open.getId()))
+                        .findFirst()
                         .orElse(null);
                 openView = new ChildHealthRecordResponse.HealthOpenCampaign(
                         open.getId(),
@@ -93,15 +80,19 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                         open.getName(),
                         open.getStartDate(),
                         open.getEndDate(),
-                        resultId,
-                        resultId == null ? null : RECORDED);
+                        result == null ? null : result.getId(),
+                        resultStatus(result));
             }
+            // Phiếu khám nháp chưa công bố, không vào sổ
             ChildHealthRecordResponse record = new ChildHealthRecordResponse(
                     childId,
-                    child.dateOfBirth().plusMonths(HEAD_CIRCUMFERENCE_MAX_MONTHS),
+                    HealthRecords.headCircumferenceUntil(child.dateOfBirth()),
                     cls.map(c -> rules.canRecord(currentUser, c)).orElse(false),
                     openView,
-                    toViews(measurementRepository.findByChildIdOrderByDateDescIdDesc(childId), child));
+                    records.views(s, s.results(childId), child.dateOfBirth(), false),
+                    s.latestHealth(childId),
+                    s.brief(s.openFollowUp(childId)),
+                    records.externalResults(s, childId));
             log.info("{}|END", logPrefix);
             return record;
         } catch (RuntimeException ex) {
@@ -152,7 +143,7 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     .measuredBy(currentUser.userId())
                     .createdAt(rules.now())
                     .build());
-            HealthMeasurementResponse view = toViews(List.of(saved), child).getFirst();
+            HealthMeasurementResponse view = view(saved, child);
             log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {
@@ -172,6 +163,9 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     .findById(measurementId)
                     .filter(x -> x.getChildId().equals(childId))
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_MEASUREMENT_NOT_FOUND));
+            if (m.isExam()) {
+                throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_IS_EXAM);
+            }
             ClassroomInfoResponse cls = classroomService
                     .findClassroomInfo(m.getClassroomId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
@@ -192,11 +186,11 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
             BigDecimal head = headOf(request, child);
             String note = trimmed(request.note());
             List<HealthMeasurementResponse.HealthMeasurementChange> changes = new ArrayList<>();
-            change(changes, "date", m.getDate(), request.date());
-            change(changes, "heightCm", m.getHeightCm(), request.heightCm());
-            change(changes, "weightKg", m.getWeightKg(), request.weightKg());
-            change(changes, "headCircumferenceCm", m.getHeadCircumferenceCm(), head);
-            change(changes, "note", m.getNote(), note);
+            change(changes, "date", "Ngày đo", m.getDate(), request.date());
+            change(changes, "heightCm", "Chiều cao (cm)", m.getHeightCm(), request.heightCm());
+            change(changes, "weightKg", "Cân nặng (kg)", m.getWeightKg(), request.weightKg());
+            change(changes, "headCircumferenceCm", "Vòng đầu (cm)", m.getHeadCircumferenceCm(), head);
+            change(changes, "note", "Ghi chú khám", m.getNote(), note);
             if (!changes.isEmpty()) {
                 // HLT-13: sửa số đo đã công bố phải ghi lý do, lưu lịch sử; lưu là công bố lại
                 String reason = trimmed(request.reason());
@@ -204,14 +198,10 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     throw GlobalException.of(ApiCode.HEALTH_EDIT_REASON_REQUIRED);
                 }
                 editRepository.save(HealthMeasurementEdit.of(
-                        m.getId(),
-                        currentUser.userId(),
-                        reason,
-                        objectMapper.writeValueAsString(changes),
-                        rules.now()));
+                        m.getId(), currentUser.userId(), reason, records.writeChanges(changes), rules.now()));
                 m.update(request.date(), request.heightCm(), request.weightKg(), head, note, rules.now());
             }
-            HealthMeasurementResponse view = toViews(List.of(m), child).getFirst();
+            HealthMeasurementResponse view = view(m, child);
             log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {
@@ -247,80 +237,41 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
         }
     }
 
+    // Vòng đầu chỉ lưu khi trẻ chưa quá 60 tháng tại ngày đo
     private static BigDecimal headOf(HealthMeasurementRequest request, ChildBriefResponse child) {
-        boolean applies = !request.date().isAfter(child.dateOfBirth().plusMonths(HEAD_CIRCUMFERENCE_MAX_MONTHS));
+        boolean applies = !request.date().isAfter(HealthRecords.headCircumferenceUntil(child.dateOfBirth()));
         return applies ? request.headCircumferenceCm() : null;
     }
 
+    /** RECORDED với số đo của kỳ cân đo; DRAFT/CONCLUDED theo phiếu khám; null khi chưa có. */
+    private static String resultStatus(HealthMeasurement m) {
+        if (m == null) {
+            return null;
+        }
+        return m.isExam() ? m.getExamStatus().name() : RECORDED;
+    }
+
+    private HealthMeasurementResponse view(HealthMeasurement m, ChildBriefResponse child) {
+        HealthRecords.Snapshot s = records.load(List.of(child.id()));
+        return records.views(s, List.of(m), child.dateOfBirth(), false).getFirst();
+    }
+
     private static void change(
-            List<HealthMeasurementResponse.HealthMeasurementChange> changes, String field, Object from, Object to) {
+            List<HealthMeasurementResponse.HealthMeasurementChange> changes,
+            String field,
+            String label,
+            Object from,
+            Object to) {
         boolean same = from instanceof BigDecimal a && to instanceof BigDecimal b
                 ? a.compareTo(b) == 0
                 : Objects.equals(from, to);
         if (!same) {
-            changes.add(new HealthMeasurementResponse.HealthMeasurementChange(field, text(from), text(to)));
+            changes.add(new HealthMeasurementResponse.HealthMeasurementChange(field, label, text(from), text(to)));
         }
     }
 
     private static String text(Object value) {
         return value == null ? null : value instanceof BigDecimal d ? d.toPlainString() : value.toString();
-    }
-
-    private List<HealthMeasurementResponse> toViews(List<HealthMeasurement> measurements, ChildBriefResponse child) {
-        Map<Long, HealthCheckCampaign> campaigns = campaignRepository
-                .findAllById(measurements.stream()
-                        .map(HealthMeasurement::getCampaignId)
-                        .collect(Collectors.toSet()))
-                .stream()
-                .collect(Collectors.toMap(HealthCheckCampaign::getId, Function.identity()));
-        Map<Long, List<HealthMeasurementEdit>> edits = editRepository
-                .findByMeasurementIdInOrderByCreatedAtAscIdAsc(
-                        measurements.stream().map(HealthMeasurement::getId).toList())
-                .stream()
-                .collect(Collectors.groupingBy(HealthMeasurementEdit::getMeasurementId));
-        Map<Long, String> names = accountService.findFullNames(Stream.concat(
-                        measurements.stream().map(HealthMeasurement::getMeasuredBy),
-                        edits.values().stream().flatMap(List::stream).map(HealthMeasurementEdit::getUserId))
-                .collect(Collectors.toSet()));
-        return measurements.stream()
-                .map(m -> {
-                    HealthCheckCampaign c = campaigns.get(m.getCampaignId());
-                    return new HealthMeasurementResponse(
-                            m.getId(),
-                            m.getChildId(),
-                            m.getCampaignId(),
-                            c == null ? null : c.getName(),
-                            c == null ? null : c.getKind(),
-                            m.getClassroomId(),
-                            m.getDate(),
-                            (int) ChronoUnit.MONTHS.between(child.dateOfBirth(), m.getDate()),
-                            m.getHeightCm(),
-                            m.getWeightKg(),
-                            m.getHeadCircumferenceCm(),
-                            bmi(m),
-                            m.getNote(),
-                            HealthMeasurementResponse.SOURCE_MEASUREMENT_ONLY,
-                            true,
-                            m.getPublishedAt(),
-                            m.getMeasuredBy(),
-                            names.get(m.getMeasuredBy()),
-                            c == null || c.statusOn(rules.today()) != HealthCheckStatus.IN_PROGRESS,
-                            edits.getOrDefault(m.getId(), List.of()).stream()
-                                    .map(e -> new HealthMeasurementResponse.HealthMeasurementEditView(
-                                            e.getCreatedAt(),
-                                            e.getUserId(),
-                                            names.get(e.getUserId()),
-                                            e.getReason(),
-                                            objectMapper.readValue(e.getChanges(), CHANGES)))
-                                    .toList());
-                })
-                .toList();
-    }
-
-    // BMI = cân nặng / (chiều cao m)^2, chỉ là số tính, không phân loại (HLT-10 phân loại hoãn, user 2026-10-31)
-    private static BigDecimal bmi(HealthMeasurement m) {
-        BigDecimal heightM = m.getHeightCm().movePointLeft(2);
-        return m.getWeightKg().divide(heightM.multiply(heightM), 1, RoundingMode.HALF_UP);
     }
 
     private static String trimmed(String value) {

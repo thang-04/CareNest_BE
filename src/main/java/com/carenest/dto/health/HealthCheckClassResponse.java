@@ -1,6 +1,9 @@
 package com.carenest.dto.health;
 
 import com.carenest.utils.enums.HealthCheckResult;
+import com.carenest.utils.enums.HealthConclusionCategory;
+import com.carenest.utils.enums.HealthExamStatus;
+import com.carenest.utils.enums.HealthFollowUpLevel;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
@@ -11,6 +14,10 @@ public record HealthCheckClassResponse(
 
     public record HealthCheckClassRef(Long id, String name) {}
 
+    /**
+     * Một trẻ trong đợt/kỳ. Phiếu khám nháp: {@code result} IN_PROGRESS (đợt đã đóng: NOT_CONCLUDED), chưa có mức. {@code
+     * previous}: lần khám trước (đợt khám); {@code followUp}: phiếu theo dõi đang mở của trẻ.
+     */
     public record HealthCheckChild(
             Long childId,
             String code,
@@ -23,5 +30,12 @@ public record HealthCheckClassResponse(
             LocalDate date,
             BigDecimal heightCm,
             BigDecimal weightKg,
-            boolean published) {}
+            boolean published,
+            HealthExamStatus examStatus,
+            String source,
+            HealthFollowUpLevel followUpLevel,
+            HealthConclusionCategory conclusionCategory,
+            HealthMeasurementResponse.HealthConclusionBrief conclusion,
+            HealthExamResponse.HealthPreviousExam previous,
+            HealthFollowUpResponse.HealthFollowUpBrief followUp) {}
 }

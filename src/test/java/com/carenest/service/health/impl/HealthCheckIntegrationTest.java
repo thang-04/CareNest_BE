@@ -284,7 +284,8 @@ class HealthCheckIntegrationTest {
                 .containsExactly(saved.id());
         assertThat(record.openCampaign().kind()).isEqualTo(HealthCheckKind.MEASUREMENT);
         assertThat(record.openCampaign().resultStatus()).isEqualTo("RECORDED");
-        assertThat(record.headCircumferenceUntil()).isEqualTo(LocalDate.of(2028, 1, 1));
+        // Vòng đầu đo khi trẻ chưa quá 60 tháng: tới trước ngày đủ 61 tháng (sinh 2023-01-01)
+        assertThat(record.headCircumferenceUntil()).isEqualTo(LocalDate.of(2028, 1, 31));
         expectError(() -> measurements.getHealthRecord(vpB, child1), ApiCode.HEALTH_RECORD_ACCESS_DENIED);
 
         HealthCheckCloseResponse closed = checks.closeHealthCheck(vpA, round.id());
