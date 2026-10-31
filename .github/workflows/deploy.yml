@@ -1,0 +1,174 @@
+name: Deploy VPS
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      # Spotless ratchetFrom origin/main (pom.xml) cần ref origin/main; checkout mặc định chỉ lấy 1 commit
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Testcontainers dùng Docker có sẵn trên runner ubuntu
+      - run: node scripts/verify.mjs
+      - if: failure()
+        run: tail -n 200 target/verify.log
+      - run: ./mvnw -B -f docker/keycloak/extensions/carenest-auth/pom.xml verify
+      - run: node --test docker/keycloak/auth/*.test.mjs
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      APP_DIR: /data/thangnd/CAPSTONE/CareNest_BE
+      CADDY_DIR: /data/thangnd/CAPSTONE/caddy
+      AUTH_DISCOVERY_URL: https://auth.carenest.edu.vn/realms/carenest/.well-known/openid-configuration
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      DOCKERHUB_USER: thangnd04
+      # Repo private duy nhất của tài khoản free: api và Keycloak phân biệt bằng tag
+      IMAGE: thangnd04/carenest-be
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Image Keycloak copy jar từ target; realm gateway sinh từ bản import chuẩn (thư mục generated bị ignore)
+      - name: Package Keycloak extension and realm
+        run: |
+          ./mvnw -B -q -f docker/keycloak/extensions/carenest-auth/pom.xml package -DskipTests
+          node docker/keycloak/auth/prepare.mjs
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push api image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:api-${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Build and push Keycloak image
+        uses: docker/build-push-action@v6
+        with:
+          context: docker/keycloak
+          file: docker/keycloak/auth/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE }}:keycloak-${{ github.sha }}
+          cache-from: type=gha,scope=keycloak
+          cache-to: type=gha,scope=keycloak,mode=max
+
+      - name: Setup SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      # Image lấy từ Docker Hub ⇒ VPS chỉ cần compose + file mount; .env trên VPS không bị đụng
+      - name: Upload compose and mounted files
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "mkdir -p '$APP_DIR'"
+          rsync -azR -e "ssh -p $VPS_PORT" \
+            compose.vps.yaml \
+            docker/postgres/init/ \
+            docker/keycloak/auth/generated/carenest-realm.json \
+            docker/keycloak/dev/carenest-users-0.json \
+            "$VPS_USER@$VPS_HOST:$APP_DIR/"
+
+      # Đuôi .new không khớp `import *.caddy` nên Caddy chưa đọc tới khi bước Apply đổi tên
+      - name: Upload Caddy site
+        run: |
+          rsync -z -e "ssh -p $VPS_PORT" deploy/caddy/carenest-auth.caddy \
+            "$VPS_USER@$VPS_HOST:$CADDY_DIR/carenest-auth.caddy.new"
+
+      # Keycloak tự build lại + import realm lần đầu, API chạy Flyway ⇒ chờ health tối đa ~3 phút
+      - name: Pull and restart on VPS
+        env:
+          API_IMAGE: ${{ env.IMAGE }}:api-${{ github.sha }}
+          KEYCLOAK_IMAGE: ${{ env.IMAGE }}:keycloak-${{ github.sha }}
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "cd '$APP_DIR' && API_IMAGE='$API_IMAGE' KEYCLOAK_IMAGE='$KEYCLOAK_IMAGE' bash -s" <<'EOF'
+          set -e
+          test -f .env || { echo ".env missing in $PWD (template: deploy/vps.env.example)" >&2; exit 1; }
+          docker pull "$API_IMAGE"
+          docker pull "$KEYCLOAK_IMAGE"
+          docker compose -f compose.vps.yaml up -d --no-build --remove-orphans
+          healthy=
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:18310/actuator/health \
+              && curl -fsS -o /dev/null http://127.0.0.1:18321/health/ready; then
+              healthy=1
+              break
+            fi
+            sleep 3
+          done
+          if [ -z "$healthy" ]; then
+            docker compose -f compose.vps.yaml ps
+            docker compose -f compose.vps.yaml logs --tail 80 api keycloak
+            exit 1
+          fi
+          docker images "${API_IMAGE%:*}" --format '{{.Repository}}:{{.Tag}}' \
+            | grep -vxF -e "$API_IMAGE" -e "$KEYCLOAK_IMAGE" | xargs -r docker rmi
+          docker image prune -f
+          EOF
+
+      # Caddy dùng chung với site khác: reload lỗi thì Caddy giữ cấu hình đang chạy,
+      # nhưng file lỗi còn trên đĩa sẽ làm Caddy không lên sau reboot ⇒ khôi phục file cũ
+      - name: Apply Caddy site
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "cd '$CADDY_DIR' && bash -s" <<'EOF'
+          set -e
+          rm -f carenest-auth.caddy.bak
+          if cmp -s carenest-auth.caddy.new carenest-auth.caddy; then
+            rm carenest-auth.caddy.new
+            echo "Caddy site unchanged"
+            exit 0
+          fi
+          if [ -f carenest-auth.caddy ]; then cp -p carenest-auth.caddy carenest-auth.caddy.bak; fi
+          mv carenest-auth.caddy.new carenest-auth.caddy
+          if ! sudo -n systemctl reload caddy; then
+            if [ -f carenest-auth.caddy.bak ]; then mv carenest-auth.caddy.bak carenest-auth.caddy; else rm carenest-auth.caddy; fi
+            sudo -n systemctl reload caddy || true
+            echo "Caddy reload failed, previous site file restored" >&2
+            exit 1
+          fi
+          EOF
+
+      # Token Keycloak phải có iss https (KEYCLOAK_ISSUER_URI của API so khớp tuyệt đối)
+      - name: Smoke test HTTPS
+        run: |
+          curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$AUTH_DISCOVERY_URL" \
+            | grep -F '"issuer":"https://auth.carenest.edu.vn/realms/carenest"'

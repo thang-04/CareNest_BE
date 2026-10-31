@@ -85,8 +85,16 @@ public enum ApiCode {
     PERMISSION_NOT_CONFIGURABLE_FOR_ACCOUNT(
             1123, HttpStatus.BAD_REQUEST, "Quyền {0} không cấu hình được cho tài khoản này"),
     PHONE_NUMBER_INVALID(1124, HttpStatus.BAD_REQUEST, "Số điện thoại không hợp lệ"),
-    PHONE_BELONGS_TO_STAFF(1125, HttpStatus.CONFLICT, "Số điện thoại này đã thuộc tài khoản nhân sự"),
     NOT_PARENT_ACCOUNT(1126, HttpStatus.BAD_REQUEST, "Tài khoản này không phải tài khoản phụ huynh"),
+    STAFF_ROLE_NOT_REVOCABLE(1127, HttpStatus.BAD_REQUEST, "Tài khoản này không có vai trò nhân sự thu hồi được"),
+    STAFF_ROLE_REVOKE_REQUIRES_CHILD(
+            1128,
+            HttpStatus.BAD_REQUEST,
+            "Tài khoản không còn con đang học, hãy khóa tài khoản thay vì thu hồi vai trò nhân sự"),
+    ACCOUNT_CONFIRMATION_REQUIRED(
+            1129,
+            HttpStatus.CONFLICT,
+            "Số điện thoại đã là tài khoản phụ huynh, hãy tra số và xác nhận đúng người trước khi thêm vai trò nhân sự"),
 
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),
@@ -215,6 +223,10 @@ public enum ApiCode {
     GUARDIAN_ALREADY_LINKED(3004, HttpStatus.CONFLICT, "Phụ huynh đã được liên kết với trẻ"),
     GUARDIAN_LINK_NOT_FOUND(3005, HttpStatus.NOT_FOUND, "Không tìm thấy liên kết phụ huynh"),
     CHILD_GUARDIAN_MANAGE_DENIED(3006, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý phụ huynh của trẻ này"),
+    GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED(
+            3007,
+            HttpStatus.CONFLICT,
+            "Số điện thoại đã có tài khoản, hãy tra số và xác nhận đúng người trước khi liên kết"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),

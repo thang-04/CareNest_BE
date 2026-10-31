@@ -6,6 +6,7 @@ import com.carenest.entity.account.UserAccount;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
+import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
@@ -16,6 +17,7 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +32,7 @@ public class AccountServiceImpl implements AccountService {
 
     private final StaffAssignmentService staffAssignmentService;
     private final GuardianChildLinkService guardianChildLinkService;
+    private final EnrollmentService enrollmentService;
     private final UserAccountRepository userAccountRepository;
     private final Clock clock;
 
@@ -44,9 +47,8 @@ public class AccountServiceImpl implements AccountService {
                     staffAssignmentService.findActiveAssignments(currentUser.userId(), LocalDate.now(clock)).stream()
                             .filter(assignment -> currentUser.hasRole(tokenRoleOf(assignment.staffRole())))
                             .toList();
-            List<Long> childIds = currentUser.hasRole(CareNestRole.PARENT)
-                    ? guardianChildLinkService.findChildIdsOfGuardian(currentUser.userId())
-                    : List.of();
+            List<Long> childIds =
+                    currentUser.hasRole(CareNestRole.PARENT) ? studyingChildIds(currentUser.userId()) : List.of();
 
             MyAccountResponse account = new MyAccountResponse(
                     currentUser.userId(),
@@ -104,6 +106,13 @@ public class AccountServiceImpl implements AccountService {
     }
 
     // Tổ trưởng khối là giáo viên có thêm phân công nhóm tuổi: hiệu lực khi token có role TEACHER
+    // CHD-04: trẻ đã nghỉ học/ra trường không còn trong phạm vi phụ huynh, giống ChildAccessPolicy
+    private List<Long> studyingChildIds(Long userId) {
+        List<Long> linked = guardianChildLinkService.findChildIdsOfGuardian(userId);
+        Set<Long> left = enrollmentService.findChildIdsLeftSchool(linked, LocalDate.now(clock));
+        return linked.stream().filter(childId -> !left.contains(childId)).toList();
+    }
+
     private static CareNestRole tokenRoleOf(StaffRole staffRole) {
         return staffRole == StaffRole.AGE_GROUP_TEAM_LEADER
                 ? CareNestRole.TEACHER

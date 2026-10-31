@@ -1,11 +1,13 @@
 package com.carenest.controller.account;
 
+import com.carenest.dto.account.AccountCandidateResponse;
 import com.carenest.dto.account.AccountDetailResponse;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.account.AccountSummaryResponse;
 import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.dto.account.MyAccountResponse;
+import com.carenest.dto.account.PhoneLookupRequest;
 import com.carenest.dto.account.ResetTemporaryPasswordRequest;
 import com.carenest.dto.account.UpdateAccountStatusRequest;
 import com.carenest.dto.common.PageResponse;
@@ -55,6 +57,18 @@ public class AccountController {
         MyAccountResponse profile = accountService.getMyAccount(currentUser);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get my account success", profile);
+    }
+
+    @PostMapping("/lookup")
+    @PreAuthorize("@permissionGuard.has('ACCOUNT_MANAGE')")
+    public ResponseEntity<ResponseJson<AccountCandidateResponse>> findAccountCandidate(
+            @Valid @RequestBody PhoneLookupRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|findAccountCandidate|actorUserId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        AccountCandidateResponse candidate =
+                accountProvisioningService.findAccountCandidate(currentUser, request.phone());
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Find account candidate success", candidate);
     }
 
     @PostMapping
@@ -116,6 +130,17 @@ public class AccountController {
         AccountDetailResponse detail = accountQueryService.getAccountDetail(currentUser, userId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get account success", detail);
+    }
+
+    @PostMapping("/{userId}/staff-role/revoke")
+    @PreAuthorize("@permissionGuard.has('ACCOUNT_MANAGE')")
+    public ResponseEntity<ResponseJson<AccountResponse>> revokeStaffRole(
+            @PathVariable Long userId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|revokeStaffRole|actorUserId=" + currentUser.userId() + "|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        AccountResponse account = accountProvisioningService.revokeStaffRole(currentUser, userId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Revoke staff role success", account);
     }
 
     @PostMapping("/{userId}/temporary-password")

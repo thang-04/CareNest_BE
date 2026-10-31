@@ -44,6 +44,22 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     @Override
+    public Set<Long> findChildIdsLeftSchool(Collection<Long> childIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findChildIdsLeftSchool|count=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> left = childIds.isEmpty()
+                    ? Set.of()
+                    : Set.copyOf(enrollmentRepository.findChildIdsLeftSchool(childIds, date));
+            log.info("{}|left={}|END", logPrefix, left.size());
+            return left;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public List<ClassChildResponse> findChildrenInClassroom(Long classroomId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findChildrenInClassroom|classroomId=" + classroomId;
         log.info("{}|START", logPrefix);

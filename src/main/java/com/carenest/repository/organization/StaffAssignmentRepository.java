@@ -20,6 +20,15 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     boolean existsActiveByRole(
             @Param("userId") Long userId, @Param("staffRole") StaffRole staffRole, @Param("date") LocalDate date);
 
+    // Native vì phân công tổ trưởng (AGE_GROUP_TEAM_LEADER) do module education-plan thêm vào bảng, chưa có trong
+    // enum StaffRole của module này
+    @Query(value = """
+            select exists (select 1 from staff_assignments a
+            where a.user_id = :userId and a.staff_role = 'AGE_GROUP_TEAM_LEADER'
+              and a.valid_from <= :date and (a.valid_to is null or a.valid_to >= :date))
+            """, nativeQuery = true)
+    boolean existsActiveTeamLeader(@Param("userId") Long userId, @Param("date") LocalDate date);
+
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
             where a.userId = :userId and a.staffRole = :staffRole and a.campusId = :campusId

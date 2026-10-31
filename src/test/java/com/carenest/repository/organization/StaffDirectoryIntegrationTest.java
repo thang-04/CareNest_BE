@@ -118,6 +118,21 @@ class StaffDirectoryIntegrationTest {
     }
 
     @Test
+    @DisplayName("AUTH-23: GV chưa có phân công tổ trưởng thì không là tổ trưởng; ma trận nhận cột TEAM_LEADER (V10)")
+    void teamLeaderLookupAndMatrixColumn() {
+        assertThat(assignments.existsActiveTeamLeader(teacher, TODAY)).isFalse();
+
+        jdbc.update("INSERT INTO role_permissions (role, permission_code) VALUES ('TEAM_LEADER', 'TEST_CODE')");
+        try {
+            assertThat(jdbc.queryForObject(
+                            "SELECT count(*) FROM role_permissions WHERE role = 'TEAM_LEADER'", Long.class))
+                    .isEqualTo(1L);
+        } finally {
+            jdbc.update("DELETE FROM role_permissions WHERE role = 'TEAM_LEADER'");
+        }
+    }
+
+    @Test
     void currentClassroomsOnlyFromRunningSchoolYear() {
         assertThat(classrooms.findCurrentByCampusId(campusA, TODAY))
                 .extracting("id")

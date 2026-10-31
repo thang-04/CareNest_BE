@@ -73,6 +73,7 @@ Index: `idx_attendance_cutoffs_school_year_id (school_year_id, effective_from)`.
 
 ## classrooms  (module: school-structure, scope: CLASS)
 Mục đích: lớp của một campus trong một năm học (năm sau là lớp khác ⇒ phân công cũ không tự áp). Migration: V2.
+Lưu ý SCH-02 (khảo sát team 27/10): trường giữ lớp qua các năm, có thể đổi tên, thêm lớp mới khi cần; mô hình "mỗi năm một bản ghi lớp" hiện tại cần chức năng chuyển năm hoặc đổi thiết kế — chờ thiết kế school-structure. Chưa có cột nhóm tuổi (SCH-01) và phòng (SCH-03).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -379,7 +380,7 @@ Mục đích: ma trận quyền theo role do Hiệu trưởng bật/tắt (ADR-0
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| role | VARCHAR(20) | không | Chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF` (CHECK); role khác cố định trong code | AUTH-11 |
+| role | VARCHAR(20) | không | Chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK, `TEAM_LEADER` từ V38); role khác cố định trong code. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23 |
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
 | updated_by | BIGINT | có | FK `user_accounts`; null với dòng seed | AUTH-14 |
 | updated_at | TIMESTAMPTZ | không | Thời điểm bật | — |

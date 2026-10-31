@@ -25,6 +25,7 @@ import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.TemperatureLevel;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -287,6 +288,16 @@ class AttendanceIntegrationTest {
         DayUnlockRequest unlockRequest =
                 new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "  GV quên lưu  ");
         expectError(() -> unlockService.unlockDay(vpB, unlockRequest), ApiCode.FORBIDDEN);
+        // AUTH-20: xem liên cơ sở chỉ mở đường đọc, không mở lại điểm danh cơ sở khác (ATT-08)
+        CurrentUser vpBAllCampus = new CurrentUser(
+                vpB.userId(),
+                vpB.keycloakUserId(),
+                vpB.username(),
+                vpB.fullName(),
+                vpB.email(),
+                vpB.roles(),
+                Set.of(Permission.ALL_CAMPUS_VIEW));
+        expectError(() -> unlockService.unlockDay(vpBAllCampus, unlockRequest), ApiCode.FORBIDDEN);
         DayUnlockResponse unlock = unlockService.unlockDay(vpA, unlockRequest);
         assertThat(unlock.reason()).isEqualTo("GV quên lưu");
         assertThat(unlock.unlockedByName()).isEqualTo("vpa");

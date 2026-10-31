@@ -5,3 +5,8 @@ spring:
     import: optional:file:.env[.properties]
   flyway:
     locations: classpath:db/migration,classpath:db/dev
+
+carenest:
+  security:
+    platform:
+      dev-clients: ${CARENEST_DEV_CLIENT_IDS:carenest-dev}

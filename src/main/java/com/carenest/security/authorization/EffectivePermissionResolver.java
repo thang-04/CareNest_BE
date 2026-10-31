@@ -6,6 +6,7 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
@@ -51,6 +52,16 @@ public final class EffectivePermissionResolver {
 
         fixed.addAll(configured);
         return fixed;
+    }
+
+    /** Role dùng để tính quyền: role trong token, thêm TEAM_LEADER khi đang là tổ trưởng (AUTH-23). */
+    public static Set<CareNestRole> permissionRoles(Set<CareNestRole> loginRoles, boolean activeTeamLeader) {
+        if (!activeTeamLeader) {
+            return loginRoles;
+        }
+        EnumSet<CareNestRole> roles = EnumSet.of(CareNestRole.TEAM_LEADER);
+        roles.addAll(loginRoles);
+        return Collections.unmodifiableSet(roles);
     }
 
     public static boolean isConfigurableForAny(Permission permission, Set<CareNestRole> roles) {
