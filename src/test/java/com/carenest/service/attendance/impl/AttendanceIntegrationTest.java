@@ -521,7 +521,7 @@ class AttendanceIntegrationTest {
         assertThat(fever.checked()).isTrue();
         assertThat(fever.observation()).isEqualTo(HealthObservation.NOTED);
         assertThat(fever.temperature()).isEqualByComparingTo("39.0");
-        assertThat(fever.temperatureLevel()).isEqualTo(TemperatureLevel.VERY_HIGH);
+        assertThat(fever.temperatureLevel()).isEqualTo(TemperatureLevel.HIGH);
         assertThat(fever.symptoms()).containsExactly(HealthSymptom.FEVER);
 
         // Khám lại trong ngày: nhãn theo lần mới nhất
@@ -556,17 +556,18 @@ class AttendanceIntegrationTest {
 
     @Test
     void temperatureLevelsFollowAgreedThresholds() {
+        // Bộ Y tế: sốt khi nách ≥ 37,5 °C; nhẹ / vừa / cao / rất cao tách ở 38 / 39 / 40 °C
         assertThat(TemperatureLevel.of(null)).isNull();
         assertThat(TemperatureLevel.of(new BigDecimal("35.4"))).isEqualTo(TemperatureLevel.LOW);
         assertThat(TemperatureLevel.of(new BigDecimal("35.5"))).isEqualTo(TemperatureLevel.NORMAL);
         assertThat(TemperatureLevel.of(new BigDecimal("37.4"))).isEqualTo(TemperatureLevel.NORMAL);
-        assertThat(TemperatureLevel.of(new BigDecimal("37.5"))).isEqualTo(TemperatureLevel.WATCH);
-        assertThat(TemperatureLevel.of(new BigDecimal("37.9"))).isEqualTo(TemperatureLevel.WATCH);
-        assertThat(TemperatureLevel.of(new BigDecimal("38.0"))).isEqualTo(TemperatureLevel.FEVER);
-        assertThat(TemperatureLevel.of(new BigDecimal("38.4"))).isEqualTo(TemperatureLevel.FEVER);
-        assertThat(TemperatureLevel.of(new BigDecimal("38.5"))).isEqualTo(TemperatureLevel.HIGH);
-        assertThat(TemperatureLevel.of(new BigDecimal("38.9"))).isEqualTo(TemperatureLevel.HIGH);
-        assertThat(TemperatureLevel.of(new BigDecimal("39.0"))).isEqualTo(TemperatureLevel.VERY_HIGH);
+        assertThat(TemperatureLevel.of(new BigDecimal("37.5"))).isEqualTo(TemperatureLevel.MILD);
+        assertThat(TemperatureLevel.of(new BigDecimal("37.9"))).isEqualTo(TemperatureLevel.MILD);
+        assertThat(TemperatureLevel.of(new BigDecimal("38.0"))).isEqualTo(TemperatureLevel.MODERATE);
+        assertThat(TemperatureLevel.of(new BigDecimal("38.9"))).isEqualTo(TemperatureLevel.MODERATE);
+        assertThat(TemperatureLevel.of(new BigDecimal("39.0"))).isEqualTo(TemperatureLevel.HIGH);
+        assertThat(TemperatureLevel.of(new BigDecimal("39.9"))).isEqualTo(TemperatureLevel.HIGH);
+        assertThat(TemperatureLevel.of(new BigDecimal("40.0"))).isEqualTo(TemperatureLevel.VERY_HIGH);
     }
 
     private DailyHealthRequest health(String requestId, long childId, HealthObservation observation) {
