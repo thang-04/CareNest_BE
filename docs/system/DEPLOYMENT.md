@@ -41,7 +41,7 @@ Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'
 
 1. **DNS:** bản ghi A `auth.carenest.edu.vn` trỏ IP VPS; `dig +short auth.carenest.edu.vn` đúng IP trước deploy đầu.
 2. **Docker Hub:** tạo repo `thangnd04/carenest-be` **Private trước lần push đầu** (push tạo repo theo visibility mặc định, có thể public ⇒ lộ jar). Tạo 2 Personal access token: Read & Write (GitHub) và Read-only (VPS).
-3. **GitHub repo CareNest_BE** › Settings › Environments: tạo `production`, cho phép deploy từ nhánh `main`. Repository secret (Settings › Secrets and variables › Actions › Repository secrets): `DOCKERHUB_TOKEN` (Read & Write), vì job `plan`/`api`/`keycloak` không chạy trong environment. Secrets của environment `production`: `VPS_HOST`, `VPS_PORT`, `VPS_USER` (`thangnd`), `VPS_SSH_KEY` (dùng chung key CI của FE được).
+3. **GitHub repo CareNest_BE** › Settings › Environments: tạo `production` (Deployment branches: No restriction hoặc cho phép `main`). Repository secrets (Settings › Secrets and variables › Actions › Repository secrets): `DOCKERHUB_TOKEN` (Read & Write) — **bắt buộc ở cấp repo** vì job `plan`/`api`/`keycloak` không chạy trong environment; `VPS_HOST`, `VPS_PORT`, `VPS_USER` (`thangnd`), `VPS_SSH_KEY` (dùng chung key CI của FE được) đặt cấp repo hoặc trong `production` đều được (chỉ job `deploy` dùng).
 4. **VPS, user `thangnd`:**
    ```bash
    docker login -u thangnd04          # dán token Read-only
