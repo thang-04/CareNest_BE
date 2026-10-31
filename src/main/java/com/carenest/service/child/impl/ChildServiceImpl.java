@@ -117,7 +117,8 @@ public class ChildServiceImpl implements ChildService {
             Map<Long, ChildBriefResponse> briefs = childRepository.findAllById(childIds).stream()
                     .collect(Collectors.toMap(
                             Child::getId,
-                            c -> new ChildBriefResponse(c.getId(), c.getCode(), c.getFullName(), c.getDateOfBirth())));
+                            c -> new ChildBriefResponse(
+                                    c.getId(), c.getCode(), c.getFullName(), c.getDateOfBirth(), c.getGender())));
             log.info("{}|END", logPrefix);
             return briefs;
         } catch (RuntimeException ex) {

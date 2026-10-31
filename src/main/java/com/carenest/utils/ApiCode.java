@@ -98,6 +98,11 @@ public enum ApiCode {
     // Form tiếp nhận trẻ (ChildEnrollmentService) chưa có bước xác nhận đúng người như thêm phụ huynh ⇒ tạm chặn SĐT
     // nhân sự
     PHONE_OF_STAFF_ACCOUNT(1130, HttpStatus.CONFLICT, "Số điện thoại này là tên đăng nhập của tài khoản nhân sự"),
+    ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP, tối đa 2 MB"),
+    ACCOUNT_PHOTO_NOT_FOUND(1132, HttpStatus.NOT_FOUND, "Chưa có ảnh hoặc bạn không có quyền xem ảnh này"),
+
+    // ========== 12xx THÔNG BÁO ==========
+    NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
 
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),
@@ -254,6 +259,18 @@ public enum ApiCode {
     UNLOCK_ALREADY_ACTIVE(4015, HttpStatus.CONFLICT, "Lớp/ngày này đang có lần mở lại còn hiệu lực"),
     UNLOCK_ALREADY_ENDED(4016, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
     LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, báo nghỉ cần xác nhận lại số suất"),
+
+    // ========== 41xx ĐÓN TRẺ ==========
+    PICKUP_CHILD_NOT_FOUND(4101, HttpStatus.NOT_FOUND, "Không tìm thấy trẻ hoặc bạn không có quyền trả trẻ này"),
+    PICKUP_ACCESS_DENIED(4102, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp được xem và trả trẻ của lớp"),
+    PICKUP_YEAR_NOT_ACTIVE(4103, HttpStatus.BAD_REQUEST, "Đón trẻ chỉ theo lớp của năm học đang hoạt động"),
+    PICKUP_DATE_INVALID(
+            4104,
+            HttpStatus.BAD_REQUEST,
+            "Chọn ngày từ đầu năm học đang hoạt động tới hôm nay, không chọn ngày tương lai"),
+    PICKUP_CHILD_NOT_PRESENT(4105, HttpStatus.CONFLICT, "Trẻ chưa được điểm danh có mặt hôm nay"),
+    PICKUP_CHILD_ABSENT(4106, HttpStatus.CONFLICT, "Trẻ được điểm danh vắng hôm nay"),
+    PICKUP_ALREADY_HANDED_OVER(4107, HttpStatus.CONFLICT, "Trẻ đã được trả cho người đón hôm nay"),
 
     // ========== 50xx SỨC KHỎE ==========
     HEALTH_OVERVIEW_ACCESS_DENIED(5001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp sức khỏe"),

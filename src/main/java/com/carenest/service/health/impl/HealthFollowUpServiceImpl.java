@@ -3,12 +3,12 @@ package com.carenest.service.health.impl;
 import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.child.ChildMedicalHistory;
 import com.carenest.dto.common.FieldErrorResponse;
+import com.carenest.dto.common.ImageContent;
 import com.carenest.dto.health.HealthFollowUpCloseRequest;
 import com.carenest.dto.health.HealthFollowUpContactRequest;
 import com.carenest.dto.health.HealthFollowUpExternalResultRequest;
 import com.carenest.dto.health.HealthFollowUpListResponse;
 import com.carenest.dto.health.HealthFollowUpResponse;
-import com.carenest.dto.health.HealthImageContent;
 import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.dto.organization.SchoolYearResponse;
@@ -331,7 +331,7 @@ public class HealthFollowUpServiceImpl implements HealthFollowUpService {
 
     @Override
     @Transactional(readOnly = true)
-    public HealthImageContent getImage(CurrentUser currentUser, Long followUpId, Long imageId) {
+    public ImageContent getImage(CurrentUser currentUser, Long followUpId, Long imageId) {
         String logPrefix = LOG_PREFIX + "|getImage|userId=" + currentUser.userId() + "|followUpId=" + followUpId
                 + "|imageId=" + imageId;
         log.info("{}|START", logPrefix);
@@ -342,8 +342,7 @@ public class HealthFollowUpServiceImpl implements HealthFollowUpService {
                     .filter(i -> i.getId().equals(imageId))
                     .findFirst()
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_FOLLOW_UP_IMAGE_NOT_FOUND));
-            HealthImageContent content =
-                    new HealthImageContent(imageStorage.load(image.getStorageKey()), image.getContentType());
+            ImageContent content = new ImageContent(imageStorage.load(image.getStorageKey()), image.getContentType());
             log.info("{}|END", logPrefix);
             return content;
         } catch (RuntimeException ex) {

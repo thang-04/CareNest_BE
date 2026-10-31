@@ -1,11 +1,11 @@
 package com.carenest.controller.health;
 
+import com.carenest.dto.common.ImageContent;
 import com.carenest.dto.health.HealthFollowUpCloseRequest;
 import com.carenest.dto.health.HealthFollowUpContactRequest;
 import com.carenest.dto.health.HealthFollowUpExternalResultRequest;
 import com.carenest.dto.health.HealthFollowUpListResponse;
 import com.carenest.dto.health.HealthFollowUpResponse;
-import com.carenest.dto.health.HealthImageContent;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthFollowUpService;
 import com.carenest.utils.ApiCode;
@@ -107,7 +107,7 @@ public class HealthFollowUpController {
         String logPrefix = LOG_PREFIX + "|getImage|userId=" + currentUser.userId() + "|followUpId=" + followUpId
                 + "|imageId=" + imageId;
         log.info("{}|START", logPrefix);
-        HealthImageContent image = healthFollowUpService.getImage(currentUser, followUpId, imageId);
+        ImageContent image = healthFollowUpService.getImage(currentUser, followUpId, imageId);
         log.info("{}|END", logPrefix);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(image.contentType()))

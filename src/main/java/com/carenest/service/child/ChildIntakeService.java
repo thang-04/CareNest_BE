@@ -1,5 +1,6 @@
 package com.carenest.service.child;
 
+import com.carenest.dto.child.ChildGuardianContact;
 import com.carenest.dto.child.ChildMedicalHistory;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.DuplicateCheckResponse;
@@ -55,6 +56,9 @@ public interface ChildIntakeService {
 
     /** Trẻ theo id kèm trạng thái, lớp và điểm trường hiện tại. */
     List<GuardianChildSummary> findChildSummaries(Collection<Long> childIds);
+
+    /** Phụ huynh trên hồ sơ trẻ theo thứ tự vị trí (đối chiếu người đón, ảnh phụ huynh); người gọi đã kiểm phạm vi. */
+    List<ChildGuardianContact> findGuardianContacts(Long childId);
 
     /** Tiền sử trong khai báo sức khỏe của trẻ; rỗng khi trẻ chưa có khai báo. */
     Optional<ChildMedicalHistory> findMedicalHistory(Long childId);

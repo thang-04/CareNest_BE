@@ -90,7 +90,9 @@ class AccountControllerTest {
                         List.of(Permission.CHILD_PROFILE_VIEW),
                         List.of(new StaffAssignmentSummaryResponse(
                                 StaffRole.TEACHER, null, 11L, null, LocalDate.of(2026, 9, 1), null)),
-                        List.of(101L)));
+                        List.of(101L),
+                        false,
+                        false));
 
         mockMvc.perform(get(MY_ACCOUNT).with(jwt()))
                 .andExpect(status().isOk())
@@ -230,7 +232,16 @@ class AccountControllerTest {
         CurrentUser fromToken = authenticateAs(CareNestRole.TEACHER);
         given(accountService.getMyAccount(eq(fromToken)))
                 .willReturn(new MyAccountResponse(
-                        1L, "demo.user", "Demo", null, List.of(CareNestRole.TEACHER), List.of(), List.of(), List.of()));
+                        1L,
+                        "demo.user",
+                        "Demo",
+                        null,
+                        List.of(CareNestRole.TEACHER),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        false,
+                        false));
 
         mockMvc.perform(get(MY_ACCOUNT + "?userId=999&keycloakUserId=kc-admin&roles=ADMIN")
                         .with(jwt()))

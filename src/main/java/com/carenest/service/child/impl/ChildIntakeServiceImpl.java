@@ -1,6 +1,7 @@
 package com.carenest.service.child.impl;
 
 import com.carenest.dto.child.ChildAddressResponse;
+import com.carenest.dto.child.ChildGuardianContact;
 import com.carenest.dto.child.ChildGuardianResponse;
 import com.carenest.dto.child.ChildHistoryResponse;
 import com.carenest.dto.child.ChildMedicalHistory;
@@ -642,6 +643,25 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
 
     private static ChildHealthDeclaration.Answer answer(HealthDeclarationDraft.Answer answer) {
         return new ChildHealthDeclaration.Answer(answer.state(), answer.text());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChildGuardianContact> findGuardianContacts(Long childId) {
+        String logPrefix = LOG_PREFIX + "|findGuardianContacts|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildGuardianContact> contacts =
+                    childGuardianRepository.findAllByChildIdOrderByPositionAsc(childId).stream()
+                            .map(g -> new ChildGuardianContact(
+                                    g.getPosition(), g.getFullName(), g.getRelationship(), g.getPhone(), g.getUserId()))
+                            .toList();
+            log.info("{}|END", logPrefix);
+            return contacts;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 
     @Override

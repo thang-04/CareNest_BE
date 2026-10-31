@@ -53,6 +53,19 @@ public class UserAccount {
     @Column(name = "primary_role", updatable = false, length = 20)
     private CareNestRole primaryRole;
 
+    /** Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, GV đối chiếu khi trả trẻ — PCK-02); tệp ở S3. */
+    @Column(name = "photo_key", length = 36)
+    private String photoKey;
+
+    @Column(name = "photo_content_type", length = 30)
+    private String photoContentType;
+
+    @Column(name = "photo_size_bytes")
+    private Integer photoSizeBytes;
+
+    @Column(name = "photo_updated_at")
+    private Instant photoUpdatedAt;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -108,5 +121,19 @@ public class UserAccount {
     /** Thu hồi vai trò nhân sự của người vẫn là phụ huynh (chỉ bản trong bộ nhớ, DB ghi bằng updatePrimaryRole). */
     public void becomeParentOnly() {
         this.primaryRole = CareNestRole.PARENT;
+    }
+
+    public boolean hasPhoto() {
+        return photoKey != null;
+    }
+
+    /** Thay ảnh chân dung; trả mã tệp cũ để dọn sau khi lưu (null khi chưa có). */
+    public String replacePhoto(String key, String contentType, int sizeBytes, Instant at) {
+        String old = this.photoKey;
+        this.photoKey = key;
+        this.photoContentType = contentType;
+        this.photoSizeBytes = sizeBytes;
+        this.photoUpdatedAt = at;
+        return old;
     }
 }

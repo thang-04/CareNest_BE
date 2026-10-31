@@ -49,6 +49,10 @@ public class AccountServiceImpl implements AccountService {
             List<Long> childIds =
                     currentUser.hasRole(CareNestRole.PARENT) ? studyingChildIds(currentUser.userId()) : List.of();
 
+            boolean photoUploaded = userAccountRepository
+                    .findById(currentUser.userId())
+                    .map(UserAccount::hasPhoto)
+                    .orElse(false);
             MyAccountResponse account = new MyAccountResponse(
                     currentUser.userId(),
                     currentUser.username(),
@@ -57,7 +61,10 @@ public class AccountServiceImpl implements AccountService {
                     currentUser.roles().stream().sorted().toList(),
                     currentUser.permissions().stream().sorted().toList(),
                     assignments,
-                    childIds);
+                    childIds,
+                    photoUploaded,
+                    // Phụ huynh đăng nhập App lần đầu phải tải ảnh chân dung để GV đối chiếu khi trả trẻ
+                    currentUser.hasRole(CareNestRole.PARENT) && !photoUploaded);
             log.info("{}|END", logPrefix);
             return account;
         } catch (RuntimeException ex) {

@@ -17,6 +17,7 @@ import com.carenest.entity.attendance.DailyHealthEntry;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
+import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.DailyHealthService;
@@ -29,6 +30,7 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
+import com.carenest.utils.enums.PickupOutcome;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -55,6 +57,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
 
     private final DailyHealthEntryRepository entryRepository;
     private final AttendanceRecordRepository recordRepository;
+    private final PickupRecordRepository pickupRepository;
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
@@ -114,10 +117,13 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 throw GlobalException.of(ApiCode.HEALTH_YEAR_NOT_ACTIVE);
             }
             childInClass(cls.id(), request.childId(), request.date());
-            // HLT-15: ghi cả sau giờ chốt, khóa khi hết ngày
-            // TODO(Cần): khi có BE Đón trẻ, khóa từ lúc trẻ được trả cho phụ huynh (HLT-15)
+            // HLT-15: ghi cả sau giờ chốt; khóa khi hết ngày hoặc khi trẻ đã được trả cho người đón (PCK-04)
             if (!request.date().equals(rules.today())) {
                 throw GlobalException.of(ApiCode.HEALTH_TODAY_ONLY);
+            }
+            if (pickupRepository.existsByChildIdAndDateAndOutcome(
+                    request.childId(), request.date(), PickupOutcome.HANDED_OVER)) {
+                throw GlobalException.of(ApiCode.HEALTH_CHILD_PICKED_UP);
             }
             if (!isPresent(request.childId(), cls.id(), request.date())) {
                 throw GlobalException.of(ApiCode.HEALTH_CHILD_NOT_PRESENT);

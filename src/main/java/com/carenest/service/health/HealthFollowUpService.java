@@ -1,11 +1,11 @@
 package com.carenest.service.health;
 
+import com.carenest.dto.common.ImageContent;
 import com.carenest.dto.health.HealthFollowUpCloseRequest;
 import com.carenest.dto.health.HealthFollowUpContactRequest;
 import com.carenest.dto.health.HealthFollowUpExternalResultRequest;
 import com.carenest.dto.health.HealthFollowUpListResponse;
 import com.carenest.dto.health.HealthFollowUpResponse;
-import com.carenest.dto.health.HealthImageContent;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.HealthFollowUpStatus;
 
@@ -28,5 +28,5 @@ public interface HealthFollowUpService {
 
     HealthFollowUpResponse closeFollowUp(CurrentUser currentUser, Long followUpId, HealthFollowUpCloseRequest request);
 
-    HealthImageContent getImage(CurrentUser currentUser, Long followUpId, Long imageId);
+    ImageContent getImage(CurrentUser currentUser, Long followUpId, Long imageId);
 }

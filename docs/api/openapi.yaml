@@ -120,6 +120,41 @@ paths:
           description: OK
       tags:
       - account-controller
+  /api/accounts/me/photo:
+    get:
+      operationId: getMyPhoto
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+          description: OK
+      tags:
+      - account-photo-controller
+    put:
+      operationId: updateMyPhoto
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountPhotoResponse"
+          description: OK
+      tags:
+      - account-photo-controller
   /api/accounts/{userId}:
     get:
       operationId: getAccountDetail
@@ -1113,6 +1148,32 @@ paths:
           description: OK
       tags:
       - guardian-controller
+  /api/children/{childId}/guardians/{userId}/photo:
+    get:
+      operationId: getGuardianPhoto
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+          description: OK
+      tags:
+      - account-photo-controller
   /api/children/{childId}/health:
     get:
       operationId: getHealthRecord
@@ -1385,6 +1446,31 @@ paths:
           description: OK
       tags:
       - daily-health-controller
+  /api/classes/{classId}/pickups:
+    get:
+      operationId: getBoard
+      parameters:
+      - in: path
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPickupBoardResponse"
+          description: OK
+      tags:
+      - pickup-controller
   /api/classes/{classId}/teacher-assignments/history:
     get:
       operationId: getClassTeacherHistory
@@ -2888,6 +2974,92 @@ paths:
           description: OK
       tags:
       - room-controller
+  /api/me/devices:
+    delete:
+      operationId: unregisterDevice
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceTokenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - notification-controller
+    put:
+      operationId: registerDevice
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeviceTokenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - notification-controller
+  /api/me/notifications:
+    get:
+      operationId: listMyNotifications
+      parameters:
+      - in: query
+        name: limit
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonNotificationListResponse"
+          description: OK
+      tags:
+      - notification-controller
+  /api/me/notifications/read-all:
+    post:
+      operationId: markAllRead
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonNotificationListResponse"
+          description: OK
+      tags:
+      - notification-controller
+  /api/me/notifications/{notificationId}/read:
+    post:
+      operationId: markRead
+      parameters:
+      - in: path
+        name: notificationId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonNotificationResponse"
+          description: OK
+      tags:
+      - notification-controller
   /api/me/password:
     put:
       operationId: changePassword
@@ -3073,6 +3245,61 @@ paths:
           description: OK
       tags:
       - permission-controller
+  /api/pickups:
+    get:
+      operationId: listResults
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListPickupRecordResponse"
+          description: OK
+      tags:
+      - pickup-controller
+    post:
+      operationId: recordResult
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PickupRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPickupRecordResponse"
+          description: OK
+      tags:
+      - pickup-controller
+  /api/pickups/children/{childId}:
+    get:
+      operationId: getChild
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPickupChildResponse"
+          description: OK
+      tags:
+      - pickup-controller
   /api/role-permissions:
     get:
       operationId: getRolePermissions
@@ -3652,6 +3879,16 @@ components:
           format: int64
         username:
           type: string
+    AccountPhotoResponse:
+      type: object
+      properties:
+        photoUpdatedAt:
+          type: string
+          format: date-time
+        photoUploaded:
+          type: boolean
+        profileUpdateRequired:
+          type: boolean
     AccountResponse:
       type: object
       properties:
@@ -5385,6 +5622,16 @@ components:
         state:
           type: string
         text:
+          type: string
+    DeviceTokenRequest:
+      type: object
+      properties:
+        platform:
+          type: string
+          enum:
+          - ANDROID
+          - IOS
+        token:
           type: string
     Domain:
       type: object
@@ -7472,6 +7719,10 @@ components:
             - PARENT_ACCOUNT_MANAGE
             - ALL_CAMPUS_VIEW
             - PERMISSION_MANAGE
+        photoUploaded:
+          type: boolean
+        profileUpdateRequired:
+          type: boolean
         roles:
           type: array
           items:
@@ -7496,6 +7747,39 @@ components:
           type: string
           maxLength: 2000
           minLength: 0
+    NotificationListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationResponse"
+        unreadCount:
+          type: integer
+          format: int64
+    NotificationResponse:
+      type: object
+      properties:
+        body:
+          type: string
+        childId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        readAt:
+          type: string
+          format: date-time
+        title:
+          type: string
+        type:
+          type: string
+          enum:
+          - CHILD_PICKED_UP
     Option:
       type: object
       properties:
@@ -7840,6 +8124,185 @@ components:
           minLength: 0
       required:
       - phone
+    PickupBoardResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupRow"
+        today:
+          type: string
+          format: date
+    PickupChildRef:
+      type: object
+      properties:
+        code:
+          type: string
+        fullName:
+          type: string
+        gender:
+          type: string
+          enum:
+          - MALE
+          - FEMALE
+        id:
+          type: integer
+          format: int64
+    PickupChildResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        guardians:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupGuardian"
+        row:
+          $ref: "#/components/schemas/PickupRow"
+    PickupGuardian:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        photoUrl:
+          type: string
+        position:
+          type: integer
+          format: int32
+        relationship:
+          type: string
+          enum:
+          - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
+          - GUARDIAN
+          - OTHER
+    PickupRecordResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        date:
+          type: string
+          format: date
+        guardianPosition:
+          type: integer
+          format: int32
+        handedOverAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        note:
+          type: string
+        notifiedParents:
+          type: integer
+          format: int32
+        outcome:
+          type: string
+          enum:
+          - HANDED_OVER
+          - NOT_HANDED_OVER
+        pickupPersonName:
+          type: string
+        pickupPersonPhone:
+          type: string
+        pickupPersonRelationship:
+          type: string
+          enum:
+          - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
+          - GUARDIAN
+          - OTHER
+        recordedAt:
+          type: string
+          format: date-time
+        recordedBy:
+          type: integer
+          format: int64
+        recordedByName:
+          type: string
+        verification:
+          type: string
+          enum:
+          - PHOTO_MATCH
+          - PHONE_CONFIRMED
+          - PHONE_DECLINED
+    PickupRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        guardianPosition:
+          type: integer
+          format: int32
+        handoverTime:
+          type: string
+          format: time-local
+        note:
+          type: string
+        verification:
+          type: string
+          enum:
+          - PHOTO_MATCH
+          - PHONE_CONFIRMED
+          - PHONE_DECLINED
+    PickupRow:
+      type: object
+      properties:
+        attempts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupRecordResponse"
+        attendanceStatus:
+          type: string
+          enum:
+          - PRESENT
+          - EXCUSED
+          - UNEXCUSED
+        child:
+          $ref: "#/components/schemas/PickupChildRef"
+        pickup:
+          $ref: "#/components/schemas/PickupRecordResponse"
+        status:
+          type: string
+          enum:
+          - WAITING
+          - PICKED_UP
+          - ABSENT
+          - UNMARKED
     Placement:
       type: object
       properties:
@@ -8058,6 +8521,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AccountDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAccountPhotoResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AccountPhotoResponse"
         desc:
           type: string
         errorCode:
@@ -8756,6 +9232,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListPickupRecordResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupRecordResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListPlacementClassResponse:
       type: object
       properties:
@@ -8897,6 +9388,32 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonNotificationListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/NotificationListResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonNotificationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/NotificationResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonOtpRequest:
       type: object
       properties:
@@ -8996,6 +9513,45 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentPasswordResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPickupBoardResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PickupBoardResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPickupChildResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PickupChildResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPickupRecordResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PickupRecordResponse"
         desc:
           type: string
         errorCode:
