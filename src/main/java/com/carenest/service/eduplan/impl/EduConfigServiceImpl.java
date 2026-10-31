@@ -2,6 +2,8 @@ package com.carenest.service.eduplan.impl;
 
 import com.carenest.dto.eduplan.EduConfigRequest;
 import com.carenest.dto.eduplan.EduConfigResponse;
+import com.carenest.dto.organization.AgeGroupResponse;
+import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.entity.eduplan.EduDomain;
 import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.exception.GlobalException;
@@ -10,15 +12,21 @@ import com.carenest.repository.eduplan.EduDomainRepository;
 import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
+import com.carenest.service.account.AccountService;
 import com.carenest.service.eduplan.EduConfigService;
 import com.carenest.service.organization.SchoolStructureService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.Constants.EduPermission;
+import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -48,6 +56,8 @@ public class EduConfigServiceImpl implements EduConfigService {
     private final EduYearPlanMapper mapper;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final AccountService accountService;
+    private final StaffAssignmentService staffAssignmentService;
 
     @Override
     public EduConfigResponse getEduConfig() {
@@ -108,7 +118,44 @@ public class EduConfigServiceImpl implements EduConfigService {
                 schoolStructureService.findSchoolYears(),
                 schoolStructureService.findAgeGroups(),
                 objectMapper.readValue(settings.getSigners(), EduConfigResponse.Signers.class),
-                objectMapper.readValue(settings.getWeekRows(), WEEK_ROWS));
+                objectMapper.readValue(settings.getWeekRows(), WEEK_ROWS),
+                signerNames());
+    }
+
+    // EDU-21: họ tên in dưới chỗ ký; Tổ trưởng của từng nhóm tuổi theo năm học (hôm nay nếu thuộc năm đó, không thì đầu
+    // năm)
+    private EduConfigResponse.SignerNames signerNames() {
+        LocalDate today = LocalDate.now(clock);
+        List<AgeGroupResponse> ageGroups = schoolStructureService.findAgeGroups();
+        Map<String, Map<String, Set<Long>>> leaderIds = new LinkedHashMap<>();
+        for (SchoolYearResponse year : schoolStructureService.findSchoolYears()) {
+            LocalDate at =
+                    !today.isBefore(year.startDate()) && !today.isAfter(year.endDate()) ? today : year.startDate();
+            Map<String, Set<Long>> byGroup = new LinkedHashMap<>();
+            ageGroups.forEach(
+                    ag -> byGroup.put(ag.code(), staffAssignmentService.findActiveTeamLeaderIds(ag.id(), at)));
+            leaderIds.put(year.name(), byGroup);
+        }
+        Map<Long, String> names = accountService.findFullNames(leaderIds.values().stream()
+                .flatMap(m -> m.values().stream())
+                .flatMap(Set::stream)
+                .collect(Collectors.toSet()));
+        Map<String, Map<String, List<String>>> teamLeaders = new LinkedHashMap<>();
+        leaderIds.forEach((year, byGroup) -> {
+            Map<String, List<String>> named = new LinkedHashMap<>();
+            byGroup.forEach((code, ids) -> named.put(
+                    code,
+                    ids.stream()
+                            .map(names::get)
+                            .filter(Objects::nonNull)
+                            .sorted()
+                            .toList()));
+            teamLeaders.put(year, named);
+        });
+        return new EduConfigResponse.SignerNames(
+                accountService.findActiveFullNamesByRole(CareNestRole.PRINCIPAL),
+                accountService.findActiveFullNamesByRole(CareNestRole.VICE_PRINCIPAL),
+                teamLeaders);
     }
 
     // EDU-11: kế hoạch năm luôn có Phó HT ký; chủ đề nhánh, hồ sơ chủ đề cần ít nhất một người duyệt

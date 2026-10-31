@@ -1688,6 +1688,29 @@ paths:
           description: Created
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/file-preview:
+    post:
+      operationId: previewGoalFile
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGoalFilePreviewResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}:
     delete:
       operationId: deleteYearPlan
@@ -4450,6 +4473,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolYearResponse"
+        signerNames:
+          $ref: "#/components/schemas/SignerNames"
         signers:
           $ref: "#/components/schemas/Signers"
         weekRows:
@@ -4532,6 +4557,21 @@ components:
           format: int64
         text:
           type: string
+    GoalFilePreviewResponse:
+      type: object
+      properties:
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/Domain"
+        themeAbbrs:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Warning"
     GroupStat:
       type: object
       properties:
@@ -5793,6 +5833,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonGoalFilePreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/GoalFilePreviewResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonGuardianCandidateResponse:
       type: object
       properties:
@@ -6777,6 +6830,25 @@ components:
           format: int64
         updatedByName:
           type: string
+    SignerNames:
+      type: object
+      properties:
+        principals:
+          type: array
+          items:
+            type: string
+        teamLeaders:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: array
+              items:
+                type: string
+        vicePrincipals:
+          type: array
+          items:
+            type: string
     Signers:
       type: object
       properties:
@@ -7213,6 +7285,14 @@ components:
           - REJECTED
           - APPROVED
         versionNo:
+          type: integer
+          format: int32
+    Warning:
+      type: object
+      properties:
+        message:
+          type: string
+        row:
           type: integer
           format: int32
     WeekRow:
