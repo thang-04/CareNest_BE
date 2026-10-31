@@ -1,6 +1,7 @@
 package com.carenest.controller.eduplan;
 
 import com.carenest.dto.common.PageResponse;
+import com.carenest.dto.eduplan.GoalFilePreviewResponse;
 import com.carenest.dto.eduplan.PlanActionRequest;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
@@ -8,6 +9,7 @@ import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.eduplan.EduGoalFileService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
@@ -20,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
@@ -32,8 +35,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /** Mục tiêu năm học (kế hoạch giáo dục năm theo nhóm tuổi) — sequence SD-01..SD-08. */
 @Validated
@@ -45,6 +50,19 @@ public class EduYearPlanController {
     private static final String LOG_PREFIX = "[EduYearPlanController]";
 
     private final EduYearPlanService eduYearPlanService;
+    private final EduGoalFileService eduGoalFileService;
+
+    /** EDU-46: đọc file bảng mục tiêu (Word/Excel/CSV) thành bản xem trước; không lưu. */
+    @PostMapping(value = "/file-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<GoalFilePreviewResponse>> previewGoalFile(
+            @RequestPart MultipartFile file, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|previewGoalFile|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        GoalFilePreviewResponse preview = eduGoalFileService.preview(currentUser, file);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Preview goal file success", preview);
+    }
 
     // Role chỉ là lớp 1; EduYearPlanService kiểm quyền goals.* và phạm vi nhóm tuổi (lớp 2)
     @GetMapping
