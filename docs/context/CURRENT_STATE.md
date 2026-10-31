@@ -4,6 +4,10 @@ Cập nhật: 2026-10-29 (chốt rule theo khảo sát team 210/210: sức khỏ
 
 ## Tổng quan
 
+### Bổ sung source 29/10/2026
+
+Observation có WIP đánh giá ngày/mở lại/tổng quan lớp (V39) và nhận xét chung lớp (V40, OBS-22), đổi số sau merge Tiền 31/10 (dev chèn V7–V9 phân quyền, đẩy số cũ lên V38). PUT General lưu trẻ và nhận xét trong cùng transaction; FE có ô nhập và PHT/HT đọc theo ngày/tuần/tháng. Baseline trước merge: BE full 403/403 không skip, FE dashboard/hardening 56/56, full FE lỗi seed menu cũ. Kết quả sau merge ở [plan merge](../plans/active/2026-10-29-merge-tien-education.md). Chưa áp migration DB người dùng, chưa kiểm browser, chưa commit/push WIP. Bảng trạng thái cũ bên dưới chưa phản ánh đầy đủ WIP này.
+
 Auth React cập nhật2026-10-12: extension Phase1 và backend gateway Phase2 opt-in đã có source, V4/session/OTP/cookie-CSRF; FE Phase3 chưa vào FE `dev` (2026-10-22: FE `dev` vẫn mock; source gateway chỉ ở nhánh FE G94-209 — `docs/quality/reports/2026-10-22-auth-fe-integration-gap.md`). Bằng chứng/lưu ý: `docs/quality/reports/2026-10-12-react-auth-phase2.md`. Không thay trạng thái merge hay triển khai thật của phần Resource Server bên dưới.
 
 Phân quyền cấu hình được (ADR-0017) cập nhật 2026-10-16 trên `feature/G94-60-BE-FEAT-01-authentication`, chưa commit: V7 `role_permissions`/`user_permission_overrides`/`permission_change_log`, `@permissionGuard`, API ma trận/ngoại lệ/lịch sử cho Hiệu trưởng, `permissions` trong `/accounts/me`. Phần B 2026-10-17 (plan `docs/plans/active/2026-10-17-staff-account-provisioning.md`): HT/PHT cấp tài khoản kèm phân công, khóa/mở, mật khẩu tạm, danh sách nhân sự, phân công, đọc campus/lớp (V8). Phần C 2026-10-17 (plan `docs/plans/active/2026-10-17-parent-account-provisioning.md`): tài khoản phụ huynh gắn trẻ (SĐT, mật khẩu tạm hệ thống sinh), danh sách trẻ, gỡ liên kết, khóa/mở, mật khẩu phụ huynh (V9).
