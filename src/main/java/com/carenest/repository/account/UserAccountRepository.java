@@ -1,6 +1,8 @@
 package com.carenest.repository.account;
 
 import com.carenest.entity.account.UserAccount;
+import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.UserStatus;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -32,4 +34,6 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
     List<UserAccount> findAllByCitizenIdIn(Collection<String> citizenIds);
 
     List<UserAccount> findAllByUsernameIn(Collection<String> usernames);
+
+    List<UserAccount> findAllByPrimaryRoleAndStatusOrderByFullNameAsc(CareNestRole primaryRole, UserStatus status);
 }
