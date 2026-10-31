@@ -301,18 +301,22 @@ Mục đích: trẻ chưa có kết quả khi đóng đợt/kỳ ("Vắng"), kè
 | classroom_id | BIGINT FK classrooms | không | Lớp của trẻ lúc đóng | — |
 
 ## health_measurements  (module: health, scope: CHILD)
-Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng lần đo). Hiện chỉ nhập trong kỳ cân đo; kết quả đợt khám (phiếu Phụ lục II) chưa có. Lưu/sửa là công bố cho phụ huynh (`published_at`, user chốt 2026-10-23). Dữ liệu sức khỏe — không log. Migration: V40.
+Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng lần đo). Kỳ cân đo: số đo GV nhập; đợt khám: phiếu khám Phụ lục II (`exam`, HLT-08). Lưu/sửa là công bố cho phụ huynh (`published_at`, HLT-11); phiếu khám nháp chưa công bố, chưa tính là kết quả. Dữ liệu sức khỏe — không log. Migration: V40, V41.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id | BIGINT FK children | không | | — |
 | campaign_id | BIGINT FK health_check_campaigns | không | Đợt/kỳ; UNIQUE `(child_id, campaign_id)` | HLT-01 |
 | classroom_id | BIGINT FK classrooms | không | Lớp của trẻ tại ngày đo (scope, báo cáo theo lớp) | HLT-09 |
 | date | DATE | không | Ngày đo, trong khoảng của kỳ, không ở tương lai; UNIQUE `(child_id, date)` | HLT-13 |
-| height_cm, weight_kg | NUMERIC(4,1) | không | 40–150 cm, 3–60 kg (CHECK) | HLT-01 |
-| head_circumference_cm | NUMERIC(3,1) | có | 30–60 cm; chỉ lưu khi trẻ ≤60 tháng tại ngày đo | HLT-01 |
+| height_cm, weight_kg | NUMERIC(4,1) | có (chỉ phiếu khám nháp) | 40–150 cm, 3–60 kg (CHECK) | HLT-01 |
+| head_circumference_cm | NUMERIC(3,1) | có | 30–60 cm; chỉ lưu khi trẻ chưa quá 60 tháng tại ngày đo (tới trước ngày đủ 61 tháng) | HLT-01 |
 | note | VARCHAR(500) | không | Ghi chú, không ghi chẩn đoán | — |
 | measured_by | BIGINT FK user_accounts | không | GV nhập | HLT-09 |
-| published_at | TIMESTAMPTZ | không | Lúc công bố (lưu, sửa) | HLT-11 |
+| published_at | TIMESTAMPTZ | có (chỉ phiếu khám nháp) | Lúc công bố (lưu, kết luận, sửa) | HLT-11 |
+| published_by | BIGINT FK user_accounts | có | Người công bố lần gần nhất (V41) | HLT-11 |
+| exam | JSONB | có | Phiếu khám Phụ lục II đã chuẩn hóa: hành chính, tiền sử, sinh tồn, dinh dưỡng, phát triển, tiêm chủng, lâm sàng, kết luận (`HealthExamForm`); null với số đo của kỳ cân đo (V41) | HLT-08 |
+| exam_status | VARCHAR(20) | có | `DRAFT` / `CONCLUDED`; có khi và chỉ khi có `exam` (V41) | HLT-08, HLT-11 |
+| concluded_at | TIMESTAMPTZ | có | Lần kết luận đầu tiên; có khi và chỉ khi `CONCLUDED` (V41) | HLT-08 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `(campaign_id, classroom_id)`.
 
@@ -323,9 +327,53 @@ Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V40.
 | measurement_id | BIGINT FK health_measurements | không | | — |
 | user_id | BIGINT FK user_accounts | không | Người sửa | — |
 | reason | VARCHAR(300) | không | Lý do sửa (bắt buộc) | HLT-13 |
-| changes | JSONB | không | `[{ field, from, to }]` các ô đổi | HLT-13 |
+| changes | JSONB | không | `[{ field, label, from, to }]` các ô đổi, chuỗi hiển thị (phiếu khám: số định danh che, chỉ 3 số cuối; bản ghi trước V41 không có `label`) | HLT-13 |
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `(measurement_id, created_at)`.
+
+## health_follow_ups  (module: health, scope: CHILD)
+Mục đích: phiếu theo dõi sức khỏe, mở khi kết luận phiếu khám "theo dõi sát" (chuyển khám chuyên khoa, nguy cơ lao...). Trạng thái, vòng trao đổi, hạn tính khi đọc từ `health_follow_up_events`, không lưu. Migration: V41.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id | BIGINT FK children | không | Mỗi trẻ tối đa một phiếu mở (UNIQUE có điều kiện `closed_at IS NULL`) | HLT-16 |
+| campus_id | BIGINT FK campuses | không | Điểm trường của trẻ lúc mở (phạm vi BGH khi trẻ không còn lớp) | HLT-16 |
+| opened_at, updated_at | TIMESTAMPTZ | không | | — |
+| closed_at | TIMESTAMPTZ | có | Lúc đóng | HLT-16 |
+| closed_by | BIGINT FK user_accounts | có | Người đóng; null khi hệ thống tự đóng (trẻ ra trường) | HLT-16 |
+| close_reason | VARCHAR(300) | có | Lý do đóng; có khi và chỉ khi đã đóng | HLT-16 |
+| close_outcome | VARCHAR(30) | có | `DOCTOR_NORMAL` / `KNOWN_CONDITION` / `NO_SPECIALIST_RESULT`; null khi tự đóng | HLT-10, HLT-16 |
+| close_condition_text | VARCHAR(100) | có | Tên vấn đề đã biết; có khi và chỉ khi `KNOWN_CONDITION` | HLT-16 |
+Index: `uk_health_follow_ups_child_open`, `(child_id, opened_at)`.
+
+## health_follow_up_events  (module: health, scope: CHILD)
+Mục đích: dòng thời gian của phiếu theo dõi; thứ tự `id` là thứ tự thời gian. Migration: V41.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| follow_up_id | BIGINT FK health_follow_ups | không | | — |
+| action | VARCHAR(30) | không | `OPENED` / `MEASUREMENT_ADDED` / `PARENT_CONTACTED` / `EXTERNAL_RESULT` / `CLOSED` | HLT-16 |
+| user_id | BIGINT FK user_accounts | có | Người ghi; null khi hệ thống ghi | — |
+| created_at | TIMESTAMPTZ | không | Lúc ghi; vòng trao đổi hạn 7 ngày từ lúc lưu kết quả mở vòng | HLT-16 |
+| measurement_id | BIGINT FK health_measurements | có | Lần khám vào phiếu (mỗi lần khám tối đa một phiếu — UNIQUE có điều kiện), hoặc lần khám bác sĩ trao đổi tại buổi khám | HLT-16 |
+| event_date | DATE | có | Ngày khám / ngày trao đổi / ngày khám chuyên khoa | HLT-16 |
+| new_finding | BOOLEAN | có | Lần khám theo mẫu theo dõi có bất thường mới (mở vòng mới) | HLT-16 |
+| at_exam | BOOLEAN | không | Trao đổi do bác sĩ với người đi cùng tại buổi khám | HLT-16 |
+| note | VARCHAR(500) | có | Nội dung trao đổi / kết quả chuyên khoa / lý do đóng | HLT-16 |
+| facility | VARCHAR(150) | có | Chuyên khoa, nơi khám | HLT-16 |
+| next_visit_on | DATE | có | Ngày hẹn khám lại | HLT-16 |
+| outcome, condition_text | VARCHAR | có | Kết quả đóng (sự kiện `CLOSED`) | HLT-16 |
+| auto_reason | VARCHAR(30) | có | `CHILD_LEFT_SCHOOL` khi hệ thống tự đóng | HLT-16 |
+Index: `(follow_up_id, id)`, `uk_health_follow_up_events_measurement`.
+
+## health_follow_up_images  (module: health, scope: CHILD)
+Mục đích: ảnh kết quả khám chuyên khoa (tối đa 3 ảnh/lần ghi), tệp private ở S3 theo `storage_key` (prefix `CARENEST_HEALTH_MEDIA_PREFIX`); chỉ đọc qua API có kiểm phạm vi. Migration: V41.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| event_id | BIGINT FK health_follow_up_events | không | Sự kiện `EXTERNAL_RESULT` | HLT-16 |
+| position | SMALLINT | không | 0–2; UNIQUE `(event_id, position)` | HLT-16 |
+| storage_key | VARCHAR(36) | không | UUID object S3; UNIQUE | — |
+| content_type | VARCHAR(30) | không | `image/jpeg` / `image/png` / `image/webp` (kiểm chữ ký tệp) | — |
+| size_bytes | INTEGER | không | 1 B – 1 MB | — |
+| created_at | TIMESTAMPTZ | không | | — |
 
 ## meal_counts  (module: nutrition, feature `meals`, scope: CAMPUS)
 Mục đích: sổ báo ăn một bữa của một điểm trường trong ngày, tổng hợp từ điểm danh lúc qua giờ chốt (lần đầu mở sổ sau giờ chốt). Migration: `V26__create_meal_counts.sql`.
@@ -420,7 +468,7 @@ Mục đích: lịch sử khai báo sức khỏe, chỉ thêm. Migration: V39.
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | child_id | BIGINT FK children | không | | — |
-| action | VARCHAR(30) | không | `DECLARED` / `UPDATED` / `UPDATED_FROM_FOLLOW_UP` | HLT-06 |
+| action | VARCHAR(30) | không | `DECLARED` / `UPDATED` / `UPDATED_FROM_FOLLOW_UP` (đóng phiếu theo dõi "vấn đề đã biết") / `UPDATED_FROM_EXAM` (kết luận phiếu khám, V41) | HLT-06, HLT-08, HLT-16 |
 | user_id | BIGINT FK user_accounts | không | Người lưu | — |
 | note | VARCHAR(500) | có | Lý do thay đổi | — |
 | allergy_change, history_change | JSONB | có | `{ from, to }` khi dị ứng / tiền sử đổi | CHD-06, HLT-06 |

@@ -34,11 +34,11 @@ Còn mở: danh sách triệu chứng chọn nhanh (P-21), trẻ có dấu hiệ
 [B] HT/PHT đóng kỳ ⇒ trẻ chưa cân thành "Vắng", số đo khóa; mở lại cần lý do
       ↓
 [S] Lưu từng lần đo; trend, chênh lệch so với lần trước, biểu đồ             (HLT-02, HLT-13)
-[S] Tự phân loại theo chuẩn WHO; GV chỉnh được, bắt buộc lý do              (HLT-03, HLT-10)
+[S] Tự phân loại theo chuẩn WHO; GV chỉnh được, bắt buộc lý do — HOÃN      (HLT-03, HLT-10)
     Suy dinh dưỡng/thừa cân: chỉ đánh dấu, không có quy trình can thiệp     (HLT-12)
 [S] Sửa số đo ⇒ ghi lý do, lưu lịch sử                                        (HLT-13)
       ↓
-[S] GV hoặc PHT công bố ⇒ phụ huynh thấy kết quả + biểu đồ                   (HLT-11, PAR-01)
+[S] Lưu là công bố ⇒ phụ huynh thấy kết quả + biểu đồ                        (HLT-11, PAR-01)
       ↓ tùy chọn
 [S] AI giải thích DRAFT: giải thích số liệu, highlight trend, điểm cần chú ý cho GV (AI-07)
     KHÔNG chẩn đoán, KHÔNG khuyên điều trị (HLT-04)
@@ -52,8 +52,32 @@ DevelopmentProfile đọc measurement + trend + interpretation APPROVED (OBS-03)
 ```text
 [B] HT/PHT mở đợt khám: bác sĩ khám định kỳ 1 lần/năm học, không chặn         (HLT-08, sửa 2026-10-31)
 [S] Năm học đã có đợt khám ⇒ cảnh báo khi tạo; đợt khám cũng là một kỳ cân đo
+[S] GV lớp mở phiếu khám Phụ lục II của trẻ: hành chính từ hồ sơ, tiền sử điền sẵn từ khai báo,
+    người đi cùng chọn trong danh sách phụ huynh                                 (HLT-08)
+[B] Bác sĩ khám; GV nhập sinh tồn, cân đo, dinh dưỡng, phát triển, tiêm chủng, lâm sàng; lưu nháp nhiều lần
+[S] "Điểm cần bác sĩ xem lại" (gợi ý theo tuổi, không phải kết luận)
+[B] GV nhập kết luận của bác sĩ ⇒ [S] kiểm đủ phiếu, công bố, mức theo dõi theo kết luận (HLT-10, HLT-11)
+[S] Tiền sử ghi ngược về khai báo sức khỏe                                      (HLT-06)
+    ├─ bình thường / vấn đề sức khỏe ⇒ mức NONE / WATCH (vấn đề đã biết: KNOWN_STABLE)
+    └─ chuyển khám chuyên khoa / nguy cơ lao ⇒ CLOSE_WATCH ⇒ mở phiếu theo dõi   (HLT-16)
+[S] Sửa phiếu đã kết luận ⇒ bắt buộc lý do, lưu các ô đổi, công bố lại        (HLT-13, HLT-11)
 [S] Phát hiện dị ứng mới ⇒ cập nhật hồ sơ trẻ (module child — HLT-06)
-    Nội dung khám khác ghi gì trên hệ thống: chưa có rule (FE mock phiếu Phụ lục II; BE chưa làm)
+```
+
+## Phiếu theo dõi (HLT-16)
+
+```text
+[S] Mở phiếu "Chờ trao đổi phụ huynh", hạn 7 ngày từ lúc lưu kết quả
+    Người đi cùng nghe bác sĩ kết luận tại buổi khám ⇒ tính là đã trao đổi
+[B] GV lớp trao đổi với phụ huynh ⇒ [S] "Đã trao đổi"
+[B] Phụ huynh báo kết quả khám chuyên khoa ⇒ GV ghi kết quả, nơi khám, tối đa 3 ảnh, ngày hẹn khám lại
+[S] Lần khám sau có bất thường mới ⇒ vòng trao đổi mới (quay về "Chờ trao đổi")
+[B] GV đóng phiếu theo lời bác sĩ:
+    ├─ bình thường ⇒ mức NONE
+    ├─ vấn đề đã biết ⇒ KNOWN_STABLE, thêm vào tiền sử bản thân của khai báo (HLT-06)
+    └─ chưa có kết quả chuyên khoa ⇒ giữ mức của lần khám
+[S] Quá hạn tính khi xem (lọc "quá hạn"), không nhắc tự động; BGH chỉ xem
+[S] Trẻ ra trường khi chuyển năm học ⇒ phiếu tự đóng
 ```
 
 Dị ứng không thuộc module này (thuộc child — HLT-06).
