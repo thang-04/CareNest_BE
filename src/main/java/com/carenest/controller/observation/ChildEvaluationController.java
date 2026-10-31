@@ -131,7 +131,7 @@ public class ChildEvaluationController {
     }
 
     @GetMapping("/assessment/children/{childId}/development")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_VIEW')")
     public ResponseEntity<ResponseJson<DevelopmentResponse>> development(
             @PathVariable Long childId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,

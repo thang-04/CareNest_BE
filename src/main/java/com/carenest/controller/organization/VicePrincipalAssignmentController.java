@@ -17,7 +17,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Cấu hình trường › Phân công Phó hiệu trưởng vào điểm trường (chỉ Hiệu trưởng). */
+/**
+ * Cấu hình trường › Phân công Phó hiệu trưởng vào điểm trường theo năm học. Lớp 1 quyền STAFF_ASSIGNMENT_MANAGE (như
+ * /staff-assignments); service chỉ cho Hiệu trưởng vì phân công PHT do HT quản lý (AUTH-16).
+ */
 @RestController
 @RequestMapping("/school-years/{schoolYearId}/vice-principal-assignments")
 @RequiredArgsConstructor
@@ -28,7 +31,7 @@ public class VicePrincipalAssignmentController {
     private final VicePrincipalAssignmentService vicePrincipalAssignmentService;
 
     @GetMapping
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('STAFF_ASSIGNMENT_MANAGE')")
     public ResponseEntity<ResponseJson<VicePrincipalAssignmentResponse>> getAssignments(
             @PathVariable Long schoolYearId, CurrentUser currentUser) {
         String logPrefix =
@@ -41,7 +44,7 @@ public class VicePrincipalAssignmentController {
     }
 
     @PutMapping("/{userId}")
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('STAFF_ASSIGNMENT_MANAGE')")
     public ResponseEntity<ResponseJson<VicePrincipalAssignmentResponse>> assign(
             @PathVariable Long schoolYearId,
             @PathVariable Long userId,

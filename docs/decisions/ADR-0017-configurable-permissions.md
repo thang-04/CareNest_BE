@@ -49,6 +49,11 @@ ADR-0003 yêu cầu permission gán theo role và cấu hình được, nhưng c
 - `POST /accounts` không nhận PARENT nữa; tạo phụ huynh luôn kèm liên kết trẻ.
 - Vòng đời Keycloak (tạo + bù trừ, khóa/mở, mật khẩu tạm) dùng chung `AccountLifecycleOperations` cho nhân sự và phụ huynh.
 
+## Bổ sung 2026-10-31 — màn của Cấu hình trường và Đánh giá trẻ
+
+- `GET|PUT /school-years/{id}/vice-principal-assignments` (PHT phụ trách điểm trường theo năm học) dùng lớp 1 `STAFF_ASSIGNMENT_MANAGE` như `/staff-assignments`; service vẫn chỉ cho HT. Hai API cùng ghi `staff_assignments` vai trò PHT — nhóm cần thống nhất giữ một màn (Cần, Thắng).
+- `GET /assessment/children/{childId}/development` (hồ sơ phát triển) dùng lớp 1 `CHILD_PROFILE_VIEW`; phạm vi lớp/điểm trường kiểm ở service, phụ huynh bị từ chối.
+
 ## Còn chờ
 
 - Không còn mục nào của luồng phân quyền/cấp tài khoản.
