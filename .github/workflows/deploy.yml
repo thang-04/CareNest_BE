@@ -1,16 +1,86 @@
 name: Deploy VPS
 
+# Chỉ main chạy CI: push main = verify + deploy, PR vào main = chỉ verify.
+# Pattern xét theo thứ tự: bỏ tài liệu, nhưng giữ docs/api (OpenApiSnapshotTest đọc docs/api/openapi.yaml)
 on:
   push:
-    branches: [dev]
+    branches: [main]
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!specs/**'
+      - '!**/*.md'
+      - '!.ai/**'
+      - '!.claude/**'
+      - '!.agents/**'
+      - '!.githooks/**'
+      - 'docs/api/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - '**'
+      - '!docs/**'
+      - '!specs/**'
+      - '!**/*.md'
+      - '!.ai/**'
+      - '!.claude/**'
+      - '!.agents/**'
+      - '!.githooks/**'
+      - 'docs/api/**'
   workflow_dispatch:
 
 concurrency:
-  group: deploy-vps
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  DOCKERHUB_USER: thangnd04
+  # Repo private duy nhất của tài khoản free: api và Keycloak phân biệt bằng tiền tố tag
+  IMAGE: thangnd04/carenest-be
+  # Chỉ main được push image và deploy; PR hoặc chạy tay trên nhánh khác chỉ verify
+  IS_MAIN: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
 
 jobs:
-  verify:
+  # Tag image = hash nội dung đầu vào. Tag đã có trên Docker Hub ⇒ nội dung đó đã verify + build trên main ⇒ bỏ qua;
+  # tag không đổi ⇒ compose không recreate container (Keycloak không restart khi không đổi)
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      api_tag: ${{ steps.tags.outputs.api_tag }}
+      keycloak_tag: ${{ steps.tags.outputs.keycloak_tag }}
+      api_needed: ${{ steps.exists.outputs.api_needed }}
+      keycloak_needed: ${{ steps.exists.outputs.keycloak_needed }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Danh sách = mọi file mà test/build của image đọc; test hoặc Dockerfile đọc thêm file mới thì bổ sung ở đây
+      - name: Compute content tags
+        id: tags
+        run: |
+          hash() { git ls-tree HEAD -- "$@" | sha1sum | cut -c1-12; }
+          echo "api_tag=api-$(hash src pom.xml .mvn mvnw Dockerfile docs/api)" >> "$GITHUB_OUTPUT"
+          echo "keycloak_tag=keycloak-$(hash docker/keycloak compose.yaml compose.auth.yaml)" >> "$GITHUB_OUTPUT"
+
+      # PR không có secret (fork, Dependabot) ⇒ login fail ⇒ inspect fail ⇒ verify đầy đủ (an toàn)
+      - uses: docker/login-action@v3
+        continue-on-error: true
+        with:
+          username: ${{ env.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Check existing images
+        id: exists
+        env:
+          API_TAG: ${{ steps.tags.outputs.api_tag }}
+          KEYCLOAK_TAG: ${{ steps.tags.outputs.keycloak_tag }}
+        run: |
+          needed() { docker manifest inspect "$IMAGE:$1" > /dev/null 2>&1 && echo false || echo true; }
+          echo "api_needed=$(needed "$API_TAG")" | tee -a "$GITHUB_OUTPUT"
+          echo "keycloak_needed=$(needed "$KEYCLOAK_TAG")" | tee -a "$GITHUB_OUTPUT"
+
+  api:
+    needs: plan
+    if: needs.plan.outputs.api_needed == 'true'
     runs-on: ubuntu-latest
     steps:
       # Spotless ratchetFrom origin/main (pom.xml) cần ref origin/main; checkout mặc định chỉ lấy 1 commit
@@ -29,23 +99,29 @@ jobs:
       - run: node scripts/verify.mjs
       - if: failure()
         run: tail -n 200 target/verify.log
-      - run: ./mvnw -B -f docker/keycloak/extensions/carenest-auth/pom.xml verify
-      - run: node --test docker/keycloak/auth/*.test.mjs
 
-  deploy:
-    needs: verify
+      - if: env.IS_MAIN == 'true'
+        uses: docker/setup-buildx-action@v3
+      - if: env.IS_MAIN == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ env.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and push api image
+        if: env.IS_MAIN == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE }}:${{ needs.plan.outputs.api_tag }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+  keycloak:
+    needs: plan
+    if: needs.plan.outputs.keycloak_needed == 'true'
     runs-on: ubuntu-latest
-    environment: production
-    env:
-      APP_DIR: /data/thangnd/CAPSTONE/CareNest_BE
-      CADDY_DIR: /data/thangnd/CAPSTONE/caddy
-      AUTH_DISCOVERY_URL: https://auth.carenest.edu.vn/realms/carenest/.well-known/openid-configuration
-      VPS_HOST: ${{ secrets.VPS_HOST }}
-      VPS_PORT: ${{ secrets.VPS_PORT }}
-      VPS_USER: ${{ secrets.VPS_USER }}
-      DOCKERHUB_USER: thangnd04
-      # Repo private duy nhất của tài khoản free: api và Keycloak phân biệt bằng tag
-      IMAGE: thangnd04/carenest-be
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -56,38 +132,51 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # verify sinh luôn jar mà Dockerfile Keycloak copy ⇒ không package lần hai
+      - run: ./mvnw -B -f docker/keycloak/extensions/carenest-auth/pom.xml verify
+      - run: node --test docker/keycloak/auth/*.test.mjs
 
-      # Image Keycloak copy jar từ target; realm gateway sinh từ bản import chuẩn (thư mục generated bị ignore)
-      - name: Package Keycloak extension and realm
-        run: |
-          ./mvnw -B -q -f docker/keycloak/extensions/carenest-auth/pom.xml package -DskipTests
-          node docker/keycloak/auth/prepare.mjs
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+      - if: env.IS_MAIN == 'true'
+        uses: docker/setup-buildx-action@v3
+      - if: env.IS_MAIN == 'true'
+        uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and push api image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ env.IMAGE }}:api-${{ github.sha }}
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,scope=api,mode=max
-
       - name: Build and push Keycloak image
+        if: env.IS_MAIN == 'true'
         uses: docker/build-push-action@v6
         with:
           context: docker/keycloak
           file: docker/keycloak/auth/Dockerfile
           push: true
-          tags: ${{ env.IMAGE }}:keycloak-${{ github.sha }}
+          tags: ${{ env.IMAGE }}:${{ needs.plan.outputs.keycloak_tag }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=keycloak
           cache-to: type=gha,scope=keycloak,mode=max
+
+  # Job api/keycloak bị skip (tag đã có) vẫn deploy; job nào fail ⇒ không deploy, VPS giữ bản đang chạy
+  deploy:
+    needs: [plan, api, keycloak]
+    if: ${{ !failure() && !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      APP_DIR: /data/thangnd/CAPSTONE/CareNest_BE
+      CADDY_DIR: /data/thangnd/CAPSTONE/caddy
+      AUTH_DISCOVERY_URL: https://auth.carenest.edu.vn/realms/carenest/.well-known/openid-configuration
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Realm gateway sinh từ bản import chuẩn (thư mục generated bị ignore), được mount vào Keycloak trên VPS
+      - name: Prepare Keycloak realm
+        run: node docker/keycloak/auth/prepare.mjs
 
       - name: Setup SSH
         run: |
@@ -113,11 +202,12 @@ jobs:
           rsync -z -e "ssh -p $VPS_PORT" deploy/caddy/carenest-auth.caddy \
             "$VPS_USER@$VPS_HOST:$CADDY_DIR/carenest-auth.caddy.new"
 
-      # Keycloak tự build lại + import realm lần đầu, API chạy Flyway ⇒ chờ health tối đa ~3 phút
+      # Service giữ nguyên tag thì compose không recreate. Keycloak tự build lại + import realm lần đầu,
+      # API chạy Flyway ⇒ chờ health tối đa ~3 phút
       - name: Pull and restart on VPS
         env:
-          API_IMAGE: ${{ env.IMAGE }}:api-${{ github.sha }}
-          KEYCLOAK_IMAGE: ${{ env.IMAGE }}:keycloak-${{ github.sha }}
+          API_IMAGE: ${{ env.IMAGE }}:${{ needs.plan.outputs.api_tag }}
+          KEYCLOAK_IMAGE: ${{ env.IMAGE }}:${{ needs.plan.outputs.keycloak_tag }}
         run: |
           ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
             "cd '$APP_DIR' && API_IMAGE='$API_IMAGE' KEYCLOAK_IMAGE='$KEYCLOAK_IMAGE' bash -s" <<'EOF'
