@@ -20,6 +20,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.security.TestPermissions;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.RoomService;
@@ -84,8 +85,11 @@ class SchoolConfigControllerTest {
     }
 
     @Test
-    void vicePrincipalCannotAssignTeamLeader() throws Exception {
-        authenticateAs(CareNestRole.VICE_PRINCIPAL);
+    void vicePrincipalWithoutStaffAssignmentPermissionCannotAssignTeamLeader() throws Exception {
+        // STAFF_ASSIGNMENT_MANAGE bị HT tắt ⇒ chặn ở lớp 1; có quyền thì service vẫn chỉ cho HT phân công tổ trưởng
+        given(currentUserService.getCurrentUser())
+                .willReturn(new CurrentUser(
+                        7L, "kc-7", "demo.user", "Demo", null, Set.of(CareNestRole.VICE_PRINCIPAL), Set.of()));
 
         mockMvc.perform(put("/api/team-leader-assignments")
                         .with(token(CareNestRole.VICE_PRINCIPAL))
@@ -213,7 +217,7 @@ class SchoolConfigControllerTest {
     }
 
     private CurrentUser authenticateAs(CareNestRole role) {
-        CurrentUser user = new CurrentUser(7L, "kc-7", "demo.user", "Demo", null, Set.of(role));
+        CurrentUser user = TestPermissions.userWithDefaults(7L, role);
         given(currentUserService.getCurrentUser()).willReturn(user);
         return user;
     }

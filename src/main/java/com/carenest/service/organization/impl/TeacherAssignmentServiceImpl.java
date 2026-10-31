@@ -20,10 +20,12 @@ import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.SchoolYearStatus;
+import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -51,6 +53,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final TeacherDirectory teacherDirectory;
     private final YearSnapshotReader yearSnapshotReader;
     private final SchoolConfigAccess schoolConfigAccess;
+    private final StaffAccessPolicy staffAccessPolicy;
     private final SchoolStructureMapper schoolStructureMapper;
 
     @Override
@@ -97,10 +100,11 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         String logPrefix = LOG_PREFIX + "|assignClassTeachers|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.checkPrincipal(currentUser);
             Classroom classroom = classroomRepository
                     .findById(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
+            // AUTH-16: HT mọi lớp, PHT chỉ lớp thuộc điểm trường mình phụ trách
+            staffAccessPolicy.checkCanAssign(currentUser, StaffRole.TEACHER, classroom.getCampusId());
             SchoolYear year = findYear(classroom.getSchoolYearId());
             SchoolYearRules.checkOpen(year);
             Set<Long> teacherIds = new HashSet<>(request.teacherIds());

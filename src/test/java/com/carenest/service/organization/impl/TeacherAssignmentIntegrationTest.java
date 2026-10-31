@@ -289,6 +289,32 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
+    void vicePrincipalAssignsTeachersOnlyInOwnCampus() {
+        CurrentUser vpA = vicePrincipalOf("vpA", "CS-A");
+        CurrentUser vpB = vicePrincipalOf("vpB", "CS-B");
+
+        // AUTH-16: PHT không phân công lớp của điểm trường khác
+        expectError(
+                () -> service.assignClassTeachers(
+                        vpB, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher1)),
+                ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+
+        ClassTeachersResponse result = service.assignClassTeachers(
+                vpA, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher2));
+        assertThat(result.homeroomTeacherId()).isEqualTo(teacher2);
+    }
+
+    private CurrentUser vicePrincipalOf(String username, String campusCode) {
+        long userId = user(username);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "SELECT ?, 'VICE_PRINCIPAL', id, '2026-01-01' FROM campuses WHERE code = ?",
+                userId,
+                campusCode);
+        return new CurrentUser(userId, "kc-" + username, username, "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+    }
+
+    @Test
     void homeroomMustBeOneOfTheTeachers() {
         expectError(
                 () -> service.assignClassTeachers(

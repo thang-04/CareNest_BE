@@ -33,7 +33,7 @@ public class TeacherAssignmentController {
     private final TeacherAssignmentService teacherAssignmentService;
 
     @GetMapping("/teacher-assignments")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('STAFF_ASSIGNMENT_MANAGE')")
     public ResponseEntity<ResponseJson<TeacherAssignmentResponse>> getTeacherAssignments(
             @RequestParam(name = "schoolYearId", required = false) Long schoolYearIdParam,
             @RequestParam(required = false) Long schoolYear,
@@ -51,7 +51,7 @@ public class TeacherAssignmentController {
     }
 
     @GetMapping("/classes/{classId}/teacher-assignments/history")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('STAFF_ASSIGNMENT_MANAGE')")
     public ResponseEntity<ResponseJson<List<AssignmentHistoryResponse>>> getClassTeacherHistory(
             @PathVariable Long classId, CurrentUser currentUser) {
         String logPrefix =
@@ -63,7 +63,7 @@ public class TeacherAssignmentController {
     }
 
     @GetMapping("/age-groups/{ageGroupId}/team-leader-assignments/history")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('STAFF_ASSIGNMENT_MANAGE')")
     public ResponseEntity<ResponseJson<List<AssignmentHistoryResponse>>> getTeamLeaderHistory(
             @PathVariable Long ageGroupId,
             @RequestParam(name = "schoolYearId", required = false) Long schoolYearIdParam,
@@ -80,7 +80,7 @@ public class TeacherAssignmentController {
     }
 
     @PutMapping("/classes/{classId}/teachers")
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('STAFF_ASSIGNMENT_MANAGE')")
     public ResponseEntity<ResponseJson<ClassTeachersResponse>> assignClassTeachers(
             @PathVariable Long classId, @Valid @RequestBody ClassTeachersRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|assignClassTeachers|userId=" + currentUser.userId() + "|classId=" + classId;
@@ -92,7 +92,7 @@ public class TeacherAssignmentController {
     }
 
     @GetMapping("/team-leader-assignments")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('STAFF_ASSIGNMENT_MANAGE')")
     public ResponseEntity<ResponseJson<TeamLeaderResponse>> getTeamLeaders(
             @RequestParam(name = "schoolYearId", required = false) Long schoolYearIdParam,
             @RequestParam(required = false) Long schoolYear,
@@ -108,7 +108,7 @@ public class TeacherAssignmentController {
     }
 
     @PutMapping("/team-leader-assignments")
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('STAFF_ASSIGNMENT_MANAGE')")
     public ResponseEntity<ResponseJson<TeamLeaderResponse>> assignTeamLeader(
             @Valid @RequestBody TeamLeaderRequest request, CurrentUser currentUser) {
         String logPrefix =
