@@ -102,7 +102,9 @@ class ControllerSecurityCoverageTest {
                 // AUTH-06 (team chốt 2026-10-16): HT cấp/khóa tài khoản nghiệp vụ — đổi có chủ đích so với
                 // hasRole(ADMIN)
                 "AccountController#createAccount", EnumSet.of(CareNestRole.ADMIN, CareNestRole.PRINCIPAL),
-                "AccountController#updateAccountStatus", EnumSet.of(CareNestRole.ADMIN, CareNestRole.PRINCIPAL));
+                "AccountController#updateAccountStatus", EnumSet.of(CareNestRole.ADMIN, CareNestRole.PRINCIPAL),
+                // NUT-02: xác nhận số suất giữ HT + PHT như hasAnyRole cũ; phạm vi theo mảng kiểm ở service (AUTH-20)
+                "MealCountController#confirm", EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL));
         Map<String, String> handlers = preAuthorizeByHandler();
 
         expected.forEach((handler, roles) -> {

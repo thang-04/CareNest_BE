@@ -111,6 +111,7 @@ erDiagram
         BIGINT user_id FK
         VARCHAR permission_code
         VARCHAR effect "GRANT|REVOKE"
+        VARCHAR scope "CAMPUS|SCHOOL, chỉ GRANT"
         BIGINT created_by FK "khác user_id"
     }
     permission_change_log {
@@ -119,5 +120,7 @@ erDiagram
         VARCHAR target_role "hoặc target_user_id"
         VARCHAR before_state
         VARCHAR after_state
+        VARCHAR before_scope
+        VARCHAR after_scope
     }
 ```

@@ -43,12 +43,13 @@ public enum Permission {
             "Cấp, khóa/mở tài khoản phụ huynh và liên kết với trẻ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
-    // AUTH-20: PHT mặc định chỉ xem campus mình; HT cấp thì xem dữ liệu trường mọi campus, không mở quyền sửa
-    ALL_CAMPUS_VIEW(
-            "school",
-            "Xem dữ liệu trường ở mọi cơ sở (chỉ xem)",
-            EnumSet.noneOf(CareNestRole.class),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // NUT-02 + AUTH-20: việc của mảng dinh dưỡng; PHT mặc định bật ở cơ sở mình, HT thu hồi hoặc nâng lên cả trường
+    MEAL_COUNT_CONFIRM(
+            "meals",
+            "Xác nhận, điều chỉnh số suất",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
     // Không giao được cho ai: nếu giao, người được giao tự cấp thêm quyền cho mình (AUTH-11)
     PERMISSION_MANAGE(
             "account", "Quản lý phân quyền", EnumSet.of(CareNestRole.PRINCIPAL), EnumSet.noneOf(CareNestRole.class));
@@ -61,12 +62,23 @@ public enum Permission {
     private final String description;
     private final Set<CareNestRole> defaultRoles;
     private final Set<CareNestRole> configurableRoles;
+    private final boolean campusScoped;
 
     Permission(String module, String description, Set<CareNestRole> defaultRoles, Set<CareNestRole> configurableRoles) {
+        this(module, description, defaultRoles, configurableRoles, false);
+    }
+
+    Permission(
+            String module,
+            String description,
+            Set<CareNestRole> defaultRoles,
+            Set<CareNestRole> configurableRoles,
+            boolean campusScoped) {
         this.module = module;
         this.description = description;
         this.defaultRoles = Collections.unmodifiableSet(defaultRoles);
         this.configurableRoles = Collections.unmodifiableSet(configurableRoles);
+        this.campusScoped = campusScoped;
     }
 
     public String module() {
@@ -83,6 +95,11 @@ public enum Permission {
 
     public Set<CareNestRole> configurableRoles() {
         return configurableRoles;
+    }
+
+    /** Mã sửa theo mảng: GRANT nhận phạm vi điểm trường hoặc cả trường (AUTH-20); mã khác chỉ có/không. */
+    public boolean campusScoped() {
+        return campusScoped;
     }
 
     public boolean isConfigurableFor(CareNestRole role) {

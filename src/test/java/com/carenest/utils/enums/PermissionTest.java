@@ -41,6 +41,7 @@ class PermissionTest {
                         Permission.ACCOUNT_STATUS_MANAGE,
                         Permission.STAFF_ASSIGNMENT_MANAGE,
                         Permission.PARENT_ACCOUNT_MANAGE,
+                        Permission.MEAL_COUNT_CONFIRM,
                         Permission.PERMISSION_MANAGE);
         assertThat(Permission.fixedPermissionsOf(CareNestRole.ADMIN))
                 .containsExactlyInAnyOrder(Permission.ACCOUNT_MANAGE, Permission.ACCOUNT_STATUS_MANAGE);

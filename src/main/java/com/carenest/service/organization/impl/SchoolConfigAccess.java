@@ -3,6 +3,7 @@ package com.carenest.service.organization.impl;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -17,13 +18,14 @@ import org.springframework.stereotype.Component;
 
 /**
  * Quyền trên màn Cấu hình trường: ghi chỉ Hiệu trưởng có phân công còn hiệu lực (AUTH-01);
- * PHT xem trong điểm trường được phân công (AUTH-02).
+ * PHT còn phân công xem mọi điểm trường, chỉ xem (AUTH-20).
  */
 @Component
 @RequiredArgsConstructor
 class SchoolConfigAccess {
 
     private final StaffAssignmentService staffAssignmentService;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
 
     LocalDate today() {
@@ -45,17 +47,6 @@ class SchoolConfigAccess {
         }
     }
 
-    // TODO(Cần): quyền PHT theo từng chức năng (Phân công PHT) chưa làm — hiện PHT chỉ xem điểm trường mình
-    Set<Long> vicePrincipalCampusIds(CurrentUser user) {
-        if (!user.hasRole(CareNestRole.VICE_PRINCIPAL)) {
-            return Set.of();
-        }
-        return staffAssignmentService.findActiveAssignments(user.userId(), today()).stream()
-                .filter(a -> a.staffRole() == StaffRole.VICE_PRINCIPAL && a.campusId() != null)
-                .map(StaffAssignmentSummaryResponse::campusId)
-                .collect(Collectors.toSet());
-    }
-
     Set<Long> teacherClassroomIds(CurrentUser user) {
         if (!user.hasRole(CareNestRole.TEACHER)) {
             return Set.of();
@@ -66,22 +57,14 @@ class SchoolConfigAccess {
                 .collect(Collectors.toSet());
     }
 
-    /** Điểm trường được xem: null = toàn trường (Hiệu trưởng). */
-    Set<Long> viewableCampusIds(CurrentUser user) {
-        if (isPrincipal(user)) {
-            return null;
-        }
-        Set<Long> campusIds = vicePrincipalCampusIds(user);
-        if (campusIds.isEmpty()) {
-            throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
-        }
-        return campusIds;
+    /** AUTH-20: HT và PHT còn phân công xem cấu hình trường ở mọi điểm trường. */
+    boolean canViewSchool(CurrentUser user) {
+        return campusAccessPolicy.canReadAllCampuses(user);
     }
 
-    void checkCanViewCampus(CurrentUser user, Long campusId) {
-        Set<Long> campusIds = viewableCampusIds(user);
-        if (campusIds != null && !campusIds.contains(campusId)) {
-            throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
+    void checkCanViewSchool(CurrentUser user) {
+        if (!canViewSchool(user)) {
+            throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
         }
     }
 }

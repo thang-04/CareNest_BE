@@ -11,6 +11,7 @@ import com.carenest.dto.meals.MealCountDayResponse;
 import com.carenest.dto.meals.MealCountResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.TestPermissions;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.meals.MealCountService;
@@ -18,6 +19,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Duration;
@@ -29,6 +31,7 @@ import java.util.Map;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -167,9 +170,11 @@ class MealCountIntegrationTest {
                         MealCountResponse.Line::present, MealCountResponse.Line::absent, MealCountResponse.Line::normal)
                 .containsExactly(1, 1, 1);
         assertThat(service.getMealCounts(kitchenA, TODAY, null).counts()).isEmpty();
-        // AUTH-02: PHT điểm trường khác không thấy, không xác nhận được; HT xác nhận được, không điều chỉnh (Cần chốt
-        // 27/10)
-        assertThat(service.getMealCounts(vpB, TODAY, null).counts()).isEmpty();
+        // AUTH-20: PHT điểm trường khác xem được nhưng không xác nhận/điều chỉnh; HT xác nhận được, không điều chỉnh
+        // (Cần chốt 27/10)
+        assertThat(lunch(service.getMealCounts(vpB, TODAY, null)))
+                .extracting(MealCountResponse::id, MealCountResponse::canConfirm, MealCountResponse::canAdjust)
+                .containsExactly(lunch.id(), false, false);
         expectError(() -> service.confirm(vpB, lunch.id()), ApiCode.FORBIDDEN);
         assertThat(lunch(service.getMealCounts(principal, TODAY, null)))
                 .extracting(MealCountResponse::canConfirm, MealCountResponse::canAdjust)
@@ -184,6 +189,27 @@ class MealCountIntegrationTest {
         assertThat(service.getMealCounts(kitchenA, TODAY, null).counts())
                 .extracting(MealCountResponse::session)
                 .containsExactly(MealSession.LUNCH);
+    }
+
+    @Test
+    @DisplayName(
+            "AUTH-20: PHT được giao dinh dưỡng cả trường xác nhận số suất cơ sở khác; bị thu hồi thì không xác nhận được")
+    void mealCountConfirmFollowsNutritionScope() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
+        clock.now = AFTER_CUTOFF;
+        MealCountResponse lunch = lunch(service.getMealCounts(vpA, TODAY, null));
+        CurrentUser vpARevoked = withPermissions(vpA, Set.of(), Set.of());
+        CurrentUser vpBSchoolWide =
+                withPermissions(vpB, Set.of(Permission.MEAL_COUNT_CONFIRM), Set.of(Permission.MEAL_COUNT_CONFIRM));
+
+        assertThat(lunch(service.getMealCounts(vpARevoked, TODAY, null)))
+                .extracting(MealCountResponse::canConfirm, MealCountResponse::canAdjust)
+                .containsExactly(false, false);
+        expectError(() -> service.confirm(vpARevoked, lunch.id()), ApiCode.FORBIDDEN);
+        assertThat(lunch(service.getMealCounts(vpBSchoolWide, TODAY, null)))
+                .extracting(MealCountResponse::canConfirm, MealCountResponse::canAdjust)
+                .containsExactly(true, true);
+        assertThat(service.confirm(vpBSchoolWide, lunch.id()).confirmedByName()).isEqualTo("vpb");
     }
 
     @Test
@@ -293,7 +319,22 @@ class MealCountIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        // Quyền mặc định = seed ma trận (NUT-02: PHT có MEAL_COUNT_CONFIRM ở cơ sở mình)
+        return new CurrentUser(
+                id, "kc-" + username, username, username, null, Set.of(role), TestPermissions.defaultsOf(role));
+    }
+
+    private static CurrentUser withPermissions(
+            CurrentUser user, Set<Permission> permissions, Set<Permission> schoolWide) {
+        return new CurrentUser(
+                user.userId(),
+                user.keycloakUserId(),
+                user.username(),
+                user.fullName(),
+                user.email(),
+                user.roles(),
+                permissions,
+                schoolWide);
     }
 
     private void campusRole(CurrentUser user, String staffRole, long campusId) {

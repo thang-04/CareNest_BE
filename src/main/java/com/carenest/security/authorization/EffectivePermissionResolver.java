@@ -5,6 +5,7 @@ import com.carenest.entity.account.UserPermissionOverride;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
+import com.carenest.utils.enums.PermissionScope;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -52,6 +53,25 @@ public final class EffectivePermissionResolver {
 
         fixed.addAll(configured);
         return fixed;
+    }
+
+    /**
+     * Mã sửa theo mảng được GRANT phạm vi cả trường (AUTH-20). Ô ma trận và GRANT phạm vi CAMPUS ⇒ chỉ điểm trường
+     * phân công. Dòng lệch (mã bỏ, mã không theo mảng, không cấu hình được cho role) bị bỏ qua như {@link #resolve}.
+     */
+    public static Set<Permission> schoolWide(Set<CareNestRole> roles, Collection<UserPermissionOverride> overrides) {
+        EnumSet<Permission> result = EnumSet.noneOf(Permission.class);
+        for (UserPermissionOverride override : overrides) {
+            Optional<Permission> permission = Permission.fromCode(override.getPermissionCode());
+            if (override.getEffect() == PermissionEffect.GRANT
+                    && override.getScope() == PermissionScope.SCHOOL
+                    && permission.isPresent()
+                    && permission.get().campusScoped()
+                    && isConfigurableForAny(permission.get(), roles)) {
+                result.add(permission.get());
+            }
+        }
+        return result;
     }
 
     /** Role dùng để tính quyền: role trong token, thêm TEAM_LEADER khi đang là tổ trưởng (AUTH-23). */

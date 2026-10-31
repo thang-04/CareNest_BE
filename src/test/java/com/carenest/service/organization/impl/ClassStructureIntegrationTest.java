@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -245,7 +246,8 @@ class ClassStructureIntegrationTest {
     }
 
     @Test
-    void structureForVicePrincipalOnlyShowsOwnCampus() {
+    @DisplayName("AUTH-20: PHT còn phân công xem cơ cấu lớp mọi điểm trường")
+    void structureForVicePrincipalShowsEveryCampus() {
         RoomResponse roomA = createRoom(campusA, "P.101", 25);
         RoomResponse roomB = createRoom(campusB, "P.101", 25);
         classService.createClass(principal, classRequest("Lớp A", campusA, roomA.id(), 25));
@@ -253,8 +255,8 @@ class ClassStructureIntegrationTest {
 
         SchoolStructureResponse structure = classService.getSchoolStructure(vicePrincipal, year, null);
 
-        assertThat(structure.classes()).extracting(ClassResponse::name).containsExactly("Lớp A");
-        assertThat(structure.groupStats().get(ageGroup3).classCount()).isEqualTo(1);
+        assertThat(structure.classes()).extracting(ClassResponse::name).containsExactly("Lớp A", "Lớp B");
+        assertThat(structure.groupStats().get(ageGroup3).classCount()).isEqualTo(2);
     }
 
     @Test

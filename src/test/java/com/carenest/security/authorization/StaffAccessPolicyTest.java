@@ -16,7 +16,6 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
-import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
@@ -160,10 +159,9 @@ class StaffAccessPolicyTest {
     }
 
     @Test
-    @DisplayName("AUTH-20: quyền xem liên cơ sở không mở quản lý tài khoản, phân công, phụ huynh ở campus khác")
-    void allCampusViewDoesNotExtendManagementScope() {
-        CurrentUser viewer = new CurrentUser(
-                3L, "kc-3", "u3", "U", null, Set.of(CareNestRole.VICE_PRINCIPAL), Set.of(Permission.ALL_CAMPUS_VIEW));
+    @DisplayName("AUTH-20: PHT xem được mọi cơ sở nhưng chỉ quản lý tài khoản, phân công, phụ huynh campus mình")
+    void readAllCampusesDoesNotExtendManagementScope() {
+        CurrentUser viewer = new CurrentUser(3L, "kc-3", "u3", "U", null, Set.of(CareNestRole.VICE_PRINCIPAL));
         given(assignments.findActiveCampusIds(41L, StaffRole.TEACHER, TODAY)).willReturn(Set.of(CAMPUS_B));
         given(guardianLinks.findChildIdsOfGuardian(61L)).willReturn(List.of(201L));
         given(enrollments.findActiveClassroomIdByChildIds(Set.of(201L), TODAY)).willReturn(Map.of(201L, 21L));

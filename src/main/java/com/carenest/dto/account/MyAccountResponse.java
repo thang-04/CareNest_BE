@@ -13,5 +13,6 @@ public record MyAccountResponse(
         String email,
         List<CareNestRole> roles,
         List<Permission> permissions,
+        List<Permission> schoolWidePermissions,
         List<StaffAssignmentSummaryResponse> assignments,
         List<Long> childIds) {}

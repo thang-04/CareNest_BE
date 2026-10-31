@@ -8,7 +8,6 @@ import com.carenest.dto.child.SavePlacementsRequest;
 import com.carenest.dto.child.YearReadinessResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
-import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.dto.organization.YearSetupResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ClassPlacement;
@@ -18,6 +17,7 @@ import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.ClassPlacementRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -26,7 +26,6 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.SchoolYearStatus;
-import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -63,6 +62,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     private final YearSetupService yearSetupService;
     private final SchoolYearService schoolYearService;
     private final StaffAssignmentService staffAssignmentService;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
     private final DevActivationProperties devActivation;
     private final ApplicationEventPublisher eventPublisher;
@@ -74,12 +74,15 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 LOG_PREFIX + "|getPlacements|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            Set<Long> campusScope = viewableCampusIds(currentUser);
+            boolean principal = isPrincipal(currentUser);
+            // AUTH-20: PHT còn phân công xem bảng xếp lớp mọi điểm trường, chỉ xem
+            if (!principal && !campusAccessPolicy.canReadAllCampuses(currentUser)) {
+                throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
+            }
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             Board board = loadBoard(setup);
             Map<Long, Long> nextGroups = nextAgeGroups(setup.ageGroups());
             List<PlacementBoardResponse.SourceClass> classes = setup.sourceClasses().stream()
-                    .filter(c -> campusScope == null || campusScope.contains(c.campusId()))
                     .map(c -> {
                         Long next = nextGroups.get(c.ageGroupId());
                         List<PlacementBoardResponse.ChildPlacement> children = board.childrenOf(c.id()).stream()
@@ -104,14 +107,13 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     })
                     .toList();
             List<PlacementBoardResponse.TargetClass> targets = setup.classes().stream()
-                    .filter(c -> campusScope == null || campusScope.contains(c.campusId()))
                     .map(c -> new PlacementBoardResponse.TargetClass(
                             c.id(), c.name(), c.campusId(), c.ageGroupId(), c.capacity(), board.taken(c.id())))
                     .toList();
             PlacementBoardResponse response = new PlacementBoardResponse(
                     toBrief(setup.year()),
                     setup.sourceYear() == null ? null : toBrief(setup.sourceYear()),
-                    campusScope == null
+                    principal
                             && setup.year().status() == SchoolYearStatus.PLANNED
                             && setup.sourceYear() != null
                             && isNextYear(setup),
@@ -119,7 +121,6 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                             .map(g -> new PlacementBoardResponse.AgeGroupBrief(g.id(), g.shortName()))
                             .toList(),
                     setup.campuses().stream()
-                            .filter(c -> campusScope == null || campusScope.contains(c.id()))
                             .map(c -> new PlacementBoardResponse.CampusBrief(c.id(), c.name()))
                             .toList(),
                     classes,
@@ -550,29 +551,14 @@ public class YearTransitionServiceImpl implements YearTransitionService {
 
     // AUTH-01: xếp lớp và kích hoạt năm do Hiệu trưởng có phân công còn hiệu lực
     private void checkPrincipal(CurrentUser user) {
-        if (!user.hasRole(CareNestRole.PRINCIPAL)
-                || !staffAssignmentService.hasActivePrincipalAssignment(user.userId(), LocalDate.now(clock))) {
+        if (!isPrincipal(user)) {
             throw GlobalException.of(ApiCode.PRINCIPAL_ONLY, "quản lý chuyển năm học");
         }
     }
 
-    // TODO(Cần): PHT xếp lớp theo quyền "Xếp lớp năm học" — hiện PHT chỉ xem điểm trường mình
-    private Set<Long> viewableCampusIds(CurrentUser user) {
-        LocalDate today = LocalDate.now(clock);
-        if (user.hasRole(CareNestRole.PRINCIPAL)
-                && staffAssignmentService.hasActivePrincipalAssignment(user.userId(), today)) {
-            return null;
-        }
-        Set<Long> campusIds = user.hasRole(CareNestRole.VICE_PRINCIPAL)
-                ? staffAssignmentService.findActiveAssignments(user.userId(), today).stream()
-                        .filter(a -> a.staffRole() == StaffRole.VICE_PRINCIPAL && a.campusId() != null)
-                        .map(StaffAssignmentSummaryResponse::campusId)
-                        .collect(Collectors.toSet())
-                : Set.of();
-        if (campusIds.isEmpty()) {
-            throw GlobalException.of(ApiCode.PLACEMENT_ACCESS_DENIED);
-        }
-        return campusIds;
+    private boolean isPrincipal(CurrentUser user) {
+        return user.hasRole(CareNestRole.PRINCIPAL)
+                && staffAssignmentService.hasActivePrincipalAssignment(user.userId(), LocalDate.now(clock));
     }
 
     // Nhãn bước theo FE READINESS_STEPS (schoolConfigConstants.js)
