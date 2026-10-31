@@ -89,9 +89,9 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
 | PCK-01 | Đón trẻ là bắt buộc trong Capstone | CONFIRMED | Khảo sát team 27/10 (PCK-07, SCO-02) |
-| PCK-02 | Màn đón trẻ hiện danh sách phụ huynh/người giám hộ của trẻ: GV nhận đúng người ⇒ xác nhận đón; người lạ ⇒ GV bấm gọi phụ huynh để xác nhận, ghi lý do rồi xác nhận đón. Đối chiếu ảnh người đón: nguồn ảnh P-33 | CONFIRMED / PENDING | Khảo sát team 27/10 (PCK-01, PCK-03, PCK-04) |
+| PCK-02 | Màn đón trẻ hiện danh sách phụ huynh/người giám hộ của trẻ kèm ảnh: GV nhận đúng người (khớp ảnh) ⇒ xác nhận đón; người lạ hoặc phụ huynh chưa có ảnh ⇒ GV gọi phụ huynh, ghi nội dung cuộc gọi rồi trả hoặc không trả. Ảnh lấy ở phần phụ huynh của hồ sơ trẻ: phụ huynh đăng nhập App lần đầu phải đổi mật khẩu và cập nhật hồ sơ (tải ảnh chân dung) bắt buộc | CONFIRMED | Khảo sát team 27/10 (PCK-01, PCK-03, PCK-04); user chốt 2026-10-31 (đóng P-33) |
 | PCK-03 | Phụ huynh không đăng ký trước người đón hộ trên App; báo GV qua gọi/nhắn như hiện nay | CONFIRMED | Khảo sát team 27/10 (PCK-02) |
-| PCK-04 | Mỗi lần trả trẻ ghi người đón và giờ đón thực tế (kể cả đón muộn); trẻ về sớm (ốm…) ghi "về sớm", người đón, giờ đón; phụ huynh nhận thông báo khi con đã được đón. Đây là bước xác nhận trả trẻ cuối ngày (ATT-10) | CONFIRMED | Khảo sát team 27/10 (PCK-05, PCK-06, DHL-03, ATT-09) |
+| PCK-04 | Mỗi lần trả trẻ ghi người đón và giờ trả thực tế; không phân biệt về sớm hay đón muộn (phụ huynh đón lúc nào trả lúc đó). Phụ huynh nhận thông báo khi con đã được đón (thông báo trong App + đẩy tới thiết bị). Đây là bước xác nhận trả trẻ cuối ngày (ATT-10) | CONFIRMED | Khảo sát team 27/10 (PCK-05, PCK-06, DHL-03, ATT-09); user chốt 2026-10-31 (bỏ "ghi về sớm") |
 
 ## NUT — Dinh dưỡng, suất ăn, bếp (module: nutrition)
 
@@ -341,7 +341,6 @@ Mỗi mục cần khảo sát. Khi chốt: cập nhật rule liên quan sang CON
 | P-30 | Mẫu nhận xét định kỳ riêng của trường: cần xin mẫu (PER-02) | OBS-06 |
 | P-31 | Capstone làm cả phiếu bé ngoan và khen thưởng cuối năm? *REW-05: cả hai — "chưa rõ"* | OBS-10, OBS-14 |
 | P-32 | Phụ huynh có gửi ý kiến cho trường trên App không? *PAR-04: không, liên lạc qua Zalo/điện thoại — "chưa rõ"* | PAR-04 |
-| P-33 | Đối chiếu ảnh người đón: lấy ảnh từ đâu khi phụ huynh không đăng ký người đón trên App? *PCK-04 chọn gọi phụ huynh + so ảnh; PCK-02 chọn không đăng ký trước* | PCK-02 |
 | P-34 | Báo cáo tổng kết năm học làm trong hệ thống tới đâu (số liệu theo mẫu, AI nháp)? *RPT-04 — "chưa rõ"* | RPT-03, AI-07 |
 | P-35 | Chi phí vận hành trường chấp nhận? *OPS-03: dưới 500 nghìn/tháng — "chưa rõ"* | `docs/quality/NFR.md` |
 
@@ -365,6 +364,7 @@ Mỗi mục cần khảo sát. Khi chốt: cập nhật rule liên quan sang CON
 | P-29 | Thời lượng chủ đề không cố định, người lập đặt ngày; 1 tuần học = 1 chủ đề nhánh; chủ đề Thứ 2 → Thứ 6, không trùng nhau; nghỉ lẻ ngày không bỏ tuần (EDU-39..41) | 2026-10-30 | User chốt theo mẫu MN Thái Dương |
 | P-12 | Phụ huynh nhận tất cả các kỳ nhận xét (OBS-06) | 2026-10-29 | Khảo sát team 27/10 (PER-05) |
 | P-13 | Chuẩn WHO (HLT-03) | 2026-10-29 | Khảo sát team 27/10 (HLT-04) |
+| P-33 | Ảnh đối chiếu người đón lấy ở phần phụ huynh của hồ sơ trẻ; phụ huynh tải ảnh khi đăng nhập App lần đầu, bắt buộc (PCK-02) | 2026-10-31 | User chốt |
 | P-13b | Danh sách dữ liệu phụ huynh chỉ thấy sau khi công bố, người công bố (PAR-03) | 2026-10-29 | Khảo sát team 27/10 (PAR-06, HLT-06) |
 | P-16b | Nhận xét theo kỳ tuần/tháng/học kỳ/năm, mẫu riêng của trường, GV lập; không có follow-up riêng (OBS-09) | 2026-10-29 | Khảo sát team 27/10 (PER-01, PER-02, PER-04, PER-07) |
 

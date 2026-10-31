@@ -7,6 +7,7 @@ User yêu cầu S3 và đồng ý AWS SDK v2 ngày 27/10/2026. Mọi loại ản
 - CARENEST_EDUCATION_MEDIA_BUCKET: bucket riêng đã tạo.
 - AWS_REGION: region bucket, mặc định ap-southeast-1.
 - CARENEST_EDUCATION_MEDIA_PREFIX: mặc định education/learning-resources/.
+- CARENEST_ACCOUNT_MEDIA_PREFIX: ảnh chân dung phụ huynh (≤ 2 MB, đối chiếu người đón), cùng bucket, mặc định accounts/photos/. Đọc qua API có kiểm phạm vi trẻ.
 - CARENEST_HEALTH_MEDIA_PREFIX: ảnh kết quả khám chuyên khoa của phiếu theo dõi sức khỏe (tối đa 3 ảnh/lần, ≤ 1 MB/ảnh), cùng bucket, mặc định health/follow-up-results/. Đọc qua API có kiểm phạm vi trẻ, không trả key hay URL bucket.
 - CARENEST_EDUCATION_MEDIA_ENDPOINT: để trống với AWS; URL endpoint của dịch vụ tương thích S3 khi cần.
 - CARENEST_EDUCATION_MEDIA_PATH_STYLE: false cho AWS, tùy nhà cung cấp.

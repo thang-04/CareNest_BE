@@ -25,6 +25,7 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
 | primary_role | VARCHAR(20) | có | Bản sao role Keycloak khi CareNest tạo tài khoản (V8); lọc danh sách + kiểm phạm vi quản lý nhân sự; quyền người gọi vẫn theo token. NULL = chưa rõ (chỉ Admin quản lý) | AUTH-15..17 |
 | citizen_id | VARCHAR(12) | có | CCCD phụ huynh, khóa nhận diện phụ huynh; UNIQUE, CHECK 12 chữ số (V39). Nhân sự NULL; tài khoản phụ huynh cũ bổ sung khi hồ sơ trẻ ghi CCCD | AUTH-18 |
+| photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(36), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, bắt buộc; GV đối chiếu người đón). Tệp private S3 theo key UUID; JPG/PNG/WEBP ≤ 2 MB (V42) | PCK-02 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Không có cột mật khẩu: Keycloak quản lý. Role gốc ở Keycloak (`primary_role` chỉ là bản sao).
 Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`, `uk_user_accounts_citizen_id`, `idx_user_accounts_primary_role`.
@@ -249,6 +250,44 @@ Mục đích: mở lại điểm danh một lớp/ngày đã khóa (HT mọi l�
 | unlocked_by, unlocked_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
 | revoked_by, revoked_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Kết thúc sớm | — |
 Mỗi lớp/ngày tối đa một lần mở còn hiệu lực (service kiểm). Index: `(classroom_id, date)`.
+
+## pickup_records  (module: attendance, scope: CHILD)
+Mục đích: mỗi lần GV xác minh người đón khi trả trẻ (PCK-02, PCK-04, ATT-10). Khớp ảnh phụ huynh hoặc phụ huynh xác nhận qua điện thoại thì trả; lần không trả được vẫn lưu. Không sửa, không hủy. Migration: V42.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id, classroom_id, campus_id | BIGINT FK | không | Trẻ, lớp, điểm trường lúc trả | ATT-10 |
+| date | DATE | không | Ngày (chỉ ghi cho hôm nay); trả thành công tối đa một lần/trẻ/ngày (UNIQUE có điều kiện) | PCK-04 |
+| outcome | VARCHAR(20) | không | `HANDED_OVER` / `NOT_HANDED_OVER` (theo cách xác minh) | PCK-02 |
+| verification | VARCHAR(20) | không | `PHOTO_MATCH` / `PHONE_CONFIRMED` / `PHONE_DECLINED` | PCK-02 |
+| guardian_position | SMALLINT | có | Phụ huynh khớp ảnh (vị trí trên hồ sơ trẻ); có khi và chỉ khi `PHOTO_MATCH` | PCK-02 |
+| pickup_person_name, pickup_person_relationship, pickup_person_phone | VARCHAR | không / có / không | Người đón chép từ hồ sơ lúc trả (khớp ảnh); gọi phụ huynh thì người đón ghi trong `note` | PCK-04 |
+| handed_over_at | TIMESTAMPTZ | có | Giờ trả thực tế (GV nhập, không sau giờ hiện tại); có khi và chỉ khi đã trả | PCK-04 |
+| note | VARCHAR(500) | không | Ghi chú; nội dung cuộc gọi (bắt buộc khi gọi phụ huynh) | PCK-02 |
+| notified_parents | SMALLINT | không | Số tài khoản phụ huynh đã được báo trẻ được đón | PCK-04 |
+| recorded_by, recorded_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | GV ghi, lúc ghi | — |
+Index: `uk_pickup_records_child_date_handed_over`, `(classroom_id, date)`, `(child_id, date)`.
+
+## notifications  (module: notification, scope: USER)
+Mục đích: thông báo theo người nhận để App hiện danh sách; đẩy tới thiết bị sau khi lưu. Migration: V42.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP` | PCK-04 |
+| title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
+| child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
+| created_at | TIMESTAMPTZ | không | | — |
+| read_at | TIMESTAMPTZ | có | Người nhận đã xem (chỉ cho badge của chính họ; trường không theo dõi — PAR-05) | PAR-05 |
+Index: `(user_id, created_at DESC, id DESC)`.
+
+## device_tokens  (module: notification, scope: USER)
+Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một người dùng, máy đăng nhập người khác thì chuyển. Migration: V42.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| user_id | BIGINT FK user_accounts | không | | — |
+| token | VARCHAR(512) | không | Token của dịch vụ đẩy; UNIQUE. Bí mật thiết bị — không ghi log | — |
+| platform | VARCHAR(20) | không | `ANDROID` / `IOS` | — |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `uk_device_tokens_token`, `(user_id)`.
 
 ## daily_health_entries  (module: attendance, scope: CHILD)
 Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nhận khi tiếp nhận trẻ đã lưu Có mặt (chỉ thêm, không sửa). Giáo viên quan sát, không chẩn đoán. Migration: `V22__create_daily_health_entries.sql`. Dữ liệu sức khỏe — không log.
