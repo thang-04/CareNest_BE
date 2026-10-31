@@ -370,17 +370,14 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     }
 
     private List<Classroom> filterVisible(CurrentUser currentUser, List<Classroom> classes) {
-        if (schoolConfigAccess.isPrincipal(currentUser)) {
+        if (schoolConfigAccess.canViewSchool(currentUser)) {
             return classes;
         }
-        Set<Long> campusIds = schoolConfigAccess.vicePrincipalCampusIds(currentUser);
         Set<Long> classIds = schoolConfigAccess.teacherClassroomIds(currentUser);
-        if (campusIds.isEmpty() && classIds.isEmpty()) {
+        if (classIds.isEmpty()) {
             throw GlobalException.of(ApiCode.SCHOOL_CONFIG_ACCESS_DENIED);
         }
-        return classes.stream()
-                .filter(c -> campusIds.contains(c.getCampusId()) || classIds.contains(c.getId()))
-                .toList();
+        return classes.stream().filter(c -> classIds.contains(c.getId())).toList();
     }
 
     private List<ClassResponse> toResponses(List<Classroom> classes) {

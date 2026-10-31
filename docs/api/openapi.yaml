@@ -2407,6 +2407,29 @@ paths:
           description: Created
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/file-preview:
+    post:
+      operationId: previewGoalFile
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGoalFilePreviewResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}:
     delete:
       operationId: deleteYearPlan
@@ -6124,6 +6147,21 @@ components:
         dat:
           type: integer
           format: int32
+    GoalFilePreviewResponse:
+      type: object
+      properties:
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/Domain"
+        themeAbbrs:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Warning"
     GoalRef:
       type: object
       properties:
@@ -6785,7 +6823,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - ALL_CAMPUS_VIEW
+            - MEAL_COUNT_CONFIRM
             - PERMISSION_MANAGE
         roles:
           type: array
@@ -6799,6 +6837,18 @@ components:
             - KITCHEN_STAFF
             - PARENT
             - TEAM_LEADER
+        schoolWidePermissions:
+          type: array
+          items:
+            type: string
+            enum:
+            - CHILD_PROFILE_VIEW
+            - ACCOUNT_MANAGE
+            - ACCOUNT_STATUS_MANAGE
+            - STAFF_ASSIGNMENT_MANAGE
+            - PARENT_ACCOUNT_MANAGE
+            - MEAL_COUNT_CONFIRM
+            - PERMISSION_MANAGE
         userId:
           type: integer
           format: int64
@@ -6857,8 +6907,13 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
-          - ALL_CAMPUS_VIEW
+          - MEAL_COUNT_CONFIRM
           - PERMISSION_MANAGE
+        scope:
+          type: string
+          enum:
+          - CAMPUS
+          - SCHOOL
       required:
       - effect
       - permission
@@ -6977,6 +7032,11 @@ components:
         actorUserId:
           type: integer
           format: int64
+        afterScope:
+          type: string
+          enum:
+          - CAMPUS
+          - SCHOOL
         afterState:
           type: string
           enum:
@@ -6988,6 +7048,11 @@ components:
         batchId:
           type: string
           format: uuid
+        beforeScope:
+          type: string
+          enum:
+          - CAMPUS
+          - SCHOOL
         beforeState:
           type: string
           enum:
@@ -7035,10 +7100,15 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
-          - ALL_CAMPUS_VIEW
+          - MEAL_COUNT_CONFIRM
           - PERMISSION_MANAGE
         reason:
           type: string
+        scope:
+          type: string
+          enum:
+          - CAMPUS
+          - SCHOOL
         updatedAt:
           type: string
           format: date-time
@@ -7048,6 +7118,8 @@ components:
     PermissionResponse:
       type: object
       properties:
+        campusScoped:
+          type: boolean
         code:
           type: string
           enum:
@@ -7056,7 +7128,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
-          - ALL_CAMPUS_VIEW
+          - MEAL_COUNT_CONFIRM
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -7848,6 +7920,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EvaluationRow"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonGoalFilePreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/GoalFilePreviewResponse"
         desc:
           type: string
         errorCode:
@@ -8908,7 +8993,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - ALL_CAMPUS_VIEW
+            - MEAL_COUNT_CONFIRM
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -8922,7 +9007,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - ALL_CAMPUS_VIEW
+            - MEAL_COUNT_CONFIRM
             - PERMISSION_MANAGE
         role:
           type: string
@@ -9885,7 +9970,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - ALL_CAMPUS_VIEW
+            - MEAL_COUNT_CONFIRM
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -9907,7 +9992,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - ALL_CAMPUS_VIEW
+            - MEAL_COUNT_CONFIRM
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -9919,7 +10004,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - ALL_CAMPUS_VIEW
+            - MEAL_COUNT_CONFIRM
             - PERMISSION_MANAGE
         overrides:
           type: array
@@ -10006,6 +10091,14 @@ components:
             $ref: "#/components/schemas/Row"
         year:
           $ref: "#/components/schemas/SchoolYearDetailResponse"
+    Warning:
+      type: object
+      properties:
+        message:
+          type: string
+        row:
+          type: integer
+          format: int32
     WeekRow:
       type: object
       properties:

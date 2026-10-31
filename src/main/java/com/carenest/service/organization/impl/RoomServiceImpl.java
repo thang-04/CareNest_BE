@@ -49,11 +49,8 @@ public class RoomServiceImpl implements RoomService {
         String logPrefix = LOG_PREFIX + "|getRooms|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            Set<Long> viewable = schoolConfigAccess.viewableCampusIds(currentUser);
-            if (campusId != null && viewable != null && !viewable.contains(campusId)) {
-                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
-            }
-            Collection<Long> campusFilter = campusId != null ? Set.of(campusId) : viewable;
+            schoolConfigAccess.checkCanViewSchool(currentUser);
+            Collection<Long> campusFilter = campusId != null ? Set.of(campusId) : null;
             Long yearId = resolveSchoolYearId(schoolYearId);
             boolean closed = yearId != null
                     && schoolYearRepository

@@ -65,21 +65,14 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         log.info("{}|START", logPrefix);
         try {
             Long campusId = parseCampusId(campusParam);
-            Set<Long> viewable = schoolConfigAccess.viewableCampusIds(currentUser);
-            if (campusId != null && viewable != null && !viewable.contains(campusId)) {
-                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
-            }
+            schoolConfigAccess.checkCanViewSchool(currentUser);
             SchoolYear year = findYear(schoolYearId);
             List<Classroom> classes =
                     classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId()).stream()
-                            .filter(c -> campusId != null
-                                    ? c.getCampusId().equals(campusId)
-                                    : viewable == null || viewable.contains(c.getCampusId()))
+                            .filter(c -> campusId == null || c.getCampusId().equals(campusId))
                             .toList();
             List<TeacherCandidateResponse> teachers = teacherDirectory.findTeachers(schoolConfigAccess.today()).stream()
-                    .filter(t -> campusId != null
-                            ? t.campusIds().contains(campusId)
-                            : viewable == null || t.campusIds().stream().anyMatch(viewable::contains))
+                    .filter(t -> campusId == null || t.campusIds().contains(campusId))
                     .toList();
             TeacherAssignmentResponse response = new TeacherAssignmentResponse(
                     schoolStructureMapper.toDetailResponse(year, classroomRepository.countBySchoolYearId(year.getId())),
@@ -183,7 +176,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 LOG_PREFIX + "|getTeamLeaders|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.viewableCampusIds(currentUser);
+            schoolConfigAccess.checkCanViewSchool(currentUser);
             TeamLeaderResponse response = toTeamLeaderResponse(findYear(schoolYearId));
             log.info("{}|END", logPrefix);
             return response;
@@ -256,7 +249,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             Classroom classroom = classroomRepository
                     .findById(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            schoolConfigAccess.checkCanViewCampus(currentUser, classroom.getCampusId());
+            schoolConfigAccess.checkCanViewSchool(currentUser);
             List<AssignmentHistoryResponse> history = toHistory(staffAssignmentRepository.findTeacherHistory(classId));
             log.info("{}|END", logPrefix);
             return history;

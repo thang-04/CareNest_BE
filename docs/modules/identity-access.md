@@ -29,7 +29,7 @@ AUTH-01..23 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business
 - Kiểm tra scope: `security/authorization/` — `CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy` (role trong token ∧ phân công/liên kết còn hiệu lực; bảng quy tắc ở `docs/architecture/SECURITY.md`). Đây là tên thật thay cho `AccessScopeService` (tên minh họa trong docs cũ).
 
 ## PENDING
-P-16 (Admin xem dữ liệu trẻ). P-14 đã đóng 2026-10-27 (AUTH-02, AUTH-20).
+P-16 (Admin xem dữ liệu trẻ). P-14 đã đóng 2026-10-27 (AUTH-02, AUTH-20). P-36 đóng 2026-10-31 (phạm vi mảng PHT). User chốt 2026-10-31: mảng được giao có phạm vi điểm trường/cả trường, mảng khác xem cả trường mặc định — code xong trên nhánh G94-60 (ADR-0023: `scope` trên ngoại lệ, `CampusAccessPolicy.canEditCampus`).
 
 ## Known pitfalls
 - Auth React: ADR-0013 là ngoại lệ Web dùng gateway/extension, không phải PKCE. Phase 2 có source API/session/OTP opt-in và V4; FE thuộc Phase3. Provider setup chỉ qua capability một lần; recovery/current-password exchange đòi assertion HMAC60s sau xác minh.
@@ -37,6 +37,8 @@ P-16 (Admin xem dữ liệu trẻ). P-14 đã đóng 2026-10-27 (AUTH-02, AUTH-2
 - MockMvc `jwt()` tự bỏ qua CsrfFilter; test CSRF kèm Bearer phải dùng header thật. Đừng kế thừa global Bearer trong Swagger auth public hoặc để CsrfToken thành query parameter.
 - Kiểm tra quyền chỉ ở UI/controller annotation mà quên lọc scope trong query ⇒ lộ dữ liệu campus khác. Scope phải áp ở service/query.
 - Không hard-code role→campus; dùng assignment có hiệu lực theo thời gian.
+- Việc sửa của một mảng (vd. `MEAL_COUNT_CONFIRM`) kiểm bằng `CampusAccessPolicy.canEditCampus` (mã quyền + phạm vi CAMPUS/SCHOOL), không chỉ role + campus phân công. Test dựng `CurrentUser` chỉ có role thì không có quyền ma trận ⇒ dùng `TestPermissions.defaultsOf(role)`.
+- `@PreAuthorize` có `@permissionGuard` thì mọi chuỗi trong nháy đơn bị `ControllerSecurityCoverageTest` coi là mã quyền ⇒ không trộn `hasRole('X')` với guard trong cùng biểu thức; điều kiện role thêm kiểm ở service.
 - Service không tự đọc `SecurityContextHolder`/`Jwt`; nhận `CurrentUser` từ controller.
 - Chặn tài khoản chưa cấp/INACTIVE nằm ở `ActiveAccountInterceptor` (mọi `/api/**`), không dựa vào việc controller có tham số `CurrentUser`. WebMvcTest có token phải `@MockitoBean CurrentUserService`.
 - Lỗi phía Keycloak khi cấp tài khoản: 409 trùng, 400 bị từ chối (policy mật khẩu, ký tự họ tên), 503 không khả dụng; mọi lỗi sau khi đã tạo user Keycloak đều phải bù trừ (kể cả lỗi DB bất kỳ).
@@ -46,7 +48,7 @@ P-16 (Admin xem dữ liệu trẻ). P-14 đã đóng 2026-10-27 (AUTH-02, AUTH-2
 - User Keycloak thiếu email/lastName bị chặn đăng nhập nếu realm dùng user profile mặc định (ENV-261004-keycloak-user-profile-account-not-fully-set-up).
 - Thêm endpoint mới: dùng `@permissionGuard.has('CODE')`, không `hasRole`; mã phải có trong enum `Permission` (`ControllerSecurityCoverageTest` bắt mã sai). Quyền mới cho role cấu hình được ⇒ migration seed `role_permissions`.
 - Quyền ghi hiện dùng chung policy "xem" (vd. duyệt summary dùng `canViewChild`) ⇒ chỉ để `configurableRoles = TEACHER` cho quyền ghi tới khi có policy ghi; cho PHT quyền ghi sẽ ghi được mọi lớp trong campus.
-- `canView*` là phạm vi thao tác, `canRead*` thêm xem liên cơ sở (AUTH-20). Đường ghi không được gọi `canRead*`; endpoint đọc muốn PHT xem liên cơ sở thì dùng `checkCanRead*` (vd. `ChildServiceImpl.getChildProfile`).
+- `canView*` là phạm vi thao tác, `canRead*` = PHT còn phân công đọc mọi cơ sở (AUTH-20). Đường ghi không được gọi `canRead*`; endpoint đọc dùng `checkCanRead*` hoặc `canReadAllCampuses` cho danh sách — không tự lọc theo campus phân công PHT (từng chép ở 6 service, gom 31/10).
 - User nhiều role (GV kiêm phụ huynh): REVOKE chỉ trừ phần ma trận, không trừ phần cố định của PARENT; scope vẫn do policy theo role.
 - Test WebMvc dựng `CurrentUser` phải kèm quyền (`TestPermissions.userWithDefaults`); constructor 6 tham số không có quyền nào ⇒ 403.
 - `primary_role` là bản sao role Keycloak chỉ ghi khi CareNest tạo tài khoản: đổi role trên Keycloak console làm lệch phạm vi quản lý; tài khoản `primary_role` null chỉ Admin quản lý được.

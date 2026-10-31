@@ -16,6 +16,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.repository.meals.MealCountHistoryRepository;
 import com.carenest.repository.meals.MealCountRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.AttendanceService.ClassMealTally;
@@ -26,6 +27,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealCountStatus;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
@@ -41,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
@@ -62,27 +65,34 @@ public class MealCountServiceImpl implements MealCountService {
     private final ClassroomService classroomService;
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
 
-    /** Phạm vi người xem: HT toàn trường; PHT, bếp theo điểm trường được phân công (AUTH-01, AUTH-02). */
-    private record Viewer(CurrentUser user, boolean principal, Set<Long> leadCampuses, Set<Long> kitchenCampuses) {
+    /** Phạm vi người xem: HT toàn trường; PHT còn phân công xem mọi điểm trường (AUTH-20); bếp điểm trường mình. */
+    private record Viewer(
+            CurrentUser user,
+            boolean principal,
+            Set<Long> leadCampuses,
+            Set<Long> kitchenCampuses,
+            Predicate<Long> editsCampus) {
         boolean sees(Long campusId) {
-            return principal || leadCampuses.contains(campusId) || kitchenCampuses.contains(campusId);
+            return reviews(campusId) || kitchenCampuses.contains(campusId);
         }
 
-        // HT, PHT thấy cả số chờ xác nhận lại; bếp chỉ thấy số đã xác nhận
+        // HT, PHT thấy cả số chờ xác nhận lại; bếp chỉ thấy số đã xác nhận.
+        // AUTH-20: PHT còn phân công xem số suất mọi điểm trường; xác nhận/điều chỉnh vẫn theo phạm vi
         boolean reviews(Long campusId) {
-            return principal || leadCampuses.contains(campusId);
+            return principal || !leadCampuses.isEmpty();
         }
 
-        // NUT-02 (Cần chốt 27/10/2026): HT xác nhận được mọi điểm trường, PHT điểm trường mình
+        // NUT-02 + AUTH-20: HT xác nhận mọi điểm trường; PHT có MEAL_COUNT_CONFIRM trong phạm vi được giao
         boolean confirms(Long campusId) {
-            return principal || leadCampuses.contains(campusId);
+            return editsCampus.test(campusId);
         }
 
-        // NUT-02: điều chỉnh số suất vẫn chỉ PHT điểm trường
+        // NUT-02 (Cần chốt 27/10/2026): điều chỉnh số suất chỉ PHT, cùng phạm vi xác nhận
         boolean adjusts(Long campusId) {
-            return leadCampuses.contains(campusId);
+            return !principal && editsCampus.test(campusId);
         }
 
         StaffRole confirmerRole() {
@@ -292,7 +302,11 @@ public class MealCountServiceImpl implements MealCountService {
         if (!principal && lead.isEmpty() && kitchen.isEmpty()) {
             throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
         }
-        return new Viewer(user, principal, lead, kitchen);
+        // Mỗi request hỏi policy một lần cho mỗi điểm trường
+        Map<Long, Boolean> editable = new HashMap<>();
+        Predicate<Long> editsCampus = campusId -> editable.computeIfAbsent(
+                campusId, id -> campusAccessPolicy.canEditCampus(user, Permission.MEAL_COUNT_CONFIRM, id));
+        return new Viewer(user, principal, lead, kitchen, editsCampus);
     }
 
     private static Set<Long> campusesOf(

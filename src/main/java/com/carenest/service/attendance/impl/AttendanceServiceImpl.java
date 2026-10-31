@@ -297,7 +297,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .filter(c -> rules.canView(currentUser, c))
                     .map(c -> summarize(c, from, to))
                     .toList();
-            if (campusId != null && parts.isEmpty() && !rules.canUnlock(currentUser, campusId)) {
+            if (campusId != null && parts.isEmpty() && !rules.canReadCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<DayRow> days = schoolDays(from, to).stream()
