@@ -1,7 +1,7 @@
 name: Deploy VPS
 
 # Chỉ main chạy CI: push main = verify + deploy, PR vào main = chỉ verify.
-# Pattern xét theo thứ tự: bỏ tài liệu, nhưng giữ docs/api (OpenApiSnapshotTest đọc docs/api/openapi.yaml)
+# Pattern xét theo thứ tự: bỏ tài liệu, nhưng giữ docs/api/openapi.yaml (OpenApiSnapshotTest đọc docs/api/openapi.yaml)
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ on:
       - '!.claude/**'
       - '!.agents/**'
       - '!.githooks/**'
-      - 'docs/api/**'
+      - 'docs/api/openapi.yaml'
   pull_request:
     branches: [main]
     paths:
@@ -26,12 +26,15 @@ on:
       - '!.claude/**'
       - '!.agents/**'
       - '!.githooks/**'
-      - 'docs/api/**'
+      - 'docs/api/openapi.yaml'
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
 
 env:
   DOCKERHUB_USER: thangnd04
@@ -53,13 +56,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Danh sách = mọi file mà test/build của image đọc; test hoặc Dockerfile đọc thêm file mới thì bổ sung ở đây
+      # Danh sách = mọi file mà test/build của image đọc; test hoặc Dockerfile đọc thêm file mới thì bổ sung ở đây.
+      # Bỏ *.md: tài liệu không vào image, và push chỉ sửa .md không kích hoạt workflow
       - name: Compute content tags
         id: tags
         run: |
-          hash() { git ls-tree HEAD -- "$@" | sha1sum | cut -c1-12; }
-          echo "api_tag=api-$(hash src pom.xml .mvn mvnw Dockerfile docs/api)" >> "$GITHUB_OUTPUT"
-          echo "keycloak_tag=keycloak-$(hash docker/keycloak compose.yaml compose.auth.yaml)" >> "$GITHUB_OUTPUT"
+          set -o pipefail
+          tree_hash() {
+            local entries
+            entries=$(git ls-tree -r HEAD -- "$@" | grep -v '\.md$')
+            [ -n "$entries" ] || { echo "no tracked files under: $*" >&2; return 1; }
+            printf '%s\n' "$entries" | sha1sum | cut -c1-12
+          }
+          api=$(tree_hash src pom.xml .mvn mvnw Dockerfile docs/api/openapi.yaml)
+          keycloak=$(tree_hash docker/keycloak compose.yaml compose.auth.yaml)
+          echo "api_tag=api-$api" >> "$GITHUB_OUTPUT"
+          echo "keycloak_tag=keycloak-$keycloak" >> "$GITHUB_OUTPUT"
 
       # PR không có secret (fork, Dependabot) ⇒ login fail ⇒ inspect fail ⇒ verify đầy đủ (an toàn)
       - uses: docker/login-action@v3
