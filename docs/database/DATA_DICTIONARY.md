@@ -72,6 +72,7 @@ Index: `idx_attendance_cutoffs_school_year_id (school_year_id, effective_from)`.
 
 ## classrooms  (module: school-structure, scope: CLASS)
 Mục đích: lớp của một campus trong một năm học (năm sau là lớp khác ⇒ phân công cũ không tự áp). Migration: V2.
+Lưu ý SCH-02 (khảo sát team 27/10): trường giữ lớp qua các năm, có thể đổi tên, thêm lớp mới khi cần; mô hình "mỗi năm một bản ghi lớp" hiện tại cần chức năng chuyển năm hoặc đổi thiết kế — chờ thiết kế school-structure. Chưa có cột nhóm tuổi (SCH-01) và phòng (SCH-03).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -334,27 +335,28 @@ Mục đích: ma trận quyền theo role do Hiệu trưởng bật/tắt (ADR-0
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| role | VARCHAR(20) | không | Chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF` (CHECK); role khác cố định trong code | AUTH-11 |
+| role | VARCHAR(20) | không | Chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK, `TEAM_LEADER` từ V38); role khác cố định trong code. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23 |
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
 | updated_by | BIGINT | có | FK `user_accounts`; null với dòng seed | AUTH-14 |
 | updated_at | TIMESTAMPTZ | không | Thời điểm bật | — |
 Index: `uk_role_permissions_role_permission` (role, permission_code).
 
 ## user_permission_overrides  (module: identity-access, scope: SYSTEM)
-Mục đích: ngoại lệ quyền của từng người so với ma trận role (ADR-0017). Migration: V7.
+Mục đích: ngoại lệ quyền của từng người so với ma trận role (ADR-0017). Migration: V7, V40 (`scope`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | user_id | BIGINT | không | FK `user_accounts`, người được cấp/thu quyền | AUTH-10 |
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` | AUTH-10 |
 | effect | VARCHAR(10) | không | `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định) | AUTH-10, AUTH-13 |
+| scope | VARCHAR(10) | có | Chỉ GRANT (CHECK): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (chỉ mã sửa theo mảng — API kiểm); REVOKE luôn NULL (ADR-0023) | AUTH-20 |
 | reason | VARCHAR(500) | không | Lý do | AUTH-14 |
 | created_by | BIGINT | không | FK `user_accounts`, người sửa gần nhất; CHECK `created_by <> user_id` | AUTH-12 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Index: `uk_user_permission_overrides_user_permission` (user_id, permission_code).
 
 ## permission_change_log  (module: identity-access, scope: SYSTEM)
-Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7.
+Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -363,6 +365,7 @@ Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm 
 | target_role / target_user_id | VARCHAR(20) / BIGINT | có | Đúng một trong hai (CHECK): ô ma trận của role hoặc ngoại lệ của người | AUTH-14 |
 | permission_code | VARCHAR(64) | không | Mã quyền đã đổi | — |
 | before_state, after_state | VARCHAR(10) | không | `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ) | AUTH-14 |
+| before_scope, after_scope | VARCHAR(10) | có | Phạm vi GRANT trước/sau (`CAMPUS`/`SCHOOL`); NULL với ma trận, REVOKE, INHERIT | AUTH-14, AUTH-20 |
 | reason | VARCHAR(500) | không | Lý do bắt buộc | AUTH-14 |
 | changed_at | TIMESTAMPTZ | không | Thời điểm đổi | — |
 Index: `idx_permission_change_log_changed_at`, `idx_permission_change_log_target_role`, `idx_permission_change_log_target_user` (kèm `changed_at DESC`).

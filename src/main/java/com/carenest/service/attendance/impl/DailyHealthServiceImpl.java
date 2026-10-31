@@ -177,7 +177,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             if (date == null) {
                 throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "ngày");
             }
-            if (campusId != null && !rules.canUnlock(currentUser, campusId)) {
+            if (campusId != null && !rules.canReadCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()

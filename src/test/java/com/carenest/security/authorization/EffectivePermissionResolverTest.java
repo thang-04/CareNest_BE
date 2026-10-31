@@ -7,6 +7,7 @@ import com.carenest.entity.account.UserPermissionOverride;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
+import com.carenest.utils.enums.PermissionScope;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -63,10 +64,48 @@ class EffectivePermissionResolverTest {
     }
 
     @Test
+    @DisplayName("AUTH-23: chỉ thêm TEAM_LEADER vào role tính quyền khi đang là tổ trưởng")
+    void teamLeaderColumnAddedOnlyForActiveTeamLeader() {
+        assertThat(EffectivePermissionResolver.permissionRoles(Set.of(CareNestRole.TEACHER), false))
+                .containsExactly(CareNestRole.TEACHER);
+        assertThat(EffectivePermissionResolver.permissionRoles(Set.of(CareNestRole.TEACHER), true))
+                .containsExactlyInAnyOrder(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER);
+    }
+
+    @Test
+    @DisplayName("AUTH-23: ô ma trận cột TEAM_LEADER chỉ áp cho người đang là tổ trưởng")
+    void teamLeaderMatrixRowNeedsTeamLeaderRole() {
+        RolePermission teamLeaderRow = RolePermission.create(CareNestRole.TEAM_LEADER, "CHILD_PROFILE_VIEW", null);
+
+        assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(teamLeaderRow), List.of()))
+                .isEmpty();
+    }
+
+    @Test
     @DisplayName("AUTH-11: role cố định lấy quyền từ code, không từ ma trận")
     void fixedRolesIgnoreMatrix() {
         assertThat(resolve(Set.of(CareNestRole.ADMIN), List.of(TEACHER_CHILD_VIEW), List.of()))
                 .containsExactlyInAnyOrder(Permission.ACCOUNT_MANAGE, Permission.ACCOUNT_STATUS_MANAGE);
+    }
+
+    @Test
+    @DisplayName("AUTH-20: chỉ GRANT phạm vi cả trường của mã sửa theo mảng mới là quyền cả trường")
+    void schoolWideOnlyFromSchoolGrantOfCampusScopedPermission() {
+        UserPermissionOverride schoolGrant = UserPermissionOverride.create(
+                5L, "MEAL_COUNT_CONFIRM", PermissionEffect.GRANT, PermissionScope.SCHOOL, "dinh dưỡng", 1L);
+        UserPermissionOverride notScoped = UserPermissionOverride.create(
+                5L, "CHILD_PROFILE_VIEW", PermissionEffect.GRANT, PermissionScope.SCHOOL, "lệch", 1L);
+
+        assertThat(EffectivePermissionResolver.schoolWide(
+                        Set.of(CareNestRole.VICE_PRINCIPAL), List.of(schoolGrant, notScoped)))
+                .containsExactly(Permission.MEAL_COUNT_CONFIRM);
+        assertThat(EffectivePermissionResolver.schoolWide(Set.of(CareNestRole.TEACHER), List.of(schoolGrant)))
+                .isEmpty();
+        assertThat(EffectivePermissionResolver.schoolWide(
+                        Set.of(CareNestRole.VICE_PRINCIPAL),
+                        List.of(UserPermissionOverride.create(
+                                5L, "MEAL_COUNT_CONFIRM", PermissionEffect.GRANT, "điểm trường", 1L))))
+                .isEmpty();
     }
 
     private static Set<Permission> resolve(

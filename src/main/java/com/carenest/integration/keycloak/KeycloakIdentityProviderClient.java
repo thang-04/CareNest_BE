@@ -15,6 +15,7 @@ import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -143,6 +144,37 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
         return assigned == null
                 ? List.of()
                 : Arrays.stream(assigned).map(RoleRepresentation::name).toList();
+    }
+
+    @Override
+    public void removeRealmRole(String userId, String roleName) {
+        RoleRepresentation[] assigned = call(
+                "removeRealmRole",
+                () -> restClient
+                        .get()
+                        .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .retrieve()
+                        .body(RoleRepresentation[].class));
+        RoleRepresentation role = assigned == null
+                ? null
+                : Arrays.stream(assigned)
+                        .filter(candidate -> roleName.equals(candidate.name()))
+                        .findFirst()
+                        .orElse(null);
+        if (role == null) {
+            return;
+        }
+        call(
+                "removeRealmRole",
+                () -> restClient
+                        .method(HttpMethod.DELETE)
+                        .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(List.of(Map.of("id", role.id(), "name", role.name())))
+                        .retrieve()
+                        .toBodilessEntity());
     }
 
     @Override

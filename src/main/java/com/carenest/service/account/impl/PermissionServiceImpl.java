@@ -23,11 +23,13 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.repository.account.UserPermissionOverrideRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EffectivePermissionResolver;
+import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.service.account.PermissionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
+import com.carenest.utils.enums.PermissionScope;
 import com.carenest.utils.enums.PermissionState;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,6 +72,7 @@ public class PermissionServiceImpl implements PermissionService {
     private final IdentityProviderClient identityProviderClient;
     private final PermissionMapper permissionMapper;
     private final TransactionTemplate transactionTemplate;
+    private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
 
     @Override
     public List<PermissionResponse> getPermissionCatalog() {
@@ -223,7 +226,7 @@ public class PermissionServiceImpl implements PermissionService {
             if (hasFixedPrivilegedRole || roles.stream().noneMatch(Permission::isConfigurableRole)) {
                 throw GlobalException.of(ApiCode.PERMISSIONS_NOT_OVERRIDABLE);
             }
-            Map<Permission, PermissionEffect> requested = toRequestedOverrides(request.overrides(), roles);
+            Map<Permission, Requested> requested = toRequestedOverrides(request.overrides(), roles);
 
             transactionTemplate.executeWithoutResult(
                     status -> replaceOverrides(actor.userId(), userId, requested, request.reason()));
@@ -305,10 +308,10 @@ public class PermissionServiceImpl implements PermissionService {
                         .toList());
     }
 
-    private Map<Permission, PermissionEffect> toRequestedOverrides(List<OverrideItem> items, Set<CareNestRole> roles) {
-        Map<Permission, PermissionEffect> requested = new EnumMap<>(Permission.class);
+    private Map<Permission, Requested> toRequestedOverrides(List<OverrideItem> items, Set<CareNestRole> roles) {
+        Map<Permission, Requested> requested = new EnumMap<>(Permission.class);
         for (OverrideItem item : items) {
-            if (requested.put(item.permission(), item.effect()) != null) {
+            if (requested.put(item.permission(), new Requested(item.effect(), scopeOf(item))) != null) {
                 throw GlobalException.of(ApiCode.PERMISSION_DUPLICATED, item.permission());
             }
             if (!EffectivePermissionResolver.isConfigurableForAny(item.permission(), roles)) {
@@ -318,16 +321,28 @@ public class PermissionServiceImpl implements PermissionService {
         return requested;
     }
 
-    private void replaceOverrides(
-            Long actorUserId, Long userId, Map<Permission, PermissionEffect> requested, String reason) {
+    // AUTH-20: phạm vi chỉ đi với GRANT; cả trường chỉ cho mã sửa theo mảng; bỏ trống ⇒ điểm trường phân công
+    private static PermissionScope scopeOf(OverrideItem item) {
+        if (item.scope() == null) {
+            return UserPermissionOverride.defaultScope(item.effect());
+        }
+        boolean valid = item.effect() == PermissionEffect.GRANT
+                && (item.scope() == PermissionScope.CAMPUS || item.permission().campusScoped());
+        if (!valid) {
+            throw GlobalException.of(ApiCode.INVALID_VALUE, "scope");
+        }
+        return item.scope();
+    }
+
+    private void replaceOverrides(Long actorUserId, Long userId, Map<Permission, Requested> requested, String reason) {
         Map<String, UserPermissionOverride> current = userPermissionOverrideRepository.findByUserId(userId).stream()
                 .collect(Collectors.toMap(
                         UserPermissionOverride::getPermissionCode,
                         Function.identity(),
                         (a, b) -> a,
                         LinkedHashMap::new));
-        Map<String, PermissionEffect> requestedByCode = new LinkedHashMap<>();
-        requested.forEach((permission, effect) -> requestedByCode.put(permission.name(), effect));
+        Map<String, Requested> requestedByCode = new LinkedHashMap<>();
+        requested.forEach((permission, item) -> requestedByCode.put(permission.name(), item));
 
         Set<String> codes = new LinkedHashSet<>(current.keySet());
         codes.addAll(requestedByCode.keySet());
@@ -338,18 +353,28 @@ public class PermissionServiceImpl implements PermissionService {
         for (String code : codes) {
             UserPermissionOverride existing = current.get(code);
             PermissionEffect before = existing == null ? null : existing.getEffect();
-            PermissionEffect after = requestedByCode.get(code);
-            if (before == after) {
+            PermissionScope beforeScope = existing == null ? null : existing.getScope();
+            Requested wanted = requestedByCode.get(code);
+            PermissionEffect after = wanted == null ? null : wanted.effect();
+            PermissionScope afterScope = wanted == null ? null : wanted.scope();
+            if (before == after && beforeScope == afterScope) {
                 continue;
             }
             changes.add(PermissionChangeLog.forUser(
-                    batchId, actorUserId, userId, code, PermissionState.of(before), PermissionState.of(after), reason));
+                            batchId,
+                            actorUserId,
+                            userId,
+                            code,
+                            PermissionState.of(before),
+                            PermissionState.of(after),
+                            reason)
+                    .withScopes(beforeScope, afterScope));
             if (after == null) {
                 toDelete.add(existing);
             } else if (existing == null) {
-                toSave.add(UserPermissionOverride.create(userId, code, after, reason, actorUserId));
+                toSave.add(UserPermissionOverride.create(userId, code, after, afterScope, reason, actorUserId));
             } else {
-                existing.change(after, reason, actorUserId);
+                existing.change(after, afterScope, reason, actorUserId);
                 toSave.add(existing);
             }
         }
@@ -363,21 +388,28 @@ public class PermissionServiceImpl implements PermissionService {
         return userAccountRepository.findById(userId).orElseThrow(() -> GlobalException.of(ApiCode.ACCOUNT_NOT_FOUND));
     }
 
-    // Keycloak là nguồn role (ADR-0011); bỏ qua role không thuộc CareNest
+    // Keycloak là nguồn role (ADR-0011); bỏ qua role không thuộc CareNest. Cộng TEAM_LEADER khi đang là tổ trưởng
+    // để ngoại lệ từng người áp được cho quyền của cột này (AUTH-23)
     private Set<CareNestRole> rolesOf(UserAccount account) {
+        Set<CareNestRole> loginRoles;
         try {
-            return identityProviderClient.getRealmRoleNames(account.getKeycloakUserId()).stream()
+            loginRoles = identityProviderClient.getRealmRoleNames(account.getKeycloakUserId()).stream()
                     .map(CareNestRole::fromKeycloakRole)
                     .flatMap(Optional::stream)
                     .collect(Collectors.toCollection(() -> EnumSet.noneOf(CareNestRole.class)));
         } catch (IdentityProviderException ex) {
             throw GlobalException.withCause(ApiCode.IDENTITY_PROVIDER_UNAVAILABLE, ex);
         }
+        return EffectivePermissionResolver.permissionRoles(
+                loginRoles, teamLeaderAssignmentChecker.isActiveTeamLeader(account.getId(), loginRoles));
     }
 
     private static Set<Permission> toEnumSet(List<Permission> permissions) {
         return permissions.isEmpty() ? EnumSet.noneOf(Permission.class) : EnumSet.copyOf(permissions);
     }
+
+    /** Ngoại lệ được yêu cầu cho một mã: GRANT/REVOKE và phạm vi (chỉ GRANT có). */
+    private record Requested(PermissionEffect effect, PermissionScope scope) {}
 
     private static PermissionState onOff(boolean on) {
         return on ? PermissionState.ON : PermissionState.OFF;

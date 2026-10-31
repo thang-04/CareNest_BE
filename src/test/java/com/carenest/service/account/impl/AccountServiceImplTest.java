@@ -9,6 +9,7 @@ import com.carenest.dto.account.MyAccountResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
@@ -19,6 +20,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class AccountServiceImplTest {
@@ -30,8 +32,9 @@ class AccountServiceImplTest {
     private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
     private final GuardianChildLinkService guardianChildLinkService = mock(GuardianChildLinkService.class);
     private final UserAccountRepository userAccountRepository = mock(UserAccountRepository.class);
+    private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
     private final AccountServiceImpl accountService = new AccountServiceImpl(
-            staffAssignmentService, guardianChildLinkService, userAccountRepository, FIXED_CLOCK);
+            staffAssignmentService, guardianChildLinkService, enrollmentService, userAccountRepository, FIXED_CLOCK);
 
     @Test
     void teamLeaderAssignmentCountsForTeacherToken() {
@@ -78,6 +81,19 @@ class AccountServiceImplTest {
 
         assertThat(response.childIds()).containsExactly(101L);
         assertThat(response.roles()).containsExactly(CareNestRole.PARENT);
+    }
+
+    @Test
+    @DisplayName("CHD-04: trẻ đã ra trường không còn trong childIds, trẻ còn học vẫn có")
+    void parentChildIdsExcludeChildrenWhoLeftSchool() {
+        CurrentUser parent = user(CareNestRole.PARENT);
+        given(staffAssignmentService.findActiveAssignments(parent.userId(), TODAY))
+                .willReturn(List.of());
+        given(guardianChildLinkService.findChildIdsOfGuardian(parent.userId())).willReturn(List.of(101L, 102L));
+        given(enrollmentService.findChildIdsLeftSchool(List.of(101L, 102L), TODAY))
+                .willReturn(Set.of(102L));
+
+        assertThat(accountService.getMyAccount(parent).childIds()).containsExactly(101L);
     }
 
     private static CurrentUser user(CareNestRole... roles) {

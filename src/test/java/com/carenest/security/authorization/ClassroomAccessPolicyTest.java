@@ -17,7 +17,9 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 class ClassroomAccessPolicyTest {
@@ -91,5 +93,32 @@ class ClassroomAccessPolicyTest {
         assertThatThrownBy(() -> policy.checkCanViewClassroom(principal, 999L))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage(ApiCode.CLASS_ACCESS_DENIED.getDefaultDesc());
+        assertThatThrownBy(() -> policy.checkCanReadClassroom(principal, 999L))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.CLASS_ACCESS_DENIED.getDefaultDesc());
+    }
+
+    @Test
+    void assignedTeacherCanReadOwnClassroomOnly() {
+        CurrentUser teacher = user(CareNestRole.TEACHER);
+        given(staffAssignmentService.hasActiveTeacherAssignment(teacher.userId(), CLASS_A1, TODAY))
+                .willReturn(true);
+
+        assertThat(policy.canReadClassroom(teacher, CLASS_A1)).isTrue();
+        assertThat(policy.canReadClassroom(teacher, CLASS_B1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: PHT còn phân công đọc được lớp campus khác nhưng không thao tác được")
+    void vicePrincipalReadsButCannotActOnOtherCampusClassroom() {
+        CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+
+        assertThat(policy.canReadClassroom(vicePrincipal, CLASS_B1)).isTrue();
+        assertThat(policy.canViewClassroom(vicePrincipal, CLASS_B1)).isFalse();
     }
 }

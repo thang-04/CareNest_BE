@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -104,11 +105,13 @@ class CampusServiceIntegrationTest {
     }
 
     @Test
-    void vicePrincipalOnlySeesAssignedCampus() {
+    @DisplayName("AUTH-20: PHT còn phân công xem mọi điểm trường, chỉ xem")
+    void vicePrincipalSeesEveryCampus() {
         assertThat(service.getCampuses(vicePrincipal, null))
                 .extracting(CampusResponse::id)
-                .containsExactly(campusA);
-        assertThatThrownBy(() -> service.getCampusDetail(vicePrincipal, campusB, null))
+                .containsExactly(campusA, campusB);
+        assertThat(service.getCampusDetail(vicePrincipal, campusB, null)).isNotNull();
+        assertThatThrownBy(() -> service.updateCampus(vicePrincipal, campusB, null))
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
                 .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());

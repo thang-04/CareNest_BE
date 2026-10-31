@@ -79,7 +79,7 @@ topics:
   cross-repo:     [docs/system/CROSS_REPO_MAP.md]
   memory:         [docs/knowledge/ISSUE_INDEX.md, docs/knowledge/CROSS_MODULE_ISSUES.md, docs/knowledge/KNOWN_ISSUES.md, docs/knowledge/PATTERNS.md, docs/knowledge/TROUBLESHOOTING.md]
   quality:        [docs/quality/DEFINITION_OF_DONE.md, docs/quality/VERIFICATION.md, docs/quality/TEST_STRATEGY.md, docs/quality/NFR.md]
-  operations:     [README.md, .env.example, compose.yaml, src/main/resources/application.yml, docs/knowledge/TROUBLESHOOTING.md]   # DEPLOYMENT: skeleton
+  operations:     [README.md, .env.example, compose.yaml, src/main/resources/application.yml, docs/knowledge/TROUBLESHOOTING.md, docs/system/DEPLOYMENT.md, compose.vps.yaml, deploy/, .github/workflows/deploy.yml]
   decisions:      [docs/decisions/]
   coding-rules:   [docs/backend-coding-guide.md, .claude/rules/]
 
@@ -104,8 +104,7 @@ available:
   api_snapshot: [docs/api/openapi.yaml]   # hợp đồng API, khóa bởi OpenApiSnapshotTest
   harness: [docs/quality/VERIFICATION.md, .githooks/, scripts/verify.mjs, src/test/java/com/carenest/architecture/ArchitectureRulesTest.java, docs/plans/_TEMPLATE.md, docs/decisions/ADR-0012-engineering-harness.md, .gitattributes, .editorconfig, scripts/check-ai-layer.mjs, scripts/ai-layer/, .claude/hooks/harness.config.json]   # quy trình làn S/M/L + cổng (ADR-0012)
   skills: [.agents/skills/, .claude/skills/]
-  skeleton_only:   # tồn tại nhưng chưa có nội dung — không dùng làm nguồn
-    - docs/system/DEPLOYMENT.md
+  skeleton_only: []   # tồn tại nhưng chưa có nội dung — không dùng làm nguồn
 
 planned:
   - CONTRIBUTING.md

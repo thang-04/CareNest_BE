@@ -158,6 +158,25 @@ class StaffAccessPolicyTest {
         assertThatCode(() -> policy.checkCanManageParent(PRINCIPAL, 61L)).doesNotThrowAnyException();
     }
 
+    @Test
+    @DisplayName("AUTH-20: PHT xem được mọi cơ sở nhưng chỉ quản lý tài khoản, phân công, phụ huynh campus mình")
+    void readAllCampusesDoesNotExtendManagementScope() {
+        CurrentUser viewer = new CurrentUser(3L, "kc-3", "u3", "U", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        given(assignments.findActiveCampusIds(41L, StaffRole.TEACHER, TODAY)).willReturn(Set.of(CAMPUS_B));
+        given(guardianLinks.findChildIdsOfGuardian(61L)).willReturn(List.of(201L));
+        given(enrollments.findActiveClassroomIdByChildIds(Set.of(201L), TODAY)).willReturn(Map.of(201L, 21L));
+        given(enrollments.findActiveClassroomIdByChildIds(List.of(201L), TODAY)).willReturn(Map.of(201L, 21L));
+        stubClassroomCampuses();
+
+        assertThat(policy.managedCampusIds(viewer)).containsExactly(CAMPUS_A);
+        assertDenied(() -> policy.checkCanViewCampus(viewer, CAMPUS_B));
+        assertDenied(() -> policy.checkCanCreate(viewer, CareNestRole.TEACHER, CAMPUS_B));
+        assertDenied(() -> policy.checkCanAssign(viewer, StaffRole.TEACHER, CAMPUS_B));
+        assertThat(policy.canManageAccount(viewer, 41L, CareNestRole.TEACHER)).isFalse();
+        assertDenied(() -> policy.checkCanManageChildGuardians(viewer, 201L));
+        assertDenied(() -> policy.checkCanManageParent(viewer, 61L));
+    }
+
     // Lớp 11 thuộc campus A, lớp 21 thuộc campus B
     private void stubClassroomCampuses() {
         given(classrooms.findCampusIds(anyCollection())).willAnswer(invocation -> {

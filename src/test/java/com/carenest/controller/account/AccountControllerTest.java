@@ -72,7 +72,7 @@ class AccountControllerTest {
     private AccountQueryService accountQueryService;
 
     private static final String CREATE_TEACHER_JSON = """
-            {"username":"teacher.c","fullName":"Giáo viên C","email":"teacher.c@example.test",
+            {"phone":"0912 000 001","fullName":"Giáo viên C","email":"teacher.c@example.test",
              "role":"TEACHER","temporaryPassword":"Temp-Pass-1"}""";
 
     @Test
@@ -88,6 +88,7 @@ class AccountControllerTest {
                         null,
                         List.of(CareNestRole.TEACHER, CareNestRole.PARENT),
                         List.of(Permission.CHILD_PROFILE_VIEW),
+                        List.of(),
                         List.of(new StaffAssignmentSummaryResponse(
                                 StaffRole.TEACHER, null, 11L, null, LocalDate.of(2026, 9, 1), null)),
                         List.of(101L)));
@@ -167,10 +168,10 @@ class AccountControllerTest {
         mockMvc.perform(post("/api/accounts")
                         .with(adminToken())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"username\":\"bad name!\",\"fullName\":\"\",\"temporaryPassword\":\"short\"}"))
+                        .content("{\"phone\":\"\",\"fullName\":\"\",\"temporaryPassword\":\"short\"}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400))
-                .andExpect(jsonPath("$.data[?(@.field == 'username')]").exists())
+                .andExpect(jsonPath("$.data[?(@.field == 'phone')]").exists())
                 .andExpect(jsonPath("$.data[?(@.field == 'fullName')]").exists())
                 .andExpect(jsonPath("$.data[?(@.field == 'role')]").exists())
                 .andExpect(jsonPath("$.data[?(@.field == 'temporaryPassword')]").exists());
@@ -230,7 +231,15 @@ class AccountControllerTest {
         CurrentUser fromToken = authenticateAs(CareNestRole.TEACHER);
         given(accountService.getMyAccount(eq(fromToken)))
                 .willReturn(new MyAccountResponse(
-                        1L, "demo.user", "Demo", null, List.of(CareNestRole.TEACHER), List.of(), List.of(), List.of()));
+                        1L,
+                        "demo.user",
+                        "Demo",
+                        null,
+                        List.of(CareNestRole.TEACHER),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of()));
 
         mockMvc.perform(get(MY_ACCOUNT + "?userId=999&keycloakUserId=kc-admin&roles=ADMIN")
                         .with(jwt()))
@@ -284,5 +293,24 @@ class AccountControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"temporaryPassword\":\"short\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("HT thu hồi vai trò nhân sự của GV vẫn là phụ huynh; GV không có ACCOUNT_MANAGE ⇒ 403")
+    void principalRevokesStaffRole() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(accountProvisioningService.revokeStaffRole(principal, 42L))
+                .willReturn(new AccountResponse(42L, "0912345678", "GV A", null, UserStatus.ACTIVE));
+
+        mockMvc.perform(post("/api/accounts/42/staff-role/revoke")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.userId").value(42));
+
+        authenticateAs(CareNestRole.TEACHER);
+        mockMvc.perform(post("/api/accounts/42/staff-role/revoke")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
+                .andExpect(status().isForbidden());
     }
 }

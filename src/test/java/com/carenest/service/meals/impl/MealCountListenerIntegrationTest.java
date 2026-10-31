@@ -7,6 +7,7 @@ import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest.Entry;
 import com.carenest.dto.meals.MealCountResponse;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.TestPermissions;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.meals.MealCountService;
@@ -135,7 +136,8 @@ class MealCountListenerIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        return new CurrentUser(
+                id, "kc-" + username, username, username, null, Set.of(role), TestPermissions.defaultsOf(role));
     }
 
     private long insertId(String sql) {
