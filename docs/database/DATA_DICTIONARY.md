@@ -208,6 +208,19 @@ Mục đích: điểm danh và tham gia ăn của một trẻ trong một ngày 
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `(classroom_id, date)`.
 
+## leave_requests  (module: attendance, scope: CHILD)
+
+Mục đích: đơn nghỉ phụ huynh gửi qua App (ATT-04, ATT-05, ATT-05b), không duyệt. Migration: V47. Tạo đơn ghi `attendance_records` Vắng có phép, không suất cho các ngày học chưa qua giờ chốt (`recorded_by` = phụ huynh); hủy bỏ các bản ghi đó từ ngày chưa qua giờ chốt.
+
+| Cột | Kiểu | Null | Ghi chú |
+| --- | --- | --- | --- |
+| child_id | BIGINT FK children | không | |
+| from_date, to_date | DATE | không | CHECK `to_date >= from_date` |
+| reason | VARCHAR(500) | không | |
+| created_by | BIGINT FK user_accounts | không | Phụ huynh gửi |
+| cancelled_from | DATE | có | Hủy từ ngày này; hiệu lực tới `cancelled_from - 1` |
+| cancelled_by, cancelled_at | BIGINT FK, TIMESTAMPTZ | có | |
+
 ## attendance_record_history  (module: attendance, scope: CLASS)
 Mục đích: lịch sử ghi/sửa từng bản ghi điểm danh (chỉ thêm). Migration: V21.
 | Column | Type | Null | Ý nghĩa | Rule ID |

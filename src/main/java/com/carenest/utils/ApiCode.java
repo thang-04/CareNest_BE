@@ -248,6 +248,14 @@ public enum ApiCode {
     UNLOCK_ALREADY_ACTIVE(4015, HttpStatus.CONFLICT, "Lớp/ngày này đang có lần mở lại còn hiệu lực"),
     UNLOCK_ALREADY_ENDED(4016, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
     LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, báo nghỉ cần xác nhận lại số suất"),
+    LEAVE_NOT_GUARDIAN(4018, HttpStatus.FORBIDDEN, "Bạn chỉ báo nghỉ được cho con mình"),
+    LEAVE_DATE_RANGE_INVALID(4019, HttpStatus.BAD_REQUEST, "Ngày kết thúc không được trước ngày bắt đầu"),
+    LEAVE_DATE_IN_PAST(4020, HttpStatus.BAD_REQUEST, "Không báo nghỉ cho ngày đã qua"),
+    LEAVE_NO_SCHOOL_DAY(4021, HttpStatus.BAD_REQUEST, "Không còn ngày học nào trước giờ chốt trong khoảng đã chọn"),
+    LEAVE_OVERLAP(4022, HttpStatus.CONFLICT, "Đã có đơn nghỉ trùng ngày {0}"),
+    LEAVE_NOT_FOUND(4023, HttpStatus.NOT_FOUND, "Không tìm thấy đơn nghỉ"),
+    LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
+    LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
 
     // ========== 50xx SỨC KHỎE ==========
     HEALTH_OVERVIEW_ACCESS_DENIED(5001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp sức khỏe"),

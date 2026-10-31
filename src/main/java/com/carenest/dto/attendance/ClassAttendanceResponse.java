@@ -22,7 +22,9 @@ public record ClassAttendanceResponse(
         List<ChildRow> children) {
 
     /** health: sức khỏe trong ngày theo lần ghi nhận mới nhất; checked = false khi chưa khám. */
-    public record ChildRow(ChildBrief child, RecordView record, HealthSummary health) {}
+    /** leave: đơn nghỉ phụ huynh còn hiệu lực ngày này (nhãn "Phụ huynh báo nghỉ", ATT-04); null nếu không có. */
+    public record ChildRow(
+            ChildBrief child, RecordView record, HealthSummary health, LeaveRequestDtos.LeaveTag leave) {}
 
     /** Lần ghi nhận mới nhất trong ngày; temperatureLevel null khi không đo. */
     public record HealthSummary(

@@ -12,6 +12,7 @@ import com.carenest.dto.attendance.ClassAttendanceResponse.ChildRow;
 import com.carenest.dto.attendance.ClassAttendanceResponse.HealthSummary;
 import com.carenest.dto.attendance.ClassAttendanceResponse.RecordView;
 import com.carenest.dto.attendance.DayInfoResponse;
+import com.carenest.dto.attendance.LeaveRequestDtos.LeaveTag;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceResponse;
 import com.carenest.dto.child.ClassChildResponse;
@@ -19,10 +20,12 @@ import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.DailyHealthEntry;
+import com.carenest.entity.attendance.LeaveRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
+import com.carenest.repository.attendance.LeaveRequestRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
@@ -72,6 +75,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final EnrollmentService enrollmentService;
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
+    private final LeaveRequestRepository leaveRequestRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -153,11 +157,14 @@ public class AttendanceServiceImpl implements AttendanceService {
                             .findByClassroomIdInAndDateOrderByRecordedAtDescIdDesc(List.of(classId), day)
                             .stream()
                             .collect(Collectors.groupingBy(DailyHealthEntry::getChildId));
+            Map<Long, LeaveTag> leaves =
+                    leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day);
             List<ChildRow> rows = children.stream()
                     .map(ch -> new ChildRow(
                             toBrief(ch),
                             toView(records.get(ch.id()), cls.mealSessions(), names),
-                            toHealth(health.getOrDefault(ch.id(), List.of()))))
+                            toHealth(health.getOrDefault(ch.id(), List.of())),
+                            leaves.get(ch.id())))
                     .toList();
             ClassAttendanceResponse sheet = new ClassAttendanceResponse(
                     rules.dayInfo(day, cls, null),
@@ -382,6 +389,19 @@ public class AttendanceServiceImpl implements AttendanceService {
                 absent,
                 childIds.size() - present - absent,
                 meals);
+    }
+
+    // ATT-04: đơn nghỉ còn hiệu lực của trẻ trong ngày (đơn đã hủy từ ngày này trở đi thì không tính)
+    private Map<Long, LeaveTag> leaveTags(Set<Long> childIds, LocalDate date) {
+        if (childIds.isEmpty()) {
+            return Map.of();
+        }
+        return leaveRequestRepository.findOverlapping(childIds, date, date).stream()
+                .filter(r -> r.coversDate(date))
+                .collect(Collectors.toMap(
+                        LeaveRequest::getChildId,
+                        r -> new LeaveTag(r.getId(), r.getFromDate(), r.effectiveTo(), r.getReason()),
+                        (a, b) -> a));
     }
 
     private ClassroomInfoResponse findClass(Long classId) {

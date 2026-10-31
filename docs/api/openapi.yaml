@@ -2804,6 +2804,91 @@ paths:
           description: Created
       tags:
       - edu-year-plan-controller
+  /api/leave-requests:
+    get:
+      operationId: searchLeaveRequests
+      parameters:
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListLeaveRequestResponse"
+          description: OK
+      tags:
+      - leave-request-controller
+    post:
+      operationId: createLeaveRequest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLeaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLeaveRequestResponse"
+          description: OK
+      tags:
+      - leave-request-controller
+  /api/leave-requests/me:
+    get:
+      operationId: findMyLeaveRequests
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListLeaveRequestResponse"
+          description: OK
+      tags:
+      - leave-request-controller
+  /api/leave-requests/{leaveRequestId}/cancel:
+    patch:
+      operationId: cancelLeaveRequest
+      parameters:
+      - in: path
+        name: leaveRequestId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLeaveRequestResponse"
+          description: OK
+      tags:
+      - leave-request-controller
   /api/locations:
     get:
       operationId: getRooms
@@ -4584,6 +4669,8 @@ components:
           $ref: "#/components/schemas/ChildBrief"
         health:
           $ref: "#/components/schemas/HealthSummary"
+        leave:
+          $ref: "#/components/schemas/LeaveTag"
         record:
           $ref: "#/components/schemas/RecordView"
     ChildSummaryResponse:
@@ -5148,6 +5235,27 @@ components:
           format: int64
         username:
           type: string
+    CreateLeaveRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        fromDate:
+          type: string
+          format: date
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+        toDate:
+          type: string
+          format: date
+      required:
+      - childId
+      - fromDate
+      - reason
+      - toDate
     CreateStaffAssignmentRequest:
       type: object
       properties:
@@ -6128,8 +6236,8 @@ components:
           enum:
           - LOW
           - NORMAL
-          - WATCH
-          - FEVER
+          - MILD
+          - MODERATE
           - HIGH
           - VERY_HIGH
     History:
@@ -6389,6 +6497,73 @@ components:
         uploadedBy:
           type: integer
           format: int64
+    LeaveRequestResponse:
+      type: object
+      properties:
+        appliedDates:
+          type: array
+          items:
+            type: string
+            format: date
+        campusId:
+          type: integer
+          format: int64
+        cancelledAt:
+          type: string
+          format: date-time
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: integer
+          format: int64
+        createdByName:
+          type: string
+        effectiveTo:
+          type: string
+          format: date
+        fromDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        skippedDates:
+          type: array
+          items:
+            type: string
+            format: date
+        status:
+          type: string
+        toDate:
+          type: string
+          format: date
+    LeaveTag:
+      type: object
+      properties:
+        fromDate:
+          type: string
+          format: date
+        reason:
+          type: string
+        requestId:
+          type: integer
+          format: int64
+        toDate:
+          type: string
+          format: date
     Line:
       type: object
       properties:
@@ -7704,6 +7879,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonLeaveRequestResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/LeaveRequestResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListAgeGroupDetailResponse:
       type: object
       properties:
@@ -7939,6 +8127,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LearningResourceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListLeaveRequestResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/LeaveRequestResponse"
         desc:
           type: string
         errorCode:
