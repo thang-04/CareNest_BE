@@ -21,7 +21,7 @@ NUT-01..23 (NUT-14, NUT-15 REMOVED), AI-01..06. Flow: `docs/business/flows/meal-
 - Event phát: `MealCountConfirmed`, `MealPlanApproved` (notification bếp).
 
 ## API & bảng
-`GET /meal-counts`, `POST /meal-counts/{id}/confirm`, `POST /meal-counts/adjustments` (`MealCountController`). Bảng `meal_counts`, `meal_count_lines`, `meal_count_history` (V26), vai trò người xác nhận (V29). Tổng hợp lười: lần đầu mở sổ sau giờ chốt (chưa có job). Code: xác nhận theo bản Cần chốt 27/10 (HT mọi điểm trường, PHT điểm trường mình); điều chỉnh (có lý do) chỉ PHT điểm trường — đối chiếu lại NUT-01..04 (khảo sát 28/10: có mặt là ăn, HT xác nhận thay khi PHT vắng, sai thì trả GV qua mở lại điểm danh). Bếp chưa có BE: FE bếp đọc số đã xác nhận từ `GET /meal-counts`, `confirmedAt` mới ⇒ nhãn "Mới" thay thông báo.
+`GET /meal-counts`, `POST /meal-counts/{id}/confirm`, `POST /meal-counts/adjustments` (`MealCountController`). Bảng `meal_counts`, `meal_count_lines`, `meal_count_history` (V26), vai trò người xác nhận (V29). Tổng hợp lười: lần đầu mở sổ sau giờ chốt (chưa có job). Code: xác nhận/điều chỉnh theo mã `MEAL_COUNT_CONFIRM` + phạm vi (AUTH-20, ADR-0023, 31/10): HT mọi điểm trường; PHT mặc định ở điểm trường mình, HT thu hồi hoặc GRANT phạm vi cả trường; mọi PHT còn phân công xem số suất mọi điểm trường; điều chỉnh (có lý do) chỉ PHT — đối chiếu lại NUT-01..04 (khảo sát 28/10: có mặt là ăn, HT xác nhận thay khi PHT vắng, sai thì trả GV qua mở lại điểm danh). Bếp chưa có BE: FE bếp đọc số đã xác nhận từ `GET /meal-counts`, `confirmedAt` mới ⇒ nhãn "Mới" thay thông báo.
 
 Phần chưa có API — thiết kế bảng (PROPOSED, chưa migration): `MEAL_NUTRITION_AI_SCHEMA.md` (file thiết kế của dev, chưa có trong repo) §3–§6; nháp AI (`ai_drafts`).
 

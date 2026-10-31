@@ -47,16 +47,47 @@ public class CampusAccessPolicy {
         }
     }
 
-    public boolean canReadCampus(CurrentUser user, Long campusId) {
-        if (canViewCampus(user, campusId)) {
+    /** AUTH-20 (chốt 31/10): HT và PHT còn phân công đọc dữ liệu trường ở mọi campus, chỉ xem. */
+    public boolean canReadAllCampuses(CurrentUser user) {
+        LocalDate today = LocalDate.now(clock);
+        if (user.hasRole(CareNestRole.PRINCIPAL)
+                && staffAssignmentService.hasActivePrincipalAssignment(user.userId(), today)) {
             return true;
         }
-        // AUTH-20: xem liên cơ sở chỉ đọc, vẫn phải đang là PHT của ít nhất một campus
         return user.hasRole(CareNestRole.VICE_PRINCIPAL)
-                && user.hasPermission(Permission.ALL_CAMPUS_VIEW)
                 && !staffAssignmentService
-                        .findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, LocalDate.now(clock))
+                        .findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, today)
                         .isEmpty();
+    }
+
+    // Đọc không phụ thuộc campus nào: ai đọc được thì đọc mọi campus (AUTH-20)
+    public boolean canReadCampus(CurrentUser user, Long campusId) {
+        return canReadAllCampuses(user);
+    }
+
+    /**
+     * AUTH-20: sửa việc của một mảng = có mã quyền (ma trận/GRANT) và campus nằm trong phạm vi: HT mọi campus; PHT
+     * được GRANT phạm vi cả trường thì mọi campus (vẫn cần phân công PHT), còn lại campus đang phân công.
+     */
+    public boolean canEditCampus(CurrentUser user, Permission permission, Long campusId) {
+        if (!user.hasPermission(permission)) {
+            return false;
+        }
+        LocalDate today = LocalDate.now(clock);
+        if (user.hasRole(CareNestRole.PRINCIPAL)
+                && staffAssignmentService.hasActivePrincipalAssignment(user.userId(), today)) {
+            return true;
+        }
+        if (!user.hasRole(CareNestRole.VICE_PRINCIPAL)) {
+            return false;
+        }
+        if (user.hasSchoolWidePermission(permission)) {
+            return !staffAssignmentService
+                    .findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, today)
+                    .isEmpty();
+        }
+        return staffAssignmentService.hasActiveCampusAssignment(
+                user.userId(), StaffRole.VICE_PRINCIPAL, campusId, today);
     }
 
     public void checkCanReadCampus(CurrentUser user, Long campusId) {

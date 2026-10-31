@@ -102,6 +102,7 @@ class AuthServiceImplTest {
                 List.of(CareNestRole.TEACHER),
                 List.of(),
                 List.of(),
+                List.of(),
                 List.of());
         service = new AuthServiceImpl(
                 new AuthProperties(

@@ -3,7 +3,6 @@ package com.carenest.security.authorization;
 import static com.carenest.security.authorization.CampusAccessPolicyTest.FIXED_CLOCK;
 import static com.carenest.security.authorization.CampusAccessPolicyTest.TODAY;
 import static com.carenest.security.authorization.CampusAccessPolicyTest.user;
-import static com.carenest.security.authorization.CampusAccessPolicyTest.userWith;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -20,7 +19,6 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
-import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.util.List;
 import java.util.Optional;
@@ -121,9 +119,9 @@ class ChildAccessPolicyTest {
     }
 
     @Test
-    @DisplayName("AUTH-20: PHT có xem liên cơ sở đọc được hồ sơ trẻ campus khác nhưng không thao tác được")
-    void allCampusViewOpensReadButNotActionOnOtherCampusChild() {
-        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+    @DisplayName("AUTH-20: PHT còn phân công đọc được hồ sơ trẻ campus khác nhưng không thao tác được")
+    void vicePrincipalReadsButCannotActOnOtherCampusChild() {
+        CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
         given(staffAssignmentService.hasActiveCampusAssignment(
                         vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
                 .willReturn(true);

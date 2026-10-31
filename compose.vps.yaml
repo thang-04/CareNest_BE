@@ -26,7 +26,7 @@ services:
       retries: 10
 
   keycloak:
-    image: ${KEYCLOAK_IMAGE:?KEYCLOAK_IMAGE is set by CI, e.g. thangnd04/carenest-be:keycloak-<git-sha>}
+    image: ${KEYCLOAK_IMAGE:?KEYCLOAK_IMAGE is set by CI, e.g. thangnd04/carenest-be:keycloak-<content-hash>}
     network_mode: host
     restart: unless-stopped
     # Không --optimized: KC_CACHE khác lúc build image ⇒ Keycloak tự build lại khi khởi động
@@ -80,7 +80,7 @@ services:
       MP_UI_BIND_ADDR: 127.0.0.1:18341
 
   api:
-    image: ${API_IMAGE:?API_IMAGE is set by CI, e.g. thangnd04/carenest-be:api-<git-sha>}
+    image: ${API_IMAGE:?API_IMAGE is set by CI, e.g. thangnd04/carenest-be:api-<content-hash>}
     network_mode: host
     restart: unless-stopped
     depends_on:

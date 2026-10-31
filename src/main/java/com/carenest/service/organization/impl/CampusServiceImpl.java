@@ -3,7 +3,6 @@ package com.carenest.service.organization.impl;
 import com.carenest.dto.organization.CampusDetailResponse;
 import com.carenest.dto.organization.CampusRequest;
 import com.carenest.dto.organization.CampusResponse;
-import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.dto.organization.StaffBriefResponse;
 import com.carenest.entity.organization.AgeGroup;
 import com.carenest.entity.organization.Campus;
@@ -20,6 +19,7 @@ import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
@@ -59,6 +59,7 @@ public class CampusServiceImpl implements CampusService {
     private final StaffAssignmentService staffAssignmentService;
     private final CampusMapper campusMapper;
     private final YearSnapshotReader yearSnapshotReader;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
 
     @Override
@@ -68,9 +69,10 @@ public class CampusServiceImpl implements CampusService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
-            List<Campus> campuses = isPrincipal(currentUser, today)
+            // AUTH-20: HT và PHT còn phân công xem mọi điểm trường
+            List<Campus> campuses = campusAccessPolicy.canReadAllCampuses(currentUser)
                     ? campusRepository.findAllByOrderByMainDescCodeAsc()
-                    : campusRepository.findAllByIdInOrderByMainDescCodeAsc(vicePrincipalCampusIds(currentUser, today));
+                    : List.of();
             Long yearId = resolveSchoolYearId(schoolYearId);
             Map<Long, Long> classCounts =
                     yearId == null ? Map.of() : toMap(campusRepository.countClassesByCampus(yearId));
@@ -105,11 +107,7 @@ public class CampusServiceImpl implements CampusService {
         try {
             LocalDate today = LocalDate.now(clock);
             Campus campus = findCampus(campusId);
-            // AUTH-02: PHT chỉ xem điểm trường được phân công
-            if (!isPrincipal(currentUser, today)
-                    && !vicePrincipalCampusIds(currentUser, today).contains(campusId)) {
-                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
-            }
+            campusAccessPolicy.checkCanReadCampus(currentUser, campusId);
             Long yearId = resolveSchoolYearId(schoolYearId);
             List<Classroom> yearClasses = yearId == null
                     ? List.of()
@@ -340,16 +338,6 @@ public class CampusServiceImpl implements CampusService {
         if (!isPrincipal(currentUser, LocalDate.now(clock))) {
             throw GlobalException.of(ApiCode.PRINCIPAL_ONLY, "quản lý điểm trường");
         }
-    }
-
-    private Set<Long> vicePrincipalCampusIds(CurrentUser currentUser, LocalDate today) {
-        if (!currentUser.hasRole(CareNestRole.VICE_PRINCIPAL)) {
-            return Set.of();
-        }
-        return staffAssignmentService.findActiveAssignments(currentUser.userId(), today).stream()
-                .filter(a -> a.staffRole() == StaffRole.VICE_PRINCIPAL && a.campusId() != null)
-                .map(StaffAssignmentSummaryResponse::campusId)
-                .collect(Collectors.toSet());
     }
 
     // Không truyền năm học ⇒ dùng năm đang hoạt động; chưa có năm nào ⇒ số liệu theo năm bằng 0

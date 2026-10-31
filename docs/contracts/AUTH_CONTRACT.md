@@ -69,7 +69,7 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 ```json
 { "code": 200, "desc": "Get my account success",
   "data": { "userId": 12, "username": "teacher.a", "fullName": "...", "email": null, "roles": ["TEACHER"],
-            "permissions": ["CHILD_PROFILE_VIEW"],
+            "permissions": ["CHILD_PROFILE_VIEW"], "schoolWidePermissions": [],
             "assignments": [ { "staffRole": "TEACHER", "campusId": null, "classroomId": 3,
                                "validFrom": "2026-09-01", "validTo": null } ],
             "childIds": [] } }
@@ -78,6 +78,7 @@ Client xử lý 401: refresh token 1 lần rồi gọi lại; refresh thất b�
 - `assignments`: phân công **đang hiệu lực hôm nay** và khớp role trong token (`staffRole` PRINCIPAL: cả hai id null; VICE_PRINCIPAL/KITCHEN_STAFF: `campusId`; TEACHER: `classroomId`).
 - `childIds`: trẻ liên kết với tài khoản (chỉ khi có role PARENT).
 - `permissions`: quyền hiệu lực (ADR-0017) — dùng ẩn/hiện menu, route; đổi ngay khi Hiệu trưởng sửa ma trận/ngoại lệ (gọi lại `/accounts/me` để cập nhật).
+- `schoolWidePermissions` (thêm 31/10, AUTH-20): mã sửa theo mảng được GRANT phạm vi cả trường (tập con của `permissions`). Mã sửa theo mảng có trong `permissions` mà không có ở đây ⇒ chỉ sửa ở điểm trường đang phân công (`assignments`); xem thì PHT xem mọi điểm trường.
 
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
@@ -102,7 +103,7 @@ API nhận id (trẻ, lớp, campus) kiểm hai lớp: quyền (`@PreAuthorize("
 | Tình huống | HTTP / `code` | `desc` |
 | --- | --- | --- |
 | Không có `CHILD_PROFILE_VIEW` (KITCHEN_STAFF, ADMIN, người bị thu hồi) | 403 | `errorCode` 1101 `FORBIDDEN` |
-| Trẻ ngoài phạm vi hoặc id không tồn tại (PHT có `ALL_CAMPUS_VIEW` xem được trẻ đang học ở mọi campus — AUTH-20) | 403 | `errorCode` 3001 `CHILD_ACCESS_DENIED` |
+| Trẻ ngoài phạm vi hoặc id không tồn tại (PHT còn phân công xem được trẻ đang học ở mọi campus — AUTH-20) | 403 | `errorCode` 3001 `CHILD_ACCESS_DENIED` |
 | `childId` không phải số | 400 | `Malformed request` |
 
 `classroomId` = lớp trẻ đang học hôm nay (`null` nếu không có enrollment hiện tại — khi đó chỉ phụ huynh liên kết xem được).
@@ -181,15 +182,16 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 
 | Method + path | Body | `data` |
 | --- | --- | --- |
-| `GET /permissions` | — | `[{ code, module, description, defaultRoles[], configurableRoles[] }]` |
+| `GET /permissions` | — | `[{ code, module, description, defaultRoles[], configurableRoles[], campusScoped }]` — `campusScoped` = mã sửa theo mảng, GRANT nhận phạm vi (AUTH-20) |
 | `GET /role-permissions` | — | `[{ role, editable, configurablePermissions[], permissions[] }]` cho 6 role đăng nhập + cột `TEAM_LEADER` (AUTH-23: không phải role đăng nhập, áp cho GV đang có phân công tổ trưởng; chưa có quyền nào cấu hình được) |
 | `GET /role-permissions/{role}` | — | 1 phần tử như trên |
 | `PUT /role-permissions/{role}` | `{ "permissions": ["CHILD_PROFILE_VIEW"], "reason": "..." }` (thay toàn bộ ô đang bật) | như GET |
-| `GET /accounts/{userId}/permission-overrides` | — | `{ userId, roles[], configurablePermissions[], overrides: [{ permission, effect, reason, updatedBy, updatedAt }], effectivePermissions[] }` |
-| `PUT /accounts/{userId}/permission-overrides` | `{ "overrides": [{ "permission": "CHILD_PROFILE_VIEW", "effect": "GRANT" \| "REVOKE" }], "reason": "..." }` (thay toàn bộ; quyền bỏ khỏi danh sách = theo ma trận) | như GET |
-| `GET /permission-change-logs?targetRole=&targetUserId=&page=0&size=20` | — | `PageResponse` của `{ id, batchId, actorUserId, targetRole, targetUserId, permissionCode, beforeState, afterState, reason, changedAt }`, mới nhất trước |
+| `GET /accounts/{userId}/permission-overrides` | — | `{ userId, roles[], configurablePermissions[], overrides: [{ permission, effect, scope, reason, updatedBy, updatedAt }], effectivePermissions[] }` |
+| `PUT /accounts/{userId}/permission-overrides` | `{ "overrides": [{ "permission": "MEAL_COUNT_CONFIRM", "effect": "GRANT" \| "REVOKE", "scope": "CAMPUS" \| "SCHOOL" }], "reason": "..." }` (thay toàn bộ; quyền bỏ khỏi danh sách = theo ma trận; `scope` tùy chọn, bỏ trống với GRANT = `CAMPUS`) | như GET |
+| `GET /permission-change-logs?targetRole=&targetUserId=&page=0&size=20` | — | `PageResponse` của `{ id, batchId, actorUserId, targetRole, targetUserId, permissionCode, beforeState, afterState, beforeScope, afterScope, reason, changedAt }`, mới nhất trước |
 
-- `reason` bắt buộc (≤500 ký tự). `beforeState`/`afterState`: `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ).
+- `reason` bắt buộc (≤500 ký tự). `beforeState`/`afterState`: `ON`/`OFF` (ma trận), `GRANT`/`REVOKE`/`INHERIT` (ngoại lệ). `beforeScope`/`afterScope`: phạm vi GRANT (null với ma trận/REVOKE/INHERIT); đổi chỉ phạm vi cũng ghi một dòng `GRANT → GRANT`.
+- Phạm vi (AUTH-20, ADR-0023): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (vẫn cần phân công PHT còn hiệu lực). Ô ma trận bật = `CAMPUS`.
 - Role đích của ngoại lệ đọc từ Keycloak; `size` 1–100.
 
 | Tình huống | HTTP / `code` | `desc` |
@@ -201,6 +203,7 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 | Ngoại lệ cho chính mình (AUTH-12) | 400 | `You cannot change your own permissions` |
 | Ngoại lệ cho người có PRINCIPAL/ADMIN hoặc không có role cấu hình (vd. chỉ PARENT) | 403 | `Permissions of this account cannot be overridden` |
 | Ngoại lệ: quyền không áp dụng cho role của người đó / trùng quyền | 400 | `Permission <CODE> cannot be configured for this account` / `Duplicate permission <CODE>` |
+| `scope` đi với REVOKE, hoặc `SCHOOL` cho mã không theo mảng (`campusScoped=false`) | 400 | `errorCode` 9007 `INVALID_VALUE` ("Giá trị scope không hợp lệ") |
 | `userId` không tồn tại | 404 | `Account not found` |
 | Keycloak không khả dụng khi đọc role | 503 | `Identity provider is unavailable` |
 | Lọc lịch sử theo cả `targetRole` và `targetUserId` | 400 | `Filter by either targetRole or targetUserId` |
@@ -251,6 +254,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 - Web: màn ma trận quyền/ngoại lệ/lịch sử (`/school/roles`) đổi sang API phân quyền ở trên; bỏ mức F/R/N, mã dạng `user.manage` và role đăng nhập TEAM_LEADER của mock; tổ trưởng là GV có phân công, ma trận có cột `TEAM_LEADER` (AUTH-23).
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
+- PHT xem mọi cơ sở (AUTH-20, chốt 31/10): mã `ALL_CAMPUS_VIEW` đã bỏ khỏi `Permission` (V39 xóa dòng ma trận/ngoại lệ cũ; lịch sử giữ chuỗi gốc). FE bỏ mã này ở danh mục quyền/ngoại lệ (`permissionConstants.js`, `permissionCatalog.js`) và luôn hiện bộ lọc điểm trường cho PHT; gửi mã cũ trong `PUT .../permission-overrides` ⇒ 400.
 - Types: sinh lại từ `docs/api/openapi.yaml`.
 
 ## Còn chờ

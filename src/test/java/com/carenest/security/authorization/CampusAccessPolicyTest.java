@@ -65,33 +65,21 @@ class CampusAccessPolicyTest {
     }
 
     @Test
-    @DisplayName("AUTH-20: PHT không có quyền xem liên cơ sở thì không đọc được campus khác")
-    void vicePrincipalWithoutAllCampusViewCannotReadOtherCampus() {
+    @DisplayName("AUTH-20: PHT còn phân công đọc được mọi campus mà không cần quyền thêm")
+    void vicePrincipalWithActiveAssignmentReadsEveryCampus() {
         CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
-        given(staffAssignmentService.hasActiveCampusAssignment(
-                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
-                .willReturn(true);
         given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
                 .willReturn(Set.of(CAMPUS_A));
 
+        assertThat(policy.canReadAllCampuses(vicePrincipal)).isTrue();
         assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_A)).isTrue();
-        assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isFalse();
-    }
-
-    @Test
-    @DisplayName("AUTH-20: PHT được cấp xem liên cơ sở thì đọc được campus khác")
-    void vicePrincipalWithAllCampusViewCanReadOtherCampus() {
-        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
-        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
-                .willReturn(Set.of(CAMPUS_A));
-
         assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isTrue();
     }
 
     @Test
-    @DisplayName("AUTH-20: xem liên cơ sở chỉ mở đường đọc; phạm vi thao tác vẫn chỉ campus được phân công")
-    void allCampusViewNeverWidensActionScope() {
-        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+    @DisplayName("AUTH-20: đọc mọi campus không mở phạm vi thao tác; thao tác vẫn chỉ campus được phân công")
+    void readingEveryCampusNeverWidensActionScope() {
+        CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
         given(staffAssignmentService.hasActiveCampusAssignment(
                         vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
                 .willReturn(true);
@@ -104,23 +92,74 @@ class CampusAccessPolicyTest {
     }
 
     @Test
-    @DisplayName("AUTH-20: hết phân công PHT thì quyền xem liên cơ sở không còn tác dụng")
-    void allCampusViewNeedsActiveVicePrincipalAssignment() {
-        CurrentUser vicePrincipal = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.VICE_PRINCIPAL);
+    @DisplayName("AUTH-20: hết phân công PHT thì không đọc được campus nào")
+    void readingNeedsActiveVicePrincipalAssignment() {
+        CurrentUser vicePrincipal = user(CareNestRole.VICE_PRINCIPAL);
         given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
                 .willReturn(Set.of());
 
+        assertThat(policy.canReadAllCampuses(vicePrincipal)).isFalse();
         assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_A)).isFalse();
         assertThat(policy.canReadCampus(vicePrincipal, CAMPUS_B)).isFalse();
     }
 
     @Test
-    @DisplayName("AUTH-20: quyền xem liên cơ sở chỉ áp cho PHT")
-    void allCampusViewIsIgnoredForOtherRoles() {
-        CurrentUser teacher = userWith(Set.of(Permission.ALL_CAMPUS_VIEW), CareNestRole.TEACHER);
+    @DisplayName("AUTH-20: đọc mọi campus chỉ áp cho HT và PHT")
+    void readingEveryCampusIsOnlyForSchoolManagement() {
+        CurrentUser teacher = user(CareNestRole.TEACHER);
+        CurrentUser kitchen = user(CareNestRole.KITCHEN_STAFF);
 
         assertThat(policy.canReadCampus(teacher, CAMPUS_B)).isFalse();
+        assertThat(policy.canReadCampus(kitchen, CAMPUS_A)).isFalse();
         verifyNoInteractions(staffAssignmentService);
+    }
+
+    @Test
+    @DisplayName("AUTH-20: mã sửa theo mảng phạm vi điểm trường chỉ sửa được campus đang phân công")
+    void campusScopedPermissionEditsOnlyAssignedCampus() {
+        CurrentUser vicePrincipal = userWith(Set.of(Permission.MEAL_COUNT_CONFIRM), Set.of());
+        given(staffAssignmentService.hasActiveCampusAssignment(
+                        vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, CAMPUS_A, TODAY))
+                .willReturn(true);
+
+        assertThat(policy.canEditCampus(vicePrincipal, Permission.MEAL_COUNT_CONFIRM, CAMPUS_A))
+                .isTrue();
+        assertThat(policy.canEditCampus(vicePrincipal, Permission.MEAL_COUNT_CONFIRM, CAMPUS_B))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: GRANT phạm vi cả trường sửa được mọi campus khi còn phân công PHT")
+    void schoolWidePermissionEditsEveryCampusWhileAssigned() {
+        CurrentUser vicePrincipal =
+                userWith(Set.of(Permission.MEAL_COUNT_CONFIRM), Set.of(Permission.MEAL_COUNT_CONFIRM));
+        given(staffAssignmentService.findActiveCampusIds(vicePrincipal.userId(), StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A), Set.of());
+
+        assertThat(policy.canEditCampus(vicePrincipal, Permission.MEAL_COUNT_CONFIRM, CAMPUS_B))
+                .isTrue();
+        assertThat(policy.canEditCampus(vicePrincipal, Permission.MEAL_COUNT_CONFIRM, CAMPUS_B))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("AUTH-20: bị thu hồi mã sửa thì không sửa được kể cả campus mình; HT luôn sửa được")
+    void editNeedsPermissionCodeExceptForPrincipal() {
+        CurrentUser revoked = userWith(Set.of(), Set.of());
+        CurrentUser principal = new CurrentUser(
+                8L,
+                "kc-8",
+                "principal",
+                "HT",
+                null,
+                Set.of(CareNestRole.PRINCIPAL),
+                Set.of(Permission.MEAL_COUNT_CONFIRM));
+        given(staffAssignmentService.hasActivePrincipalAssignment(8L, TODAY)).willReturn(true);
+
+        assertThat(policy.canEditCampus(revoked, Permission.MEAL_COUNT_CONFIRM, CAMPUS_A))
+                .isFalse();
+        assertThat(policy.canEditCampus(principal, Permission.MEAL_COUNT_CONFIRM, CAMPUS_B))
+                .isTrue();
     }
 
     @Test
@@ -160,7 +199,15 @@ class CampusAccessPolicyTest {
         return new CurrentUser(7L, "kc-7", "demo.user", "Demo User", null, Set.of(roles));
     }
 
-    static CurrentUser userWith(Set<Permission> permissions, CareNestRole... roles) {
-        return new CurrentUser(7L, "kc-7", "demo.user", "Demo User", null, Set.of(roles), permissions);
+    private static CurrentUser userWith(Set<Permission> permissions, Set<Permission> schoolWide) {
+        return new CurrentUser(
+                7L,
+                "kc-7",
+                "demo.user",
+                "Demo User",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                permissions,
+                schoolWide);
     }
 }

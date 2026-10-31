@@ -56,6 +56,7 @@ public class AccountServiceImpl implements AccountService {
                     currentUser.email(),
                     currentUser.roles().stream().sorted().toList(),
                     currentUser.permissions().stream().sorted().toList(),
+                    currentUser.schoolWidePermissions().stream().sorted().toList(),
                     assignments,
                     childIds);
             log.info("{}|END", logPrefix);
