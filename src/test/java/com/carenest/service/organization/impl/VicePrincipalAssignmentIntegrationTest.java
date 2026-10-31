@@ -158,6 +158,18 @@ class VicePrincipalAssignmentIntegrationTest {
                 ApiCode.SCHOOL_YEAR_CLOSED);
     }
 
+    @Test
+    void vicePrincipalCannotAssignVicePrincipalsEvenInOwnCampus() {
+        CurrentUser vice = new CurrentUser(vp1, "kc-vp1", "vp1", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+
+        // AUTH-16: PHT chỉ phân công GV/bếp trong campus mình; phân công PHT do HT
+        assertCode(() -> service.getAssignments(vice, activeYear), ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+        assertCode(
+                () -> service.assign(vice, activeYear, vp2, new VicePrincipalAssignmentRequest(campusA)),
+                ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+        assertThat(count(vp2)).isEqualTo(1);
+    }
+
     private Map<Long, Long> campusByUser(VicePrincipalAssignmentResponse response) {
         Map<Long, Long> out = new java.util.HashMap<>();
         response.rows()

@@ -12,9 +12,11 @@ import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.organization.VicePrincipalAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.SchoolYearStatus;
+import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -42,6 +44,7 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
     private final CampusRepository campusRepository;
     private final ClassroomRepository classroomRepository;
     private final SchoolConfigAccess schoolConfigAccess;
+    private final StaffAccessPolicy staffAccessPolicy;
     private final SchoolStructureMapper schoolStructureMapper;
 
     @Override
@@ -51,7 +54,10 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 LOG_PREFIX + "|getAssignments|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.checkPrincipal(currentUser);
+            // AUTH-16: phân công PHT do HT quản lý toàn trường (StaffAccessPolicy)
+            if (!staffAccessPolicy.managesWholeSchool(currentUser)) {
+                throw GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+            }
             VicePrincipalAssignmentResponse response = toResponse(findYear(schoolYearId));
             log.info("{}|END", logPrefix);
             return response;
@@ -69,7 +75,7 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 + "|vicePrincipalId=" + userId + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.checkPrincipal(currentUser);
+            staffAccessPolicy.checkCanAssign(currentUser, StaffRole.VICE_PRINCIPAL, campusId);
             SchoolYear year = findYear(schoolYearId);
             SchoolYearRules.checkOpen(year);
             if (staffAssignmentRepository.findVicePrincipalRows().stream()
