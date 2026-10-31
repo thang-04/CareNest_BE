@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-01
 
-**Status**: Implemented and verified — 14/15 tasks (T015 commit/PR), BE 556 test, FE verify, Playwright 37/37 với BE thật
+**Status**: Implemented, verified, approved (Tiền 01/11/2026) — 15/15 tasks; PR BE thang-04/CareNest_BE#7, FE thang-04/CareNest_FE#9 vào `dev`
 
 **Input**: Tiền (01/11/2026): "dùng vòng lặp spec tôi hay làm code cho tôi luôn tính năng nhập file vào khi tạo mục tiêu năm học, rồi commit push cả be và fe, rồi tạo pull với dev"
 
@@ -14,7 +14,7 @@ Bước 2 đã có nút **Nhập file**, nhưng chỉ nhận CSV 6 cột (`Lĩnh
 
 ## Clarifications
 
-### Session 2026-11-01 (tự chọn theo chế độ tự chạy; mọi mục dưới đây là **Giả định – chờ Tiền duyệt**)
+### Session 2026-11-01 (tự chọn theo chế độ tự chạy; **Tiền duyệt cả 6 giả định 01/11/2026**)
 
 - Q: Nhận định dạng nào? → A: Word `.docx` (bảng theo mẫu Thái Dương), Word `.doc` do CareNest xuất (dạng HTML), Excel `.xlsx` (trang tính đầu, cùng bố cục bảng hoặc mẫu CSV cũ), CSV mẫu cũ (giữ tương thích). Word `.doc` nhị phân đời cũ không đọc được ⇒ báo "Mở file bằng Word rồi Lưu thành .docx".
 - Q: Ai đọc file? → A: BE đọc và kiểm (một endpoint xem trước, **không lưu**, không đổi cấu trúc DB, không thêm thư viện: đọc zip/XML bằng JDK). Web hiện bản xem trước rồi thêm vào bảng đang soạn; vẫn chỉ ghi khi bấm Lưu (EDU-22).
@@ -75,7 +75,7 @@ Tổ trưởng/Phó HT đang soạn kế hoạch năm, ở bước 2 bấm **Nh�
 - **FR-003**: Quyền: Phó HT hoặc giáo viên có quyền sửa kế hoạch năm (GOALS_EDIT) — Web chỉ mở được ở màn soạn.
 - **FR-004**: Web: hộp **Nhập file** gồm Tải file mẫu, chọn file, xem trước (theo lĩnh vực), cảnh báo theo dòng, Thêm/Hủy; thêm theo luật bổ sung (FR Clarifications), dấu tích khớp viết tắt; chỉ ghi khi Lưu.
 - **FR-005**: Điện thoại: mục "Nhập file" trong menu "Lấy mục tiêu" mở cùng hộp.
-- **FR-006**: Luật ghi ở `docs/business/BUSINESS_RULES.md` EDU-46 (PROPOSED – chờ Tiền duyệt).
+- **FR-006**: Luật ghi ở `docs/business/BUSINESS_RULES.md` EDU-46 (CONFIRMED – Tiền duyệt 01/11/2026).
 
 ## Success Criteria
 
