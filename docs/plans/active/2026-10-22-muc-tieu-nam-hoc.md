@@ -508,3 +508,77 @@ Thay đổi vượt 8 file: tách hai đợt review BE và Web; mỗi đợt ch�
 - Test BE mới: `EduCurriculumTiersMigrationTest` (tách + backfill, tiêu đề tự gõ không bị gắn), `threeTiersShareIds`, `curriculumHeadingLinksKeptAndValidated` (lưu, câu gốc, 7030, chép phiên bản).
 - FE: `curriculum.mjs` (`curriculumLink`, cây/kế hoạch nguồn theo id tầng, nhãn + anchor `cs-`/`cgr-`), `importGoals` giữ liên kết tiêu đề, `yearPlanMapper` gửi/đọc id tầng, `GoalTables` nhãn ở lĩnh vực con/nhóm, trang nguồn có anchor. Test FE mới trong `tests/education-plan/curriculum.test.mjs`.
 - Tác động APP: không dùng các API này. Web cũ vẫn chạy (field cũ giữ nguyên).
+
+
+## Bổ sung 02/11/2026 — Thanh công cụ và nhập đầy đủ kế hoạch từ file (APPROVED, user 02/11/2026)
+
+Trạng thái riêng: approved, user trả lời "chốt" ngày 02/11/2026 sau ba câu làm rõ; không suy từ trạng thái plan cũ. [Domain spec 14 mục](../../../specs/009-full-year-plan-file-import/domain-spec.md). Không đổi branch/commit/PR; việc mới chưa được gán task Jira riêng.
+
+### Context và đánh giá UI/UX
+- `FE:src/pages/education-plan/GoalFormPage.jsx`: nút Nhập file/Xuất dùng ghost, lấy nguồn dùng outline, Lưu/ban hành dùng primary; PageHead và hàng nhập liệu tách rời. Thông tin chung là form nhiều khoảng trống; các phần 2–3 là bảng dày. User yêu cầu đồng nhất nút, cùng hàng, rà phần 1 theo UI/UX Pro Max.
+- `src/main/java/com/carenest/dto/eduplan/GoalFilePreviewResponse.java:9` chỉ có domains/themeAbbrs/warnings; `GoalFileGrid.java:94` bỏ phần văn bản ngoài bảng và `GoalFileTable.java:44` chọn bảng mục tiêu đầu tiên. Phần mở rộng cần preview metadata/lịch, không chỉ đổi modal.
+- File mẫu cục bộ có tiêu đề năm 2025–2026, khối 3–4 tuổi, bảng mục tiêu và bảng lịch 10 chủ đề. Probe compiled classes hiện có: 3 lĩnh vực/57 mục tiêu/171 nội dung/287 dấu tích/39 cảnh báo; 81 số STT khác nhau nhận diện được trong lưới nguồn. Chưa dùng các số đó làm kỳ vọng chuẩn; cần rebuild và đối chiếu độc lập, xem [incident](../../knowledge/incidents/BUG-261102-year-plan-sample-incomplete-preview.md).
+
+### Làm rõ nghiệp vụ và quyết định
+- Actor: Phó HT/Tổ trưởng theo EDU-06; chỉ khi form còn quyền/phiên sửa EDU-10. [B] Chọn file/soát preview → [S] Bổ sung form → [B] Lưu/gửi theo EDU-22/23.
+- User 02/11 chốt: bổ sung, giữ nhập tay, preview như nhập chủ đề nhánh; giữ năm học đang mở và dời ngày từ file sang năm đó. Mở rộng phạm vi EDU-46 cũ, không đổi chế độ bổ sung thành thay thế.
+- Đề xuất: một hàng nút desktop, cùng outlined primary và btn--sm; trạng thái Lưu đặt thành dòng phụ; màn hẹp cuộn hàng trong khung, không tràn body. Thu gọn Thông tin chung theo lưới field hiện có, cùng lề/tiêu đề/khoảng cách, giữ label/error/read-only.
+- Metadata điền ô trống, không ghi đè người soạn/năm/phạm vi/quyền. Tạo/ghép chủ đề trước khi ghép dấu tích. Lịch không T2/T6 sau dời năm cảnh báo để người soạn sửa, không tự đặt ngày mới.
+
+### Câu hỏi mở của phần bổ sung
+- [x] User 02/11/2026: chặn nhập khi khác nhóm tuổi; nhóm tuổi đang trống lấy từ file, vẫn kiểm quyền nhóm tuổi của người soạn theo EDU-06.
+- [x] User duyệt plan bổ sung và mở rộng response preview (thêm metadata/themes/breaks, giữ fields cũ) bằng "chốt" ngày 02/11/2026.
+
+### Key decisions của phần bổ sung
+| Quyết định | Đề xuất | Phương án khác | Vì sao |
+| --- | --- | --- | --- |
+| Đọc file | Mở rộng decoder/interpreter hiện có, POI đã cài | Reader Word mới ở Web | Tái dùng giới hạn/an toàn, không thêm dependency |
+| Áp dụng | Bổ sung một lần sau preview, ghép chủ đề trước dấu tích | Thay toàn bộ | User chọn giữ nhập tay |
+| Ngày | Dời đúng chênh năm và báo lỗi lịch | Tự căn lại T2/T6 | Không tự sáng tạo lịch trường |
+| Giao diện | Một hàng cùng kiểu trên desktop; cuộn trong khung màn nhỏ | Thu nhỏ chữ/ẩn bớt nút | Đủ thao tác, giữ tính đọc được |
+
+### Contract và phạm vi dự kiến
+- Giữ `POST /education-plans/goals/file-preview`; thêm metadata/chủ đề/đợt nghỉ vào response; upload vẫn preview không ghi DB. Chưa quyết định shape cuối trước vòng Spec Kit plan/analyze.
+- FE consumers: educationPlanApi.js → educationPlanService.js → ImportGoalFileModal.jsx → GoalFormPage.jsx/importGoalFile.mjs; openapi snapshot và tests cần cập nhật. Mobile chưa có màn nhập này, không sửa APP.
+- Không migration, không thêm/nâng dependency, giữ API lưu/revision/lease. Ước tính >8 file BE+FE: chia ba phase, cùng một feature, không tách để né cổng L.
+
+### Phases dự kiến và kiểm chứng
+1. Domain spec → constitution hiện có → specify/clarify → plan/research/contract/data-model (dùng lại schema) → tasks → analyze; chỉ code sau khi hết câu hỏi và user duyệt.
+2. BE: regression bằng fixture tổng hợp cùng cấu trúc mẫu, sửa parser thiếu dữ liệu, mở rộng preview và snapshot; giữ CSV/.doc HTML/.docx/.xlsx/.doc nhị phân, giới hạn/quyền. Exit: `node scripts/verify.mjs`, ghi fail/skip thật; dừng review theo workflow.
+3. FE: hàng nút/Thông tin chung, preview đầy đủ và bổ sung nhất quán, guards/race/file cũ; browser desktop/mobile + E2E BE thật; verify cả repo, implement/converge đến hết gap; dừng review theo workflow.
+
+### Acceptance và test matrix
+| AC từ domain | Kiểm chứng |
+| --- | --- |
+| AC-1/2 | Browser source/CSS thật: vị trí/chiều cao hàng nút ở desktop, 375/768/1440 không tràn body, field/error/keyboard |
+| AC-3/6 | Parser tests tổng hợp và probe file gốc cục bộ (không copy vào repo), đối chiếu từng cấp/dòng/tick; old formats/bounds |
+| AC-4 | Merge tests trùng/mới/id/lineage/nội dung nhập tay; Hủy/mất phiên/late response không đổi form |
+| AC-5/7 | Ngày nguồn/đích, ngày nhuận/lịch không trọn tuần; chặn lệch nhóm tuổi không đổi form; nhóm trống nhận từ file nhưng không vượt quyền |
+
+### Rủi ro và rollback
+Ghép sai cột làm sai dấu tích: dùng khóa nguồn và kiểm chéo preview. Dời năm làm sai lịch: cảnh báo và validation server giữ nguyên. Mất dữ liệu nhập tay: không thay mảng toàn bộ, test preservation trước/sau lưu/mở lại. File gốc có thể chứa người ký: không chép/log/fixture. Rollback ở source BE+FE cùng feature, schema không đổi; không ghi tự động khi preview.
+
+### Validation/Progress log — 02/11/2026
+- Đã đọc source, file mẫu cục bộ, EDU-46 cũ, constitution/feature loop; user đã trả lời ba quyết định: bổ sung giữ nhập tay, dời lịch theo năm đích, chặn lệch nhóm tuổi/nhận nhóm khi trống. Chỉ còn duyệt contract/plan; chưa có phê duyệt triển khai. Chưa code production/chưa đổi API/chưa commit.
+- UI/UX Pro Max query consistency chưa có kết quả trực tiếp về toolbar; áp convention DESIGN.md hiện có, không coi kết quả search lệch chủ đề là quy tắc. Field labels và lỗi tại field vẫn là yêu cầu accessibility.
+- Các probe nằm trong target, không chứa bản gốc, không phải test hoàn thành. Chưa chạy verify ứng dụng cho phần mới; check-ai-layer chạy sau tài liệu cuối, kết quả trong chat.
+
+### Xác nhận nghiệp vụ bổ sung — 02/11/2026
+- User trả lời câu hỏi nhóm tuổi: chặn khác nhóm; nhóm đích trống lấy từ file. Đã cập nhật UR-6/AC-7 và mục 14 domain spec. Câu trả lời chỉ chốt nghiệp vụ, không tự suy ra duyệt plan/contract. Không đổi production code, không commit.
+
+### User approval và bắt đầu — 02/11/2026
+- User "chốt": phê duyệt phần bổ sung, phạm vi BE+FE và preview additive. Domain/SpecKit artifacts tại feature009, analyze trước implement không còn lỗi chặn. Không cấp quyền git/deploy; giữ dừng review sau phase BE.
+
+### Chốt bổ sung giao diện — 02/11/2026
+- User: "phần 1 tôi muốn nhập kiểu dạng bảng như b2, b3 luôn nhé". Thay đề xuất grid form phần1 bằng bảng nhập trực tiếp cùng kiểu ô/viền/mật độ phần2/3, giữ nhãn/lỗi/field read-only. Đã cập nhật domain/spec/plan/research/analysis, triển khai trong phase Web sau backend review.
+
+### Phase backend bổ sung009 — 02/11/2026 (done, chờ user review)
+- T001..T006 hoàn thành phần design/BE; preview thêm metadata/themes/breaks, giữ endpoint/fields cũ, constructor cũ và source dates; không migration/dependency. Web chưa đổi ở phase này.
+- Sửa fidelity kĩ/kỹ,mĩ/mỹ bằng khóa so tên; oracle độc lập83MT/5lĩnh vực, sample assert10chủ đề đúngngày/mã,2nghỉ/metadata,0warning. Không đưa bản gốc/người ký vào repo.
+- Review phát hiện metadata copy warning thứ tự sai, nhiều khoảng ngày bị cắt và tuổi ngoài bảng sau phần nội dung; có RED/GREEN và sửa, review lại không còn phát hiện chặn.
+- Verify source/test cuối: `VERIFY PASS full | tests 659 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 278s | log target/verify.log`. Log full giữ target/feature009-final-full.log; snapshot chỉ53dòng additive. File chất lượng/docs được kiểm thêm sau ghi bằng chứng, xem output bàn giao.
+- Khác plan: user bổ sung phần1 phải nhập dạng bảng, đã cập nhật artifacts, chưa triển khai Web. Lượt full658 trước boundary không dùng làm kết quả cuối; lượt659 là sau fix cuối.
+- Chưa commit/push/deploy. Dừng review theo workflow trước T007..T011 (Web/real-BE E2E/converge); không tuyên bố feature hoàn tất.
+
+### User review backend và tiếp tục Web — 02/11/2026
+- User "tiếp tục" sau bàn giao full659/quick36: cho phép triển khai T007..T011 của phaseWeb trong CareNest_FE và kiểm chứng kết thúc. Giữ yêu cầu phần1dạngbảng, cùng hàng/cỡ/kiểu nút, nhập preview→bổ sung/giữ nhập tay/dời năm/chặn lệch tuổi. Không cấp quyền commit/push/deploy.

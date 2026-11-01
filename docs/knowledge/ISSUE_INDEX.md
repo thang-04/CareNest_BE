@@ -6,6 +6,7 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261102-year-plan-sample-incomplete-preview](incidents/BUG-261102-year-plan-sample-incomplete-preview.md) | education-plan | .doc mẫu: preview 3 lĩnh vực/57 MT/39 warnings, lưới nguồn có 81 STT khác nhau | Khóa so tên không đồng nhất kĩ/kỹ, mĩ/mỹ; chuẩn hóa riêng khóa và giữ text nguồn | fixed |
 | [BUG-261101-e2e-goal-id-domains](incidents/BUG-261101-e2e-goal-id-domains.md) | education-plan | E2E nhập mục tiêu false positive trên DB mới, rowId trùng số contentId | Test ghép ID hai loại thực thể có identity riêng vào cùng Set | fixed |
 | [BUG-261101-file-grid-allocation-limits](incidents/BUG-261101-file-grid-allocation-limits.md) | education-plan | XLSX thưa / colspan / gridSpan cấp phát lớn trước kiểm giới hạn | Decoder dùng tọa độ/span file để mở rộng lưới, interpreter kiểm quá muộn | fixed |
 | [BUG-261101-branch-csv-demo-slots](incidents/BUG-261101-branch-csv-demo-slots.md) | education-plan | CSV demo nhập dòng nghỉ, giữ nhãn Nhánh n, lệch tuần | Mock tăng slot cho mọi ô tên không rỗng, thiếu diễn giải nhãn/nghỉ EDU-47 | fixed |

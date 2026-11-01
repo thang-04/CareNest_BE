@@ -7,6 +7,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,6 +67,64 @@ final class GoalFileGrid {
     private static final Pattern XLSX_REF = Pattern.compile("([A-Z]+)(\\d+)");
 
     private GoalFileGrid() {}
+
+    // Chỉ phần đầu để nhận diện kế hoạch; không trả văn bản/người ký ra preview.
+    static String leadingText(String filename, byte[] bytes) {
+        String name = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        try {
+            String text;
+            if (startsWith(bytes, OLE_HEADER)) {
+                try (HWPFDocument document = new HWPFDocument(new ByteArrayInputStream(bytes))) {
+                    var range = document.getRange();
+                    StringBuilder head = new StringBuilder();
+                    for (int i = 0; i < range.numParagraphs() && head.length() < 8192; i++) {
+                        var paragraph = range.getParagraph(i);
+                        if (paragraph.isInTable() && goalHeader(paragraph.text())) break;
+                        if (!paragraph.isInTable())
+                            head.append(paragraph.text()).append('\n');
+                    }
+                    text = head.toString();
+                }
+            } else if (bytes.length > 3 && bytes[0] == 'P' && bytes[1] == 'K' && name.endsWith(".docx")) {
+                byte[] xml = zipEntry(bytes, "word/document.xml");
+                Document document = parseXml(xml);
+                NodeList paragraphs = document.getElementsByTagNameNS("*", "p");
+                StringBuilder head = new StringBuilder();
+                for (int i = 0; i < paragraphs.getLength() && head.length() < 8192; i++) {
+                    Node paragraph = paragraphs.item(i);
+                    Node parent = paragraph.getParentNode();
+                    while (parent != null && !"tbl".equals(parent.getLocalName())) parent = parent.getParentNode();
+                    if (parent != null && goalHeader(paragraph.getTextContent())) break;
+                    if (parent == null) head.append(paragraph.getTextContent()).append('\n');
+                }
+                text = head.toString();
+            } else if (name.endsWith(".doc") || name.endsWith(".html") || name.endsWith(".htm")) {
+                String html = decode(bytes);
+                Matcher tables = HTML_TABLE.matcher(html);
+                while (tables.find()) {
+                    String header = Normalizer.normalize(htmlText(tables.group()), Normalizer.Form.NFC)
+                            .toLowerCase(Locale.ROOT);
+                    if (header.contains("mục tiêu") && header.contains("nội dung")) {
+                        html = html.substring(0, tables.start());
+                        break;
+                    }
+                }
+                text = htmlText(HTML_TABLE.matcher(html).replaceAll(""));
+            } else {
+                return "";
+            }
+            return text.substring(0, Math.min(text.length(), 8192)).replace('\r', '\n');
+        } catch (IOException | SAXException | ParserConfigurationException ex) {
+            throw GlobalException.withCause(ApiCode.GOAL_FILE_UNSUPPORTED, ex);
+        }
+    }
+
+    private static boolean goalHeader(String text) {
+        String heading = Normalizer.normalize(text, Normalizer.Form.NFC)
+                .toLowerCase(Locale.ROOT)
+                .strip();
+        return heading.startsWith("mục tiêu") || heading.startsWith("nội dung");
+    }
 
     /** Đọc theo đuôi file và nội dung; định dạng không hỗ trợ ⇒ GOAL_FILE_UNSUPPORTED. */
     static List<Table> read(String filename, byte[] bytes) {

@@ -64,3 +64,8 @@ Web consumers: ClassThemePlanPage/ActivityResources gọi learning-resources lis
 ## Lấy mục tiêu kế hoạch năm từ nguồn khác (EDU-24, chốt 28/10/2026)
 
 Web: ImportGoalsModal, GoalFormPage, service đọc kế hoạch nguồn; giữ quyền EDU-06 và luồng sửa ba bước. Chỉ lấy mục tiêu/nội dung, không chép chủ đề/đợt nghỉ/dấu tích. Web đã triển khai list/detail nguồn bằng contract hiện có; không thêm endpoint/DTO. 13/13 E2E thật đã đạt, Mobile chưa thuộc phạm vi. Xem [đặc tả feature003](../../specs/003-import-year-plan-goals/spec.md).
+
+
+## Nhập đầy đủ kế hoạch năm — feature009 (02/11/2026)
+BE preview additive cùng `POST /education-plans/goals/file-preview`: giữ domains/themeAbbrs/warnings, thêm metadata(title/year/khoảng tuổi), themes(name/abbr/festivals/start/end/note), breaks(name/start/end/note). Không đổi API lưu hoặc schema; xem [contract](../../specs/009-full-year-plan-file-import/contracts/full-year-plan-preview.md). Đang phase BE, phase Web chờ user review; chưa gọi toàn feature hoàn tất.
+Consumer Web cần cập nhật: educationPlanApi.js → educationPlanService.js → ImportGoalFileModal.jsx → GoalFormPage.jsx/importGoalFile.mjs. Preview/merge Web giữ năm đích, dời ngày, chặn lệch nhóm tuổi/nhận nhóm khi trống theo quyền, ghép chủ đề trước ticks và giữ nhập tay. File cũ với metadata null/themes[]/breaks[] vẫn dùng đường nhập mục tiêu cũ. Mobile chưa có consumer và không sửa APP. Màn phần1 user yêu cầu nhập dạng bảng như phần2/3; toàn bộ nút desktop cùng hàng/định dạng.

@@ -42,7 +42,12 @@ EDU-01..28, EDU-39..43, EDU-46..47 (lịch chủ đề, lấy chủ đề, nhậ
 - EDU-47 đã được user duyệt nghiệp vụ/plan; triển khai và kiểm chứng theo [feature008](../../specs/008-branch-plan-file-import/quickstart.md). Phần còn mở của module là các mục khác dưới đây, không phải câu hỏi nhập file.
 Lịch chủ đề EDU-39..41 đã chốt 30/10 (đóng P-29). Mục khảo sát mâu thuẫn code (EDU-31, EDU-32, EDU-35, EDU-38) đã chốt theo code 29/10. Còn lại: AI gợi ý (EDU-20), đọc giáo án đã duyệt cho đánh giá trẻ (EDU-19).
 
+## Nhập đầy đủ kế hoạch năm — mở rộng EDU-46 (02/11/2026)
+User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.md): preview bổ sung metadata/lịch/chủ đề/nghỉ; giữ bổ sung/manual save, dời lịch theo năm đích và chặn lệch nhóm tuổi. BE triển khai trước, Web chờ phase review. Parser YearPlanFileTable phối hợp metadata ngoài bảng với GoalFileTable; schema không đổi.
+
 ## Known pitfalls
+
+- Tên lĩnh vực trong .doc có thể dùng kĩ/kỹ, mĩ/mỹ; chuẩn hóa khóa so tên, không đổi nội dung người dùng. [Regression feature009](../knowledge/incidents/BUG-261102-year-plan-sample-incomplete-preview.md).
 
 - ID hàng mục tiêu và nội dung không chung miền; test/ghép dữ liệu phải so cùng loại thực thể, không cấm mọi trùng số giữa hai bảng identity. [Regression](../knowledge/incidents/BUG-261101-e2e-goal-id-domains.md).
 

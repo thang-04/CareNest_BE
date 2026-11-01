@@ -4604,21 +4604,74 @@ components:
           format: int64
         text:
           type: string
+    GoalFileBreak:
+      type: object
+      properties:
+        end:
+          type: string
+          format: date
+        name:
+          type: string
+        note:
+          type: string
+        start:
+          type: string
+          format: date
+    GoalFileMetadata:
+      type: object
+      properties:
+        ageFromMonths:
+          type: integer
+          format: int32
+        ageToMonths:
+          type: integer
+          format: int32
+        schoolYear:
+          type: string
+        title:
+          type: string
     GoalFilePreviewResponse:
       type: object
       properties:
+        breaks:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFileBreak"
         domains:
           type: array
           items:
             $ref: "#/components/schemas/Domain"
+        metadata:
+          $ref: "#/components/schemas/GoalFileMetadata"
         themeAbbrs:
           type: array
           items:
             type: string
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFileTheme"
         warnings:
           type: array
           items:
             $ref: "#/components/schemas/Warning"
+    GoalFileTheme:
+      type: object
+      properties:
+        abbr:
+          type: string
+        end:
+          type: string
+          format: date
+        festivals:
+          type: string
+        name:
+          type: string
+        note:
+          type: string
+        start:
+          type: string
+          format: date
     GroupStat:
       type: object
       properties:
