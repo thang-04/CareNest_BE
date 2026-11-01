@@ -106,7 +106,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix =
                 LOG_PREFIX + "|createYearPlan|userId=" + currentUser.userId() + "|ageGroupId=" + request.ageGroupId();
         log.info("{}|START", logPrefix);
@@ -124,7 +124,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|updateYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.updateYearPlan(
@@ -141,7 +141,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|submitYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.submitYearPlan(
@@ -161,7 +161,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|issueYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.issueYearPlan(
@@ -181,7 +181,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|returnYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.returnYearPlan(
@@ -197,7 +197,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|startEditing|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.startEditing(
@@ -213,7 +213,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|finishEditing|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.finishEditing(
@@ -229,7 +229,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|heartbeat|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.heartbeat(
@@ -246,7 +246,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|createVersion|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.createVersion(
@@ -273,7 +273,7 @@ public class EduYearPlanController {
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
-            @RequestHeader("X-Request-Id") UUID requestId) {
+            @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|deleteYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         eduYearPlanService.deleteYearPlan(currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
