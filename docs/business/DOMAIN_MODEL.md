@@ -39,10 +39,11 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | nutrition | MealPlan (tuần trong bộ 4 tuần, ageGroup nhà trẻ/mẫu giáo, status, source) | SCHOOL | Chung hai cơ sở (NUT-13); DRAFT → PUBLISHED, công bố là duyệt (NUT-08) |
 | nutrition | MealCount (campus, date, meal, classroom lines, status, confirmedBy) | CAMPUS | chờ xác nhận → CONFIRMED (không sửa ngầm; đổi ⇒ xác nhận lại) |
 | nutrition | MealConfirmation (lịch sử xác nhận/thay đổi số suất) | CAMPUS | NUT-02..04 |
-| nutrition | FoodQuantityPlan (date, campus, lines) | CAMPUS | Dẫn xuất; sĩ số dự kiến hoặc suất đã xác nhận (NUT-07) |
+| nutrition | FoodQuantityPlan (date, campus, lines) | CAMPUS | Dẫn xuất; sĩ số dự kiến (bản dự trù) hoặc suất đã xác nhận (thực đơn chuẩn ngày) (NUT-07) |
+| nutrition | Bản dự trù (kỳ, campus, thực đơn dự kiến, sĩ số dự kiến theo nhóm tuổi) | CAMPUS | Lưu; sĩ số điền sẵn, PHT sửa; dùng đặt hàng tươi, kiểm nhận lần 1 (NUT-07, NUT-12) |
 | nutrition | Supplier (name, phone, address, idCard, deliveryPerson) | SCHOOL | Dùng chung hai cơ sở (NUT-12) |
-| nutrition | Kho khô: phiếu nhận theo lô, bút toán trừ dự kiến + điều chỉnh | CAMPUS | ADR-0009, NUT-11 |
-| nutrition | Kiểm nhận hàng tươi (2 lần), FoodSample, ảnh mẫu bữa | CAMPUS | NUT-12, NUT-16, NUT-21 |
+| nutrition | Kho khô: phiếu nhận theo lô, bút toán trừ khi công bố thực đơn chuẩn ngày + điều chỉnh khi xác nhận lại suất | CAMPUS | ADR-0009, NUT-11 |
+| nutrition | Kiểm nhận hàng tươi (2 lần), FoodSample (lưu/hủy, PHT duyệt), ảnh mẫu bữa theo cơ sở | CAMPUS | NUT-12, NUT-16, NUT-21 |
 | health | HealthRecord (childId, date, height, weight, status, note, classification, classificationReason, published) | CHILD | Mọi lần đo, sửa có lý do + lịch sử (HLT-13); phân loại WHO, GV chỉnh kèm lý do (HLT-10); công bố (HLT-11) |
 | health | Đợt khám bác sĩ | CHILD | 2 lần/năm (HLT-08); nội dung ghi: chưa có rule |
 | health | Ghi nhận sức khỏe trong ngày (childId, time, symptom, handling, note) | CHILD | Báo phụ huynh ngay (HLT-14) |
