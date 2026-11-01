@@ -51,6 +51,19 @@ class EduConfigServiceIntegrationTest {
         vicePrincipal = user("vp", CareNestRole.VICE_PRINCIPAL);
         principal = user("principal", CareNestRole.PRINCIPAL);
         teacher = user("teacher", CareNestRole.TEACHER);
+        // AUTH-20: quyền cấu hình của HT/PHT cần phân công còn hiệu lực
+        java.sql.Date from = java.sql.Date.valueOf(java.time.LocalDate.now().minusDays(1));
+        Long campus = jdbc.queryForObject(
+                "INSERT INTO campuses (code, name) VALUES ('CS-CFG', 'Campus cấu hình') RETURNING id", Long.class);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) VALUES (?, 'VICE_PRINCIPAL', ?, ?)",
+                vicePrincipal.userId(),
+                campus,
+                from);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', ?)",
+                principal.userId(),
+                from);
     }
 
     @Test

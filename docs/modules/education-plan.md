@@ -53,6 +53,7 @@ Lịch chủ đề EDU-39..41 đã chốt 30/10 (đóng P-29). Mục khảo sát
 - So sánh phiên bản dùng lineage hiệu dụng `COALESCE(lineage_id, id)`; MT đánh lại số không phải là đổi. Tra "hiện hành" bằng truy vấn chuỗi, không lưu cờ.
 - Thứ tự chủ đề, đợt nghỉ = thứ tự mảng trong PUT (`sort_order`); dấu tích lưu theo chênh lệch, không xóa JPQL rồi ghi lại ([BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)).
 - Kế hoạch chủ đề lưu luôn MT, nội dung lấy từ kế hoạch năm để bản đã duyệt không đổi theo (EDU-15).
+- EDU-18 (01/11): chuỗi duyệt hồ sơ lớp chụp lúc gửi vào `edu_class_docs.sign_chain` (V41); duyệt/trả lại đi theo chuỗi đã chụp, đổi cấu hình giữa chừng không làm hồ sơ tự APPROVED. Hồ sơ cũ `sign_chain` NULL: dùng cấu hình; cấu hình đã bỏ bước đang chờ thì giữ bước đó + các bước cấu hình chưa duyệt. Đang chờ Tổ trưởng mà nhóm tuổi hết Tổ trưởng (hoặc Tổ trưởng dạy chính lớp) ⇒ `getClassDocs` hiện và `actOnClassDoc` duyệt ở bước kế (DB chỉ đổi khi có người thao tác); chuỗi chỉ còn bước Tổ trưởng thì vẫn chờ tới khi HT phân công Tổ trưởng mới.
 - Hai chỗ comment FE lệch code, làm BE theo code: mock ghi chủ đề nhánh "Phó HT duyệt" nhưng chuỗi mặc định là Tổ trưởng → Phó HT; gợi ý người ký `week` ghi "mỗi tuần duyệt riêng" nhưng code duyệt cả hồ sơ chủ đề một lần (EDU-17).
 - Mã YCCĐ (TC1.1…) trong `educationPlanConstants.js` của FE chỉ còn để đọc dữ liệu cũ; không dùng cho dữ liệu mới (EDU-09).
 

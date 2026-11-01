@@ -25,6 +25,7 @@ import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -36,6 +37,7 @@ import java.util.Map;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -106,6 +108,9 @@ class AttendanceIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private CurrentUser principal;
     private CurrentUser vpA;
@@ -188,9 +193,11 @@ class AttendanceIntegrationTest {
 
         ClassAttendanceResponse sheet = service.getClassAttendance(teacherA, classA, TODAY);
         assertThat(sheet.children().getFirst().record().status()).isEqualTo(AttendanceStatus.PRESENT);
+        // ATT-02: có mặt là ăn mọi bữa của nhóm tuổi, dù client chỉ gửi bữa trưa
         assertThat(sheet.children().getFirst().record().meals())
                 .containsEntry(MealSession.LUNCH, true)
-                .containsEntry(MealSession.AFTERNOON, false);
+                .containsEntry(MealSession.AFTERNOON, true);
+        assertThat(sheet.children().getLast().record().meals()).doesNotContainValue(true);
         expectError(
                 () -> service.saveClassAttendance(teacherB, classA, request(TODAY, present(child1))),
                 ApiCode.FORBIDDEN);
@@ -250,18 +257,12 @@ class AttendanceIntegrationTest {
 
     @Test
     void rejectsInvalidEntries() {
-        expectError(
+        expectCode(
                 () -> service.saveClassAttendance(
                         teacherA,
                         classA,
                         request(TODAY, new Entry(child2, AttendanceStatus.EXCUSED, Map.of(MealSession.LUNCH, true)))),
-                ApiCode.BAD_REQUEST);
-        expectError(
-                () -> service.saveClassAttendance(
-                        teacherA,
-                        classA,
-                        request(TODAY, new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.MORNING, true)))),
-                ApiCode.BAD_REQUEST);
+                ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
         expectError(
                 () -> service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), present(child1))),
                 ApiCode.BAD_REQUEST);
@@ -275,6 +276,65 @@ class AttendanceIntegrationTest {
         expectError(
                 () -> service.saveClassAttendance(teacherA, oldClass, request(TODAY, present(child1))),
                 ApiCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("ATT-02: suất tính từ trạng thái — có mặt ⇒ mọi bữa của nhóm tuổi, field meals client gửi bị bỏ qua")
+    void mealsFollowAttendanceStatusAndIgnoreClientMeals() {
+        service.saveClassAttendance(
+                teacherA,
+                classA,
+                request(
+                        TODAY,
+                        new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.MORNING, true)),
+                        new Entry(child2, AttendanceStatus.PRESENT, null)));
+
+        assertThat(service.getClassAttendance(teacherA, classA, TODAY).children())
+                .allSatisfy(row -> assertThat(row.record().meals())
+                        .containsEntry(MealSession.LUNCH, true)
+                        .containsEntry(MealSession.AFTERNOON, true)
+                        .doesNotContainKey(MealSession.MORNING));
+        AttendanceService.ClassMealTally tally =
+                service.tallyMeals(TODAY, classCampus(classA), classYear(classA)).stream()
+                        .filter(t -> t.classroomId() == classA)
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(tally.meals()).containsEntry(MealSession.LUNCH, 2).containsEntry(MealSession.AFTERNOON, 2);
+        // Tắt bữa phía client (meals false) không còn bớt suất
+        var resend = service.saveClassAttendance(
+                teacherA,
+                classA,
+                request(TODAY, new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, false))));
+        assertThat(resend.changed()).isZero();
+    }
+
+    @Test
+    @DisplayName(
+            "ATT-09: GV không tự chọn Vắng có phép; trạng thái có phép đã có (từ đơn nghỉ) vẫn đọc và gửi lại được")
+    void teacherCannotSetExcusedButKeepsExistingExcused() {
+        expectCode(
+                () -> service.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        request(TODAY, present(child1), new Entry(child2, AttendanceStatus.EXCUSED, null))),
+                ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
+        assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ?", child1))
+                .isZero();
+
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), absent(child2)));
+        // Giả lập đơn nghỉ đã đặt có phép (module đơn nghỉ chưa có)
+        entityManager.flush();
+        jdbc.update("UPDATE attendance_records SET status = 'EXCUSED' WHERE child_id = ?", child2);
+        entityManager.clear();
+        var resend = service.saveClassAttendance(
+                teacherA, classA, request(TODAY, present(child1), new Entry(child2, AttendanceStatus.EXCUSED, null)));
+        assertThat(resend.changed()).isZero();
+        assertThat(service.getClassAttendance(teacherA, classA, TODAY)
+                        .children()
+                        .getLast()
+                        .record()
+                        .status())
+                .isEqualTo(AttendanceStatus.EXCUSED);
     }
 
     @Test
@@ -551,6 +611,21 @@ class AttendanceIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
                 .isEqualTo(apiCode.getHttpStatus());
+    }
+
+    private static void expectCode(ThrowingCallable call, ApiCode apiCode) {
+        assertThatThrownBy(call)
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(apiCode);
+    }
+
+    private long classCampus(long classroomId) {
+        return count("SELECT campus_id FROM classrooms WHERE id = ?", classroomId);
+    }
+
+    private long classYear(long classroomId) {
+        return count("SELECT school_year_id FROM classrooms WHERE id = ?", classroomId);
     }
 
     private long insertId(String sql) {

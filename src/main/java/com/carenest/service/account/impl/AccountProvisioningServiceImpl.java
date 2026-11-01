@@ -102,10 +102,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             }
             // AUTH-15: xác định phạm vi người được tạo và quyền người tạo trước khi đụng Keycloak
             AssignmentScope scope = toAssignmentScope(request);
-            Long campusId = scope == null || scope.staffRole() == StaffRole.PRINCIPAL
-                    ? null
-                    : staffAssignmentService.resolveCampusId(scope.staffRole(), scope.campusId(), scope.classroomId());
-            staffAccessPolicy.checkCanCreate(actor, request.role(), campusId);
+            staffAccessPolicy.checkCanCreate(actor, request.role(), resolveCreatorCampusId(request, scope));
 
             // Đăng nhập bằng SĐT (user chốt 2026-10-30); bếp dùng SĐT bếp của cơ sở
             String username = PhoneNumbers.normalize(request.phone())
@@ -138,7 +135,8 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                                 request.role()));
                         StaffAssignmentResponse assignment = scope == null
                                 ? null
-                                : staffAssignmentService.createAssignment(scope.forUser(created.getId()));
+                                : staffAssignmentService.createAssignment(
+                                        scope.forUser(created.getId(), actor.userId()));
                         return new SavedAccount(created, assignment);
                     });
 
@@ -272,13 +270,24 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                             account.getId(), request.role().name());
                     return scope == null
                             ? null
-                            : staffAssignmentService.createAssignment(scope.forUser(account.getId()));
+                            : staffAssignmentService.createAssignment(scope.forUser(account.getId(), actor.userId()));
                 });
         account.becomeStaff(request.role());
         return accountMapper.toCreateAccountResponse(account, request.role(), false, assignment);
     }
 
-    // HT tự có phân công toàn trường; phụ huynh không có phân công; nhân sự khác theo request (có thể trống)
+    // GV chưa có phân công nên campus gửi kèm chỉ dùng để kiểm PHT tạo trong campus mình (AUTH-15)
+    private Long resolveCreatorCampusId(CreateAccountRequest request, AssignmentScope scope) {
+        if (request.role() == CareNestRole.TEACHER) {
+            return request.assignment() == null ? null : request.assignment().campusId();
+        }
+        return scope == null || scope.staffRole() == StaffRole.PRINCIPAL
+                ? null
+                : staffAssignmentService.resolveCampusId(scope.staffRole(), scope.campusId(), null);
+    }
+
+    // HT tự có phân công toàn trường; GV tạo không kèm lớp (user chốt 2026-11-01), phân công lớp làm sau;
+    // phụ huynh không có phân công; PHT/bếp theo request (có thể trống)
     private AssignmentScope toAssignmentScope(CreateAccountRequest request) {
         StaffAssignmentScopeRequest requested = request.assignment();
         LocalDate today = LocalDate.now(clock);
@@ -287,15 +296,15 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                 if (requested != null) {
                     throw GlobalException.of(ApiCode.PRINCIPAL_ASSIGNMENT_SCHOOL_WIDE);
                 }
-                yield new AssignmentScope(StaffRole.PRINCIPAL, null, null, today);
+                yield new AssignmentScope(StaffRole.PRINCIPAL, null, today);
             }
-            case VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF ->
+            case TEACHER -> null;
+            case VICE_PRINCIPAL, KITCHEN_STAFF ->
                 requested == null
                         ? null
                         : new AssignmentScope(
                                 StaffRole.valueOf(request.role().name()),
                                 requested.campusId(),
-                                requested.classroomId(),
                                 requested.validFrom() == null ? today : requested.validFrom());
             default -> {
                 if (requested != null) {
@@ -306,9 +315,9 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
         };
     }
 
-    private record AssignmentScope(StaffRole staffRole, Long campusId, Long classroomId, LocalDate validFrom) {
-        NewStaffAssignment forUser(Long userId) {
-            return new NewStaffAssignment(userId, staffRole, campusId, classroomId, validFrom, null);
+    private record AssignmentScope(StaffRole staffRole, Long campusId, LocalDate validFrom) {
+        NewStaffAssignment forUser(Long userId, Long assignedBy) {
+            return new NewStaffAssignment(userId, staffRole, campusId, null, validFrom, null, assignedBy, false);
         }
     }
 

@@ -21,7 +21,7 @@ Lỗi liên quan contract/nghiệp vụ phát hiện ở FE/APP ⇒ ghi ở BE `
 | Principal / Vice Principal | Web (không dùng App — AUTH-21, user chốt 2026-10-27) | identity-access (HT: phân quyền, cấp tài khoản — AUTH-06, ADR-0017), reporting, nutrition (xác nhận/duyệt), education-plan (PHT lập/ban hành kế hoạch năm, cấu hình; duyệt theo chuỗi — EDU-02..07, EDU-11, EDU-18), learning-observation, health, notification (thông báo của trường — PAR-05) |
 | Teacher (kể cả Tổ trưởng khối — AUTH-23) | Web + App (App: điểm danh + nhiệt độ đầu ngày, đón trẻ, sức khỏe, đánh giá, thông báo — ATT-01, PCK-02, HLT-07, HLT-14, AUTH-21) | attendance (gồm đón trẻ), learning-observation, health, education-plan |
 | Parent | App (đăng nhập bằng SĐT; nhận tài khoản qua SMS, in phiếu dự phòng — AUTH-18) | attendance (gửi báo nghỉ — ATT-05), đọc: attendance (gồm ai đã đón con — PCK-04), nutrition (thực đơn tuần/ngày, ảnh suất — PAR-01), health, learning-observation, education-plan (tên hoạt động — EDU-37, chưa làm), notification (theo PAR-*) |
-| Kitchen Staff | App (chỉ App, màn tối thiểu; gateway Web từ chối — AUTH-21; 1 tài khoản chung/cơ sở — AUTH-22) | nutrition (suất đã xác nhận theo lớp từng bữa, thực đơn, định lượng, số suất dị ứng không tên trẻ — AUTH-05; ảnh mẫu bữa, sổ lưu mẫu — NUT-16, NUT-21) |
+| Kitchen Staff | App (chỉ App, màn tối thiểu; gateway Web từ chối — AUTH-21; 1 tài khoản chung/cơ sở — AUTH-22) | nutrition (suất đã xác nhận theo lớp từng bữa, thực đơn, định lượng, số suất dị ứng không tên trẻ — AUTH-05; ảnh mẫu bữa theo khung giờ, ghi lưu/hủy mẫu — NUT-16, NUT-21) |
 
 ## Điểm chạm cần kiểm tra khi đổi BE
 
@@ -33,6 +33,12 @@ Lỗi liên quan contract/nghiệp vụ phát hiện ở FE/APP ⇒ ghi ở BE `
 | MealCount/menu | `CareNest_APP/docs/features/kitchen/`, `CareNest_FE/docs/architecture/ROUTE_MAP.md` (màn hình BGH) |
 | Event gửi notification | `CareNest_APP/docs/integration/PUSH_NOTIFICATION.md` |
 | Cổng/domain deploy VPS (`docs/system/DEPLOYMENT.md`) | `CareNest_FE/docs/integration/DEPLOYMENT.md` (bảng cổng), `CareNest_FE/deploy/caddy/carenest-web.caddy` (`/api/*` ⇒ `127.0.0.1:18310`); APP: issuer `https://auth.carenest.edu.vn/realms/carenest`, API `https://web.carenest.edu.vn/api` |
+
+## Bán trú và kho — đối chiếu sơ đồ quy trình (user chốt 2026-11-01)
+
+Rule đổi: NUT-07, NUT-08, NUT-11, NUT-12, NUT-13, NUT-16, NUT-17, NUT-21, NUT-23, AI-07; đóng P-24, P-25 (ADR-0009 bản 01/11). Chưa có API — client cần chỉnh khi BE làm:
+- FE (Web, PHT dinh dưỡng): thực đơn dự kiến ngày (cảnh báo kho) và công bố thực đơn chuẩn ngày sau chốt suất, chặn khi thiếu kho; màn Dự báo tuần ⇒ bản dự trù (sĩ số điền sẵn, sửa được, lưu, in danh sách đặt hàng); kiểm nhận lần 2 so thực đơn chuẩn; tồn theo lô + lịch sử nhập/trừ; duyệt lưu/hủy mẫu, in nhãn và biểu mẫu; PHT cấu hình bữa, chuẩn dinh dưỡng, giá suất theo nhóm tuổi; HT cấu hình khung giờ ảnh; món thay thế theo chất dị ứng. Đối chiếu `CareNest_FE/docs/features/nutrition-inventory.md`, `CareNest_FE/docs/architecture/ROUTE_MAP.md`.
+- APP (bếp, phụ huynh): bếp đăng/sửa ảnh trong khung giờ, ghi hủy mẫu, xem trạng thái duyệt; phụ huynh xem ảnh bữa của cơ sở con học; thực đơn tuần lấy từ kế hoạch tuần (có thể đổi), thực đơn ngày lấy từ thực đơn chuẩn đã công bố (P-37). Đối chiếu `CareNest_APP/docs/features/kitchen/README.md`, `CareNest_APP/docs/features/parent/README.md`.
 
 Repo URL: CareNest_FE `https://github.com/thang-04/CareNest_FE.git`, CareNest_APP `https://github.com/thang-04/CareNest_APP.git`. Không tự sửa repo khác; nêu thay đổi cần thống nhất.
 
@@ -65,3 +71,18 @@ Web consumers: ClassThemePlanPage/ActivityResources gọi learning-resources lis
 ## Lấy mục tiêu kế hoạch năm từ nguồn khác (EDU-24, chốt 28/10/2026)
 
 Web: ImportGoalsModal, GoalFormPage, service đọc kế hoạch nguồn; giữ quyền EDU-06 và luồng sửa ba bước. Chỉ lấy mục tiêu/nội dung, không chép chủ đề/đợt nghỉ/dấu tích. Web đã triển khai list/detail nguồn bằng contract hiện có; không thêm endpoint/DTO. 13/13 E2E thật đã đạt, Mobile chưa thuộc phạm vi. Xem [đặc tả feature003](../../specs/003-import-year-plan-goals/spec.md).
+
+## Quyết định review E2E — tác động FE/APP (user chốt 2026-11-01)
+
+Nguồn: `CareNest_CODE/plans/reports/final-261101-1407-carenest-e2e-business-flow-review-report.md` mục "Đã chốt". Đã vào code (2026-11-01): phần FE của D1 (`/kitchen/meal-count` đọc `GET /meal-counts` qua module FE `kitchen-meal-count`, sửa câu toast); phần BE của D2, D3/AUTH-24, D6, D8, D10 (plan `docs/plans/active/2026-11-01-e2e-review-p1-fixes.md`). Phần FE/APP các dòng đó chưa.
+
+| Quyết định | BE | FE | APP |
+| --- | --- | --- | --- |
+| Bếp nhận số suất (D1) | — (giữ AUTH-21, NUT-03) | HT/PHT xem "số bếp sẽ dùng" từ `GET /meal-counts`; sửa câu "Bếp đã nhận được số liệu" | Màn bếp + auth thật, làm sau |
+| `meals` trong điểm danh (D8, ATT-02) | **Đã làm:** giữ field deprecated, bỏ qua giá trị; `record.meals` trả về suy từ `status` | Bỏ cột tick "Ăn" | Bỏ chọn bữa ăn |
+| Vắng có phép (D6, ATT-09) | **Đã làm:** `EXCUSED` mới ⇒ 400 `4018`; gửi lại `EXCUSED` đang có được | Ẩn lựa chọn; hiện câu lỗi `4018` | Ẩn lựa chọn |
+| Sửa suất (D2, D10, NUT-02) | **Đã làm:** `normal` null = giữ, khác ⇒ 409 `6008`; `substitute` không bị điểm danh xóa; xác nhận theo cơ sở–ngày (một lần cho mọi bữa, gọi lại bữa đã xác nhận ⇒ 200); còn trẻ chưa điểm danh ⇒ 409 `6009` kèm tên lớp | Gửi `normal: null`, bỏ ô sửa suất thường; nút xác nhận từng bữa nay xác nhận cả ngày (đổi câu chữ); hiện câu lỗi `6009` | — |
+| Phân công GV (D3, AUTH-24) | **Đã làm:** `/staff-assignments` GV áp cùng luật `PUT /classes/{id}/teachers` (409 `2306`, 400 `2304`, 409 `2305`, 409 `2003`); dạy thay = cờ `substitute: true` trong `POST /staff-assignments` (chỉ GV ⇒ 400 `2320`, bắt buộc `validTo` ⇒ 400 `2321`), response có `substitute`; dạy chính `validTo` trống/sau hết năm bị cắt về hết năm; ghi `assigned_by` | Màn Nhân sự (khi nối API): ô "Dạy thay" + ngày kết thúc bắt buộc; hiện câu lỗi BE | — |
+| Đổi vai trò, sửa hồ sơ nhân sự (D4, AUTH-25) | API mới (đổi contract) | Màn Nhân sự nối API thật | — |
+| Hold khung chờ (D9) | — | Bỏ giữ tới 700ms khi đã có dữ liệu/lỗi, giữ trễ hiện 300ms; không progress bar (`src/hooks/loadingTiming.js`, `DESIGN.md` §9) | — |
+| Màn demo trái rule REMOVED (D11) | — | Ẩn riêng các màn REMOVED (bàn giao suất, trạng thái nấu…); màn demo khác giữ | — |

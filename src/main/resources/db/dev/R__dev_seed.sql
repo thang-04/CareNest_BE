@@ -45,6 +45,47 @@ JOIN campuses c ON c.code = v.campus_code
 JOIN school_years y ON y.name = '2026-2027'
 ON CONFLICT (school_year_id, campus_id, name) DO NOTHING;
 
+-- Lớp phải có nhóm tuổi (bữa ăn — NUT-17, chuỗi ký hồ sơ lớp) và phòng cố định (SCH-03); thiếu thì không có suất ăn.
+-- Nhóm tuổi theo năm sinh trẻ demo: 2022 ⇒ Mẫu giáo nhỡ (ag-4), 2021 ⇒ Mẫu giáo lớn (ag-5).
+INSERT INTO rooms (campus_id, code, name, room_type, capacity)
+SELECT c.id, v.code, v.name, 'CLASS', v.capacity
+FROM (VALUES ('CS-A', 'DEMO-A1', 'Phòng demo A1', 30),
+             ('CS-B', 'DEMO-B1', 'Phòng demo B1', 35)) AS v (campus_code, code, name, capacity)
+JOIN campuses c ON c.code = v.campus_code
+WHERE NOT EXISTS (
+    SELECT 1 FROM rooms r
+    WHERE r.campus_id = c.id AND r.status <> 'DELETED'
+      AND (LOWER(r.code) = LOWER(v.code) OR LOWER(r.name) = LOWER(v.name))
+);
+
+-- UPDATE thay vì dựa vào INSERT ở trên: DB dev cũ (cả VPS) đã có A1/B1 không nhóm tuổi/phòng, ON CONFLICT bỏ qua.
+-- Chỉ điền ô đang trống; UI cấm đổi nhóm tuổi khi lớp đã có trẻ nên seed là cách vá duy nhất.
+UPDATE classrooms cl
+SET age_group_id = COALESCE(cl.age_group_id, g.id),
+    room_id = COALESCE(cl.room_id, r.id),
+    capacity = COALESCE(cl.capacity, g.max_class_size)
+FROM (VALUES ('CS-A', 'Lớp A1', 'ag-4', 'DEMO-A1'),
+             ('CS-B', 'Lớp B1', 'ag-5', 'DEMO-B1')) AS v (campus_code, class_name, age_group_code, room_code)
+JOIN campuses c ON c.code = v.campus_code
+JOIN school_years y ON y.name = '2026-2027'
+JOIN age_groups g ON g.code = v.age_group_code
+LEFT JOIN rooms r ON r.campus_id = c.id AND LOWER(r.code) = LOWER(v.room_code) AND r.status <> 'DELETED'
+    AND NOT EXISTS (SELECT 1 FROM classrooms o WHERE o.school_year_id = y.id AND o.room_id = r.id)
+WHERE cl.campus_id = c.id AND cl.school_year_id = y.id AND cl.name = v.class_name
+  AND (cl.age_group_id IS NULL OR cl.room_id IS NULL OR cl.capacity IS NULL);
+
+-- Tổ trưởng mỗi nhóm tuổi có lớp demo (AUTH-23), để hồ sơ lớp đi hết chuỗi ký; không chèn nếu nhóm tuổi đã có tổ trưởng năm này
+INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)
+SELECT u.id, 'AGE_GROUP_TEAM_LEADER', g.id, y.id, '2026-09-01'::date
+FROM (VALUES ('teacher1', 'ag-4'), ('teacher2', 'ag-5')) AS v (username, age_group_code)
+JOIN user_accounts u ON u.username = v.username
+JOIN age_groups g ON g.code = v.age_group_code
+JOIN school_years y ON y.name = '2026-2027'
+WHERE NOT EXISTS (
+    SELECT 1 FROM staff_assignments a
+    WHERE a.staff_role = 'AGE_GROUP_TEAM_LEADER' AND a.age_group_id = g.id AND a.school_year_id = y.id
+);
+
 -- Phân công: teacher2 dạy A1 tới 30/09 rồi chuyển sang B1 ⇒ demo phân công hết hạn không còn quyền ở A1
 INSERT INTO staff_assignments (user_id, staff_role, campus_id, classroom_id, valid_from, valid_to)
 SELECT u.id, v.staff_role, c.id, r.id, v.valid_from::date, v.valid_to::date

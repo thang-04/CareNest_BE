@@ -112,7 +112,7 @@ docker compose up -d postgres keycloak mailpit
 | Keycloak Admin Console | `http://localhost:8180/admin` (realm `carenest`) |
 | Mailpit (email dev) | `http://localhost:8025` |
 
-Compose chạy profile `dev`: có 8 user dev (`admin@gmail.com`, `teacher1@gmail.com`, `parent1@gmail.com`, ... mật khẩu `demo123`) và dữ liệu giả — bảng user/phạm vi ở `docs/system/KEYCLOAK.md` mục 5.
+Compose chạy profile `dev`: có 8 user dev (`admin@gmail.com`, `teacher1@gmail.com`, `parent1@gmail.com`, ... mật khẩu `demo123`, **chỉ máy local**) và dữ liệu giả — bảng user/phạm vi ở `docs/system/KEYCLOAK.md` mục 5. VPS demo dùng cùng user nhưng mật khẩu là `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` của VPS (`docs/system/DEPLOYMENT.md`), không phải `demo123`.
 
 ### Gọi API có bảo vệ
 

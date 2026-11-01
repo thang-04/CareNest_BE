@@ -4047,6 +4047,8 @@ components:
         classroomId:
           type: integer
           format: int64
+        substitute:
+          type: boolean
         userId:
           type: integer
           format: int64
@@ -4893,7 +4895,6 @@ components:
       - campusId
       - classId
       - date
-      - normal
       - note
       - substitute
     MealCountDayResponse:
@@ -6921,6 +6922,8 @@ components:
           - TEACHER
           - KITCHEN_STAFF
           - AGE_GROUP_TEAM_LEADER
+        substitute:
+          type: boolean
         userId:
           type: integer
           format: int64
@@ -6934,9 +6937,6 @@ components:
       type: object
       properties:
         campusId:
-          type: integer
-          format: int64
-        classroomId:
           type: integer
           format: int64
         validFrom:

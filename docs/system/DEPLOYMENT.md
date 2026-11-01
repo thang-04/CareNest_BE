@@ -50,7 +50,7 @@ Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'
    chmod 600 .env
    ```
    Caddyfile đã `import /data/thangnd/CAPSTONE/caddy/*.caddy` và sudoers reload Caddy đã có từ lúc cài FE.
-5. **Deploy đầu:** merge PR vào `main` (hoặc Actions › Deploy VPS › Run workflow trên `main`; nút chỉ hiện khi workflow đã có trên nhánh mặc định). Lần đầu Keycloak tạo DB, import realm + user dev.
+5. **Deploy đầu:** merge PR vào `main` (hoặc Actions › Deploy VPS › Run workflow trên `main`; nút chỉ hiện khi workflow đã có trên nhánh mặc định). Lần đầu Keycloak tạo DB, import realm + 8 user demo từ `docker/keycloak/vps/carenest-users-0.json` với mật khẩu `KEYCLOAK_DEV_USER_PASSWORD` (không phải `demo123` của máy local). Keycloak chỉ import khi realm chưa có: VPS đã import bản cũ (file dev, mật khẩu `demo123` công khai) thì owner phải tự đổi mật khẩu 8 user (`admin`, `principal`, `viceprincipal`, `teacher1`, `teacher2`, `parent1`, `parent2`, `kitchen`) trong admin console qua tunnel (mục dưới) — đổi `.env` không tự áp lại.
 6. **Bật gateway auth** (ADR-0013, quyết định demo trong plan): từ máy dev mở tunnel `ssh -L 18320:127.0.0.1:18320 thangnd@<VPS>`, đặt `KEYCLOAK_URL=http://localhost:18320`, `KEYCLOAK_REALM=carenest`, `KC_BOOTSTRAP_ADMIN_USERNAME`, `KC_BOOTSTRAP_ADMIN_PASSWORD` trong shell rồi `node docker/keycloak/auth/bootstrap.mjs` (preview, chỉ đọc) ⇒ duyệt ⇒ chạy lại với `--apply --enable`. Sau đó trên VPS sửa `.env` `CARENEST_AUTH_ENABLED=true` và `docker compose -f compose.vps.yaml up -d --no-build api` (cần `API_IMAGE`, xem Rollback).
 7. **FE:** Caddy `/api/*` ⇒ `127.0.0.1:18310`; build với `VITE_AUTH_MODE=gateway`, `VITE_USE_MOCK=false` (repo FE).
 
@@ -96,7 +96,7 @@ Tắt gateway khẩn cấp: `.env` `CARENEST_AUTH_ENABLED=false` rồi `up -d --
 
 ```bash
 docker compose -f compose.vps.yaml down -v
-# .env: SPRING_PROFILES_ACTIVE=  (rỗng) · SMTP thật; compose.vps.yaml: bỏ mount carenest-users-0.json
+# .env: SPRING_PROFILES_ACTIVE=  (rỗng) · SMTP thật; compose.vps.yaml: bỏ mount docker/keycloak/vps/carenest-users-0.json
 docker compose -f compose.vps.yaml up -d --no-build   # kèm API_IMAGE/KEYCLOAK_IMAGE hiện tại
 ```
 
