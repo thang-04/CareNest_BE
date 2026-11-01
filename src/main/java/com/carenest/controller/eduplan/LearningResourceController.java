@@ -45,7 +45,7 @@ public class LearningResourceController {
             @RequestPart String activityKey,
             @RequestPart String activitySignature,
             @RequestPart String activityLabel,
-            @RequestHeader("X-Request-Id") UUID requestId,
+            @RequestHeader("Idempotency-Key") UUID requestId,
             CurrentUser user) {
         String p = LOG_PREFIX + "|upload|userId=" + user.userId();
         log.info("{}|START", p);

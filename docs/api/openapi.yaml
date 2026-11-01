@@ -1342,7 +1342,7 @@ paths:
         schema:
           type: string
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -1668,7 +1668,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -1734,7 +1734,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -1788,7 +1788,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -1856,7 +1856,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -1893,7 +1893,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -1930,7 +1930,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -1972,7 +1972,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -2015,7 +2015,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -2052,7 +2052,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
@@ -2094,7 +2094,7 @@ paths:
           type: integer
           format: int64
       - in: header
-        name: X-Request-Id
+        name: Idempotency-Key
         required: true
         schema:
           type: string
