@@ -42,6 +42,8 @@ BE bổ sung `/auth/**`, PUT `/me/password`, mã HTTP 428, cookie phiên mã hó
 
 Trạng thái tích hợp (2026-10-22): FE `dev` chưa ghép — vẫn mock, gọi `/auth/me`, `/users`, `/me/profile` (BE không có), không CSRF/refresh; source gateway chỉ ở nhánh FE G94-209 và plan merge FE chốt không nhận gateway auth. Chi tiết: `docs/quality/reports/2026-10-22-auth-fe-integration-gap.md`.
 
+Trạng thái tích hợp (2026-11-01, đối chiếu `origin/dev` FE và BE): web.carenest.edu.vn build `VITE_AUTH_MODE=gateway`, `VITE_USE_MOCK=false`; gateway chạy (`/api/auth/csrf` 200). `VITE_USE_MOCK` là cờ toàn cục ⇒ màn nào FE chưa ghép hoặc BE chưa có API đều lỗi. 224/317 lời gọi HTTP của FE không có route BE: (1) BE có, FE trả cứng 501 khi tắt mock — `permissionService` (màn `/school/roles`, lịch sử, ngoại lệ quyền), `guardianService` (2 màn đã nối, G94-272, nhánh `dev` FE; cổng `check-api-contract` + module demo có nhãn cùng commit); mở lại điểm danh không lỗi vì gateway đi `beClient`; (1b) gateway bật `SCHOOL_CONFIG_API` ⇒ `schoolConfigService` hàm trong `NOT_IN_BE` (Tài khoản nhân sự, Phân công PHT) **lặng lẽ dùng mock localStorage**; (2) lệch đường dẫn — FE `/users*` vs BE `/accounts*`, FE `GET /classes` vs BE `/school-structure`, `vice-principal-assignments`, `/notifications`; (3) BE chưa có module — assessment, health-checks, facility, facility-transfers, inspections, kitchen, menu, pickups, signatures, appearance. Deploy BE chỉ chạy từ `main` (từ 2026-10-31) mà `main` chưa có controller nào ⇒ bản BE trên VPS là lần deploy cuối từ `dev`.
+
 ## Consumer của API kế hoạch giáo dục (G94-226)
 
 | API BE | Consumer FE |

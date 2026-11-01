@@ -6,6 +6,7 @@ ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường
 
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261101-web-nonmock-unwired-screens](incidents/BUG-261101-web-nonmock-unwired-screens.md) | cross-repo | Web prod "Không tải được dữ liệu", `cần thống nhất contract BE`, 404, hoặc dữ liệu giả localStorage dù `VITE_USE_MOCK=false` | Cờ mock toàn cục bật khi BE lên; FE còn 501 cứng, endpoint BE không có, fallback mock `NOT_IN_BE`; harness chỉ chạy mock | open |
 | [ENV-261031-ci-shallow-checkout-spotless-ratchet](incidents/ENV-261031-ci-shallow-checkout-spotless-ratchet.md) | deployment | CI Deploy VPS: `VERIFY FAIL` dù `tests 611 fail 0`, Spotless `spotless:check failed: No such reference`; local pass | `ratchetFrom origin/main` cần ref mà `actions/checkout` mặc định chỉ lấy 1 commit (đã thử UTC, container Linux) ⇒ `fetch-depth: 0` ở job verify | fixed |
 | [ENV-261030-flyway-renumbered-stale-db](incidents/ENV-261030-flyway-renumbered-stale-db.md) | deployment | Chạy app lỗi `Validate failed` `Migration checksum mismatch for migration version 7`…31 | DB local migrate theo số version cũ trước khi merge dev đổi số migration; dựng lại DB, giữ bản backup | workaround |
 | [BUG-261029-hierarchy-deferred-ddl](incidents/BUG-261029-hierarchy-deferred-ddl.md) | education-plan | Flyway CREATE INDEX: pending trigger events (55006) | Backfill FK deferred còn trigger chờ trước DDL; kiểm constraints trước DDL | fixed |
