@@ -1,255 +1,229 @@
+<div align="center">
+
+<img src="docs/assets/readme/logo.png" alt="CareNest" width="120" />
+
 # CareNest Backend
 
-Backend REST API của **CareNest**, hệ thống quản lý vận hành và hồ sơ trẻ cho Trường Mầm non Thượng Hồng (Hải Phòng): 1 trường, 2 điểm trường, 24 lớp, ~506 trẻ, ~60 nhân sự. Đồ án SEP490.
+REST API, business rule và phân quyền cho hệ thống quản lý vận hành và hồ sơ trẻ của trường mầm non.
+
+![Java](https://img.shields.io/badge/Java-21-ED8B00?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.1.1-6DB33F?logo=springboot&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+![Keycloak](https://img.shields.io/badge/Keycloak-26.8-4D4D4D?logo=keycloak&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
+
+[Tài liệu](docs/INDEX.md) · [Web](https://github.com/thang-04/CareNest_FE) · [Mobile](https://github.com/thang-04/CareNest_APP)
+
+</div>
+
+## Giới thiệu
+
+**CareNest** là hệ thống quản lý vận hành và hồ sơ trẻ cho trường mầm non. Thay cho việc ghi chép rời rạc trên nhiều công cụ và sổ giấy, CareNest gom các nghiệp vụ hằng ngày của nhà trường vào một hồ sơ có cấu trúc, lấy trẻ làm trung tâm:
+
+- **Vận hành:** điểm danh, đón trẻ, chốt số suất ăn gửi bếp, thực đơn và kho, kế hoạch giáo dục, thông báo, báo cáo theo lớp, điểm trường, toàn trường.
+- **Hồ sơ trẻ:** cân đo và sức khỏe, đánh giá hằng ngày, nhận xét định kỳ, khen thưởng, chia sẻ thông tin được phép cho phụ huynh.
+- **AI chỉ hỗ trợ:** AI tạo bản nháp, con người duyệt; hệ thống vẫn chạy đủ khi tắt AI.
 
 Repo này là **nguồn chuẩn (source of truth)** của toàn dự án: nghiệp vụ, domain, API contract, database và engineering memory. Hai client chỉ gọi API và không chứa business rule.
 
-| Repo | Vai trò | Người dùng chính |
+## Hệ sinh thái CareNest
+
+| Repo | Vai trò | Người dùng |
 | --- | --- | --- |
-| `CareNest_BE` (repo này) | REST API, business rule, phân quyền, database | — |
-| `CareNest_FE` | Web | System Admin, Hiệu trưởng, Hiệu phó, Giáo viên |
-| `CareNest_APP` | Mobile | Phụ huynh, Giáo viên, Bếp |
+| **CareNest_BE** (repo này) | REST API, business rule, phân quyền, dữ liệu. **Nguồn chuẩn** của toàn dự án | — |
+| [CareNest_FE](https://github.com/thang-04/CareNest_FE) | Web | Quản trị hệ thống, Hiệu trưởng, Phó hiệu trưởng, Giáo viên (kể cả Tổ trưởng nhóm tuổi) |
+| [CareNest_APP](https://github.com/thang-04/CareNest_APP) | Mobile | Giáo viên, Nhân viên bếp, Phụ huynh |
 
-> **Trạng thái:** đã có xác thực Keycloak, phân quyền theo phạm vi campus/lớp/trẻ và cấp tài khoản; API nghiệp vụ khác chưa có. Xem [Trạng thái và lộ trình](#trạng-thái-và-lộ-trình).
+BE quyết định nền tảng theo client của token ([ADR-0022](docs/decisions/ADR-0022-platform-access-from-token-client.md)): tài khoản Nhân viên bếp và Phụ huynh không đăng nhập được Web.
 
-## CareNest giải quyết gì
+## Module
 
-Trường đang dùng song song PMS, GoKids, Zalo, sổ giấy và hệ thống ngành, nên dữ liệu bị nhập lặp, tổng hợp tay và khó tra lịch sử. CareNest gom các workflow đó vào một hồ sơ có cấu trúc, lấy trẻ làm trung tâm:
+Mỗi module là một feature package xuyên các tầng; nghiệp vụ từng module ở [`docs/modules/`](docs/modules/README.md), chiều phụ thuộc ở [MODULE_MAP](docs/system/MODULE_MAP.md).
 
-- **Vận hành:** điểm danh, đón trẻ, phụ huynh báo nghỉ, chốt số suất ăn gửi bếp, thực đơn và định lượng, kho khô rút gọn, kế hoạch giáo dục, thông báo, báo cáo theo lớp / điểm trường / toàn trường.
-- **Hồ sơ trẻ:** cân đo và sức khỏe, đánh giá hằng ngày, nhận xét định kỳ, khen thưởng, hồ sơ phát triển, chia sẻ thông tin được phép cho phụ huynh.
-- **AI chỉ hỗ trợ:** gợi ý thực đơn, diễn giải xu hướng sức khỏe, nháp nhận xét, gợi ý nội dung hoạt động. AI tạo bản nháp, con người duyệt; hệ thống vẫn chạy đủ khi tắt AI.
-
-Ngoài phạm vi V1: multi-school / multi-tenant, chat thay Zalo, chẩn đoán y tế hoặc tâm lý, kế toán / payroll, sự cố và tài sản cơ sở vật chất. Scope đầy đủ: [`docs/context/PROJECT_CONTEXT.md`](docs/context/PROJECT_CONTEXT.md).
+| Module | Package | Đã có |
+| --- | --- | --- |
+| identity-access | `account`, `security` | Gateway đăng nhập Web, OTP quên mật khẩu, tài khoản, cấp và khóa tài khoản nhân sự, phụ huynh, phân quyền cấu hình được theo vai trò và ngoại lệ |
+| school-structure | `organization` | Năm học và vòng đời năm học, điểm trường, phòng, nhóm tuổi, lớp, giờ chốt, phân công giáo viên và tổ trưởng |
+| child | `child` | Hồ sơ trẻ, người giám hộ và tài khoản phụ huynh, chuyển năm học, xếp lớp |
+| attendance | `attendance` | Điểm danh theo lớp và ngày, mở lại ngày đã khóa, sức khỏe trong ngày |
+| nutrition | `meals` | Sổ số suất: tổng hợp, xác nhận, điều chỉnh. Chưa có thực đơn, kho |
+| education-plan | `eduplan` | Kế hoạch năm học và phiên bản, mục tiêu ba tầng, danh mục mục tiêu của Bộ, nhập file mục tiêu, tài liệu lớp, học liệu trên S3 |
+| health, learning-observation, notification, audit, ai-assistance, reporting | — | Đã thiết kế (có module card và business rule), chưa có code |
 
 ## Tech stack
 
 | Thành phần | Công nghệ |
 | --- | --- |
 | Ngôn ngữ | Java 21 (LTS) |
-| Framework | Spring Boot 4.1.1: Web MVC, Validation, Data JPA, Actuator |
+| Framework | Spring Boot 4.1.1: Web MVC, Validation, Data JPA, Security OAuth2 Resource Server, Actuator |
 | Database | PostgreSQL 17, Flyway |
-| Xác thực | Keycloak 26 + Spring Security OAuth2 Resource Server ([ADR-0011](docs/decisions/ADR-0011-keycloak-authentication.md), [`docs/system/KEYCLOAK.md`](docs/system/KEYCLOAK.md)) |
-| API docs | springdoc-openapi 3.1.1 (Swagger UI) |
+| Xác thực | Keycloak 26.8 kèm extension `carenest-auth`, Spring Security Resource Server |
+| Lưu trữ file | AWS SDK v2 (S3) cho học liệu |
+| API docs | springdoc-openapi 3.1.1, snapshot OpenAPI trong repo |
 | Build | Maven Wrapper (`mvnw`), Lombok |
-| Test | JUnit, Spring Boot Test, Testcontainers (PostgreSQL) |
-| Môi trường dev | Docker, Docker Compose |
+| Kiểm thử | JUnit, Spring Boot Test, Testcontainers (PostgreSQL), ArchUnit 1.5.1 |
+| Format | Spotless + palantir-java-format |
+| Triển khai | Docker (Temurin 21), Docker Compose, Docker Hub, Caddy, GitHub Actions |
 
 ## Kiến trúc
 
-**Layered monolith, ranh giới theo feature** ([ADR-0001](docs/decisions/ADR-0001-modular-monolith.md)): một ứng dụng Spring Boot + một PostgreSQL, đủ cho quy mô một trường. Không microservice, không message broker.
+**Layered monolith, ranh giới theo feature** ([ADR-0001](docs/decisions/ADR-0001-modular-monolith.md)): một ứng dụng Spring Boot và một PostgreSQL, đủ cho quy mô một trường. Không microservice, không message broker.
 
-```text
-Web (CareNest_FE) ─────┐
-                       ├─ HTTPS/JSON ─► CareNest_BE (Spring Boot) ─► PostgreSQL
-Mobile (CareNest_APP) ─┘                 └─► AI provider qua adapter (chưa chốt)
+```mermaid
+flowchart LR
+    W["CareNest_FE<br/>Web"] -->|"gateway /api/auth + Bearer"| API["CareNest_BE<br/>Spring Boot"]
+    M["CareNest_APP<br/>Mobile"] -->|"Bearer"| API
+    M -.->|"đăng nhập PKCE"| KC["Keycloak 26<br/>realm carenest"]
+    API -->|"JWT, Admin API"| KC
+    API --> DB[("PostgreSQL 17")]
+    API --> S3[("S3<br/>học liệu")]
+    API --> SMTP["SMTP<br/>Mailpit khi dev"]
 ```
 
-- Luồng request: `controller → service → repository`. Entity không trả qua API; mapper chuyển Entity ↔ DTO.
-- Mọi business rule và kiểm tra quyền nằm ở BE. Client chỉ ẩn/hiện UI theo dữ liệu BE trả về.
-- Dữ liệu phân theo điểm trường (`campus_id`); quyền = Role × Permission ∩ Scope (trường / điểm trường / lớp / trẻ), xem [ADR-0002](docs/decisions/ADR-0002-campus-data-scoping.md), [ADR-0003](docs/decisions/ADR-0003-access-scope-model.md).
+- Luồng request: `controller → service → repository`. Entity không trả qua API; mapper chuyển Entity sang DTO.
+- Mọi business rule và kiểm tra quyền nằm ở BE. Client chỉ ẩn, hiện UI theo dữ liệu BE trả về.
+- Gọi dịch vụ ngoài chỉ qua `integration/` (hiện có `keycloak`, `storage`).
 
 ```text
 src/main/java/com/carenest/
 ├── controller/<feature>/   REST endpoint, @Valid, trả ResponseJson
-├── service/<feature>/      nghiệp vụ, @Transactional, kiểm tra quyền theo scope
+├── service/<feature>/      nghiệp vụ, @Transactional, kiểm tra quyền theo phạm vi
 ├── repository/<feature>/   Spring Data JPA
 ├── entity/<feature>/       JPA entity
-├── dto/<feature>/          request/response DTO (dto/common: PageResponse, FieldErrorResponse)
+├── dto/<feature>/          request/response DTO
 ├── mapper/<feature>/       Entity ↔ DTO
-├── integration/            adapter dịch vụ ngoài: AI, storage, notification
-├── security/               JWT Keycloak, CurrentUser, policy phạm vi campus/lớp/trẻ
-├── config/                 WebMvcConfig (prefix API), OpenApiConfig
-├── exception/              GlobalException, GlobalExceptionHandler
-├── utils/                  ApiCode, ResponseJson
-└── common/
+├── integration/            adapter dịch vụ ngoài: Keycloak, S3
+├── security/               JWT, CurrentUser, policy phạm vi điểm trường/lớp/trẻ
+├── config/  exception/  utils/  common/
 ```
 
-Module nghiệp vụ, mỗi module là một feature sub-package xuyên các lớp: identity-access, school-structure, child, attendance, nutrition, health, learning-observation, education-plan, notification, audit, ai-assistance, reporting. Mỗi module có card riêng trong [`docs/modules/`](docs/modules/); chiều phụ thuộc giữa module ở [`docs/system/MODULE_MAP.md`](docs/system/MODULE_MAP.md).
+### Xác thực và phân quyền
 
-## Chạy local
+- **Web:** React gọi gateway `/api/auth/*` của BE; BE đăng nhập Keycloak bằng client confidential, trả access token trong body và giữ refresh token đã mã hóa trong cookie HttpOnly ([ADR-0013](docs/decisions/ADR-0013-react-auth-gateway.md), [ADR-0015](docs/decisions/ADR-0015-stateless-web-session-cookie.md)). Gateway bật theo môi trường.
+- **Mobile:** client public dùng PKCE, gửi Bearer token.
+- **Dev:** client dev chỉ hoạt động ở profile `dev`; ngoài profile này token của nó bị từ chối.
+- **Phân quyền:** vai trò × quyền, giao với phạm vi trường, điểm trường, lớp, trẻ; Hiệu trưởng chỉnh được ma trận quyền và ngoại lệ theo người ([ADR-0003](docs/decisions/ADR-0003-access-scope-model.md), [ADR-0017](docs/decisions/ADR-0017-configurable-permissions.md), [ADR-0023](docs/decisions/ADR-0023-permission-scope-on-override.md)).
 
-### Yêu cầu
+Cấu hình realm, lấy token, xử lý lỗi Keycloak: [KEYCLOAK](docs/system/KEYCLOAK.md); contract: [AUTH_CONTRACT](docs/contracts/AUTH_CONTRACT.md).
 
-- Docker và Docker Compose
-- JDK 21: cần khi chạy API ngoài Docker (cách 2) và khi chạy test
-- Node.js ≥ 18: chỉ cần nếu dùng hook Claude Code trong `.claude/hooks/`
+### Quy ước API
 
-Không cần cài Maven, repo đã có wrapper `./mvnw` (Windows: `mvnw.cmd`).
+- Prefix chung cấu hình được (mặc định `/api`), tự gắn cho mọi controller; controller không hardcode prefix.
+- Resource là danh từ số nhiều, `kebab-case`. Thao tác xác nhận, duyệt dùng endpoint hành động (`POST .../{id}/confirm`).
+- Danh sách phân trang bằng `PageResponse`; ngày giờ theo ISO-8601.
+- Mọi response, thành công hay lỗi, cùng một dạng; `errorCode` là mã lỗi nghiệp vụ 4 số, `null` khi thành công:
 
-### Chuẩn bị
-
-```bash
-cp .env.example .env    # bắt buộc (compose báo lỗi nếu thiếu mật khẩu Keycloak); đổi các giá trị change-me
+```json
+{ "code": 409, "errorCode": 4007, "desc": "Điểm danh và báo ăn đã khóa sau 08:30", "data": null }
 ```
 
-`.env` đã có trong `.gitignore`, không commit file này.
+Chi tiết: [API_CONVENTIONS](docs/contracts/API_CONVENTIONS.md), [ERROR_CONTRACT](docs/contracts/ERROR_CONTRACT.md), mục 7, 8, 11 của [coding guide](docs/backend-coding-guide.md).
 
-### Cách 1: Docker Compose (API + PostgreSQL + Keycloak + Mailpit)
+## Bắt đầu nhanh
+
+Yêu cầu:
+
+- Docker và Docker Compose.
+- JDK 21: khi chạy API ngoài Docker và khi chạy test. Không cần cài Maven, repo có `./mvnw` (Windows: `mvnw.cmd`).
+- Node.js 22: cho `scripts/verify.mjs`, git hook và các script Keycloak.
 
 ```bash
+git clone https://github.com/thang-04/CareNest_BE.git
+cd CareNest_BE
+cp .env.example .env    # bắt buộc; đổi các giá trị change-me khi lên server
 docker compose up --build
 ```
 
-### Cách 2: API chạy trên máy, PostgreSQL trong Docker
+Compose dựng PostgreSQL, Keycloak (import realm `carenest`), Mailpit và API với profile `dev` (nạp dữ liệu mẫu). Swagger UI: <http://localhost:8080/swagger-ui/index.html>.
 
-Dùng khi cần debug trong IDE.
+User dev (8 tài khoản, bảng ở `docs/system/KEYCLOAK.md` mục 5) dùng mật khẩu `demo123` **chỉ ở máy local**. VPS demo dùng cùng user nhưng mật khẩu là `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` của VPS (`docs/system/DEPLOYMENT.md`).
+
+Chạy API trong IDE để debug, chỉ để hạ tầng trong Docker:
 
 ```bash
 docker compose up -d postgres keycloak mailpit
-./mvnw spring-boot:run -Dspring-boot.run.profiles=dev   # Windows: mvnw.cmd ...; profile dev nạp dữ liệu giả
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 
-**Spring không đọc file `.env`.** Biến `DB_*` phải export trong shell hoặc khai báo trong run config của IDE, và `DB_PASSWORD` phải khớp `POSTGRES_PASSWORD`. Ví dụ: `export DB_PASSWORD=...` (bash) hoặc `$env:DB_PASSWORD="..."` (PowerShell).
+Profile `dev` tự đọc `.env` ở thư mục gốc. Tài khoản dev, cách lấy token và gọi API: [KEYCLOAK](docs/system/KEYCLOAK.md); Postman: [`docs/api/`](docs/api/CareNest.postman_collection.json). Bật gateway đăng nhập Web ở máy local: [`docker/keycloak/auth/README.md`](docker/keycloak/auth/README.md).
 
-### Địa chỉ
+Schema chỉ đổi qua Flyway migration trong `src/main/resources/db/migration`; migration đã commit thì không sửa, tạo migration mới.
 
-| | URL |
+## Kiểm thử và cổng chất lượng
+
+| Lệnh | Việc |
 | --- | --- |
-| API | `http://localhost:8080{API_PREFIX}/...` (mặc định `/api`) |
-| Swagger UI | `http://localhost:8080/swagger-ui/index.html` |
-| Health | `http://localhost:8080/actuator/health` |
-| Keycloak Admin Console | `http://localhost:8180/admin` (realm `carenest`) |
-| Mailpit (email dev) | `http://localhost:8025` |
+| `node scripts/verify.mjs` | **Cổng bắt buộc trước khi báo xong hoặc mở PR**: `mvnw verify` gồm test, ArchUnit, snapshot OpenAPI, Spotless; tự bật git hook, log ở `target/verify.log` |
+| `node scripts/verify.mjs --quick` | Thay đổi nhỏ: test liên quan file đã đổi, ArchUnit, Spotless |
+| `./mvnw test` | Chỉ chạy test |
 
-Compose chạy profile `dev`: có 8 user dev (`admin@gmail.com`, `teacher1@gmail.com`, `parent1@gmail.com`, ... mật khẩu `demo123`, **chỉ máy local**) và dữ liệu giả — bảng user/phạm vi ở `docs/system/KEYCLOAK.md` mục 5. VPS demo dùng cùng user nhưng mật khẩu là `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` của VPS (`docs/system/DEPLOYMENT.md`), không phải `demo123`.
+- Test tích hợp dùng PostgreSQL thật qua Testcontainers nên cần Docker đang chạy.
+- Spotless so với `origin/main`, cần có ref này ở máy (`git fetch origin main`).
+- Các nhóm test bắt buộc: phân quyền theo phạm vi (`security/authorization`), format response (`ResponseContractTest`), kiến trúc (`ArchitectureRulesTest`), snapshot OpenAPI (`OpenApiSnapshotTest`).
 
-### Gọi API có bảo vệ
+Chiến lược test: [TEST_STRATEGY](docs/quality/TEST_STRATEGY.md); tiêu chí hoàn thành: [DEFINITION_OF_DONE](docs/quality/DEFINITION_OF_DONE.md).
 
-Mọi API dưới `{API_PREFIX}` cần `Authorization: Bearer <access token Keycloak>`. CareNest không có endpoint login; dev lấy token qua client `carenest-dev` (chỉ bật khi `CARENEST_DEV_CLIENT_ENABLED=true`, compose dev đã bật):
+## Triển khai
 
-```bash
-TOKEN=$(curl -s -X POST "http://localhost:8180/realms/carenest/protocol/openid-connect/token" \
-  -d grant_type=password -d client_id=carenest-dev -d username=teacher1 \
-  -d "password=demo123" | jq -r .access_token)
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/accounts/me
-```
+Workflow [`deploy.yml`](.github/workflows/deploy.yml) chỉ chạy trên `main`, bỏ qua thay đổi chỉ có tài liệu:
 
-- Swagger UI: bấm *Authorize*, dán access token (không kèm chữ `Bearer`).
-- Postman: import `docs/api/CareNest.postman_collection.json` + `CareNest-local.postman_environment.json`, chạy folder *0. Đăng nhập* trước.
-- Token sống 5 phút. Cấu hình realm, xử lý lỗi: [`docs/system/KEYCLOAK.md`](docs/system/KEYCLOAK.md); contract: [`docs/contracts/AUTH_CONTRACT.md`](docs/contracts/AUTH_CONTRACT.md).
+- Image gắn tag theo hash nội dung; image đã có trên Docker Hub thì bỏ qua bước build.
+- PR vào `main`: verify API, build và test extension Keycloak.
+- Push vào `main`: thêm bước đẩy image lên Docker Hub, đồng bộ lên VPS, `docker compose up`, reload Caddy, kiểm tra HTTPS.
 
-## Cấu hình
-
-Profile `dev` (compose) thêm dữ liệu seed `db/dev`. Mọi cấu hình đi qua biến môi trường, giá trị mặc định nằm trong [`application.yml`](src/main/resources/application.yml). File `.env` chỉ dùng cho `docker compose`.
-
-| Biến | Dùng bởi | Mặc định | Ghi chú |
-| --- | --- | --- | --- |
-| `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | compose (postgres + api) | `carenest` | Mật khẩu chỉ có hiệu lực lúc volume `postgres-data` được tạo lần đầu |
-| `POSTGRES_PORT` | compose | `5432` | Port trên máy host; đổi biến này không tự đổi `DB_URL` |
-| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | app (cách 2) | `jdbc:postgresql://localhost:5432/carenest`, `carenest`, `carenest` | Phải khớp với `POSTGRES_*` |
-| `SERVER_PORT` | compose: port host · cách 2: port app | `8080` | Cùng tên nhưng hai nghĩa khác nhau |
-| `API_PREFIX` | app | `/api` | Map vào `carenest.api.prefix` (`WebMvcConfig`) |
-| `KEYCLOAK_*`, `KC_BOOTSTRAP_ADMIN_*`, `CARENEST_CORS_ALLOWED_ORIGINS` | app + compose | xem `.env.example` | Issuer/JWKS/audience, admin client cấp tài khoản — `docs/system/KEYCLOAK.md` |
-
-Cấu hình cố định khác:
-
-- `ddl-auto: validate`: schema chỉ đổi qua Flyway migration trong `src/main/resources/db/migration` (V1–V3: tài khoản, cơ cấu trường, trẻ). Migration đã commit thì không sửa, tạo migration mới.
-- Actuator chỉ mở endpoint `health`.
-- Upload tối đa 5MB/file, 10MB/request.
-
-## Test
-
-```bash
-./mvnw test
-```
-
-- `CareNestApplicationTests` khởi động toàn bộ context với PostgreSQL thật qua Testcontainers; tự skip khi Docker không chạy.
-- `ResponseContractTest` khóa format response `{code, desc, data}` cho thành công, validation, 404/405/415/500.
-- `security/authorization/*PolicyTest`, `ScopeQueryIntegrationTest` (PostgreSQL thật): phân quyền theo campus/lớp/trẻ; `ControllerSecurityCoverageTest` bắt mọi handler có `@PreAuthorize`.
-- Cổng đầy đủ trước khi báo xong: `node scripts/verify.mjs` (test + ArchUnit + snapshot OpenAPI + Spotless).
-
-Chiến lược test và các kịch bản bắt buộc: [`docs/quality/TEST_STRATEGY.md`](docs/quality/TEST_STRATEGY.md).
-
-## Quy ước API
-
-- Prefix cấu hình qua `API_PREFIX` (mặc định `/api`), tự gắn cho mọi controller trong `com.carenest.controller`. Controller không hardcode prefix; Swagger và Actuator không bị gắn prefix.
-- Resource là danh từ số nhiều, `kebab-case`: `/children`, `/attendance-records`. Thao tác xác nhận/duyệt dùng endpoint hành động: `POST /meal-counts/{id}/confirm`.
-- Danh sách phải phân trang (`PageResponse`); ngày giờ theo ISO-8601.
-- Mọi response, thành công hay lỗi, có cùng một dạng:
-
-```json
-{ "code": 200, "desc": "Get child profile success", "data": { "id": 123, "name": "Example" } }
-```
-
-`code` trùng HTTP status (enum `ApiCode`); `data` luôn có mặt, là `null` khi không có dữ liệu. Controller trả `ResponseJson`, service ném `GlobalException`, `GlobalExceptionHandler` chuyển lỗi về đúng format. Chi tiết: mục 7, 8, 11 của [coding guide](docs/backend-coding-guide.md) và [`docs/contracts/ERROR_CONTRACT.md`](docs/contracts/ERROR_CONTRACT.md).
+Trên VPS mọi service chỉ nghe localhost; Caddy phục vụ `auth.carenest.edu.vn` (Keycloak) và chuyển `/api/*` của `web.carenest.edu.vn` vào API. Cài đặt, cổng, rollback: [DEPLOYMENT](docs/system/DEPLOYMENT.md).
 
 ## Cấu trúc repo
 
 ```text
 CareNest_BE/
-├── src/                 source và test
-├── docs/                nghiệp vụ, kiến trúc, contract, database, engineering memory
-├── .ai/                 router, profile, workflow cho AI agent (dùng chung Claude Code và Codex)
-├── .claude/, .agents/   skill, rule, hook: điểm vào cho Claude Code và Codex
-├── AGENTS.md, CLAUDE.md hướng dẫn cho coding agent
-├── Dockerfile           build multi-stage, runtime chạy bằng user không phải root
-├── compose.yaml         PostgreSQL + API cho dev/demo
-└── .env.example         mẫu biến môi trường
+├── src/                      source và test
+├── docs/                     nghiệp vụ, kiến trúc, contract, database, ADR, engineering memory
+├── specs/                    spec theo tính năng của kế hoạch giáo dục
+├── scripts/                  verify, check-ai-layer
+├── docker/                   Keycloak (realm, extension, gateway), PostgreSQL
+├── deploy/                   site Caddy, mẫu env cho VPS
+├── .github/workflows/        CI/CD
+├── .githooks/                commit-msg, pre-commit, pre-push
+├── Dockerfile                build multi-stage, runtime chạy bằng user không phải root
+├── compose.yaml              hạ tầng + API cho dev
+├── compose.auth.yaml         overlay bật gateway đăng nhập Web
+├── compose.vps.yaml          stack trên VPS
+├── .env.example              mẫu cấu hình
+└── AGENTS.md, CLAUDE.md, .ai/, .claude/, .agents/   hướng dẫn cho AI agent
 ```
 
 ## Tài liệu
 
 | Cần | Đọc |
 | --- | --- |
-| Quy tắc code (**đọc trước khi code**) | [`docs/backend-coding-guide.md`](docs/backend-coding-guide.md) |
-| Mục lục toàn bộ tài liệu | [`docs/INDEX.md`](docs/INDEX.md) |
-| Bối cảnh, scope V1, exclusions | [`docs/context/PROJECT_CONTEXT.md`](docs/context/PROJECT_CONTEXT.md) |
-| Đã làm / chưa làm | [`docs/context/CURRENT_STATE.md`](docs/context/CURRENT_STATE.md) |
-| Thuật ngữ tiếng Việt ↔ code | [`docs/context/GLOSSARY.md`](docs/context/GLOSSARY.md) |
-| Business rule (có ID, status, nguồn) | [`docs/business/BUSINESS_RULES.md`](docs/business/BUSINESS_RULES.md) |
-| Role và phân quyền | [`docs/business/USER_ROLES.md`](docs/business/USER_ROLES.md) |
-| Nghiệp vụ theo module | [`docs/modules/`](docs/modules/) |
-| Kiến trúc hệ thống | [`docs/system/SYSTEM_ARCHITECTURE.md`](docs/system/SYSTEM_ARCHITECTURE.md) |
-| Quyết định kiến trúc (ADR) | [`docs/decisions/`](docs/decisions/) |
-| Lỗi đã gặp | [`docs/knowledge/ISSUE_INDEX.md`](docs/knowledge/ISSUE_INDEX.md), [`docs/knowledge/TROUBLESHOOTING.md`](docs/knowledge/TROUBLESHOOTING.md) |
-| Tiêu chí hoàn thành | [`docs/quality/DEFINITION_OF_DONE.md`](docs/quality/DEFINITION_OF_DONE.md) |
+| Quy tắc code (**đọc trước khi code**) | [backend-coding-guide](docs/backend-coding-guide.md) |
+| Mục lục toàn bộ tài liệu | [docs/INDEX.md](docs/INDEX.md) |
+| Bối cảnh, phạm vi V1, ngoài phạm vi | [PROJECT_CONTEXT](docs/context/PROJECT_CONTEXT.md) |
+| Đã làm, chưa làm | [CURRENT_STATE](docs/context/CURRENT_STATE.md) |
+| Thuật ngữ tiếng Việt và tên trong code | [GLOSSARY](docs/context/GLOSSARY.md) |
+| Business rule (có ID, trạng thái, nguồn) | [BUSINESS_RULES](docs/business/BUSINESS_RULES.md) |
+| Vai trò và phân quyền | [USER_ROLES](docs/business/USER_ROLES.md) |
+| Nghiệp vụ theo module | [docs/modules](docs/modules/README.md) |
+| Kiến trúc hệ thống | [SYSTEM_ARCHITECTURE](docs/system/SYSTEM_ARCHITECTURE.md) |
+| Quyết định kiến trúc (ADR) | [docs/decisions](docs/decisions/) |
+| Database | [DATABASE](docs/database/DATABASE.md) |
+| Lỗi đã gặp | [ISSUE_INDEX](docs/knowledge/ISSUE_INDEX.md), [TROUBLESHOOTING](docs/knowledge/TROUBLESHOOTING.md) |
 
-## Quy trình đóng góp
+## Quy ước đóng góp
 
-- **Nhánh:** `main` chứa bản phát hành đã duyệt, `dev` để tích hợp, `release/*` để kiểm thử bản phát hành và sửa lỗi; nhánh làm việc (tính năng, sửa lỗi) tạo từ `dev`.
-- **Mã Jira và mã công việc:** mỗi việc là một task Jira có mã Jira riêng (ví dụ `G94-181`). Các task liên quan thuộc cùng một luồng, đánh dấu bằng mã công việc (ví dụ `BE-FEAT-12`). Loại: `FE-FEAT`, `BE-FEAT`, `FE-FIX`, `BE-FIX`.
-- **Tên nhánh:** `<tiền-tố>/<mã-jira>-<mã-công-việc>-<tên-luồng>`, tiền tố `feature` cho tính năng mới, `fix` cho sửa lỗi, tên luồng viết thường nối bằng `-`. Ví dụ `fix/G94-190-BE-FIX-03-meal-count-validation`. Mã Jira trên nhánh là task chính của luồng; nhánh có thể chứa commit của nhiều task cùng luồng.
-- **Commit:** `<mã-jira>: <mô tả ngắn>`, mô tả tiếng Anh, cả dòng ≤ 72 ký tự; không ghi mã công việc (đã có ở tên nhánh). Mỗi commit một thay đổi logic, ứng với đúng một task Jira.
+- **Nhánh:** `main` là bản phát hành đã duyệt, `dev` để tích hợp, `release/*` để kiểm thử bản phát hành. Nhánh làm việc tạo từ `dev`, đặt tên `<feature|fix>/<mã-jira>-<mã-công-việc>-<tên-luồng>`, ví dụ `fix/G94-190-BE-FIX-03-meal-count-validation`.
+- **Commit:** `<mã-jira>: <mô tả tiếng Anh>`, cả dòng tối đa 72 ký tự, mỗi commit một thay đổi logic, không ghi tên công cụ AI.
+- **Pull request:** gộp vào `dev`; chỉ `release/*` được gộp vào `main`. Cần ít nhất một thành viên khác duyệt và mọi kiểm tra bắt buộc đạt.
+- **Git hook** (`.githooks/`, bật tự động khi chạy `node scripts/verify.mjs`): chặn commit sai định dạng, file secret, sửa migration đã commit, push thẳng lên `main` và force push.
+- **Không commit** secret hay dữ liệu trẻ thật; repo chỉ chứa mẫu cấu hình (`.env.example`).
+- **Trao đổi với team trước khi:** thêm hoặc nâng dependency, đổi API contract (kèm tác động tới FE, APP), thêm hạ tầng mới.
 
-  ```text
-  G94-190: Fix meal-count validation
-  ```
+Chi tiết: [AGENTS.md](AGENTS.md), mục "Quy tắc chung CareNest".
 
-- **Pull request:** tiêu đề cùng định dạng commit (mã Jira của task chính); mô tả ghi link các task Jira liên quan, các thay đổi và phần kiểm thử đã làm. PR gộp vào `dev`; chỉ `release/*` được gộp vào `main`; cấm push trực tiếp lên `main`. Cần ít nhất một thành viên khác tác giả duyệt, mọi kiểm tra bắt buộc đạt và mọi góp ý chặn đã xử lý.
-- **Thông tin nhạy cảm:** không commit secret; repo chỉ chứa mẫu cấu hình không nhạy cảm (`.env.example`), thông tin xác thực thật quản lý qua cấu hình môi trường có kiểm soát truy cập hoặc dịch vụ lưu trữ bí mật.
+## Trạng thái
 
-- **Trao đổi với team trước khi:** thêm/nâng dependency hoặc đổi version (`pom.xml`, `Dockerfile`, `compose.yaml`); đổi API contract (endpoint, DTO, `ResponseJson`, `ApiCode`, prefix) kèm danh sách tác động FE/APP; thêm hạ tầng mới chưa chốt.
-- **Trước khi mở PR:** `./mvnw test` pass, đối chiếu Checklist mục 17 của coding guide và [Definition of Done](docs/quality/DEFINITION_OF_DONE.md).
-- Gặp lỗi không hiển nhiên thì ghi lại vào `docs/knowledge/`, kể cả các cách đã thử không hiệu quả.
-- Không ghi tên công cụ AI, `Co-Authored-By` của AI trong commit, PR hay comment code.
+- **Đã có:** 6 module có code, migration V1–V40, gateway đăng nhập Web, phân quyền cấu hình được, học liệu S3, triển khai VPS qua CI.
+- **Chưa có:** sức khỏe định kỳ, đánh giá trẻ, thông báo, audit, AI, báo cáo; thực đơn và kho của module dinh dưỡng.
 
-## Làm việc với AI agent
-
-Repo có bộ tài liệu riêng cho Claude Code và Codex. Agent bắt đầu từ [`AGENTS.md`](AGENTS.md) (Claude nạp qua `CLAUDE.md`), sau đó [`.ai/ROUTER.md`](.ai/ROUTER.md) chọn workflow và module card cần đọc. Người muốn hiểu cách bộ tài liệu này được tổ chức: [`docs/README_AI.md`](docs/README_AI.md).
-
-## Trạng thái và lộ trình
-
-Theo [`docs/context/CURRENT_STATE.md`](docs/context/CURRENT_STATE.md):
-
-- **Đã có:** cấu trúc package, response/exception chuẩn, prefix API cấu hình được, OpenAPI, Docker Compose, tài liệu nghiệp vụ và kiến trúc bản đầu.
-- **Đã có thêm:** xác thực Keycloak (ADR-0011), phạm vi campus/lớp/trẻ, cấp/khóa tài khoản, migration V1–V3, snapshot OpenAPI `docs/api/openapi.yaml`.
-- **Chưa có:** API quản lý phân công/liên kết phụ huynh (hiện chỉ có seed dev), nghiệp vụ điểm danh trở đi, hạ tầng deploy.
-
-Thứ tự triển khai:
-
-1. Nền móng: **xong**.
-2. Đăng nhập và phạm vi: user/role, phân công điểm trường/lớp, liên kết phụ huynh–trẻ: xác thực + phạm vi **xong** (`feature/authentication`, chờ merge); API quản lý phân công/liên kết chưa làm.
-3. Điểm danh → BGH xác nhận số suất → bếp.
-4. Hồ sơ trẻ: quan sát, sức khỏe, chia sẻ phụ huynh, audit, lịch sử.
-5. Mở rộng: thông báo, thực đơn, kế hoạch giáo dục; AI sau khi dữ liệu nền sẵn sàng.
-
-## Xử lý sự cố
-
-Lỗi hay gặp nhất khi chạy cách 2:
-
-```text
-FATAL: password authentication failed for user "carenest"
-```
-
-Nguyên nhân: app không đọc `.env` nên dùng `DB_PASSWORD` mặc định, hoặc volume `postgres-data` đã được tạo trước đó với mật khẩu khác. Cách xử lý: khai báo `DB_PASSWORD` khớp `POSTGRES_PASSWORD`, hoặc xóa volume nếu không cần giữ dữ liệu local (`docker compose down -v`). Các lỗi môi trường khác: [`docs/knowledge/TROUBLESHOOTING.md`](docs/knowledge/TROUBLESHOOTING.md).
+Chi tiết từng module và các rule còn `PENDING`: [CURRENT_STATE](docs/context/CURRENT_STATE.md).
