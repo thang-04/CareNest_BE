@@ -12,7 +12,11 @@ Nguồn chuẩn: `docs/backend-coding-guide.md` mục 12. PostgreSQL 17, Spring 
 6. Bản ghi do AI tạo: nguồn (`AI`/thủ công/template), model, trạng thái nháp/đã duyệt, người duyệt, thời điểm.
 7. Không lưu binary trong bảng nghiệp vụ; ảnh/tệp qua `StorageService`, bảng giữ metadata (`MediaAsset`).
 8. pgvector chỉ khi làm semantic search/RAG, migration bật extension tách riêng.
-9. Kiểu ID, cột audit chuẩn, tiền tố bảng: **chưa chốt** — theo migration đầu tiên của nhóm, rồi ghi lại tại đây.
+9. Convention (đặt bởi migration đầu tiên `V1__create_user_accounts.sql`):
+   - ID: `BIGINT GENERATED ALWAYS AS IDENTITY` (JPA `Long`, `GenerationType.IDENTITY`).
+   - Cột thời gian: `created_at`, `updated_at` kiểu `TIMESTAMPTZ NOT NULL DEFAULT now()` (JPA `Instant` + `@CreationTimestamp`/`@UpdateTimestamp`).
+   - Enum: `VARCHAR` + `CHECK (... IN (...))`, JPA `@Enumerated(EnumType.STRING)`.
+   - Tên ràng buộc: `uk_<bảng>_<cột>`, `ck_<bảng>_<ý nghĩa>`, `fk_<bảng>_<cột>`, `idx_<bảng>_<cột>`. Không tiền tố bảng.
 
 ## Tài liệu liên quan
 

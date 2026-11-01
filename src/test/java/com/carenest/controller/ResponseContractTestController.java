@@ -7,20 +7,22 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.util.Map;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Controller chỉ dùng trong test để kiểm hợp đồng response; nằm package controller để nhận prefix API. */
 @RestController
 @RequestMapping("/response-contract")
-class ResponseContractTestController {
+public class ResponseContractTestController {
 
-    record SampleRequest(@NotBlank String name, @NotNull Long classId) {
-    }
+    record SampleRequest(@NotBlank String name, @NotNull Long classId) {}
 
     @GetMapping("/data")
     ResponseEntity<ResponseJson<Map<String, Object>>> getData() {
@@ -37,18 +39,29 @@ class ResponseContractTestController {
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Created", request);
     }
 
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ResponseJson<Void>> upload(@RequestPart String label) {
+        return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Upload ok");
+    }
+
     @GetMapping("/not-found")
     ResponseEntity<ResponseJson<Void>> throwNotFound() {
-        throw new GlobalException(ApiCode.NOT_FOUND, "Child not found");
+        throw GlobalException.of(ApiCode.CHILD_NOT_FOUND);
     }
 
     @GetMapping("/conflict")
     ResponseEntity<ResponseJson<Void>> throwConflict() {
-        throw new GlobalException(ApiCode.CONFLICT, "Meal count already confirmed");
+        throw GlobalException.of(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
     }
 
     @GetMapping("/unexpected")
     ResponseEntity<ResponseJson<Void>> throwUnexpected() {
         throw new IllegalStateException("secret internal detail");
+    }
+
+    @GetMapping("/admin-only")
+    @PreAuthorize("hasRole('ADMIN')")
+    ResponseEntity<ResponseJson<Void>> getAdminOnly() {
+        return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Admin only");
     }
 }

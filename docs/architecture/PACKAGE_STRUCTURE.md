@@ -13,8 +13,8 @@ com.carenest
 ├── entity/<feature>/       # JPA entity — không trả qua API
 ├── dto/<feature>/          # request/response DTO (dto/common: PageResponse, FieldErrorResponse)
 ├── mapper/<feature>/       # Entity <-> DTO
-├── integration/            # interface + adapter AI (AiClient), storage (StorageService), notification
-├── security/               # xác thực, kiểm tra quyền (chưa triển khai — auth chưa chốt)
+├── integration/            # interface + adapter AI (AiClient), storage (StorageService), notification, keycloak (Admin API)
+├── security/               # Resource Server Keycloak (ADR-0011): role converter, 401/403 handler; authorization/ = policy scope
 ├── config/                 # WebMvcConfig (prefix API), OpenApiConfig
 ├── exception/              # GlobalException, GlobalExceptionHandler
 ├── utils/                  # ApiCode, ResponseJson, Constants (hằng dùng chung), enums/ (enum dùng chung)
@@ -25,18 +25,18 @@ Không tạo package `domain/`, không tách module theo DDD (guide mục 3).
 
 ## Module nghiệp vụ → feature sub-package
 
-Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (`controller/<feature>`, `service/<feature>`, ...). Tên feature: guide đã nêu ví dụ `attendance`, `child`, `meals`, `facilities`; các tên còn lại là **PROPOSED** — dùng tên đã có trong source nếu khác.
+Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (`controller/<feature>`, `service/<feature>`, ...). Tên feature: guide đã nêu ví dụ `attendance`, `child`, `meals` (ví dụ `facilities` trong guide thuộc mảng CSVC đã loại 29/10); các tên còn lại là **PROPOSED** — dùng tên đã có trong source nếu khác.
 
 | Module (docs) | Feature sub-package | Ghi chú |
 | --- | --- | --- |
-| identity-access | `account` (PROPOSED) + `security/` | Auth chưa chốt |
+| identity-access | `account` + `security/` + `integration/keycloak/` | Auth: Keycloak + Resource Server (ADR-0011); cấp tài khoản qua Keycloak Admin API |
 | school-structure | `organization` (PROPOSED) | Campus, Class, StaffAssignment |
 | child | `child` | |
 | attendance | `attendance` | Gồm đơn nghỉ |
 | nutrition | `meals` | Thực đơn (MealPlan), số suất, định lượng |
 | health | `health` (PROPOSED) | |
 | learning-observation | `observation` (PROPOSED) | |
-| facility-issue | `facilities` | FacilityReport |
+| education-plan | `eduplan` | Kế hoạch giáo dục: kế hoạch năm, cấu hình, tài liệu lớp, học liệu (ADR-0020) |
 | notification | `notification` (PROPOSED) + `integration/` | |
 | audit | `audit` (PROPOSED) | AuditEvent |
 | ai-assistance | `integration/` (`AiClient`) | Không có service nghiệp vụ riêng |

@@ -1,14 +1,16 @@
 # Non-Functional Requirements
 
-Nguồn chính: `Non_Req_v3.docx` (team, 28/09/2026; ID dưới đây do docs gán). Status theo quy ước `docs/context/PROJECT_CONTEXT.md`.
+Nguồn chính: `Non_Req_v3.docx` (team, 28/09/2026; ID dưới đây do docs gán). Số liệu hiệu năng, sẵn sàng, sao lưu, giờ cao điểm cập nhật 29/10 theo khảo sát team 27/10 (OPS-06, OPS-08). Status theo quy ước `docs/context/PROJECT_CONTEXT.md`.
 
 | ID | Nhóm | Yêu cầu | Status |
 | --- | --- | --- | --- |
 | NFR-SCALE-01 | Quy mô | 1 trường, 2 campus, 24 lớp, ~506 trẻ, ~60 nhân sự + phụ huynh | CONFIRMED |
 | NFR-ARCH-01 | Kiến trúc | 1 instance BE + 1 PostgreSQL; không scale-out | ACCEPTED |
-| NFR-PERF-01 | Hiệu năng | 95% request API thông thường ≤ 2s với ≤ 50 người dùng đồng thời (không tính gọi AI, upload) | PROPOSED |
-| NFR-PERF-02 | Hiệu năng | Dùng được với 50 người dùng đồng thời trên 1 deployment, dữ liệu demo | PROPOSED |
-| NFR-PERF-03 | Hiệu năng | Nhập điểm danh/quan sát cả lớp (20–25 trẻ) trong 1 thao tác lưu; cao điểm buổi sáng trước cut-off (P-03) | PROPOSED |
+| NFR-PERF-01 | Hiệu năng | Tải trang ≤ 3s với 100 người dùng đồng thời; gọi AI theo NFR-PERF-05 | CONFIRMED (OPS-06; thay bản 2s/50 người của Non_Req_v3) |
+| NFR-PERF-02 | Hiệu năng | Dùng được với 100 người dùng đồng thời trên 1 deployment, dữ liệu demo | CONFIRMED (OPS-06) |
+| NFR-PERF-03 | Hiệu năng | Nhập điểm danh/đánh giá cả lớp (20–25 trẻ) trong 1 thao tác lưu; cao điểm 7:00–9:00 sáng, trước giờ chốt (ATT-06) | PROPOSED (1 thao tác lưu) · CONFIRMED (giờ cao điểm — OPS-08) |
+| NFR-PERF-04 | Hiệu năng | Tổng hợp điểm danh toàn cơ sở ≤ 30s | CONFIRMED (OPS-06) |
+| NFR-PERF-05 | Hiệu năng | AI trả bản nháp ≤ 30s; quá hạn ⇒ báo người dùng, dùng mẫu nền (AI-03, OBS-04) | CONFIRMED (OPS-06) |
 | NFR-USE-01 | Usability | ≥ 80% người dùng thử hoàn thành task chính không cần trợ giúp (điểm danh, xác nhận suất, xem định lượng bếp, xem con) | PROPOSED |
 | NFR-USE-02 | Usability | Thông báo xác nhận/lỗi rõ ràng sau mọi thao tác tạo/sửa/duyệt/gửi; UI tiếng Việt | PROPOSED |
 | NFR-SEC-01 | Bảo mật | Chỉ người đã đăng nhập truy cập chức năng được bảo vệ; HTTPS; mật khẩu băm | ACCEPTED |
@@ -26,8 +28,10 @@ Nguồn chính: `Non_Req_v3.docx` (team, 28/09/2026; ID dưới đây do docs g�
 | NFR-INT-03 | Tích hợp | Mọi gọi AI đi qua BE; AI là tùy chọn, workflow lõi chạy khi AI tắt | CONFIRMED |
 | NFR-INT-04 | Tích hợp | Hệ thống ngành: chỉ xuất dữ liệu, không kết nối DB trực tiếp | CONFIRMED (EX-01, LI-01) |
 | NFR-AVAIL-01 | Availability | Không yêu cầu 24/7 HA, không DR đầy đủ | CONFIRMED (exclusion) |
-| NFR-OPS-01 | Vận hành | Backup PostgreSQL định kỳ (tần suất PENDING) | PROPOSED |
+| NFR-AVAIL-02 | Availability | Sẵn sàng ≥ 99% trong giờ học | CONFIRMED (OPS-06) |
+| NFR-OPS-01 | Vận hành | Sao lưu PostgreSQL hằng ngày | CONFIRMED (OPS-06) |
 | NFR-OPS-02 | Vận hành | Audit hành động nhạy cảm (`docs/modules/audit.md`) | ACCEPTED |
+| NFR-OPS-03 | Vận hành | Chi phí vận hành mỗi tháng trong mức trường chấp nhận (khảo sát chọn dưới 500 nghìn — "chưa rõ") | PENDING (P-35) |
 | NFR-TZ-01 | Khác | `Asia/Ho_Chi_Minh` cho ngày nghiệp vụ | ACCEPTED |
 
-Còn thiếu trong Non_Req_v3 (cần team bổ sung): availability mục tiêu cho demo, backup/restore, audit, ẩn danh dữ liệu khi gửi AI.
+Đã bổ sung từ khảo sát team 27/10: sẵn sàng, sao lưu, giờ cao điểm. Audit (NFR-OPS-02) và ẩn danh dữ liệu khi gửi AI (NFR-SEC-04) đã có. Còn thiếu (cần team bổ sung): thời gian khôi phục khi restore.

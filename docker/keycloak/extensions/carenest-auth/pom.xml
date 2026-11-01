@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.1</version>
+        <relativePath/>
+    </parent>
+    <groupId>com.carenest.keycloak</groupId>
+    <artifactId>carenest-auth</artifactId>
+    <version>1.0.0</version>
+    <properties>
+        <java.version>21</java.version>
+        <keycloak.version>26.8.0</keycloak.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.keycloak</groupId><artifactId>keycloak-server-spi</artifactId>
+            <version>${keycloak.version}</version><scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId><artifactId>keycloak-server-spi-private</artifactId>
+            <version>${keycloak.version}</version><scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.keycloak</groupId><artifactId>keycloak-services</artifactId>
+            <version>${keycloak.version}</version><scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId><artifactId>junit-jupiter</artifactId><scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId><artifactId>mockito-junit-jupiter</artifactId><scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.resteasy</groupId><artifactId>resteasy-core</artifactId>
+            <version>6.2.19.Final</version><scope>test</scope>
+        </dependency>
+    </dependencies>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId><artifactId>spotless-maven-plugin</artifactId>
+                <version>3.10.3</version>
+                <configuration><java><palantirJavaFormat><version>2.98.0</version></palantirJavaFormat><removeUnusedImports/></java></configuration>
+                <executions><execution><goals><goal>check</goal></goals></execution></executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

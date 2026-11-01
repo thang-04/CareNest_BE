@@ -7,7 +7,7 @@ Luồng trong 1 request: guide mục 4–5 (`Controller → Service → Reposito
 ```text
 HTTP → controller/<feature>: @Valid request DTO, lấy user hiện tại
      → service/<feature>: @Transactional; kiểm tra quyền + scope; rule nghiệp vụ;
-                          lỗi ⇒ GlobalException(ApiCode, desc)
+                          lỗi ⇒ GlobalException.of(ApiCode.X, args)
      → repository/<feature> → PostgreSQL
      ← DTO (mapper) ← ResponseJson.toJsonWithData(ApiCode.X, desc, dto)
 ```

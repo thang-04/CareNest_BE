@@ -13,11 +13,11 @@ Tổng quan dependency (L3/L4). Chi tiết từng module: `docs/modules/`.
  attendance       ──► child, school-structure
  nutrition        ──► attendance, child, school-structure, ai-assistance
  health           ──► child, ai-assistance
- learning-obs     ──► child, attendance, nutrition, health, ai-assistance
- facility-issue   ──► school-structure
+ education-plan   ──► school-structure, identity-access (tên người dùng), ai-assistance (gợi ý — chưa làm)
+ learning-obs     ──► child, attendance, nutrition, health, education-plan, ai-assistance
  reporting        ──► mọi module domain (query only)
 
- Mọi module domain ──► identity-access (CurrentUser, permission, AccessScopeService)
+ Mọi module domain ──► identity-access (CurrentUser, permission, policy trong security/authorization)
  Domain ──(event after-commit)──► notification, audit
  ai-assistance, notification, audit ──► không module domain nào
 ```
@@ -27,9 +27,9 @@ Thứ tự lớp (chỉ được phụ thuộc xuống dưới):
 ```text
 L5  reporting
 L4  learning-observation
-L3  nutrition · health · facility-issue
+L3  nutrition · health
 L2  attendance
-L1  child
+L1  child · education-plan
 L0  school-structure · identity-access · ai-assistance · notification · audit · common/utils
 ```
 
@@ -37,7 +37,7 @@ L0  school-structure · identity-access · ai-assistance · notification · audi
 
 | Cycle tiềm ẩn | Cách phá |
 | --- | --- |
-| identity-access ↔ school-structure/child (scope cần assignment, guardian link) | Kiểm tra scope ở `security/` (AccessScopeService) đọc service organization + child; 2 service đó không gọi ngược |
+| identity-access ↔ school-structure/child (scope cần assignment, guardian link) | Policy ở `security/authorization/` và `AccountService` (tóm tắt phạm vi `/accounts/me`) đọc service organization + child (`StaffAssignmentService`, `ClassroomService`, `EnrollmentService`, `GuardianChildLinkService`); các service đó KHÔNG gọi ngược policy/account |
 | attendance ↔ nutrition | Đăng ký ăn ở attendance; meals đọc qua AttendanceService; attendance không gọi meals, chỉ phát event `AttendanceChanged` |
 | child ↔ health/learning | DevelopmentProfile ở learning (downstream); child không đọc ngược |
 | domain ↔ ai-assistance | Domain build input và gọi port; AI không query domain |

@@ -1,7 +1,7 @@
 # CareNest Backend — Coding Guide
 
 > **Nguồn:** `CareNest_Backend_Architecture_v2.docx` (thiết kế kiến trúc Backend CareNest), cộng hai quyết định nhóm đã chốt: prefix API cấu hình được, `code` trong response trùng HTTP status.
-> **Trạng thái:** quyết định v1. Đã có skeleton nền móng (cấu trúc package, response/exception chuẩn, prefix API, OpenAPI, Docker). Chưa có auth và nghiệp vụ. Phần đã implement thì **file nguồn là chuẩn**; code trong guide chỉ là ví dụ cách dùng (tên như `ChildService`, `AccessScopeService` là minh họa).
+> **Trạng thái:** quyết định v1. Đã có skeleton nền móng (cấu trúc package, response/exception chuẩn, prefix API, OpenAPI, Docker) và nền xác thực Keycloak + Resource Server (ADR-0011). Phân quyền theo scope và nghiệp vụ đang làm. Phần đã implement thì **file nguồn là chuẩn**; code trong guide chỉ là ví dụ cách dùng.
 > **Áp dụng cho:** mọi thành viên và mọi AI agent viết/review code trong `CareNest_BE`. Khi source thực tế khác guide: báo xung đột, thống nhất, rồi cập nhật guide cùng commit với code.
 
 Quy ước đọc: **PHẢI** = bắt buộc; **KHÔNG ĐƯỢC** = cấm; **NÊN** = mặc định, được lệch nếu có lý do ghi rõ trong PR.
@@ -18,7 +18,7 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 
 | Trong v1 | Không thuộc v1 |
 | --- | --- |
-| Điểm danh, tổng hợp suất ăn; hồ sơ sức khỏe và quan sát trẻ; cổng thông tin phụ huynh; báo cáo cơ sở vật chất; thông báo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; soạn và duyệt giáo án (GoKids giữ); kho/NCC (OPEN — ADR-0009); tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
+| Điểm danh, đón trẻ, tổng hợp suất ăn; thực đơn, kho khô rút gọn (ADR-0009); hồ sơ sức khỏe và đánh giá trẻ; kế hoạch giáo dục (ADR-0020); cổng thông tin phụ huynh; thông báo; báo cáo; AI hỗ trợ có người duyệt. | Thay hệ thống ngành, chat Zalo; sự cố cơ sở vật chất (đã loại 29/10); kiểm kê kho, thu tiền ăn; tích hợp trực tiếp CSDL Bộ/Sở; chẩn đoán y tế; quản lý tài sản toàn diện; SaaS nhiều trường. |
 
 ## 2. Tech stack
 
@@ -27,12 +27,12 @@ Mục lục: [1. Tổng quan](#1-tổng-quan-và-phạm-vi-v1) · [2. Stack](#2-
 | Backend | **Java 21 (LTS)** + **Spring Boot 4.1.1** (Spring Framework 7, Jakarta EE 11, Jackson 3), Spring MVC/REST; Maven qua `mvnw` |
 | Database | PostgreSQL 17 + Spring Data JPA (Hibernate 7); Flyway quản lý migration; pgvector tùy chọn (chỉ khi làm semantic search/RAG) |
 | API docs | springdoc-openapi 3.1.x — Swagger UI tại `/swagger-ui/index.html` |
-| Auth | **Chưa triển khai — team đang chốt phương án.** Định hướng trong docx: Spring Security + JWT access token + refresh/session policy; kiểm tra role + campus/class; không dùng Keycloak trong v1. KHÔNG tự thêm Spring Security/JWT khi chưa có quyết định |
+| Auth | **Keycloak + Spring Security OAuth2 Resource Server** (ADR-0011, thay định hướng "JWT tự phát hành" của docx). Keycloak lo đăng nhập, mật khẩu, token, realm role; BE chỉ kiểm JWT (JWKS, `iss`, `aud`, `exp`) và phân quyền theo scope. KHÔNG tự viết login/refresh, KHÔNG lưu mật khẩu/refresh token, KHÔNG tự ký JWT. Hướng dẫn: `docs/system/KEYCLOAK.md` |
 | Ảnh/tệp | Object storage S3-compatible (MinIO khi self-host) qua `StorageService` |
 | AI | `AiClient` adapter trong backend; luồng nghiệp vụ PHẢI chạy được khi AI unavailable |
 | Test / vận hành | JUnit, Mockito, Testcontainers; Docker Compose (API + PostgreSQL); Actuator; structured logs |
 
-- KHÔNG thêm Redis, Keycloak, message broker hay dịch vụ hạ tầng mới khi chưa có use case đo được và chưa được nhóm đồng ý.
+- KHÔNG thêm Redis, message broker hay dịch vụ hạ tầng mới khi chưa có use case đo được và chưa được nhóm đồng ý (Keycloak đã được chốt — ADR-0011).
 - Logging dùng SLF4J qua Lombok `@Slf4j`.
 - Boot 4 dùng starter dạng module (`spring-boot-starter-webmvc`, `spring-boot-starter-flyway`, test: `spring-boot-starter-webmvc-test`). Jackson 3: `ObjectMapper` ở package `tools.jackson.databind`; annotation vẫn `com.fasterxml.jackson.annotation.*`.
 - Version cố định trong `pom.xml`; đổi version PHẢI chạy lại `mvnw test`.
@@ -70,7 +70,7 @@ CareNest_BE/
     └── test/java/.../carenest/
 ```
 
-- Mỗi package lớp NÊN chia tiếp theo chức năng: `controller/attendance/`, `service/attendance/`, `dto/attendance/`, ... (attendance, child, meals, facilities, ...).
+- Mỗi package lớp NÊN chia tiếp theo chức năng: `controller/attendance/`, `service/attendance/`, `dto/attendance/`, ... (attendance, child, meals, ...).
 - KHÔNG tạo package `domain/` hay tách module theo DDD.
 - Service PHẢI tách interface + implementation (ADR-0014): `service/child/ChildService.java` (interface) và `service/child/impl/ChildServiceImpl.java`. Interface giữ tên gốc để caller và mock không phụ thuộc implementation.
 - Enum và hằng dùng chung PHẢI tập trung ở `utils/` (ADR-0014): mục 6.3.
@@ -92,81 +92,16 @@ HTTP Request → Controller → Service → Repository → PostgreSQL
 | Package | PHẢI | KHÔNG ĐƯỢC |
 | --- | --- | --- |
 | `controller/` | Nhận request, `@Valid` dữ liệu đầu vào, lấy user hiện tại, gọi service, trả `ResponseJson` | Chứa logic/tính toán nghiệp vụ; gọi repository; trả entity |
-| `service/` | Interface `XxxService` khai báo contract; `impl/XxxServiceImpl` xử lý nghiệp vụ, `@Transactional`, kiểm tra quyền theo scope, ném `GlobalException(ApiCode, desc)` khi lỗi nghiệp vụ, trả DTO hoặc dữ liệu nghiệp vụ | Dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; trả chuỗi lỗi để controller xử lý; inject `XxxServiceImpl` thay vì interface |
+| `service/` | Interface `XxxService` khai báo contract; `impl/XxxServiceImpl` xử lý nghiệp vụ, `@Transactional`, kiểm tra quyền theo scope, ném `GlobalException.of(ApiCode.X, args...)` khi lỗi nghiệp vụ, trả DTO hoặc dữ liệu nghiệp vụ | Dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; trả chuỗi lỗi để controller xử lý; inject `XxxServiceImpl` thay vì interface |
 | `repository/` | Interface Spring Data JPA, query; `XxxRepositoryCustom` + `XxxRepositoryImpl` chỉ khi cần query custom | Nghiệp vụ |
 | `entity/` | Ánh xạ bảng | Bị trả qua API; dùng làm request body |
 | `dto/`, `mapper/` | DTO request/response; mapper chuyển Entity ↔ DTO | Chứa nghiệp vụ |
 | `utils/` | `ApiCode`, `ResponseJson`, `CommonUtils`; `Constants` (hằng dùng chung); `enums/` (enum dùng chung); hàm stateless dùng chung | Logic riêng của một nghiệp vụ |
 | `integration/` | Interface trung lập + adapter theo provider cho AI, storage, notification, identity | Quy tắc nghiệp vụ; client không có interface |
 
-Ví dụ một luồng đầy đủ (mẫu):
+Mẫu một luồng đầy đủ đọc trực tiếp ở `controller/child/ChildController.java` → `service/child/ChildService.java` (interface, nơi controller và service khác inject) → `service/child/impl/ChildServiceImpl.java`. Service kiểm tra quyền qua `ChildAccessPolicy` **trước** khi load trẻ để không lộ ID ngoài scope (mục 9); format log và `try-catch` theo mục 10.
 
-```java
-// controller/child/ChildController.java
-@Slf4j
-@RestController
-@RequestMapping("/children")              // KHÔNG ghi prefix API ở đây — xem mục 7
-@RequiredArgsConstructor
-public class ChildController {
-    private static final String LOG_PREFIX = "[ChildController]";
-
-    private final ChildService childService;
-
-    @GetMapping("/{childId}")
-    public ResponseEntity<ResponseJson<ChildProfileResponse>> getChildProfile(
-            @PathVariable Long childId,
-            @AuthenticationPrincipal CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getChildProfile|childId=" + childId;
-        log.info("{}|START", logPrefix);
-        ChildProfileResponse response = childService.getChildProfile(currentUser, childId);
-        log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child profile success", response);
-    }
-}
-```
-
-```java
-// service/child/ChildService.java — contract; controller và service khác inject interface này
-public interface ChildService {
-
-    ChildProfileResponse getChildProfile(CurrentUser currentUser, Long childId);
-}
-```
-
-```java
-// service/child/impl/ChildServiceImpl.java
-@Slf4j
-@Service
-@RequiredArgsConstructor
-public class ChildServiceImpl implements ChildService {
-    private static final String LOG_PREFIX = "[ChildServiceImpl]";
-
-    private final ChildRepository childRepository;
-    private final AccessScopeService accessScopeService;
-    private final ChildMapper childMapper;
-
-    @Override
-    @Transactional(readOnly = true)
-    public ChildProfileResponse getChildProfile(CurrentUser currentUser, Long childId) {
-        String logPrefix = LOG_PREFIX + "|getChildProfile|childId=" + childId;
-        log.info("{}|START", logPrefix);
-        try {
-            Child child = childRepository.findById(childId)
-                    .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"));
-            accessScopeService.assertCanViewChild(currentUser, child);   // kiểm tra quyền ở server — mục 9
-
-            ChildProfileResponse response = childMapper.toProfileResponse(child);
-            log.info("{}|END", logPrefix);
-            return response;
-        } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
-            throw ex;
-        }
-    }
-}
-```
-
-`CurrentUser`, `AccessScopeService` là tên minh họa; dùng đúng tên đã có trong source khi source được tạo.
+`CurrentUser` đã có (`security/CurrentUser.java`): controller khai báo tham số `CurrentUser` (resolve bởi `CurrentUserArgumentResolver` từ JWT `sub` → `user_accounts`; `ActiveAccountInterceptor` chặn tài khoản chưa cấp/INACTIVE cho mọi API kể cả endpoint không khai báo `CurrentUser`) rồi truyền xuống service; service KHÔNG tự đọc `SecurityContextHolder`/`Jwt`. Kiểm tra scope nằm ở `security/authorization/` (policy theo campus/lớp/trẻ).
 
 ## 6. Quy ước đặt tên và comment
 
@@ -245,20 +180,22 @@ carenest:
 **Mọi** response của API — thành công hay lỗi, kể cả lỗi từ Spring Security và lỗi framework — PHẢI có đúng một dạng:
 
 ```json
-{ "code": 200, "desc": "Get child profile success", "data": { "id": 123, "name": "Example" } }
+{ "code": 200, "errorCode": null, "desc": "Get child profile success", "data": { "id": 123, "name": "Example" } }
+{ "code": 409, "errorCode": 4007, "desc": "Điểm danh và báo ăn đã khóa sau 08:30", "data": null }
 ```
 
 | Trường | Kiểu | Ý nghĩa |
 | --- | --- | --- |
 | `code` | integer | Mã từ `ApiCode`, **trùng HTTP status** của response |
+| `errorCode` | integer / null | Mã lỗi nghiệp vụ 4 số của `ApiCode` (dải theo phân hệ, `docs/contracts/ERROR_CONTRACT.md`); `null` khi thành công |
 | `desc` | string | Thông báo ngắn cho kết quả/lỗi, hiển thị được cho người dùng |
 | `data` | object / array / null | Dữ liệu trả về; luôn có mặt, `null` khi không có dữ liệu |
 
 ### 8.1. Quy tắc
 
 - HTTP status thật của response PHẢI bằng `code`. KHÔNG ĐƯỢC trả HTTP 200 kèm `code` lỗi.
-- `code` chỉ lấy từ `ApiCode`. Thêm giá trị mới vào `ApiCode` chỉ khi cần một HTTP status chưa có; KHÔNG tự đặt mã số riêng.
-- Các lỗi cùng status phân biệt bằng `desc`.
+- `code` và `errorCode` chỉ lấy từ `ApiCode`. Mỗi lỗi nghiệp vụ là một dòng trong `ApiCode` (mã 4 số đúng dải phân hệ + HTTP status + câu tiếng Việt có `{0}`); lỗi mới thêm vào cuối dải, mã đã dùng không đổi số, không dùng lại.
+- Các lỗi cùng status phân biệt bằng `errorCode`; service KHÔNG tự viết câu lỗi.
 - Lỗi validation: `code = 400`, `data` = danh sách lỗi theo trường.
 - Danh sách phân trang: `data` = `PageResponse` (`items`, `page`, `size`, `totalElements`, `totalPages`), không trả trực tiếp `Page` của Spring.
 - Service KHÔNG tự đóng gói `ResponseJson`; chỉ controller, `GlobalExceptionHandler` và security handler tạo response.
@@ -303,6 +240,7 @@ public ResponseEntity<ResponseJson<ChildProfileResponse>> getChildProfile(@PathV
 }
 
 @PostMapping
+@ResponseStatus(HttpStatus.CREATED) // OpenAPI ghi 201; thiếu thì springdoc ghi 200 (BUG-261007-openapi-create-account-status)
 public ResponseEntity<ResponseJson<AttendanceRecordResponse>> createAttendanceRecord(
         @Valid @RequestBody CreateAttendanceRecordRequest request) {
     return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create attendance record success",
@@ -322,7 +260,20 @@ Lỗi PHẢI ném exception (mục 11) để handler trả thống nhất. Chỉ
 
 ### 8.5. 401/403 từ Spring Security
 
-**Chưa triển khai** (auth chưa chốt). Lỗi ở filter xảy ra trước controller nên `@RestControllerAdvice` không bắt được ⇒ PHẢI có `AuthenticationEntryPoint` + `AccessDeniedHandler` ghi đúng `ResponseJson`; filter JWT tự viết KHÔNG tự ghi response lỗi dạng khác. Code mẫu: `docs/architecture/SECURITY.md` mục "Response 401/403" — chỉ đọc khi làm auth.
+Đã implement (ADR-0011) — file nguồn là chuẩn:
+
+| File | Vai trò |
+| --- | --- |
+| `src/main/java/com/carenest/config/SecurityConfig.java` | Filter chain stateless; public: `/actuator/health`, Swagger/OpenAPI, `/error`; còn lại `authenticated()`; `JwtDecoder` (JWKS + validator `iss`/`aud`/`exp`); CORS từ `carenest.security.cors.allowed-origins`; `@EnableMethodSecurity` |
+| `src/main/java/com/carenest/security/KeycloakRealmRoleConverter.java` | `realm_access.roles` → `ROLE_*`, chỉ nhận role trong `CareNestRole` |
+| `src/main/java/com/carenest/security/RestAuthenticationEntryPoint.java` | 401 ở filter (thiếu/sai/hết hạn token) → `ResponseJson` + header `WWW-Authenticate: Bearer` |
+| `src/main/java/com/carenest/security/RestAccessDeniedHandler.java` | 403 phát sinh trong filter chain → `ResponseJson` |
+| `src/main/java/com/carenest/security/SecurityResponseWriter.java` | Ghi `ResponseJson` trực tiếp ra response (dùng `tools.jackson.databind.ObjectMapper`) |
+
+- Lỗi ở filter xảy ra **trước** controller nên `@RestControllerAdvice` không bắt được; entry point/handler trên được đăng ký cho cả `oauth2ResourceServer` và `exceptionHandling`.
+- 403 do `@PreAuthorize` từ chối xảy ra **trong** DispatcherServlet ⇒ `GlobalExceptionHandler` map `AccessDeniedException` → 403 (mục 11).
+- KHÔNG viết filter JWT tự chế; KHÔNG log token hay header `Authorization`.
+- Test: `config/SecurityConfigTest`, `config/JwtValidatorTest`, `exception/ResponseContractTest`.
 
 ## 9. Phân quyền
 
@@ -338,7 +289,8 @@ Lỗi PHẢI ném exception (mục 11) để handler trả thống nhất. Chỉ
 | Nhà bếp | Chỉ xem thực đơn, số suất ăn và nội dung liên quan bếp; không xem hồ sơ sức khỏe/đánh giá trẻ |
 | Quản trị viên | Quản lý tài khoản/cấu hình; không mặc định được xem dữ liệu trẻ |
 
-- Truy cập ngoài phạm vi: ném `GlobalException(ApiCode.FORBIDDEN, ...)`.
+- Truy cập ngoài phạm vi: ném `GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED)` / `CLASS_ACCESS_DENIED` / `CHILD_ACCESS_DENIED`.
+- Kiểm tra scope dùng policy trong `security/authorization/` (`CampusAccessPolicy`, `ClassroomAccessPolicy`, `ChildAccessPolicy`): service gọi `checkCanXxx(currentUser, id)` **trước** khi load dữ liệu (id không tồn tại cũng trả 403, không lộ id). Ghi dùng `checkCanView*` (phạm vi thao tác); đọc có thể dùng `checkCanRead*` (thêm xem liên cơ sở — AUTH-20). KHÔNG viết `if (role == TEACHER)` rải rác trong service; thêm rule mới vào policy và test policy trực tiếp. Chi tiết: `docs/architecture/SECURITY.md`.
 - NÊN có test cho trường hợp bị từ chối (lớp khác, cơ sở khác, phụ huynh không liên kết).
 
 ## 10. Logging
@@ -384,23 +336,26 @@ try {
 
 | File | Vai trò |
 | --- | --- |
-| `src/main/java/com/carenest/exception/GlobalException.java` | Lỗi nghiệp vụ: `new GlobalException(ApiCode.X, "desc")` hoặc kèm `cause` |
+| `src/main/java/com/carenest/exception/GlobalException.java` | Lỗi nghiệp vụ: `GlobalException.of(ApiCode.X, args...)`, kèm cause: `GlobalException.withCause(ApiCode.X, ex, args...)` |
 | `src/main/java/com/carenest/exception/GlobalExceptionHandler.java` | Map exception → `ResponseJson`: `GlobalException` (warn; error nếu 5xx), validation → 400 + field errors, request sai → 400, không tìm thấy path → 404, sai method → 405, sai content type → 415, upload quá cỡ → 413, còn lại → 500 với desc chung |
 | `src/main/java/com/carenest/dto/common/FieldErrorResponse.java` | Phần tử lỗi validation `{field, message}` |
 
-- Handler `AccessDeniedException` (403 từ `@PreAuthorize`) chỉ thêm khi đã có Spring Security (xem mục 8.5).
+- `AccessDeniedException` (403 từ `@PreAuthorize`) → `FORBIDDEN`, `AuthenticationException` → `UNAUTHORIZED`, cùng ở `GlobalExceptionHandler` (mục 8.5).
 - Thêm handler mới PHẢI kèm test trong `ResponseContractTest`.
 
 ```java
 // service — lỗi nghiệp vụ
 Child child = childRepository.findById(childId)
-        .orElseThrow(() -> new GlobalException(ApiCode.NOT_FOUND, "Child not found"));
+        .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
+
+// có tham số {0}
+throw GlobalException.of(ApiCode.ATTENDANCE_LOCKED, info.cutoff());
 
 // bọc lỗi dịch vụ ngoài, giữ cause
 try {
     return aiClient.suggestMenu(request);
 } catch (AiTimeoutException ex) {
-    throw new GlobalException(ApiCode.GATEWAY_TIMEOUT, "Menu suggestion timed out", ex);
+    throw GlobalException.withCause(ApiCode.AI_TIMEOUT, ex);
 }
 ```
 
@@ -455,7 +410,7 @@ Entity và quan hệ: `docs/business/DOMAIN_MODEL.md` (tên chuẩn, vd. `Classr
 2. **Đăng nhập và phạm vi:** user/role, campus/class assignment, liên kết guardian-child, test quyền.
 3. **Luồng ưu tiên:** điểm danh → BGH xác nhận số ăn → bếp xem số liệu.
 4. **Hồ sơ trẻ:** observation/health record, chia sẻ phụ huynh, audit, lịch sử.
-5. **Mở rộng:** facility report, notification, thực đơn; AI chỉ sau khi dữ liệu và baseline sẵn sàng.
+5. **Mở rộng:** notification, thực đơn, kế hoạch giáo dục; AI chỉ sau khi dữ liệu và baseline sẵn sàng.
 
 ## 16. Khi guide chưa đủ
 
@@ -470,7 +425,7 @@ Chạy trên diff trước khi tạo PR hoặc báo task xong. Mục không áp 
 - [ ] Controller không inject/gọi repository; không chứa logic nghiệp vụ.
 - [ ] Không trả entity qua API; dùng DTO + mapper.
 - [ ] Service mới có interface `XxxService` + `impl/XxxServiceImpl`; enum/hằng dùng chung ở `utils/enums/` / `utils/Constants.java` (ADR-0014).
-- [ ] Service không dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; lỗi nghiệp vụ ném `GlobalException(ApiCode, desc)`.
+- [ ] Service không dùng `HttpStatus`, `ResponseEntity`, `ResponseJson`; lỗi nghiệp vụ ném `GlobalException.of(ApiCode.X, args...)` (mã tập trung trong `ApiCode`).
 - [ ] Controller không hardcode prefix API; prefix lấy từ `carenest.api.prefix`.
 - [ ] Mọi response (kể cả lỗi mới thêm) có dạng `{code, desc, data}`, `code` = HTTP status, lấy từ `ApiCode`.
 - [ ] Exception mới được `GlobalExceptionHandler` map đúng `ApiCode`, không rơi vào 500 ngoài ý muốn.

@@ -32,12 +32,13 @@ function isCandidate(token) {
 }
 
 function resolveToken(root, config, file, token) {
+  const stripLine = (p) => p.replace(/#.*$/, "").replace(/:\d+(-\d+)?$/, "");
   const ref = crossRepoRef(token);
   if (ref) {
     const base = siblingRoot(root, config, ref.repo);
-    return base ? (existsSync(join(base, ref.rel)) ? "ok" : "missing") : "skip";
+    return base ? (existsSync(join(base, stripLine(ref.rel))) ? "ok" : "missing") : "skip";
   }
-  const clean = token.replace(/#.*$/, "").replace(/:\d+(-\d+)?$/, "");
+  const clean = stripLine(token);
   const bases = [dirname(file)];
   for (let dir = dirname(file); dir !== "." && dir; dir = dirname(dir)) bases.push(dirname(dir));
   bases.push(".", ...config.checkAiLayer.pathRoots);
@@ -61,6 +62,8 @@ export function checkLinks(root, config, files, planned, report) {
   const { scanGlobs, scanExclude } = config.checkAiLayer;
   const targets = files.filter((f) => matchAny(scanGlobs, f) && !matchAny(scanExclude, f));
   for (const file of targets) {
+    // Plan liệt kê file sẽ tạo (C) hoặc đã xóa (D) ⇒ đường dẫn thiếu chỉ cảnh báo
+    const inPlan = file.startsWith("docs/plans/");
     let inFence = false;
     readText(root, file)
       .split("\n")
@@ -82,7 +85,8 @@ export function checkLinks(root, config, files, planned, report) {
           if (resolveToken(root, config, file, token) !== "missing") continue;
           const norm = token.replace(/\/$/, "");
           const isPlanned = planned.some((p) => norm === p || norm.startsWith(`${p}/`));
-          report(isPlanned ? "warn" : "error", file, index + 1, `${isPlanned ? "đường dẫn planned, chưa tồn tại" : "đường dẫn không tồn tại"}: ${token}`);
+          const label = isPlanned ? "đường dẫn planned, chưa tồn tại" : inPlan ? "đường dẫn trong plan chưa/không còn tồn tại" : "đường dẫn không tồn tại";
+          report(isPlanned || inPlan ? "warn" : "error", file, index + 1, `${label}: ${token}`);
         }
       });
   }
@@ -99,7 +103,7 @@ const ADR_0016_REFERENCES = {
 };
 
 // E7 — rule path-scoped phải có `paths` hợp lệ, nếu không Claude nạp rule cho mọi file (tốn token);
-// entrypoint và rule controller/service cùng tham chiếu quy ước log ADR-0016.
+// entrypoint và rule controller/service cùng tham chiếu quy ước log ADR-0016 (chỉ repo có ADR này).
 export function checkRules(root, files, report) {
   for (const file of files.filter((f) => /^\.claude\/rules\/[^/]+\.md$/.test(f))) {
     const fm = parseFrontmatter(readText(root, file));
@@ -108,6 +112,8 @@ export function checkRules(root, files, report) {
       report("error", file, 1, "thiếu frontmatter `paths` (danh sách glob)");
       continue;
     }
+    const unmatched = [];
+    let checked = 0;
     for (const glob of paths) {
       let re;
       try {
@@ -118,7 +124,15 @@ export function checkRules(root, files, report) {
       }
       const base = glob.split(/[*?{]/)[0].replace(/\/[^/]*$/, "");
       const baseExists = base && existsSync(join(root, base)) && statSync(join(root, base)).isDirectory();
-      if (baseExists && !files.some((f) => re.test(f))) report("warn", file, 1, `glob không khớp file nào: ${glob}`);
+      if (!baseExists) continue;
+      checked++;
+      if (!files.some((f) => re.test(f))) unmatched.push(glob);
+    }
+    // Mọi glob đều trượt ⇒ rule không bao giờ được nạp (vd. glob *.ts trong repo JS)
+    if (checked > 0 && unmatched.length === checked) {
+      report("error", file, 1, `rule chết — không glob nào khớp file: ${unmatched.join(", ")}`);
+    } else {
+      for (const glob of unmatched) report("warn", file, 1, `glob không khớp file nào: ${glob}`);
     }
   }
   if (!files.includes(ADR_0016)) return;

@@ -8,4 +8,4 @@
 4. **Permission & scope:** permission mới ⇒ `docs/business/USER_ROLES.md`.
 5. **Lỗi:** dùng `ApiCode` có sẵn, phân biệt bằng `desc`; chỉ thêm `ApiCode` khi cần HTTP status mới (hỏi nhóm) — `ERROR_CONTRACT.md`.
 6. **Test:** controller test kiểm tra `{code, desc, data}` + HTTP status; service test cho bị từ chối quyền.
-7. **Thông báo client:** liệt kê thay đổi FE/APP cần làm theo consumer cụ thể (màn hình/route, không ghi "mọi caller"); ghi rõ phần client chưa kiểm thử.
+7. **Thông báo client:** liệt kê thay đổi FE/APP cần làm theo consumer cụ thể (màn hình/route, không ghi "mọi caller"); ghi rõ phần client chưa kiểm thử. Web: module FE nào đang `demo`/`pending` trong `integrationModules.js` (thư mục config của src, repo FE) có thể chuyển sang BE ⇒ ghi vào báo cáo để FE đồng bộ (`check-api-contract.mjs --sync`, đổi module sang `api`). Ghi chú "chưa tích hợp" không thay cổng — xem `docs/knowledge/incidents/BUG-261101-web-nonmock-unwired-screens.md`.

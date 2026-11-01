@@ -1,0 +1,16 @@
+# Context build image api (Dockerfile chỉ cần .mvn, mvnw, pom.xml, src); không gửi secret/artefact vào context
+.env
+.env.*
+.git
+.github
+.idea
+.ai
+.agents
+.claude
+.githooks
+target
+docs
+docker
+deploy
+scripts
+*.log

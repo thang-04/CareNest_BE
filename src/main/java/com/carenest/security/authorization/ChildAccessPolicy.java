@@ -1,0 +1,73 @@
+package com.carenest.security.authorization;
+
+import com.carenest.exception.GlobalException;
+import com.carenest.security.CurrentUser;
+import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.util.Set;
+import java.util.function.BiPredicate;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Component;
+
+/**
+ * Phạm vi trẻ: phụ huynh có liên kết, hoặc nhân sự có phạm vi lớp trẻ đang học hôm nay.
+ * Id không tồn tại và id ngoài phạm vi cho cùng kết quả (không lộ id để dò) — gọi trước khi load dữ liệu trẻ.
+ */
+@Slf4j
+@Component
+@RequiredArgsConstructor
+public class ChildAccessPolicy {
+
+    // Bếp (AUTH-05) và Admin (AUTH-06, P-16) không có quyền xem hồ sơ trẻ; Admin không bypass phạm vi
+    private static final Set<CareNestRole> STAFF_ROLES_WITH_CHILD_SCOPE =
+            Set.of(CareNestRole.TEACHER, CareNestRole.VICE_PRINCIPAL, CareNestRole.PRINCIPAL);
+
+    private final EnrollmentService enrollmentService;
+    private final GuardianChildLinkService guardianChildLinkService;
+    private final ClassroomAccessPolicy classroomAccessPolicy;
+    private final Clock clock;
+
+    public boolean canViewChild(CurrentUser user, Long childId) {
+        return canAccessChild(user, childId, classroomAccessPolicy::canViewClassroom);
+    }
+
+    public void checkCanViewChild(CurrentUser user, Long childId) {
+        if (!canViewChild(user, childId)) {
+            log.warn("[checkCanViewChild]|userId={}|childId={}|denied", user.userId(), childId);
+            throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
+        }
+    }
+
+    // Chỉ đọc: nhân sự theo phạm vi đọc của lớp (AUTH-20); phụ huynh giữ nguyên AUTH-04
+    public boolean canReadChild(CurrentUser user, Long childId) {
+        return canAccessChild(user, childId, classroomAccessPolicy::canReadClassroom);
+    }
+
+    public void checkCanReadChild(CurrentUser user, Long childId) {
+        if (!canReadChild(user, childId)) {
+            log.warn("[checkCanReadChild]|userId={}|childId={}|denied", user.userId(), childId);
+            throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
+        }
+    }
+
+    private boolean canAccessChild(CurrentUser user, Long childId, BiPredicate<CurrentUser, Long> classroomScope) {
+        // AUTH-04: phụ huynh chỉ trẻ có liên kết với chính tài khoản; CHD-04: trẻ đã nghỉ học/ra trường thì không xem
+        if (user.hasRole(CareNestRole.PARENT)
+                && guardianChildLinkService.isGuardianOf(user.userId(), childId)
+                && enrollmentService
+                        .findChildIdsLeftSchool(Set.of(childId), LocalDate.now(clock))
+                        .isEmpty()) {
+            return true;
+        }
+        if (STAFF_ROLES_WITH_CHILD_SCOPE.stream().noneMatch(user::hasRole)) {
+            return false;
+        }
+        return enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock)).stream()
+                .anyMatch(classroomId -> classroomScope.test(user, classroomId));
+    }
+}
