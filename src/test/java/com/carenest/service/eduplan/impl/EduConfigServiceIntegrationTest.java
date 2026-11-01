@@ -54,6 +54,43 @@ class EduConfigServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("EDU-21: cấu hình trả họ tên Hiệu trưởng, Phó HT đang hoạt động để in dưới chỗ ký tay")
+    void signerNamesOfActivePrincipalAndVicePrincipals() {
+        account("ht-ky", "Hiệu trưởng Ký Thử", "PRINCIPAL", "ACTIVE");
+        account("pht-ky-a", "Phó HT Ký A", "VICE_PRINCIPAL", "ACTIVE");
+        account("pht-ky-b", "Phó HT Ký B", "VICE_PRINCIPAL", "ACTIVE");
+        account("pht-nghi", "Phó HT Đã Nghỉ", "VICE_PRINCIPAL", "INACTIVE");
+        account("gv-ky", "Giáo viên Không Ký", "TEACHER", "ACTIVE");
+        long leader = account("tt-ky", "Tổ trưởng Ký Thử", "TEACHER", "ACTIVE");
+        long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, valid_from) VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?)",
+                leader,
+                ag4,
+                java.sql.Date.valueOf(java.time.LocalDate.now().minusDays(1)));
+
+        String currentYear = "9001-9002";
+        jdbc.update(
+                "INSERT INTO school_years (name, start_date, end_date) VALUES (?, ?, ?)",
+                currentYear,
+                java.sql.Date.valueOf(java.time.LocalDate.now().minusDays(30)),
+                java.sql.Date.valueOf(java.time.LocalDate.now().plusDays(300)));
+
+        EduConfigResponse.SignerNames names = service.getEduConfig().signerNames();
+
+        assertThat(names.principals()).contains("Hiệu trưởng Ký Thử").doesNotContain("Giáo viên Không Ký");
+        assertThat(names.vicePrincipals())
+                .contains("Phó HT Ký A", "Phó HT Ký B")
+                .doesNotContain("Phó HT Đã Nghỉ", "Giáo viên Không Ký");
+        // Phân công bắt đầu hôm qua: có trong năm học chứa hôm nay
+        assertThat(names.teamLeaders().get(currentYear).get("ag-4")).contains("Tổ trưởng Ký Thử");
+        assertThat(names.teamLeaders().values().stream()
+                        .flatMap(m -> m.values().stream())
+                        .flatMap(List::stream))
+                .doesNotContain("Giáo viên Không Ký");
+    }
+
+    @Test
     @DisplayName("EDU-11: cấu hình mặc định có 5 lĩnh vực chuẩn, chuỗi TT → PHT, 8 dòng hoạt động tuần")
     void defaultConfig() {
         EduConfigResponse config = service.getEduConfig();
@@ -146,6 +183,18 @@ class EduConfigServiceIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode().getHttpStatus())
                         .isEqualTo(code.getHttpStatus()));
+    }
+
+    private long account(String username, String fullName, String role, String status) {
+        return jdbc.queryForObject(
+                "INSERT INTO user_accounts (keycloak_user_id, username, full_name, primary_role, status) VALUES (?, ?, ?, ?, ?)"
+                        + " RETURNING id",
+                Long.class,
+                "kc-" + username,
+                username,
+                fullName,
+                role,
+                status);
     }
 
     private CurrentUser user(String username, CareNestRole role) {

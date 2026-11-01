@@ -18,7 +18,7 @@ Soạn và duyệt kế hoạch giáo dục theo mẫu MN Thái Dương, nối b
 Năm học, nhóm tuổi, lớp, phân công (school-structure); tài khoản/role (identity-access); kết quả đánh giá trẻ theo MT (learning-observation — chỉ đọc giáo án đã duyệt của module này).
 
 ## Rules (ID)
-EDU-01..28, EDU-39..41 (lịch chủ đề; `docs/business/BUSINESS_RULES.md`); EDU-29..38 (khảo sát team 27/10 từ `dev`, đổi số khi merge; EDU-31/32/35/38 SUPERSEDED theo code — xem flow); OBS-07, PAR-01 (EDU-37), AI-07, AUTH-03, AUTH-23. ADR-0020 (số cũ ADR-0017), ADR-0021, ADR-0018, ADR-0006, ADR-0003; phân quyền động: ADR-0017. ADR-0019 của `dev` (làm lại trên `dev`) lệch với việc đã merge nhánh này — chờ user chốt.
+EDU-01..28, EDU-39..43, EDU-46 (lịch chủ đề, lấy chủ đề, nhập file mục tiêu; `docs/business/BUSINESS_RULES.md`); EDU-29..38 (khảo sát team 27/10 từ `dev`, đổi số khi merge; EDU-31/32/35/38 SUPERSEDED theo code — xem flow); OBS-07, PAR-01 (EDU-37), AI-07, AUTH-03, AUTH-23. ADR-0020 (số cũ ADR-0017), ADR-0021, ADR-0018, ADR-0006, ADR-0003; phân quyền động: ADR-0017. ADR-0019 của `dev` (làm lại trên `dev`) lệch với việc đã merge nhánh này — chờ user chốt.
 
 ## Flows
 `docs/business/flows/education-plan.md`. Sequence mục tiêu năm học SD-01..SD-10: `huong_dan_nghiep_vu/sequence/muc_tieu_nam_hoc_sequence.drawio` (ngoài repo).
@@ -30,6 +30,7 @@ EDU-01..28, EDU-39..41 (lịch chủ đề; `docs/business/BUSINESS_RULES.md`); 
 ## API & bảng
 - Có: `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST /education-plans/goals/{planId}/submit|issue|return|start-editing|finish-editing|editing-heartbeat`, `GET/PUT /education-plans/config` (cấu hình: lĩnh vực, người ký, dòng tuần — PUT cho HT, PHT, quyền `plans.config`) (`docs/api/openapi.yaml`).
 - Có: `GET /education-plans/class-docs?schoolYearId=` (tài liệu + lớp + giáo viên/tổ trưởng trong phạm vi người xem), `PUT /education-plans/class-docs/{kind}/{docKey}` (giáo viên của lớp lưu; tạo mới nếu chưa có), `POST /education-plans/class-docs/{kind}/{docKey}/actions` (`submit|approve|reject` + `note`). `kind` = `branch|theme|week`; `docKey` do Web đặt theo lớp: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`, BE kiểm khớp.
+- Có: `POST /education-plans/goals/file-preview` (multipart `file`, EDU-46): đọc file bảng mục tiêu thành bản xem trước, không lưu — `EduGoalFileService(Impl)`, `GoalFileGrid` (đọc .docx/.xlsx/.doc HTML/CSV bằng JDK), `GoalFileTable` (diễn giải).
 - PROPOSED (AI, chưa làm): `POST /education-plans/ai/branch-names`, `/ai/branch-names/rewrite`, `/ai/lesson-steps`.
 - Code: `EduYearPlanController`, `EduYearPlanService(Impl)`, `EduConfigService(Impl)`, `EduClassDocController`, `EduClassDocService(Impl)`, quyền ở `security/authorization/EduPlanAccessPolicy` (EDU-06, EDU-08), job nhả khóa `EduPlanLockCleanupConfig`.
 - PUT kế hoạch năm gửi cả cây: dòng/nội dung/chủ đề có id thì cập nhật, không id thì thêm, vắng thì xóa; nội dung tích chủ đề qua `themeKeys` trỏ `themes[].key` (chủ đề mới chưa có id).
@@ -85,3 +86,8 @@ EDU-24: giữ quyền nguồn EDU-06; chỉ Phó HT lấy khác nhóm tuổi, T�
 ## Lấy mục tiêu từ Chương trình của Bộ (Tiền chốt 28/10/2026)
 
 EDU-28: danh mục chỉ đọc nạp bằng V33/V34 (`edu_curriculum_*`) từ VBHN 01/VBHN-BGDĐT: 327 mục tiêu (nhà trẻ 41, 3–4 tuổi 84, 4–5 tuổi 99, 5–6 tuổi 103) kèm nội dung, 423 gợi ý nội dung (mục C). API `GET /education-plans/curriculum/{sources,goals,contents}`; kế hoạch năm gửi/trả `curriculumGoalId` (+ `curriculumGoalText`, `curriculumSectionRef`), sai nhóm tuổi ⇒ 7030. V37: danh mục 3 tầng (`edu_curriculum_sub_domains` > `edu_curriculum_expected_results` > `edu_curriculum_goals`); `/curriculum/goals` thêm `subDomainId`, `expectedResultId`, `/curriculum/contents` thêm `subDomainId`; dòng sub/group gửi `curriculumSubDomainId`/`curriculumExpectedResultId`, trả thêm `curriculumText` (câu gốc), cùng kiểm 7030. Lấy vào kế hoạch làm ở Web như EDU-24 rồi lưu tay. Công cụ tách và kiểm: specs/005-ministry-goal-catalog/research.md.
+
+## Nhập file bảng mục tiêu (Tiền duyệt 01/11/2026)
+
+EDU-46, spec `specs/007-year-plan-goal-file-import/`. Nhận Word .docx bảng mẫu Thái Dương (STT | Mục tiêu | Nội dung | cột chủ đề viết tắt), Word .doc do CareNest xuất (HTML), Excel .xlsx, CSV mẫu cũ; ≤ 2 MB, ≤ 2.000 dòng; mã lỗi 7033–7035. BE chỉ đọc (không lưu, không đổi DB, không thêm thư viện; XML chặn DOCTYPE, giới hạn giải nén). Web bổ sung vào bản đang soạn bằng luật ghép EDU-24 + dấu tích khớp viết tắt (`themesOf`) + dòng không ghi lĩnh vực con/nhóm nằm cuối lĩnh vực (`freeContext`); lưu tay EDU-22.
+Pitfall: Word .doc nhị phân đời cũ không đọc được (báo Lưu thành .docx); Word mở file mẫu .doc rồi lưu lại có thể giữ dạng HTML — vẫn đọc được.

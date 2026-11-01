@@ -296,6 +296,14 @@ public enum ApiCode {
             7030, HttpStatus.BAD_REQUEST, "Dòng lấy từ danh mục của Bộ không thuộc nhóm tuổi của kế hoạch"),
     THEME_WEEK_ALIGNMENT(7031, HttpStatus.BAD_REQUEST, "Chủ đề {0} phải bắt đầu vào Thứ 2 và kết thúc vào Thứ 6"),
     THEME_DATES_OVERLAP(7032, HttpStatus.BAD_REQUEST, "Chủ đề {0} trùng thời gian với chủ đề {1}"),
+    GOAL_FILE_UNSUPPORTED(
+            7033,
+            HttpStatus.BAD_REQUEST,
+            "Chỉ nhận file Word (.docx), Excel (.xlsx), CSV hoặc file Word do CareNest xuất. File Word đời cũ: mở bằng Word"
+                    + " rồi Lưu thành .docx"),
+    GOAL_FILE_NO_TABLE(
+            7034, HttpStatus.BAD_REQUEST, "Không tìm thấy bảng mục tiêu trong file (cần cột Mục tiêu và Nội dung)"),
+    GOAL_FILE_TOO_LARGE(7035, HttpStatus.BAD_REQUEST, "File quá lớn: tối đa 2 MB và 2.000 dòng"),
 
     // ========== 71xx TÀI LIỆU LỚP (KẾ HOẠCH CHỦ ĐỀ, GIÁO ÁN) (module Tiền) ==========
     CLASS_DOC_NOT_FOUND(7101, HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"),

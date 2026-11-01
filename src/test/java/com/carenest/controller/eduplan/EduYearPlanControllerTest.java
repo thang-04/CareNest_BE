@@ -14,12 +14,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
 import com.carenest.dto.common.PageResponse;
+import com.carenest.dto.eduplan.GoalFilePreviewResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.service.eduplan.EduGoalFileService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -52,6 +54,49 @@ class EduYearPlanControllerTest {
 
     @MockitoBean
     private EduYearPlanService eduYearPlanService;
+
+    @MockitoBean
+    private EduGoalFileService eduGoalFileService;
+
+    @Test
+    @DisplayName("EDU-46: gửi file bảng mục tiêu (multipart) trả bản xem trước")
+    void goalFilePreviewReturnsPreview() throws Exception {
+        authenticateAs(CareNestRole.TEACHER);
+        var preview = new GoalFilePreviewResponse(
+                List.of(new GoalFilePreviewResponse.Domain(
+                        "Phát triển thể chất",
+                        List.of(new GoalFilePreviewResponse.Row(
+                                "goal",
+                                "Trẻ tự phục vụ",
+                                List.of(new GoalFilePreviewResponse.Content("Tự cất đồ dùng", List.of("TMN"))))))),
+                List.of("TMN"),
+                List.of());
+        given(eduGoalFileService.preview(any(), any())).willReturn(preview);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                                GOALS + "/file-preview")
+                        .file(new org.springframework.mock.web.MockMultipartFile(
+                                "file", "muc-tieu.csv", "text/csv", "a,b".getBytes()))
+                        .with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.domains[0].rows[0].contents[0].themes[0]")
+                        .value("TMN"))
+                .andExpect(jsonPath("$.data.themeAbbrs[0]").value("TMN"));
+    }
+
+    @Test
+    @DisplayName("EDU-46: Hiệu trưởng không nhập file mục tiêu (chỉ người soạn)")
+    void principalCannotPreviewGoalFile() throws Exception {
+        authenticateAs(CareNestRole.PRINCIPAL);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                                GOALS + "/file-preview")
+                        .file(new org.springframework.mock.web.MockMultipartFile(
+                                "file", "muc-tieu.csv", "text/csv", "a,b".getBytes()))
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isForbidden());
+        verify(eduGoalFileService, never()).preview(any(), any());
+    }
 
     @Test
     void kitchenStaffIsRejectedByRole() throws Exception {
