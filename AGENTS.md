@@ -4,6 +4,8 @@ Repo này là **source of truth** của CareNest: business rule, domain, kiến 
 
 ## Bắt đầu mọi task — chọn làn
 
+- **Mọi feature mới:** bắt buộc theo [quy trình Domain spec → Spec Kit → implement/converge](.ai/workflows/feature-spec-loop.md) do user cung cấp và xác nhận 01/11/2026; dùng [mẫu Domain spec 14 mục](docs/business/DOMAIN_SPEC_TEMPLATE.md). Chọn làn vẫn quyết định phạm vi review/verify; làn S không bỏ vòng lặp này khi là feature mới.
+
 | Làn | Khi nào | Đọc | Plan · verify · báo cáo |
 | --- | --- | --- | --- |
 | **S** | ≤2 file source, 1 module, việc rõ, ngoài vùng rủi ro | File đích + test gần nhất; bug: grep `docs/knowledge/ISSUE_INDEX.md` | Không plan · `node scripts/verify.mjs --quick` · ≤3 dòng |

@@ -1,5 +1,9 @@
 # Response & Error Contract
 
+EDU-47, 01/11/2026: preview chủ đề nhánh dùng `BRANCH_FILE_UNSUPPORTED` 7124 (file hỏng/không hỗ trợ/mã hóa), `BRANCH_FILE_NO_TABLE` 7125 (thiếu bảng Chủ đề/Chủ đề nhánh), `BRANCH_FILE_TOO_LARGE` 7126 (2 MB/2.000 dòng), đều HTTP 400. Giữ lỗi quyền/phân công, sai kế hoạch/phiên bản và tài liệu đã gửi theo contract hiện tại; preview không lưu. Chi tiết [contract feature008](../../specs/008-branch-plan-file-import/contracts/file-import.md).
+
+EDU-46, 01/11/2026: `GOAL_FILE_UNSUPPORTED` (7033, HTTP 400) giữ mã/status, đổi lời thành "Không đọc được file. Chỉ nhận Word (.doc, .docx), Excel (.xlsx) hoặc CSV; file không được đặt mật khẩu" khi bổ sung Word .doc nhị phân. .doc hỏng/mã hóa trả 7033, không có bảng mục tiêu 7034, vượt 2 MB/2.000 dòng 7035. Web dùng errorCode, không so chuỗi; mock và hướng dẫn nhập mục tiêu đã đồng bộ.
+
 > Status: **ACCEPTED, đã implement.** Bổ sung 27/10/2026 (Cần): mã lỗi nghiệp vụ tập trung trong `ApiCode` + trường `errorCode`. Nguồn chuẩn: `src/main/java/com/carenest/utils/ApiCode.java`, `ResponseJson.java`, `exception/GlobalException.java`, `exception/GlobalExceptionHandler.java`; test `src/test/java/com/carenest/exception/ResponseContractTest.java`, `src/test/java/com/carenest/utils/ApiCodeTest.java`; quy tắc: `docs/backend-coding-guide.md` mục 8, 11. File này chỉ tóm tắt cho FE/APP và agent.
 
 Mọi response (thành công hay lỗi):

@@ -299,8 +299,7 @@ public enum ApiCode {
     GOAL_FILE_UNSUPPORTED(
             7033,
             HttpStatus.BAD_REQUEST,
-            "Chỉ nhận file Word (.docx), Excel (.xlsx), CSV hoặc file Word do CareNest xuất. File Word đời cũ: mở bằng Word"
-                    + " rồi Lưu thành .docx"),
+            "Không đọc được file. Chỉ nhận Word (.doc, .docx), Excel (.xlsx) hoặc CSV; file không được đặt mật khẩu"),
     GOAL_FILE_NO_TABLE(
             7034, HttpStatus.BAD_REQUEST, "Không tìm thấy bảng mục tiêu trong file (cần cột Mục tiêu và Nội dung)"),
     GOAL_FILE_TOO_LARGE(7035, HttpStatus.BAD_REQUEST, "File quá lớn: tối đa 2 MB và 2.000 dòng"),
@@ -334,6 +333,15 @@ public enum ApiCode {
             7122, HttpStatus.CONFLICT, "Kế hoạch năm đã có phiên bản mới. Tạo tài liệu trên phiên bản hiện hành"),
     CLASS_DOC_ADJUSTMENT_INVALID(
             7123, HttpStatus.BAD_REQUEST, "Kế hoạch điều chỉnh chỉ ghi cho ngày Thứ 2–6 của tuần, tối đa 4000 ký tự"),
+    BRANCH_FILE_UNSUPPORTED(
+            7124,
+            HttpStatus.BAD_REQUEST,
+            "Không đọc được file chủ đề nhánh. Chỉ nhận Word (.doc, .docx), Excel (.xlsx) hoặc CSV; file không được đặt mật khẩu"),
+    BRANCH_FILE_NO_TABLE(
+            7125,
+            HttpStatus.BAD_REQUEST,
+            "Không tìm thấy bảng chủ đề nhánh trong file (cần cột Chủ đề và Chủ đề nhánh)"),
+    BRANCH_FILE_TOO_LARGE(7126, HttpStatus.BAD_REQUEST, "File chủ đề nhánh quá lớn: tối đa 2 MB và 2.000 dòng"),
 
     // ========== 72xx CẤU HÌNH KẾ HOẠCH GIÁO DỤC (module Tiền) ==========
     EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng hoặc Phó Hiệu trưởng sửa được cấu hình"),

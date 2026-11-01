@@ -1315,6 +1315,42 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/branch/file-preview:
+    post:
+      operationId: previewBranchFile
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: yearPlanId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonBranchFilePreviewResponse"
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/theme/{docKey}/learning-resources:
     get:
       operationId: list
@@ -3327,6 +3363,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Unplaced"
+    BranchFilePreviewResponse:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Warning"
     Break:
       type: object
       properties:
@@ -4857,6 +4904,22 @@ components:
           format: date-time
         passwordChangeRequired:
           type: boolean
+    Match:
+      type: object
+      properties:
+        name:
+          type: string
+        row:
+          type: integer
+          format: int32
+        themeId:
+          type: integer
+          format: int64
+        themeName:
+          type: string
+        weekStart:
+          type: string
+          format: date
     MealAdjustRequest:
       type: object
       properties:
@@ -5620,6 +5683,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AutoPlaceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonBranchFilePreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/BranchFilePreviewResponse"
         desc:
           type: string
         errorCode:

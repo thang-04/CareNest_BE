@@ -1,13 +1,18 @@
 package com.carenest.service.eduplan;
 
+import com.carenest.dto.eduplan.BranchFilePreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.security.CurrentUser;
 import java.util.Map;
+import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.node.ObjectNode;
 
 /** Tài liệu kế hoạch của lớp: chủ đề nhánh, kế hoạch chủ đề, giáo án tuần (EDU-12..18). */
 public interface EduClassDocService {
+
+    BranchFilePreviewResponse previewBranchFile(
+            CurrentUser currentUser, Long classId, Long yearPlanId, MultipartFile file);
 
     com.carenest.entity.eduplan.EduClassDoc requireThemeAccess(CurrentUser currentUser, String docKey, boolean write);
 

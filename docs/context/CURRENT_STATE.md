@@ -1,5 +1,7 @@
 # Current State
 
+Feature008 cập nhật 01/11/2026: đã có source BE/Web nhập file chủ đề nhánh (EDU-47), ghép lịch tại server, xem trước/xác nhận thay tên/lưu tay; hai nút Lưu/gửi luôn hiện, giữ chuỗi EDU-18. Bộ đọc chung hỗ trợ .doc nhị phân cho cả nhánh và bước 2 mục tiêu (EDU-46); không migration. Quy trình feature mới đã lưu tại [.ai/workflows/feature-spec-loop.md](../../.ai/workflows/feature-spec-loop.md) theo user, giữ PostgreSQL 17. Bằng chứng và trạng thái bàn giao: [feature008](../../specs/008-branch-plan-file-import/quickstart.md); không suy ra đã commit/merge/deploy.
+
 Cập nhật: 2026-10-29 (chốt rule theo khảo sát team 210/210: sức khỏe, đánh giá, kế hoạch giáo dục, đón trẻ, phụ huynh, báo cáo, AI; loại CSVC — chỉ docs, code không đổi; plan `docs/plans/active/2026-10-29-survey-full-alignment.md`). Trước đó 2026-10-28: bán trú, hồ sơ trẻ, sức khỏe đầu ngày (plan `docs/plans/active/2026-10-28-survey-business-alignment.md`). Cùng ngày merge `dev` vào nhánh G94-226 (kế hoạch giáo dục, cấu hình năm học, điểm danh, sức khỏe trong ngày, số suất): migration của nhánh dời thành V10–V35, ADR đổi số 0017→0020, 0019→0021; rule HLT-07 của nhánh đổi thành HLT-15, rule khảo sát EDU-01..10 của `dev` đổi thành EDU-29..38. **Agent: cập nhật file này khi một feature bắt đầu có code, hoàn thành, hoặc một PENDING được chốt.**
 
 ## Tổng quan

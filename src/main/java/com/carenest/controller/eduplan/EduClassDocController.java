@@ -1,5 +1,6 @@
 package com.carenest.controller.eduplan;
 
+import com.carenest.dto.eduplan.BranchFilePreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocAdjustmentsRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
@@ -10,6 +11,7 @@ import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -19,7 +21,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.node.ObjectNode;
 
 /** Tài liệu kế hoạch của lớp (EDU-12..18): chủ đề nhánh, kế hoạch chủ đề, giáo án tuần + 5 kế hoạch ngày. */
@@ -31,6 +35,21 @@ public class EduClassDocController {
     private static final String LOG_PREFIX = "[EduClassDocController]";
 
     private final EduClassDocService classDocService;
+
+    @PostMapping(value = "/branch/file-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ResponseJson<BranchFilePreviewResponse>> previewBranchFile(
+            @RequestParam Long classId,
+            @RequestParam Long yearPlanId,
+            @RequestPart MultipartFile file,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|previewBranchFile|userId=" + currentUser.userId() + "|classId=" + classId
+                + "|yearPlanId=" + yearPlanId;
+        log.info("{}|START", logPrefix);
+        BranchFilePreviewResponse preview = classDocService.previewBranchFile(currentUser, classId, yearPlanId, file);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Preview branch file success", preview);
+    }
 
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")

@@ -18,7 +18,7 @@ Soạn và duyệt kế hoạch giáo dục theo mẫu MN Thái Dương, nối b
 Năm học, nhóm tuổi, lớp, phân công (school-structure); tài khoản/role (identity-access); kết quả đánh giá trẻ theo MT (learning-observation — chỉ đọc giáo án đã duyệt của module này).
 
 ## Rules (ID)
-EDU-01..28, EDU-39..43, EDU-46 (lịch chủ đề, lấy chủ đề, nhập file mục tiêu; `docs/business/BUSINESS_RULES.md`); EDU-29..38 (khảo sát team 27/10 từ `dev`, đổi số khi merge; EDU-31/32/35/38 SUPERSEDED theo code — xem flow); OBS-07, PAR-01 (EDU-37), AI-07, AUTH-03, AUTH-23. ADR-0020 (số cũ ADR-0017), ADR-0021, ADR-0018, ADR-0006, ADR-0003; phân quyền động: ADR-0017. ADR-0019 của `dev` (làm lại trên `dev`) lệch với việc đã merge nhánh này — chờ user chốt.
+EDU-01..28, EDU-39..43, EDU-46..47 (lịch chủ đề, lấy chủ đề, nhập file mục tiêu/nhánh; `docs/business/BUSINESS_RULES.md`); EDU-29..38 (khảo sát team 27/10 từ `dev`, đổi số khi merge; EDU-31/32/35/38 SUPERSEDED theo code — xem flow); OBS-07, PAR-01 (EDU-37), AI-07, AUTH-03, AUTH-23. ADR-0020 (số cũ ADR-0017), ADR-0021, ADR-0018, ADR-0006, ADR-0003; phân quyền động: ADR-0017. ADR-0019 của `dev` (làm lại trên `dev`) lệch với việc đã merge nhánh này — chờ user chốt.
 
 ## Flows
 `docs/business/flows/education-plan.md`. Sequence mục tiêu năm học SD-01..SD-10: `huong_dan_nghiep_vu/sequence/muc_tieu_nam_hoc_sequence.drawio` (ngoài repo).
@@ -30,16 +30,25 @@ EDU-01..28, EDU-39..43, EDU-46 (lịch chủ đề, lấy chủ đề, nhập fi
 ## API & bảng
 - Có: `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST /education-plans/goals/{planId}/submit|issue|return|start-editing|finish-editing|editing-heartbeat`, `GET/PUT /education-plans/config` (cấu hình: lĩnh vực, người ký, dòng tuần — PUT cho HT, PHT, quyền `plans.config`) (`docs/api/openapi.yaml`).
 - Có: `GET /education-plans/class-docs?schoolYearId=` (tài liệu + lớp + giáo viên/tổ trưởng trong phạm vi người xem), `PUT /education-plans/class-docs/{kind}/{docKey}` (giáo viên của lớp lưu; tạo mới nếu chưa có), `POST /education-plans/class-docs/{kind}/{docKey}/actions` (`submit|approve|reject` + `note`). `kind` = `branch|theme|week`; `docKey` do Web đặt theo lớp: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`, BE kiểm khớp.
-- Có: `POST /education-plans/goals/file-preview` (multipart `file`, EDU-46): đọc file bảng mục tiêu thành bản xem trước, không lưu — `EduGoalFileService(Impl)`, `GoalFileGrid` (đọc .docx/.xlsx/.doc HTML/CSV bằng JDK), `GoalFileTable` (diễn giải).
+- Có: `POST /education-plans/goals/file-preview` (multipart `file`, EDU-46): đọc file bảng mục tiêu thành bản xem trước, không lưu — `EduGoalFileService(Impl)`, `GoalFileGrid` (.doc nhị phân qua POI HWPF; .docx/.xlsx/.doc HTML/CSV giữ bộ đọc JDK), `GoalFileTable` (diễn giải). .doc mã hóa/hỏng bị từ chối; fixture tổng hợp kiểm tương đương .docx, ô gộp, giới hạn file/dòng.
 - PROPOSED (AI, chưa làm): `POST /education-plans/ai/branch-names`, `/ai/branch-names/rewrite`, `/ai/lesson-steps`.
+- Có: `POST /education-plans/class-docs/branch/file-preview` (EDU-47): giáo viên lớp preview file, kiểm kế hoạch đã ban hành/hiện hành và tài liệu sửa được; ghép tên vào teachingWeeks ở server, trả matches/warnings, không lưu. `BranchFileTable` dùng cùng `GoalFileGrid` (POI cho .doc); không nhận lịch/người ký file. Web chỉ áp key khớp sau xác nhận, giữ ghi chú/key khác và bỏ pending AI ở key thay; hai nút luôn hiện, khóa kèm lý do theo quyền/trạng thái, giữ chuỗi EDU-18.
 - Code: `EduYearPlanController`, `EduYearPlanService(Impl)`, `EduConfigService(Impl)`, `EduClassDocController`, `EduClassDocService(Impl)`, quyền ở `security/authorization/EduPlanAccessPolicy` (EDU-06, EDU-08), job nhả khóa `EduPlanLockCleanupConfig`.
 - PUT kế hoạch năm gửi cả cây: dòng/nội dung/chủ đề có id thì cập nhật, không id thì thêm, vắng thì xóa; nội dung tích chủ đề qua `themeKeys` trỏ `themes[].key` (chủ đề mới chưa có id).
 - Bảng `edu_*`: `docs/database/DATA_DICTIONARY.md`.
 
 ## PENDING
+
+- EDU-47 đã được user duyệt nghiệp vụ/plan; triển khai và kiểm chứng theo [feature008](../../specs/008-branch-plan-file-import/quickstart.md). Phần còn mở của module là các mục khác dưới đây, không phải câu hỏi nhập file.
 Lịch chủ đề EDU-39..41 đã chốt 30/10 (đóng P-29). Mục khảo sát mâu thuẫn code (EDU-31, EDU-32, EDU-35, EDU-38) đã chốt theo code 29/10. Còn lại: AI gợi ý (EDU-20), đọc giáo án đã duyệt cho đánh giá trẻ (EDU-19).
 
 ## Known pitfalls
+
+- ID hàng mục tiêu và nội dung không chung miền; test/ghép dữ liệu phải so cùng loại thực thể, không cấm mọi trùng số giữa hai bảng identity. [Regression](../knowledge/incidents/BUG-261101-e2e-goal-id-domains.md).
+
+- File nhỏ có thể khai tọa độ/span rất lớn; kiểm dòng/cột trước cấp phát trong decoder, không chờ interpreter. [Regression](../knowledge/incidents/BUG-261101-file-grid-allocation-limits.md).
+
+- Mock CSV nhập nhánh phải bỏ nhãn Nhánh n/dòng nghỉ trước khi chiếm tuần như parser BE; không dùng fixture chỉ có tên sạch. [Regression](../knowledge/incidents/BUG-261101-branch-csv-demo-slots.md).
 
 - V35 backfill với FK deferred phải SET CONSTRAINTS ALL IMMEDIATE trước DDL; [incident](../knowledge/incidents/BUG-261029-hierarchy-deferred-ddl.md). Lưu chuyển cha phải flush trước khi xóa tiêu đề cũ để CASCADE không xóa MT còn giữ.
 
