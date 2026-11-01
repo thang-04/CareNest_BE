@@ -21,7 +21,7 @@ Lỗi liên quan contract/nghiệp vụ phát hiện ở FE/APP ⇒ ghi ở BE `
 | Principal / Vice Principal | Web (không dùng App — AUTH-21, user chốt 2026-10-27) | identity-access (HT: phân quyền, cấp tài khoản — AUTH-06, ADR-0017), reporting, nutrition (xác nhận/duyệt), education-plan (PHT lập/ban hành kế hoạch năm, cấu hình; duyệt theo chuỗi — EDU-02..07, EDU-11, EDU-18), learning-observation, health, notification (thông báo của trường — PAR-05) |
 | Teacher (kể cả Tổ trưởng khối — AUTH-23) | Web + App (App: điểm danh + nhiệt độ đầu ngày, đón trẻ, sức khỏe, đánh giá, thông báo — ATT-01, PCK-02, HLT-07, HLT-14, AUTH-21) | attendance (gồm đón trẻ), learning-observation, health, education-plan |
 | Parent | App (đăng nhập bằng SĐT; nhận tài khoản qua SMS, in phiếu dự phòng — AUTH-18) | attendance (gửi báo nghỉ — ATT-05), đọc: attendance (gồm ai đã đón con — PCK-04), nutrition (thực đơn tuần/ngày, ảnh suất — PAR-01), health, learning-observation, education-plan (tên hoạt động — EDU-37, chưa làm), notification (theo PAR-*) |
-| Kitchen Staff | App (chỉ App, màn tối thiểu; gateway Web từ chối — AUTH-21; 1 tài khoản chung/cơ sở — AUTH-22) | nutrition (suất đã xác nhận theo lớp từng bữa, thực đơn, định lượng, số suất dị ứng không tên trẻ — AUTH-05; ảnh mẫu bữa, sổ lưu mẫu — NUT-16, NUT-21) |
+| Kitchen Staff | App (chỉ App, màn tối thiểu; gateway Web từ chối — AUTH-21; 1 tài khoản chung/cơ sở — AUTH-22) | nutrition (suất đã xác nhận theo lớp từng bữa, thực đơn, định lượng, số suất dị ứng không tên trẻ — AUTH-05; ảnh mẫu bữa theo khung giờ, ghi lưu/hủy mẫu — NUT-16, NUT-21) |
 
 ## Điểm chạm cần kiểm tra khi đổi BE
 
@@ -33,6 +33,12 @@ Lỗi liên quan contract/nghiệp vụ phát hiện ở FE/APP ⇒ ghi ở BE `
 | MealCount/menu | `CareNest_APP/docs/features/kitchen/`, `CareNest_FE/docs/architecture/ROUTE_MAP.md` (màn hình BGH) |
 | Event gửi notification | `CareNest_APP/docs/integration/PUSH_NOTIFICATION.md` |
 | Cổng/domain deploy VPS (`docs/system/DEPLOYMENT.md`) | `CareNest_FE/docs/integration/DEPLOYMENT.md` (bảng cổng), `CareNest_FE/deploy/caddy/carenest-web.caddy` (`/api/*` ⇒ `127.0.0.1:18310`); APP: issuer `https://auth.carenest.edu.vn/realms/carenest`, API `https://web.carenest.edu.vn/api` |
+
+## Bán trú và kho — đối chiếu sơ đồ quy trình (user chốt 2026-11-01)
+
+Rule đổi: NUT-07, NUT-08, NUT-11, NUT-12, NUT-13, NUT-16, NUT-17, NUT-21, NUT-23, AI-07; đóng P-24, P-25 (ADR-0009 bản 01/11). Chưa có API — client cần chỉnh khi BE làm:
+- FE (Web, PHT dinh dưỡng): thực đơn dự kiến ngày (cảnh báo kho) và công bố thực đơn chuẩn ngày sau chốt suất, chặn khi thiếu kho; màn Dự báo tuần ⇒ bản dự trù (sĩ số điền sẵn, sửa được, lưu, in danh sách đặt hàng); kiểm nhận lần 2 so thực đơn chuẩn; tồn theo lô + lịch sử nhập/trừ; duyệt lưu/hủy mẫu, in nhãn và biểu mẫu; PHT cấu hình bữa, chuẩn dinh dưỡng, giá suất theo nhóm tuổi; HT cấu hình khung giờ ảnh; món thay thế theo chất dị ứng. Đối chiếu `CareNest_FE/docs/features/nutrition-inventory.md`, `CareNest_FE/docs/architecture/ROUTE_MAP.md`.
+- APP (bếp, phụ huynh): bếp đăng/sửa ảnh trong khung giờ, ghi hủy mẫu, xem trạng thái duyệt; phụ huynh xem ảnh bữa của cơ sở con học; thực đơn tuần lấy từ kế hoạch tuần (có thể đổi), thực đơn ngày lấy từ thực đơn chuẩn đã công bố (P-37). Đối chiếu `CareNest_APP/docs/features/kitchen/README.md`, `CareNest_APP/docs/features/parent/README.md`.
 
 Repo URL: CareNest_FE `https://github.com/thang-04/CareNest_FE.git`, CareNest_APP `https://github.com/thang-04/CareNest_APP.git`. Không tự sửa repo khác; nêu thay đổi cần thống nhất.
 
