@@ -40,6 +40,10 @@ Phân quyền cấu hình được (ADR-0017) cập nhật 2026-10-16 trên `fea
 | ai-assistance (`integration/`) | Có | — | Provider chốt Gemini API, Groq (AI-09); 5 tính năng (AI-07) |
 | reporting (`report`) | Có | — | Báo cáo ngày, định kỳ, Excel + PDF (RPT-01..03). Còn P-34 |
 
+## Review E2E 01/11/2026
+
+Review toàn luồng (chỉ đọc, chưa sửa code): 56 vấn đề (3 P0, 15 P1) — `CareNest_CODE/plans/reports/final-261101-1407-carenest-e2e-business-flow-review-report.md`. User chốt D1–D14 cùng ngày; rule đã ghi: AUTH-19, AUTH-20, AUTH-24, AUTH-25, ATT-09, NUT-02, HLT-15, EDU-08. Thứ tự sửa: seed lớp thiếu nhóm tuổi/phòng/Tổ trưởng → duyệt KHGD đòi phân công PHT còn hiệu lực → khép số suất tới bếp → P1. Thứ tự luồng còn thiếu: tiếp nhận trẻ → đơn nghỉ → phụ huynh xem + đón trẻ → thực đơn. VPS: đổi mật khẩu 8 user seed ngay, file user VPS dùng placeholder, chuyển profile `demo` trước bảo vệ.
+
 ## Giới hạn hiện tại
 
 Có code: identity-access, school-structure, child (hồ sơ cơ bản, phụ huynh, chuyển năm, xếp lớp), attendance (điểm danh, sức khỏe trong ngày), nutrition (chỉ sổ số suất), education-plan. Chưa có code: health (sức khỏe định kỳ), learning-observation, notification, audit, ai-assistance, reporting; thực đơn, kho của nutrition. Một phần code viết trước khảo sát 28–29/10 cần đối chiếu lại rule (xem cột Ghi chú bảng Feature). Mọi rule PENDING (P-xx trong `BUSINESS_RULES.md`) chưa có hành vi chốt ⇒ làm cấu hình được, không hard-code.

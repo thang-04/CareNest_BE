@@ -123,6 +123,11 @@ class EduClassDocServiceIntegrationTest {
                 ageGroup3);
 
         vicePrincipal = user("vp", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-09-01')",
+                vicePrincipal.userId(),
+                campus);
         leader = user("leader", CareNestRole.TEACHER);
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, valid_from) "
@@ -288,6 +293,63 @@ class EduClassDocServiceIntegrationTest {
         jdbc.update("DELETE FROM staff_assignments WHERE staff_role = 'AGE_GROUP_TEAM_LEADER'");
         // Không còn tổ trưởng: gửi thẳng Phó HT
         assertThat(service.actOnClassDoc(teacher, "branch", key, submit())
+                        .path("status")
+                        .asString())
+                .isEqualTo("PENDING_VP");
+    }
+
+    @Test
+    @DisplayName("EDU-18: hồ sơ chờ Tổ trưởng mà nhóm tuổi hết Tổ trưởng ⇒ chuyển bước Phó HT, không kẹt")
+    void pendingLeaderStepMovesOnWhenLeaderRemoved() {
+        String key = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")));
+        assertThat(service.actOnClassDoc(teacher, "branch", key, submit())
+                        .path("status")
+                        .asString())
+                .isEqualTo("PENDING_TL");
+
+        jdbc.update("DELETE FROM staff_assignments WHERE staff_role = 'AGE_GROUP_TEAM_LEADER'");
+
+        assertThat(service.getClassDocs(vicePrincipal, schoolYear).branchPlans())
+                .singleElement()
+                .extracting(d -> d.path("status").asString())
+                .isEqualTo("PENDING_VP");
+        ObjectNode approved = service.actOnClassDoc(vicePrincipal, "branch", key, approve());
+        assertThat(approved.path("status").asString()).isEqualTo("APPROVED");
+        assertThat(approved.path("approvals")).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("EDU-18: đổi cấu hình chuỗi khi hồ sơ đang chờ không làm hồ sơ tự duyệt (theo chuỗi chụp lúc gửi)")
+    void signerChainChangeDoesNotAutoApprove() {
+        String key = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")));
+        service.actOnClassDoc(teacher, "branch", key, submit());
+        jdbc.update("UPDATE edu_settings SET signers = "
+                + "'{\"year\":[\"VICE_PRINCIPAL\"],\"branch\":[\"VICE_PRINCIPAL\",\"PRINCIPAL\"],"
+                + "\"week\":[\"VICE_PRINCIPAL\"]}'");
+
+        assertThat(service.actOnClassDoc(leader, "branch", key, approve())
+                        .path("status")
+                        .asString())
+                .isEqualTo("PENDING_VP");
+        assertThat(service.actOnClassDoc(vicePrincipal, "branch", key, approve())
+                        .path("status")
+                        .asString())
+                .isEqualTo("APPROVED");
+
+        // Hồ sơ gửi trước khi có snapshot: cấu hình bỏ bước đang chờ thì các bước còn lại vẫn phải duyệt
+        String otherKey = "bp_" + otherClassId + "_" + plan.id();
+        ObjectNode otherDoc = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        otherDoc.put("classId", String.valueOf(otherClassId));
+        service.saveClassDoc(otherTeacher, "branch", otherKey, otherDoc);
+        jdbc.update("UPDATE edu_settings SET signers = "
+                + "'{\"year\":[\"VICE_PRINCIPAL\"],\"branch\":[\"TEAM_LEADER\"],\"week\":[\"VICE_PRINCIPAL\"]}'");
+        service.actOnClassDoc(otherTeacher, "branch", otherKey, submit());
+        jdbc.update("UPDATE edu_class_docs SET sign_chain = NULL WHERE doc_key = ?", otherKey);
+        jdbc.update("UPDATE edu_settings SET signers = "
+                + "'{\"year\":[\"VICE_PRINCIPAL\"],\"branch\":[\"VICE_PRINCIPAL\"],\"week\":[\"VICE_PRINCIPAL\"]}'");
+        assertThat(service.actOnClassDoc(leader, "branch", otherKey, approve())
                         .path("status")
                         .asString())
                 .isEqualTo("PENDING_VP");

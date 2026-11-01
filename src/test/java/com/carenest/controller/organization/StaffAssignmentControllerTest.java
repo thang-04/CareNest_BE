@@ -55,7 +55,7 @@ class StaffAssignmentControllerTest {
         CurrentUser vice = authenticate(TestPermissions.userWithDefaults(3L, CareNestRole.VICE_PRINCIPAL));
         given(staffingService.assignStaff(eq(vice), any()))
                 .willReturn(new StaffAssignmentResponse(
-                        5L, 40L, StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 10, 17), null));
+                        5L, 40L, StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 10, 17), null, false));
 
         mockMvc.perform(post("/api/staff-assignments")
                         .with(token(CareNestRole.VICE_PRINCIPAL))

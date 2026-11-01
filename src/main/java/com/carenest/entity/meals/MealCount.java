@@ -139,25 +139,37 @@ public class MealCount {
         return visibleLine(classroomId);
     }
 
-    /** Điều chỉnh của HT/PHT; trả về chênh lệch (0 nếu không đổi). */
-    public int[] adjust(Long classroomId, int normal, int substitute) {
+    /** Suất thường hiện tại của lớp (người duyệt thấy); rỗng nếu sổ không có lớp này. */
+    public Optional<Integer> currentNormal(Long classroomId) {
+        return visibleLine(classroomId).map(MealCountLine::getNormal);
+    }
+
+    /**
+     * NUT-02: PHT chỉ điều chỉnh suất thay thế (trẻ dị ứng nặng), suất thường chỉ đổi theo điểm danh. Trả về chênh
+     * lệch suất thay thế (0 nếu không đổi).
+     */
+    public int adjustSubstitute(Long classroomId, int substitute) {
         MealCountLine current = visibleLine(classroomId).orElse(null);
-        if (current == null || (current.getNormal() == normal && current.getSubstitute() == substitute)) {
-            return new int[] {0, 0};
+        if (current == null || current.getSubstitute() == substitute) {
+            return 0;
         }
         MealCountLine line = workingLine(classroomId).orElseThrow();
-        int[] delta = {normal - line.getNormal(), substitute - line.getSubstitute()};
-        line.setServings(normal, substitute);
+        int delta = substitute - line.getSubstitute();
+        line.setServings(line.getNormal(), substitute);
         return delta;
     }
 
-    /** Điểm danh của lớp đổi sau khi tổng hợp (ATT-07); trả về true nếu số của lớp thay đổi. */
+    /**
+     * Điểm danh của lớp đổi sau khi tổng hợp (ATT-07); suất thay thế PHT đã điều chỉnh được giữ (NUT-02). Trả về true
+     * nếu số của lớp thay đổi.
+     */
     public boolean replaceClassFigures(Long classroomId, int present, int absent, int missing, int normal) {
         MealCountLine current = visibleLine(classroomId).orElse(null);
-        if (current == null || current.sameAs(present, absent, missing, normal, 0)) {
+        if (current == null || current.sameAs(present, absent, missing, normal, current.getSubstitute())) {
             return false;
         }
-        workingLine(classroomId).orElseThrow().setFigures(present, absent, missing, normal, 0);
+        MealCountLine line = workingLine(classroomId).orElseThrow();
+        line.setFigures(present, absent, missing, normal, line.getSubstitute());
         return true;
     }
 

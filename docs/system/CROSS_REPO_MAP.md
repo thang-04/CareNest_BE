@@ -71,3 +71,18 @@ Web consumers: ClassThemePlanPage/ActivityResources gọi learning-resources lis
 ## Lấy mục tiêu kế hoạch năm từ nguồn khác (EDU-24, chốt 28/10/2026)
 
 Web: ImportGoalsModal, GoalFormPage, service đọc kế hoạch nguồn; giữ quyền EDU-06 và luồng sửa ba bước. Chỉ lấy mục tiêu/nội dung, không chép chủ đề/đợt nghỉ/dấu tích. Web đã triển khai list/detail nguồn bằng contract hiện có; không thêm endpoint/DTO. 13/13 E2E thật đã đạt, Mobile chưa thuộc phạm vi. Xem [đặc tả feature003](../../specs/003-import-year-plan-goals/spec.md).
+
+## Quyết định review E2E — tác động FE/APP (user chốt 2026-11-01)
+
+Nguồn: `CareNest_CODE/plans/reports/final-261101-1407-carenest-e2e-business-flow-review-report.md` mục "Đã chốt". Đã vào code (2026-11-01): phần FE của D1 (`/kitchen/meal-count` đọc `GET /meal-counts` qua module FE `kitchen-meal-count`, sửa câu toast); phần BE của D2, D3/AUTH-24, D6, D8, D10 (plan `docs/plans/active/2026-11-01-e2e-review-p1-fixes.md`). Phần FE/APP các dòng đó chưa.
+
+| Quyết định | BE | FE | APP |
+| --- | --- | --- | --- |
+| Bếp nhận số suất (D1) | — (giữ AUTH-21, NUT-03) | HT/PHT xem "số bếp sẽ dùng" từ `GET /meal-counts`; sửa câu "Bếp đã nhận được số liệu" | Màn bếp + auth thật, làm sau |
+| `meals` trong điểm danh (D8, ATT-02) | **Đã làm:** giữ field deprecated, bỏ qua giá trị; `record.meals` trả về suy từ `status` | Bỏ cột tick "Ăn" | Bỏ chọn bữa ăn |
+| Vắng có phép (D6, ATT-09) | **Đã làm:** `EXCUSED` mới ⇒ 400 `4018`; gửi lại `EXCUSED` đang có được | Ẩn lựa chọn; hiện câu lỗi `4018` | Ẩn lựa chọn |
+| Sửa suất (D2, D10, NUT-02) | **Đã làm:** `normal` null = giữ, khác ⇒ 409 `6008`; `substitute` không bị điểm danh xóa; xác nhận theo cơ sở–ngày (một lần cho mọi bữa, gọi lại bữa đã xác nhận ⇒ 200); còn trẻ chưa điểm danh ⇒ 409 `6009` kèm tên lớp | Gửi `normal: null`, bỏ ô sửa suất thường; nút xác nhận từng bữa nay xác nhận cả ngày (đổi câu chữ); hiện câu lỗi `6009` | — |
+| Phân công GV (D3, AUTH-24) | **Đã làm:** `/staff-assignments` GV áp cùng luật `PUT /classes/{id}/teachers` (409 `2306`, 400 `2304`, 409 `2305`, 409 `2003`); dạy thay = cờ `substitute: true` trong `POST /staff-assignments` (chỉ GV ⇒ 400 `2320`, bắt buộc `validTo` ⇒ 400 `2321`), response có `substitute`; dạy chính `validTo` trống/sau hết năm bị cắt về hết năm; ghi `assigned_by` | Màn Nhân sự (khi nối API): ô "Dạy thay" + ngày kết thúc bắt buộc; hiện câu lỗi BE | — |
+| Đổi vai trò, sửa hồ sơ nhân sự (D4, AUTH-25) | API mới (đổi contract) | Màn Nhân sự nối API thật | — |
+| Hold khung chờ (D9) | — | Bỏ giữ tới 700ms khi đã có dữ liệu/lỗi, giữ trễ hiện 300ms; không progress bar (`src/hooks/loadingTiming.js`, `DESIGN.md` §9) | — |
+| Màn demo trái rule REMOVED (D11) | — | Ẩn riêng các màn REMOVED (bàn giao suất, trạng thái nấu…); màn demo khác giữ | — |

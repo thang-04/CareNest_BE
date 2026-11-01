@@ -80,6 +80,11 @@ public class EduClassDoc {
     @Column(nullable = false, columnDefinition = "jsonb")
     private String adjustments;
 
+    // EDU-18: chuỗi role duyệt chụp lúc gửi; null = hồ sơ gửi trước khi có cột
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "sign_chain", columnDefinition = "jsonb")
+    private String signChain;
+
     @Column(name = "created_by", nullable = false, updatable = false)
     private Long createdBy;
 
@@ -132,6 +137,10 @@ public class EduClassDoc {
         this.approvals = approvals;
         this.history = history;
         this.updatedBy = userId;
+    }
+
+    public void snapshotSignChain(String signChain) {
+        this.signChain = signChain;
     }
 
     public void linkSource(Long sourceDocId) {

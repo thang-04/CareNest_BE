@@ -39,6 +39,7 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -213,10 +214,28 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
             List<EduClassDoc> docs =
                     classIds.isEmpty() ? List.of() : classDocRepository.findAllByClassroomIdInOrderByIdAsc(classIds);
+            // EDU-18: bước Tổ trưởng không còn người hợp lệ ⇒ hiện (và duyệt) ở bước kế; lưu khi có người thao tác
+            Map<Long, Boolean> leaderVacant = new HashMap<>();
+            classes.forEach(c -> leaderVacant.put(
+                    c.id(),
+                    leaderStepVacant(
+                            c.ageGroupId() == null ? Set.of() : leaders.getOrDefault(c.ageGroupId(), Set.of()),
+                            teachers.getOrDefault(c.id(), List.of()))));
+            EduConfigResponse.Signers signers = docs.stream().anyMatch(d -> waitingRole(d) != null)
+                    ? eduConfigService.getEduConfig().signers()
+                    : null;
+            Map<Long, EduClassDocStatus> shownStatus = new HashMap<>();
+            for (EduClassDoc d : docs) {
+                String waiting = waitingRole(d);
+                if (waiting != null && Boolean.TRUE.equals(leaderVacant.get(d.getClassroomId()))) {
+                    shownStatus.put(
+                            d.getId(), PENDING_OF.get(effectiveWaiting(signChainOf(d, signers), waiting, true)));
+                }
+            }
             ClassDocsResponse response = new ClassDocsResponse(
-                    toNodes(docs, EduClassDoc.BRANCH),
-                    toNodes(docs, EduClassDoc.THEME),
-                    toNodes(docs, EduClassDoc.WEEK),
+                    toNodes(docs, EduClassDoc.BRANCH, shownStatus),
+                    toNodes(docs, EduClassDoc.THEME, shownStatus),
+                    toNodes(docs, EduClassDoc.WEEK, shownStatus),
                     classItems,
                     List.copyOf(staff.values()));
             log.info("{}|END", logPrefix);
@@ -324,17 +343,15 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     .findCurrentTeacherIds(List.of(cls.id()), today)
                     .getOrDefault(cls.id(), List.of());
             // EDU-18: bỏ bước Tổ trưởng khi nhóm tuổi không có Tổ trưởng hoặc Tổ trưởng dạy chính lớp đó
-            boolean skipLeader = leaders.isEmpty() || leaders.stream().anyMatch(classTeachers::contains);
+            boolean skipLeader = leaderStepVacant(leaders, classTeachers);
             EduConfigResponse.Signers signers = eduConfigService.getEduConfig().signers();
-            List<String> chain = (EduClassDoc.BRANCH.equals(kind) ? signers.branch() : signers.week())
-                    .stream()
+            // Lúc gửi: chụp chuỗi theo cấu hình hiện tại; lúc duyệt/trả lại: theo chuỗi đã chụp
+            List<String> chain = ACTION_SUBMIT.equals(request.action())
+                    ? configuredChain(kind, signers).stream()
                             .filter(r -> !ROLE_TEAM_LEADER.equals(r) || !skipLeader)
-                            .toList();
-            String waiting = PENDING_OF.entrySet().stream()
-                    .filter(e -> e.getValue() == doc.getStatus())
-                    .map(Map.Entry::getKey)
-                    .findFirst()
-                    .orElse(null);
+                            .toList()
+                    : signChainOf(doc, signers);
+            String waiting = effectiveWaiting(chain, waitingRole(doc), skipLeader);
 
             List<EduClassDoc> all = new ArrayList<>(List.of(doc));
             if (EduClassDoc.THEME.equals(kind)) {
@@ -372,11 +389,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             ? "Gửi (không cần duyệt)"
                             : "Gửi " + SIGN_ROLE_LABELS.get(chain.getFirst()) + " duyệt";
                     tone = TONE_NONE;
+                    String snapshot = objectMapper.writeValueAsString(chain);
+                    all.forEach(d -> d.snapshotSignChain(snapshot));
                 }
                 case ACTION_APPROVE -> {
                     requireWaitingFor(currentUser, waiting, leaders, "duyệt");
-                    int index = chain.indexOf(waiting);
-                    String nextRole = index >= 0 && index + 1 < chain.size() ? chain.get(index + 1) : null;
+                    String nextRole = nextStep(chain, chain.indexOf(waiting) + 1, skipLeader);
                     next = nextRole == null ? EduClassDocStatus.APPROVED : PENDING_OF.get(nextRole);
                     approval = objectMapper.createObjectNode();
                     approval.put("userId", currentUser.userId());
@@ -669,7 +687,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     /** Phó HT, HT xem mọi lớp; giáo viên xem lớp mình dạy và các lớp thuộc nhóm tuổi mình làm tổ trưởng. */
     private List<ClassroomInfoResponse> visibleClasses(CurrentUser user, Long schoolYearId, LocalDate today) {
         List<ClassroomInfoResponse> classes = classroomService.findYearClassrooms(schoolYearId);
-        if (accessPolicy.isVicePrincipal(user) || user.hasRole(CareNestRole.PRINCIPAL)) {
+        if (accessPolicy.isVicePrincipal(user) || accessPolicy.isPrincipal(user)) {
             return classes;
         }
         Set<Long> taught = staffAssignmentService.findCurrentTeacherClassroomIds(user.userId(), today);
@@ -771,13 +789,82 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .toList();
     }
 
+    // EDU-18: không còn Tổ trưởng hợp lệ (nhóm tuổi không có Tổ trưởng hoặc Tổ trưởng dạy chính lớp này)
+    private static boolean leaderStepVacant(Set<Long> leaders, List<Long> classTeachers) {
+        return leaders.isEmpty() || leaders.stream().anyMatch(classTeachers::contains);
+    }
+
+    private static List<String> configuredChain(String kind, EduConfigResponse.Signers signers) {
+        return EduClassDoc.BRANCH.equals(kind) ? signers.branch() : signers.week();
+    }
+
+    private static String waitingRole(EduClassDoc doc) {
+        return PENDING_OF.entrySet().stream()
+                .filter(e -> e.getValue() == doc.getStatus())
+                .map(Map.Entry::getKey)
+                .findFirst()
+                .orElse(null);
+    }
+
+    /**
+     * Chuỗi duyệt của hồ sơ đang chờ: chuỗi chụp lúc gửi. Hồ sơ gửi trước khi có snapshot: chuỗi cấu hình; nếu cấu hình
+     * đã bỏ bước đang chờ thì không coi bước đó là bước cuối khi còn người chưa duyệt.
+     */
+    private List<String> signChainOf(EduClassDoc doc, EduConfigResponse.Signers signers) {
+        if (doc.getSignChain() != null) {
+            List<String> chain = new ArrayList<>();
+            readArray(doc.getSignChain()).forEach(n -> chain.add(n.asString("")));
+            return chain;
+        }
+        List<String> configured = configuredChain(doc.getKind(), signers);
+        String waiting = waitingRole(doc);
+        if (waiting == null || configured.contains(waiting)) {
+            return configured;
+        }
+        // Cấu hình đã bỏ bước đang chờ: giữ bước đó, các bước cấu hình chưa duyệt đi sau
+        List<String> chain = new ArrayList<>();
+        readArray(doc.getApprovals()).forEach(a -> {
+            String role = a.path("roleKey").asString("");
+            if (!role.isEmpty() && !chain.contains(role)) {
+                chain.add(role);
+            }
+        });
+        if (!chain.contains(waiting)) {
+            chain.add(waiting);
+        }
+        configured.stream().filter(r -> !chain.contains(r)).forEach(chain::add);
+        return chain;
+    }
+
+    /** Bước kế từ vị trí {@code from}: bỏ bước Tổ trưởng không còn người hợp lệ (EDU-18); null = hết chuỗi. */
+    private static String nextStep(List<String> chain, int from, boolean leaderVacant) {
+        for (int i = Math.max(from, 0); i < chain.size(); i++) {
+            if (!ROLE_TEAM_LEADER.equals(chain.get(i)) || !leaderVacant) {
+                return chain.get(i);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Bước đang chờ thực tế: đang chờ Tổ trưởng mà không còn Tổ trưởng hợp lệ ⇒ chuyển bước kế (EDU-18). Hết chuỗi thì
+     * vẫn chờ Tổ trưởng (HT phân công Tổ trưởng mới) — không tự duyệt.
+     */
+    private static String effectiveWaiting(List<String> chain, String waiting, boolean leaderVacant) {
+        if (waiting == null || !ROLE_TEAM_LEADER.equals(waiting) || !leaderVacant) {
+            return waiting;
+        }
+        String next = nextStep(chain, chain.indexOf(waiting) + 1, true);
+        return next == null ? waiting : next;
+    }
+
     /** EDU-18: đúng lượt, đúng vai trò; Tổ trưởng chỉ duyệt lớp thuộc nhóm tuổi mình. */
     private void requireWaitingFor(CurrentUser user, String waiting, Set<Long> leaders, String action) {
         boolean allowed = waiting != null
                 && switch (waiting) {
                     case ROLE_TEAM_LEADER -> leaders.contains(user.userId());
                     case ROLE_VICE_PRINCIPAL -> accessPolicy.isVicePrincipal(user);
-                    case ROLE_PRINCIPAL -> user.hasRole(CareNestRole.PRINCIPAL);
+                    case ROLE_PRINCIPAL -> accessPolicy.isPrincipal(user);
                     default -> false;
                 };
         if (!allowed) {
@@ -789,7 +876,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (accessPolicy.isVicePrincipal(user)) {
             return ROLE_VICE_PRINCIPAL;
         }
-        if (user.hasRole(CareNestRole.PRINCIPAL)) {
+        if (accessPolicy.isPrincipal(user)) {
             return ROLE_PRINCIPAL;
         }
         return leaders.contains(user.userId()) ? ROLE_TEAM_LEADER : "TEACHER";
@@ -827,10 +914,17 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return LocalDateTime.now(clock.withZone(SCHOOL_ZONE)).format(HISTORY_TIME);
     }
 
-    private List<ObjectNode> toNodes(List<EduClassDoc> docs, String kind) {
+    private List<ObjectNode> toNodes(List<EduClassDoc> docs, String kind, Map<Long, EduClassDocStatus> shownStatus) {
         return docs.stream()
                 .filter(d -> kind.equals(d.getKind()))
-                .map(this::toNode)
+                .map(d -> {
+                    ObjectNode node = toNode(d);
+                    EduClassDocStatus shown = shownStatus.get(d.getId());
+                    if (shown != null) {
+                        node.put("status", shown.name());
+                    }
+                    return node;
+                })
                 .toList();
     }
 

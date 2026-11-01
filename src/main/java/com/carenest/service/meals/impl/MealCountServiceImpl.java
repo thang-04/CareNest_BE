@@ -90,7 +90,7 @@ public class MealCountServiceImpl implements MealCountService {
             return editsCampus.test(campusId);
         }
 
-        // NUT-02 (Cần chốt 27/10/2026): điều chỉnh số suất chỉ PHT, cùng phạm vi xác nhận
+        // NUT-02: điều chỉnh suất thay thế chỉ PHT, cùng phạm vi xác nhận
         boolean adjusts(Long campusId) {
             return !principal && editsCampus.test(campusId);
         }
@@ -189,14 +189,23 @@ public class MealCountServiceImpl implements MealCountService {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
             Year year = editableYear(count.getSchoolYearId());
-            if (count.isConfirmed() && !count.hasPending()) {
-                throw GlobalException.of(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
+            // NUT-02, ATT-06: xác nhận theo cơ sở–ngày — một lần cho mọi bữa còn chờ của cơ sở trong ngày
+            List<MealCount> pending =
+                    mealCountRepository.findByCampusIdAndDate(count.getCampusId(), count.getDate()).stream()
+                            .filter(c -> c.getSchoolYearId().equals(count.getSchoolYearId()))
+                            .filter(c -> !c.isConfirmed() || c.hasPending())
+                            .toList();
+            // Bữa đã được xác nhận cùng ngày (vd. client gọi lần lượt từng bữa) ⇒ trả trạng thái hiện tại
+            if (!pending.isEmpty()) {
+                checkAttendanceComplete(count.getCampusId(), count.getDate(), year);
+                Instant at = clock.instant();
+                for (MealCount c : pending) {
+                    c.confirm(currentUser.userId(), viewer.confirmerRole(), at);
+                    historyRepository.save(
+                            MealCountHistory.of(c.getId(), MealCountHistory.CONFIRMED, currentUser.userId(), at));
+                }
+                mealCountRepository.flush();
             }
-            Instant at = clock.instant();
-            count.confirm(currentUser.userId(), viewer.confirmerRole(), at);
-            historyRepository.save(
-                    MealCountHistory.of(count.getId(), MealCountHistory.CONFIRMED, currentUser.userId(), at));
-            mealCountRepository.flush();
             MealCountResponse response = view(count, viewer, year);
             log.info("{}|END", logPrefix);
             return response;
@@ -223,19 +232,28 @@ public class MealCountServiceImpl implements MealCountService {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_NOT_FOUND);
             }
             Year year = editableYear(counts.getFirst().getSchoolYearId());
+            // NUT-02: suất thường chỉ đổi qua điểm danh (mở lại — ATT-08); normal null hoặc bằng số hiện tại = giữ
+            // nguyên
+            if (request.normal() != null
+                    && counts.stream()
+                            .anyMatch(c -> c.currentNormal(request.classId())
+                                    .filter(n -> !n.equals(request.normal()))
+                                    .isPresent())) {
+                throw GlobalException.of(ApiCode.MEAL_COUNT_NORMAL_NOT_EDITABLE);
+            }
             Instant at = clock.instant();
             String note = request.note().trim();
             int changed = 0;
             for (MealCount count : counts) {
                 // NUT-03: sổ đã xác nhận không sửa ngầm, số mới chờ xác nhận lại
-                int[] delta = count.adjust(request.classId(), request.normal(), request.substitute());
-                if (delta[0] == 0 && delta[1] == 0) {
+                int delta = count.adjustSubstitute(request.classId(), request.substitute());
+                if (delta == 0) {
                     continue;
                 }
                 historyRepository.save(
                         MealCountHistory.of(count.getId(), MealCountHistory.ADJUSTED, currentUser.userId(), at)
                                 .forClass(request.classId())
-                                .change(delta[0], delta[1], note));
+                                .change(0, delta, note));
                 changed++;
             }
             if (changed == 0) {
@@ -288,6 +306,17 @@ public class MealCountServiceImpl implements MealCountService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    // NUT-02 (D10): chặn xác nhận khi còn lớp có học trong ngày có trẻ đang học chưa được điểm danh
+    private void checkAttendanceComplete(Long campusId, LocalDate date, Year year) {
+        String incomplete = attendanceService.tallyMeals(date, campusId, year.id()).stream()
+                .filter(t -> t.missing() > 0)
+                .map(ClassMealTally::className)
+                .collect(Collectors.joining(", "));
+        if (!incomplete.isEmpty()) {
+            throw GlobalException.of(ApiCode.MEAL_COUNT_ATTENDANCE_INCOMPLETE, incomplete);
         }
     }
 
