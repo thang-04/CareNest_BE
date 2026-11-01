@@ -176,7 +176,7 @@ public class SecurityConfig {
                 HttpHeaders.CONTENT_TYPE,
                 "X-Edit-Session",
                 "X-Plan-Revision",
-                "X-Request-Id",
+                "Idempotency-Key",
                 HttpHeaders.RANGE));
         config.setExposedHeaders(
                 List.of(HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES));

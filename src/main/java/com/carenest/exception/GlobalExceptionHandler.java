@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.core.JacksonException;
 
 /**
  * Nơi duy nhất chuyển exception thành ResponseJson. Exception mới phải được map ở đây,
@@ -87,8 +88,19 @@ public class GlobalExceptionHandler {
         MethodArgumentTypeMismatchException.class
     })
     public ResponseEntity<ResponseJson<Void>> handleMalformedRequest(Exception ex) {
-        log.warn("[handleMalformedRequest]|type={}", ex.getClass().getSimpleName());
+        log.warn("[handleMalformedRequest]|type={}|name={}", ex.getClass().getSimpleName(), malformedName(ex));
         return error(ApiCode.MALFORMED_REQUEST);
+    }
+
+    // Chỉ log tên header/param/đường dẫn field để biết chỗ hỏng; không log giá trị (có thể là dữ liệu trẻ)
+    private static String malformedName(Exception ex) {
+        return switch (ex) {
+            case MethodArgumentTypeMismatchException mismatch -> mismatch.getName();
+            case MissingServletRequestParameterException missing -> missing.getParameterName();
+            case HttpMessageNotReadableException unreadable
+            when unreadable.getMostSpecificCause() instanceof JacksonException json -> json.getPathReference();
+            default -> "-";
+        };
     }
 
     // Thiếu part multipart / header bắt buộc là lỗi của request (400), không phải lỗi hệ thống

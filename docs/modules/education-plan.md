@@ -58,10 +58,12 @@ Lịch chủ đề EDU-39..41 đã chốt 30/10 (đóng P-29). Mục khảo sát
 - Mã YCCĐ (TC1.1…) trong `educationPlanConstants.js` của FE chỉ còn để đọc dữ liệu cũ; không dùng cho dữ liệu mới (EDU-09).
 
 - Lấy mục tiêu giữ context cả sau normalize/mở lại: thêm sub đầu tiên vào lĩnh vực đích vốn không-sub có thể đổi cha goal cũ; xem [case](../knowledge/incidents/CASE-261028-year-plan-import-first-sub-reparent.md). Helper import mới đã có guard và regression round-trip.
+- Khóa chống gửi trùng nhận ở header `Idempotency-Key` (UUID), không dùng `X-Request-Id`: proxy hosting VPS luôn đặt `X-Request-Id` thành ULID ⇒ 9002 cho mọi thao tác ghi; local/test không có proxy nên không lộ ([BUG-261102-proxy-overrides-x-request-id](../knowledge/incidents/BUG-261102-proxy-overrides-x-request-id.md)).
 
 ## Related issues
 - [CASE-261027-activity-media-positional-identity](../knowledge/incidents/CASE-261027-activity-media-positional-identity.md): không ghép học liệu theo ID vị trí đơn lẻ.
 - [BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)
+- [BUG-261102-proxy-overrides-x-request-id](../knowledge/incidents/BUG-261102-proxy-overrides-x-request-id.md): 9002 trên VPS do proxy ghi đè X-Request-Id.
 
 ## Đọc thêm khi
 Đổi quyền hoặc phân công Tổ trưởng ⇒ `docs/business/USER_ROLES.md`, ADR-0003. Đụng đánh giá theo MT ⇒ card learning-observation, ADR-0006.

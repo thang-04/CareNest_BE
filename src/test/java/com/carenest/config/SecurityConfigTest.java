@@ -145,10 +145,11 @@ class SecurityConfigTest {
                         .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "GET")
                         .header(
                                 HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
-                                "Authorization, X-Edit-Session, X-Plan-Revision, X-Request-Id, Range"))
+                                "Authorization, X-Edit-Session, X-Plan-Revision, Idempotency-Key, Range"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, ALLOWED_ORIGIN))
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("X-Edit-Session")))
+                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("Idempotency-Key")))
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("Range")));
     }
 

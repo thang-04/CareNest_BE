@@ -106,7 +106,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.KITCHEN_STAFF))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
         verify(eduYearPlanService, never()).getYearPlans(any(), any(), any(), any(), any());
@@ -123,7 +123,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.items").isArray());
@@ -138,7 +138,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.VICE_PRINCIPAL))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
     }
@@ -152,12 +152,54 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":\"Kế hoạch\",\"domains\":[]}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value(201))
                 .andExpect(jsonPath("$.data.status").value("DRAFT"));
+    }
+
+    @Test
+    @DisplayName(
+            "EDU-10: X-Request-Id dạng ULID do proxy hosting đặt không làm hỏng request, khóa chống gửi trùng lấy từ Idempotency-Key")
+    void createIgnoresProxyRequestIdHeader() throws Exception {
+        CurrentUser leader = authenticateAs(CareNestRole.TEACHER);
+        given(eduYearPlanService.createYearPlan(eq(leader), any(), any())).willReturn(detail(EduPlanStatus.DRAFT));
+
+        mockMvc.perform(post(GOALS)
+                        .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "01M6C4Y401Q2TBAJP49WXFHSVT")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":\"Kế hoạch\",\"domains\":[]}"))
+                .andExpect(status().isCreated());
+        verify(eduYearPlanService)
+                .createYearPlan(
+                        eq(leader),
+                        any(),
+                        eq(new com.carenest.dto.eduplan.YearPlanEditRequest(
+                                java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"),
+                                0L,
+                                java.util.UUID.fromString("00000000-0000-0000-0000-000000000002"))));
+    }
+
+    @Test
+    void createWithoutIdempotencyKeyIs400NamingHeader() throws Exception {
+        authenticateAs(CareNestRole.TEACHER);
+
+        mockMvc.perform(post(GOALS)
+                        .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":\"Kế hoạch\",\"domains\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.REQUIRED_FIELD_MISSING.getErrorCode()))
+                .andExpect(jsonPath("$.desc").value(org.hamcrest.Matchers.containsString("Idempotency-Key")));
+        verify(eduYearPlanService, never()).createYearPlan(any(), any(), any());
     }
 
     @Test
@@ -168,7 +210,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":null}"))
                 .andExpect(status().isBadRequest())
@@ -185,7 +227,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.VICE_PRINCIPAL))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"note\":\"\"}"))
                 .andExpect(status().isBadRequest())
@@ -201,7 +243,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isForbidden());
         verify(eduYearPlanService, never()).issueYearPlan(any(), any(), any(), any());
     }
@@ -216,7 +258,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PENDING_VP"));
     }
@@ -231,7 +273,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409))
                 .andExpect(jsonPath("$.errorCode").value(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER.getErrorCode()))
