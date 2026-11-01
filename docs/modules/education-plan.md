@@ -43,7 +43,7 @@ EDU-01..28, EDU-39..43, EDU-46..47 (lịch chủ đề, lấy chủ đề, nhậ
 Lịch chủ đề EDU-39..41 đã chốt 30/10 (đóng P-29). Mục khảo sát mâu thuẫn code (EDU-31, EDU-32, EDU-35, EDU-38) đã chốt theo code 29/10. Còn lại: AI gợi ý (EDU-20), đọc giáo án đã duyệt cho đánh giá trẻ (EDU-19).
 
 ## Nhập đầy đủ kế hoạch năm — mở rộng EDU-46 (02/11/2026)
-User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.md): preview bổ sung metadata/lịch/chủ đề/nghỉ; giữ bổ sung/manual save, dời lịch theo năm đích và chặn lệch nhóm tuổi. BE triển khai trước, Web chờ phase review. Parser YearPlanFileTable phối hợp metadata ngoài bảng với GoalFileTable; schema không đổi.
+User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.md). Quyết định mới nhất02/11 thay luồng chỉ bổ sung bằng hai chế độ Web: thay toàn bộ (phần thiếu trống) hoặc chỉ thay nguyên phần file có (phần thiếu giữ). Giữ năm/khoảng ngày hệ thống, field cố định, tuổi, quyền/lease và manual save; remap tick khi chủ đề thay. Backend preview/parser/API/DB không đổi trong delta này; hai chế độ FE đã implement/verify phase2 sau user duyệt tài liệu, đang chờ review trước convergence; E2E BE thật chưa chạy do thiếu credential kiểm thử. Parser YearPlanFileTable phối hợp metadata ngoài bảng với GoalFileTable.
 
 ## Known pitfalls
 
@@ -103,5 +103,5 @@ EDU-28: danh mục chỉ đọc nạp bằng V33/V34 (`edu_curriculum_*`) từ V
 
 ## Nhập file bảng mục tiêu (Tiền duyệt 01/11/2026)
 
-EDU-46, spec `specs/007-year-plan-goal-file-import/`. Nhận Word .docx bảng mẫu Thái Dương (STT | Mục tiêu | Nội dung | cột chủ đề viết tắt), Word .doc do CareNest xuất (HTML), Excel .xlsx, CSV mẫu cũ; ≤ 2 MB, ≤ 2.000 dòng; mã lỗi 7033–7035. BE chỉ đọc (không lưu, không đổi DB, không thêm thư viện; XML chặn DOCTYPE, giới hạn giải nén). Web bổ sung vào bản đang soạn bằng luật ghép EDU-24 + dấu tích khớp viết tắt (`themesOf`) + dòng không ghi lĩnh vực con/nhóm nằm cuối lĩnh vực (`freeContext`); lưu tay EDU-22.
+EDU-46, spec `specs/007-year-plan-goal-file-import/`. Nhận Word .docx bảng mẫu Thái Dương (STT | Mục tiêu | Nội dung | cột chủ đề viết tắt), Word .doc do CareNest xuất (HTML), Excel .xlsx, CSV mẫu cũ; ≤ 2 MB, ≤ 2.000 dòng; mã lỗi 7033–7035. BE chỉ đọc (không lưu, không đổi DB, không thêm thư viện; XML chặn DOCTYPE, giới hạn giải nén). Đó là luồng lịch sử spec007/EDU-46 trước quyết định mới02/11; Web hiện chưa đổi code nhưng yêu cầu đích là hai chế độ thay nội dung ở spec009 bên trên, giữ lưu tay EDU-22. Nút lấy từ kế hoạch khác vẫn theo EDU-24, không bị đổi theo nhập file.
 Pitfall: Word .doc nhị phân đời cũ không đọc được (báo Lưu thành .docx); Word mở file mẫu .doc rồi lưu lại có thể giữ dạng HTML — vẫn đọc được.

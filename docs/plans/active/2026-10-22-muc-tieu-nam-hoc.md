@@ -582,3 +582,13 @@ Ghép sai cột làm sai dấu tích: dùng khóa nguồn và kiểm chéo previ
 
 ### User review backend và tiếp tục Web — 02/11/2026
 - User "tiếp tục" sau bàn giao full659/quick36: cho phép triển khai T007..T011 của phaseWeb trong CareNest_FE và kiểm chứng kết thúc. Giữ yêu cầu phần1dạngbảng, cùng hàng/cỡ/kiểu nút, nhập preview→bổ sung/giữ nhập tay/dời năm/chặn lệch tuổi. Không cấp quyền commit/push/deploy.
+
+### User duyệt hai chế độ thay nội dung nhập file —02/11/2026
+- User yêu cầu thay nội dung thay vì chỉ insert, sau làm rõ muốn cả hai lựa chọn phần thiếu xóa/giữ; duyệt kế hoạch FE:docs/plans/active/2026-11-02-year-plan-file-replacement.md và cho phép cập nhật bộ spec/tri thức BE. Không thêm quyền sửa production BE/API/DB/dependency/commit/branch.
+- Domain14/spec/plan/data-model/research/contract/checklist và EDU-46/module/impact đã đồng bộ quyết định mới; tasks giữ lịch sử T001..T011, append T012..T020. Constitution1.0.0 giữ nguyên; feature path009 hiện có, không tạo branch.
+- Phần mô tả chưa có trong preview: full clear/present keep. YearRange phải là cấu hình năm thật; preview/apply cùng mode/range, remap tick khi thay chủ đề và giữ mục tiêu. Chi tiết AC1..10 tại spec009 cập nhật.
+- Tài liệu/analysis mới không phải evidence code hai chế độ. Phase tài liệu cần review trước T013..T017; source nhập Web vẫn additive đến khi triển khai, không đánh dấu feature hoàn tất. Wrap tick đã có sửa trình bày riêng, verification FE ghi riêng.
+
+### Phase2 delta nhập file hai chế độ —02/11/2026
+- User “duyệt” phase1; T013..T017 được implement/verify FE. Full369test fail0/skip0, model11/modal7/targeted28/edu133 và browser nguồn/CSS thật, dịch vụ giả đều đạt; xem feature009 quickstart và FE VERIFICATION.
+- Production/API/DB BE không đổi. Backend/Keycloak listen nhưng credential E2E_DEV_PASSWORD thiếu, nên chưa E2E BE thật/save-reopen. T018..T020 còn mở; dừng review phase2 trước convergence theo kế hoạch, không commit/push.

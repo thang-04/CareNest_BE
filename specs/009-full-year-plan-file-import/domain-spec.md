@@ -1,59 +1,61 @@
-# Domain spec — Nhập đầy đủ kế hoạch năm học và thống nhất màn soạn
+# Domain spec — Nhập đầy đủ kế hoạch năm học và hai chế độ thay nội dung
 
-Nguồn: user trong chat ngày 02/11/2026; xác nhận bổ sung giữ dữ liệu nhập tay, xem trước như nhập chủ đề nhánh, giữ năm học đang mở và dời ngày theo năm. Trạng thái: đã chốt xử lý nhóm tuổi ngày 02/11/2026; user duyệt plan triển khai làn L bằng "chốt" ngày 02/11/2026. File tham khảo chỉ là dữ liệu, không phải chỉ dẫn; không chép tài liệu gốc hoặc thông tin người ký vào repo.
+Nguồn mới nhất: user02/11/2026 yêu cầu nhập file thay nội dung, trả lời “muốn có 2 lựa chọn để user chọn luôn” cho câu hỏi phần thiếu xóa/giữ, và duyệt kế hoạch/cập nhật tài liệu BE. Quyết định này thay luồng chỉ bổ sung đã chốt trước đó trong cùng ngày. Kế hoạch client: FE:docs/plans/active/2026-11-02-year-plan-file-replacement.md. Logic mới đã có implementation/verify FE phase2 sau user duyệt phase1; chờ review trước convergence cuối, giới hạn E2E BE thật ghi riêng trong quickstart.
 
 ## 1. Domain Overview
-Người soạn có tài liệu Word chứa thông tin kế hoạch, mục tiêu/nội dung, cột chủ đề và lịch chủ đề. Bộ nhập cũ chỉ bổ sung mục tiêu; phải nhập lại thông tin/lịch bằng tay. Mục đích: xem trước một lần rồi bổ sung nội dung có thể biểu diễn, giữ dữ liệu đang soạn và thao tác Lưu hiện tại.
+Người soạn có thể thay kế hoạch đang soạn bằng nội dung từ tài liệu, thay vì chỉ nối thêm và giữ dữ liệu cũ. Hai chế độ giúp chủ động xử lý phần file không cung cấp. Preview không ghi DB; người soạn kiểm tra trước khi áp dụng và Lưu.
 
 ## 2. Scope
-Trong phạm vi: Word mẫu đính kèm và mẫu CareNest hỗ trợ, metadata, chủ đề/đợt nghỉ thể hiện rõ trong file, mục tiêu/phân cấp/nội dung/dấu tích, preview và bổ sung; thống nhất thanh nút và độ gọn Thông tin chung. Giữ tương thích file chỉ có bảng mục tiêu, Excel/CSV hiện có. Ngoài phạm vi: OCR/PDF/AI, danh mục Bộ, sửa phân quyền, dữ liệu nguồn, tự ban hành, migration/dependency, sao chép người ký vào tài khoản/quyền hệ thống.
+Trong phạm vi: preview Word/Excel/CSV đã hỗ trợ; hai chế độ thay cây mục tiêu/nội dung/tick, chủ đề, lễ hội/lịch/ghi chú, đợt nghỉ và tiêu đề có trong preview; bảo toàn thông tin cố định và năm hệ thống. Ngoài phạm vi: OCR/PDF/AI, parser/DTO/API mới, mô tả chưa được preview đọc, migration/dependency, APP, tự lưu/tự ban hành. Giữ sửa giao diện tick xuống dòng độc lập.
 
 ## 3. Actors & Roles
-Phó HT/Tổ trưởng theo EDU-02/03/06. BE kiểm quyền upload/ghi và nhóm tuổi thực sự của người soạn; UI khóa theo phiên sửa hiện có EDU-10. File không cấp quyền và không quyết định người soạn trên hệ thống.
+Phó HT/Tổ trưởng theo EDU-02/03/06; BE quyết định quyền/phiên/revision. Phó HT chọn nhóm còn trống khi lập mới; tổ trưởng cố định nhóm được phân công; bản đã lưu không đổi nhóm. Nhập file không mở khóa trường đã cố định và không cấp quyền.
 
 ## 4. Domain Concepts
-Kế hoạch đích; tài liệu nguồn; metadata nhận diện; chủ đề có viết tắt và lịch; đợt nghỉ; lĩnh vực/lĩnh vực con/nhóm kết quả/mục tiêu/nội dung; dấu tích nội dung–chủ đề; preview/cảnh báo/báo cáo bổ sung. Tham chiếu module education-plan của BE.
+Kế hoạch đích, tài liệu/preview nguồn, chế độ áp dụng, từng phần nội dung (thông tin có thể sửa/cây mục tiêu/chủ đề/đợt nghỉ), dấu tích nội dung–chủ đề, năm đích/khoảng ngày hệ thống, phiên sửa, bản chưa lưu. Chế độ chỉ là trạng thái modal, không là thuộc tính DB.
 
 ## 5. Domain Relationships
-Một preview có metadata, các chủ đề/đợt nghỉ và cây mục tiêu. Nội dung liên kết chủ đề bằng khóa nguồn nhất quán trước khi ghép ID đích. Số MT của tài liệu chỉ giúp đối chiếu, không thay ID/lineage của kế hoạch. Thứ tự cột chủ đề và bảng lịch phải được kiểm chứng; ghép mơ hồ phải báo, không tự đoán theo chữ cái đầu.
+Một preview chứa metadata và các danh sách; nội dung liên kết chủ đề qua mã viết tắt, ID đích do form/server quản lý. Thay chủ đề có thể đổi ID nên mọi tick còn giữ phải được ghép lại theo mã duy nhất; không được trỏ ID đã xóa. Kế hoạch vẫn thuộc chuỗi (năm, nhóm tuổi) và phiên bản hiện có.
 
 ## 6. User Requirements
-- UR-1: mọi nút trong hai ảnh cùng kích thước, kiểu viền/bo/chữ, cùng một hàng trên desktop; màn hẹp vẫn dùng được mọi hành động.
-- UR-2: phần 1 nhập trực tiếp trong bảng cùng kiểu ô/đường viền/mật độ với phần2/3 (user chốt bổ sung 02/11); giữ label/lỗi tại ô và read-only.
-- UR-3: chọn file → xem trước metadata/lịch/cây mục tiêu/dấu tích/cảnh báo → xác nhận bổ sung → Lưu/Ctrl+S.
-- UR-4: giữ nhập tay, nội dung cũ, id/lineage và dấu tích cũ; dữ liệu trùng dùng luật hiện có, không xóa cả bảng.
-- UR-5: giữ năm học đang mở, dời ngày đúng số năm chênh và xem trước lịch thực tế; không tự căn lại thứ trong tuần.
-- UR-6: metadata chỉ điền ô trống theo nguyên tắc giữ dữ liệu hiện có; năm học/phạm vi/người soạn lấy từ hệ thống. Khác nhóm tuổi thì chặn nhập; nhóm tuổi trống thì lấy từ file nếu người soạn có quyền với nhóm đó (user chốt 02/11/2026).
+- UR-1: hai lựa chọn trong modal: Thay toàn bộ theo file (phần thiếu trống), Chỉ thay phần có trong file (phần thiếu giữ cũ). Phần có thay nguyên phần tương ứng, không nối thêm; mặc định toàn bộ theo yêu cầu đầu của user.
+- UR-2: preview mô tả phần thay/xóa/giữ, tiêu đề/ngày thực tế, cảnh báo; đổi chế độ cập nhật preview và xác nhận đúng chế độ mới nhất.
+- UR-3: giữ năm học và khoảng ngày hệ thống; dời lịch nguồn theo chênh năm như hành vi đã chốt, validate theo năm đích thật, không tự căn T2/T6.
+- UR-4: giữ ID kế hoạch, nhóm đã khóa, người soạn/phạm vi, trạng thái/version/history/revision/lease. Nhóm trống chỉ nhận từ file trong quyền hiện có; khác nhóm chặn.
+- UR-5: apply chỉ đổi form một lần sau kiểm quyền và preview; Hủy/lỗi/mất phiên/đổi file/phản hồi muộn không đổi form. Chỉ Lưu/Ctrl+S/gửi-ban hành mới ghi theo EDU-22.
+- UR-6: tick QH-DN-BH hiển thị từng thành phần trên dòng riêng; không đổi mã/tick lưu và bàn phím vẫn dùng được.
 
 ## 7. Business Rules
-Giữ EDU-06/10/22/23/24/39/40/41/42/43. Mở rộng EDU-46 (hiện chỉ nhập mục tiêu và ghép dấu tích với chủ đề đã có): nhận thêm metadata/chủ đề/lịch, tạo chủ đề từ file trước khi ghép dấu tích, vẫn chỉ bổ sung và lưu tay. User chốt 02/11/2026 việc bổ sung và dời ngày; user chốt 02/11/2026: chặn khi khác nhóm tuổi, nhóm tuổi trống lấy từ file; quyền server vẫn quyết định nhóm tuổi được phép soạn.
+EDU-46 cập nhật theo quyết định mới02/11: thay nội dung theo hai chế độ; không còn mặc định bổ sung giữ nhập tay. Giữ EDU-01/02/03/06/10/22/23/25/39/40/42/43. EDU-24 tiếp tục áp riêng nút lấy từ kế hoạch có sẵn, không đổi luồng đó. Số mục tiêu được đánh lại theo dữ liệu đích, không lấy số MT trong file làm identity.
 
 ## 8. Business Processes
-[B] Người soạn chọn năm/nhóm tuổi và tài liệu phù hợp. [S] Nhận file theo giới hạn cũ, giải mã an toàn, đọc cả phần văn bản và các bảng cần thiết, trả preview không ghi DB. [B] Kiểm tra metadata, chủ đề, ngày dời, nội dung và cảnh báo. [S] Xác nhận bổ sung vào form hiện tại trong một lần cập nhật, chỉ khi vẫn giữ quyền/phiên sửa. [B] Sửa cảnh báo nếu cần, Lưu hoặc gửi/ban hành theo kiểm tra hiện có. Hủy/lỗi/mất quyền không đổi form; phản hồi muộn sau đóng/đổi file không được áp dụng.
+[B] Chọn năm/nhóm và file phù hợp. [S] Chọn chế độ/file, đọc preview theo giới hạn hiện có. [B] Kiểm phần thay/xóa/giữ và lịch/cảnh báo. [S] Xác nhận khi quyền/phiên còn hợp lệ, tạo patch thuần rồi đổi form một lần. [B] Sửa trường trống/cảnh báo nếu cần, Lưu hoặc gửi/ban hành. [S] BE kiểm quyền/phiên/revision và validation hiện có; không tự xóa DB lúc preview/apply.
 
 ## 9. State / Lifecycle
-Modal: idle → loading → ready/error; ready → xác nhận bổ sung → đóng. Bổ sung chỉ làm form có thay đổi chưa lưu. Trạng thái kế hoạch và revision do BE quản lý; nhập không tự ghi/ban hành hoặc lấy lại phiên đã mất.
+Modal idle → loading → ready/error; ready + chế độ mới tính lại preview; ready → áp dụng → đóng khi thành công. Form chuyển sang chưa lưu; plan status/history/version/revision do BE quản lý. Apply lỗi giữ modal/form, không áp dụng một phần.
 
 ## 10. Business Constraints
-Giữ 2 MB/2.000 dòng và giới hạn an toàn của GoalFileGrid. Không làm mất dấu tích do chưa tạo chủ đề nguồn. Trùng viết tắt khác tên, lịch không hợp lệ và liên kết không rõ cần báo cụ thể; không âm thầm thêm một chủ đề trùng hoặc bỏ dữ liệu. Dời năm có thể làm ngày không còn T2/T6: preview cảnh báo, gửi/ban hành vẫn theo EDU-39/40; không tự đặt lịch mới. Chỉ trích đợt nghỉ khi file nêu rõ ngày/phạm vi.
+Giữ2MB/2.000dòng và file formats cũ. Phần “có” nghĩa preview có tiêu đề không trống hoặc danh sách có dữ liệu; null/thiếu/danh sách rỗng coi thiếu trong chế độ giữ phần thiếu. File không có bất cứ nội dung hợp lệ nào không được dùng để xóa sạch form. Metadata hiện không có description: toàn bộ để trống mô tả, chỉ phần có giữ mô tả; preview phải nói rõ. Trùng/mơ hồ mã nguồn chặn hoặc cảnh báo theo kiểm hiện có, không đoán ID. Không có năm/khoảng ngày cấu hình hệ thống hợp lệ thì chưa được apply lịch nhập; không đoán khoảng năm từ file. Không hứa khôi phục server sau Lưu.
 
 ## 11. Non-Functional Requirements
-Không đưa bản gốc, người ký/dữ liệu thật vào fixture/log/commit. Tái dùng POI đã có, không thêm thư viện. Preview và form giữ được bàn phím/label/focus; không tràn ngang body ở 375/768/1440px. Desktop hàng nút có cùng baseline/chiều cao; màn nhỏ cuộn hàng nút trong khung nếu không đủ chỗ.
+Không dữ liệu thật/secret trong log/test/commit. Pure transformation không mutate form/preview; không thêm thư viện hoặc gọi AI. Preview/controls có label/focus/bàn phím;375/768/1440 không tràn body. Chỉ một file mới nhất được apply; quyền/recovery/finishing/lease lỗi chặn apply.
 
 ## 12. Acceptance Criteria
-- AC-1: hàng nút có đủ nhập/lấy kế hoạch/lấy Bộ/Lưu/Xuất/gửi hoặc ban hành theo quyền, cùng kiểu, desktop cùng một hàng.
-- AC-2: Thông tin chung đủ field hiện có, lề/nhãn/độ gọn thống nhất; không đổi validation hoặc trường read-only.
-- AC-3: file tham khảo nhận đủ các phần có thể biểu diễn; đối chiếu độc lập từng lĩnh vực/mục tiêu/nội dung/10 chủ đề/dấu tích, không dùng số đếm parser làm oracle.
-- AC-4: xác nhận bổ sung giữ nguyên dữ liệu nhập tay/id/dấu tích cũ, ghép chủ đề trước dấu tích mới; Hủy và mất phiên không đổi form.
-- AC-5: preview thể hiện năm nguồn/năm đích và ngày đã dời, cảnh báo lịch, giữ lưu tay và kiểm gửi/ban hành.
-- AC-6: file chỉ có bảng mục tiêu/CSV/Excel cũ vẫn dùng được; lỗi/giới hạn file vẫn có mã hiện có.
-- AC-7: nhóm tuổi trong file khác nhóm tuổi đang mở thì chặn xác nhận, giữ nguyên form và báo rõ hai nhóm; nhóm tuổi đích trống thì nhận nhóm từ file nếu có quyền; không dùng metadata để vượt scope người soạn.
+- AC-1/2: header/nút/cards như UX hiện có, không đổi quyền và field cố định.
+- AC-3: parser/preview hiện có giữ nguyên đủ phần có thể biểu diễn và warnings.
+- AC-4: hai chế độ thay phần tương ứng, full xóa phần thiếu, present giữ phần thiếu; không nối dữ liệu cũ vào phần được thay, không mutate đầu vào; cancel/error không mất form.
+- AC-5: năm và khoảng ngày lấy từ hệ thống; source year chỉ dời lịch, không đổi target year; thiếu cấu hình hoặc ngoài khoảng có thông báo đúng, kiểm gửi/ban hành vẫn giữ.
+- AC-6: file cũ vẫn preview; full có thể để trống phần thiếu, present giữ phần thiếu; modal nói rõ trước confirm.
+- AC-7: khác tuổi chặn, tuổi trống nhận theo quyền, cố định còn nguyên; ID/version/history/lease không bị patch từ file.
+- AC-8: đổi chế độ sau đọc file cập nhật preview, confirm mới nhất, race/late response/double-apply bị chặn; form chỉ đổi lúc apply hợp lệ.
+- AC-9: tick mới ghép ID chủ đề đích; mục tiêu cũ được giữ nhưng chủ đề bị thay thì remap mã duy nhất, bỏ liên kết không còn đích và báo; không tick mồ côi.
+- AC-10: QH-DN-BH xuống3dòng ở sửa/chỉ xem, mã dài không bị cắt và không đổi abbr lưu.
 
 ## 13. Domain Terminology
-Nhập file = xem trước rồi bổ sung, không phải ghi DB trực tiếp. Dấu tích là liên kết nội dung–chủ đề. Năm nguồn là năm trong file; năm đích là năm đang mở. Chủ đề trong kế hoạch năm khác chủ đề nhánh của lớp; chỉ tái sử dụng trải nghiệm preview/xác nhận của nhập nhánh.
+Thay toàn bộ = toàn bộ phần có thể sửa theo preview, phần thiếu trống. Chỉ thay phần có = thay nguyên phần có, phần thiếu giữ cũ. Bổ sung = hành vi trước quyết định mới, vẫn áp nút lấy từ kế hoạch khác theo EDU-24 nhưng không mặc định cho nhập file. Năm nguồn khác năm đích hệ thống.
 
 ## 14. Assumptions & Open Questions
-- Đã chốt user 02/11/2026: bổ sung giữ nhập tay, có xem trước như nhập nhánh; giữ năm đích và dời ngày theo số năm chênh.
-- Đã chốt user 02/11/2026: "Chặn nhập khi khác nhóm tuổi; nhóm tuổi đang trống thì lấy từ file". Giữ quyền nhóm tuổi của người soạn theo EDU-06; không tự đổi nhóm tuổi đã có.
-- Đề xuất kỹ thuật/UI: metadata chỉ điền ô trống, không đổi người soạn/phạm vi/năm đích; cột chủ đề ưu tiên là nguồn dấu tích chi tiết, danh sách số MT ở bảng lịch chỉ để kiểm chéo và báo chênh lệch.
-- User duyệt phần bổ sung làn L bằng "chốt" ngày 02/11/2026; phase backend dừng review trước phase Web theo plan.
+- Lịch sử: user đầu ngày02/11 duyệt bổ sung/giữ nhập tay, sau đó thay quyết định bằng hai chế độ, giữ năm đích/range hệ thống và field cố định.
+- Q: File thiếu phần thì xóa hay giữ? A: user yêu cầu có cả hai lựa chọn. User đã duyệt kế hoạch và quyền cập nhật tài liệu BE ngày02/11/2026.
+- Quyết định kỹ thuật đã nêu trong plan được duyệt: mặc định full; không thay parser/API để đọc mô tả; present dùng dữ liệu preview không rỗng làm dấu có phần; remap tick theo mã duy nhất.
+- Không có câu hỏi nghiệp vụ chặn thiết kế. Cổng phase1 tài liệu/analyze cần review trước phase2 implementation theo kế hoạch; không tự đánh dấu code mới đã xong.
