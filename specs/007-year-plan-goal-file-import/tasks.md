@@ -11,7 +11,7 @@
 - [x] T005 Service `EduGoalFileService.preview(user, file)` kiểm quyền (Phó HT hoặc GOALS_EDIT), dung lượng, đuôi file
 - [x] T006 Endpoint `POST /education-plans/goals/file-preview` (multipart) + OpenAPI snapshot
 - [x] T007 Unit test diễn giải (docx/xlsx/html/csv dựng trong test) + integration test endpoint (quyền, lỗi định dạng)
-- [x] T008 BUSINESS_RULES EDU-46 (PROPOSED – chờ Tiền duyệt), module card nếu có
+- [x] T008 BUSINESS_RULES EDU-46 (CONFIRMED – Tiền duyệt 01/11/2026), module card
 
 ## FE
 
@@ -24,4 +24,4 @@
 ## Gate
 
 - [x] T014 BE `node scripts/verify.mjs`, FE `node scripts/verify.mjs`, Playwright kế hoạch giáo dục đủ bộ
-- [ ] T015 Commit BE/FE, push, cập nhật PR vào `dev`
+- [x] T015 Commit BE/FE, push, PR vào `dev` (BE #7, FE #9)

@@ -24,3 +24,5 @@ Các thao tác tạo, lưu, lấy/duy trì/nhả quyền, gửi, ban hành, tr�
 ## Consumer
 
 CareNest_FE: `educationPlanApi.js`, `yearPlanMapper.js`, `educationPlanService.js`, `useEducationPlan.jsx`, `GoalFormPage.jsx`, hành động từ `GoalDetailPage.jsx` qua facade và thao tác xóa từ danh sách. Đồng bộ BE/FE khi triển khai; không coi client cũ tương thích ghi.
+
+> Cập nhật 02/11/2026: header `X-Request-Id` trong tài liệu này đã đổi tên thành `Idempotency-Key` (cùng ý nghĩa, UUID) vì proxy hosting VPS ghi đè `X-Request-Id`; xem `docs/knowledge/incidents/BUG-261102-proxy-overrides-x-request-id.md`.

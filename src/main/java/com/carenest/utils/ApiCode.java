@@ -200,8 +200,10 @@ public enum ApiCode {
     ASSIGNMENT_ALREADY_ENDED(2318, HttpStatus.CONFLICT, "Phân công đã kết thúc"),
     TEAM_LEADER_ASSIGNMENT_NOT_HERE(
             2319, HttpStatus.BAD_REQUEST, "Phân công Tổ trưởng thực hiện ở màn phân công giáo viên theo năm học"),
-    VICE_PRINCIPAL_INVALID(2320, HttpStatus.BAD_REQUEST, "Chỉ phân công tài khoản Phó hiệu trưởng"),
-    VICE_PRINCIPAL_ACCOUNT_LOCKED(2321, HttpStatus.CONFLICT, "Tài khoản Phó hiệu trưởng đã bị khóa"),
+    VICE_PRINCIPAL_INVALID(2322, HttpStatus.BAD_REQUEST, "Chỉ phân công tài khoản Phó hiệu trưởng"),
+    VICE_PRINCIPAL_ACCOUNT_LOCKED(2323, HttpStatus.CONFLICT, "Tài khoản Phó hiệu trưởng đã bị khóa"),
+    SUBSTITUTE_TEACHER_ONLY(2320, HttpStatus.BAD_REQUEST, "Chỉ phân công giáo viên mới chọn được dạy thay"),
+    SUBSTITUTE_END_DATE_REQUIRED(2321, HttpStatus.BAD_REQUEST, "Phân công dạy thay phải có ngày kết thúc"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
@@ -248,7 +250,7 @@ public enum ApiCode {
     UNLOCK_ALREADY_ACTIVE(4015, HttpStatus.CONFLICT, "Lớp/ngày này đang có lần mở lại còn hiệu lực"),
     UNLOCK_ALREADY_ENDED(4016, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
     LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, báo nghỉ cần xác nhận lại số suất"),
-    LEAVE_NOT_GUARDIAN(4018, HttpStatus.FORBIDDEN, "Bạn chỉ báo nghỉ được cho con mình"),
+    LEAVE_NOT_GUARDIAN(4026, HttpStatus.FORBIDDEN, "Bạn chỉ báo nghỉ được cho con mình"),
     LEAVE_DATE_RANGE_INVALID(4019, HttpStatus.BAD_REQUEST, "Ngày kết thúc không được trước ngày bắt đầu"),
     LEAVE_DATE_IN_PAST(4020, HttpStatus.BAD_REQUEST, "Không báo nghỉ cho ngày đã qua"),
     LEAVE_NO_SCHOOL_DAY(4021, HttpStatus.BAD_REQUEST, "Không còn ngày học nào trước giờ chốt trong khoảng đã chọn"),
@@ -256,6 +258,10 @@ public enum ApiCode {
     LEAVE_NOT_FOUND(4023, HttpStatus.NOT_FOUND, "Không tìm thấy đơn nghỉ"),
     LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
     LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
+    ATTENDANCE_EXCUSED_NOT_ALLOWED(
+            4018,
+            HttpStatus.BAD_REQUEST,
+            "Vắng có phép chỉ được ghi khi phụ huynh gửi đơn nghỉ, chọn Có mặt hoặc Vắng không phép"),
 
     // ========== 50xx SỨC KHỎE ==========
     HEALTH_OVERVIEW_ACCESS_DENIED(5001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp sức khỏe"),
@@ -275,6 +281,14 @@ public enum ApiCode {
     MEAL_COUNT_ALREADY_CONFIRMED(6005, HttpStatus.CONFLICT, "Sổ báo ăn bữa này đã được xác nhận"),
     MEAL_COUNT_UNCHANGED(6006, HttpStatus.BAD_REQUEST, "Số suất chưa thay đổi"),
     MEAL_COUNT_YEAR_READ_ONLY(6007, HttpStatus.CONFLICT, "Năm học không hoạt động, sổ báo ăn chỉ xem"),
+    MEAL_COUNT_NORMAL_NOT_EDITABLE(
+            6008,
+            HttpStatus.CONFLICT,
+            "Không sửa tay suất thường; số sai thì mở lại điểm danh để giáo viên sửa. Chỉ điều chỉnh được suất thay thế"),
+    MEAL_COUNT_ATTENDANCE_INCOMPLETE(
+            6009,
+            HttpStatus.CONFLICT,
+            "Còn lớp chưa điểm danh đủ trẻ: {0}. Mở lại điểm danh để giáo viên hoàn tất rồi xác nhận"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

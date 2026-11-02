@@ -218,13 +218,20 @@ public class AttendanceServiceImpl implements AttendanceService {
                     throw GlobalException.of(ApiCode.CHILD_LIST_MISMATCH);
                 }
             }
-            Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
-            for (SaveAttendanceRequest.Entry entry : request.entries()) {
-                mealsByChild.put(entry.childId(), mealsOf(entry, cls.mealSessions()));
-            }
-
             Map<Long, AttendanceRecord> existing = recordRepository.findByChildIdInAndDate(seen, date).stream()
                     .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+            // ATT-09: Vắng có phép chỉ do đơn nghỉ đặt; GV giữ nguyên được trạng thái đã có, không tự chọn mới
+            for (SaveAttendanceRequest.Entry entry : request.entries()) {
+                AttendanceRecord record = existing.get(entry.childId());
+                if (entry.status() == AttendanceStatus.EXCUSED
+                        && (record == null || record.getStatus() != AttendanceStatus.EXCUSED)) {
+                    throw GlobalException.of(ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
+                }
+            }
+            Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
+            for (SaveAttendanceRequest.Entry entry : request.entries()) {
+                mealsByChild.put(entry.childId(), mealsFor(entry.status(), cls.mealSessions()));
+            }
             Instant at = rules.now();
             Long unlockId = info.unlock() == null ? null : info.unlock().id();
             int changed = 0;
@@ -360,7 +367,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
-    // NUT-01: suất = trẻ có mặt và có báo ăn bữa đó; trẻ chưa điểm danh không tính suất
+    // NUT-01, ATT-02: suất = trẻ có mặt × mọi bữa của nhóm tuổi; trẻ chưa điểm danh không tính suất
     private ClassMealTally tally(ClassroomInfoResponse cls, LocalDate date) {
         List<Long> childIds = enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
                 .map(ClassChildResponse::id)
@@ -378,7 +385,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 continue;
             }
             present++;
-            r.getMeals().stream().filter(meals::containsKey).forEach(s -> meals.merge(s, 1, Integer::sum));
+            cls.mealSessions().forEach(s -> meals.merge(s, 1, Integer::sum));
         }
         return new ClassMealTally(
                 cls.id(),
@@ -418,22 +425,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         return cls;
     }
 
-    /** ATT-02: bữa ăn chỉ trong các bữa của nhóm tuổi; vắng thì không ăn. */
-    private static List<MealSession> mealsOf(SaveAttendanceRequest.Entry entry, List<MealSession> classSessions) {
-        List<MealSession> taken = entry.meals() == null
-                ? List.of()
-                : entry.meals().entrySet().stream()
-                        .filter(e -> e.getKey() != null && Boolean.TRUE.equals(e.getValue()))
-                        .map(Map.Entry::getKey)
-                        .sorted()
-                        .toList();
-        if (!classSessions.containsAll(taken)) {
-            throw GlobalException.of(ApiCode.MEAL_SESSION_NOT_SERVED);
-        }
-        if (entry.status().isAbsent() && !taken.isEmpty()) {
-            throw GlobalException.of(ApiCode.ABSENT_CHILD_NO_MEAL);
-        }
-        return taken;
+    /** ATT-02: có mặt là ăn mọi bữa đã cấu hình cho nhóm tuổi; vắng không ăn. Field meals client gửi bị bỏ qua. */
+    private static List<MealSession> mealsFor(AttendanceStatus status, List<MealSession> classSessions) {
+        return status.isAbsent() ? List.of() : classSessions.stream().sorted().toList();
     }
 
     private void checkRange(LocalDate from, LocalDate to) {
@@ -484,10 +478,11 @@ public class AttendanceServiceImpl implements AttendanceService {
                         : r.getStatus() == AttendanceStatus.EXCUSED ? 1 : 2;
                 counts[slot]++;
                 child[slot]++;
-                if (!r.getMeals().isEmpty()) {
+                List<MealSession> eaten = mealsFor(r.getStatus(), cls.mealSessions());
+                if (!eaten.isEmpty()) {
                     counts[4]++;
                     child[3]++;
-                    r.getMeals().forEach(s -> meals.merge(s, 1, Integer::sum));
+                    eaten.forEach(s -> meals.merge(s, 1, Integer::sum));
                 }
             }
             days.add(new DayRow(date, counts[0], counts[1], counts[2], counts[3], counts[4], meals));
@@ -515,7 +510,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             return null;
         }
         Map<MealSession, Boolean> meals = new EnumMap<>(MealSession.class);
-        sessions.forEach(s -> meals.put(s, r.getMeals().contains(s)));
+        sessions.forEach(s -> meals.put(s, !r.getStatus().isAbsent()));
         return new RecordView(
                 r.getId(), r.getStatus(), meals, r.getRecordedBy(), names.get(r.getRecordedBy()), r.getRecordedAt());
     }

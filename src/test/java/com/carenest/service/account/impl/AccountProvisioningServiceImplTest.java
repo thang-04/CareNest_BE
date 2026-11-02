@@ -381,14 +381,9 @@ class AccountProvisioningServiceImplTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 17);
 
     @Test
-    @DisplayName("AUTH-15: tạo GV kèm lớp ⇒ kiểm phạm vi theo campus của lớp, lưu phân công cùng tài khoản")
-    void createsTeacherTogetherWithClassroomAssignment() {
+    @DisplayName("AUTH-15: tạo GV không kèm lớp ⇒ campus chỉ dùng kiểm quyền người tạo, không tạo phân công")
+    void createsTeacherWithoutClassroomAssignment() {
         given(identityProviderClient.createUser(any())).willReturn(KC_ID);
-        given(staffAssignmentService.resolveCampusId(StaffRole.TEACHER, null, 11L))
-                .willReturn(5L);
-        StaffAssignmentResponse assignment =
-                new StaffAssignmentResponse(7L, 42L, StaffRole.TEACHER, null, 11L, TODAY, null);
-        given(staffAssignmentService.createAssignment(any())).willReturn(assignment);
 
         CreateAccountResponse response = service.createAccount(
                 PRINCIPAL,
@@ -398,15 +393,13 @@ class AccountProvisioningServiceImplTest {
                         null,
                         CareNestRole.TEACHER,
                         "Temp-Pass-1",
-                        new StaffAssignmentScopeRequest(null, 11L, null),
+                        new StaffAssignmentScopeRequest(5L, null),
                         null));
 
         verify(staffAccessPolicy).checkCanCreate(PRINCIPAL, CareNestRole.TEACHER, 5L);
-        ArgumentCaptor<NewStaffAssignment> created = ArgumentCaptor.forClass(NewStaffAssignment.class);
-        verify(staffAssignmentService).createAssignment(created.capture());
-        assertThat(created.getValue())
-                .isEqualTo(new NewStaffAssignment(42L, StaffRole.TEACHER, null, 11L, TODAY, null));
-        assertThat(response.assignment()).isEqualTo(assignment);
+        verify(staffAssignmentService, never()).resolveCampusId(any(), any(), any());
+        verify(staffAssignmentService, never()).createAssignment(any());
+        assertThat(response.assignment()).isNull();
         ArgumentCaptor<UserAccount> saved = ArgumentCaptor.forClass(UserAccount.class);
         verify(userAccountRepository).saveAndFlush(saved.capture());
         assertThat(saved.getValue().getPrimaryRole()).isEqualTo(CareNestRole.TEACHER);
@@ -422,7 +415,8 @@ class AccountProvisioningServiceImplTest {
         verify(staffAccessPolicy).checkCanCreate(ADMIN, CareNestRole.PRINCIPAL, null);
         verify(staffAssignmentService, never()).resolveCampusId(any(), any(), any());
         verify(staffAssignmentService)
-                .createAssignment(new NewStaffAssignment(42L, StaffRole.PRINCIPAL, null, null, TODAY, null));
+                .createAssignment(new NewStaffAssignment(
+                        42L, StaffRole.PRINCIPAL, null, null, TODAY, null, ADMIN.userId(), false));
     }
 
     @Test
@@ -449,7 +443,7 @@ class AccountProvisioningServiceImplTest {
                                 null,
                                 CareNestRole.PRINCIPAL,
                                 "Temp-Pass-1",
-                                new StaffAssignmentScopeRequest(3L, null, null),
+                                new StaffAssignmentScopeRequest(3L, null),
                                 null)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.PRINCIPAL_ASSIGNMENT_SCHOOL_WIDE);
@@ -471,7 +465,7 @@ class AccountProvisioningServiceImplTest {
                                 null,
                                 CareNestRole.KITCHEN_STAFF,
                                 "Temp-Pass-1",
-                                new StaffAssignmentScopeRequest(3L, null, null),
+                                new StaffAssignmentScopeRequest(3L, null),
                                 null)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.ASSIGNMENT_OVERLAP);
@@ -513,9 +507,9 @@ class AccountProvisioningServiceImplTest {
         given(staffAssignmentService.findAssignments(42L))
                 .willReturn(List.of(
                         new StaffAssignmentResponse(
-                                7L, 42L, StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 9, 1), null),
+                                7L, 42L, StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 9, 1), null, false),
                         new StaffAssignmentResponse(
-                                8L, 42L, StaffRole.TEACHER, null, 12L, LocalDate.of(2026, 11, 1), null),
+                                8L, 42L, StaffRole.TEACHER, null, 12L, LocalDate.of(2026, 11, 1), null, false),
                         new StaffAssignmentResponse(
                                 6L,
                                 42L,
@@ -523,7 +517,8 @@ class AccountProvisioningServiceImplTest {
                                 null,
                                 10L,
                                 LocalDate.of(2025, 9, 1),
-                                LocalDate.of(2026, 5, 31))));
+                                LocalDate.of(2026, 5, 31),
+                                false)));
 
         service.revokeStaffRole(PRINCIPAL, 42L);
 
@@ -564,8 +559,8 @@ class AccountProvisioningServiceImplTest {
         ReflectionTestUtils.setField(parent, "id", 46L);
         given(userAccountRepository.findByUsername("0912000006")).willReturn(Optional.of(parent));
         given(identityProviderClient.getRealmRoleNames("kc-p")).willReturn(List.of("PARENT"));
-        given(staffAssignmentService.resolveCampusId(StaffRole.TEACHER, null, 11L))
-                .willReturn(5L);
+        given(staffAssignmentService.resolveCampusId(StaffRole.KITCHEN_STAFF, 3L, null))
+                .willReturn(3L);
         given(staffAssignmentService.createAssignment(any())).willThrow(GlobalException.of(ApiCode.ASSIGNMENT_OVERLAP));
 
         assertThatThrownBy(() -> service.createAccount(
@@ -574,13 +569,13 @@ class AccountProvisioningServiceImplTest {
                                 "0912000006",
                                 "PH",
                                 null,
-                                CareNestRole.TEACHER,
+                                CareNestRole.KITCHEN_STAFF,
                                 null,
-                                new StaffAssignmentScopeRequest(null, 11L, null),
+                                new StaffAssignmentScopeRequest(3L, null),
                                 46L)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.ASSIGNMENT_OVERLAP);
-        verify(identityProviderClient).removeRealmRole("kc-p", "TEACHER");
+        verify(identityProviderClient).removeRealmRole("kc-p", "KITCHEN_STAFF");
         assertThat(parent.getPrimaryRole()).isEqualTo(CareNestRole.PARENT);
     }
 
@@ -677,17 +672,13 @@ class AccountProvisioningServiceImplTest {
     }
 
     @Test
-    @DisplayName("Phụ huynh trở thành GV: cùng tài khoản, thêm role + phân công, giữ SĐT/mật khẩu, không tạo user")
+    @DisplayName(
+            "Phụ huynh trở thành GV: cùng tài khoản, thêm role, chưa phân công lớp, giữ SĐT/mật khẩu, không tạo user")
     void parentAccountBecomesTeacher() {
         UserAccount parent = UserAccount.create("kc-p", "0912000006", null, "Nguyễn Thị Lan", CareNestRole.PARENT);
         ReflectionTestUtils.setField(parent, "id", 46L);
         given(userAccountRepository.findByUsername("0912000006")).willReturn(Optional.of(parent));
         given(identityProviderClient.getRealmRoleNames("kc-p")).willReturn(List.of("PARENT"));
-        given(staffAssignmentService.resolveCampusId(StaffRole.TEACHER, null, 11L))
-                .willReturn(5L);
-        StaffAssignmentResponse assignment =
-                new StaffAssignmentResponse(9L, 46L, StaffRole.TEACHER, null, 11L, TODAY, null);
-        given(staffAssignmentService.createAssignment(any())).willReturn(assignment);
 
         CreateAccountResponse response = service.createAccount(
                 PRINCIPAL,
@@ -697,19 +688,19 @@ class AccountProvisioningServiceImplTest {
                         null,
                         CareNestRole.TEACHER,
                         null,
-                        new StaffAssignmentScopeRequest(null, 11L, null),
+                        new StaffAssignmentScopeRequest(5L, null),
                         46L));
 
         verify(staffAccessPolicy).checkCanCreate(PRINCIPAL, CareNestRole.TEACHER, 5L);
         verify(staffAccessPolicy).checkCanManageParent(PRINCIPAL, 46L);
-        InOrder order = inOrder(identityProviderClient, userAccountRepository, staffAssignmentService);
+        InOrder order = inOrder(identityProviderClient, userAccountRepository);
         order.verify(identityProviderClient).assignRealmRole("kc-p", "TEACHER");
         order.verify(userAccountRepository).updatePrimaryRole(46L, "TEACHER");
-        order.verify(staffAssignmentService).createAssignment(any());
+        verify(staffAssignmentService, never()).createAssignment(any());
         verify(identityProviderClient, never()).createUser(any());
         verify(identityProviderClient, never()).resetTemporaryPassword(any(), any());
         assertThat(parent.getPrimaryRole()).isEqualTo(CareNestRole.TEACHER);
-        assertThat(response.assignment()).isEqualTo(assignment);
+        assertThat(response.assignment()).isNull();
     }
 
     @Test

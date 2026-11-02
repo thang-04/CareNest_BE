@@ -65,11 +65,13 @@ services:
       # Mặc định Mailpit cùng VPS; SMTP thật thì đổi trong .env
       CARENEST_SMTP_HOST: ${CARENEST_SMTP_HOST:-127.0.0.1}
       CARENEST_SMTP_PORT: ${CARENEST_SMTP_PORT:-18340}
+      # Placeholder mật khẩu user demo trong docker/keycloak/vps/carenest-users-0.json (chỉ áp lần import đầu)
       KEYCLOAK_DEV_USER_PASSWORD: ${KEYCLOAK_DEV_USER_PASSWORD:?KEYCLOAK_DEV_USER_PASSWORD is required while dev users are imported}
     volumes:
       - ./docker/keycloak/auth/generated/carenest-realm.json:/opt/keycloak/data/import/carenest-realm.json:ro
-      # User dev (khớp seed db/dev) chỉ cho giai đoạn demo; chuyển dữ liệu thật thì bỏ mount này
-      - ./docker/keycloak/dev/carenest-users-0.json:/opt/keycloak/data/import/carenest-users-0.json:ro
+      # User demo (khớp seed db/dev) chỉ cho giai đoạn demo; mật khẩu = KEYCLOAK_DEV_USER_PASSWORD (placeholder), không
+      # dùng file dev (hash demo123 công khai). Chuyển dữ liệu thật thì bỏ mount này
+      - ./docker/keycloak/vps/carenest-users-0.json:/opt/keycloak/data/import/carenest-users-0.json:ro
 
   mailpit:
     image: axllent/mailpit:v1.31.4
