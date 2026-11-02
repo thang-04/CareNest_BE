@@ -1,5 +1,11 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Hồ sơ sửa LVC và giao diện chọn từ Bộ — 02/11/2026
+
+- User cho commit/push bản fix trước rồi triển khai UI/commit/push FE và BE. Fix FE994002c đã push; RED4ca ban đầu và1ca nguồn hỗn hợp → GREEN39targeted, FEfull375/375fail0/skip0. BE chỉ đồng bộ incident/index và bằng chứng; không thay source backend/API/DB/dependency/APP.
+- UI dựa ảnh thứ hai đã duyệt, chỉ trình bày chức năng hiện có EDU-24/28: chọn tất cả mục tiêu đang hiển thị, đếm, tìm/lọc, phân cấp, xem nội dung đi kèm; thẻ nội dung chọn đích/lọc/tick từng dòng, nhắc lưu tay. Xem [bằng chứng FE](../../../CareNest_FE/docs/quality/VERIFICATION.md). Không coi đề xuất đầu hoặc ảnh AI là feature đã code.
+- Browser FE source/CSS thật với hook/dữ liệu/callback giả đạt tại360/390/768/1440,0lỗiJS; bước ghép dùng helper thật. Chưa kiểm persistence/API với BE thật. Cổng BE cuối cho delta tài liệu: check-ai-layer và verify --quick, kết quả xem output bàn giao/target/verify.log; không dùng quick để tuyên bố toàn bộ test API đã chạy.
+
 ## Feature009 — phase backend nhập đầy đủ kế hoạch năm (02/11/2026)
 
 - User duyệt plan/ba quyết định nghiệp vụ và bổ sung phần1dạngbảng; [spec/phase evidence](../../specs/009-full-year-plan-file-import/quickstart.md). Preview additive metadata/themes/breaks; không đổi request/endpoint/schema lưu, dependency hoặc migration.
