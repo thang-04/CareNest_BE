@@ -7,12 +7,15 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -21,6 +24,8 @@ import javax.xml.XMLConstants;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import org.apache.poi.hwpf.HWPFDocument;
+import org.apache.poi.hwpf.usermodel.TableIterator;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -28,9 +33,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 /**
- * Đọc file bảng mục tiêu (Word .docx, Excel .xlsx, Word .doc do CareNest xuất dạng HTML, CSV) thành các bảng ô đã trải
- * ô gộp (EDU-46). Ô gộp dọc lặp chữ ở các dòng dưới với cờ {@code continued} để biết là cùng mục tiêu; ô gộp ngang để
- * chữ ở ô đầu. Chỉ dùng JDK (zip + XML), tắt DTD/thực thể ngoài, giới hạn dung lượng giải nén.
+ * Đọc bảng Word/Excel/HTML/CSV thành lưới ô; ô gộp dọc giữ cờ continued để không nhân đôi mục tiêu (EDU-46).
  */
 final class GoalFileGrid {
 
@@ -52,6 +55,8 @@ final class GoalFileGrid {
     }
 
     private static final long MAX_ENTRY_BYTES = 20L * 1024 * 1024;
+    private static final int MAX_DOC_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_COLUMNS = 256;
     private static final byte[] OLE_HEADER = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0};
     private static final Pattern HTML_ROW =
             Pattern.compile("<tr\\b[^>]*>(.*?)</tr>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -63,14 +68,75 @@ final class GoalFileGrid {
 
     private GoalFileGrid() {}
 
+    // Chỉ phần đầu để nhận diện kế hoạch; không trả văn bản/người ký ra preview.
+    static String leadingText(String filename, byte[] bytes) {
+        String name = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
+        try {
+            String text;
+            if (startsWith(bytes, OLE_HEADER)) {
+                try (HWPFDocument document = new HWPFDocument(new ByteArrayInputStream(bytes))) {
+                    var range = document.getRange();
+                    StringBuilder head = new StringBuilder();
+                    for (int i = 0; i < range.numParagraphs() && head.length() < 8192; i++) {
+                        var paragraph = range.getParagraph(i);
+                        if (paragraph.isInTable() && goalHeader(paragraph.text())) break;
+                        if (!paragraph.isInTable())
+                            head.append(paragraph.text()).append('\n');
+                    }
+                    text = head.toString();
+                }
+            } else if (bytes.length > 3 && bytes[0] == 'P' && bytes[1] == 'K' && name.endsWith(".docx")) {
+                byte[] xml = zipEntry(bytes, "word/document.xml");
+                Document document = parseXml(xml);
+                NodeList paragraphs = document.getElementsByTagNameNS("*", "p");
+                StringBuilder head = new StringBuilder();
+                for (int i = 0; i < paragraphs.getLength() && head.length() < 8192; i++) {
+                    Node paragraph = paragraphs.item(i);
+                    Node parent = paragraph.getParentNode();
+                    while (parent != null && !"tbl".equals(parent.getLocalName())) parent = parent.getParentNode();
+                    if (parent != null && goalHeader(paragraph.getTextContent())) break;
+                    if (parent == null) head.append(paragraph.getTextContent()).append('\n');
+                }
+                text = head.toString();
+            } else if (name.endsWith(".doc") || name.endsWith(".html") || name.endsWith(".htm")) {
+                String html = decode(bytes);
+                Matcher tables = HTML_TABLE.matcher(html);
+                while (tables.find()) {
+                    String header = Normalizer.normalize(htmlText(tables.group()), Normalizer.Form.NFC)
+                            .toLowerCase(Locale.ROOT);
+                    if (header.contains("mục tiêu") && header.contains("nội dung")) {
+                        html = html.substring(0, tables.start());
+                        break;
+                    }
+                }
+                text = htmlText(HTML_TABLE.matcher(html).replaceAll(""));
+            } else {
+                return "";
+            }
+            return text.substring(0, Math.min(text.length(), 8192)).replace('\r', '\n');
+        } catch (IOException | SAXException | ParserConfigurationException ex) {
+            throw GlobalException.withCause(ApiCode.GOAL_FILE_UNSUPPORTED, ex);
+        }
+    }
+
+    private static boolean goalHeader(String text) {
+        String heading = Normalizer.normalize(text, Normalizer.Form.NFC)
+                .toLowerCase(Locale.ROOT)
+                .strip();
+        return heading.startsWith("mục tiêu") || heading.startsWith("nội dung");
+    }
+
     /** Đọc theo đuôi file và nội dung; định dạng không hỗ trợ ⇒ GOAL_FILE_UNSUPPORTED. */
     static List<Table> read(String filename, byte[] bytes) {
         String name = filename == null ? "" : filename.toLowerCase(Locale.ROOT);
         boolean zip = bytes.length > 3 && bytes[0] == 'P' && bytes[1] == 'K';
-        if (startsWith(bytes, OLE_HEADER)) {
-            throw GlobalException.of(ApiCode.GOAL_FILE_UNSUPPORTED);
-        }
         try {
+            if (startsWith(bytes, OLE_HEADER)) {
+                if (!name.endsWith(".doc")) {
+                    throw GlobalException.of(ApiCode.GOAL_FILE_UNSUPPORTED);
+                }
+                return binaryDoc(bytes);
+            }
             if (zip && name.endsWith(".xlsx")) {
                 return List.of(xlsx(bytes));
             }
@@ -93,6 +159,73 @@ final class GoalFileGrid {
         throw GlobalException.of(ApiCode.GOAL_FILE_UNSUPPORTED);
     }
 
+    private static List<Table> binaryDoc(byte[] bytes) throws IOException {
+        if (bytes.length > MAX_DOC_BYTES) {
+            throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+        }
+        try (HWPFDocument document = new HWPFDocument(new ByteArrayInputStream(bytes))) {
+            List<Table> tables = new ArrayList<>();
+            TableIterator iterator = new TableIterator(document.getRange());
+            int rowCount = 0;
+            long textLength = 0;
+            while (iterator.hasNext()) {
+                var source = iterator.next();
+                rowCount += source.numRows();
+                if (rowCount > GoalFileTable.MAX_ROWS) {
+                    throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+                }
+                // Ô gộp ngang làm số ô mỗi dòng khác nhau; dùng vị trí biên để giữ đúng cột.
+                TreeSet<Integer> edges = new TreeSet<>();
+                for (int r = 0; r < source.numRows(); r++) {
+                    var sourceRow = source.getRow(r);
+                    if (sourceRow.numCells() > MAX_COLUMNS) {
+                        throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+                    }
+                    for (int c = 0; c < sourceRow.numCells(); c++) {
+                        var cell = sourceRow.getCell(c);
+                        edges.add(cell.getLeftEdge());
+                        edges.add(Math.addExact(cell.getLeftEdge(), cell.getWidth()));
+                    }
+                    if (edges.size() > MAX_COLUMNS + 1) {
+                        throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+                    }
+                }
+                List<Integer> columns = new ArrayList<>(edges);
+                if (columns.size() < 2) {
+                    continue;
+                }
+                List<List<Cell>> rows = new ArrayList<>();
+                for (int r = 0; r < source.numRows(); r++) {
+                    var sourceRow = source.getRow(r);
+                    List<Cell> row = new ArrayList<>(Collections.nCopies(columns.size() - 1, Cell.EMPTY));
+                    for (int c = 0; c < sourceRow.numCells(); c++) {
+                        var cell = sourceRow.getCell(c);
+                        int col = Collections.binarySearch(columns, cell.getLeftEdge());
+                        textLength += (long) cell.getEndOffset() - cell.getStartOffset();
+                        if (textLength > MAX_ENTRY_BYTES / 2) {
+                            throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+                        }
+                        if (cell.isMerged() && !cell.isFirstMerged()) {
+                            continue;
+                        }
+                        if (cell.isVerticallyMerged() && !cell.isFirstVerticallyMerged() && !rows.isEmpty()) {
+                            row.set(col, new Cell(cellAt(rows.getLast(), col).text(), true));
+                        } else {
+                            String text = cell.text()
+                                    .replace("\u0007", "")
+                                    .replace('\r', '\n')
+                                    .replace('\u000B', '\n');
+                            row.set(col, new Cell(text.strip(), false));
+                        }
+                    }
+                    rows.add(row);
+                }
+                tables.add(new Table(rows));
+            }
+            return tables;
+        }
+    }
+
     /* ---------- Word .docx ---------- */
 
     private static List<Table> docx(byte[] bytes) throws IOException, SAXException, ParserConfigurationException {
@@ -103,11 +236,13 @@ final class GoalFileGrid {
         Document doc = parseXml(xml);
         List<Table> tables = new ArrayList<>();
         NodeList tbls = doc.getElementsByTagNameNS("*", "tbl");
+        int rowCount = 0;
         for (int i = 0; i < tbls.getLength(); i++) {
             Element tbl = (Element) tbls.item(i);
             // Bảng lồng trong ô: đọc riêng ở vòng sau, không trộn vào bảng ngoài
             List<List<Cell>> rows = new ArrayList<>();
             for (Element tr : children(tbl, "tr")) {
+                requireGridSize(++rowCount, 0);
                 List<Cell> row = new ArrayList<>();
                 for (Element tc : children(tr, "tc")) {
                     Element pr = first(tc, "tcPr");
@@ -127,6 +262,9 @@ final class GoalFileGrid {
                         }
                     }
                     int col = row.size();
+                    if (span > MAX_COLUMNS - col) {
+                        throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+                    }
                     if ("continue".equals(vMerge) && !rows.isEmpty()) {
                         Cell above = cellAt(rows.get(rows.size() - 1), col);
                         row.add(new Cell(above.text(), true));
@@ -257,8 +395,11 @@ final class GoalFileGrid {
         int col = 0;
         for (char ch : m.group(1).toCharArray()) {
             col = col * 26 + (ch - 'A' + 1);
+            requireGridSize(0, col);
         }
-        return new int[] {Integer.parseInt(m.group(2)), col - 1};
+        int row = Integer.parseInt(m.group(2));
+        requireGridSize(row, col);
+        return row < 1 ? null : new int[] {row, col - 1};
     }
 
     /* ---------- Word .doc do CareNest xuất (HTML) ---------- */
@@ -266,12 +407,14 @@ final class GoalFileGrid {
     private static List<Table> html(String text) {
         List<Table> tables = new ArrayList<>();
         Matcher tm = HTML_TABLE.matcher(text);
+        int rowCount = 0;
         while (tm.find()) {
             List<List<Cell>> rows = new ArrayList<>();
             // Ô rowspan còn phải phủ xuống các dòng sau: cột -> [số dòng còn lại, chữ]
             Map<Integer, Object[]> pending = new HashMap<>();
             Matcher rm = HTML_ROW.matcher(tm.group(1));
             while (rm.find()) {
+                requireGridSize(++rowCount, 0);
                 List<Cell> row = new ArrayList<>();
                 Matcher cm = HTML_CELL.matcher(rm.group(1));
                 int col = 0;
@@ -285,6 +428,9 @@ final class GoalFileGrid {
                     String attrs = cm.group(2);
                     int colspan = Math.max(1, parseInt(htmlAttr(attrs, "colspan"), 1));
                     int rowspan = Math.max(1, parseInt(htmlAttr(attrs, "rowspan"), 1));
+                    if (colspan > MAX_COLUMNS - col || rowspan > GoalFileTable.MAX_ROWS - rows.size()) {
+                        throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+                    }
                     String cellText = htmlText(cm.group(3));
                     set(row, col, new Cell(cellText, false));
                     for (int k = 1; k < colspan; k++) {
@@ -323,6 +469,7 @@ final class GoalFileGrid {
     }
 
     private static void set(List<Cell> row, int col, Cell cell) {
+        requireGridSize(0, col + 1);
         while (row.size() <= col) {
             row.add(null);
         }
@@ -375,9 +522,11 @@ final class GoalFileGrid {
             } else if (ch == '"') {
                 quoted = true;
             } else if (ch == sep) {
+                requireGridSize(rows.size() + 1, row.size() + 1);
                 row.add(new Cell(cell.toString().strip(), false));
                 cell.setLength(0);
             } else if (ch == '\n' || ch == '\r') {
+                requireGridSize(rows.size() + 1, row.size() + 1);
                 if (ch == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n') {
                     i++;
                 }
@@ -390,6 +539,7 @@ final class GoalFileGrid {
             }
         }
         if (!cell.isEmpty() || !row.isEmpty()) {
+            requireGridSize(rows.size() + 1, row.size() + 1);
             row.add(new Cell(cell.toString().strip(), false));
             rows.add(row);
         }
@@ -401,6 +551,13 @@ final class GoalFileGrid {
     }
 
     /* ---------- tiện ích ---------- */
+
+    // Tọa độ và ô gộp trong file nhỏ vẫn có thể yêu cầu cấp phát lưới rất lớn.
+    private static void requireGridSize(int rows, int columns) {
+        if (rows < 0 || columns < 0 || rows > GoalFileTable.MAX_ROWS || columns > MAX_COLUMNS) {
+            throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+        }
+    }
 
     private static String decode(byte[] bytes) {
         int start =

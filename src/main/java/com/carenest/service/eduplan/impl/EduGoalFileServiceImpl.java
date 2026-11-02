@@ -54,8 +54,9 @@ public class EduGoalFileServiceImpl implements EduGoalFileService {
                     .filter(EduDomain::isActive)
                     .map(EduDomain::getName)
                     .toList();
-            GoalFilePreviewResponse preview =
-                    GoalFileTable.interpret(GoalFileGrid.read(file.getOriginalFilename(), bytes), domains);
+            var tables = GoalFileGrid.read(file.getOriginalFilename(), bytes);
+            GoalFilePreviewResponse preview = YearPlanFileTable.interpret(
+                    tables, GoalFileGrid.leadingText(file.getOriginalFilename(), bytes), domains);
             log.info(
                     "{}|domains={}|warnings={}|END",
                     logPrefix,

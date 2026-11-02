@@ -2034,6 +2034,42 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/branch/file-preview:
+    post:
+      operationId: previewBranchFile
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: yearPlanId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonBranchFilePreviewResponse"
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/theme/{docKey}/learning-resources:
     get:
       operationId: list
@@ -4428,6 +4464,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Unplaced"
+    BranchFilePreviewResponse:
+      type: object
+      properties:
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/Warning"
     Break:
       type: object
       properties:
@@ -6149,21 +6196,74 @@ components:
         dat:
           type: integer
           format: int32
+    GoalFileBreak:
+      type: object
+      properties:
+        end:
+          type: string
+          format: date
+        name:
+          type: string
+        note:
+          type: string
+        start:
+          type: string
+          format: date
+    GoalFileMetadata:
+      type: object
+      properties:
+        ageFromMonths:
+          type: integer
+          format: int32
+        ageToMonths:
+          type: integer
+          format: int32
+        schoolYear:
+          type: string
+        title:
+          type: string
     GoalFilePreviewResponse:
       type: object
       properties:
+        breaks:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFileBreak"
         domains:
           type: array
           items:
             $ref: "#/components/schemas/Domain"
+        metadata:
+          $ref: "#/components/schemas/GoalFileMetadata"
         themeAbbrs:
           type: array
           items:
             type: string
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFileTheme"
         warnings:
           type: array
           items:
             $ref: "#/components/schemas/Warning"
+    GoalFileTheme:
+      type: object
+      properties:
+        abbr:
+          type: string
+        end:
+          type: string
+          format: date
+        festivals:
+          type: string
+        name:
+          type: string
+        note:
+          type: string
+        start:
+          type: string
+          format: date
     GoalRef:
       type: object
       properties:
@@ -6660,6 +6760,22 @@ components:
           format: date-time
         passwordChangeRequired:
           type: boolean
+    Match:
+      type: object
+      properties:
+        name:
+          type: string
+        row:
+          type: integer
+          format: int32
+        themeId:
+          type: integer
+          format: int64
+        themeName:
+          type: string
+        weekStart:
+          type: string
+          format: date
     MealAdjustRequest:
       type: object
       properties:
@@ -7635,6 +7751,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AutoPlaceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonBranchFilePreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/BranchFilePreviewResponse"
         desc:
           type: string
         errorCode:
