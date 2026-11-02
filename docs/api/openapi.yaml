@@ -2340,6 +2340,24 @@ paths:
           description: Created
       tags:
       - age-group-meal-config-controller
+  /api/nutrition/age-group-configs/batch:
+    post:
+      operationId: saveConfigs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgeGroupMealConfigBatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAgeGroupMealConfigResponse"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
   /api/nutrition/age-group-configs/{ageGroupId}/versions:
     get:
       operationId: getConfigVersions
@@ -2435,7 +2453,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResponseJsonListDishSummaryResponse"
+                $ref: "#/components/schemas/ResponseJsonListDishDetailResponse"
           description: OK
       tags:
       - nutrition-dish-controller
@@ -3673,12 +3691,39 @@ components:
         sortOrder:
           type: integer
           format: int32
+    AgeGroupMealConfigBatchRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupMealConfigRequest"
+          maxItems: 20
+          minItems: 0
+      required:
+      - items
     AgeGroupMealConfigRequest:
       type: object
       properties:
         ageGroupId:
           type: integer
           format: int64
+        animalLipidPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        animalLipidPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
+        animalProteinPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        animalProteinPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
         effectiveFrom:
           type: string
           format: date
@@ -3729,6 +3774,14 @@ components:
         ageGroupId:
           type: integer
           format: int64
+        animalLipidPctMax:
+          type: number
+        animalLipidPctMin:
+          type: number
+        animalProteinPctMax:
+          type: number
+        animalProteinPctMin:
+          type: number
         editable:
           type: boolean
         effectiveFrom:
@@ -3763,6 +3816,10 @@ components:
         ageGroupId:
           type: integer
           format: int64
+        animalLipid:
+          type: number
+        animalProtein:
+          type: number
         cost:
           type: number
         glucid:
@@ -3770,6 +3827,10 @@ components:
         kcal:
           type: number
         lipid:
+          type: number
+        plantLipid:
+          type: number
+        plantProtein:
           type: number
         protein:
           type: number
@@ -5060,7 +5121,6 @@ components:
           maxLength: 150
           minLength: 0
       required:
-      - code
       - name
     DishDetailResponse:
       type: object
@@ -5133,38 +5193,9 @@ components:
           maxLength: 150
           minLength: 0
       required:
-      - code
       - dishType
       - ingredients
       - name
-    DishSummaryResponse:
-      type: object
-      properties:
-        code:
-          type: string
-        description:
-          type: string
-        dishType:
-          type: string
-          enum:
-          - CARB
-          - MAIN
-          - SOUP
-          - VEGETABLE
-          - SNACK
-          - DESSERT
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-        reference:
-          type: boolean
-        status:
-          type: string
-          enum:
-          - ACTIVE
-          - INACTIVE
     Domain:
       type: object
       properties:
@@ -5265,7 +5296,7 @@ components:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/FoodRequest"
+            $ref: "#/components/schemas/Item"
           maxItems: 500
           minItems: 0
       required:
@@ -5274,6 +5305,9 @@ components:
       type: object
       properties:
         created:
+          type: integer
+          format: int32
+        updated:
           type: integer
           format: int32
     FoodRequest:
@@ -5325,6 +5359,11 @@ components:
           type: string
           maxLength: 50
           minLength: 0
+        origin:
+          type: string
+          enum:
+          - ANIMAL
+          - PLANT
         protein:
           type: number
           minimum: 0
@@ -5353,7 +5392,6 @@ components:
           exclusiveMaximum: 100
           minimum: 0
       required:
-      - code
       - foodGroup
       - glucid
       - kcal
@@ -5404,6 +5442,11 @@ components:
           type: string
         nutrientSourceVersion:
           type: string
+        origin:
+          type: string
+          enum:
+          - ANIMAL
+          - PLANT
         protein:
           type: number
         purchaseUnit:
@@ -7040,7 +7083,7 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonListDishSummaryResponse:
+    ResponseJsonListDishDetailResponse:
       type: object
       properties:
         code:
@@ -7049,7 +7092,7 @@ components:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/DishSummaryResponse"
+            $ref: "#/components/schemas/DishDetailResponse"
         desc:
           type: string
         errorCode:

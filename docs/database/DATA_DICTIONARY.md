@@ -284,11 +284,11 @@ Dùng chung hai điểm trường (SCH-06). Xóa = `status` `INACTIVE` (thực �
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
 | allergens | code (UK), name, system_defined, sort_order | Seed 9 chất cố định | HLT-06 |
-| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price, kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), nutrient_source_version, waste_pct [0,100), storage `FRESH`/`DRY`, note, status | CHECK nhóm, đơn vị, không âm | NUT-05, NUT-10, NUT-18 |
+| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price, kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), nutrient_source_version, waste_pct [0,100), storage `FRESH`/`DRY`, origin `ANIMAL`/`PLANT` (V42), note, status | CHECK nhóm, đơn vị, không âm | NUT-05, NUT-10, NUT-18, NUT-24 |
 | food_allergens | food_id, allergen_id (PK đôi) | ON DELETE CASCADE theo food | HLT-06 |
 | dishes | code (UK), name, dish_type, description, reference (món tham khảo chỉ đọc), status | | NUT-18 |
 | dish_ingredients | dish_id, food_id, age_group_id, grams_per_child (>0) | UK (dish, food, age_group) | NUT-18 |
-| age_group_meal_configs | age_group_id, effective_from, meal_price, kcal/protein/lipid/glucid min–max (null = chưa chốt), norm_basis | UK (age_group, effective_from); min ≤ max | NUT-17, NUT-19 |
+| age_group_meal_configs | age_group_id, effective_from, meal_price, kcal/protein/lipid/glucid min–max, animal_protein_pct/animal_lipid_pct min–max (V42, % động vật trên tổng) — null = chưa chốt, norm_basis | UK (age_group, effective_from); min ≤ max | NUT-17, NUT-19, NUT-24 |
 | suppliers | name, phone, address, id_card (dữ liệu cá nhân), delivery_person, status | | NUT-12 |
 
 Bữa trong ngày theo nhóm tuổi vẫn ở `age_groups.meal_sessions` (V16), không lặp ở `age_group_meal_configs`.

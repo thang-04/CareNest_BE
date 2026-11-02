@@ -4,7 +4,6 @@ import com.carenest.dto.meals.AllergenResponse;
 import com.carenest.dto.meals.DishCopyRequest;
 import com.carenest.dto.meals.DishDetailResponse;
 import com.carenest.dto.meals.DishRequest;
-import com.carenest.dto.meals.DishSummaryResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.entity.meals.Allergen;
 import com.carenest.entity.meals.Dish;
@@ -20,6 +19,7 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.DishType;
+import com.carenest.utils.enums.FoodOrigin;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.HashSet;
@@ -51,20 +51,20 @@ public class DishServiceImpl implements DishService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DishSummaryResponse> getDishes(
+    public List<DishDetailResponse> getDishes(
             String keyword, DishType dishType, Boolean reference, CatalogStatus status) {
         String logPrefix = LOG_PREFIX + "|getDishes";
         log.info("{}|START", logPrefix);
         try {
             String term = keyword == null ? "" : keyword.trim().toLowerCase(Locale.ROOT);
-            List<DishSummaryResponse> response = dishRepository.findAllByOrderByNameAsc().stream()
+            List<DishDetailResponse> response = dishRepository.findAllByOrderByNameAsc().stream()
                     .filter(dish -> term.isEmpty()
                             || dish.getName().toLowerCase(Locale.ROOT).contains(term)
                             || dish.getCode().toLowerCase(Locale.ROOT).contains(term))
                     .filter(dish -> dishType == null || dish.getDishType() == dishType)
                     .filter(dish -> reference == null || dish.isReference() == reference)
                     .filter(dish -> status == null || dish.getStatus() == status)
-                    .map(mapper::toSummary)
+                    .map(this::toDetail)
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -94,10 +94,7 @@ public class DishServiceImpl implements DishService {
         String logPrefix = LOG_PREFIX + "|createDish|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
-            String code = request.code().trim();
-            if (dishRepository.existsByCode(code)) {
-                throw GlobalException.of(ApiCode.DISH_CODE_DUPLICATED, code);
-            }
+            String code = codeOrNext(request.code());
             Dish dish = Dish.create(currentUser.userId());
             dish.changeInfo(
                     code,
@@ -121,7 +118,9 @@ public class DishServiceImpl implements DishService {
         log.info("{}|START", logPrefix);
         try {
             Dish dish = findEditableDish(dishId);
-            String code = request.code().trim();
+            // Mã để trống khi sửa ⇒ giữ mã cũ
+            String code =
+                    isBlank(request.code()) ? dish.getCode() : request.code().trim();
             if (dishRepository.existsByCodeAndIdNot(code, dishId)) {
                 throw GlobalException.of(ApiCode.DISH_CODE_DUPLICATED, code);
             }
@@ -168,10 +167,7 @@ public class DishServiceImpl implements DishService {
         log.info("{}|START", logPrefix);
         try {
             Dish source = findDish(dishId);
-            String code = request.code().trim();
-            if (dishRepository.existsByCode(code)) {
-                throw GlobalException.of(ApiCode.DISH_CODE_DUPLICATED, code);
-            }
+            String code = codeOrNext(request.code());
             // Bản sao luôn là món của trường (sửa được), giữ nguyên định lượng của món gốc
             Dish copy = Dish.create(currentUser.userId());
             copy.changeInfo(
@@ -186,6 +182,28 @@ public class DishServiceImpl implements DishService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /** Mã nhập tay phải chưa có; để trống ⇒ tự sinh MA001, MA002… */
+    private String codeOrNext(String requested) {
+        if (!isBlank(requested)) {
+            String code = requested.trim();
+            if (dishRepository.existsByCode(code)) {
+                throw GlobalException.of(ApiCode.DISH_CODE_DUPLICATED, code);
+            }
+            return code;
+        }
+        long number = dishRepository.count() + 1;
+        String code = String.format("MA%03d", number);
+        while (dishRepository.existsByCode(code)) {
+            number++;
+            code = String.format("MA%03d", number);
+        }
+        return code;
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private Dish findDish(Long dishId) {
@@ -271,16 +289,24 @@ public class DishServiceImpl implements DishService {
      */
     private static DishDetailResponse.AgeGroupNutrition nutritionOf(Long ageGroupId, List<DishIngredient> items) {
         BigDecimal kcal = BigDecimal.ZERO;
-        BigDecimal protein = BigDecimal.ZERO;
-        BigDecimal lipid = BigDecimal.ZERO;
+        BigDecimal animalProtein = BigDecimal.ZERO;
+        BigDecimal plantProtein = BigDecimal.ZERO;
+        BigDecimal animalLipid = BigDecimal.ZERO;
+        BigDecimal plantLipid = BigDecimal.ZERO;
         BigDecimal glucid = BigDecimal.ZERO;
         BigDecimal cost = BigDecimal.ZERO;
         for (DishIngredient item : items) {
             Food food = item.getFood();
             BigDecimal grams = item.getGramsPerChild();
             kcal = kcal.add(grams.multiply(food.getKcal()));
-            protein = protein.add(grams.multiply(food.getProtein()));
-            lipid = lipid.add(grams.multiply(food.getLipid()));
+            // NUT-24: đạm, béo của thực phẩm tính vào nhóm theo nguồn gốc
+            if (food.getOrigin() == FoodOrigin.ANIMAL) {
+                animalProtein = animalProtein.add(grams.multiply(food.getProtein()));
+                animalLipid = animalLipid.add(grams.multiply(food.getLipid()));
+            } else {
+                plantProtein = plantProtein.add(grams.multiply(food.getProtein()));
+                plantLipid = plantLipid.add(grams.multiply(food.getLipid()));
+            }
             glucid = glucid.add(grams.multiply(food.getGlucid()));
             BigDecimal purchased = grams.multiply(HUNDRED.add(food.getWastePct()));
             cost = cost.add(purchased
@@ -288,7 +314,16 @@ public class DishServiceImpl implements DishService {
                     .divide(food.getPurchaseUnitSize(), 10, RoundingMode.HALF_UP));
         }
         return new DishDetailResponse.AgeGroupNutrition(
-                ageGroupId, per100(kcal), per100(protein), per100(lipid), per100(glucid), per100(cost));
+                ageGroupId,
+                per100(kcal),
+                per100(animalProtein),
+                per100(plantProtein),
+                per100(animalProtein.add(plantProtein)),
+                per100(animalLipid),
+                per100(plantLipid),
+                per100(animalLipid.add(plantLipid)),
+                per100(glucid),
+                per100(cost));
     }
 
     private static BigDecimal per100(BigDecimal value) {

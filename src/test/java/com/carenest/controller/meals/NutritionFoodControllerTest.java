@@ -22,6 +22,7 @@ import com.carenest.service.meals.FoodService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodGroup;
+import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import com.carenest.utils.enums.Permission;
@@ -48,7 +49,7 @@ class NutritionFoodControllerTest {
     private static final String BODY = """
             {"code":"TP001","name":"Gạo tẻ","foodGroup":"GRAIN","unit":"g","purchaseUnit":"kg",
              "purchaseUnitSize":1000,"unitPrice":18000,"kcal":344,"protein":7.9,"lipid":1,"glucid":76.2,
-             "nutrientSource":"Bảng thành phần thực phẩm Việt Nam","wastePct":0,"storage":"DRY","allergenIds":[]}
+             "nutrientSource":"Bảng thành phần thực phẩm Việt Nam","wastePct":0,"storage":"DRY","origin":"PLANT","allergenIds":[]}
             """;
 
     @Autowired
@@ -123,6 +124,7 @@ class NutritionFoodControllerTest {
                 null,
                 BigDecimal.ZERO,
                 FoodStorage.DRY,
+                FoodOrigin.PLANT,
                 "",
                 CatalogStatus.ACTIVE,
                 List.of());

@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.carenest.dto.meals.DishCopyRequest;
 import com.carenest.dto.meals.DishDetailResponse;
 import com.carenest.dto.meals.DishRequest;
+import com.carenest.dto.meals.FoodImportRequest;
+import com.carenest.dto.meals.FoodImportResponse;
 import com.carenest.dto.meals.FoodRequest;
 import com.carenest.dto.meals.FoodResponse;
 import com.carenest.exception.GlobalException;
@@ -16,6 +18,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodGroup;
+import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import com.carenest.utils.enums.Permission;
@@ -107,6 +110,108 @@ class NutritionCatalogIntegrationTest {
     }
 
     @Test
+    @DisplayName("NUT-24: đạm, béo tách theo nguồn gốc thực phẩm; tổng = động vật + thực vật")
+    void proteinAndLipidSplitByFoodOrigin() {
+        // helper: đạm 10 g, béo 1 g trên 100 g
+        FoodResponse rice = foodService.createFood(manager, food("TP001", "Gạo tẻ", "344", "18000", "0", List.of()));
+        FoodResponse pork = foodService.createFood(
+                manager, food("TP002", "Thịt lợn", "139", "140000", "0", List.of(), FoodOrigin.ANIMAL));
+        DishDetailResponse dish = dishService.createDish(
+                manager,
+                new DishRequest(
+                        null,
+                        "Cơm thịt",
+                        DishType.MAIN,
+                        null,
+                        List.of(
+                                new DishRequest.Ingredient(rice.id(), nursery, new BigDecimal("50")),
+                                new DishRequest.Ingredient(pork.id(), nursery, new BigDecimal("30")))));
+
+        DishDetailResponse.AgeGroupNutrition nutrition = nutritionOf(dish, nursery);
+        assertThat(nutrition.animalProtein()).isEqualByComparingTo("3.00");
+        assertThat(nutrition.plantProtein()).isEqualByComparingTo("5.00");
+        assertThat(nutrition.protein()).isEqualByComparingTo("8.00");
+        assertThat(nutrition.animalLipid()).isEqualByComparingTo("0.30");
+        assertThat(nutrition.plantLipid()).isEqualByComparingTo("0.50");
+        assertThat(nutrition.lipid()).isEqualByComparingTo("0.80");
+        assertThat(pork.origin()).isEqualTo(FoodOrigin.ANIMAL);
+    }
+
+    @Test
+    @DisplayName("NUT-05: nhập/sửa hàng loạt một lần; một dòng lỗi thì không dòng nào được lưu")
+    void bulkImportUpdatesAndCreatesAtomically() {
+        FoodResponse rice = foodService.createFood(manager, food("TP001", "Gạo tẻ", "344", "18000", "0", List.of()));
+        FoodResponse beans = foodService.createFood(manager, food("TP002", "Đậu xanh", "328", "40000", "0", List.of()));
+
+        assertThatThrownBy(() -> foodService.importFoods(
+                        manager,
+                        new FoodImportRequest(List.of(
+                                new FoodImportRequest.Item(
+                                        rice.id(), food(null, "Gạo tẻ thơm", "344", "19000", "0", List.of())),
+                                new FoodImportRequest.Item(
+                                        null, food("TP002", "Trùng mã", "100", "1000", "0", List.of()))))))
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("dòng 2 trùng mã TP002");
+        assertThat(foodService.getFood(rice.id()).name()).isEqualTo("Gạo tẻ");
+
+        FoodImportResponse result = foodService.importFoods(
+                manager,
+                new FoodImportRequest(List.of(
+                        new FoodImportRequest.Item(
+                                rice.id(), food(null, "Gạo tẻ thơm", "344", "19000", "0", List.of())),
+                        new FoodImportRequest.Item(
+                                beans.id(), food("TP002", "Đậu xanh cà", "328", "40000", "0", List.of())),
+                        new FoodImportRequest.Item(null, food(null, "Gạo nếp", "346", "26000", "0", List.of())))));
+
+        assertThat(result.created()).isEqualTo(1);
+        assertThat(result.updated()).isEqualTo(2);
+        assertThat(foodService.getFood(rice.id()).name()).isEqualTo("Gạo tẻ thơm");
+        assertThat(foodService.getFood(rice.id()).code()).isEqualTo("TP001");
+    }
+
+    @Test
+    void dishListReturnsIngredientsAndNutrition() {
+        FoodResponse rice = foodService.createFood(manager, food("TP001", "Gạo tẻ", "344", "18000", "0", List.of()));
+        dishService.createDish(
+                manager,
+                new DishRequest(
+                        null,
+                        "Cơm",
+                        DishType.CARB,
+                        null,
+                        List.of(new DishRequest.Ingredient(rice.id(), nursery, new BigDecimal("50")))));
+
+        assertThat(dishService.getDishes(null, null, false, null))
+                .singleElement()
+                .satisfies(dish -> {
+                    assertThat(dish.ingredients()).hasSize(1);
+                    assertThat(dish.nutritionByAgeGroup())
+                            .singleElement()
+                            .satisfies(n -> assertThat(n.kcal()).isEqualByComparingTo("172.00"));
+                });
+    }
+
+    @Test
+    void blankCodeIsGeneratedAndKeptOnUpdate() {
+        FoodResponse manual = foodService.createFood(manager, food("TP001", "Gạo tẻ", "344", "18000", "0", List.of()));
+        FoodResponse generated = foodService.createFood(manager, food(null, "Gạo nếp", "346", "26000", "0", List.of()));
+        FoodResponse renamed = foodService.updateFood(
+                manager, generated.id(), food(" ", "Gạo nếp cái", "346", "26000", "0", List.of()));
+        DishDetailResponse dish = dishService.createDish(
+                manager,
+                new DishRequest(
+                        null,
+                        "Xôi",
+                        DishType.CARB,
+                        null,
+                        List.of(new DishRequest.Ingredient(manual.id(), nursery, new BigDecimal("50")))));
+
+        assertThat(generated.code()).isEqualTo("TP002");
+        assertThat(renamed.code()).isEqualTo("TP002");
+        assertThat(dish.code()).isEqualTo("MA001");
+    }
+
+    @Test
     void updateReplacesWholeIngredientGrid() {
         FoodResponse rice = foodService.createFood(manager, food("TP001", "Gạo tẻ", "344", "18000", "0", List.of()));
         DishDetailResponse dish = dishService.createDish(
@@ -175,6 +280,17 @@ class NutritionCatalogIntegrationTest {
 
     private static FoodRequest food(
             String code, String name, String kcal, String price, String wastePct, List<Long> allergenIds) {
+        return food(code, name, kcal, price, wastePct, allergenIds, FoodOrigin.PLANT);
+    }
+
+    private static FoodRequest food(
+            String code,
+            String name,
+            String kcal,
+            String price,
+            String wastePct,
+            List<Long> allergenIds,
+            FoodOrigin origin) {
         return new FoodRequest(
                 code,
                 name,
@@ -191,6 +307,7 @@ class NutritionCatalogIntegrationTest {
                 "2017",
                 new BigDecimal(wastePct),
                 FoodStorage.DRY,
+                origin,
                 null,
                 allergenIds);
     }

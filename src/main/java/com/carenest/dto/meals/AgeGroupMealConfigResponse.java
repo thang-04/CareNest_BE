@@ -17,5 +17,9 @@ public record AgeGroupMealConfigResponse(
         BigDecimal lipidPctMax,
         BigDecimal glucidPctMin,
         BigDecimal glucidPctMax,
+        BigDecimal animalProteinPctMin,
+        BigDecimal animalProteinPctMax,
+        BigDecimal animalLipidPctMin,
+        BigDecimal animalLipidPctMax,
         String normBasis,
         boolean editable) {}

@@ -10,9 +10,9 @@ import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.util.List;
 
-/** Món kèm toàn bộ lưới định lượng thực phẩm × nhóm tuổi (NUT-18); thiếu ô = nhóm tuổi đó không dùng thực phẩm. */
+/** Món kèm toàn bộ lưới định lượng thực phẩm × nhóm tuổi (NUT-18); thiếu ô = nhóm tuổi đó không dùng thực phẩm. Mã để trống ⇒ tự sinh (MA001…). */
 public record DishRequest(
-        @NotBlank @Size(max = 20) String code,
+        @Size(max = 20) String code,
         @NotBlank @Size(max = 150) String name,
         @NotNull DishType dishType,
         @Size(max = 500) String description,

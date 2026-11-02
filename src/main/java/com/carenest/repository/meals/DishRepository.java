@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface DishRepository extends JpaRepository<Dish, Long> {
 
+    // Danh sách kèm định lượng, thực phẩm, dị ứng trong một truy vấn: FE lập thực đơn cần đủ để tính, tránh 1 + N
+    @EntityGraph(attributePaths = {"ingredients", "ingredients.food", "ingredients.food.allergens"})
     List<Dish> findAllByOrderByNameAsc();
 
     // Chi tiết món cần thực phẩm và chất dị ứng của từng ô định lượng để tính dinh dưỡng, giá

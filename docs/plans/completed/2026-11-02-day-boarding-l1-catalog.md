@@ -120,6 +120,10 @@ Không có. Danh mục thật (Viện Dinh dưỡng) do team chuẩn bị (NUT-1
 - [x] Tự review: không placeholder, không mâu thuẫn
 
 ## Progress log
+### 2026-11-02 23:30 — Bổ sung khi nối FE
+- `code` của thực phẩm, món, bản sao món không còn bắt buộc: để trống ⇒ tự sinh `TPnnn`/`MAnnn` (sửa để trống ⇒ giữ mã cũ), vì form FE không có ô mã. Test `NutritionCatalogIntegrationTest#blankCodeIsGeneratedAndKeptOnUpdate`. Snapshot OpenAPI bỏ `required: code`.
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 645 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 266s`
+
 ### 2026-11-02 khuya — Phase 1–4 done
 - Commit: chưa commit (chưa được phép)
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 644 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 260s`; `node scripts/check-ai-layer.mjs` → 0 lỗi.

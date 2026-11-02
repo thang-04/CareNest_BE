@@ -19,6 +19,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FoodGroup;
+import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import java.math.BigDecimal;
@@ -48,6 +49,36 @@ class FoodServiceImplTest {
     }
 
     @Test
+    @DisplayName("NUT-24: thực phẩm thiếu nguồn gốc động vật / thực vật thì không lưu")
+    void createRejectsMissingOrigin() {
+        FoodRequest valid = food("TP001", "Viện Dinh dưỡng 2017");
+        FoodRequest noOrigin = new FoodRequest(
+                valid.code(),
+                valid.name(),
+                valid.foodGroup(),
+                valid.unit(),
+                valid.purchaseUnit(),
+                valid.purchaseUnitSize(),
+                valid.unitPrice(),
+                valid.kcal(),
+                valid.protein(),
+                valid.lipid(),
+                valid.glucid(),
+                valid.nutrientSource(),
+                null,
+                valid.wastePct(),
+                valid.storage(),
+                null,
+                null,
+                List.of());
+
+        assertThatThrownBy(() -> service.createFood(VICE_PRINCIPAL, noOrigin))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.FOOD_ORIGIN_REQUIRED);
+        verify(foodRepository, never()).save(any());
+    }
+
+    @Test
     void createRejectsDuplicatedCode() {
         given(foodRepository.existsByCode("TP001")).willReturn(true);
 
@@ -61,8 +92,10 @@ class FoodServiceImplTest {
     void importRejectsWholeBatchWhenOneRowInvalid() {
         given(foodRepository.findByCodeIn(anyCollection())).willReturn(List.of());
         given(allergenRepository.findAll()).willReturn(List.of());
-        FoodImportRequest request = new FoodImportRequest(
-                List.of(food("TP001", "Viện Dinh dưỡng 2017"), food("TP002", " "), food("TP001", "Viện Dinh dưỡng")));
+        FoodImportRequest request = new FoodImportRequest(List.of(
+                new FoodImportRequest.Item(null, food("TP001", "Viện Dinh dưỡng 2017")),
+                new FoodImportRequest.Item(null, food("TP002", " ")),
+                new FoodImportRequest.Item(null, food("TP001", "Viện Dinh dưỡng"))));
 
         assertThatThrownBy(() -> service.importFoods(VICE_PRINCIPAL, request))
                 .isInstanceOf(GlobalException.class)
@@ -80,8 +113,9 @@ class FoodServiceImplTest {
 
         int created = service.importFoods(
                         VICE_PRINCIPAL,
-                        new FoodImportRequest(
-                                List.of(food("TP001", "Viện Dinh dưỡng 2017"), food("TP002", "Viện Dinh dưỡng 2017"))))
+                        new FoodImportRequest(List.of(
+                                new FoodImportRequest.Item(null, food("TP001", "Viện Dinh dưỡng 2017")),
+                                new FoodImportRequest.Item(null, food("TP002", "Viện Dinh dưỡng 2017")))))
                 .created();
 
         assertThat(created).isEqualTo(2);
@@ -105,6 +139,7 @@ class FoodServiceImplTest {
                 null,
                 BigDecimal.ZERO,
                 FoodStorage.DRY,
+                FoodOrigin.PLANT,
                 null,
                 List.of());
     }

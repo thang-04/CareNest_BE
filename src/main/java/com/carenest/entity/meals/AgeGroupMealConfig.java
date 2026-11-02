@@ -62,6 +62,18 @@ public class AgeGroupMealConfig {
     @Column(name = "glucid_pct_max")
     private BigDecimal glucidPctMax;
 
+    @Column(name = "animal_protein_pct_min")
+    private BigDecimal animalProteinPctMin;
+
+    @Column(name = "animal_protein_pct_max")
+    private BigDecimal animalProteinPctMax;
+
+    @Column(name = "animal_lipid_pct_min")
+    private BigDecimal animalLipidPctMin;
+
+    @Column(name = "animal_lipid_pct_max")
+    private BigDecimal animalLipidPctMax;
+
     @Column(name = "norm_basis", nullable = false, length = 300)
     private String normBasis = "";
 
@@ -99,6 +111,10 @@ public class AgeGroupMealConfig {
         this.lipidPctMax = norms.lipidPctMax();
         this.glucidPctMin = norms.glucidPctMin();
         this.glucidPctMax = norms.glucidPctMax();
+        this.animalProteinPctMin = norms.animalProteinPctMin();
+        this.animalProteinPctMax = norms.animalProteinPctMax();
+        this.animalLipidPctMin = norms.animalLipidPctMin();
+        this.animalLipidPctMax = norms.animalLipidPctMax();
         this.normBasis = normBasis;
         this.updatedBy = updatedBy;
     }
@@ -112,5 +128,9 @@ public class AgeGroupMealConfig {
             BigDecimal lipidPctMin,
             BigDecimal lipidPctMax,
             BigDecimal glucidPctMin,
-            BigDecimal glucidPctMax) {}
+            BigDecimal glucidPctMax,
+            BigDecimal animalProteinPctMin,
+            BigDecimal animalProteinPctMax,
+            BigDecimal animalLipidPctMin,
+            BigDecimal animalLipidPctMax) {}
 }

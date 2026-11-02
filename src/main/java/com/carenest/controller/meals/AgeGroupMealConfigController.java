@@ -1,5 +1,6 @@
 package com.carenest.controller.meals;
 
+import com.carenest.dto.meals.AgeGroupMealConfigBatchRequest;
 import com.carenest.dto.meals.AgeGroupMealConfigRequest;
 import com.carenest.dto.meals.AgeGroupMealConfigResponse;
 import com.carenest.security.CurrentUser;
@@ -67,6 +68,17 @@ public class AgeGroupMealConfigController {
         AgeGroupMealConfigResponse config = configService.createConfig(currentUser, request);
         log.info("{}|configId={}|END", logPrefix, config.id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create age group meal config success", config);
+    }
+
+    @PostMapping("/batch")
+    @PreAuthorize("@permissionGuard.has('NUTRITION_MANAGE')")
+    public ResponseEntity<ResponseJson<List<AgeGroupMealConfigResponse>>> saveConfigs(
+            @Valid @RequestBody AgeGroupMealConfigBatchRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|saveConfigs|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        List<AgeGroupMealConfigResponse> configs = configService.saveConfigs(currentUser, request.items());
+        log.info("{}|items={}|END", logPrefix, configs.size());
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save age group meal configs success", configs);
     }
 
     @PutMapping("/{configId}")

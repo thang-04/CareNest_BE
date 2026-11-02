@@ -276,6 +276,7 @@ public enum ApiCode {
     NUTRITION_NORM_RANGE_INVALID(6021, HttpStatus.BAD_REQUEST, "Chuẩn {0}: giá trị tối thiểu lớn hơn tối đa"),
     AGE_GROUP_INVALID(6022, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
     SUPPLIER_NOT_FOUND(6023, HttpStatus.NOT_FOUND, "Không tìm thấy nhà cung cấp"),
+    FOOD_ORIGIN_REQUIRED(6024, HttpStatus.BAD_REQUEST, "Cần chọn nguồn gốc động vật hoặc thực vật của thực phẩm"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

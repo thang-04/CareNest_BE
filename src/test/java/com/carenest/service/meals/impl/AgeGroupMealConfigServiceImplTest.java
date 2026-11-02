@@ -47,6 +47,40 @@ class AgeGroupMealConfigServiceImplTest {
             new AgeGroupMealConfigServiceImpl(repository, ageGroupService, new NutritionCatalogMapper(), FIXED_CLOCK);
 
     @Test
+    @DisplayName("NUT-17: lưu cả lô — dòng sau gặp bản đã hiệu lực thì báo lỗi, cả lô không lưu")
+    void batchStopsOnLockedVersion() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.existsByAgeGroupId(AGE_GROUP)).willReturn(false);
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+        given(repository.findByAgeGroupIdAndEffectiveFrom(AGE_GROUP, TODAY.minusDays(1)))
+                .willReturn(Optional.of(config(10L, TODAY.minusDays(1))));
+
+        assertThatThrownBy(() -> service.saveConfigs(
+                        VICE_PRINCIPAL,
+                        List.of(request(TODAY.plusDays(5), null, null), request(TODAY.minusDays(1), null, null))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.MEAL_CONFIG_LOCKED);
+    }
+
+    @Test
+    void batchUpdatesFutureVersionAndCreatesMissing() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+        given(repository.findByAgeGroupIdAndEffectiveFrom(AGE_GROUP, TODAY.plusDays(3)))
+                .willReturn(Optional.of(config(12L, TODAY.plusDays(3))));
+
+        List<AgeGroupMealConfigResponse> saved = service.saveConfigs(
+                VICE_PRINCIPAL, List.of(request(TODAY.plusDays(3), new BigDecimal("600"), new BigDecimal("700"))));
+
+        assertThat(saved).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo(12L);
+            assertThat(item.kcalMin()).isEqualByComparingTo("600");
+            assertThat(item.editable()).isTrue();
+        });
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("NUT-17: bản cấu hình đã tới ngày hiệu lực chỉ đọc")
     void updateRejectsConfigAlreadyInEffect() {
         given(repository.findById(10L)).willReturn(Optional.of(config(10L, TODAY)));
@@ -106,7 +140,22 @@ class AgeGroupMealConfigServiceImplTest {
 
     private static AgeGroupMealConfigRequest request(LocalDate from, BigDecimal kcalMin, BigDecimal kcalMax) {
         return new AgeGroupMealConfigRequest(
-                AGE_GROUP, from, new BigDecimal("30000"), kcalMin, kcalMax, null, null, null, null, null, null, null);
+                AGE_GROUP,
+                from,
+                new BigDecimal("30000"),
+                kcalMin,
+                kcalMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null);
     }
 
     private static AgeGroupMealConfig config(Long id, LocalDate from) {
@@ -114,7 +163,7 @@ class AgeGroupMealConfigServiceImplTest {
         config.changeInfo(
                 from,
                 new BigDecimal("30000"),
-                new AgeGroupMealConfig.Norms(null, null, null, null, null, null, null, null),
+                new AgeGroupMealConfig.Norms(null, null, null, null, null, null, null, null, null, null, null, null),
                 "",
                 3L);
         ReflectionTestUtils.setField(config, "id", id);

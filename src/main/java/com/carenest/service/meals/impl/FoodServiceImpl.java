@@ -22,6 +22,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -103,12 +104,14 @@ public class FoodServiceImpl implements FoodService {
         log.info("{}|START", logPrefix);
         try {
             requireNutrientSource(request);
-            if (foodRepository.existsByCode(request.code().trim())) {
-                throw GlobalException.of(
-                        ApiCode.FOOD_CODE_DUPLICATED, request.code().trim());
+            String code = isBlank(request.code())
+                    ? nextCode(Set.of())
+                    : request.code().trim();
+            if (!isBlank(request.code()) && foodRepository.existsByCode(code)) {
+                throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
             Food food = Food.create(currentUser.userId());
-            apply(food, request, resolveAllergens(request.allergenIds(), allergensById()), currentUser.userId());
+            apply(food, request, code, resolveAllergens(request.allergenIds(), allergensById()), currentUser.userId());
             food = foodRepository.save(food);
             log.info("{}|foodId={}|END", logPrefix, food.getId());
             return mapper.toResponse(food);
@@ -125,11 +128,13 @@ public class FoodServiceImpl implements FoodService {
         try {
             Food food = findFood(foodId);
             requireNutrientSource(request);
-            if (foodRepository.existsByCodeAndIdNot(request.code().trim(), foodId)) {
-                throw GlobalException.of(
-                        ApiCode.FOOD_CODE_DUPLICATED, request.code().trim());
+            // Mã để trống khi sửa ⇒ giữ mã cũ
+            String code =
+                    isBlank(request.code()) ? food.getCode() : request.code().trim();
+            if (foodRepository.existsByCodeAndIdNot(code, foodId)) {
+                throw GlobalException.of(ApiCode.FOOD_CODE_DUPLICATED, code);
             }
-            apply(food, request, resolveAllergens(request.allergenIds(), allergensById()), currentUser.userId());
+            apply(food, request, code, resolveAllergens(request.allergenIds(), allergensById()), currentUser.userId());
             foodRepository.flush();
             log.info("{}|END", logPrefix);
             return mapper.toResponse(food);
@@ -162,46 +167,79 @@ public class FoodServiceImpl implements FoodService {
                 + request.items().size();
         log.info("{}|START", logPrefix);
         try {
-            List<FoodRequest> items = request.items();
+            List<FoodImportRequest.Item> items = request.items();
             Map<Long, Allergen> allergens = allergensById();
-            Set<String> existingCodes =
-                    foodRepository
-                            .findByCodeIn(items.stream()
-                                    .map(item -> item.code().trim())
-                                    .toList())
-                            .stream()
-                            .map(Food::getCode)
-                            .collect(Collectors.toSet());
+            Map<Long, Food> existing = foodRepository
+                    .findAllById(items.stream()
+                            .map(FoodImportRequest.Item::id)
+                            .filter(Objects::nonNull)
+                            .toList())
+                    .stream()
+                    .collect(Collectors.toMap(Food::getId, Function.identity()));
+            // Mã đã có trong DB và thực phẩm đang giữ mã đó; trùng chỉ khi khác dòng đang sửa
+            Map<String, Long> codeOwners = foodRepository
+                    .findByCodeIn(items.stream()
+                            .map(FoodImportRequest.Item::data)
+                            .filter(data -> !isBlank(data.code()))
+                            .map(data -> data.code().trim())
+                            .toList())
+                    .stream()
+                    .collect(Collectors.toMap(Food::getCode, Food::getId));
             // Kiểm hết các dòng trước khi lưu: một dòng lỗi thì không lưu dòng nào, báo đủ lỗi theo số dòng
             List<String> errors = new ArrayList<>();
             Set<String> seenCodes = new HashSet<>();
             for (int i = 0; i < items.size(); i++) {
-                FoodRequest item = items.get(i);
-                String code = item.code().trim();
+                FoodImportRequest.Item item = items.get(i);
+                FoodRequest data = item.data();
                 String row = "dòng " + (i + 1);
-                if (!seenCodes.add(code) || existingCodes.contains(code)) {
-                    errors.add(row + " trùng mã " + code);
+                if (item.id() != null && !existing.containsKey(item.id())) {
+                    errors.add(row + " không tìm thấy thực phẩm");
                 }
-                if (isBlank(item.nutrientSource())) {
+                if (!isBlank(data.code())) {
+                    String code = data.code().trim();
+                    Long owner = codeOwners.get(code);
+                    if (!seenCodes.add(code) || (owner != null && !owner.equals(item.id()))) {
+                        errors.add(row + " trùng mã " + code);
+                    }
+                }
+                if (isBlank(data.nutrientSource())) {
                     errors.add(row + " thiếu nguồn dinh dưỡng");
                 }
-                if (item.allergenIds() != null && !allergens.keySet().containsAll(item.allergenIds())) {
+                if (data.origin() == null) {
+                    errors.add(row + " thiếu nguồn gốc");
+                }
+                if (data.allergenIds() != null && !allergens.keySet().containsAll(data.allergenIds())) {
                     errors.add(row + " chất dị ứng không hợp lệ");
                 }
             }
             if (!errors.isEmpty()) {
                 throw GlobalException.of(ApiCode.FOOD_IMPORT_INVALID, String.join("; ", errors));
             }
-            List<Food> foods = items.stream()
-                    .map(item -> {
-                        Food food = Food.create(currentUser.userId());
-                        apply(food, item, resolveAllergens(item.allergenIds(), allergens), currentUser.userId());
-                        return food;
-                    })
-                    .toList();
+            // Dòng mới không ghi mã ⇒ tự sinh, tránh trùng mã đã có trong chính lô nhập; dòng sửa để trống ⇒ giữ mã cũ
+            Set<String> reserved = new HashSet<>(seenCodes);
+            List<Food> foods = new ArrayList<>();
+            int created = 0;
+            for (FoodImportRequest.Item item : items) {
+                FoodRequest data = item.data();
+                Food food = item.id() == null ? Food.create(currentUser.userId()) : existing.get(item.id());
+                String code;
+                if (!isBlank(data.code())) {
+                    code = data.code().trim();
+                } else if (item.id() != null) {
+                    code = food.getCode();
+                } else {
+                    code = nextCode(reserved);
+                }
+                reserved.add(code);
+                apply(food, data, code, resolveAllergens(data.allergenIds(), allergens), currentUser.userId());
+                if (item.id() == null) {
+                    created++;
+                }
+                foods.add(food);
+            }
             foodRepository.saveAll(foods);
-            log.info("{}|END", logPrefix);
-            return new FoodImportResponse(foods.size());
+            log.info("{}|created={}|END", logPrefix, created);
+            return new FoodImportResponse(created, foods.size() - created);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -218,6 +256,10 @@ public class FoodServiceImpl implements FoodService {
     private static void requireNutrientSource(FoodRequest request) {
         if (isBlank(request.nutrientSource())) {
             throw GlobalException.of(ApiCode.NUTRIENT_SOURCE_REQUIRED);
+        }
+        // NUT-24: thiếu nguồn gốc thì không tách được đạm, béo động vật / thực vật
+        if (request.origin() == null) {
+            throw GlobalException.of(ApiCode.FOOD_ORIGIN_REQUIRED);
         }
     }
 
@@ -240,10 +282,21 @@ public class FoodServiceImpl implements FoodService {
         return resolved;
     }
 
-    private static void apply(Food food, FoodRequest request, Set<Allergen> allergens, Long userId) {
+    /** Mã tự sinh TP001, TP002… bỏ qua mã đã có trong DB hoặc đã giữ cho lô đang nhập. */
+    private String nextCode(Set<String> reserved) {
+        long number = foodRepository.count() + reserved.size() + 1;
+        String code = String.format("TP%03d", number);
+        while (reserved.contains(code) || foodRepository.existsByCode(code)) {
+            number++;
+            code = String.format("TP%03d", number);
+        }
+        return code;
+    }
+
+    private static void apply(Food food, FoodRequest request, String code, Set<Allergen> allergens, Long userId) {
         food.changeInfo(
                 new Food.Info(
-                        request.code().trim(),
+                        code,
                         request.name().trim(),
                         request.foodGroup(),
                         request.unit(),
@@ -252,6 +305,7 @@ public class FoodServiceImpl implements FoodService {
                         request.unitPrice(),
                         request.wastePct(),
                         request.storage(),
+                        request.origin(),
                         request.note() == null ? "" : request.note().trim()),
                 new Food.Nutrients(
                         request.kcal(),

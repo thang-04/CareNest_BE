@@ -121,7 +121,7 @@ public class NutritionFoodController {
         String logPrefix = LOG_PREFIX + "|importFoods|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         FoodImportResponse result = foodService.importFoods(currentUser, request);
-        log.info("{}|created={}|END", logPrefix, result.created());
+        log.info("{}|created={}|updated={}|END", logPrefix, result.created(), result.updated());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Import foods success", result);
     }
 }

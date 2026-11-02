@@ -1,6 +1,7 @@
 package com.carenest.dto.meals;
 
 import com.carenest.utils.enums.FoodGroup;
+import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import jakarta.validation.constraints.DecimalMax;
@@ -13,10 +14,10 @@ import java.util.List;
 
 /**
  * Thực phẩm: dinh dưỡng trên 100 đơn vị; giá theo đơn vị mua ({@code purchaseUnitSize} đơn vị trong một đơn vị mua).
- * Nguồn dinh dưỡng kiểm ở service để trả mã lỗi riêng (NUT-05).
+ * Nguồn dinh dưỡng và nguồn gốc (NUT-24) kiểm ở service để trả mã lỗi riêng (NUT-05). Mã để trống ⇒ hệ thống tự sinh (TP001…).
  */
 public record FoodRequest(
-        @NotBlank @Size(max = 20) String code,
+        @Size(max = 20) String code,
         @NotBlank @Size(max = 150) String name,
         @NotNull FoodGroup foodGroup,
         @NotNull FoodUnit unit,
@@ -34,5 +35,6 @@ public record FoodRequest(
         BigDecimal wastePct,
 
         @NotNull FoodStorage storage,
+        FoodOrigin origin,
         @Size(max = 500) String note,
         List<@NotNull Long> allergenIds) {}

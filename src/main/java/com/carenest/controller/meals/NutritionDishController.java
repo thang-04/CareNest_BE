@@ -4,7 +4,6 @@ import com.carenest.dto.meals.CatalogStatusRequest;
 import com.carenest.dto.meals.DishCopyRequest;
 import com.carenest.dto.meals.DishDetailResponse;
 import com.carenest.dto.meals.DishRequest;
-import com.carenest.dto.meals.DishSummaryResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.DishService;
 import com.carenest.utils.ApiCode;
@@ -41,7 +40,7 @@ public class NutritionDishController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
-    public ResponseEntity<ResponseJson<List<DishSummaryResponse>>> getDishes(
+    public ResponseEntity<ResponseJson<List<DishDetailResponse>>> getDishes(
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) DishType dishType,
             @RequestParam(required = false) Boolean reference,
@@ -49,7 +48,7 @@ public class NutritionDishController {
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getDishes|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
-        List<DishSummaryResponse> dishes = dishService.getDishes(keyword, dishType, reference, status);
+        List<DishDetailResponse> dishes = dishService.getDishes(keyword, dishType, reference, status);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get dishes success", dishes);
     }

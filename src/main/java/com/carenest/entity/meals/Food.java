@@ -2,6 +2,7 @@ package com.carenest.entity.meals;
 
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodGroup;
+import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import jakarta.persistence.Column;
@@ -84,6 +85,10 @@ public class Food {
     @Column(nullable = false, length = 10)
     private FoodStorage storage;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 10)
+    private FoodOrigin origin;
+
     @Column(nullable = false, length = 500)
     private String note = "";
 
@@ -129,6 +134,7 @@ public class Food {
         this.unitPrice = info.unitPrice();
         this.wastePct = info.wastePct();
         this.storage = info.storage();
+        this.origin = info.origin();
         this.note = info.note();
         this.kcal = nutrients.kcal();
         this.protein = nutrients.protein();
@@ -155,6 +161,7 @@ public class Food {
             BigDecimal unitPrice,
             BigDecimal wastePct,
             FoodStorage storage,
+            FoodOrigin origin,
             String note) {}
 
     /** Giá trị dinh dưỡng trên 100 đơn vị kèm nguồn (NUT-05). */

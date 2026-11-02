@@ -9,6 +9,8 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
     giá suất, ngày hiệu lực                                                           (NUT-17, NUT-19)
 [S] Danh mục thực phẩm: đơn vị, giá, dinh dưỡng có nguồn, chất dị ứng, Fresh/Stored,
     hệ số thải bỏ; nhập hàng loạt được                                                (NUT-05, NUT-10, NUT-18)
+[S] Thực phẩm có nguồn gốc động vật / thực vật; món, bữa, ngày tính 6 chỉ số
+    (đạm ĐV, đạm TV, béo ĐV, béo TV, glucid, kcal), % cơ cấu và % đạt định mức      (NUT-24)
 [S] Món = nguyên liệu + gam/trẻ theo nhóm tuổi; sao chép món, dùng món tham khảo,
     sao chép định lượng giữa nhóm tuổi                                                (NUT-18)
 ```

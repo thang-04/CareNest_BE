@@ -14,9 +14,13 @@ import com.carenest.utils.ApiCode;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -85,16 +89,10 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         try {
             LocalDate today = LocalDate.now(clock);
             requireAgeGroup(request.ageGroupId());
-            // Bản đầu tiên của nhóm tuổi lấy ngày nào cũng được để trường bắt đầu dùng; các bản sau phải từ ngày mai
-            if (configRepository.existsByAgeGroupId(request.ageGroupId())) {
-                requireFutureDate(request.effectiveFrom(), today);
-            }
             if (configRepository.existsByAgeGroupIdAndEffectiveFrom(request.ageGroupId(), request.effectiveFrom())) {
                 throw GlobalException.of(ApiCode.MEAL_CONFIG_DUPLICATED);
             }
-            AgeGroupMealConfig config = AgeGroupMealConfig.create(request.ageGroupId(), currentUser.userId());
-            apply(config, request, currentUser.userId());
-            config = configRepository.save(config);
+            AgeGroupMealConfig config = createNew(currentUser, request, today);
             log.info("{}|configId={}|END", logPrefix, config.getId());
             return mapper.toResponse(config, today);
         } catch (RuntimeException ex) {
@@ -113,10 +111,7 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             AgeGroupMealConfig config = configRepository
                     .findById(configId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_CONFIG_NOT_FOUND));
-            // NUT-17: bản đã tới ngày hiệu lực đang được dùng để kiểm thực đơn, chỉ đọc
-            if (!config.getEffectiveFrom().isAfter(today)) {
-                throw GlobalException.of(ApiCode.MEAL_CONFIG_LOCKED);
-            }
+            requireNotInEffect(config, today);
             if (!config.getAgeGroupId().equals(request.ageGroupId())) {
                 throw GlobalException.of(ApiCode.AGE_GROUP_INVALID);
             }
@@ -133,6 +128,69 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public List<AgeGroupMealConfigResponse> saveConfigs(
+            CurrentUser currentUser, List<AgeGroupMealConfigRequest> requests) {
+        String logPrefix = LOG_PREFIX + "|saveConfigs|userId=" + currentUser.userId() + "|items=" + requests.size();
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            Set<Long> ageGroupIds = ageGroupIds();
+            Set<String> seen = new HashSet<>();
+            List<AgeGroupMealConfigResponse> response = new ArrayList<>();
+            // Cùng một transaction: lỗi ở dòng nào thì toàn bộ lô rollback
+            for (AgeGroupMealConfigRequest request : requests) {
+                if (!ageGroupIds.contains(request.ageGroupId())) {
+                    throw GlobalException.of(ApiCode.AGE_GROUP_INVALID);
+                }
+                if (!seen.add(request.ageGroupId() + ":" + request.effectiveFrom())) {
+                    throw GlobalException.of(ApiCode.MEAL_CONFIG_DUPLICATED);
+                }
+                AgeGroupMealConfig existing = configRepository
+                        .findByAgeGroupIdAndEffectiveFrom(request.ageGroupId(), request.effectiveFrom())
+                        .orElse(null);
+                AgeGroupMealConfig config;
+                if (existing == null) {
+                    config = createNew(currentUser, request, today);
+                } else {
+                    requireNotInEffect(existing, today);
+                    apply(existing, request, currentUser.userId());
+                    config = existing;
+                }
+                response.add(mapper.toResponse(config, today));
+            }
+            configRepository.flush();
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // Bản đầu tiên của nhóm tuổi lấy ngày nào cũng được để trường bắt đầu dùng; các bản sau phải từ ngày mai
+    private AgeGroupMealConfig createNew(CurrentUser currentUser, AgeGroupMealConfigRequest request, LocalDate today) {
+        if (configRepository.existsByAgeGroupId(request.ageGroupId())) {
+            requireFutureDate(request.effectiveFrom(), today);
+        }
+        AgeGroupMealConfig config = AgeGroupMealConfig.create(request.ageGroupId(), currentUser.userId());
+        apply(config, request, currentUser.userId());
+        return configRepository.save(config);
+    }
+
+    // NUT-17: bản đã tới ngày hiệu lực đang được dùng để kiểm thực đơn, chỉ đọc
+    private static void requireNotInEffect(AgeGroupMealConfig config, LocalDate today) {
+        if (!config.getEffectiveFrom().isAfter(today)) {
+            throw GlobalException.of(ApiCode.MEAL_CONFIG_LOCKED);
+        }
+    }
+
+    private Set<Long> ageGroupIds() {
+        return ageGroupService.getAgeGroups().stream()
+                .map(AgeGroupDetailResponse::id)
+                .collect(Collectors.toSet());
     }
 
     private void requireAgeGroup(Long ageGroupId) {
@@ -155,6 +213,8 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         checkRange("đạm", request.proteinPctMin(), request.proteinPctMax());
         checkRange("béo", request.lipidPctMin(), request.lipidPctMax());
         checkRange("bột đường", request.glucidPctMin(), request.glucidPctMax());
+        checkRange("đạm động vật", request.animalProteinPctMin(), request.animalProteinPctMax());
+        checkRange("béo động vật", request.animalLipidPctMin(), request.animalLipidPctMax());
         config.changeInfo(
                 request.effectiveFrom(),
                 request.mealPrice(),
@@ -166,7 +226,11 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                         request.lipidPctMin(),
                         request.lipidPctMax(),
                         request.glucidPctMin(),
-                        request.glucidPctMax()),
+                        request.glucidPctMax(),
+                        request.animalProteinPctMin(),
+                        request.animalProteinPctMax(),
+                        request.animalLipidPctMin(),
+                        request.animalLipidPctMax()),
                 request.normBasis() == null ? "" : request.normBasis().trim(),
                 userId);
     }

@@ -17,4 +17,7 @@ public interface AgeGroupMealConfigService {
     AgeGroupMealConfigResponse createConfig(CurrentUser currentUser, AgeGroupMealConfigRequest request);
 
     AgeGroupMealConfigResponse updateConfig(CurrentUser currentUser, Long configId, AgeGroupMealConfigRequest request);
+
+    /** Mỗi dòng: đã có bản cùng nhóm tuổi, cùng ngày ⇒ sửa (bản chưa hiệu lực); chưa có ⇒ tạo. Tất cả hoặc không. */
+    List<AgeGroupMealConfigResponse> saveConfigs(CurrentUser currentUser, List<AgeGroupMealConfigRequest> requests);
 }

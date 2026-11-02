@@ -2,6 +2,7 @@ package com.carenest.dto.meals;
 
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodGroup;
+import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import java.math.BigDecimal;
@@ -24,6 +25,7 @@ public record FoodResponse(
         String nutrientSourceVersion,
         BigDecimal wastePct,
         FoodStorage storage,
+        FoodOrigin origin,
         String note,
         CatalogStatus status,
         List<AllergenResponse> allergens) {}

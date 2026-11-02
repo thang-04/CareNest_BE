@@ -22,10 +22,15 @@ public record DishDetailResponse(
     public record Ingredient(
             Long foodId, String foodCode, String foodName, FoodUnit unit, Long ageGroupId, BigDecimal gramsPerChild) {}
 
+    /** NUT-24: 6 chỉ số (g, kcal) một suất; protein, lipid là tổng động vật + thực vật. */
     public record AgeGroupNutrition(
             Long ageGroupId,
             BigDecimal kcal,
+            BigDecimal animalProtein,
+            BigDecimal plantProtein,
             BigDecimal protein,
+            BigDecimal animalLipid,
+            BigDecimal plantLipid,
             BigDecimal lipid,
             BigDecimal glucid,
             BigDecimal cost) {}

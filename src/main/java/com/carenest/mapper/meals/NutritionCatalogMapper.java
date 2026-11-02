@@ -2,12 +2,10 @@ package com.carenest.mapper.meals;
 
 import com.carenest.dto.meals.AgeGroupMealConfigResponse;
 import com.carenest.dto.meals.AllergenResponse;
-import com.carenest.dto.meals.DishSummaryResponse;
 import com.carenest.dto.meals.FoodResponse;
 import com.carenest.dto.meals.SupplierResponse;
 import com.carenest.entity.meals.AgeGroupMealConfig;
 import com.carenest.entity.meals.Allergen;
-import com.carenest.entity.meals.Dish;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.Supplier;
 import java.time.LocalDate;
@@ -48,20 +46,10 @@ public class NutritionCatalogMapper {
                 food.getNutrientSourceVersion(),
                 food.getWastePct(),
                 food.getStorage(),
+                food.getOrigin(),
                 food.getNote(),
                 food.getStatus(),
                 toAllergenResponses(food.getAllergens()));
-    }
-
-    public DishSummaryResponse toSummary(Dish dish) {
-        return new DishSummaryResponse(
-                dish.getId(),
-                dish.getCode(),
-                dish.getName(),
-                dish.getDishType(),
-                dish.getDescription(),
-                dish.isReference(),
-                dish.getStatus());
     }
 
     public AgeGroupMealConfigResponse toResponse(AgeGroupMealConfig config, LocalDate today) {
@@ -78,6 +66,10 @@ public class NutritionCatalogMapper {
                 config.getLipidPctMax(),
                 config.getGlucidPctMin(),
                 config.getGlucidPctMax(),
+                config.getAnimalProteinPctMin(),
+                config.getAnimalProteinPctMax(),
+                config.getAnimalLipidPctMin(),
+                config.getAnimalLipidPctMax(),
                 config.getNormBasis(),
                 config.getEffectiveFrom().isAfter(today));
     }
