@@ -2,6 +2,7 @@ package com.carenest.service.organization;
 
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
+import com.carenest.dto.organization.SchoolYearSemesterRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
@@ -19,6 +20,10 @@ public interface SchoolYearService {
     SchoolYearDetailResponse updateSchoolYear(CurrentUser currentUser, Long schoolYearId, SchoolYearRequest request);
 
     void deleteSchoolYear(CurrentUser currentUser, Long schoolYearId);
+
+    /** Cấu hình thời gian › Học kỳ: Hiệu trưởng đặt ngày kết thúc học kỳ I (năm chưa kết thúc). */
+    SchoolYearDetailResponse updateSemester(
+            CurrentUser currentUser, Long schoolYearId, SchoolYearSemesterRequest request);
 
     SchoolYearDetailResponse activateSchoolYear(CurrentUser currentUser, Long schoolYearId, String confirmName);
 
