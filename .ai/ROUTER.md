@@ -14,7 +14,7 @@ Làn S (`AGENTS.md`) không cần đọc file này.
 | --- | --- | --- | --- | --- | --- |
 | Bug, lỗi, exception, test fail, hành vi sai | `profiles/code.md` | `workflows/fix-bug.md` | fix-bug | 4, 5, 11 + mục của vùng sửa | L1 |
 | Refactor nhỏ, validation, sửa cục bộ | `profiles/code.md` | `workflows/implement-feature.md` (rút gọn) | implement-feature | 4, 5, 6 | L1 |
-| Feature mới / đổi nghiệp vụ | `profiles/feature.md` | `workflows/clarify-business.md` → `workflows/implement-feature.md` | implement-feature | 3–11, 13 | L2 |
+| Feature mới / đổi nghiệp vụ | `profiles/feature.md` | Feature mới: `workflows/feature-spec-loop.md`; đổi nghiệp vụ: `workflows/clarify-business.md` → `workflows/implement-feature.md` | implement-feature | 3–11, 13 | L2 |
 | Làn L: migration, security, integration, contract, dependency/hạ tầng, ≥2 module, FE/APP, >8 file | `profiles/architecture.md` | `workflows/clarify-business.md` → `workflows/plan-change.md` → workflow theo loại | plan-change | 4 + theo loại | L3 |
 | Gate fail / sửa harness (verify, ArchUnit, snapshot, Spotless, hook, check-ai-layer) | `profiles/code.md` | `workflows/fix-bug.md` (fail) · `workflows/plan-change.md` (đổi harness) | fix-bug | 14, 17 | L1 |
 | Review code / PR | `profiles/code.md` | `workflows/review-code.md` | review-code | 17 + mục bị vi phạm | L1→L2 |

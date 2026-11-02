@@ -182,18 +182,14 @@ class LeaveRequestIntegrationTest {
         assertThat(tally.absent()).isEqualTo(1);
         assertThat(tally.meals().get(MealSession.LUNCH)).isEqualTo(1);
 
-        // P-20: trẻ vẫn đến lớp ⇒ GV sửa Có mặt trước giờ chốt như thường
-        attendanceService.saveClassAttendance(
-                teacherA,
-                classA,
-                new SaveAttendanceRequest(
-                        TODAY,
-                        List.of(new SaveAttendanceRequest.Entry(
-                                child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true)))));
-        assertThat(rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
-                        .record()
-                        .status())
-                .isEqualTo(AttendanceStatus.PRESENT);
+        expectError(
+                () -> attendanceService.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        new SaveAttendanceRequest(
+                                TODAY,
+                                List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, Map.of())))),
+                ApiCode.LEAVE_ATTENDANCE_LOCKED);
     }
 
     @Test
@@ -309,6 +305,43 @@ class LeaveRequestIntegrationTest {
                         + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
                 user.userId(),
                 campusId);
+    }
+
+    @Test
+    void cancellingLeavePreservesTeacherAuditAndAllowsFreshAttendance() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY, List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, Map.of()))));
+        long oldRecord = rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                .record()
+                .id();
+        LeaveRequestResponse leave =
+                service.createLeaveRequest(parent, new CreateLeaveRequest(child1, TODAY, TODAY, "Nghỉ"));
+        service.cancelLeaveRequest(parent, leave.id());
+        assertThat(count("SELECT count(*) FROM attendance_record_history WHERE record_id = ?", oldRecord))
+                .isEqualTo(3);
+        assertThat(rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                        .record())
+                .isNull();
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY, List.of(new SaveAttendanceRequest.Entry(child1, AttendanceStatus.PRESENT, Map.of()))));
+        assertThat(rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                        .record()
+                        .status())
+                .isEqualTo(AttendanceStatus.PRESENT);
+    }
+
+    @Test
+    void leaveCannotExtendBeyondSchoolYear() {
+        expectError(
+                () -> service.createLeaveRequest(
+                        parent, new CreateLeaveRequest(child1, TODAY, LocalDate.of(2035, 1, 1), "Nghỉ")),
+                ApiCode.LEAVE_DATE_RANGE_INVALID);
     }
 
     private void teach(CurrentUser user, long classroomId) {

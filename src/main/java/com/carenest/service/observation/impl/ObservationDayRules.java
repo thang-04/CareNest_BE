@@ -42,6 +42,10 @@ class ObservationDayRules {
     private final AccountService accountService;
 
     /** Ngày theo giờ trường (Clock của ứng dụng đặt Asia/Ho_Chi_Minh). */
+    void lockClassForUpdate(Long id) {
+        classroomService.lockForUpdate(id);
+    }
+
     LocalDate today() {
         return LocalDate.now(clock);
     }
