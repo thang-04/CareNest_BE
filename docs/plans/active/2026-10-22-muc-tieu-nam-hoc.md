@@ -8,7 +8,7 @@ modules: [education-plan, school-structure]
 rules: [EDU-01, EDU-02, EDU-03, EDU-04, EDU-05, EDU-06, EDU-07, EDU-08, EDU-09, AUTH-03]
 risk: high
 created: 2026-10-22
-updated: 2026-10-29
+updated: 2026-11-02
 ---
 # Mục tiêu năm học — API và nghiệp vụ
 
@@ -592,3 +592,52 @@ Ghép sai cột làm sai dấu tích: dùng khóa nguồn và kiểm chéo previ
 ### Phase2 delta nhập file hai chế độ —02/11/2026
 - User “duyệt” phase1; T013..T017 được implement/verify FE. Full369test fail0/skip0, model11/modal7/targeted28/edu133 và browser nguồn/CSS thật, dịch vụ giả đều đạt; xem feature009 quickstart và FE VERIFICATION.
 - Production/API/DB BE không đổi. Backend/Keycloak listen nhưng credential E2E_DEV_PASSWORD thiếu, nên chưa E2E BE thật/save-reopen. T018..T020 còn mở; dừng review phase2 trước convergence theo kế hoạch, không commit/push.
+
+## Delta 02/11/2026 — Xóa nhánh lĩnh vực con và select ellipsis (D2 completed, chốt cổng cuối)
+
+### Context và quyết định nghiệp vụ đã chốt
+- User đã chấp nhận đề xuất xóa lĩnh vực con kéo theo nhóm, mục tiêu, nội dung và dấu tích thuộc nhánh, có xác nhận số lượng; yêu cầu dùng vòng spec tới sạch. Sau đó user đã chọn “Duyệt kế hoạch và triển khai tới khi sạch” trong chat02/11, phê duyệt D2 của delta này.
+- User yêu cầu ô Lĩnh vực của lấy từ Bộ giống ô Thêm vào mục tiêu: một dòng, tên dài có dấu ba chấm; giữ giá trị/option đầy đủ.
+- Source hiện tại: FE GoalTables.jsx:189 lọc riêng một ID, tại520..522 xác nhận giữ con; goalTable.js:16 normalize có thể đổi cha. cur-domain chưa dùng ga-cur-target/ellipsis như cur-target. Lần này không đảo sửa LVC/nhập Bộ đã push994002c và4d5d908.
+
+### Làm rõ nghiệp vụ và scope
+Actor: người đang có quyền sửa kế hoạch; Outcome: xóa đúng cả nhánh sau xác nhận, đọc/chọn lĩnh vực dài không wrap. Rules: EDU-09/48(CONFIRMED), EDU-06/10/22, EDU-24/28.
+Flow: [B] quyết định bỏ nhánh → [S] xác nhận tên/số lượng → [B] Hủy/Xóa → [S] chỉ đổi bản soạn khi Xóa → [B] Lưu → [S] giữ API ghi cây/lease/revision hiện có.
+Ảnh hưởng: education-plan Web bảng mục tiêu và hộp lấy từ Bộ; nhánh khác, chủ đề/đợt nghỉ/nguồn Bộ giữ nguyên. Không source BE/API/DB/APP/dependency; không dữ liệu thật. >8artifact khi tính toàn bộ vòngspec nên làn L.
+Câu hỏi nghiệp vụ mở: không còn; user02/11đã xác nhận. Approval kế hoạch kỹ thuật đã được user cung cấp trước code theo workflow.
+
+### Acceptance criteria và quyết định kỹ thuật
+- AC-D1/D2 (EDU-48): xác nhận đúng tên và số nhóm/goal/content/tick; mở/Hủy không đổi bản soạn.
+- AC-D3/D4/D5: xóa đúng đoạn subID→trước sub kế, xử lý trực tiếp/nhóm rỗng/nhánh cuối/ID không có/cùng tên khác ID; giữ ngoài nhánh và các chủ đề; normalize/đánh số không kéo con về.
+- AC-D6: không thêm quyền hoặc ghi server trước Lưu; giữ read-only/lease/revision.
+- AC-U1/U2: select lĩnh vực một dòng/ellipsis/title/value đủ tại360/390/768/1440; target/filter/keyboard không hồi quy.
+| Quyết định | Đề xuất | Phương án khác | Lý do |
+| --- | --- | --- | --- |
+| Nhánh cần xóa | Helper thuần lấy đoạn flat rows theo ID | Xóa riêng heading hoặc đổi tree/API | Đúng cấu trúc đang có, giữ contract |
+| Xác nhận | Modal danger hiện có, đếm dữ liệu của đoạn | Xóa ngay/giữ con | Đúng quyết định user và ngăn xóa nhầm |
+| Select | Dùng cơ chế appearance/ellipsis của target, title đủ | Cắt string hoặc thêm select library | Không mất dữ liệu, ít thay đổi |
+
+### Phases của delta
+**D1 — Spec/analyze:** [domain14/spec/plan/model/contracts/tasks](../../../specs/006-year-plan-goal-hierarchy/plan.md), constitution1.0.0 tái sử dụng, T012..T014, review read-only/check-ai-layer. Trình user duyệt delta plan này, chưa code. Lịch sử feature006 T001..T011 giữ nguyên; pointer chuyển về006 có chủ đích.
+
+**D2 — Implement/converge/review sau approval:** T015..T022 trong feature006. Files dự kiến FE: goalTable.js, GoalTables.jsx, CurriculumGoalsModal.jsx, education-plan.css, goal-subdomain-delete.test.mjs và test gần nhất phù hợp; docs FE/BE evidence/feature/plan. RED trước helper/callback, GREEN với bất biến input và nhánh khác; browser xác nhận/Hủy/read-only/đánh số/tick/manual-save payload và select4viewport/keyboard. Save/reopen server khi có credential/môi trường kiểm thử; thiếu thì báo chưa kiểm, không tick task đó.
+Implement → review → converge từng FR-009..015/SC-005..008; append-only gap, thực hiện gap trong scope rồi verify và converge lại; vòng sạch hash tasks không đổi. Không cần cổng approval riêng giữa các vòng trong D2. Sau D2 ghi Progress log và dừng review kết quả theo workflow.
+Exit: full FE verify fail0/skip0, BE quick cho tài liệu, check-ai-layer hai repo, review độc lập; không tuyên bố toàn feature sạch nếu task delta vẫn còn mở. Không commit/push/tạo nhánh trong yêu cầu hiện tại.
+
+### Rủi ro, rollback và validation
+Rủi ro chính là xóa thiếu/vượt nhánh và thay cha ngoài ý muốn: kiểm theo ID/boundary, nhiều nhánh/cùng tên/goal trực tiếp/ticks và deep-equal phần giữ. Lưu thật chỉ qua luồng hiện tại; rollback source delta bằng patch, không reset/rebase/migration hay sửa dữ liệu thật. Base-select wrap được khắc phục bằng cơ chế đã có, không tự chế component mới.
+Validation log: user đã chốt nghiệp vụ;7FR/4SC mới có task/AC; scope/source có đường dẫn; không API/schema/dependency mới. D1 không dùng completion DB29/10 hay test375cũ làm chứng cứ delta.
+
+### Progress log — D1
+Đã chuẩn bị hồ sơ và ghi EDU-48; implementation/converge chưa chạy. Analyze/review độc lập không có blocker; user đã duyệt delta plan qua lựa chọn trong chat. Bắt đầu D2, không đổi approval của phần lịch sử.
+
+### Progress log — D2 triển khai và kiểm chứng02/11
+- T015..T020 đã triển khai/kiểm: helper/callback/confirmation counts/read-only/manual-save, select nativeellipsis/title.11unit mới GREEN,44targeted, fullFE386fail0skip0. Browser baseline legacy tái hiện con đổi cha; bản mới counts2group/3goal/4content/5tick, Quay lại giữ form, đúng nhánh bị xóa,4viewport/keyboard0lỗiJS.
+- E2E SQL cũ dừng trước fixture thiếu E2E_PG_DB, không đoán DB. Test mới độc lập API-only tạo slot trống và plan marker riêng, dọn đúng ownedID qua API; không bỏ guard suite cũ. RealBE/Keycloak1/1passed15.7s, giữ ID/content/ticks/themes/breaks, lưu/mở lại và ellipsis4viewport, cleanup0. Selector Đóng cuối test đã giới hạn footer; suite cũ giữ nguyên.
+- Review độc lập không blocker. BEquick14tests fail0skip0, archunit/spotlessok. Hồ sơ và convergence/gates cuối đang chốt, chưa commit/push. Chi tiết tại quickstart006 và VERIFICATION hai repo.
+
+### Kết thúc D2 — Converge02/11
+Review convergence không còn gap7FR/4SC/8AC/US4..5.22/22task feature006 xong, gồm11task lịch sử giữ nguyên và11delta; taskT022 được đóng ngoài lượt converge. Hash lượt sạch cuối11D489CE9602E79869F2D93064E41DABE4A416427EB70175BF0D3CFBECC25E7C trước/sau không đổi. Cổng cuối sau hồ sơ chạy theo VERIFICATION; delta này hoàn tất chờ user review kết quả, không tự hoàn tất các phase009 hoặc mục khác của plan chính. Không commit/push trong lượt này.
+
+### Kết quả D2 sau T023
+Visual review phát hiện closure subNo dùng số cuối vòng; đã appendT023, RED/GREEN/localbrowser/realBE1passed20.3s/cleanup0 và review lại đạt.23/23task hoàn tất, prefix lịch sử giữ nguyên; hash tasks cuối C597326B228F71D8EFF03365D62F16786FE8CFB423D53960BF92DEE5C5C7478D không đổi trong lượt sạch. Mốc22task/11D phía trên thuộc vòng trước, không thay kết quả cuối này. Cổng cuối sau hồ sơ đang chạy; không commit/push.
