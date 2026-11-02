@@ -188,8 +188,11 @@ final class GoalFileTable {
 
     /** Dòng dải chỉ ghi đúng tên lĩnh vực (không số La Mã). */
     private String exactDomain(String text) {
-        String n = norm(text).replaceFirst("^giáo dục\\s+", "");
-        return domainNames.stream().filter(d -> norm(d).equals(n)).findFirst().orElse(null);
+        String n = domainKey(text).replaceFirst("^giáo dục\\s+", "");
+        return domainNames.stream()
+                .filter(d -> domainKey(d).equals(n))
+                .findFirst()
+                .orElse(null);
     }
 
     /** Trả tên lĩnh vực mới; "" = lĩnh vực không nhận ra; null = lĩnh vực con/nhóm (đã thêm dòng). */
@@ -323,7 +326,7 @@ final class GoalFileTable {
 
     /** "I. Giáo dục phát triển thể chất", "Phát triển thể chất", "Thể chất" ⇒ tên lĩnh vực trong cấu hình. */
     private String domainOf(String text) {
-        String n = ROMAN.matcher(norm(text))
+        String n = ROMAN.matcher(domainKey(text))
                 .replaceFirst("")
                 .replaceFirst("^giáo dục\\s+", "")
                 .strip();
@@ -331,17 +334,22 @@ final class GoalFileTable {
             return null;
         }
         for (String name : domainNames) {
-            if (norm(name).equals(n)) {
+            if (domainKey(name).equals(n)) {
                 return name;
             }
         }
         for (String name : domainNames) {
-            String d = norm(name);
+            String d = domainKey(name);
             if (d.contains(n) || n.contains(d)) {
                 return name;
             }
         }
         return null;
+    }
+
+    // Tên lĩnh vực trong tài liệu trường có thể dùng kĩ/mĩ thay cho kỹ/mỹ.
+    private static String domainKey(String text) {
+        return norm(text).replace("kĩ", "kỹ").replace("mĩ", "mỹ");
     }
 
     private static String goalText(String text) {

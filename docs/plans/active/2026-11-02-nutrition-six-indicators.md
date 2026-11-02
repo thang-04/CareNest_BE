@@ -20,7 +20,7 @@ User yêu cầu 2026-11-02 (bảng dinh dưỡng PMS tham chiếu): đổi cân 
 2. Agent chọn (chế độ tự chạy, chờ soát): nguồn gốc gán **theo thực phẩm** (không tách cột đạm/béo của thực phẩm); dữ liệu cũ gán theo nhóm (thịt, thủy sản, trứng sữa ⇒ ĐV; còn lại ⇒ TV); "phạm vi bữa ăn" = các bữa trường phục vụ nhóm tuổi (`age_groups.meal_sessions`); định mức thêm % đạm ĐV/tổng đạm và % béo ĐV/tổng béo, số do PHT nhập.
 
 ## Acceptance criteria
-- **AC-1** (`NUT-24`): thực phẩm thiếu nguồn gốc ⇒ 400 mã 6024; nhập hàng loạt báo "thiếu nguồn gốc" theo dòng.
+- **AC-1** (`NUT-24`): thực phẩm thiếu nguồn gốc ⇒ 400 mã 6026; nhập hàng loạt báo "thiếu nguồn gốc" theo dòng.
 - **AC-2** (`NUT-24`): chi tiết món trả `animalProtein`, `plantProtein`, `animalLipid`, `plantLipid` và tổng `protein`, `lipid` = ĐV + TV.
 - **AC-3** (`NUT-24`): cấu hình nhóm tuổi lưu/đọc khoảng % đạm ĐV, % béo ĐV; min > max ⇒ 400.
 - **AC-4** (`NUT-24`, FE): cân đối khẩu phần, thực đơn mẫu, tuần, AI gợi ý hiện 6 chỉ số (g), % cơ cấu, % đạt định mức; thiếu số liệu ⇒ "chưa đủ dữ liệu", không đánh giá; sửa định lượng tính lại ngay.
@@ -28,7 +28,7 @@ User yêu cầu 2026-11-02 (bảng dinh dưỡng PMS tham chiếu): đổi cân 
 
 ## Phases
 ### Phase 1 — BE
-- Files: C `db/migration/V42__add_food_origin_and_animal_norms.sql`, `utils/enums/FoodOrigin.java` · M `Food`, `FoodRequest/Response`, `AgeGroupMealConfig*`, `DishDetailResponse`, `FoodServiceImpl`, `DishServiceImpl`, `AgeGroupMealConfigServiceImpl`, `NutritionCatalogMapper`, `ApiCode` (6024), `R__dev_seed.sql`, `docs/api/openapi.yaml`, `DATA_DICTIONARY`, `CROSS_REPO_MAP`, flow
+- Files: C `db/migration/V55__add_food_origin_and_animal_norms.sql`, `utils/enums/FoodOrigin.java` · M `Food`, `FoodRequest/Response`, `AgeGroupMealConfig*`, `DishDetailResponse`, `FoodServiceImpl`, `DishServiceImpl`, `AgeGroupMealConfigServiceImpl`, `NutritionCatalogMapper`, `ApiCode` (6026), `R__dev_seed.sql`, `docs/api/openapi.yaml`, `DATA_DICTIONARY`, `CROSS_REPO_MAP`, flow
 - Tests: AC-1 `FoodServiceImplTest#createRejectsMissingOrigin`; AC-2 `NutritionCatalogIntegrationTest#proteinAndLipidSplitByFoodOrigin`; AC-3 `AgeGroupMealConfigServiceImplTest`
 - Exit: `node scripts/verify.mjs` → `VERIFY PASS full`
 ### Phase 2 — FE (nhánh `feature/G94-191-FE-FEAT-48-nutrition-management`)
@@ -41,6 +41,9 @@ User yêu cầu 2026-11-02 (bảng dinh dưỡng PMS tham chiếu): đổi cân 
 | Định mức % ĐV chưa có số | Không đánh giá được | Để trống = "chưa đặt định mức" | — |
 
 ## Progress log
+### 2026-11-03 — Merge `origin/dev`
+- `dev` đã có V41–V53 và mã lỗi 6008–6009 ⇒ đổi số migration nhánh: V41 → V54, V42 → V55; mã lỗi danh mục +2 (6010–6026). Hai migration chưa từng lên remote nên đổi số an toàn. FE `beErrorFields` cập nhật theo.
+
 ### 2026-11-03 — Lưu cấu hình theo lô (BE)
 - `POST /nutrition/age-group-configs/batch`: một transaction cho nhiều nhóm tuổi; test `AgeGroupMealConfigServiceImplTest#batchStopsOnLockedVersion`, `#batchUpdatesFutureVersionAndCreatesMissing`.
 
@@ -57,4 +60,4 @@ User yêu cầu 2026-11-02 (bảng dinh dưỡng PMS tham chiếu): đổi cân 
 ### 2026-11-02 — Phase 1 BE done, Phase 2 FE đang làm (agent)
 - Commit: chưa commit
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 647 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 252s`
-- V42 + seed dev chạy thử trên DB tạm 2 lần: TP001/TP003 PLANT, TP002/TP004 ANIMAL.
+- V42 (nay V55) + seed dev chạy thử trên DB tạm 2 lần: TP001/TP003 PLANT, TP002/TP004 ANIMAL.

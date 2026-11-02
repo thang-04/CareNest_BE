@@ -12,3 +12,5 @@ Base /education-plans/class-docs/theme/{docKey}/learning-resources.
 
 Metadata id,docKey,activityKey,activitySignature,activityLabel,fileName,contentType,byteSize,uploadedBy,createdAt,active; không storage path/key.
 Read principal/VP/teacher trong scope; mutate assigned teacher DRAFT/REJECTED. Key/goal phải thuộc saved theme/year; stale signature409. Existing ApiCode400/403/404/409/413/415/503. Web consume, Mobile contract cũ không đổi.
+
+> Cập nhật 02/11/2026: header `X-Request-Id` trong tài liệu này đã đổi tên thành `Idempotency-Key` (cùng ý nghĩa, UUID) vì proxy hosting VPS ghi đè `X-Request-Id`; xem `docs/knowledge/incidents/BUG-261102-proxy-overrides-x-request-id.md`.

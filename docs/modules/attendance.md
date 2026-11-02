@@ -31,6 +31,8 @@ P-19 (ngày nghỉ tự khóa điểm danh), P-20 (trẻ có đơn nghỉ vẫn 
 - Sửa điểm danh sau khi số suất đã xác nhận ⇒ số suất phải được đánh dấu thay đổi + xác nhận lại, không sửa ngầm (ADR-0005).
 - Batch save: idempotent theo (childId, date) để tránh bản ghi trùng khi GV bấm lưu nhiều lần.
 - Không có đăng ký trước người đón hộ trên App (PCK-03); người lạ đón ⇒ GV gọi phụ huynh, ghi lý do (PCK-02).
+- ATT-02 (01/11): bữa ăn suy từ `status` (`AttendanceServiceImpl.mealsFor`: có mặt ⇒ mọi bữa nhóm tuổi của lớp) cả khi lưu, tổng hợp suất, tổng hợp điểm danh và trả `record.meals`; field `meals` trong `SaveAttendanceRequest` deprecated, giá trị bị bỏ qua (giữ để client cũ không vỡ). Bản ghi cũ có `meals` lệch vẫn được đọc theo `status`.
+- ATT-09 (01/11): GV gửi `EXCUSED` cho trẻ chưa có bản ghi `EXCUSED` ⇒ 400 `4018` `ATTENDANCE_EXCUSED_NOT_ALLOWED`; gửi lại `EXCUSED` đang có (sau này do đơn nghỉ đặt) được chấp nhận để lưu cả sheet không vỡ.
 
 ## Related issues
 Chưa có. Rủi ro dự kiến: `docs/knowledge/CROSS_MODULE_ISSUES.md` CMR-01.

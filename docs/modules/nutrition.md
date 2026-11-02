@@ -23,7 +23,7 @@ NUT-01..23 (NUT-14, NUT-15 REMOVED), AI-01..06. Flow: `docs/business/flows/meal-
 ## API & bảng
 `GET /meal-counts`, `POST /meal-counts/{id}/confirm`, `POST /meal-counts/adjustments` (`MealCountController`). Bảng `meal_counts`, `meal_count_lines`, `meal_count_history` (V26), vai trò người xác nhận (V29). Tổng hợp lười: lần đầu mở sổ sau giờ chốt (chưa có job). Code: xác nhận/điều chỉnh theo mã `MEAL_COUNT_CONFIRM` + phạm vi (AUTH-20, ADR-0023, 31/10): HT mọi điểm trường; PHT mặc định ở điểm trường mình, HT thu hồi hoặc GRANT phạm vi cả trường; mọi PHT còn phân công xem số suất mọi điểm trường; điều chỉnh (có lý do) chỉ PHT — đối chiếu lại NUT-01..04 (khảo sát 28/10: có mặt là ăn, HT xác nhận thay khi PHT vắng, sai thì trả GV qua mở lại điểm danh). Bếp chưa có BE: FE bếp đọc số đã xác nhận từ `GET /meal-counts`, `confirmedAt` mới ⇒ nhãn "Mới" thay thông báo.
 
-Danh mục (V41, plan `docs/plans/completed/2026-11-02-day-boarding-l1-catalog.md`): `/nutrition/allergens`, `/nutrition/foods` (+ `/import`, `/{id}/status`), `/nutrition/dishes` (+ `/{id}/copy`, `/{id}/status`), `/nutrition/age-group-configs` (+ `/{ageGroupId}/versions`, `/batch`), `/nutrition/suppliers` — `NutritionFoodController`, `NutritionDishController`, `AgeGroupMealConfigController`, `SupplierController`. Đọc: HT, PHT; ghi: mã `NUTRITION_MANAGE` (HT có sẵn, PHT do HT cấp). Ma trận quyền cả luồng: `docs/business/flows/meal-management-permissions.md`.
+Danh mục (V54, V55, plan `docs/plans/completed/2026-11-02-day-boarding-l1-catalog.md`): `/nutrition/allergens`, `/nutrition/foods` (+ `/import`, `/{id}/status`), `/nutrition/dishes` (+ `/{id}/copy`, `/{id}/status`), `/nutrition/age-group-configs` (+ `/{ageGroupId}/versions`, `/batch`), `/nutrition/suppliers` — `NutritionFoodController`, `NutritionDishController`, `AgeGroupMealConfigController`, `SupplierController`. Đọc: HT, PHT; ghi: mã `NUTRITION_MANAGE` (HT có sẵn, PHT do HT cấp). Ma trận quyền cả luồng: `docs/business/flows/meal-management-permissions.md`.
 
 Phần chưa có API (thực đơn, kho, hàng tươi, mẫu) — thiết kế bảng (PROPOSED, chưa migration): `MEAL_NUTRITION_AI_SCHEMA.md` (file thiết kế của dev, chưa có trong repo) §3–§6; nháp AI (`ai_drafts`).
 
@@ -39,6 +39,8 @@ P-26 (mẫu sổ lưu mẫu), P-27 (kiểm thực ba bước). Đã đóng 28/10
 - MealCount CONFIRMED bất biến — không recompute ngầm khi attendance đổi (ADR-0005).
 - Không gửi tên/ID trẻ cho AI khi xét dị ứng; dùng tổng hợp (AI-04).
 - Đơn vị định lượng: thống nhất đơn vị (g/ml/suất) ngay trong Recipe để tránh sai khi nhân với số suất.
+- NUT-02 (01/11): `POST /meal-counts/adjustments` chỉ đổi `substitute`; `normal` null = giữ, khác số hiện tại ⇒ 409 `6008` `MEAL_COUNT_NORMAL_NOT_EDITABLE`. `MealCount.replaceClassFigures` (điểm danh đổi) giữ `substitute` đã điều chỉnh. Lịch sử: `ADJUSTED` (delta suất thay thế), `ATTENDANCE_CHANGED`.
+- NUT-02 (01/11): xác nhận theo cơ sở–ngày — `POST /meal-counts/{id}/confirm` xác nhận mọi bữa còn chờ cùng cơ sở + ngày + năm; bữa đã xác nhận gọi lại ⇒ 200 trả trạng thái hiện tại (không còn 409 `6005`, để FE gọi lần lượt từng bữa không vỡ). Còn lớp có trẻ đang học chưa điểm danh (`tallyMeals.missing > 0`) ⇒ 409 `6009` `MEAL_COUNT_ATTENDANCE_INCOMPLETE`, câu lỗi liệt kê tên lớp.
 
 ## Related issues
 Chưa có. Rủi ro dự kiến: CMR-01, CMR-02.

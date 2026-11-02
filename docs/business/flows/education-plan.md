@@ -129,3 +129,8 @@ Mâu thuẫn với code — user chốt 29/10/2026 theo code, dòng khảo sát 
 - EDU-38 (quyền theo ma trận ADR-0017) ⇒ theo EDU-08: `goals.*`, `plans.config` gán theo role tại `EduPlanAccessPolicy`.
 
 Lịch chủ đề (đóng P-29, user chốt 30/10 theo mẫu Thái Dương): thời lượng do người lập đặt, mỗi tuần học là một chủ đề nhánh (EDU-39); chủ đề bắt đầu Thứ 2, kết thúc Thứ 6, không trùng nhau — kiểm khi gửi/ban hành (EDU-39, EDU-40); đợt nghỉ ghi được từng ngày, tuần chỉ thành tuần nghỉ khi nghỉ trọn Thứ 2 → Thứ 6 (EDU-41).
+
+## Nhập file chủ đề nhánh — EDU-47 (user chốt 01/11/2026)
+
+[B] Giáo viên chuẩn bị file → [S] xem trước theo lớp/kế hoạch hiện hành, kiểm quyền và ghép tên vào tuần hệ thống → [B] xem cảnh báo/tên sẽ thay, xác nhận → [S] áp dụng vào nháp → [B] bấm Lưu, sau đó gửi khi đủ điều kiện EDU-14 → [S] lưu/gửi theo quyền và chuỗi EDU-18.
+Không nhận thời gian/ngày nghỉ/người ký file, không tự lưu/gửi. Hủy không đổi bản nháp; chủ đề lạ/mơ hồ hoặc tên thừa báo theo dòng, thiếu không xóa tuần khác. Hai nút Lưu/gửi luôn hiện khi tài liệu đã tải, khóa kèm lý do khi không đủ điều kiện. [Contract và kiểm chứng](../../../specs/008-branch-plan-file-import/quickstart.md).

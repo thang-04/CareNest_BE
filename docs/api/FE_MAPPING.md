@@ -12,7 +12,7 @@ So sánh API BE (nhánh làm việc của Cần, 22/10/2026) với lớp api + m
 | 4 | `schoolConfigApi.saveCutoffSetting` | gửi `reopenWindowMinutes` | bỏ (BE bỏ theo Cần 21/10; gửi thừa thì BE bỏ qua) |
 | 5 | Mọi màn có `history[]` (năm học, nhóm tuổi, lớp, phòng) | mock trả `history` | BE chưa lưu lịch sử thay đổi (trừ giờ chốt: `setting.history`) ⇒ ẩn khối lịch sử hoặc để trống |
 | 6 | Trẻ trong xếp lớp | `code`, `photoUrl` có giá trị | BE luôn `null` (chưa có cột mã trẻ/ảnh) |
-| 7 | `schoolConfigApi.getTeacherAssignments` / `getStaffAccounts` | GV = user có `role`, `campusId` | BE tạm lấy GV từ phân công đang có (phương án C): `teachers[{id, fullName, campusId, campusIds}]`; chưa có `/users` (Tài khoản nhân sự chờ chốt) |
+| 7 | `schoolConfigApi.getTeacherAssignments` / `getStaffAccounts` | GV = user có `role`, `campusId` | BE tạm lấy GV từ phân công đang có (phương án C) + tài khoản GV chưa có lớp (`campusId = null`, `campusIds = []` ⇒ FE không lọc mất khi lọc theo điểm trường): `teachers[{id, fullName, campusId, campusIds}]`; chưa có `/users` (Tài khoản nhân sự chờ chốt) |
 | 8 | Activate năm học | readiness bị chặn bởi bước PHT | bước `vicePrincipals` dựa trên phân công PHT đang có trong DB (màn Phân công PHT không thuộc phần Cần) |
 
 ## 2. BE đã chỉnh cho khớp FE
@@ -58,12 +58,12 @@ FE: `src/services/attendance/api/attendanceApi.js` + mock `attendanceMockReposit
 | `GET /attendance/classes?schoolYearId` | `useAttendanceClasses` | Mới: lớp của năm chọn ở header (không gửi = năm đang hoạt động) trong phạm vi + `teaches`, `canRecord`, `canUnlock` (năm khác năm hoạt động ⇒ chỉ xem) |
 | `GET /attendance/day-info?date&classId` | `getDayInfo` | Như mock; `now`, `cutoff` dạng `HH:mm`; không có `classId` ⇒ giờ chốt năm đang hoạt động |
 | `GET /classes/{id}/attendance?date` | `getClassAttendance` | Thông tin ngày nằm trong `day` (mock trải ra ngoài); trẻ `{id, fullName, dateOfBirth}` (chưa có mã, giới tính, dị ứng, ảnh); chưa có `leaveRequest`, `healthSummary`, `mealCountStatus` |
-| `PUT /classes/{id}/attendance` | `saveClassAttendance` | Body `{date, entries[{childId, status, meals{LUNCH:true}}]}`; trả `{savedAt, count, changed}`; khóa ⇒ 409 `Attendance is locked after HH:mm`; ngày khác hôm nay không có mở lại ⇒ 400 `Attendance can only be recorded for today` |
+| `PUT /classes/{id}/attendance` | `saveClassAttendance` | Body `{date, entries[{childId, status, meals?}]}` — `meals` deprecated, BE bỏ qua (ATT-02: có mặt ⇒ mọi bữa nhóm tuổi; `record.meals` trả về là giá trị suy ra); `status` `EXCUSED` mới ⇒ 400 `4018` (ATT-09, giữ nguyên `EXCUSED` đang có thì được); trả `{savedAt, count, changed}`; khóa ⇒ 409 `Attendance is locked after HH:mm`; ngày khác hôm nay không có mở lại ⇒ 400 `Attendance can only be recorded for today` |
 | `GET/POST /attendance/day-unlocks`, `POST /attendance/day-unlocks/{id}/revoke` | màn Mở lại điểm danh | Như mock; chưa gửi thông báo cho GV |
 | `GET /classes/{id}/attendance/summary?from&to`, `GET /attendance/summary?from&to&campusId&schoolYearId` | màn Tổng hợp | Không có `scope`, `substitute` (FE tự thêm); trẻ tính theo lớp tại ngày `to` |
 | `GET /meal-counts?date&schoolYearId` | `getMealCounts` (Sổ báo ăn, dashboard HT/PHT) | `{date, today, cutoff, schoolDay, locked, counts[]}`; trước giờ chốt `id` null, `status` `OPEN` (chỉ HT/PHT); bếp chỉ thấy bữa đã xác nhận; có `canConfirm`, `canAdjust`, `confirmedByName`, `classes[].ageGroupId`, `adjustments[].userName` |
-| `POST /meal-counts/{id}/confirm` | `confirmMealCount` | Chỉ PHT điểm trường, HT chỉ xem (Cần chốt 24/10); đã xác nhận mà không có số chờ ⇒ 409 `Meal count is already confirmed` |
-| `POST /meal-counts/adjustments` | `adjustMealDay` | Chỉ PHT điểm trường. Body như mock `{campusId, date, session?, classId, normal, substitute, note}`; không đổi ⇒ 400 `Meal count is unchanged` |
+| `POST /meal-counts/{id}/confirm` | `confirmMealCount` | NUT-02: xác nhận cả cơ sở–ngày (mọi bữa còn chờ); bữa đã xác nhận ⇒ 200 trạng thái hiện tại; còn trẻ chưa điểm danh ⇒ 409 `6009` kèm tên lớp |
+| `POST /meal-counts/adjustments` | `adjustMealDay` | Chỉ PHT điểm trường, chỉ suất thay thế (NUT-02). Body `{campusId, date, session?, classId, normal: null, substitute, note}`; `normal` khác số hiện tại ⇒ 409 `6008`; không đổi ⇒ 400 `6006` |
 | — | `correctMealAfterLock` (GV hủy suất sau giờ khóa) | Bỏ: sau giờ chốt GV chỉ xem (ATT-08) |
 | — | Bàn giao suất (`getMealHandovers`, `confirmHandover`...) | Chưa có: phụ thuộc trạng thái chuẩn bị bữa của bếp (NUT-14, NUT-15 PROPOSED) |
 | `GET /classes/{classId}/children/{childId}/daily-health?date` | `getDailyHealth` (khung Sức khỏe trong ngày) | `{classId, className, childId, childName, date, canRecord, entries[]}`; chưa có `contacts`, `healthSummary` (FE tự tính từ `entries`) |

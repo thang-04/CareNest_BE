@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
+import com.carenest.dto.organization.SchoolYearSemesterRequest;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
@@ -160,6 +161,64 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
+    void principalSetsBothSemesters() {
+        given(schoolYearRepository.findById(5L))
+                .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
+
+        SchoolYearDetailResponse updated = service.updateSemester(
+                PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-17", "2028-05-31"));
+
+        assertThat(updated.semester1Start()).isEqualTo(LocalDate.of(2027, 9, 1));
+        assertThat(updated.semester2End()).isEqualTo(LocalDate.of(2028, 5, 31));
+    }
+
+    @Test
+    void semesterDatesAreValidated() {
+        given(schoolYearRepository.findById(5L))
+                .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
+
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, new SchoolYearSemesterRequest(LocalDate.of(2027, 9, 1), null, null, null)),
+                ApiCode.SEMESTER_DATE_REQUIRED);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-08-31", "2028-01-14", "2028-01-17", "2028-05-31")),
+                ApiCode.SEMESTER_OUT_OF_YEAR);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-17", "2028-06-01")),
+                ApiCode.SEMESTER_OUT_OF_YEAR);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-12-01", "2027-11-30", "2028-01-17", "2028-05-31")),
+                ApiCode.SEMESTER_START_AFTER_END);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-05-31", "2028-05-30")),
+                ApiCode.SEMESTER_START_AFTER_END);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-14", "2028-05-31")),
+                ApiCode.SEMESTER_OVERLAP);
+    }
+
+    @Test
+    void yearDatesCannotCutSetSemesters() {
+        SchoolYear planned = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01");
+        planned.changeSemesters(
+                LocalDate.of(2027, 9, 1),
+                LocalDate.of(2028, 1, 14),
+                LocalDate.of(2028, 1, 17),
+                LocalDate.of(2028, 5, 31));
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(planned));
+
+        expectError(
+                () -> service.updateSchoolYear(PRINCIPAL, 5L, request("2027-2028", "2027-09-06")),
+                ApiCode.SEMESTER_OUT_OF_YEAR);
+    }
+
+    @Test
     void deleteOnlyPlannedYear() {
         given(schoolYearRepository.findById(1L))
                 .willReturn(Optional.of(year(1L, "2026-2027", SchoolYearStatus.ACTIVE, "2026-09-01")));
@@ -287,6 +346,11 @@ class SchoolYearServiceImplTest {
         given(schoolYearRepository.findById(anyLong())).willReturn(Optional.empty());
 
         expectError(() -> service.getSchoolYear(VICE_PRINCIPAL, 404L), ApiCode.NOT_FOUND);
+    }
+
+    private static SchoolYearSemesterRequest semesters(String s1Start, String s1End, String s2Start, String s2End) {
+        return new SchoolYearSemesterRequest(
+                LocalDate.parse(s1Start), LocalDate.parse(s1End), LocalDate.parse(s2Start), LocalDate.parse(s2End));
     }
 
     private static SchoolYearRequest request(String name, String startDate) {

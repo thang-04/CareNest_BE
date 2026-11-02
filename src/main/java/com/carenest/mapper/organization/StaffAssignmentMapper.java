@@ -30,7 +30,8 @@ public class StaffAssignmentMapper {
                 assignment.getCampusId(),
                 assignment.getClassroomId(),
                 assignment.getValidFrom(),
-                assignment.getValidTo());
+                assignment.getValidTo(),
+                assignment.isSubstitute());
     }
 
     public CampusOptionResponse toCampusOptionResponse(Campus campus) {

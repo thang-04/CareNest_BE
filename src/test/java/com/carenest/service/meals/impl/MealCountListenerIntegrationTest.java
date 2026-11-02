@@ -103,7 +103,8 @@ class MealCountListenerIntegrationTest {
 
         unlockService.unlockDay(
                 vp, new DayUnlockRequest(classroom, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "Quên lưu"));
-        attendanceService.saveClassAttendance(teacher, classroom, request(present(child1)));
+        // NUT-02: xác nhận cần đủ điểm danh ⇒ trẻ 2 ghi vắng trước
+        attendanceService.saveClassAttendance(teacher, classroom, request(present(child1), absent(child2)));
         MealCountResponse lunch = lunch(vp);
         service.confirm(vp, lunch.id());
 
@@ -131,6 +132,10 @@ class MealCountListenerIntegrationTest {
 
     private static Entry present(long childId) {
         return new Entry(childId, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true));
+    }
+
+    private static Entry absent(long childId) {
+        return new Entry(childId, AttendanceStatus.UNEXCUSED, Map.of());
     }
 
     private CurrentUser user(String username, CareNestRole role) {

@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.carenest.dto.organization.ClassTeachersRequest;
 import com.carenest.dto.organization.ClassTeachersResponse;
+import com.carenest.dto.organization.NewStaffAssignment;
+import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.dto.organization.TeacherAssignmentResponse;
 import com.carenest.dto.organization.TeamLeaderRequest;
 import com.carenest.dto.organization.TeamLeaderResponse;
@@ -14,6 +16,8 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.StaffRole;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -22,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -64,6 +69,9 @@ class TeacherAssignmentIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private CurrentUser principal;
     private long teacher1;
@@ -281,11 +289,57 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
+    void newTeacherWithoutAssignmentIsCandidateOfEveryCampus() {
+        // AUTH-15: tạo GV không kèm lớp ⇒ chưa thuộc điểm trường nào, xếp được vào lớp đầu tiên ở mọi điểm trường
+        long newTeacher = user("teacherNew");
+        jdbc.update("UPDATE user_accounts SET primary_role = 'TEACHER' WHERE id = ?", newTeacher);
+        jdbc.update("UPDATE user_accounts SET primary_role = 'TEACHER' WHERE id = ?", newTeacher);
+        long campusA = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classA1);
+
+        var candidate = service.getTeacherAssignments(principal, year, String.valueOf(campusA)).teachers().stream()
+                .filter(t -> t.id() == newTeacher)
+                .findFirst()
+                .orElseThrow();
+        assertThat(candidate.campusId()).isNull();
+        assertThat(candidate.campusIds()).isEmpty();
+
+        ClassTeachersResponse result = service.assignClassTeachers(
+                principal, classA1, new ClassTeachersRequest(List.of(teacher1, newTeacher), teacher1));
+        assertThat(result.teacherIds()).containsExactlyInAnyOrder(teacher1, newTeacher);
+    }
+
+    @Test
     void teacherOfOtherCampusIsRejected() {
         expectError(
                 () -> service.assignClassTeachers(
                         principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacherB), teacher1)),
                 ApiCode.BAD_REQUEST);
+    }
+
+    @Test
+    void vicePrincipalAssignsTeachersOnlyInOwnCampus() {
+        CurrentUser vpA = vicePrincipalOf("vpA", "CS-A");
+        CurrentUser vpB = vicePrincipalOf("vpB", "CS-B");
+
+        // AUTH-16: PHT không phân công lớp của điểm trường khác
+        expectError(
+                () -> service.assignClassTeachers(
+                        vpB, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher1)),
+                ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+
+        ClassTeachersResponse result = service.assignClassTeachers(
+                vpA, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher2));
+        assertThat(result.homeroomTeacherId()).isEqualTo(teacher2);
+    }
+
+    private CurrentUser vicePrincipalOf(String username, String campusCode) {
+        long userId = user(username);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "SELECT ?, 'VICE_PRINCIPAL', id, '2026-01-01' FROM campuses WHERE code = ?",
+                userId,
+                campusCode);
+        return new CurrentUser(userId, "kc-" + username, username, "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
     }
 
     @Test
@@ -339,6 +393,106 @@ class TeacherAssignmentIntegrationTest {
                 ApiCode.FORBIDDEN);
     }
 
+    @Test
+    @DisplayName("AUTH-24: /staff-assignments áp cùng luật xếp lớp — GV đang dạy chính lớp khác bị từ chối")
+    void staffAssignmentRejectsSecondMainClass() {
+        expectCode(
+                () -> staffAssignmentService.createAssignment(teacherAssignment(teacher1, classA2, null)),
+                ApiCode.TEACHER_ALREADY_ASSIGNED);
+        // Ngày kết thúc trùng/ sau ngày cuối năm vẫn là dạy chính
+        expectCode(
+                () -> staffAssignmentService.createAssignment(
+                        teacherAssignment(teacher1, classA2, LocalDate.of(2027, 5, 31))),
+                ApiCode.TEACHER_ALREADY_ASSIGNED);
+        // Không suy dạy thay từ ngày kết thúc: thiếu cờ dạy thay thì vẫn là dạy chính
+        expectCode(
+                () -> staffAssignmentService.createAssignment(teacherAssignment(teacher1, classA2, TODAY.plusDays(14))),
+                ApiCode.TEACHER_ALREADY_ASSIGNED);
+    }
+
+    @Test
+    @DisplayName("AUTH-24: phân công đánh dấu dạy thay được miễn, ghi người phân công")
+    void substituteWithEndDateIsExemptAndRecordsAssigner() {
+        StaffAssignmentResponse created =
+                staffAssignmentService.createAssignment(substituteAssignment(teacher1, classA2, TODAY.plusDays(14)));
+
+        assertThat(created.validTo()).isEqualTo(TODAY.plusDays(14));
+        assertThat(created.substitute()).isTrue();
+        assertThat(jdbc.queryForObject(
+                        "SELECT assigned_by FROM staff_assignments WHERE id = ?", Long.class, created.id()))
+                .isEqualTo(principal.userId());
+        // GV dạy thay ở A2 vẫn được giữ khi HT sửa GV lớp chính A1 và khi sửa GV lớp A2
+        service.assignClassTeachers(
+                principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher2));
+        ClassTeachersResponse a2 = service.assignClassTeachers(
+                principal, classA2, new ClassTeachersRequest(List.of(teacher3, teacher1), teacher3));
+        assertThat(a2.teacherIds()).containsExactlyInAnyOrder(teacher3, teacher1);
+    }
+
+    @Test
+    @DisplayName("AUTH-24: GV chưa có lớp nhận dạy chính qua /staff-assignments ⇒ hiệu lực tới hết năm học")
+    void mainAssignmentRunsToYearEnd() {
+        long newTeacher = user("teacherNew");
+        jdbc.update("UPDATE user_accounts SET primary_role = 'TEACHER' WHERE id = ?", newTeacher);
+
+        StaffAssignmentResponse created =
+                staffAssignmentService.createAssignment(teacherAssignment(newTeacher, classA2, null));
+
+        assertThat(created.validTo()).isEqualTo(LocalDate.of(2027, 5, 31));
+        // Sau đó không nhận thêm lớp dạy chính ở cả đường PUT
+        expectCode(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, newTeacher), teacher1)),
+                ApiCode.TEACHER_ALREADY_ASSIGNED);
+    }
+
+    @Test
+    @DisplayName("AUTH-24: không kéo GV cơ sở khác, tài khoản khóa, năm đã kết thúc ⇒ từ chối ở /staff-assignments")
+    void staffAssignmentDeniedCases() {
+        expectCode(
+                () -> staffAssignmentService.createAssignment(teacherAssignment(teacherB, classA2, TODAY.plusDays(7))),
+                ApiCode.TEACHER_WRONG_CAMPUS);
+        jdbc.update("UPDATE user_accounts SET status = 'INACTIVE' WHERE id = ?", teacher2);
+        expectCode(
+                () -> staffAssignmentService.createAssignment(teacherAssignment(teacher2, classA2, TODAY.plusDays(7))),
+                ApiCode.TEACHER_ACCOUNT_LOCKED);
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = ?", year);
+        entityManager.clear();
+        expectCode(
+                () -> staffAssignmentService.createAssignment(teacherAssignment(teacher1, classA2, TODAY.plusDays(7))),
+                ApiCode.SCHOOL_YEAR_CLOSED);
+    }
+
+    @Test
+    @DisplayName("AUTH-24: dạy thay bắt buộc ngày kết thúc và chỉ cho giáo viên")
+    void substituteNeedsEndDateAndTeacherRole() {
+        expectCode(
+                () -> staffAssignmentService.createAssignment(substituteAssignment(teacher1, classA2, null)),
+                ApiCode.SUBSTITUTE_END_DATE_REQUIRED);
+        Long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classA2);
+        expectCode(
+                () -> staffAssignmentService.createAssignment(new NewStaffAssignment(
+                        teacher3,
+                        StaffRole.KITCHEN_STAFF,
+                        campus,
+                        null,
+                        TODAY,
+                        TODAY.plusDays(7),
+                        principal.userId(),
+                        true)),
+                ApiCode.SUBSTITUTE_TEACHER_ONLY);
+    }
+
+    private NewStaffAssignment teacherAssignment(long teacherId, long classroomId, LocalDate validTo) {
+        return new NewStaffAssignment(
+                teacherId, StaffRole.TEACHER, null, classroomId, TODAY, validTo, principal.userId(), false);
+    }
+
+    private NewStaffAssignment substituteAssignment(long teacherId, long classroomId, LocalDate validTo) {
+        return new NewStaffAssignment(
+                teacherId, StaffRole.TEACHER, null, classroomId, TODAY, validTo, principal.userId(), true);
+    }
+
     private long user(String username) {
         return insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + " IT') RETURNING id");
@@ -367,6 +521,13 @@ class TeacherAssignmentIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
                 .isEqualTo(apiCode.getHttpStatus());
+    }
+
+    private static void expectCode(ThrowingCallable call, ApiCode apiCode) {
+        assertThatThrownBy(call)
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(apiCode);
     }
 
     private long insertId(String sql) {

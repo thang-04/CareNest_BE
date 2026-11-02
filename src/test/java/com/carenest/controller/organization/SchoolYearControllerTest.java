@@ -16,12 +16,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
+import com.carenest.dto.organization.YearCopyResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.service.organization.SchoolYearService;
+import com.carenest.service.organization.YearCopyService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -53,6 +55,48 @@ class SchoolYearControllerTest {
 
     @MockitoBean
     private SchoolYearService schoolYearService;
+
+    @MockitoBean
+    private YearCopyService yearCopyService;
+
+    @Test
+    void principalCopiesYear() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        given(yearCopyService.copyYear(eq(principal), eq(9L), any()))
+                .willReturn(new YearCopyResponse(List.of("Mầm 1"), List.of(), 1, 0, null, false, List.of()));
+
+        mockMvc.perform(post(YEARS + "/9/copy")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sourceYearId\":3,\"parts\":[\"CLASSES\",\"TEACHERS\"]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.copiedClasses[0]").value("Mầm 1"))
+                .andExpect(jsonPath("$.data.teacherClasses").value(1));
+    }
+
+    @Test
+    void vicePrincipalCannotCopyYear() throws Exception {
+        authenticateAs(CareNestRole.VICE_PRINCIPAL);
+
+        mockMvc.perform(post(YEARS + "/9/copy")
+                        .with(token(CareNestRole.VICE_PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sourceYearId\":3,\"parts\":[\"CLASSES\"]}"))
+                .andExpect(status().isForbidden());
+        verify(yearCopyService, never()).copyYear(any(), any(), any());
+    }
+
+    @Test
+    void copyYearWithoutSourceIs400() throws Exception {
+        authenticateAs(CareNestRole.PRINCIPAL);
+
+        mockMvc.perform(post(YEARS + "/9/copy")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"parts\":[\"CLASSES\"]}"))
+                .andExpect(status().isBadRequest());
+        verify(yearCopyService, never()).copyYear(any(), any(), any());
+    }
 
     @Test
     void teacherCanListYears() throws Exception {
@@ -141,6 +185,10 @@ class SchoolYearControllerTest {
                 "2026-2027",
                 LocalDate.of(2026, 9, 1),
                 LocalDate.of(2027, 5, 31),
+                null,
+                null,
+                null,
+                null,
                 status,
                 2,
                 null,

@@ -37,7 +37,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Danh mục bán trú trên PostgreSQL thật: V41, mapping JPA, cách tính dinh dưỡng/giá, món tham khảo. */
+/** Danh mục bán trú trên PostgreSQL thật: V54, V55, mapping JPA, cách tính dinh dưỡng/giá, món tham khảo. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)

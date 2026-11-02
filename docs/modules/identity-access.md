@@ -12,7 +12,7 @@ UserAccount, Role, Permission, role↔permission; kiểm tra access scope (`Acce
 StaffAssignment (school-structure), GuardianChildLink (child), dữ liệu nghiệp vụ.
 
 ## Rules
-AUTH-01..23 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business/USER_ROLES.md`.
+AUTH-01..25 (`docs/business/BUSINESS_RULES.md`). Role/permission: `docs/business/USER_ROLES.md`.
 
 ## Phụ thuộc
 - Dùng: common/utils.
@@ -55,6 +55,9 @@ P-16 (Admin xem dữ liệu trẻ). P-14 đã đóng 2026-10-27 (AUTH-02, AUTH-2
 - Tài khoản phụ huynh chỉ tạo qua `POST /children/{id}/guardians` (username = SĐT, `utils/PhoneNumbers`; mật khẩu `TemporaryPasswordGenerator` trả 1 lần, không log — DTO che `toString`). Khóa/mở, mật khẩu phụ huynh qua `/parent-accounts/...` (`GuardianAccountService`), vòng đời Keycloak dùng chung `AccountLifecycleOperations`.
 - PHT chỉ có phạm vi campus: id tài khoản/phân công không tồn tại và ngoài phạm vi phải cùng 403 (`ManagedAccountLoader`); Admin/HT nhận 404.
 - Tạo tài khoản: kiểm phạm vi (`StaffAccessPolicy.checkCanCreate`) TRƯỚC khi gọi Keycloak; tài khoản + phân công lưu trong 1 TransactionTemplate, lỗi ⇒ xóa user Keycloak.
+- GV tạo không kèm lớp (AUTH-15, 2026-11-01): `assignment.campusId` của GV chỉ để kiểm PHT, không lưu ⇒ GV chưa có lớp vô hình với PHT (`GET /accounts`, khóa/mật khẩu tạm) tới khi được xếp lớp trong campus của PHT; ứng viên `TeacherDirectory` phải gồm GV `primary_role = TEACHER` chưa có phân công.
+- AUTH-24 (01/11): `POST /staff-assignments` với GV và `PUT /classes/{id}/teachers` dùng chung `TeacherClassRules` (năm CLOSED ⇒ 409 `2003`, TK khóa ⇒ 409 `2305`, GV thuộc cơ sở khác ⇒ 400 `2304`, đã dạy chính lớp khác cùng năm ⇒ 409 `2306`). Dạy thay = phân công GV có cờ `is_substitute` (V42; request/response `substitute`), bắt buộc `validTo` (400 `2321`, chỉ GV — 400 `2320`), miễn luật 1 lớp; không suy dạy thay từ ngày kết thúc. Dạy chính `validTo` trống/sau hết năm bị cắt về hết năm. Phân công tạo qua `/staff-assignments` và lúc tạo tài khoản ghi `assigned_by` = người làm. PUT chỉ kiểm luật 1 lớp với GV mới thêm (GV dạy thay đang có ở lớp được giữ).
+- Chốt 01/11 chưa vào code: chưa có API đổi vai trò tại chỗ/sửa hồ sơ (AUTH-25); PHT reset MK phụ huynh có con cơ sở khác chưa ghi audit/báo HT (AUTH-19). Chi tiết: `CareNest_CODE/plans/reports/final-261101-1407-carenest-e2e-business-flow-review-report.md` FLOW-006, FLOW-019.
 
 ## Related issues
 ENV-261004-keycloak-user-profile-account-not-fully-set-up (user profile Keycloak), ENV-261016-flyway-duplicate-version-stale-target (đổi nhánh còn migration cũ trong target).

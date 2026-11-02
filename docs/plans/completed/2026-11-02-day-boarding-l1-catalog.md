@@ -120,6 +120,9 @@ Không có. Danh mục thật (Viện Dinh dưỡng) do team chuẩn bị (NUT-1
 - [x] Tự review: không placeholder, không mâu thuẫn
 
 ## Progress log
+### 2026-11-03 — Merge `origin/dev`
+- Migration đổi số V41 → V54 (V41–V53 đã có trên `dev`); mã lỗi danh mục 6008–6023 → 6010–6025.
+
 ### 2026-11-02 23:30 — Bổ sung khi nối FE
 - `code` của thực phẩm, món, bản sao món không còn bắt buộc: để trống ⇒ tự sinh `TPnnn`/`MAnnn` (sửa để trống ⇒ giữ mã cũ), vì form FE không có ô mã. Test `NutritionCatalogIntegrationTest#blankCodeIsGeneratedAndKeptOnUpdate`. Snapshot OpenAPI bỏ `required: code`.
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 645 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 266s`

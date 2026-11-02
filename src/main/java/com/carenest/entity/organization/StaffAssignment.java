@@ -52,6 +52,11 @@ public class StaffAssignment {
     @Column(name = "is_homeroom", nullable = false)
     private boolean homeroom;
 
+    // AUTH-24: dạy thay không tính vào giới hạn một lớp dạy chính; luôn có ngày kết thúc
+    // (ck_staff_assignments_substitute)
+    @Column(name = "is_substitute", nullable = false)
+    private boolean substitute;
+
     @Column(name = "school_year_id")
     private Long schoolYearId;
 
@@ -92,6 +97,18 @@ public class StaffAssignment {
         return a;
     }
 
+    public static StaffAssignment vicePrincipal(
+            Long userId, Long campusId, LocalDate validFrom, LocalDate validTo, Long assignedBy) {
+        StaffAssignment a = new StaffAssignment();
+        a.userId = userId;
+        a.staffRole = StaffRole.VICE_PRINCIPAL;
+        a.campusId = campusId;
+        a.validFrom = validFrom;
+        a.validTo = validTo;
+        a.assignedBy = assignedBy;
+        return a;
+    }
+
     public void markHomeroom(boolean homeroom) {
         this.homeroom = homeroom;
     }
@@ -103,7 +120,32 @@ public class StaffAssignment {
 
     public static StaffAssignment create(
             Long userId, StaffRole staffRole, Long campusId, Long classroomId, LocalDate validFrom, LocalDate validTo) {
+        return create(userId, staffRole, campusId, classroomId, validFrom, validTo, null);
+    }
+
+    public static StaffAssignment create(
+            Long userId,
+            StaffRole staffRole,
+            Long campusId,
+            Long classroomId,
+            LocalDate validFrom,
+            LocalDate validTo,
+            Long assignedBy) {
+        return create(userId, staffRole, campusId, classroomId, validFrom, validTo, assignedBy, false);
+    }
+
+    public static StaffAssignment create(
+            Long userId,
+            StaffRole staffRole,
+            Long campusId,
+            Long classroomId,
+            LocalDate validFrom,
+            LocalDate validTo,
+            Long assignedBy,
+            boolean substitute) {
         StaffAssignment assignment = new StaffAssignment();
+        assignment.assignedBy = assignedBy;
+        assignment.substitute = substitute;
         assignment.userId = userId;
         assignment.staffRole = staffRole;
         assignment.campusId = campusId;

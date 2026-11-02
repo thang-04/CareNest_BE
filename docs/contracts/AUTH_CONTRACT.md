@@ -119,13 +119,14 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 ```json
 { "phone": "0912 000 001", "fullName": "Giáo viên C", "email": "teacher.c@example.test",
   "role": "TEACHER", "temporaryPassword": "...",
-  "assignment": { "classroomId": 11, "validFrom": "2026-10-17" }, "confirmUserId": null }
+  "assignment": { "campusId": 1 }, "confirmUserId": null }
 ```
 
 - `phone` (thay `username`, chốt 30/10/2026): SĐT di động, chấp nhận `+84`/`84`, dấu cách, `.`, `-`, `()`; chuẩn hóa thành 10 số đầu `0` = tên đăng nhập. Bếp dùng SĐT bếp của cơ sở (AUTH-22). Sai định dạng ⇒ 400 `errorCode` 1124. Tài khoản tạo trước đó giữ tên đăng nhập cũ (đăng nhập bằng tên cũ hoặc email). `fullName` bắt buộc; `email` tùy chọn; `role` ∈ PRINCIPAL, VICE_PRINCIPAL, TEACHER, KITCHEN_STAFF (PARENT ⇒ 400 `This role cannot be created via API` — phụ huynh tạo kèm trẻ, AUTH-18).
 - `temporaryPassword` (8–128 ký tự): bắt buộc trừ khi có `email` và server bật gửi email đặt mật khẩu. Người dùng phải đổi ở lần đăng nhập đầu. CareNest không lưu/log mật khẩu.
-- `assignment` (AUTH-15): PHT/bếp ⇒ `campusId`, GV ⇒ `classroomId`; `validFrom` bỏ trống = hôm nay. Bắt buộc khi người tạo là PHT; HT bỏ trống được. PRINCIPAL không gửi (tự có phân công toàn trường); PARENT không có phân công.
-- 201: `{ userId, username, fullName, email, role, status: "ACTIVE", setupEmailSent, assignment }` (`assignment` = phân công vừa tạo hoặc `null`).
+- `assignment` (AUTH-15) `{ campusId, validFrom }`: PHT/bếp ⇒ tạo phân công campus, `validFrom` bỏ trống = hôm nay. GV ⇒ **không chọn lớp, không tạo phân công** (bỏ `classroomId` từ 2026-11-01, gửi thừa bị bỏ qua); `campusId` chỉ để kiểm PHT tạo trong campus mình. Bắt buộc khi người tạo là PHT; HT bỏ trống được. PRINCIPAL không gửi (tự có phân công toàn trường); PARENT không có phân công.
+- GV vừa tạo xếp lớp sau: HT `PUT /classes/{id}/teachers` (ứng viên `GET /teacher-assignments` gồm GV chưa có lớp, `campusId = null`, xếp được vào lớp mọi điểm trường), HT/PHT `POST /staff-assignments` `{ userId, classroomId }`. Tới khi có lớp, GV không hiện trong `GET /accounts` của PHT và PHT chưa khóa/cấp lại mật khẩu được ⇒ FE nên xếp lớp ngay sau khi tạo (dùng `userId` trả về).
+- 201: `{ userId, username, fullName, email, role, status: "ACTIVE", setupEmailSent, assignment }` (`assignment` = phân công vừa tạo hoặc `null`; GV luôn `null`).
 - SĐT đã là tài khoản **phụ huynh** (`primaryRole=PARENT`): phụ huynh được nhận làm nhân sự ⇒ gửi `confirmUserId` = `userId` của `lookup` sau khi xác nhận đúng người; BE thêm role nhân sự + phân công vào chính tài khoản đó, giữ SĐT/mật khẩu (bỏ qua `temporaryPassword`, `email`), `setupEmailSent=false`. Thiếu/sai `confirmUserId` ⇒ 409 `errorCode` 1129; chính mình ⇒ 400 1114; người tạo phải quản được phụ huynh này (AUTH-19: HT, hoặc PHT có con của họ ở campus mình) ⇒ không thì 403 1112. Ghi DB lỗi ⇒ BE gỡ role vừa thêm. `status=INACTIVE` (vd. hết con đang học) ⇒ gộp xong vẫn khóa tới khi mở lại. SĐT đã là nhân sự ⇒ 409 `USERNAME_OR_EMAIL_EXISTS`.
 - Đăng nhập Web: `identifier` dạng SĐT (`+84 912 …`, dấu cách) được chuẩn hóa trước khi gửi Keycloak. Màn đăng nhập Keycloak của App không chuẩn hóa ⇒ App nhắc nhập 10 số bắt đầu bằng 0.
 
@@ -139,7 +140,7 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 | --- | --- | --- |
 | Không có quyền tương ứng | 403 | `errorCode` 1101 `FORBIDDEN` |
 | Tạo role ngoài phạm vi (Admin tạo GV, HT tạo HT, PHT thiếu `assignment` / campus khác) | 403 | `You cannot create an account with this role` |
-| `assignment` sai hình dạng (GV gửi `campusId`, PHT/bếp gửi `classroomId`, PRINCIPAL/PARENT gửi `assignment`) | 400 | vd. `Teacher must be assigned to a classroom` |
+| `assignment` sai hình dạng (PHT/bếp thiếu `campusId`, PRINCIPAL/PARENT gửi `assignment`) | 400 | vd. `errorCode` 2314 `Vai trò này phải phân công theo điểm trường` |
 | Campus / lớp không tồn tại | 404 | `Campus not found` / `Classroom not found` |
 | Khóa/mật khẩu tạm: tài khoản ngoài phạm vi (PHT nhận 403 cả khi id không tồn tại) | 403 | `You cannot manage this account` |
 | Mật khẩu tạm: cho chính mình | 400 | `Use change password for your own account` |
