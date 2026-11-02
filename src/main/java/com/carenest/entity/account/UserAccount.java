@@ -81,6 +81,12 @@ public class UserAccount {
         this.status = newStatus;
     }
 
+    /** email null ⇒ giữ email cũ (AUTH-25). */
+    public void updateProfile(String newFullName, String newEmail) {
+        this.fullName = newFullName;
+        if (newEmail != null) this.email = newEmail;
+    }
+
     /** Phụ huynh được nhận làm nhân sự (chỉ bản trong bộ nhớ, DB ghi bằng updatePrimaryRole). */
     public void becomeStaff(CareNestRole staffRole) {
         this.primaryRole = staffRole;

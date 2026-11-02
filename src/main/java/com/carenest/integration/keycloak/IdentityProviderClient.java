@@ -23,6 +23,9 @@ public interface IdentityProviderClient {
 
     void setUserEnabled(String userId, boolean enabled);
 
+    /** Đổi họ tên và email (null ⇒ giữ email cũ); email đổi thì bỏ trạng thái đã xác minh. */
+    void updateUserProfile(String userId, String fullName, String email);
+
     /** Đặt mật khẩu tạm mới (bắt đổi ở lần đăng nhập kế tiếp). */
     void resetTemporaryPassword(String userId, String temporaryPassword);
 

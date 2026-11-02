@@ -182,6 +182,56 @@ paths:
           description: OK
       tags:
       - permission-controller
+  /api/accounts/{userId}/profile:
+    patch:
+      operationId: updateProfile
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountProfileRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountResponse"
+          description: OK
+      tags:
+      - account-controller
+  /api/accounts/{userId}/staff-role:
+    put:
+      operationId: changeStaffRole
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeStaffRoleRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountDetailResponse"
+          description: OK
+      tags:
+      - account-controller
   /api/accounts/{userId}/staff-role/revoke:
     post:
       operationId: revokeStaffRole
@@ -3501,6 +3551,23 @@ components:
       - confirmPassword
       - currentPassword
       - newPassword
+    ChangeStaffRoleRequest:
+      type: object
+      properties:
+        assignment:
+          $ref: "#/components/schemas/StaffAssignmentScopeRequest"
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+          - TEAM_LEADER
+      required:
+      - role
     ChildBrief:
       type: object
       properties:
@@ -7156,6 +7223,20 @@ components:
         count:
           type: integer
           format: int32
+    UpdateAccountProfileRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+        fullName:
+          type: string
+          maxLength: 150
+          minLength: 0
+      required:
+      - fullName
     UpdateAccountStatusRequest:
       type: object
       properties:

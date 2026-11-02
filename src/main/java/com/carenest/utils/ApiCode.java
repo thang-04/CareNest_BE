@@ -95,6 +95,10 @@ public enum ApiCode {
             1129,
             HttpStatus.CONFLICT,
             "Số điện thoại đã là tài khoản phụ huynh, hãy tra số và xác nhận đúng người trước khi thêm vai trò nhân sự"),
+    STAFF_ROLE_NOT_CHANGEABLE(
+            1130, HttpStatus.BAD_REQUEST, "Chỉ đổi vai trò giữa Phó hiệu trưởng, giáo viên và nhân viên bếp"),
+    STAFF_ROLE_UNCHANGED(1131, HttpStatus.BAD_REQUEST, "Tài khoản đang có vai trò này"),
+    ACCOUNT_PROFILE_NOT_EDITABLE(1132, HttpStatus.BAD_REQUEST, "Chỉ sửa hồ sơ tài khoản nhân sự tại đây"),
 
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),
@@ -196,6 +200,7 @@ public enum ApiCode {
             2319, HttpStatus.BAD_REQUEST, "Phân công Tổ trưởng thực hiện ở màn phân công giáo viên theo năm học"),
     SUBSTITUTE_TEACHER_ONLY(2320, HttpStatus.BAD_REQUEST, "Chỉ phân công giáo viên mới chọn được dạy thay"),
     SUBSTITUTE_END_DATE_REQUIRED(2321, HttpStatus.BAD_REQUEST, "Phân công dạy thay phải có ngày kết thúc"),
+    STAFF_ACCOUNT_LOCKED(2322, HttpStatus.CONFLICT, "Tài khoản nhân sự đã bị khóa"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
