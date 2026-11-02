@@ -64,6 +64,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class AttendanceServiceImpl implements AttendanceService {
+
     private static final String LOG_PREFIX = "[AttendanceServiceImpl]";
     private static final long MAX_SUMMARY_DAYS = 366;
 
@@ -197,6 +198,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_YEAR_NOT_ACTIVE);
             }
+            classroomService.lockForUpdate(classId);
             LocalDate date = request.date();
             if (!AttendanceDayRules.isSchoolDay(date)) {
                 throw GlobalException.of(ApiCode.NOT_SCHOOL_DAY);
@@ -217,6 +219,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                 if (!classChildIds.contains(entry.childId()) || !seen.add(entry.childId())) {
                     throw GlobalException.of(ApiCode.CHILD_LIST_MISMATCH);
                 }
+            }
+            if (!leaveTags(seen, date).isEmpty()) {
+                throw GlobalException.of(ApiCode.LEAVE_ATTENDANCE_LOCKED);
             }
             Map<Long, AttendanceRecord> existing = recordRepository.findByChildIdInAndDate(seen, date).stream()
                     .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));

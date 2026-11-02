@@ -39,13 +39,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * ATT-04, ATT-05, ATT-05b: đơn nghỉ là thông báo, không duyệt. Ngày học chưa qua giờ chốt được ghi Vắng có phép, không
- * suất (sổ báo ăn tính theo điểm danh); ngày đã qua giờ chốt giữ nguyên. Trẻ vẫn đến lớp thì GV sửa trước giờ chốt (P-20).
+ * suất (sổ báo ăn tính theo điểm danh); ngày đã qua giờ chốt giữ nguyên. Trẻ đến lớp phải được phụ huynh hủy đơn trước giờ chốt rồi giáo viên mới điểm danh lại.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class LeaveRequestServiceImpl implements LeaveRequestService {
+
     private static final String LOG_PREFIX = "[LeaveRequestServiceImpl]";
     private static final DateTimeFormatter DD_MM_YYYY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -75,6 +76,11 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             if (from.isBefore(rules.today())) {
                 throw GlobalException.of(ApiCode.LEAVE_DATE_IN_PAST);
             }
+            ClassroomInfoResponse startingClass = activeClassOf(request.childId(), from);
+            if (from.isBefore(startingClass.yearStart()) || to.isAfter(startingClass.yearEnd())) {
+                throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
+            }
+            lockClasses(request.childId(), from, to);
             for (LeaveRequest other : leaveRequestRepository.findOverlapping(List.of(request.childId()), from, to)) {
                 if (!other.effectiveTo().isBefore(from) && !other.effectiveTo().isBefore(other.getFromDate())) {
                     LocalDate clash = other.getFromDate().isAfter(from) ? other.getFromDate() : from;
@@ -145,6 +151,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                     .findById(leaveRequestId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.LEAVE_NOT_FOUND));
             checkGuardian(currentUser, leave.getChildId());
+            lockClasses(leave.getChildId(), rules.today(), leave.effectiveTo());
             LocalDate today = rules.today();
             LocalDate end = leave.effectiveTo();
             LocalDate first = null;
@@ -163,12 +170,14 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             leave.cancelFrom(first, currentUser.userId(), at);
             for (LocalDate d = first; !d.isAfter(end); d = d.plusDays(1)) {
                 LocalDate day = d;
-                // Chỉ bỏ ghi do đơn nghỉ; GV đã sửa (trẻ vẫn đến lớp) thì giữ
+                // Chỉ bỏ bản ghi của đơn nghỉ, giữ các bản ghi ngoài phạm vi đơn.
                 recordRepository.findByChildIdInAndDate(List.of(leave.getChildId()), day).stream()
                         .filter(r -> r.getStatus() == AttendanceStatus.EXCUSED
                                 && r.getRecordedBy().equals(leave.getCreatedBy()))
                         .findFirst()
                         .ifPresent(r -> {
+                            historyRepository.save(AttendanceRecordHistory.cancelled(r, currentUser.userId(), at));
+                            historyRepository.flush();
                             recordRepository.delete(r);
                             eventPublisher.publishEvent(new AttendanceService.AttendanceChangedEvent(
                                     day, r.getCampusId(), r.getClassroomId()));
@@ -235,6 +244,14 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         }
     }
 
+    private void lockClasses(Long childId, LocalDate from, LocalDate to) {
+        Set<Long> ids = new java.util.TreeSet<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            classOn(childId, d).ifPresent(c -> ids.add(c.id()));
+        }
+        ids.forEach(classroomService::lockForUpdate);
+    }
+
     private void checkGuardian(CurrentUser user, Long childId) {
         if (!guardianChildLinkService.isGuardianOf(user.userId(), childId)) {
             throw GlobalException.of(ApiCode.LEAVE_NOT_GUARDIAN);
@@ -272,7 +289,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             record = recordRepository.save(AttendanceRecord.create(
                     childId, cls.id(), cls.campusId(), date, AttendanceStatus.EXCUSED, List.of(), userId, at));
             action = AttendanceRecordHistory.RECORDED;
-        } else if (record.differsFrom(AttendanceStatus.EXCUSED, List.of())) {
+        } else if (record.differsFrom(AttendanceStatus.EXCUSED, List.of())
+                || !record.getRecordedBy().equals(userId)) {
             record.update(AttendanceStatus.EXCUSED, List.of(), userId, at);
             action = AttendanceRecordHistory.UPDATED;
         } else {

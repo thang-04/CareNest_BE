@@ -33,6 +33,20 @@ public class ClassroomServiceImpl implements ClassroomService {
     private final AgeGroupRepository ageGroupRepository;
 
     @Override
+    @Transactional
+    public void lockForUpdate(Long classroomId) {
+        String logPrefix = LOG_PREFIX + "|lockForUpdate|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            classroomRepository.findForUpdate(classroomId);
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Optional<Long> findCampusId(Long classroomId) {
         String logPrefix = LOG_PREFIX + "|findCampusId|classroomId=" + classroomId;
         log.info("{}|START", logPrefix);

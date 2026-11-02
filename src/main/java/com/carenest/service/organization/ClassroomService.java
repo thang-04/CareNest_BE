@@ -9,6 +9,9 @@ import java.util.Optional;
 public interface ClassroomService {
     Optional<Long> findCampusId(Long classroomId);
 
+    /** Khóa hàng lớp trong transaction ghi để tuần tự hóa các thao tác cùng lớp. */
+    void lockForUpdate(Long classroomId);
+
     Optional<ClassroomInfoResponse> findClassroomInfo(Long classroomId);
 
     /** Lớp của năm học đang hoạt động (không có năm đang hoạt động ⇒ rỗng). */

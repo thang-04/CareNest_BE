@@ -18,6 +18,9 @@ public interface EnrollmentService {
     /** Trẻ đang học lớp tại ngày date, sắp theo họ tên. */
     List<ClassChildResponse> findChildrenInClassroom(Long classroomId, LocalDate date);
 
+    /** Trẻ có lịch sử học lớp trong kỳ; caller đã kiểm quyền lớp. */
+    List<ClassChildResponse> findChildrenInClassroomDuring(Long classroomId, LocalDate from, LocalDate to);
+
     /** childId → lớp đang học tại date (bản ghi mới nhất nếu nhiều); trẻ không có lớp không có trong map. */
     Map<Long, Long> findActiveClassroomIdByChildIds(Collection<Long> childIds, LocalDate date);
 }

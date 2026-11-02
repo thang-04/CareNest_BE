@@ -27,6 +27,26 @@ public class AttendanceRecordHistory {
 
     public static final String RECORDED = "RECORDED";
     public static final String UPDATED = "UPDATED";
+    public static final String CANCELLED = "CANCELLED";
+
+    @Column(name = "child_id", nullable = false)
+    private Long childId;
+
+    @Column(name = "classroom_id", nullable = false)
+    private Long classroomId;
+
+    @Column(name = "campus_id", nullable = false)
+    private Long campusId;
+
+    @Column(name = "date", nullable = false)
+    private java.time.LocalDate date;
+
+    public static AttendanceRecordHistory cancelled(AttendanceRecord record, Long userId, Instant at) {
+        AttendanceRecordHistory history = of(record, CANCELLED, null);
+        history.userId = userId;
+        history.at = at;
+        return history;
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -58,6 +78,10 @@ public class AttendanceRecordHistory {
     public static AttendanceRecordHistory of(AttendanceRecord record, String action, Long unlockId) {
         AttendanceRecordHistory history = new AttendanceRecordHistory();
         history.recordId = record.getId();
+        history.childId = record.getChildId();
+        history.classroomId = record.getClassroomId();
+        history.campusId = record.getCampusId();
+        history.date = record.getDate();
         history.action = action;
         history.status = record.getStatus();
         history.meals = record.getMeals();

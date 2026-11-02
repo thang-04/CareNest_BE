@@ -162,6 +162,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate date = request.date();
+            rules.lockClassForUpdate(classId);
             ClassroomInfoResponse cls = checkWritable(currentUser, classId, date);
             if (request.entries().isEmpty() && request.classComment() == null) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_NOTHING_TO_SAVE);
@@ -219,6 +220,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate date = request.date();
+            rules.lockClassForUpdate(classId);
             ClassroomInfoResponse cls = checkWritable(currentUser, classId, date);
             // EDU-19: chấm theo MT của giáo án đã duyệt; chưa có giáo án duyệt thì khóa phần này
             ApprovedDayLessonResponse lesson = lessonQueryService
