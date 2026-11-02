@@ -50,6 +50,12 @@ public enum Permission {
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL),
             true),
+    // AUTH-20: danh mục bán trú dùng chung cả trường (SCH-06); PHT mặc định tắt, HT cấp cho PHT dinh dưỡng
+    NUTRITION_MANAGE(
+            "meals",
+            "Quản lý danh mục bán trú: thực phẩm, món, cấu hình nhóm tuổi, nhà cung cấp",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
     // Không giao được cho ai: nếu giao, người được giao tự cấp thêm quyền cho mình (AUTH-11)
     PERMISSION_MANAGE(
             "account", "Quản lý phân quyền", EnumSet.of(CareNestRole.PRINCIPAL), EnumSet.noneOf(CareNestRole.class));

@@ -1,0 +1,20 @@
+package com.carenest.repository.meals;
+
+import com.carenest.entity.meals.Dish;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface DishRepository extends JpaRepository<Dish, Long> {
+
+    List<Dish> findAllByOrderByNameAsc();
+
+    // Chi tiết món cần thực phẩm và chất dị ứng của từng ô định lượng để tính dinh dưỡng, giá
+    @EntityGraph(attributePaths = {"ingredients", "ingredients.food", "ingredients.food.allergens"})
+    Optional<Dish> findWithIngredientsById(Long id);
+
+    boolean existsByCode(String code);
+
+    boolean existsByCodeAndIdNot(String code, Long id);
+}

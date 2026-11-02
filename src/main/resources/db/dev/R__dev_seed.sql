@@ -88,3 +88,30 @@ FROM (VALUES ('parent1', 'Trẻ Demo A1-01', 'MOTHER'),
 JOIN user_accounts u ON u.username = v.username
 JOIN children ch ON ch.full_name = v.child_name
 ON CONFLICT (user_id, child_id) DO NOTHING;
+
+-- Danh mục bán trú mẫu (NUT-05: nguồn ghi rõ là số liệu demo, không phải số liệu Viện Dinh dưỡng)
+INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,
+                   kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage)
+VALUES ('TP001', 'Gạo tẻ', 'GRAIN', 'g', 'kg', 1000, 18000, 344, 7.9, 1.0, 76.2, 'DEV_SAMPLE', 0, 'DRY'),
+       ('TP002', 'Thịt lợn nạc', 'MEAT', 'g', 'kg', 1000, 140000, 139, 19.0, 7.0, 0, 'DEV_SAMPLE', 5, 'FRESH'),
+       ('TP003', 'Cà rốt', 'VEGETABLE', 'g', 'kg', 1000, 20000, 39, 1.5, 0, 7.8, 'DEV_SAMPLE', 15, 'FRESH'),
+       ('TP004', 'Sữa bò tươi', 'EGG_DAIRY', 'ml', 'hộp 180 ml', 180, 8000, 74, 3.9, 4.4, 4.8, 'DEV_SAMPLE', 0, 'DRY')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO food_allergens (food_id, allergen_id)
+SELECT f.id, a.id FROM foods f JOIN allergens a ON a.code = 'COW_MILK' WHERE f.code = 'TP004'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dishes (code, name, dish_type, description)
+VALUES ('M001', 'Cháo thịt bằm cà rốt', 'CARB', 'Món demo')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child)
+SELECT d.id, f.id, ag.id, v.grams
+FROM (VALUES ('TP001', 'ag-2', 21), ('TP001', 'ag-5', 33),
+             ('TP002', 'ag-2', 14), ('TP002', 'ag-5', 22),
+             ('TP003', 'ag-2', 7), ('TP003', 'ag-5', 11)) AS v (food_code, age_group_code, grams)
+JOIN dishes d ON d.code = 'M001'
+JOIN foods f ON f.code = v.food_code
+JOIN age_groups ag ON ag.code = v.age_group_code
+ON CONFLICT (dish_id, food_id, age_group_id) DO NOTHING;

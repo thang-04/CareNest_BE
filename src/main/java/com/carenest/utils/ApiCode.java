@@ -259,6 +259,23 @@ public enum ApiCode {
     MEAL_COUNT_ALREADY_CONFIRMED(6005, HttpStatus.CONFLICT, "Sổ báo ăn bữa này đã được xác nhận"),
     MEAL_COUNT_UNCHANGED(6006, HttpStatus.BAD_REQUEST, "Số suất chưa thay đổi"),
     MEAL_COUNT_YEAR_READ_ONLY(6007, HttpStatus.CONFLICT, "Năm học không hoạt động, sổ báo ăn chỉ xem"),
+    FOOD_NOT_FOUND(6008, HttpStatus.NOT_FOUND, "Không tìm thấy thực phẩm"),
+    FOOD_CODE_DUPLICATED(6009, HttpStatus.CONFLICT, "Mã thực phẩm {0} đã tồn tại"),
+    NUTRIENT_SOURCE_REQUIRED(6010, HttpStatus.BAD_REQUEST, "Cần ghi nguồn số liệu dinh dưỡng của thực phẩm"),
+    ALLERGEN_INVALID(6011, HttpStatus.BAD_REQUEST, "Chất gây dị ứng không hợp lệ"),
+    FOOD_IMPORT_INVALID(6012, HttpStatus.BAD_REQUEST, "Dữ liệu nhập chưa lưu vì có lỗi: {0}"),
+    DISH_NOT_FOUND(6013, HttpStatus.NOT_FOUND, "Không tìm thấy món ăn"),
+    DISH_CODE_DUPLICATED(6014, HttpStatus.CONFLICT, "Mã món {0} đã tồn tại"),
+    DISH_REFERENCE_READ_ONLY(
+            6015, HttpStatus.CONFLICT, "Món tham khảo chỉ xem, hãy sao chép thành món của trường để sửa"),
+    DISH_INGREDIENT_INVALID(6016, HttpStatus.BAD_REQUEST, "Định lượng món không hợp lệ: {0}"),
+    MEAL_CONFIG_NOT_FOUND(6017, HttpStatus.NOT_FOUND, "Không tìm thấy cấu hình nhóm tuổi"),
+    MEAL_CONFIG_LOCKED(6018, HttpStatus.CONFLICT, "Cấu hình đã có hiệu lực, chỉ xem; hãy tạo bản mới từ ngày sau"),
+    MEAL_CONFIG_DUPLICATED(6019, HttpStatus.CONFLICT, "Nhóm tuổi đã có cấu hình áp dụng từ ngày này"),
+    MEAL_CONFIG_DATE_INVALID(6020, HttpStatus.BAD_REQUEST, "Ngày hiệu lực phải sau hôm nay"),
+    NUTRITION_NORM_RANGE_INVALID(6021, HttpStatus.BAD_REQUEST, "Chuẩn {0}: giá trị tối thiểu lớn hơn tối đa"),
+    AGE_GROUP_INVALID(6022, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
+    SUPPLIER_NOT_FOUND(6023, HttpStatus.NOT_FOUND, "Không tìm thấy nhà cung cấp"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
