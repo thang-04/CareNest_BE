@@ -19,8 +19,10 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -32,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService {
     private static final String LOG_PREFIX = "[AgeGroupMealConfigServiceImpl]";
+    private static final BigDecimal ONE_HUNDRED = BigDecimal.valueOf(100);
 
     private final AgeGroupMealConfigRepository configRepository;
     private final AgeGroupService ageGroupService;
@@ -213,8 +216,15 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         checkRange("đạm", request.proteinPctMin(), request.proteinPctMax());
         checkRange("béo", request.lipidPctMin(), request.lipidPctMax());
         checkRange("bột đường", request.glucidPctMin(), request.glucidPctMax());
-        checkRange("đạm động vật", request.animalProteinPctMin(), request.animalProteinPctMax());
-        checkRange("béo động vật", request.animalLipidPctMin(), request.animalLipidPctMax());
+        checkRange("đạm động vật", request.animalProteinGMin(), request.animalProteinGMax());
+        checkRange("đạm thực vật", request.plantProteinGMin(), request.plantProteinGMax());
+        checkRange("béo động vật", request.animalLipidGMin(), request.animalLipidGMax());
+        checkRange("béo thực vật", request.plantLipidGMin(), request.plantLipidGMax());
+        checkRange("bột đường (g)", request.glucidGMin(), request.glucidGMax());
+        checkRange("năng lượng bữa sáng", request.morningKcalPctMin(), request.morningKcalPctMax());
+        checkRange("năng lượng bữa trưa", request.lunchKcalPctMin(), request.lunchKcalPctMax());
+        checkRange("năng lượng bữa chiều", request.afternoonKcalPctMin(), request.afternoonKcalPctMax());
+        checkSessionShares(request);
         config.changeInfo(
                 request.effectiveFrom(),
                 request.mealPrice(),
@@ -227,12 +237,38 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                         request.lipidPctMax(),
                         request.glucidPctMin(),
                         request.glucidPctMax(),
-                        request.animalProteinPctMin(),
-                        request.animalProteinPctMax(),
-                        request.animalLipidPctMin(),
-                        request.animalLipidPctMax()),
+                        request.animalProteinGMin(),
+                        request.animalProteinGMax(),
+                        request.plantProteinGMin(),
+                        request.plantProteinGMax(),
+                        request.animalLipidGMin(),
+                        request.animalLipidGMax(),
+                        request.plantLipidGMin(),
+                        request.plantLipidGMax(),
+                        request.glucidGMin(),
+                        request.glucidGMax(),
+                        request.morningKcalPctMin(),
+                        request.morningKcalPctMax(),
+                        request.lunchKcalPctMin(),
+                        request.lunchKcalPctMax(),
+                        request.afternoonKcalPctMin(),
+                        request.afternoonKcalPctMax(),
+                        request.dailyKcalNeed()),
                 request.normBasis() == null ? "" : request.normBasis().trim(),
                 userId);
+    }
+
+    // NUT-25: các bữa chia nhau nhu cầu năng lượng cả ngày ⇒ tổng mức tối thiểu không vượt 100%
+    private static void checkSessionShares(AgeGroupMealConfigRequest request) {
+        BigDecimal minTotal = Stream.of(
+                        request.morningKcalPctMin(), request.lunchKcalPctMin(), request.afternoonKcalPctMin())
+                .filter(Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (minTotal.compareTo(ONE_HUNDRED) > 0) {
+            throw GlobalException.of(
+                    ApiCode.MEAL_SESSION_KCAL_PCT_INVALID,
+                    minTotal.stripTrailingZeros().toPlainString());
+        }
     }
 
     private static void checkRange(String label, BigDecimal min, BigDecimal max) {
