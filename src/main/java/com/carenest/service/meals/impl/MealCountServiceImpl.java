@@ -275,6 +275,8 @@ public class MealCountServiceImpl implements MealCountService {
         String logPrefix = LOG_PREFIX + "|markAttendanceChanged|campusId=" + campusId + "|classId=" + classroomId;
         log.info("{}|START", logPrefix);
         try {
+            // Cùng khóa lớp với lúc tổng hợp sổ: 2 lần đổi điểm danh của lớp không ghi đè dòng của nhau
+            classroomService.lockForUpdate(classroomId);
             List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, date);
             if (!counts.isEmpty()) {
                 ClassMealTally tally =
@@ -372,6 +374,21 @@ public class MealCountServiceImpl implements MealCountService {
 
     private void aggregateMissing(Year year, Long campusId, LocalDate date, Map<String, MealCount> stored) {
         List<MealSession> missing = year.sessions(campusId).stream()
+                .filter(s -> !stored.containsKey(key(campusId, s)))
+                .toList();
+        if (missing.isEmpty()) {
+            return;
+        }
+        // 2 người mở sổ cùng lúc: khóa các lớp của điểm trường (thứ tự id) rồi đọc lại, chỉ một người tổng hợp
+        year.classes().stream()
+                .filter(c -> c.campusId().equals(campusId))
+                .map(ClassroomInfoResponse::id)
+                .sorted()
+                .forEach(classroomService::lockForUpdate);
+        mealCountRepository.findByCampusIdAndDate(campusId, date).stream()
+                .filter(c -> c.getSchoolYearId().equals(year.id()))
+                .forEach(c -> stored.put(key(c.getCampusId(), c.getSession()), c));
+        missing = missing.stream()
                 .filter(s -> !stored.containsKey(key(campusId, s)))
                 .toList();
         if (missing.isEmpty()) {

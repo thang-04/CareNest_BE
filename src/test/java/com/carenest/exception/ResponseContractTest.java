@@ -156,6 +156,15 @@ class ResponseContractTest {
     }
 
     @Test
+    void optimisticLockReturns409() throws Exception {
+        mockMvc.perform(get(BASE + "/stale").with(jwt()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(409))
+                .andExpect(jsonPath("$.errorCode").value(9012))
+                .andExpect(jsonPath("$.desc").value(ApiCode.CONCURRENT_UPDATE.getDefaultDesc()));
+    }
+
+    @Test
     void unexpectedErrorReturns500WithoutInternalDetail() throws Exception {
         mockMvc.perform(get(BASE + "/unexpected").with(jwt()))
                 .andExpect(status().isInternalServerError())

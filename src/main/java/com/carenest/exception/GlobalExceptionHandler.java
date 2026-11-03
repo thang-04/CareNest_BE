@@ -6,6 +6,7 @@ import com.carenest.utils.ResponseJson;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -144,6 +145,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ResponseJson<Void>> handleAuthentication(AuthenticationException ex) {
         log.warn("[handleAuthentication]|type={}", ex.getClass().getSimpleName());
         return error(ApiCode.UNAUTHENTICATED);
+    }
+
+    // Bản ghi có @Version bị người khác cập nhật trước (2 người duyệt/lưu cùng lúc) ⇒ 409, không phải lỗi hệ thống
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ResponseJson<Void>> handleOptimisticLock(OptimisticLockingFailureException ex) {
+        log.warn("[handleOptimisticLock]|type={}", ex.getClass().getSimpleName());
+        return error(ApiCode.CONCURRENT_UPDATE);
     }
 
     @ExceptionHandler(Exception.class)
