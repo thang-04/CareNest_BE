@@ -15,6 +15,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
 import com.carenest.dto.child.GuardianCandidateResponse;
+import com.carenest.dto.child.GuardianLinkResponse;
+import com.carenest.dto.child.GuardianResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
@@ -31,6 +33,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.UserStatus;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -48,8 +51,7 @@ class GuardianAccountServiceImplTest {
     private static final CurrentUser VICE =
             new CurrentUser(3L, "kc-3", "vp", "PHT", null, Set.of(CareNestRole.VICE_PRINCIPAL));
     private static final Long CHILD = 101L;
-    private static final AddGuardianRequest REQUEST =
-            new AddGuardianRequest("+84 912 345 678", "Phụ huynh Demo", GuardianRelationship.MOTHER, null);
+    private static final AddGuardianRequest REQUEST = withEmail(null);
 
     private final UserAccountRepository accounts = mock(UserAccountRepository.class);
     private final GuardianChildLinkService links = mock(GuardianChildLinkService.class);
@@ -113,6 +115,68 @@ class GuardianAccountServiceImplTest {
         verifyNoInteractions(identity);
         assertThat(response.newAccount()).isFalse();
         assertThat(response.temporaryPassword()).isNull();
+    }
+
+    @Test
+    @DisplayName("AUTH-18: email phụ huynh chỉ để liên hệ ⇒ lưu ở CareNest (chữ thường), không gửi lên Keycloak")
+    void storesContactEmailOnlyInCareNest() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.empty());
+        given(identity.createUser(any())).willReturn("kc-parent");
+
+        AddGuardianResponse response = service.addGuardian(VICE, CHILD, withEmail("Me@Example.TEST"));
+
+        ArgumentCaptor<NewIdentityUser> user = ArgumentCaptor.forClass(NewIdentityUser.class);
+        verify(identity).createUser(user.capture());
+        assertThat(user.getValue().email()).isNull();
+        ArgumentCaptor<UserAccount> saved = ArgumentCaptor.forClass(UserAccount.class);
+        verify(accounts).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getEmail()).isEqualTo("me@example.test");
+        assertThat(response.email()).isEqualTo("me@example.test");
+    }
+
+    @Test
+    @DisplayName("AUTH-18: email bỏ trống ⇒ lưu null")
+    void blankEmailIsStoredAsNull() {
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.empty());
+        given(identity.createUser(any())).willReturn("kc-parent");
+
+        AddGuardianResponse response = service.addGuardian(VICE, CHILD, withEmail(""));
+
+        ArgumentCaptor<UserAccount> saved = ArgumentCaptor.forClass(UserAccount.class);
+        verify(accounts).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getEmail()).isNull();
+        assertThat(response.email()).isNull();
+    }
+
+    @Test
+    @DisplayName("AUTH-18: SĐT đã là phụ huynh (đã xác nhận) ⇒ chỉ thêm liên kết, giữ email của tài khoản")
+    void existingParentKeepsAccountEmail() {
+        UserAccount parent = account(60L, CareNestRole.PARENT, "old@example.test");
+        given(accounts.findByUsername("0912345678")).willReturn(Optional.of(parent));
+        AddGuardianRequest request = new AddGuardianRequest(
+                "+84 912 345 678", "Phụ huynh Demo", GuardianRelationship.MOTHER, "new@example.test", 60L);
+
+        AddGuardianResponse response = service.addGuardian(VICE, CHILD, request);
+
+        assertThat(parent.getEmail()).isEqualTo("old@example.test");
+        verify(accounts, never()).saveAndFlush(any());
+        assertThat(response.email()).isEqualTo("old@example.test");
+    }
+
+    @Test
+    @DisplayName("AUTH-18: danh sách phụ huynh của trẻ trả email liên hệ")
+    void listGuardiansReturnsEmail() {
+        given(links.findLinksOfChild(CHILD))
+                .willReturn(List.of(new GuardianLinkResponse(60L, CHILD, GuardianRelationship.FATHER, Instant.EPOCH)));
+        given(accounts.findAllById(List.of(60L)))
+                .willReturn(List.of(account(60L, CareNestRole.PARENT, "me@example.test")));
+
+        List<GuardianResponse> guardians = service.listGuardians(VICE, CHILD);
+
+        assertThat(guardians)
+                .singleElement()
+                .extracting(GuardianResponse::email)
+                .isEqualTo("me@example.test");
     }
 
     @Test
@@ -240,7 +304,7 @@ class GuardianAccountServiceImplTest {
     @Test
     void invalidPhoneIsRejectedBeforeKeycloak() {
         assertThatThrownBy(() -> service.addGuardian(
-                        VICE, CHILD, new AddGuardianRequest("12345", "PH", GuardianRelationship.FATHER, null)))
+                        VICE, CHILD, new AddGuardianRequest("12345", "PH", GuardianRelationship.FATHER, null, null)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.PHONE_NUMBER_INVALID);
         verifyNoInteractions(identity);
@@ -309,11 +373,20 @@ class GuardianAccountServiceImplTest {
     }
 
     private static AddGuardianRequest confirmed(Long userId) {
-        return new AddGuardianRequest(REQUEST.phone(), REQUEST.fullName(), REQUEST.relationship(), userId);
+        return new AddGuardianRequest(
+                REQUEST.phone(), REQUEST.fullName(), REQUEST.relationship(), REQUEST.email(), userId);
+    }
+
+    private static AddGuardianRequest withEmail(String email) {
+        return new AddGuardianRequest("+84 912 345 678", "Phụ huynh Demo", GuardianRelationship.MOTHER, email, null);
     }
 
     private static UserAccount account(Long id, CareNestRole role) {
-        UserAccount account = UserAccount.create("kc-" + id, "u" + id, null, "Người dùng", role);
+        return account(id, role, null);
+    }
+
+    private static UserAccount account(Long id, CareNestRole role, String email) {
+        UserAccount account = UserAccount.create("kc-" + id, "u" + id, email, "Người dùng", role);
         ReflectionTestUtils.setField(account, "id", id);
         return account;
     }

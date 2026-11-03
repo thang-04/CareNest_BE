@@ -1,5 +1,11 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Tự đóng đợt khám và mở lại với hạn nhập bù — 2026-11-01
+
+- Nguồn user 2026-11-01 (HLT-17): EXAM tự đóng khi qua ngày kết thúc theo giờ trường, chạy lúc 00:00 và khi ứng dụng khởi động để xử lý thời gian tắt máy. Tái sử dụng đóng tay cho vắng/chưa kết luận/khóa kết quả; phiếu theo dõi vẫn mở; lịch sử đóng tự động ghi actor hệ thống. Kỳ cân đo giữ nguyên.
+- User chốt đợt mở lại vẫn tự đóng: request reopen nhận thêm ngày `endDate`; đợt khám đã hết hạn phải chọn ngày mới từ hôm nay. Web đã thêm ô ngày; request cũ chỉ có `reason` vẫn dùng với đợt còn hạn/kỳ cân đo; không đổi endpoint hoặc response. Snapshot OpenAPI chỉ thêm `endDate: string/date` trong `HealthCheckReopenRequest`.
+- Flyway V67 nới actor đóng/historical user cho hệ thống, không sửa migration cũ; PostgreSQL Testcontainers đã chạy migration và kiểm closure, reopen, lịch sử, kết quả và phiếu theo dõi thật. 25/25 test health + snapshot đạt, không skip. Snapshot cập nhật có chủ đích và kiểm diff 3 dòng; cổng full sau đó ghi kết quả trong `target/verify.log` và output bàn giao.
+- Chrome trên Web mock đã kiểm tự đóng, mở lại với ngày mới `dd/mm/yyyy`, validation và tự đóng lần hai. Chưa chạy UI nối API thật. Không commit/push.
 ## Delta006 EDU-48 và ellipsis — 02/11/2026
 
 - User chốt xóa cả nhánh và select một dòng, sau đó duyệt plan L bằng “Duyệt kế hoạch và triển khai tới khi sạch”. Domain14/spec/clarify/plan/research/data-model/contracts/tasks giữ lịch sửT001..T011, thêmT012..T022; constitution1.0.0 không đổi. Analyze/review không blocker, prefix lịch sử4artifact/14mục/22task unique đã kiểm trước code; sự cố sửa trạng thái docs được phục hồi và ghi ENV-261102-powershell-replacement-pairs.

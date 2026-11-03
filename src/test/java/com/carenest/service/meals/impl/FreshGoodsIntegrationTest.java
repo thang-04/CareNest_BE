@@ -84,8 +84,9 @@ class FreshGoodsIntegrationTest {
                 + ", " + year + ", 'Lớp F', " + ag3 + ") RETURNING id");
         // Hai trẻ đang học nhóm ag-3 ở điểm trường
         for (String name : List.of("Trẻ A", "Trẻ B")) {
-            long child = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('" + name
-                    + "', '2022-06-01') RETURNING id");
+            long child = insertId(
+                    "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), '"
+                            + name + "', '2022-06-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
             jdbc.update(
                     "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
                     child,

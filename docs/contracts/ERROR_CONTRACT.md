@@ -23,6 +23,16 @@ Mọi response (thành công hay lỗi):
 
 Mỗi lỗi là một dòng trong `ApiCode`: mã 4 số + HTTP status + câu tiếng Việt. Service ném `GlobalException.of(ApiCode.X, args...)` (bọc lỗi: `GlobalException.withCause(ApiCode.X, ex, args...)`), không tự viết câu lỗi. Lỗi mới thêm vào cuối dải của phân hệ; mã đã dùng không đổi số, không dùng lại. Danh sách đầy đủ: `ApiCode.java` (bản Word "CareNest_Danh_sach_ma_loi" của Cần).
 
+Bổ sung 29/10/2026 (G94-180, khi gộp G94-236): tài khoản & phân quyền 1112–1127, phân công nhân sự 2308–2320, liên kết phụ huynh – trẻ 3004–3006 (thay các câu lỗi tiếng Anh cũ; bảng theo tình huống: `docs/contracts/AUTH_CONTRACT.md`); tiếp nhận trẻ 3008–3010 (bảng dưới; trước khi gộp `dev` 31/10 là 3007–3009 — 3007 nay là `GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED` của G94-60), SĐT tài khoản nhân sự ở form tiếp nhận 1130 `PHONE_OF_STAFF_ACCOUNT`. Số 11xx/23xx/30xx theo bảng của `dev` (G94-60 đánh lại). Cần thêm các mã này vào bản Word của Cần.
+
+Bổ sung 31/10/2026 (G94-180, đợt khám và kỳ cân đo): sức khỏe 5009–5026 — đợt/kỳ không tìm thấy 5009, không quản lý được 5010, điểm trường đang có đợt/kỳ chưa đóng 5011, đã đóng/hủy 5012, có kết quả không hủy được 5013, đóng/mở lại sai trạng thái 5014–5015, đổi ngày làm kết quả ra ngoài 5016, số đo ngoài kỳ cân đo 5017–5018, trùng số đo 5019–5020, ngày đo ngoài kỳ 5021, lần đo không tìm thấy 5022, không phải GV lớp 5023, thiếu lý do sửa 5024, không xem được sổ sức khỏe 5025, ngày kết thúc trước ngày bắt đầu 5026. Cần thêm vào bản Word của Cần.
+
+Bổ sung 31/10/2026 (G94-180, phiếu khám Phụ lục II và phiếu theo dõi): 5027–5039 — phiếu khám không tìm thấy hoặc ngoài phạm vi 5027, kỳ cân đo không dùng phiếu khám 5028, không phải GV lớp của trẻ 5029, đợt khám không còn diễn ra 5030, lưu nháp phiếu đã kết luận 5031, mẫu kết luận đổi do phiếu theo dõi vừa đổi 5032, phiếu chưa đủ thông tin 5033 (400 kèm `data: [{ field, message }]`, khóa ô theo phiếu: `exam.vitals.temperatureC`...), sửa phiếu khám qua API số đo 5034, phiếu theo dõi không tìm thấy hoặc ngoài phạm vi 5035, không phải GV lớp của trẻ 5036, phiếu đã đóng 5037, chưa trao đổi phụ huynh mà ghi kết quả chuyên khoa 5038, ảnh không tìm thấy 5039. Lỗi theo ô của trao đổi, kết quả chuyên khoa, đóng phiếu dùng 9001 `INVALID_REQUEST_DATA`. Cần thêm vào bản Word của Cần.
+
+Bổ sung 31/10/2026 (G94-180, đón trẻ, ảnh phụ huynh, thông báo): ảnh chân dung sai loại/quá 2 MB 1131, chưa có ảnh hoặc ngoài phạm vi 1132; thông báo không tìm thấy (hoặc của người khác) 1201; đón trẻ 4101–4107 — trẻ không tìm thấy hoặc ngoài phạm vi 4101, không phải GV lớp 4102, lớp không thuộc năm học đang hoạt động 4103, ngày ngoài khoảng 4104, trẻ chưa điểm danh có mặt 4105, trẻ vắng 4106, đã trả hôm nay 4107. Lỗi theo ô của form trả trẻ, đăng ký thiết bị dùng 9001 `INVALID_REQUEST_DATA` (`verification`, `guardianPosition`, `handoverTime`, `note`, `token`, `platform`). Cần thêm vào bản Word của Cần.
+
+Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
+
 | Dải | Phân hệ |
 | --- | --- |
 | 10xx | Xác thực |
@@ -39,7 +49,7 @@ Mỗi lỗi là một dòng trong `ApiCode`: mã 4 số + HTTP status + câu ti�
 | 70xx–72xx | Kế hoạch giáo dục (kế hoạch năm, tài liệu lớp, cấu hình) |
 | 73xx | Đánh giá trẻ (đánh giá hằng ngày, mở lại ngày, tổng quan lớp) |
 | 80xx | AI & tệp |
-| 90xx | Chung & hệ thống (validation 9001, sai định dạng 9002, không tìm thấy 9009, lỗi hệ thống 9010…) |
+| 90xx | Chung & hệ thống (validation 9001, sai định dạng 9002, không tìm thấy 9009, lỗi hệ thống 9010, ghi đồng thời bị người khác cập nhật trước 9012 → HTTP 409…) |
 
 Mã chung không có `errorCode` (`SUCCESSFUL 200`, `CREATED 201`, `BAD_REQUEST`, `UNAUTHORIZED`, `NOT_FOUND`, `CONFLICT`, `PRECONDITION_REQUIRED`, `PAYLOAD_TOO_LARGE`, `SERVICE_UNAVAILABLE`, `GATEWAY_TIMEOUT`) chỉ dùng cho response thành công hoặc chỗ chưa gắn mã nghiệp vụ.
 
@@ -71,6 +81,10 @@ Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và 
 | Năm học đã kết thúc | `SCHOOL_YEAR_CLOSED` (409) | CFG-YR-01 |
 | Điểm danh sau giờ chốt | `ATTENDANCE_LOCKED` (409) | ATT-08 |
 | Sổ báo ăn đã xác nhận | `MEAL_COUNT_ALREADY_CONFIRMED` (409) | NUT-03 |
+| Tiếp nhận: form sai, lớp/điểm trường không nhận được (`classId`, `campusId`) | `INVALID_REQUEST_DATA` (9001) + ô | CHD-02, CHD-10 |
+| Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3008, 409, không có ô) | CHD-04 |
+| CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
+| Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
 | AI không khả dụng / quá thời gian | `AI_SERVICE_UNAVAILABLE` (503) / `AI_TIMEOUT` (504) | AI-03 |
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
 | Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |

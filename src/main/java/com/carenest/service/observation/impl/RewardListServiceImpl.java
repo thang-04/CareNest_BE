@@ -180,6 +180,8 @@ public class RewardListServiceImpl implements RewardListService {
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
             }
+            // Khóa lớp trước khi đọc: 2 lần lưu cùng lúc không tạo trùng danh sách của lớp
+            rules.lockClassForUpdate(cls.id());
             RewardList existing = listRepository.findByClassroomId(classId).orElse(null);
             if (existing != null && !existing.isEditable()) {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
@@ -312,7 +314,7 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
-        return teaches(user, cls) || rules.leadsCampus(user, cls.campusId());
+        return teaches(user, cls) || rules.readsCampus(user, cls.campusId());
     }
 
     /** Bản nháp chỉ GV lớp thấy danh hiệu; PHT / HT thấy khi đã gửi. */

@@ -90,7 +90,9 @@ public final class EvaluationDtos {
             List<GoalRef> met,
             List<GoalRef> effort,
             List<GoalRef> notMet,
-            String comment) {}
+            String comment,
+            Long classId,
+            String className) {}
 
     public record SummaryInfo(StructuredSummary structured, int presentDays, int assessedDays, int assessmentCount) {}
 
@@ -128,8 +130,15 @@ public final class EvaluationDtos {
     // ---------- Hồ sơ / tiến độ phát triển ----------
 
     /** Trẻ đang học lớp trong phạm vi (GV lớp mình, PHT điểm trường, HT toàn trường). */
+    /** current = trẻ còn học lớp tại hôm nay; false = đã chuyển lớp / đã nghỉ (vẫn xem được hồ sơ cũ). */
     public record DevelopmentChildRow(
-            Long id, String fullName, LocalDate dateOfBirth, Long classId, String className, Long campusId) {}
+            Long id,
+            String fullName,
+            LocalDate dateOfBirth,
+            Long classId,
+            String className,
+            Long campusId,
+            boolean current) {}
 
     public record DateRange(LocalDate start, LocalDate end) {}
 

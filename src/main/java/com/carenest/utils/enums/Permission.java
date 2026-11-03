@@ -20,6 +20,22 @@ public enum Permission {
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.PARENT),
             // Bếp không xem hồ sơ trẻ (AUTH-05)
             EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER)),
+    // CHD-01: HT cố định toàn trường; PHT mặc định bật, chỉ trẻ campus mình (CHD-02, AUTH-02)
+    CHILD_ENROLL(
+            "child",
+            "Tiếp nhận trẻ, nhập Excel, mở lại hồ sơ trẻ đã nghỉ",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    CHILD_PROFILE_EDIT(
+            "child",
+            "Sửa hồ sơ trẻ, khai báo sức khỏe",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    CHILD_PLACEMENT(
+            "child",
+            "Xếp lớp, chuyển lớp, cho trẻ nghỉ học",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
     // AUTH-06: HT cấp tài khoản nghiệp vụ; PHT chỉ khi HT bật, và chỉ GV/bếp trong campus mình (StaffAccessPolicy)
     ACCOUNT_MANAGE(
             "account",

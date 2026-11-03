@@ -114,10 +114,10 @@ class YearTransitionIntegrationTest {
         oldClass = classroom(campus, oldYear, "Lớp cũ", ag3, room1, 25);
         newClass4 = classroom(campus, newYear, "Lớp nhỡ", ag4, room2, 25);
         newClass3 = classroom(campus, newYear, "Lớp bé", ag3, room3, 1);
-        child1 =
-                insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('Trẻ 1', '2023-01-01') RETURNING id");
-        child2 =
-                insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('Trẻ 2', '2023-02-01') RETURNING id");
+        child1 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ 1', '2023-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
+        child2 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ 2', '2023-02-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
         for (long child : List.of(child1, child2)) {
             jdbc.update(
                     "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
