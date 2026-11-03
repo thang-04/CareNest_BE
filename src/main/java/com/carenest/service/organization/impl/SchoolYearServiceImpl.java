@@ -40,6 +40,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Slf4j
 @Service
@@ -61,8 +63,6 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final List<SemesterUsageCheck> semesterUsageChecks;
     private final SchoolHolidayRepository schoolHolidayRepository;
     private final List<SchoolDayUsageCheck> schoolDayUsageChecks;
-    // Ngày nghỉ ít và đọc rất nhiều (mỗi ngày học): giữ trong bộ nhớ, xóa khi HT lưu lại danh sách
-    private volatile List<SchoolHoliday> holidayCache;
 
     @Override
     @Transactional(readOnly = true)
@@ -168,6 +168,16 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                         request.startDate(),
                         request.endDate());
             }
+            for (SchoolHolidayItem holiday : holidaysOf(schoolYearId)) {
+                if (holiday.startDate().isBefore(request.startDate())
+                        || holiday.endDate().isAfter(request.endDate())) {
+                    throw GlobalException.of(
+                            ApiCode.HOLIDAY_OUT_OF_YEAR,
+                            holiday.name(),
+                            DMY.format(request.startDate()),
+                            DMY.format(request.endDate()));
+                }
+            }
             schoolYear.changeInfo(name, request.startDate(), request.endDate());
             schoolYearRepository.flush();
             log.info("{}|END", logPrefix);
@@ -233,6 +243,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 schoolYearRepository.deletePlannedYearClasses(schoolYearId);
                 attendanceCutoffRepository.deleteAllBySchoolYearId(schoolYearId);
                 schoolYearRepository.delete(schoolYear);
+                forgetTransactionHolidays();
                 schoolYearRepository.flush();
             } catch (DataIntegrityViolationException integrityEx) {
                 // Bảng của module khác (vd. kế hoạch năm học) còn tham chiếu năm này
@@ -417,6 +428,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     }
 
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final Object HOLIDAYS_TX_KEY = SchoolYearServiceImpl.class.getName() + ".holidays";
     // Đợt nghỉ dài nhất (Tết, nghỉ giữa kỳ); nghỉ hè nằm ngoài năm học
     private static final int HOLIDAY_MAX_DAYS = 31;
 
@@ -449,13 +461,13 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             SchoolYear year = findSchoolYear(schoolYearId);
             SchoolYearRules.checkOpen(year);
             checkHolidays(year, request.holidays());
+            forgetTransactionHolidays();
             schoolHolidayRepository.deleteAllBySchoolYearId(schoolYearId);
             schoolHolidayRepository.flush();
             schoolHolidayRepository.saveAllAndFlush(request.holidays().stream()
                     .map(h -> SchoolHoliday.of(
                             schoolYearId, h.startDate(), h.endDate(), h.name().trim()))
                     .toList());
-            holidayCache = null;
             List<SchoolHolidayItem> holidays = holidaysOf(schoolYearId);
             log.info("{}|END", logPrefix);
             return holidays;
@@ -472,12 +484,33 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
             return false;
         }
-        List<SchoolHoliday> holidays = holidayCache;
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            return !schoolHolidayRepository.existsByStartDateLessThanEqualAndEndDateGreaterThanEqual(date, date);
+        }
+        return holidaysOfTransaction().stream().noneMatch(h -> h.covers(date));
+    }
+
+    // Báo cáo gọi isSchoolDay hàng nghìn lần: đọc ngày nghỉ một lần cho mỗi transaction (luôn là dữ liệu đã commit lúc
+    // đọc, không dùng chung giữa các request); lưu / xóa ngày nghỉ trong cùng transaction thì bỏ bản đã đọc
+    @SuppressWarnings("unchecked")
+    private List<SchoolHoliday> holidaysOfTransaction() {
+        List<SchoolHoliday> holidays =
+                (List<SchoolHoliday>) TransactionSynchronizationManager.getResource(HOLIDAYS_TX_KEY);
         if (holidays == null) {
             holidays = List.copyOf(schoolHolidayRepository.findAll());
-            holidayCache = holidays;
+            TransactionSynchronizationManager.bindResource(HOLIDAYS_TX_KEY, holidays);
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCompletion(int status) {
+                    TransactionSynchronizationManager.unbindResourceIfPossible(HOLIDAYS_TX_KEY);
+                }
+            });
         }
-        return holidays.stream().noneMatch(h -> h.covers(date));
+        return holidays;
+    }
+
+    private static void forgetTransactionHolidays() {
+        TransactionSynchronizationManager.unbindResourceIfPossible(HOLIDAYS_TX_KEY);
     }
 
     private List<SchoolHolidayItem> holidaysOf(Long schoolYearId) {

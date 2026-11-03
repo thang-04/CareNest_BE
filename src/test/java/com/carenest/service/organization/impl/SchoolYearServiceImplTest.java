@@ -204,10 +204,11 @@ class SchoolYearServiceImplTest {
                 .willReturn(Optional.of(LocalDate.of(2027, 9, 3)));
         expectCode(holidays(holiday("2027-09-02", "2027-09-03", "Quốc khánh")), ApiCode.HOLIDAY_HAS_ATTENDANCE);
 
-        given(holidayRepository.findAll())
-                .willReturn(List.of(com.carenest.entity.organization.SchoolHoliday.of(
-                        5L, LocalDate.of(2028, 2, 7), LocalDate.of(2028, 2, 11), "Tết")));
+        var holidayDate = LocalDate.of(2028, 2, 9);
+        given(holidayRepository.existsByStartDateLessThanEqualAndEndDateGreaterThanEqual(holidayDate, holidayDate))
+                .willReturn(true, false);
         assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 9))).isFalse(); // thứ 4 trong đợt Tết
+        assertThat(service.isSchoolDay(holidayDate)).isTrue(); // danh sách nghỉ đã thay đổi
         assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 14))).isTrue();
         assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 12))).isFalse(); // thứ 7
     }

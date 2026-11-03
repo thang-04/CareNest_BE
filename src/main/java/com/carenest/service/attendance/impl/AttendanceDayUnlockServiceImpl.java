@@ -117,6 +117,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
                 throw GlobalException.of(ApiCode.UNLOCK_DEADLINE_INVALID);
             }
             String reason = request.reason().trim();
+            classroomService.lockForUpdate(cls.id());
             if (rules.activeUnlock(cls.id(), date).isPresent()) {
                 throw GlobalException.of(ApiCode.UNLOCK_ALREADY_ACTIVE);
             }

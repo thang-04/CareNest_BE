@@ -102,6 +102,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
         log.info("{}|START", logPrefix);
         try {
             // Gửi lặp cùng requestId ⇒ trả lại lần đã lưu, không tạo dòng mới
+            entryRepository.lockRequest(currentUser.userId(), request.requestId());
             var previous = entryRepository.findByRecordedByAndRequestId(currentUser.userId(), request.requestId());
             if (previous.isPresent()) {
                 DailyHealthEntryResponse same = toViews(List.of(previous.get())).getFirst();

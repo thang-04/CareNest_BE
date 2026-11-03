@@ -52,11 +52,11 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            LocalDate first = firstOf(month);
             boolean teacher = rules.canRecord(currentUser, cls) || rules.taughtClosedYear(currentUser, cls);
             if (!teacher && !rules.readsCampus(currentUser, cls.campusId())) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
+            LocalDate first = firstOf(cls, month);
             ClassMonthlyComment comment =
                     commentRepository.findByClassroomIdAndMonth(classId, first).orElse(null);
             // Tháng đã kết thúc, năm đang hoạt động: GV mở thì tạo nháp lần đầu
@@ -83,7 +83,7 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            ClassMonthlyComment comment = editable(currentUser, cls, firstOf(request.month()));
+            ClassMonthlyComment comment = editable(currentUser, cls, request.month());
             comment.save(ChildEvaluationServiceImpl.checkContent(request.content()), currentUser.userId(), rules.now());
             commentRepository.saveAndFlush(comment);
             ClassMonthlyCommentResponse response = toResponse(currentUser, cls, comment.getMonth(), comment, true);
@@ -102,7 +102,7 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            ClassMonthlyComment comment = editable(currentUser, cls, firstOf(request.month()));
+            ClassMonthlyComment comment = editable(currentUser, cls, request.month());
             comment.confirm(
                     ChildEvaluationServiceImpl.checkContent(request.content()), currentUser.userId(), rules.now());
             commentRepository.saveAndFlush(comment);
@@ -123,13 +123,16 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
             throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
         }
+        month = firstOf(cls, month);
         if (!ended(cls, month)) {
             throw GlobalException.of(ApiCode.CLASS_MONTHLY_COMMENT_NOT_READY);
         }
-        ClassMonthlyComment comment = commentRepository
-                .findByClassroomIdAndMonth(cls.id(), month)
-                .orElseGet(() -> ClassMonthlyComment.draft(
-                        cls.id(), cls.campusId(), cls.schoolYearId(), month, draftOf(cls, month), rules.now()));
+        ClassMonthlyComment comment =
+                commentRepository.findByClassroomIdAndMonth(cls.id(), month).orElse(null);
+        if (comment == null) {
+            comment = ClassMonthlyComment.draft(
+                    cls.id(), cls.campusId(), cls.schoolYearId(), month, draftOf(cls, month), rules.now());
+        }
         if (comment.isConfirmed()) {
             throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
         }
@@ -168,8 +171,17 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
                 || end.isAfter(cls.yearEnd()) && cls.yearEnd().isBefore(rules.today());
     }
 
-    private static LocalDate firstOf(LocalDate month) {
-        return month.withDayOfMonth(1);
+    private static LocalDate firstOf(ClassroomInfoResponse cls, LocalDate month) {
+        LocalDate first = month == null ? null : month.withDayOfMonth(1);
+        if (first == null
+                || first.isBefore(cls.yearStart().withDayOfMonth(1))
+                || first.isAfter(cls.yearEnd().withDayOfMonth(1))) {
+            throw GlobalException.of(
+                    ApiCode.EVALUATION_MONTH_INVALID,
+                    MONTH_TEXT.format(cls.yearStart()),
+                    MONTH_TEXT.format(cls.yearEnd()));
+        }
+        return first;
     }
 
     // Nháp từ số liệu tháng của lớp: chuyên cần, mức đánh giá hằng ngày, vài nhận xét chung theo ngày (GV sửa lại)

@@ -137,14 +137,18 @@ public class MealCountServiceImpl implements MealCountService {
                         .map(ClassroomInfoResponse::campusId)
                         .distinct()
                         .filter(viewer::sees)
+                        .sorted()
                         .toList();
+                boolean pastDay = day.isBefore(info.today());
+                if (info.baseLocked() && year.active() && !pastDay) {
+                    campusIds.forEach(id -> mealCountRepository.lockCampusDay(id, day));
+                }
                 Map<String, MealCount> stored = new HashMap<>();
                 mealCountRepository.findByCampusIdInAndDate(campusIds, day).stream()
                         .filter(c -> c.getSchoolYearId().equals(year.id()))
                         .forEach(c -> stored.put(key(c.getCampusId(), c.getSession()), c));
                 // Qua giờ chốt: tổng hợp sổ của ngày một lần (NUT-01), sau đó số chỉ đổi qua xác nhận/điều chỉnh.
                 // Ngày đã qua chỉ xem (NUT-03, user chốt 03/11/2026): không tạo sổ mới cho ngày cũ
-                boolean pastDay = day.isBefore(info.today());
                 if (info.baseLocked() && year.active() && !pastDay) {
                     campusIds.forEach(campusId -> aggregateMissing(year, campusId, day, stored));
                 }
@@ -186,6 +190,13 @@ public class MealCountServiceImpl implements MealCountService {
         log.info("{}|START", logPrefix);
         try {
             Viewer viewer = viewer(currentUser);
+            MealCountRepository.Scope scope = mealCountRepository
+                    .findScopeById(mealCountId)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_COUNT_NOT_FOUND));
+            if (!viewer.confirms(scope.getCampusId())) {
+                throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
+            }
+            mealCountRepository.lockCampusDay(scope.getCampusId(), scope.getDate());
             MealCount count = mealCountRepository
                     .findById(mealCountId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_COUNT_NOT_FOUND));
@@ -231,6 +242,7 @@ public class MealCountServiceImpl implements MealCountService {
             if (!viewer.adjusts(request.campusId())) {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
+            mealCountRepository.lockCampusDay(request.campusId(), request.date());
             List<MealCount> counts =
                     mealCountRepository.findByCampusIdAndDate(request.campusId(), request.date()).stream()
                             .filter(c -> request.session() == null || c.getSession() == request.session())
@@ -283,8 +295,7 @@ public class MealCountServiceImpl implements MealCountService {
         String logPrefix = LOG_PREFIX + "|markAttendanceChanged|campusId=" + campusId + "|classId=" + classroomId;
         log.info("{}|START", logPrefix);
         try {
-            // Cùng khóa lớp với lúc tổng hợp sổ: 2 lần đổi điểm danh của lớp không ghi đè dòng của nhau
-            classroomService.lockForUpdate(classroomId);
+            mealCountRepository.lockCampusDay(campusId, date);
             List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, date);
             if (!counts.isEmpty()) {
                 ClassMealTally tally =
@@ -387,12 +398,7 @@ public class MealCountServiceImpl implements MealCountService {
         if (missing.isEmpty()) {
             return;
         }
-        // 2 người mở sổ cùng lúc: khóa các lớp của điểm trường (thứ tự id) rồi đọc lại, chỉ một người tổng hợp
-        year.classes().stream()
-                .filter(c -> c.campusId().equals(campusId))
-                .map(ClassroomInfoResponse::id)
-                .sorted()
-                .forEach(classroomService::lockForUpdate);
+        // Caller đã khóa cơ sở/ngày trước khi đọc sổ; không lấy thêm khóa lớp gây đảo thứ tự khóa.
         mealCountRepository.findByCampusIdAndDate(campusId, date).stream()
                 .filter(c -> c.getSchoolYearId().equals(year.id()))
                 .forEach(c -> stored.put(key(c.getCampusId(), c.getSession()), c));
