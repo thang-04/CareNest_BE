@@ -47,6 +47,8 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 
 ## Known pitfalls
 
+- EDU-48 (user chốt02/11): thao tác xóa lĩnh vực con ở Web phải bỏ toàn bộ nhánh sau xác nhận số lượng; không chỉ bỏ heading rồi normalize vì con có thể đổi cha. Contract PUT vẫn cho phép giữ/chuyển các dòng client cố ý gửi; xem delta feature006, chưa coi là đã implement khi plan mới draft.
+
 - Tên lĩnh vực trong .doc có thể dùng kĩ/kỹ, mĩ/mỹ; chuẩn hóa khóa so tên, không đổi nội dung người dùng. [Regression feature009](../knowledge/incidents/BUG-261102-year-plan-sample-incomplete-preview.md).
 
 - ID hàng mục tiêu và nội dung không chung miền; test/ghép dữ liệu phải so cùng loại thực thể, không cấm mọi trùng số giữa hai bảng identity. [Regression](../knowledge/incidents/BUG-261101-e2e-goal-id-domains.md).

@@ -197,7 +197,7 @@ class ClassStructureIntegrationTest {
         RoomResponse room = createRoom(campusA, "P.101", 25);
         ClassResponse created = classService.createClass(principal, classRequest("Lớp Mầm 1", campusA, room.id(), 25));
         long child = insertId(
-                "INSERT INTO children (full_name, date_of_birth) VALUES ('Trẻ IT', '2022-01-01') RETURNING id");
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ IT', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
         jdbc.update(
                 "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
                 child,
@@ -218,8 +218,9 @@ class ClassStructureIntegrationTest {
         RoomResponse room = createRoom(campusA, "P.102", 25);
         ClassResponse created = classService.createClass(principal, classRequest("Lớp Mầm 2", campusA, room.id(), 25));
         for (String name : List.of("Trẻ xếp 1", "Trẻ xếp 2")) {
-            long child = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('" + name
-                    + "', '2022-01-01') RETURNING id");
+            long child = insertId(
+                    "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), '"
+                            + name + "', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
             jdbc.update(
                     "INSERT INTO class_placements (school_year_id, child_id, from_classroom_id, action, to_classroom_id) "
                             + "VALUES (?, ?, ?, 'STAY', ?)",

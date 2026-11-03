@@ -28,7 +28,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | school-structure | StaffAssignment (userId, staffRole, campusId hoặc classroomId, validFrom, validTo) | — | Nguồn scope nhân sự; vai trò quyết định cột scope (PRINCIPAL: toàn trường, VP/bếp: campus, GV: lớp) |
 | child | Child, Enrollment (childId, classroomId, from, to) | CLASS | Campus suy từ classroom |
 | child | GuardianChildLink (childId, userId, relation) | CHILD | Nguồn scope phụ huynh |
-| child | ChildAllergy (childId, allergen, mức nhẹ/nặng) / basic info | CHILD | PH khai khi nhập học, nhà trường ghi (HLT-06); danh mục chất cố định + PHT thêm |
+| child | ChildAllergy (childId, allergen, mức nhẹ/nặng) / basic info | CHILD | PH khai khi nhập học, nhà trường ghi (HLT-06); danh mục chất cố định + PHT thêm. Luồng tiếp nhận G94-180: người tiếp nhận khai báo, chốt; campus của trẻ chưa có lớp = điểm trường tiếp nhận (G94-180/CHD-06, G94-180/CHD-02) |
 | attendance | LeaveRequest (childId, from, to, reason, status) | CHILD | Phụ huynh gửi, không duyệt: SUBMITTED → CANCELLED (ATT-05) |
 | attendance | AttendanceRecord (childId, date, status Có mặt/Vắng, excused, handedOver) | CLASS | 1 bản ghi/trẻ/ngày; vắng có phép theo đơn (ATT-09); xác nhận trả trẻ (ATT-10). Không có MealParticipation riêng (ATT-02) |
 | attendance | AttendanceReopen (classroom, date, reason, by) | CLASS | PHT mở lại sau giờ chốt (ATT-08) |

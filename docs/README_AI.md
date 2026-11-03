@@ -131,12 +131,12 @@ Cấu trúc `.ai/`, `.claude/`, `.agents/`, `AGENTS.md`, `CLAUDE.md`, `docs/know
 
 | Repo | Thư mục riêng | Dùng để |
 | --- | --- | --- |
-| FE | `docs/architecture/ROUTE_MAP.md`, `FRONTEND_ARCHITECTURE.md`, `STATE_MANAGEMENT.md`, `FOLDER_STRUCTURE.md` | Màn hình/route theo role → permission BE → card BE |
-| FE | `docs/features/README.md` | Tính năng web ↔ module/flow BE |
+| FE | `FE:docs/architecture/ROUTE_MAP.md`, `FRONTEND_ARCHITECTURE.md`, `STATE_MANAGEMENT.md`, `FOLDER_STRUCTURE.md` | Màn hình/route theo role → permission BE → card BE |
+| FE | `FE:docs/features/README.md` | Tính năng web ↔ module/flow BE |
 | APP | `docs/features/{parent,teacher,kitchen}/README.md` | Màn hình theo role ↔ flow/rule BE |
-| APP | NAVIGATION.md, MOBILE_ARCHITECTURE.md (repo CareNest_APP) | Navigation theo role |
-| FE, APP | `docs/integration/` | Cách gọi BE, auth, push (APP) — chỉ hành vi phía client, contract ở BE |
-| FE, APP | `docs/context/REPOSITORY_CONTEXT.md`, `CURRENT_STATE.md` | Vai trò repo, trạng thái màn hình |
+| APP | `APP:docs/architecture/NAVIGATION.md`, `MOBILE_ARCHITECTURE.md` | Navigation theo role |
+| FE, APP | `FE:docs/integration/`, `APP:docs/integration/` | Cách gọi BE, auth, push (APP) — chỉ hành vi phía client, contract ở BE |
+| FE, APP | `FE:docs/context/REPOSITORY_CONTEXT.md`, `APP:docs/context/REPOSITORY_CONTEXT.md`, `CURRENT_STATE.md` | Vai trò repo, trạng thái màn hình |
 
 FE/APP **không** có `business/`, `contracts/`, `database/`, `decisions/` — các thứ đó ở BE.
 
@@ -176,7 +176,7 @@ Quy trình ghi duy nhất: `.ai/workflows/update-knowledge.md` (T1 nghiệp vụ
 | Loại | Dạng | Ở đâu |
 | --- | --- | --- |
 | Business rule | `ATT-05`, `NUT-14`, `OBS-10`... | `docs/business/BUSINESS_RULES.md` |
-| Câu hỏi chờ chốt | `P-03` … `P-17` | Pending register (BUSINESS_RULES) |
+| Câu hỏi chờ chốt | `P-03` … `P-18` | Pending register (BUSINESS_RULES) |
 | Quyết định | `ADR-0001` … | `docs/decisions/` |
 | NFR | `NFR-PERF-01`... | `docs/quality/NFR.md` |
 | Issue BE | `BUG-YYMMDD-slug`, `CASE-…`, `ENV-…` | BE `docs/knowledge/` |

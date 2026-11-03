@@ -156,9 +156,9 @@ class DailyAssessmentIntegrationTest {
         classA = classroom(campusA, year, "Lớp A", ag3);
         classB = classroom(campusB, year, "Lớp B", ag3);
         oldClass = classroom(campusA, closedYear, "Lớp cũ", ag3);
-        child1 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('An', '2023-01-01') RETURNING id");
-        child2 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('Bình', '2023-02-01') RETURNING id");
-        child3 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('Chi', '2023-03-01') RETURNING id");
+        child1 = child("An", "2023-01-01");
+        child2 = child("Bình", "2023-02-01");
+        child3 = child("Chi", "2023-03-01");
         enroll(child1, classA);
         enroll(child2, classA);
         enroll(child3, classB);
@@ -803,6 +803,13 @@ class DailyAssessmentIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(apiCode);
+    }
+
+    // Trẻ đủ thông tin bắt buộc của hồ sơ (mã, giới tính, trạng thái — tiếp nhận trẻ G94-180)
+    private long child(String name, String dateOfBirth) {
+        return insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ("
+                + "'DA' || substr(md5(random()::text), 1, 12), '" + name + "', '" + dateOfBirth
+                + "', 'MALE', 'ACTIVE', '2026-09-01') RETURNING id");
     }
 
     private long insertId(String sql) {
