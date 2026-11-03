@@ -618,6 +618,94 @@ class DailyAssessmentIntegrationTest {
         expectCode(() -> evaluations.get(teacherB, old.id()), ApiCode.EVALUATION_VIEW_FORBIDDEN);
     }
 
+    @Autowired
+    private com.carenest.service.observation.ClassRatingService ratings;
+
+    @Test
+    void classRatingsAreScoredByLeadersOfTheCampusAndReadByTheClassTeacher() {
+        var period = com.carenest.utils.enums.ClassRatingPeriod.SEMESTER_1;
+        var tot = com.carenest.utils.enums.ClassRatingLevel.TOT;
+        var kha = com.carenest.utils.enums.ClassRatingLevel.KHA;
+        var levels = new com.carenest.dto.observation.ClassRatingDtos.Levels(tot, tot, kha, tot, tot, tot, kha, tot);
+        var item = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingItem(classA, levels, " Lớp làm tốt ");
+        var request = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(period, List.of(item));
+
+        // PHT điểm trường B xem được lớp A (AUTH-20) nhưng không chấm được
+        assertThat(ratings.list(vpB, null, period, null).rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> assertThat(r.canEdit()).isFalse());
+        expectCode(() -> ratings.save(vpB, request), ApiCode.CLASS_RATING_FORBIDDEN);
+
+        var saved = ratings.save(vpA, request);
+        assertThat(saved.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.levels()).isEqualTo(levels);
+                    assertThat(r.note()).isEqualTo("Lớp làm tốt");
+                    assertThat(r.canEdit()).isTrue();
+                });
+        // Lưu lại cùng kỳ là cập nhật, không thêm dòng
+        ratings.save(principal, request);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM class_ratings", Integer.class))
+                .isEqualTo(1);
+
+        // GV chỉ thấy lớp mình, chỉ xem; kỳ khác chưa chấm
+        assertThat(ratings.list(teacherA, null, period, null).rows())
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.classId()).isEqualTo(classA);
+                    assertThat(r.levels().overall()).isEqualTo(tot);
+                    assertThat(r.canEdit()).isFalse();
+                });
+        assertThat(ratings.list(teacherA, null, com.carenest.utils.enums.ClassRatingPeriod.YEAR, null)
+                        .rows()
+                        .getFirst()
+                        .levels()
+                        .overall())
+                .isNull();
+    }
+
+    @Test
+    void semesterDraftsFollowSemesterDatesOfSchoolYear() {
+        var semester = com.carenest.utils.enums.EvaluationPeriodType.SEMESTER;
+        // Chưa đặt ngày học kỳ ở Cấu hình thời gian ⇒ chưa có đánh giá học kỳ
+        attendance(child1, classA, LocalDate.of(2026, 9, 15));
+        assertThat(evaluations.list(teacherA, semester, null, classA, null)).isEmpty();
+
+        jdbc.update("UPDATE school_years SET semester1_start = start_date, semester1_end = '2026-09-30', "
+                + "semester2_start = '2026-10-01', semester2_end = end_date WHERE status = 'ACTIVE'");
+        var september = evaluations
+                .list(
+                        teacherA,
+                        com.carenest.utils.enums.EvaluationPeriodType.MONTH,
+                        null,
+                        classA,
+                        LocalDate.of(2026, 9, 1))
+                .getFirst();
+        evaluations.confirm(teacherA, september.id(), "Nhận xét tháng 9 đã được giáo viên kiểm tra đầy đủ dữ liệu.");
+        entityManager.clear();
+        var rows = evaluations.list(teacherA, semester, null, classA, null);
+        // Học kỳ II chưa kết thúc ⇒ chỉ có bản nháp học kỳ I, cho trẻ có đi học trong kỳ
+        assertThat(rows).singleElement().satisfies(r -> {
+            assertThat(r.childId()).isEqualTo(child1);
+            assertThat(r.periodType()).isEqualTo(semester);
+            assertThat(r.periodEnd()).isEqualTo(LocalDate.of(2026, 9, 30));
+        });
+        var detail = evaluations.get(teacherA, rows.getFirst().id());
+        assertThat(detail.evaluation().aiDraft().content()).contains("học kỳ vừa qua");
+        assertThat(detail.monthlyEvaluations())
+                .singleElement()
+                .satisfies(m -> assertThat(m.id()).isEqualTo(september.id()));
+        assertThat(detail.evaluation().aiDraft().content()).contains("1 đánh giá tháng");
+        evaluations.confirm(teacherA, rows.getFirst().id(), "Nhận xét học kỳ I đã được giáo viên kiểm tra đầy đủ.");
+        assertThat(evaluations.list(teacherA, semester, null, classA, null)).hasSize(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM child_evaluations WHERE period_type = 'SEMESTER'", Integer.class))
+                .isEqualTo(1);
+    }
+
     @Test
     void yearDraftSurvivesTransferAndProgramReportCountsCurrentRosterOnce() {
         var year = com.carenest.utils.enums.EvaluationPeriodType.YEAR;

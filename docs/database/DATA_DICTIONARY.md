@@ -269,6 +269,18 @@ Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt 
 | participation | VARCHAR(20) | có | `TICH_CUC` / `BINH_THUONG` / `CHUA_TICH_CUC` | OBS-15 |
 | goals_met / goals_effort / goals_not_met | VARCHAR(500) | không | id `edu_goal_rows` dạng `1,2`; một MT chỉ một kết quả; không tự ghi Đạt | OBS-17 |
 
+## class_ratings  (module: learning-observation, scope: CLASS)
+Mục đích: xếp loại nhóm lớp theo kỳ (sổ chỉ đạo chuyên môn mục 7). Migration: V64.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| classroom_id / campus_id / school_year_id | BIGINT FK | không | Lớp được chấm; UNIQUE `(classroom_id, period)` | OBS-24 |
+| period | VARCHAR(12) | không | `SEMESTER_1` / `SEMESTER_2` / `YEAR` | OBS-24 |
+| records, program, theme, environment, routine, health, parents | VARCHAR(10) | có | 7 tiêu chí: `TOT` / `KHA` / `DAT` / `CHUA_DAT` | OBS-24 |
+| overall | VARCHAR(10) | có | Xếp loại chung do người chấm chọn | OBS-24 |
+| note | VARCHAR(500) | có | Ghi chú | OBS-24 |
+| rated_by / rated_at | BIGINT, TIMESTAMPTZ | không | Người chấm, thời điểm lưu gần nhất | OBS-24 |
+| version | BIGINT | không | Khóa lạc quan: HT, PHT cùng sửa ⇒ người lưu sau nhận 409 | OBS-24 |
+
 ## assessment_day_unlocks  (module: learning-observation, scope: CLASS)
 
 Mục đích: mở lại đánh giá một lớp/ngày đã khóa. Cột giống `attendance_day_unlocks`. Migration: V41. | OBS-19

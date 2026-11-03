@@ -517,6 +517,57 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
+  /api/assessment/class-ratings:
+    get:
+      operationId: listRatings
+      parameters:
+      - in: query
+        name: period
+        required: true
+        schema:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassRatingResponse"
+          description: OK
+      tags:
+      - class-rating-controller
+    put:
+      operationId: saveRatings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassRatingSaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassRatingResponse"
+          description: OK
+      tags:
+      - class-rating-controller
   /api/assessment/day-unlocks:
     get:
       operationId: getUnlocks_1
@@ -606,6 +657,7 @@ paths:
           type: string
           enum:
           - MONTH
+          - SEMESTER
           - YEAR
       - in: query
         name: schoolYearId
@@ -6720,6 +6772,85 @@ components:
           format: int64
         name:
           type: string
+    ClassRatingItem:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        levels:
+          $ref: "#/components/schemas/Levels"
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - classId
+      - levels
+    ClassRatingResponse:
+      type: object
+      properties:
+        campusIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        period:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassRatingRow"
+        schoolYearId:
+          type: integer
+          format: int64
+    ClassRatingRow:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        levels:
+          $ref: "#/components/schemas/Levels"
+        note:
+          type: string
+        ratedAt:
+          type: string
+          format: date-time
+        ratedByName:
+          type: string
+    ClassRatingSaveRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassRatingItem"
+          maxItems: 2147483647
+          minItems: 1
+        period:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+      required:
+      - items
+      - period
     ClassRef:
       type: object
       properties:
@@ -8105,6 +8236,7 @@ components:
           type: string
           enum:
           - MONTH
+          - SEMESTER
           - YEAR
         programApplicable:
           type: boolean
@@ -9322,6 +9454,65 @@ components:
         toDate:
           type: string
           format: date
+    Levels:
+      type: object
+      properties:
+        environment:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        health:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        overall:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        parents:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        program:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        records:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        routine:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        theme:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
     Line:
       type: object
       properties:
@@ -10885,6 +11076,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassAttendanceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassRatingResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassRatingResponse"
         desc:
           type: string
         errorCode:

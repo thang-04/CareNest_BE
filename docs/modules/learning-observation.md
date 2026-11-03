@@ -6,7 +6,7 @@ Feature: `observation` (trong `controller/`, `service/`, `repository/`, ... — 
 Hồ sơ phát triển liên tục của trẻ: đánh giá hằng ngày có cấu trúc, đánh giá hằng ngày theo MT của giáo án đã duyệt, nhận xét định kỳ, khen thưởng; nhận xét chung về lớp mỗi ngày cho báo cáo BGH (RPT-02).
 
 ## Owns
-ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ (tuần/tháng/học kỳ/năm, DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
+ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ (tháng/học kỳ/năm — `EvaluationPeriodType` MONTH/SEMESTER/YEAR; học kỳ lấy ngày học kỳ của năm học; DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
 
 ## KHÔNG owns
 Kế hoạch giáo dục, giáo án và hoạt động, MT của chúng (module education-plan, ADR-0020 — chỉ đọc bản đã duyệt, OBS-07); dữ liệu sức khỏe/điểm danh/bữa ăn (chỉ đọc).
@@ -23,6 +23,8 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 - `GET /classes/{classId}/daily-assessment?date=` (GV/PHT/HT), `PUT .../daily-assessment/general`, `PUT .../daily-assessment/skills` (GV lớp).
 - `GET|POST /assessment/day-unlocks`, `POST /assessment/day-unlocks/{id}/revoke` (PHT/HT).
 - `GET /assessment/overview?period=DAY|WEEK|MONTH`, `GET /assessment/overview/classes/{classId}` (PHT/HT).
+- `GET /assessment/class-ratings?period=SEMESTER_1|SEMESTER_2|YEAR` (HT/PHT/GV), `PUT /assessment/class-ratings` (HT; PHT lớp điểm trường mình) — xếp loại nhóm lớp, bảng `class_ratings` (V64), OBS-24.
+- Đánh giá học kỳ `periodType=SEMESTER` (V63); `SemesterEvaluationUsageImpl` cài `organization.SemesterUsageCheck` để khóa ngày học kỳ đã có đánh giá (OBS-25).
 - Bảng: `daily_observations`, `daily_activity_results`, `assessment_day_unlocks` (V41). Mã lỗi 73xx.
 - Nhận xét chung lớp: `class_daily_comments` (V42), PUT General thêm `classComment` optional (thiếu/null giữ, rỗng xóa); cho phép entries rỗng khi chỉ lưu nhận xét. GET sheet có `classComment`, overview/detail có `classComments` theo đúng lớp/ngày; kèm người ghi/thời gian, không tính vào số trẻ đã đánh giá (OBS-19).
 - Đọc giáo án đã duyệt qua `EduLessonQueryService` (education-plan); điểm danh / sức khỏe qua `AttendanceService.findDayStatuses`, `DailyHealthService.findLatestDaySigns`.
