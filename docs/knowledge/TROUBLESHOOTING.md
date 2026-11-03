@@ -72,6 +72,12 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Nguyên nhân: hook bảo vệ secret của repo khớp mọi tên `.env*`, kể cả file mẫu mới.
 - Xử lý: mẫu biến môi trường mới đặt tên không bắt đầu bằng `.env` — mẫu VPS ở `deploy/vps.env.example`. Không lách hook.
 
+### `spotless:apply` báo `BUILD SUCCESS` nhưng file không đổi, check vẫn fail (Windows)
+- Nguyên nhân: `spotlessFiles` là regex được khớp bằng `matches()` với đường dẫn tuyệt đối native, không phải glob hay đường dẫn tương đối; filter không khớp file vẫn có thể báo thành công.
+- Xử lý: PowerShell dùng regex chỉ đúng file, nhận cả `/` và `\`: `.\mvnw.cmd '-DspotlessFiles=.*[\\/]src[\\/]test[\\/]java[\\/]com[\\/]carenest[\\/]controller[\\/]child[\\/]ChildEnrollmentControllerTest[.]java' spotless:apply`. Kiểm log có đúng file và số file thay đổi, kiểm diff rồi chạy lại `node scripts/verify.mjs --quick`.
+- Đã thử không hiệu quả: truyền `-DspotlessFiles=src/test/java/com/carenest/controller/child/ChildEnrollmentControllerTest.java` hai lần; cả hai `BUILD SUCCESS` nhưng không chọn được file.
+- Incident: [ENV-261101-spotless-windows-file-filter](incidents/ENV-261101-spotless-windows-file-filter.md).
+
 ## Format
 
 ```markdown
