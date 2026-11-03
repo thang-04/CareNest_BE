@@ -90,6 +90,9 @@ class ClassCommentServiceTest {
         when(classPolicy.canViewClassroom(teacher, 10L)).thenReturn(true);
         when(campusPolicy.canViewCampus(eq(principal), anyLong())).thenReturn(true);
         when(campusPolicy.canViewCampus(vp, 100L)).thenReturn(true);
+        // AUTH-20: HT, PHT xem mọi điểm trường
+        when(campusPolicy.canReadCampus(eq(principal), anyLong())).thenReturn(true);
+        when(campusPolicy.canReadCampus(eq(vp), anyLong())).thenReturn(true);
         when(accounts.findFullNames(anyList())).thenReturn(Map.of(1L, "Review Teacher"));
         when(comments.findByClassroomIdAndDate(anyLong(), any()))
                 .thenAnswer(i -> Optional.ofNullable(stored.get(i.getArgument(0) + "|" + i.getArgument(1))));
@@ -146,17 +149,22 @@ class ClassCommentServiceTest {
         stored.put("20|" + TODAY, foreign);
         for (String period : List.of("WEEK", "MONTH")) {
             var board = overview.getOverview(vp, period, 1L, null, null, null);
-            assertThat(board.rows()).hasSize(1);
-            assertThat(board.rows().getFirst().assessed()).isZero();
-            assertThat(board.rows().getFirst().flags()).isZero();
-            assertThat(board.rows().getFirst().classComments())
-                    .extracting(c -> c.text())
-                    .containsExactly("Today", "Yesterday");
+            // PHT xem cả lớp điểm trường khác (AUTH-20); nhận xét không lẫn giữa các lớp
+            assertThat(board.rows()).hasSize(2);
+            var own = board.rows().stream()
+                    .filter(r -> r.classId() == 10L)
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(own.assessed()).isZero();
+            assertThat(own.flags()).isZero();
+            assertThat(own.classComments()).extracting(c -> c.text()).containsExactly("Today", "Yesterday");
             assertThat(overview.getClassDetail(vp, 10L, period).classComments()).hasSize(2);
         }
         assertThat(overview.getOverview(principal, "DAY", 1L, null, null, null).rows())
                 .hasSize(2);
-        assertThatThrownBy(() -> overview.getClassDetail(vp, 20L, "DAY")).isInstanceOf(GlobalException.class);
+        assertThat(overview.getClassDetail(vp, 20L, "DAY").classComments())
+                .extracting(c -> c.text())
+                .containsExactly("Other campus");
     }
 
     @Test
