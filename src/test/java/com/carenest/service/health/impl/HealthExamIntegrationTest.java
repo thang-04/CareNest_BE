@@ -2,55 +2,43 @@ package com.carenest.service.health.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
 
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthCheckClassResponse;
 import com.carenest.dto.health.HealthCheckCloseResponse;
+import com.carenest.dto.health.HealthCheckDetailResponse;
 import com.carenest.dto.health.HealthCheckRequest;
 import com.carenest.dto.health.HealthCheckResponse;
 import com.carenest.dto.health.HealthExamForm;
 import com.carenest.dto.health.HealthExamRequest;
 import com.carenest.dto.health.HealthExamResponse;
-import com.carenest.dto.health.HealthFollowUpCloseRequest;
-import com.carenest.dto.health.HealthFollowUpContactRequest;
-import com.carenest.dto.health.HealthFollowUpExternalResultRequest;
-import com.carenest.dto.health.HealthFollowUpListResponse;
-import com.carenest.dto.health.HealthFollowUpResponse;
 import com.carenest.dto.health.HealthMeasurementRequest;
+import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.HealthImageStorage;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthCheckService;
 import com.carenest.service.health.HealthExamService;
-import com.carenest.service.health.HealthFollowUpService;
 import com.carenest.service.health.HealthMeasurementService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.HealthBmiStatus;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckResult;
 import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.HealthConclusionCategory;
 import com.carenest.utils.enums.HealthConclusionMode;
 import com.carenest.utils.enums.HealthExamStatus;
-import com.carenest.utils.enums.HealthFollowUpAction;
-import com.carenest.utils.enums.HealthFollowUpEffect;
 import com.carenest.utils.enums.HealthFollowUpLevel;
-import com.carenest.utils.enums.HealthFollowUpOutcome;
-import com.carenest.utils.enums.HealthFollowUpStatus;
-import com.carenest.utils.enums.HealthLatestSource;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -59,26 +47,24 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Phiếu khám Phụ lục II, phiếu theo dõi (plan docs/plans/completed/2026-10-31-health-exam-follow-ups.md). Dữ liệu giả. */
+/**
+ * Phiếu khám Phụ lục II, cảnh báo ở sổ sức khỏe: kết luận bác sĩ và mức BMI của kỳ cân đo (HLT-18, HLT-19; plan
+ * docs/plans/active/2026-11-04-health-warnings-book.md). Dữ liệu giả.
+ */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
-class HealthExamFollowUpIntegrationTest {
+class HealthExamIntegrationTest {
 
     // Hôm nay 2026-11-10 (giờ trường)
     @Container
     @ServiceConnection
     static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
-
-    // Ảnh PNG 1x1 (giả)
-    private static final String PNG = "data:image/png;base64,"
-            + "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
 
     @TestConfiguration
     static class ClockConfig {
@@ -89,9 +75,6 @@ class HealthExamFollowUpIntegrationTest {
         }
     }
 
-    @MockitoBean
-    private HealthImageStorage imageStorage;
-
     @Autowired
     private HealthCheckService checks;
 
@@ -100,9 +83,6 @@ class HealthExamFollowUpIntegrationTest {
 
     @Autowired
     private HealthExamService exams;
-
-    @Autowired
-    private HealthFollowUpService followUps;
 
     @Autowired
     private HealthMeasurementService measurements;
@@ -163,6 +143,7 @@ class HealthExamFollowUpIntegrationTest {
     }
 
     @Test
+    @DisplayName("HLT-08: GV lưu nháp, kết luận đủ phiếu, sửa phiếu đã kết luận phải có lý do")
     void teacherDraftsThenConcludesAndEditsWithReason() {
         long campaign = examCampaign(campusA);
         HealthExamResponse fresh = exams.getExam(teacherA, campaign, child1);
@@ -187,6 +168,7 @@ class HealthExamFollowUpIntegrationTest {
         ChildHealthRecordResponse beforeRecord = measurements.getHealthRecord(teacherA, child1);
         assertThat(beforeRecord.measurements()).isEmpty();
         assertThat(beforeRecord.openCampaign().resultStatus()).isEqualTo("DRAFT");
+        assertThat(beforeRecord.latestExam()).isNull();
 
         // Kết luận thiếu sinh tồn: lỗi theo ô
         HealthExamForm missingVitals = withVitals(exam("NO", null, normal()), null);
@@ -206,7 +188,9 @@ class HealthExamFollowUpIntegrationTest {
         assertThat(concluded.measurement().published()).isTrue();
         assertThat(concluded.measurement().followUpLevel()).isEqualTo(HealthFollowUpLevel.NONE);
         assertThat(concluded.measurement().conclusionCategory()).isEqualTo(HealthConclusionCategory.NORMAL);
-        assertThat(concluded.measurement().followUpId()).isNull();
+        // Lần đo của đợt khám theo kết luận bác sĩ, không xếp mức BMI (HLT-18)
+        assertThat(concluded.measurement().bmi()).isNotNull();
+        assertThat(concluded.measurement().bmiStatus()).isNull();
         // Tiền sử ghi về khai báo (trẻ chưa có khai báo ⇒ tạo)
         assertThat(jdbc.queryForObject(
                         "SELECT self_history_state FROM child_health_declarations WHERE child_id = ?",
@@ -265,100 +249,38 @@ class HealthExamFollowUpIntegrationTest {
     }
 
     @Test
-    void referralOpensFollowUpThatTheClassTeacherWorksThrough() {
+    @DisplayName("HLT-19: kết luận chuyển khám chuyên khoa là cảnh báo ở sổ sức khỏe, không mở phiếu theo dõi")
+    void referralIsAHealthBookWarningWithoutFollowUpForm() {
         long campaign = examCampaign(campusA);
         HealthExamResponse concluded =
                 exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, referral()), true, ""));
         assertThat(concluded.measurement().followUpLevel()).isEqualTo(HealthFollowUpLevel.CLOSE_WATCH);
         assertThat(concluded.measurement().conclusionCategory()).isEqualTo(HealthConclusionCategory.REFERRAL);
-        assertThat(concluded.measurement().followUpEffect()).isEqualTo(HealthFollowUpEffect.OPENED);
-        assertThat(concluded.measurement().parentContact().contacted()).isFalse();
-        Long followUpId = concluded.measurement().followUpId();
-        assertThat(followUpId).isNotNull();
-
-        HealthFollowUpListResponse list = followUps.listFollowUps(teacherA, null, null, false, null);
-        assertThat(list.items()).singleElement().satisfies(f -> {
-            assertThat(f.status()).isEqualTo(HealthFollowUpStatus.WAITING_PARENT_CONTACT);
-            assertThat(f.currentRound().dueOn()).isEqualTo(LocalDate.of(2026, 11, 17));
-            assertThat(f.child().className()).isEqualTo("Lớp A");
-            assertThat(f.canUpdate()).isTrue();
-        });
-        assertThat(list.counts()).containsEntry("WAITING_PARENT_CONTACT", 1).containsEntry("OVERDUE", 0);
-        assertThat(followUps.listFollowUps(vpA, null, null, false, null).items())
-                .singleElement()
-                .satisfies(f -> assertThat(f.canUpdate()).isFalse());
-        assertThat(followUps.listFollowUps(vpB, null, null, false, null).items())
-                .isEmpty();
-        expectError(() -> followUps.getFollowUp(vpB, followUpId), ApiCode.HEALTH_FOLLOW_UP_NOT_FOUND);
-        assertThat(followUps.getFollowUp(teacherA, followUpId).closeOutcomeOptions())
-                .containsExactly(HealthFollowUpOutcome.NO_SPECIALIST_RESULT);
-
-        expectError(
-                () -> followUps.addExternalResult(teacherA, followUpId, external(List.of())),
-                ApiCode.HEALTH_FOLLOW_UP_CONTACT_FIRST);
-        expectError(
-                () -> followUps.addParentContact(vpA, followUpId, contact("2026-11-10")),
-                ApiCode.HEALTH_FOLLOW_UP_ACCESS_DENIED);
-        expectError(
-                () -> followUps.addParentContact(teacherA, followUpId, contact("2026-11-09")),
-                ApiCode.INVALID_REQUEST_DATA);
-        HealthFollowUpResponse contacted = followUps.addParentContact(teacherA, followUpId, contact("2026-11-10"));
-        assertThat(contacted.status()).isEqualTo(HealthFollowUpStatus.PARENT_CONTACTED);
-        assertThat(contacted.canRecordExternal()).isTrue();
-
-        expectError(
-                () -> followUps.addExternalResult(teacherA, followUpId, external(List.of("not-an-image"))),
-                ApiCode.INVALID_REQUEST_DATA);
-        HealthFollowUpResponse withResult = followUps.addExternalResult(teacherA, followUpId, external(List.of()));
-        assertThat(withResult.status()).isEqualTo(HealthFollowUpStatus.EXTERNAL_RESULT_RECORDED);
-        assertThat(withResult.latestExternalResult().facility()).isEqualTo("Mắt — Bệnh viện Nhi (giả)");
-        assertThat(withResult.closeOutcomeOptions())
-                .containsExactly(
-                        HealthFollowUpOutcome.DOCTOR_NORMAL,
-                        HealthFollowUpOutcome.KNOWN_CONDITION,
-                        HealthFollowUpOutcome.NO_SPECIALIST_RESULT);
-
-        expectError(
-                () -> followUps.closeFollowUp(
-                        teacherA,
-                        followUpId,
-                        new HealthFollowUpCloseRequest(HealthFollowUpOutcome.KNOWN_CONDITION, "", "Đã khám mắt")),
-                ApiCode.INVALID_REQUEST_DATA);
-        HealthFollowUpResponse closed = followUps.closeFollowUp(
-                teacherA,
-                followUpId,
-                new HealthFollowUpCloseRequest(
-                        HealthFollowUpOutcome.KNOWN_CONDITION, "Cận thị (giả)", "Bác sĩ chuyên khoa đã kết luận"));
-        assertThat(closed.status()).isEqualTo(HealthFollowUpStatus.CLOSED);
-        assertThat(closed.closeOutcomeOptions()).isEmpty();
-        assertThat(closed.timeline())
-                .extracting(HealthFollowUpResponse.HealthFollowUpEventView::action)
-                .containsExactly(
-                        HealthFollowUpAction.OPENED,
-                        HealthFollowUpAction.PARENT_CONTACTED,
-                        HealthFollowUpAction.EXTERNAL_RESULT,
-                        HealthFollowUpAction.CLOSED);
-        expectError(
-                () -> followUps.addParentContact(teacherA, followUpId, contact("2026-11-10")),
-                ApiCode.HEALTH_FOLLOW_UP_CLOSED);
 
         ChildHealthRecordResponse record = measurements.getHealthRecord(teacherA, child1);
-        assertThat(record.openFollowUp()).isNull();
-        assertThat(record.externalResults()).hasSize(1);
-        assertThat(record.latestHealth().source()).isEqualTo(HealthLatestSource.FOLLOW_UP_CLOSED);
-        assertThat(record.latestHealth().followUpLevel()).isEqualTo(HealthFollowUpLevel.KNOWN_STABLE);
-        assertThat(record.latestHealth().knownCondition()).isEqualTo("Cận thị (giả)");
-        // Vấn đề đã biết thêm vào tiền sử bản thân của khai báo
-        assertThat(jdbc.queryForObject(
-                        "SELECT self_history_text FROM child_health_declarations WHERE child_id = ?",
-                        String.class,
-                        child1))
-                .isEqualTo("Cận thị (giả)");
-        assertThat(declarationActions(child1)).containsExactly("UPDATED_FROM_EXAM", "UPDATED_FROM_FOLLOW_UP");
+        assertThat(record.latestExam()).satisfies(latest -> {
+            assertThat(latest.measurementId()).isEqualTo(concluded.measurement().id());
+            assertThat(latest.campaignId()).isEqualTo(campaign);
+            assertThat(latest.campaignName()).isEqualTo("Khám thử (giả)");
+            assertThat(latest.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+            assertThat(latest.followUpLevel()).isEqualTo(HealthFollowUpLevel.CLOSE_WATCH);
+            assertThat(latest.conclusionCategory()).isEqualTo(HealthConclusionCategory.REFERRAL);
+            assertThat(latest.conclusion().specialty()).isEqualTo("Mắt");
+            assertThat(latest.knownCondition()).isNull();
+        });
+        assertThat(record.latestBmi()).isNull();
+        // Không có phiếu, không có việc GV phải xử lý; tiền sử chỉ ghi từ phiếu khám
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM health_follow_ups", Integer.class))
+                .isZero();
+        assertThat(declarationActions(child1)).containsExactly("UPDATED_FROM_EXAM");
+        // Lần khám sau vẫn dùng mẫu kết luận thường, kèm lần khám trước để bác sĩ so sánh
+        HealthExamResponse next = exams.getExam(teacherA, campaign, child2);
+        assertThat(next.conclusionMode()).isEqualTo(HealthConclusionMode.STANDARD);
     }
 
     @Test
-    void companionHearsConclusionAtExamAndOverdueIsComputedOnRead() {
+    @DisplayName("HLT-19: đợt khám đếm trẻ theo dõi sát và liệt kê trẻ cần chú ý, không còn đếm phiếu theo dõi")
+    void examCampaignListsChildrenNeedingAttention() {
         long campaign = examCampaign(campusA);
         HealthExamForm tbRisk = withHistory(
                 exam("YES", 0, tbRiskAdvice()),
@@ -366,76 +288,156 @@ class HealthExamFollowUpIntegrationTest {
         HealthExamResponse withCompanion = exams.saveExam(teacherA, campaign, child2, save(tbRisk, true, ""));
         assertThat(withCompanion.measurement().exam().admin().companion().fullName())
                 .isEqualTo("Mẹ Bình (giả)");
-        assertThat(withCompanion.measurement().exam().admin().companion().relation())
-                .isEqualTo("Mẹ");
         assertThat(withCompanion.measurement().conclusionCategory()).isEqualTo(HealthConclusionCategory.TB_RISK);
-        assertThat(withCompanion.measurement().parentContact().atExam()).isTrue();
-        assertThat(followUps
-                        .getFollowUp(teacherA, withCompanion.measurement().followUpId())
-                        .status())
-                .isEqualTo(HealthFollowUpStatus.PARENT_CONTACTED);
+        exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, referral()), true, ""));
 
-        HealthExamResponse waiting =
-                exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, referral()), true, ""));
-        // Kết quả lưu 10 ngày trước: hạn trao đổi 7 ngày đã qua 3 ngày
-        entityManager.flush();
-        jdbc.update(
-                "UPDATE health_follow_up_events SET created_at = created_at - interval '10 days' WHERE follow_up_id = ?",
-                waiting.measurement().followUpId());
-        entityManager.clear();
-        HealthFollowUpListResponse overdue = followUps.listFollowUps(teacherA, null, null, true, null);
-        assertThat(overdue.items()).singleElement().satisfies(f -> {
-            assertThat(f.child().id()).isEqualTo(child1);
-            assertThat(f.currentRound().overdueDays()).isEqualTo(3);
+        HealthCheckDetailResponse detail = checks.getHealthCheck(vpA, campaign);
+        assertThat(detail.campaign().progress().closeWatch()).isEqualTo(2);
+        assertThat(detail.campaign().progress().bmi())
+                .isEqualTo(new HealthCheckResponse.HealthBmiProgress(0, 0, 0, 0, 0));
+        assertThat(detail.classes()).singleElement().satisfies(c -> {
+            assertThat(c.closeWatch()).isEqualTo(2);
+            assertThat(c.bmiWarning()).isZero();
         });
-        assertThat(overdue.counts()).containsEntry("OVERDUE", 1).containsEntry("PARENT_CONTACTED", 1);
-        HealthCheckResponse view = checks.getHealthCheck(vpA, campaign).campaign();
-        assertThat(view.waitingFollowUpCount()).isEqualTo(1);
-        assertThat(view.overdueFollowUpCount()).isEqualTo(1);
-        assertThat(view.progress().closeWatch()).isEqualTo(2);
-        assertThat(checks.getHealthCheck(vpA, campaign).watchList())
+        assertThat(detail.watchList())
                 .extracting(HealthCheckClassResponse.HealthCheckChild::childId)
                 .containsExactly(child1, child2);
 
         HealthCheckCloseResponse closed = checks.closeHealthCheck(vpA, campaign);
-        assertThat(closed.waitingFollowUpCount()).isEqualTo(1);
         assertThat(closed.notConcludedCount()).isZero();
+        assertThat(closed.absentCount()).isZero();
     }
 
     @Test
-    void externalResultKeepsUpToThreeImagesForInScopeStaff() {
-        when(imageStorage.store(any(), anyString())).thenReturn("0f8fad5b-d9cb-469f-a165-70867728950e");
-        when(imageStorage.load("0f8fad5b-d9cb-469f-a165-70867728950e"))
-                .thenReturn(Base64.getDecoder().decode(PNG.substring(PNG.indexOf(',') + 1)));
+    @DisplayName(
+            "HLT-10: vấn đề đã biết lấy từ tiền sử bản thân đã khai báo ⇒ kết luận mức ổn định, lần khám sau hỏi lại")
+    void declaredHistoryMakesAKnownStableConclusion() {
+        jdbc.update(
+                "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state, "
+                        + "self_history_state, self_history_text, family_history_state, tb_contact_state, declared_by) "
+                        + "VALUES (?, 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'REPORTED', 'Hen suyễn (giả)', "
+                        + "'NONE_REPORTED', 'NONE_REPORTED', ?)",
+                child1,
+                principal.userId());
         long campaign = examCampaign(campusA);
-        Long followUpId = exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, referral()), true, ""))
-                .measurement()
-                .followUpId();
-        followUps.addParentContact(teacherA, followUpId, contact("2026-11-10"));
+        assertThat(exams.getExam(teacherA, campaign, child1).knownCondition()).isEqualTo("Hen suyễn (giả)");
+        assertThat(exams.getExam(teacherA, campaign, child2).knownCondition()).isNull();
+
+        HealthExamForm asthma = withHistory(
+                exam("NO", null, knownIssue("")),
+                new HealthExamForm.HealthExamHistory("YES", "Hen suyễn (giả)", "NO", "", "NO", null));
         expectError(
-                () -> followUps.addExternalResult(teacherA, followUpId, external(List.of(PNG, PNG, PNG, PNG))),
-                ApiCode.INVALID_REQUEST_DATA);
-        HealthFollowUpResponse saved = followUps.addExternalResult(teacherA, followUpId, external(List.of(PNG)));
-        HealthFollowUpResponse.HealthFollowUpImageView image = saved.timeline().stream()
-                .filter(e -> e.action() == HealthFollowUpAction.EXTERNAL_RESULT)
-                .findFirst()
-                .orElseThrow()
-                .images()
-                .getFirst();
-        assertThat(image.path()).isEqualTo("/health-follow-ups/" + followUpId + "/images/" + image.id());
-        assertThat(followUps.getImage(vpA, followUpId, image.id()).contentType())
-                .isEqualTo("image/png");
-        expectError(() -> followUps.getImage(vpB, followUpId, image.id()), ApiCode.HEALTH_FOLLOW_UP_NOT_FOUND);
+                () -> exams.saveExam(teacherA, campaign, child1, save(asthma, true, "")),
+                ApiCode.HEALTH_EXAM_INCOMPLETE);
+        HealthExamForm known = withHistory(
+                exam("NO", null, knownIssue("KNOWN")),
+                new HealthExamForm.HealthExamHistory("YES", "Hen suyễn (giả)", "NO", "", "NO", null));
+        HealthExamResponse concluded = exams.saveExam(teacherA, campaign, child1, save(known, true, ""));
+        assertThat(concluded.measurement().followUpLevel()).isEqualTo(HealthFollowUpLevel.KNOWN_STABLE);
+        assertThat(measurements.getHealthRecord(teacherA, child1).latestExam().knownCondition())
+                .isEqualTo("Hen suyễn tái phát nhẹ (giả)");
+        assertThat(checks.getHealthCheck(vpA, campaign).watchList()).isEmpty();
     }
 
     @Test
-    void autoCloseAtSchoolMidnightLocksResultsAndPreservesDraftsAndFollowUps() {
+    @DisplayName("HLT-16: phiếu đã kết luận theo mẫu theo dõi cũ giữ mẫu đó; phiếu mới dùng mẫu thường")
+    void legacyFollowUpConclusionKeepsItsMode() {
+        long campaign = examCampaign(campusA);
+        long id = exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, ""))
+                .measurement()
+                .id();
+        // Dữ liệu cũ: phiếu kết luận theo mẫu FOLLOW_UP khi trẻ còn phiếu theo dõi
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE health_measurements SET exam = jsonb_set(jsonb_set(jsonb_set(exam, "
+                        + "'{conclusion,followUpFinding}', '\"ADVICE\"'), '{conclusion,issueText}', "
+                        + "'\"Viêm họng tái diễn (giả)\"'), '{conclusion,adviceText}', '\"Uống đủ nước (giả)\"') "
+                        + "WHERE id = ?",
+                id);
+        entityManager.clear();
+
+        HealthExamResponse legacy = exams.getExam(teacherA, campaign, child1);
+        assertThat(legacy.conclusionMode()).isEqualTo(HealthConclusionMode.FOLLOW_UP);
+        assertThat(legacy.measurement().followUpLevel()).isEqualTo(HealthFollowUpLevel.CLOSE_WATCH);
+        HealthExamForm legacyForm = legacy.measurement().exam();
+        expectError(
+                () -> exams.saveExam(
+                        teacherA, campaign, child1, save(legacyForm, true, "Sửa (giả)", HealthConclusionMode.STANDARD)),
+                ApiCode.HEALTH_EXAM_MODE_CHANGED);
+        HealthExamResponse edited = exams.saveExam(
+                teacherA,
+                campaign,
+                child1,
+                save(
+                        withVitals(legacyForm, feverVitals()),
+                        true,
+                        "Sửa nhiệt độ (giả)",
+                        HealthConclusionMode.FOLLOW_UP));
+        assertThat(edited.conclusionMode()).isEqualTo(HealthConclusionMode.FOLLOW_UP);
+        assertThat(edited.measurement().conclusion().followUpFinding()).isEqualTo("ADVICE");
+        assertThat(edited.measurement().edits()).hasSize(1);
+        assertThat(exams.getExam(teacherA, campaign, child2).conclusionMode()).isEqualTo(HealthConclusionMode.STANDARD);
+    }
+
+    @Test
+    @DisplayName("HLT-18: kỳ cân đo xếp mức BMI theo tuổi chuẩn WHO, lưu vào sổ sức khỏe và tính lại khi sửa số đo")
+    void measurementRoundWarnsByBmiForAge() {
+        long round = checks.createHealthCheck(
+                        principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"))
+                .id();
+        // An 46 tháng: BMI 20,5 / 0,985² ≈ 21,1 > +3SD (19,8) ⇒ béo phì; Bình 45 tháng: BMI ≈ 15,7 ⇒ bình thường
+        HealthMeasurementResponse obese = measurements.createMeasurement(teacherA, child1, measure(round, "20.5", ""));
+        assertThat(obese.ageMonths()).isEqualTo(46);
+        assertThat(obese.bmi()).isEqualByComparingTo("21.1");
+        assertThat(obese.bmiStatus()).isEqualTo(HealthBmiStatus.OBESE);
+        assertThat(obese.bmiZScore()).isGreaterThan(new BigDecimal("3"));
+        assertThat(obese.followUpLevel()).isEqualTo(HealthFollowUpLevel.UNAVAILABLE);
+        HealthMeasurementResponse normal = measurements.createMeasurement(teacherA, child2, measure(round, "15.2", ""));
+        assertThat(normal.bmiStatus()).isEqualTo(HealthBmiStatus.NORMAL);
+
+        ChildHealthRecordResponse record = measurements.getHealthRecord(teacherA, child1);
+        assertThat(record.latestExam()).isNull();
+        assertThat(record.latestBmi()).satisfies(latest -> {
+            assertThat(latest.measurementId()).isEqualTo(obese.id());
+            assertThat(latest.campaignName()).isEqualTo("Cân đo thử (giả)");
+            assertThat(latest.ageMonths()).isEqualTo(46);
+            assertThat(latest.bmiStatus()).isEqualTo(HealthBmiStatus.OBESE);
+            assertThat(latest.bmiZScore()).isEqualByComparingTo(obese.bmiZScore());
+        });
+        assertThat(record.measurements())
+                .singleElement()
+                .satisfies(m -> assertThat(m.bmiStatus()).isEqualTo(HealthBmiStatus.OBESE));
+
+        assertThat(rowOf(round, child1).bmiStatus()).isEqualTo(HealthBmiStatus.OBESE);
+        assertThat(rowOf(round, child1).bmi()).isEqualByComparingTo("21.1");
+        assertThat(rowOf(round, child2).bmiStatus()).isEqualTo(HealthBmiStatus.NORMAL);
+        HealthCheckDetailResponse detail = checks.getHealthCheck(vpA, round);
+        assertThat(detail.campaign().progress().bmi())
+                .isEqualTo(new HealthCheckResponse.HealthBmiProgress(0, 0, 0, 0, 1));
+        assertThat(detail.classes())
+                .singleElement()
+                .satisfies(c -> assertThat(c.bmiWarning()).isEqualTo(1));
+        assertThat(detail.watchList())
+                .extracting(HealthCheckClassResponse.HealthCheckChild::childId)
+                .containsExactly(child1);
+
+        // Sửa số đo (bắt buộc lý do — HLT-13) ⇒ mức tính lại: BMI ≈ 17,5 trong (+1SD, +2SD] ⇒ nguy cơ thừa cân
+        HealthMeasurementResponse fixed =
+                measurements.updateMeasurement(teacherA, child1, obese.id(), measure(round, "17.0", "Cân nhầm (giả)"));
+        assertThat(fixed.bmiStatus()).isEqualTo(HealthBmiStatus.OVERWEIGHT_RISK);
+        assertThat(measurements.getHealthRecord(teacherA, child1).latestBmi().bmiStatus())
+                .isEqualTo(HealthBmiStatus.OVERWEIGHT_RISK);
+        assertThat(checks.getHealthCheck(vpA, round).campaign().progress().bmi())
+                .isEqualTo(new HealthCheckResponse.HealthBmiProgress(0, 0, 1, 0, 0));
+    }
+
+    @Test
+    @DisplayName("HLT-17: đợt khám tự đóng lúc 00:00 giờ trường, khóa kết quả, giữ phiếu nháp và cảnh báo ở sổ")
+    void autoCloseAtSchoolMidnightLocksResultsAndPreservesDrafts() {
         long campaign = checks.createHealthCheck(
                         principal, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-11-10"))
                 .id();
-        Long followUpId = exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, referral()), true, ""))
-                .measurement()
-                .followUpId();
+        exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, referral()), true, ""));
         exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""));
         long absentChild = child("Dũng", "2023-04-01");
         enroll(absentChild, classA);
@@ -462,9 +464,9 @@ class HealthExamFollowUpIntegrationTest {
                 .isEqualTo(HealthExamStatus.DRAFT);
         assertThat(exams.getExam(teacherA, campaign, child2).measurement().published())
                 .isFalse();
-        assertThat(followUps.getFollowUp(teacherA, followUpId).status())
-                .isEqualTo(HealthFollowUpStatus.WAITING_PARENT_CONTACT);
-        assertThat(closed.waitingFollowUpCount()).isEqualTo(1);
+        // Cảnh báo của lần khám vẫn ở sổ sức khỏe sau khi đợt đóng
+        assertThat(measurements.getHealthRecord(teacherA, child1).latestExam().followUpLevel())
+                .isEqualTo(HealthFollowUpLevel.CLOSE_WATCH);
         expectError(
                 () -> exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, "Nhập bù")),
                 ApiCode.HEALTH_EXAM_LOCKED);
@@ -492,7 +494,24 @@ class HealthExamFollowUpIntegrationTest {
                 childId);
     }
 
+    // Số đo kỳ cân đo ngày 2026-11-10, cao 98,5 cm, vòng đầu 49 cm
+    private static HealthMeasurementRequest measure(long round, String weightKg, String reason) {
+        return new HealthMeasurementRequest(
+                round,
+                LocalDate.of(2026, 11, 10),
+                new BigDecimal("98.5"),
+                new BigDecimal(weightKg),
+                new BigDecimal("49.0"),
+                "",
+                reason);
+    }
+
     private static HealthExamRequest save(HealthExamForm exam, boolean conclude, String reason) {
+        return save(exam, conclude, reason, null);
+    }
+
+    private static HealthExamRequest save(
+            HealthExamForm exam, boolean conclude, String reason, HealthConclusionMode mode) {
         return new HealthExamRequest(
                 LocalDate.of(2026, 11, 10),
                 new BigDecimal("98.5"),
@@ -501,7 +520,12 @@ class HealthExamFollowUpIntegrationTest {
                 exam,
                 conclude,
                 reason,
-                null);
+                mode);
+    }
+
+    private static HealthExamForm.HealthExamVitals feverVitals() {
+        return new HealthExamForm.HealthExamVitals(
+                new BigDecimal("38.2"), "FEVER", new BigDecimal("100"), "NORMAL", new BigDecimal("25"), "NORMAL");
     }
 
     /** Phiếu đủ thông tin, mọi mục bình thường, kết luận theo tham số. */
@@ -571,6 +595,22 @@ class HealthExamFollowUpIntegrationTest {
                 false, false, true, "", "", "REFERRAL", "Nghi cận thị (giả)", "", "Mắt", "BS Khám (giả)", "");
     }
 
+    // Có vấn đề sức khỏe, tư vấn; issueKind "KNOWN" = vấn đề đã biết, "" = chưa chọn
+    private static HealthExamForm.HealthExamConclusion knownIssue(String issueKind) {
+        return new HealthExamForm.HealthExamConclusion(
+                false,
+                false,
+                true,
+                issueKind,
+                "",
+                "ADVICE",
+                "Hen suyễn tái phát nhẹ (giả)",
+                "Tránh khói bụi (giả)",
+                "",
+                "BS Khám (giả)",
+                "");
+    }
+
     private static HealthExamForm.HealthExamConclusion tbRiskAdvice() {
         return new HealthExamForm.HealthExamConclusion(
                 false,
@@ -584,15 +624,6 @@ class HealthExamFollowUpIntegrationTest {
                 "",
                 "BS Khám (giả)",
                 "Gia đình đồng ý theo dõi (giả)");
-    }
-
-    private static HealthFollowUpContactRequest contact(String on) {
-        return new HealthFollowUpContactRequest(LocalDate.parse(on), "Đã báo phụ huynh đưa trẻ đi khám (giả)");
-    }
-
-    private static HealthFollowUpExternalResultRequest external(List<String> images) {
-        return new HealthFollowUpExternalResultRequest(
-                LocalDate.of(2026, 11, 10), "Cận thị nhẹ, đeo kính (giả)", "Mắt — Bệnh viện Nhi (giả)", images, null);
     }
 
     private HealthCheckRequest request(HealthCheckKind kind, long campusId, String start, String end) {

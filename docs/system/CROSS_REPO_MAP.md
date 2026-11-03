@@ -55,6 +55,15 @@ BE bổ sung `/auth/**`, PUT `/me/password`, mã HTTP 428, cookie phiên mã hó
 
 Trạng thái tích hợp (2026-10-22): FE `dev` chưa ghép — vẫn mock, gọi `/auth/me`, `/users`, `/me/profile` (BE không có), không CSRF/refresh; source gateway chỉ ở nhánh FE G94-209 và plan merge FE chốt không nhận gateway auth. Chi tiết: `docs/quality/reports/2026-10-22-auth-fe-integration-gap.md`.
 
+## Sức khỏe: cảnh báo ở sổ sức khỏe, bỏ phiếu theo dõi — 04/11/2026
+
+Rule: HLT-16 REMOVED, HLT-18 (mức BMI WHO), HLT-19 (cảnh báo ở sổ sức khỏe); plan `docs/plans/active/2026-11-04-health-warnings-book.md`.
+- Bỏ endpoint `/health-follow-ups/**` và mã lỗi 5035–5039; message 5032 đổi.
+- `GET /children/{id}/health`: bỏ `latestHealth`, `openFollowUp`, `externalResults`; thêm `latestExam`, `latestBmi`. Mỗi lần đo bỏ `followUpId`, `followUpEffect`, `parentContact`; thêm `bmiStatus`, `bmiZScore` (chỉ số đo kỳ cân đo).
+- `/health-checks`: đợt/kỳ bỏ `waitingFollowUpCount`, `overdueFollowUpCount`, thêm `progress.bmi`; chi tiết thêm `classes[].bmiWarning`, `watchList` gồm trẻ có BMI khác bình thường ở kỳ cân đo; dòng trẻ bỏ `followUp`, thêm `bmi`, `bmiStatus`; đóng đợt bỏ `waitingFollowUpCount`.
+- Phiếu khám: bỏ `openFollowUp`, `latestExternalResult`; `conclusionMode` = FOLLOW_UP chỉ với phiếu cũ đã kết luận theo mẫu đó.
+- FE: module sức khỏe chạy BE giả (`integrationModules.js` `children: demo`); mock và màn hình sổ sức khỏe, đợt/kỳ, phiếu khám cập nhật cùng ngày theo plan FE `docs/plans/active/2026-11-04-health-warnings-book.md`. APP: chưa gọi API sức khỏe (dữ liệu giả); khi nối, `HealthSummary.nutritionLabel`/`MeasureResult` lấy từ `bmiStatus`.
+
 ## Nhận xét chung lớp — 29/10/2026
 
 - GET daily-assessment thêm `classComment` (classId, date, text, recordedBy, recordedByName, updatedAt).

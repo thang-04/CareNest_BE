@@ -3475,167 +3475,6 @@ paths:
           description: OK
       tags:
       - health-check-controller
-  /api/health-follow-ups:
-    get:
-      operationId: listFollowUps
-      parameters:
-      - in: query
-        name: campusId
-        required: false
-        schema:
-          type: integer
-          format: int64
-      - in: query
-        name: status
-        required: false
-        schema:
-          type: string
-          enum:
-          - WAITING_PARENT_CONTACT
-          - PARENT_CONTACTED
-          - EXTERNAL_RESULT_RECORDED
-          - CLOSED
-      - in: query
-        name: overdue
-        required: false
-        schema:
-          type: boolean
-          default: false
-      - in: query
-        name: schoolYear
-        required: false
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonHealthFollowUpListResponse"
-          description: OK
-      tags:
-      - health-follow-up-controller
-  /api/health-follow-ups/{followUpId}:
-    get:
-      operationId: getFollowUp
-      parameters:
-      - in: path
-        name: followUpId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonHealthFollowUpResponse"
-          description: OK
-      tags:
-      - health-follow-up-controller
-  /api/health-follow-ups/{followUpId}/close:
-    post:
-      operationId: closeFollowUp
-      parameters:
-      - in: path
-        name: followUpId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/HealthFollowUpCloseRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonHealthFollowUpResponse"
-          description: OK
-      tags:
-      - health-follow-up-controller
-  /api/health-follow-ups/{followUpId}/external-results:
-    post:
-      operationId: addExternalResult
-      parameters:
-      - in: path
-        name: followUpId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/HealthFollowUpExternalResultRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonHealthFollowUpResponse"
-          description: OK
-      tags:
-      - health-follow-up-controller
-  /api/health-follow-ups/{followUpId}/images/{imageId}:
-    get:
-      operationId: getImage
-      parameters:
-      - in: path
-        name: followUpId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      - in: path
-        name: imageId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                type: string
-                format: byte
-          description: OK
-      tags:
-      - health-follow-up-controller
-  /api/health-follow-ups/{followUpId}/parent-contacts:
-    post:
-      operationId: addParentContact
-      parameters:
-      - in: path
-        name: followUpId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/HealthFollowUpContactRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonHealthFollowUpResponse"
-          description: OK
-      tags:
-      - health-follow-up-controller
   /api/leave-requests:
     get:
       operationId: searchLeaveRequests
@@ -7538,23 +7377,19 @@ components:
         childId:
           type: integer
           format: int64
-        externalResults:
-          type: array
-          items:
-            $ref: "#/components/schemas/HealthExternalResult"
         headCircumferenceUntil:
           type: string
           format: date
-        latestHealth:
-          $ref: "#/components/schemas/HealthLatest"
+        latestBmi:
+          $ref: "#/components/schemas/HealthLatestBmi"
+        latestExam:
+          $ref: "#/components/schemas/HealthLatestExam"
         measurements:
           type: array
           items:
             $ref: "#/components/schemas/HealthMeasurementResponse"
         openCampaign:
           $ref: "#/components/schemas/HealthOpenCampaign"
-        openFollowUp:
-          $ref: "#/components/schemas/HealthFollowUpBrief"
     ChildHistoryResponse:
       type: object
       properties:
@@ -10192,9 +10027,38 @@ components:
           format: int64
         username:
           type: string
+    HealthBmiProgress:
+      type: object
+      properties:
+        obese:
+          type: integer
+          format: int32
+        overweight:
+          type: integer
+          format: int32
+        overweightRisk:
+          type: integer
+          format: int32
+        severeThinness:
+          type: integer
+          format: int32
+        thinness:
+          type: integer
+          format: int32
     HealthCheckChild:
       type: object
       properties:
+        bmi:
+          type: number
+        bmiStatus:
+          type: string
+          enum:
+          - SEVERE_THINNESS
+          - THINNESS
+          - NORMAL
+          - OVERWEIGHT_RISK
+          - OVERWEIGHT
+          - OBESE
         childId:
           type: integer
           format: int64
@@ -10227,8 +10091,6 @@ components:
           enum:
           - DRAFT
           - CONCLUDED
-        followUp:
-          $ref: "#/components/schemas/HealthFollowUpBrief"
         followUpLevel:
           type: string
           enum:
@@ -10269,6 +10131,9 @@ components:
         ageGroupId:
           type: integer
           format: int64
+        bmiWarning:
+          type: integer
+          format: int32
         canRecord:
           type: boolean
         classId:
@@ -10329,9 +10194,6 @@ components:
         notConcludedCount:
           type: integer
           format: int32
-        waitingFollowUpCount:
-          type: integer
-          format: int32
     HealthCheckDetailResponse:
       type: object
       properties:
@@ -10372,6 +10234,8 @@ components:
         absent:
           type: integer
           format: int32
+        bmi:
+          $ref: "#/components/schemas/HealthBmiProgress"
         closeWatch:
           type: integer
           format: int32
@@ -10489,9 +10353,6 @@ components:
           type: string
         note:
           type: string
-        overdueFollowUpCount:
-          type: integer
-          format: int32
         progress:
           $ref: "#/components/schemas/HealthCheckProgress"
         startDate:
@@ -10504,9 +10365,6 @@ components:
           - IN_PROGRESS
           - CLOSED
           - CANCELLED
-        waitingFollowUpCount:
-          type: integer
-          format: int32
     HealthConclusionBrief:
       type: object
       properties:
@@ -10696,22 +10554,6 @@ components:
           type: number
         weightKg:
           type: number
-    HealthExamExternalResult:
-      type: object
-      properties:
-        facility:
-          type: string
-        followUpId:
-          type: integer
-          format: int64
-        nextVisitOn:
-          type: string
-          format: date
-        note:
-          type: string
-        "on":
-          type: string
-          format: date
     HealthExamForm:
       type: object
       properties:
@@ -10882,14 +10724,10 @@ components:
           $ref: "#/components/schemas/HealthExamDraft"
         knownCondition:
           type: string
-        latestExternalResult:
-          $ref: "#/components/schemas/HealthExamExternalResult"
         locked:
           type: boolean
         measurement:
           $ref: "#/components/schemas/HealthMeasurementResponse"
-        openFollowUp:
-          $ref: "#/components/schemas/HealthFollowUpBrief"
         previous:
           $ref: "#/components/schemas/HealthPreviousExam"
         reference:
@@ -10956,337 +10794,58 @@ components:
           type: number
         temperatureStatus:
           type: string
-    HealthExternalResult:
+    HealthLatestBmi:
       type: object
       properties:
-        at:
-          type: string
-          format: date-time
-        byName:
-          type: string
-        facility:
-          type: string
-        followUpId:
-          type: integer
-          format: int64
-        images:
-          type: array
-          items:
-            $ref: "#/components/schemas/HealthFollowUpImageView"
-        nextVisitOn:
-          type: string
-          format: date
-        note:
-          type: string
-        "on":
-          type: string
-          format: date
-    HealthExternalResultBrief:
-      type: object
-      properties:
-        byName:
-          type: string
-        facility:
-          type: string
-        nextVisitOn:
-          type: string
-          format: date
-        note:
-          type: string
-        "on":
-          type: string
-          format: date
-    HealthFollowUpBrief:
-      type: object
-      properties:
-        dueOn:
-          type: string
-          format: date
-        id:
-          type: integer
-          format: int64
-        latestExternalResult:
-          $ref: "#/components/schemas/HealthExternalResultBrief"
-        openedAt:
-          type: string
-          format: date-time
-        openedOn:
-          type: string
-          format: date
-        overdueDays:
+        ageMonths:
           type: integer
           format: int32
-        referral:
-          $ref: "#/components/schemas/HealthReferral"
-        status:
+        bmi:
+          type: number
+        bmiStatus:
           type: string
           enum:
-          - WAITING_PARENT_CONTACT
-          - PARENT_CONTACTED
-          - EXTERNAL_RESULT_RECORDED
-          - CLOSED
-        tbRisk:
-          type: boolean
-    HealthFollowUpChild:
-      type: object
-      properties:
-        campusId:
+          - SEVERE_THINNESS
+          - THINNESS
+          - NORMAL
+          - OVERWEIGHT_RISK
+          - OVERWEIGHT
+          - OBESE
+        bmiZScore:
+          type: number
+        campaignId:
           type: integer
           format: int64
-        campusName:
+        campaignName:
           type: string
-        classId:
-          type: integer
-          format: int64
-        className:
-          type: string
-        code:
-          type: string
-        fullName:
-          type: string
-        id:
-          type: integer
-          format: int64
-    HealthFollowUpCloseRequest:
-      type: object
-      properties:
-        conditionText:
-          type: string
-        outcome:
-          type: string
-          enum:
-          - DOCTOR_NORMAL
-          - KNOWN_CONDITION
-          - NO_SPECIALIST_RESULT
-        reason:
-          type: string
-    HealthFollowUpContactRequest:
-      type: object
-      properties:
-        contactedOn:
+        date:
           type: string
           format: date
-        note:
-          type: string
-    HealthFollowUpEventView:
-      type: object
-      properties:
-        action:
-          type: string
-          enum:
-          - OPENED
-          - MEASUREMENT_ADDED
-          - PARENT_CONTACTED
-          - EXTERNAL_RESULT
-          - CLOSED
-        at:
-          type: string
-          format: date-time
-        atExam:
-          type: boolean
-        auto:
-          type: string
-        conditionText:
-          type: string
-        examOn:
-          type: string
-          format: date
-        facility:
-          type: string
-        id:
-          type: integer
-          format: int64
-        images:
-          type: array
-          items:
-            $ref: "#/components/schemas/HealthFollowUpImageView"
-        measurement:
-          $ref: "#/components/schemas/HealthFollowUpMeasurement"
         measurementId:
           type: integer
           format: int64
-        newFinding:
-          type: boolean
-        newRound:
-          type: boolean
-        nextVisitOn:
-          type: string
-          format: date
-        note:
-          type: string
-        "on":
-          type: string
-          format: date
-        outcome:
-          type: string
-          enum:
-          - DOCTOR_NORMAL
-          - KNOWN_CONDITION
-          - NO_SPECIALIST_RESULT
-        userId:
+    HealthLatestExam:
+      type: object
+      properties:
+        campaignId:
           type: integer
           format: int64
-        userName:
-          type: string
-    HealthFollowUpExternalResultRequest:
-      type: object
-      properties:
-        facility:
-          type: string
-        images:
-          type: array
-          items:
-            type: string
-        nextVisitOn:
-          type: string
-          format: date
-        note:
-          type: string
-        resultOn:
-          type: string
-          format: date
-    HealthFollowUpImageView:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        path:
-          type: string
-    HealthFollowUpListResponse:
-      type: object
-      properties:
-        counts:
-          type: object
-          additionalProperties:
-            type: integer
-            format: int32
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/HealthFollowUpResponse"
-    HealthFollowUpMeasurement:
-      type: object
-      properties:
         campaignName:
           type: string
         conclusion:
           $ref: "#/components/schemas/HealthConclusionBrief"
+        conclusionCategory:
+          type: string
+          enum:
+          - NORMAL
+          - ISSUE
+          - REFERRAL
+          - TB_RISK
+          - FOLLOWING_NO_NEW
+          - FOLLOWING_NEW
         date:
           type: string
           format: date
-        followUpLevel:
-          type: string
-          enum:
-          - UNAVAILABLE
-          - NONE
-          - WATCH
-          - CLOSE_WATCH
-          - KNOWN_STABLE
-        measurementId:
-          type: integer
-          format: int64
-        source:
-          type: string
-    HealthFollowUpResponse:
-      type: object
-      properties:
-        canRecordExternal:
-          type: boolean
-        canUpdate:
-          type: boolean
-        child:
-          $ref: "#/components/schemas/HealthFollowUpChild"
-        closeConditionText:
-          type: string
-        closeOutcome:
-          type: string
-          enum:
-          - DOCTOR_NORMAL
-          - KNOWN_CONDITION
-          - NO_SPECIALIST_RESULT
-        closeOutcomeOptions:
-          type: array
-          items:
-            type: string
-            enum:
-            - DOCTOR_NORMAL
-            - KNOWN_CONDITION
-            - NO_SPECIALIST_RESULT
-        closeReason:
-          type: string
-        closedAt:
-          type: string
-          format: date-time
-        closedByName:
-          type: string
-        currentRound:
-          $ref: "#/components/schemas/HealthFollowUpRound"
-        id:
-          type: integer
-          format: int64
-        latest:
-          $ref: "#/components/schemas/HealthFollowUpMeasurement"
-        latestExternalResult:
-          $ref: "#/components/schemas/HealthExternalResultBrief"
-        latestMeasurement:
-          $ref: "#/components/schemas/HealthFollowUpMeasurement"
-        measurements:
-          type: array
-          items:
-            $ref: "#/components/schemas/HealthMeasurementResponse"
-        openedAt:
-          type: string
-          format: date-time
-        referral:
-          $ref: "#/components/schemas/HealthReferral"
-        status:
-          type: string
-          enum:
-          - WAITING_PARENT_CONTACT
-          - PARENT_CONTACTED
-          - EXTERNAL_RESULT_RECORDED
-          - CLOSED
-        tbRisk:
-          type: boolean
-        timeline:
-          type: array
-          items:
-            $ref: "#/components/schemas/HealthFollowUpEventView"
-        updatedAt:
-          type: string
-          format: date-time
-    HealthFollowUpRound:
-      type: object
-      properties:
-        contactFrom:
-          type: string
-          format: date
-        contacted:
-          type: boolean
-        dueOn:
-          type: string
-          format: date
-        overdueDays:
-          type: integer
-          format: int32
-        startedAt:
-          type: string
-          format: date-time
-    HealthLatest:
-      type: object
-      properties:
-        campaignName:
-          type: string
-        closedWithoutResultOn:
-          type: string
-          format: date
-        date:
-          type: string
-          format: date
-        followUpId:
-          type: integer
-          format: int64
         followUpLevel:
           type: string
           enum:
@@ -11297,15 +10856,9 @@ components:
           - KNOWN_STABLE
         knownCondition:
           type: string
-        resultOn:
-          type: string
-          format: date
-        source:
-          type: string
-          enum:
-          - EXAM
-          - FOLLOW_UP_OPEN
-          - FOLLOW_UP_CLOSED
+        measurementId:
+          type: integer
+          format: int64
     HealthMeasurementChange:
       type: object
       properties:
@@ -11375,6 +10928,17 @@ components:
           format: int32
         bmi:
           type: number
+        bmiStatus:
+          type: string
+          enum:
+          - SEVERE_THINNESS
+          - THINNESS
+          - NORMAL
+          - OVERWEIGHT_RISK
+          - OVERWEIGHT
+          - OBESE
+        bmiZScore:
+          type: number
         campaignId:
           type: integer
           format: int64
@@ -11419,16 +10983,6 @@ components:
           enum:
           - DRAFT
           - CONCLUDED
-        followUpEffect:
-          type: string
-          enum:
-          - OPENED
-          - NOTED
-          - NEW_ROUND
-          - MERGED
-        followUpId:
-          type: integer
-          format: int64
         followUpLevel:
           type: string
           enum:
@@ -11455,8 +11009,6 @@ components:
           type: string
         note:
           type: string
-        parentContact:
-          $ref: "#/components/schemas/HealthParentContact"
         published:
           type: boolean
         publishedAt:
@@ -11492,18 +11044,6 @@ components:
         startDate:
           type: string
           format: date
-    HealthParentContact:
-      type: object
-      properties:
-        atExam:
-          type: boolean
-        contacted:
-          type: boolean
-        "on":
-          type: string
-          format: date
-        opinion:
-          type: string
     HealthPreviousExam:
       type: object
       properties:
@@ -11522,31 +11062,6 @@ components:
           - WATCH
           - CLOSE_WATCH
           - KNOWN_STABLE
-    HealthReferral:
-      type: object
-      properties:
-        action:
-          type: string
-        adviceText:
-          type: string
-        date:
-          type: string
-          format: date
-        doctorName:
-          type: string
-        followUpFinding:
-          type: string
-        issueKind:
-          type: string
-        issueText:
-          type: string
-        measurementId:
-          type: integer
-          format: int64
-        specialty:
-          type: string
-        tbRisk:
-          type: boolean
     HealthScheduleWarningItem:
       type: object
       properties:
@@ -14366,32 +13881,6 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/HealthExamReviewResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonHealthFollowUpListResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/HealthFollowUpListResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonHealthFollowUpResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/HealthFollowUpResponse"
         desc:
           type: string
         errorCode:

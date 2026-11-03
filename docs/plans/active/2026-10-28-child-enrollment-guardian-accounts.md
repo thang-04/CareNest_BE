@@ -28,7 +28,7 @@ BE hiện có (`aa64480` + thay đổi chưa commit 28/10): bảng `children` (i
 6. C-4 A: bỏ `POST /children/{childId}/guardians` (thêm phụ huynh kèm tạo tài khoản ngay); giữ phần xử lý tạo/liên kết tài khoản trong service để dùng chung cho kích hoạt và lưu form tiếp nhận — user, 2026-10-28.
 7. C-5 A: lỗi theo ô giữ `400` + `data` danh sách `{ field, message }` (`docs/contracts/ERROR_CONTRACT.md`); FE tự chuyển khi nối API — user, 2026-10-28.
 8. Y-1..Y-5 A: dữ liệu theo năm học (mục 9 của Đặc tả) — user, 2026-10-28.
-9. Phạm vi đợt sửa BE giả 28/10 là tiếp nhận + tài khoản phụ huynh (C-3); năm học áp cả đợt khám, phiếu theo dõi, đón trẻ.
+9. Phạm vi đợt sửa BE giả 28/10 là tiếp nhận + tài khoản phụ huynh (C-3); năm học áp cả đợt khám, phiếu theo dõi (bỏ 2026-11-04 — HLT-16), đón trẻ.
 10. D-1 A: thêm mã quyền `CHILD_ENROLL` (tiếp nhận, nhập Excel, mở lại hồ sơ), `CHILD_PROFILE_EDIT` (sửa hồ sơ, khai báo sức khỏe), `CHILD_PLACEMENT` (xếp/chuyển lớp, cho nghỉ học); giữ `PARENT_ACCOUNT_MANAGE` — user, 2026-10-28.
 11. D-2 A: làm cổng SMS giả trước, chọn nhà cung cấp trước khi dùng thật — user, 2026-10-28.
 12. D-4 A: một `GET /children` phân trang, trả đủ trường cho danh sách trẻ và màn Tài khoản phụ huynh — user, 2026-10-28.
@@ -202,7 +202,7 @@ Nguồn: `FE:docs/integration/CHILD_ENROLLMENT_BE_SPEC.md`. "BE giả" = mock c�
 7. Khai báo sức khỏe `PUT /children/{id}/health-declaration`; `GET /children/{id}/profile` trả đủ trường mới.
 8. Màn Tài khoản phụ huynh (mục 4.7): danh sách chờ kích hoạt, kích hoạt cả nhà, gỡ, khóa/mở, cấp lại mật khẩu qua SMS.
 9. Thông báo (mục 6.2) khi có module notification; nhà cung cấp SMS (mục 6.1).
-10. Lọc theo năm học cho danh sách trẻ, đợt khám, phiếu theo dõi, đón trẻ (mục 9).
+10. Lọc theo năm học cho danh sách trẻ, đợt khám, phiếu theo dõi (bỏ 2026-11-04 — HLT-16), đón trẻ (mục 9).
 
 ### 2. Quyền và phạm vi (CHD-01, AUTH-18, AUTH-19)
 
@@ -346,7 +346,7 @@ Kiểu dữ liệu dùng lại:
 
 **`POST /children/{id}/withdraw`** body `{ leftAt, reason }` (mới; BE giả `withdrawChild`)
 - `leftAt` ngày hợp lệ, không ở tương lai, không trước ngày tiếp nhận; `reason` bắt buộc ≤300 (422 `leftAt` / `reason`).
-- `status` = `LEFT`, đóng enrollment, lịch sử `WITHDRAWN`, không xóa dữ liệu; phiếu theo dõi sức khỏe đang mở tự đóng (module health); thông báo `CHILD_WITHDRAWN`. Trả `ChildView`.
+- `status` = `LEFT`, đóng enrollment, lịch sử `WITHDRAWN`, không xóa dữ liệu; ~~phiếu theo dõi sức khỏe đang mở tự đóng (module health)~~ (bỏ 2026-11-04 — HLT-16); thông báo `CHILD_WITHDRAWN`. Trả `ChildView`.
 
 **`POST /children/{id}/readmit`** body `{ reason }` (mới; BE giả `readmitChild`, quyền `canReadmitChild`)
 - Chỉ trẻ `LEFT` (khác ⇒ 409); `reason` bắt buộc ≤300 (422 `reason`); quyền tiếp nhận ở điểm trường của trẻ.
@@ -424,7 +424,7 @@ So với mọi tài khoản phụ huynh và mọi phụ huynh trên hồ sơ tr�
 | `CHILD_TB_CONTACT` | Khai Có tiếp xúc người bệnh lao (tiếp nhận, nhập Excel, sửa khai báo) | HT, PHT điểm trường, giáo viên lớp, người lưu | "Phụ huynh khai {tên trẻ} có tiền sử tiếp xúc với người bệnh lao (gần nhất ngày {ngày}). Nhà trường trao đổi với phụ huynh về việc đưa trẻ đi khám sàng lọc; bác sĩ xem lại ở đợt khám tới." |
 | `CHILD_TB_CONTACT_DATE_CHANGED` | Ngày tiếp xúc đã có đổi sang ngày khác (sửa khai báo, kết luận phiếu khám) | HT, PHT điểm trường, người lưu | "Ngày tiếp xúc gần nhất với người bệnh lao của {tên trẻ} đổi từ {ngày cũ} sang {ngày mới} ({nơi đổi})." |
 | `CHILD_PLACED` | Tiếp nhận có lớp, xếp/chuyển lớp | Giáo viên lớp mới | "{tên trẻ} đã được xếp vào {lớp}." |
-| `CHILD_WITHDRAWN` | Cho nghỉ học | Giáo viên lớp | "{tên trẻ} nghỉ học từ ngày {ngày}." (+ phiếu theo dõi đã tự đóng) |
+| `CHILD_WITHDRAWN` | Cho nghỉ học | Giáo viên lớp | "{tên trẻ} nghỉ học từ ngày {ngày}." (~~+ phiếu theo dõi đã tự đóng~~ — bỏ 2026-11-04) |
 
 Câu trung tính, không chẩn đoán (CHD-07). Đường dẫn: hồ sơ trẻ hoặc trang khai báo sức khỏe.
 
@@ -445,7 +445,7 @@ Chốt 28/10/2026: C-5 (mục 2), D-1, D-7 (mục 1), D-2 (mục 4), D-4 (mục 
 9. **Giả định đang chạy ở BE giả — user đồng ý 28/10 (D-6, C-2):** Excel không sửa tài khoản có sẵn; không đổi cùng lúc CCCD và SĐT của phụ huynh đã có tài khoản; phụ huynh có tài khoản không xóa ở hồ sơ (gỡ liên kết ở màn Tài khoản phụ huynh); người không có quyền kích hoạt không sửa tài khoản có sẵn (mục 5.5).
 
 ### 8. Ngoài phạm vi tài liệu này
-Ngoài phần năm học ở mục 9, contract vẫn ở chú thích các file API: danh sách trẻ (`listChildren`, `latestHealth`), sổ sức khỏe, cân đo, phân tích xu hướng AI (`FE:src/services/children/api/childrenApi.js`), đợt khám, phiếu khám, phiếu theo dõi (`FE:src/services/children/api/healthCheckApi.js`), đón trẻ (`FE:src/services/pickup/api/pickupApi.js`). Quyền theo mảng của PHT (nhánh G94-179) chỉ ghi ở mục 7.1.
+Ngoài phần năm học ở mục 9, contract vẫn ở chú thích các file API: danh sách trẻ (`listChildren`, `latestHealth`), sổ sức khỏe, cân đo, phân tích xu hướng AI (`FE:src/services/children/api/childrenApi.js`), đợt khám, phiếu khám (`FE:src/services/children/api/healthCheckApi.js`; phiếu theo dõi bỏ 2026-11-04), đón trẻ (`FE:src/services/pickup/api/pickupApi.js`). Quyền theo mảng của PHT (nhánh G94-179) chỉ ghi ở mục 7.1.
 
 ### 9. Năm học (user chốt 2026-10-28, Y-1..Y-5)
 
@@ -454,7 +454,7 @@ Header có ô chọn năm học (mặc định năm đang hoạt động). Dữ 
 - **Ngày thuộc năm nào:** năm học gần nhất đã bắt đầu tính tới ngày đó (kỳ hè giữa hai năm tính vào năm vừa qua) — để ngày nào cũng thuộc đúng một năm (BE giả `schoolYearIdOfDate`).
 - **Y-2 · Danh sách trẻ `GET /children?schoolYear=X`:** trẻ có lớp thuộc năm X, trả `classId`, `className`, `ageGroupId`, `schoolYear`, `campusId` của lớp cuối cùng trong năm X (BE lấy từ `enrollments`; CMR-04). Trẻ chờ xếp lớp chỉ có ở năm đang hoạt động; trẻ nghỉ khi chưa có lớp ở năm của ngày nghỉ. `status` vẫn là trạng thái hiện tại; phạm vi xem theo điểm trường hiện tại của trẻ. Không có `schoolYear` ⇒ mọi trẻ trong phạm vi. BE giả: `classInYear`, `inSchoolYear` (lấy lịch sử từ `childPlacements` và lịch sử chuyển năm của Xếp lớp năm học mới). Bảng tổng quan HT/PHT đếm số trẻ theo cùng tham số.
 - **Y-3 · Tiếp nhận, xếp lớp:** chỉ vào lớp của năm đang hoạt động — `placement-classes` chỉ trả lớp năm đó; `POST /children/enrollments`, `POST /children/{id}/placement` với lớp năm khác ⇒ 422 `classId` (mục 4.1, 4.4). Xếp lớp cho năm sau thuộc màn Xếp lớp năm học mới (module school-structure). Header ở năm đã kết thúc ⇒ FE chỉ hiện thông báo ở màn tiếp nhận, nhập Excel, xếp lớp (không cần BE).
-- **Y-4 · Đợt khám, phiếu theo dõi:** `GET /health-checks?schoolYear=X` trả đợt có ngày bắt đầu thuộc năm X. `GET /health-follow-ups?schoolYear=X` trả mọi phiếu đang mở và phiếu đã đóng có khoảng mở–đóng giao năm X; `counts` tính trên cùng tập (BE giả `listHealthChecks`, `listHealthFollowUps`).
+- **Y-4 · Đợt khám, phiếu theo dõi:** `GET /health-checks?schoolYear=X` trả đợt có ngày bắt đầu thuộc năm X. ~~`GET /health-follow-ups?schoolYear=X` …~~ — bỏ 2026-11-04 cùng phiếu theo dõi (HLT-16; plan `2026-11-04-health-warnings-book`).
 - **Y-1 · Đón trẻ:** danh sách lớp chỉ lớp của năm đang hoạt động (`GET /classes?activeYear=true`, như điểm danh); `GET /classes/{classId}/pickups?date` và `GET /pickups?date`: lớp năm khác ⇒ 422 `classId`; `date` ở tương lai, hoặc trước ngày bắt đầu năm đang hoạt động khi năm đã bắt đầu ⇒ 422 `date`. BE giả vẫn lấy trẻ theo lớp hiện tại như điểm danh; BE thật nên lấy theo enrollment tại ngày đó (CMR-04).
 - **Y-5 · Tài khoản phụ huynh:** không theo năm (một tài khoản dùng qua nhiều năm); màn Tài khoản phụ huynh, ô "phụ huynh chưa kích hoạt" ở bảng tổng quan không nhận tham số năm.
 - Y-2 = A: user xác nhận 28/10 (C-7).

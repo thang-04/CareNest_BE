@@ -429,8 +429,9 @@ Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `(measurement_id, created_at)`.
 
-## health_follow_ups  (module: health, scope: CHILD)
-Mục đích: phiếu theo dõi sức khỏe, mở khi kết luận phiếu khám "theo dõi sát" (chuyển khám chuyên khoa, nguy cơ lao...). Trạng thái, vòng trao đổi, hạn tính khi đọc từ `health_follow_up_events`, không lưu. Migration: V65.
+## health_follow_ups  (module: health, scope: CHILD) — ngừng dùng từ 2026-11-04
+**Ngừng dùng** cùng bảng `health_follow_up_events`, `health_follow_up_images`: phiếu theo dõi đã bỏ (HLT-16 REMOVED, cảnh báo lưu ở sổ sức khỏe — HLT-19). Không còn entity/API ghi hay đọc; giữ dữ liệu cũ, xóa bảng bằng migration riêng khi team chốt. Ảnh cũ vẫn ở S3 dưới prefix `health/follow-up-results/`.
+Mục đích (cũ): phiếu theo dõi sức khỏe, mở khi kết luận phiếu khám "theo dõi sát" (chuyển khám chuyên khoa, nguy cơ lao...). Trạng thái, vòng trao đổi, hạn tính khi đọc từ `health_follow_up_events`, không lưu. Migration: V65.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id | BIGINT FK children | không | Mỗi trẻ tối đa một phiếu mở (UNIQUE có điều kiện `closed_at IS NULL`) | HLT-16 |
@@ -443,8 +444,8 @@ Mục đích: phiếu theo dõi sức khỏe, mở khi kết luận phiếu khá
 | close_condition_text | VARCHAR(100) | có | Tên vấn đề đã biết; có khi và chỉ khi `KNOWN_CONDITION` | HLT-16 |
 Index: `uk_health_follow_ups_child_open`, `(child_id, opened_at)`.
 
-## health_follow_up_events  (module: health, scope: CHILD)
-Mục đích: dòng thời gian của phiếu theo dõi; thứ tự `id` là thứ tự thời gian. Migration: V65.
+## health_follow_up_events  (module: health, scope: CHILD) — ngừng dùng từ 2026-11-04
+Mục đích (cũ): dòng thời gian của phiếu theo dõi; thứ tự `id` là thứ tự thời gian. Migration: V65. Ngừng dùng: xem `health_follow_ups`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | follow_up_id | BIGINT FK health_follow_ups | không | | — |
@@ -462,8 +463,8 @@ Mục đích: dòng thời gian của phiếu theo dõi; thứ tự `id` là th�
 | auto_reason | VARCHAR(30) | có | `CHILD_LEFT_SCHOOL` khi hệ thống tự đóng | HLT-16 |
 Index: `(follow_up_id, id)`, `uk_health_follow_up_events_measurement`.
 
-## health_follow_up_images  (module: health, scope: CHILD)
-Mục đích: ảnh kết quả khám chuyên khoa (tối đa 3 ảnh/lần ghi), tệp private ở S3 theo `storage_key` (prefix `CARENEST_HEALTH_MEDIA_PREFIX`); chỉ đọc qua API có kiểm phạm vi. Migration: V65.
+## health_follow_up_images  (module: health, scope: CHILD) — ngừng dùng từ 2026-11-04
+Mục đích (cũ): ảnh kết quả khám chuyên khoa (tối đa 3 ảnh/lần ghi), tệp private ở S3 theo `storage_key` (prefix cũ `health/follow-up-results/`, biến `CARENEST_HEALTH_MEDIA_PREFIX` đã bỏ). Migration: V65. Ngừng dùng: xem `health_follow_ups`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | event_id | BIGINT FK health_follow_up_events | không | Sự kiện `EXTERNAL_RESULT` | HLT-16 |

@@ -1,5 +1,11 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Cảnh báo ở sổ sức khỏe, mức BMI kỳ cân đo, bỏ phiếu theo dõi — 2026-11-04
+
+- Nguồn user 2026-11-04: đợt khám = kết luận bác sĩ, kỳ cân đo = cảnh báo BMI, bỏ phiếu theo dõi, cảnh báo lưu ở sổ sức khỏe (HLT-16 REMOVED, HLT-18, HLT-19, P-40). Plan `docs/plans/active/2026-11-04-health-warnings-book.md`, bằng chứng chi tiết `specs/010-health-warnings-book/quickstart.md`.
+- Sau sửa source cuối: `VERIFY PASS full | tests 999 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 471s | log target/verify.log`. Snapshot OpenAPI đổi có chủ đích (bỏ `/health-follow-ups/**`, thêm trường cảnh báo); consumer FE cập nhật cùng ngày (BE giả), APP chưa gọi API.
+- Review độc lập: P1 nguồn "vấn đề đã biết" đã sửa và có test; không migration, không xóa dữ liệu phiếu cũ, không commit/push. Chưa chạy Web nối BE thật.
+
 ## Tự đóng đợt khám và mở lại với hạn nhập bù — 2026-11-01
 
 - Nguồn user 2026-11-01 (HLT-17): EXAM tự đóng khi qua ngày kết thúc theo giờ trường, chạy lúc 00:00 và khi ứng dụng khởi động để xử lý thời gian tắt máy. Tái sử dụng đóng tay cho vắng/chưa kết luận/khóa kết quả; phiếu theo dõi vẫn mở; lịch sử đóng tự động ghi actor hệ thống. Kỳ cân đo giữ nguyên.

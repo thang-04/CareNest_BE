@@ -64,7 +64,7 @@ public interface ChildIntakeService {
     Optional<ChildMedicalHistory> findMedicalHistory(Long childId);
 
     /**
-     * Ghi tiền sử mới vào khai báo sức khỏe (từ phiếu khám, phiếu theo dõi; HLT-06) và một dòng lịch sử khai báo. Trẻ
+     * Ghi tiền sử mới vào khai báo sức khỏe (từ phiếu khám; HLT-06) và một dòng lịch sử khai báo. Trẻ
      * chưa có khai báo ⇒ tạo khai báo, các mục khác "chưa cung cấp". Chạy trong giao dịch của người gọi.
      */
     void updateMedicalHistory(

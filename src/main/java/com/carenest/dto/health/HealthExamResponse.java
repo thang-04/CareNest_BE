@@ -12,10 +12,9 @@ import java.util.List;
  * Phiếu khám Phụ lục II của trẻ trong đợt khám. Đã lưu ⇒ {@code measurement} (nháp: hành chính, tiền sử còn trống điền
  * lại từ hồ sơ, khai báo, không lưu); chưa lưu ⇒ {@code draft} điền sẵn. {@code reference} theo tuổi tại ngày khám.
  *
- * @param conclusionMode mẫu kết luận: FOLLOW_UP khi trẻ có phiếu theo dõi đang mở chưa chứa lần khám này
- * @param knownCondition vấn đề đã biết của trẻ (mức hiện tại "ổn định"), để hỏi vấn đề mới hay đã biết
- * @param openFollowUp phiếu theo dõi đang mở chưa chứa lần khám này
- * @param latestExternalResult kết quả chuyên khoa gần nhất của trẻ, mọi phiếu theo dõi
+ * @param conclusionMode mẫu kết luận: STANDARD; FOLLOW_UP chỉ còn ở phiếu đã kết luận theo mẫu phiếu theo dõi cũ (HLT-16
+ *     đã bỏ)
+ * @param knownCondition vấn đề đã biết của trẻ (lần khám gần nhất mức "ổn định"), để hỏi vấn đề mới hay đã biết
  * @param doctorNames tên bác sĩ đã ghi trong đợt, để chọn nhanh
  * @param canEdit GV lớp, đợt đang diễn ra
  * @param locked đợt không còn diễn ra (đã đóng, đã hủy, chưa bắt đầu)
@@ -23,14 +22,12 @@ import java.util.List;
 public record HealthExamResponse(
         HealthConclusionMode conclusionMode,
         String knownCondition,
-        HealthFollowUpResponse.HealthFollowUpBrief openFollowUp,
         HealthExamCampaign campaign,
         HealthExamChild child,
         HealthMeasurementResponse measurement,
         HealthExamDraft draft,
         HealthExamReference reference,
         HealthPreviousExam previous,
-        HealthExamExternalResult latestExternalResult,
         List<String> doctorNames,
         boolean canEdit,
         boolean locked) {
@@ -65,7 +62,4 @@ public record HealthExamResponse(
             String campaignName,
             HealthFollowUpLevel followUpLevel,
             HealthMeasurementResponse.HealthConclusionBrief conclusion) {}
-
-    public record HealthExamExternalResult(
-            Long followUpId, LocalDate on, String note, String facility, LocalDate nextVisitOn) {}
 }

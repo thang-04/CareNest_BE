@@ -83,16 +83,15 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                         result == null ? null : result.getId(),
                         resultStatus(result));
             }
-            // Phiếu khám nháp chưa công bố, không vào sổ
+            // Phiếu khám nháp chưa công bố, không vào sổ; cảnh báo hiện tại theo bác sĩ và theo BMI (HLT-19)
             ChildHealthRecordResponse record = new ChildHealthRecordResponse(
                     childId,
                     HealthRecords.headCircumferenceUntil(child.dateOfBirth()),
                     cls.map(c -> rules.canRecord(currentUser, c)).orElse(false),
                     openView,
-                    records.views(s, s.results(childId), child.dateOfBirth(), false),
-                    s.latestHealth(childId),
-                    s.brief(s.openFollowUp(childId)),
-                    records.externalResults(s, childId));
+                    records.views(s, s.results(childId), child.dateOfBirth(), child.gender(), false),
+                    s.latestExam(childId),
+                    s.latestBmi(childId, child.dateOfBirth(), child.gender()));
             log.info("{}|END", logPrefix);
             return record;
         } catch (RuntimeException ex) {
@@ -253,7 +252,8 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
 
     private HealthMeasurementResponse view(HealthMeasurement m, ChildBriefResponse child) {
         HealthRecords.Snapshot s = records.load(List.of(child.id()));
-        return records.views(s, List.of(m), child.dateOfBirth(), false).getFirst();
+        return records.views(s, List.of(m), child.dateOfBirth(), child.gender(), false)
+                .getFirst();
     }
 
     private static void change(

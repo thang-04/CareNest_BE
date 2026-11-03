@@ -344,20 +344,10 @@ public enum ApiCode {
     HEALTH_EXAM_CONCLUDED(
             5031, HttpStatus.CONFLICT, "Phiếu đã có kết luận. Lưu lại kết luận kèm lý do sửa thay vì lưu nháp"),
     HEALTH_EXAM_MODE_CHANGED(
-            5032,
-            HttpStatus.CONFLICT,
-            "Phiếu theo dõi của trẻ vừa thay đổi nên mẫu kết luận đã đổi. Tải lại phiếu khám rồi lưu lại"),
+            5032, HttpStatus.CONFLICT, "Mẫu kết luận của phiếu khám đã thay đổi. Tải lại phiếu khám rồi lưu lại"),
     HEALTH_EXAM_INCOMPLETE(5033, HttpStatus.BAD_REQUEST, "Phiếu chưa đủ thông tin. Kiểm tra các ô được đánh dấu"),
     HEALTH_MEASUREMENT_IS_EXAM(5034, HttpStatus.CONFLICT, "Kết quả này là phiếu khám. Sửa ở trang phiếu khám của đợt"),
-    HEALTH_FOLLOW_UP_NOT_FOUND(5035, HttpStatus.NOT_FOUND, "Không tìm thấy phiếu theo dõi"),
-    HEALTH_FOLLOW_UP_ACCESS_DENIED(
-            5036, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được cập nhật phiếu theo dõi"),
-    HEALTH_FOLLOW_UP_CLOSED(5037, HttpStatus.CONFLICT, "Phiếu theo dõi đã đóng"),
-    HEALTH_FOLLOW_UP_CONTACT_FIRST(
-            5038,
-            HttpStatus.CONFLICT,
-            "Ghi trao đổi với phụ huynh về kết quả khám mới nhất trước khi ghi kết quả khám bên ngoài"),
-    HEALTH_FOLLOW_UP_IMAGE_NOT_FOUND(5039, HttpStatus.NOT_FOUND, "Không tìm thấy ảnh kết quả khám"),
+    // 5035–5039 của phiếu theo dõi sức khỏe đã bỏ (HLT-16, 2026-11-04); không dùng lại mã
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),
