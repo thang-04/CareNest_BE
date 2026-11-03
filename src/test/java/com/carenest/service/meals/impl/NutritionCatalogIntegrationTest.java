@@ -102,9 +102,9 @@ class NutritionCatalogIntegrationTest {
 
         DishDetailResponse.AgeGroupNutrition small = nutritionOf(dish, nursery);
         DishDetailResponse.AgeGroupNutrition big = nutritionOf(dish, kindergarten);
-        // 50 × 3,44 + 10 × 5,67 = 228,70 kcal; giá 50 × 18 + 10 × 1,1 × 60 = 1.560đ
+        // 50 × 3,44 + 10 × 5,67 = 228,70 kcal; giá 50 × 18 + 10 ÷ 0,9 × 60 = 1.566,67đ (lượng mua = ăn ÷ (1 − thải bỏ))
         assertThat(small.kcal()).isEqualByComparingTo("228.70");
-        assertThat(small.cost()).isEqualByComparingTo("1560.00");
+        assertThat(small.cost()).isEqualByComparingTo("1566.67");
         assertThat(big.kcal()).isEqualByComparingTo("275.20");
         assertThat(dish.allergens()).extracting("code").containsExactly("PEANUT");
     }

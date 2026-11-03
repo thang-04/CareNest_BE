@@ -69,6 +69,19 @@ public enum Permission {
             EnumSet.of(CareNestRole.PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL),
             true),
+    // AUTH-21, AUTH-22: tài khoản bếp chung mỗi điểm trường ghi lưu mẫu, hủy mẫu, ảnh bữa; HT tắt được
+    KITCHEN_RECORD(
+            "meals",
+            "Ghi lưu mẫu, hủy mẫu, đăng ảnh bữa ăn",
+            EnumSet.of(CareNestRole.KITCHEN_STAFF),
+            EnumSet.of(CareNestRole.KITCHEN_STAFF)),
+    // NUT-21 + AUTH-20: duyệt lưu mẫu, hủy mẫu theo điểm trường; PHT mặc định tắt, HT cấp và có thể nâng lên cả trường
+    FOOD_SAFETY_APPROVE(
+            "meals",
+            "Duyệt lưu mẫu thức ăn, duyệt hủy mẫu",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
     // Không giao được cho ai: nếu giao, người được giao tự cấp thêm quyền cho mình (AUTH-11)
     PERMISSION_MANAGE(
             "account", "Quản lý phân quyền", EnumSet.of(CareNestRole.PRINCIPAL), EnumSet.noneOf(CareNestRole.class));

@@ -16,7 +16,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * Giá suất và chuẩn dinh dưỡng của một nhóm tuổi từ ngày hiệu lực (NUT-17, NUT-19). Bản đã tới ngày hiệu lực chỉ đọc,
+ * Giá suất và chuẩn dinh dưỡng của một nhóm tuổi từ ngày hiệu lực (NUT-17, NUT-19, NUT-24, NUT-25). Bản đã tới ngày hiệu lực chỉ đọc,
  * đổi thì tạo bản mới. Bữa trong ngày nằm ở {@code age_groups.meal_sessions}.
  */
 @Getter
@@ -62,17 +62,56 @@ public class AgeGroupMealConfig {
     @Column(name = "glucid_pct_max")
     private BigDecimal glucidPctMax;
 
-    @Column(name = "animal_protein_pct_min")
-    private BigDecimal animalProteinPctMin;
+    @Column(name = "animal_protein_g_min")
+    private BigDecimal animalProteinGMin;
 
-    @Column(name = "animal_protein_pct_max")
-    private BigDecimal animalProteinPctMax;
+    @Column(name = "animal_protein_g_max")
+    private BigDecimal animalProteinGMax;
 
-    @Column(name = "animal_lipid_pct_min")
-    private BigDecimal animalLipidPctMin;
+    @Column(name = "plant_protein_g_min")
+    private BigDecimal plantProteinGMin;
 
-    @Column(name = "animal_lipid_pct_max")
-    private BigDecimal animalLipidPctMax;
+    @Column(name = "plant_protein_g_max")
+    private BigDecimal plantProteinGMax;
+
+    @Column(name = "animal_lipid_g_min")
+    private BigDecimal animalLipidGMin;
+
+    @Column(name = "animal_lipid_g_max")
+    private BigDecimal animalLipidGMax;
+
+    @Column(name = "plant_lipid_g_min")
+    private BigDecimal plantLipidGMin;
+
+    @Column(name = "plant_lipid_g_max")
+    private BigDecimal plantLipidGMax;
+
+    @Column(name = "glucid_g_min")
+    private BigDecimal glucidGMin;
+
+    @Column(name = "glucid_g_max")
+    private BigDecimal glucidGMax;
+
+    @Column(name = "morning_kcal_pct_min")
+    private BigDecimal morningKcalPctMin;
+
+    @Column(name = "morning_kcal_pct_max")
+    private BigDecimal morningKcalPctMax;
+
+    @Column(name = "lunch_kcal_pct_min")
+    private BigDecimal lunchKcalPctMin;
+
+    @Column(name = "lunch_kcal_pct_max")
+    private BigDecimal lunchKcalPctMax;
+
+    @Column(name = "afternoon_kcal_pct_min")
+    private BigDecimal afternoonKcalPctMin;
+
+    @Column(name = "afternoon_kcal_pct_max")
+    private BigDecimal afternoonKcalPctMax;
+
+    @Column(name = "daily_kcal_need")
+    private BigDecimal dailyKcalNeed;
 
     @Column(name = "norm_basis", nullable = false, length = 300)
     private String normBasis = "";
@@ -111,15 +150,31 @@ public class AgeGroupMealConfig {
         this.lipidPctMax = norms.lipidPctMax();
         this.glucidPctMin = norms.glucidPctMin();
         this.glucidPctMax = norms.glucidPctMax();
-        this.animalProteinPctMin = norms.animalProteinPctMin();
-        this.animalProteinPctMax = norms.animalProteinPctMax();
-        this.animalLipidPctMin = norms.animalLipidPctMin();
-        this.animalLipidPctMax = norms.animalLipidPctMax();
+        this.animalProteinGMin = norms.animalProteinGMin();
+        this.animalProteinGMax = norms.animalProteinGMax();
+        this.plantProteinGMin = norms.plantProteinGMin();
+        this.plantProteinGMax = norms.plantProteinGMax();
+        this.animalLipidGMin = norms.animalLipidGMin();
+        this.animalLipidGMax = norms.animalLipidGMax();
+        this.plantLipidGMin = norms.plantLipidGMin();
+        this.plantLipidGMax = norms.plantLipidGMax();
+        this.glucidGMin = norms.glucidGMin();
+        this.glucidGMax = norms.glucidGMax();
+        this.morningKcalPctMin = norms.morningKcalPctMin();
+        this.morningKcalPctMax = norms.morningKcalPctMax();
+        this.lunchKcalPctMin = norms.lunchKcalPctMin();
+        this.lunchKcalPctMax = norms.lunchKcalPctMax();
+        this.afternoonKcalPctMin = norms.afternoonKcalPctMin();
+        this.afternoonKcalPctMax = norms.afternoonKcalPctMax();
+        this.dailyKcalNeed = norms.dailyKcalNeed();
         this.normBasis = normBasis;
         this.updatedBy = updatedBy;
     }
 
-    /** Khoảng chuẩn dinh dưỡng; null = trường chưa chốt chuẩn cho chỉ số đó. */
+    /**
+     * Khoảng chuẩn dinh dưỡng; null = trường chưa chốt chuẩn cho chỉ số đó. P:L:G là % năng lượng (cơ cấu áp dụng),
+     * đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), mỗi bữa là % nhu cầu năng lượng cả ngày {@code dailyKcalNeed} (NUT-25).
+     */
     public record Norms(
             BigDecimal kcalMin,
             BigDecimal kcalMax,
@@ -129,8 +184,21 @@ public class AgeGroupMealConfig {
             BigDecimal lipidPctMax,
             BigDecimal glucidPctMin,
             BigDecimal glucidPctMax,
-            BigDecimal animalProteinPctMin,
-            BigDecimal animalProteinPctMax,
-            BigDecimal animalLipidPctMin,
-            BigDecimal animalLipidPctMax) {}
+            BigDecimal animalProteinGMin,
+            BigDecimal animalProteinGMax,
+            BigDecimal plantProteinGMin,
+            BigDecimal plantProteinGMax,
+            BigDecimal animalLipidGMin,
+            BigDecimal animalLipidGMax,
+            BigDecimal plantLipidGMin,
+            BigDecimal plantLipidGMax,
+            BigDecimal glucidGMin,
+            BigDecimal glucidGMax,
+            BigDecimal morningKcalPctMin,
+            BigDecimal morningKcalPctMax,
+            BigDecimal lunchKcalPctMin,
+            BigDecimal lunchKcalPctMax,
+            BigDecimal afternoonKcalPctMin,
+            BigDecimal afternoonKcalPctMax,
+            BigDecimal dailyKcalNeed) {}
 }

@@ -43,7 +43,8 @@ public record MealPlanResponse(
             NutritionTotals totals,
             BigDecimal cost,
             BigDecimal mealPrice,
-            List<NormRow> rows) {}
+            List<NormRow> rows,
+            List<SessionRow> sessions) {}
 
     public record NutritionTotals(
             BigDecimal kcal,
@@ -56,8 +57,10 @@ public record MealPlanResponse(
             BigDecimal plantLipid) {}
 
     /**
-     * Một chỉ số so định mức (NUT-24): {@code value} thực tế (kcal, g; dòng tỷ lệ cơ cấu là %), {@code percent} tỷ lệ
-     * %, {@code attainment} % đạt = thực tế / giữa khoảng.
+     * Một chỉ số so định mức (NUT-24). {@code key}: kcal; protein, lipid, glucid (cơ cấu P:L:G — {@code value} gam,
+     * {@code percent} % năng lượng, min/max %); animalProteinG, plantProteinG, animalLipidG, plantLipidG, glucidG
+     * ({@code value} và min/max gam, {@code percent} % ĐV hoặc TV trên tổng đạm/béo). {@code attainment} % đạt =
+     * thực tế / giữa khoảng; {@code optional} = dòng gam, chưa đặt thì không tính vào trạng thái ngày.
      */
     public record NormRow(
             String key,
@@ -69,6 +72,13 @@ public record MealPlanResponse(
             Integer attainment,
             String status,
             boolean optional) {}
+
+    /**
+     * Năng lượng một bữa nhóm tuổi được phục vụ so tỷ lệ % nhu cầu năng lượng cả ngày định mức (NUT-25, {@code percent} = kcal bữa ÷ nhu cầu cả ngày); {@code status} như
+     * {@link NormRow}, NA khi chưa đặt tỷ lệ bữa đó.
+     */
+    public record SessionRow(
+            MealSession session, BigDecimal kcal, BigDecimal percent, BigDecimal min, BigDecimal max, String status) {}
 
     public record Issue(
             String severity,

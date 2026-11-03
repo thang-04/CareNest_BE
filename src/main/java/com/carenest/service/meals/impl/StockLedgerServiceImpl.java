@@ -4,15 +4,8 @@ import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.meals.StockLotResponse;
 import com.carenest.dto.meals.StockMovementResponse;
 import com.carenest.dto.meals.StockShortfallResponse;
-import com.carenest.dto.organization.AgeGroupDetailResponse;
-import com.carenest.dto.organization.ClassroomInfoResponse;
-import com.carenest.entity.meals.Dish;
-import com.carenest.entity.meals.DishIngredient;
 import com.carenest.entity.meals.Food;
-import com.carenest.entity.meals.MealCount;
-import com.carenest.entity.meals.MealCountLine;
 import com.carenest.entity.meals.MealPlanDay;
-import com.carenest.entity.meals.MealPlanItem;
 import com.carenest.entity.meals.MealPlanWeek;
 import com.carenest.entity.meals.StockDailyDemand;
 import com.carenest.entity.meals.StockLot;
@@ -20,7 +13,6 @@ import com.carenest.entity.meals.StockMovement;
 import com.carenest.entity.meals.Supplier;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.StockMapper;
-import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
 import com.carenest.repository.meals.MealCountRepository;
 import com.carenest.repository.meals.MealPlanWeekRepository;
@@ -31,27 +23,20 @@ import com.carenest.repository.meals.SupplierRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.StockLedgerService;
-import com.carenest.service.organization.AgeGroupService;
-import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.FoodStorage;
-import com.carenest.utils.enums.MealSession;
-import com.carenest.utils.enums.MenuBlock;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StockMovementType;
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Function;
@@ -71,24 +56,18 @@ public class StockLedgerServiceImpl implements StockLedgerService {
     private static final String LOG_PREFIX = "[StockLedgerServiceImpl]";
     private static final int DEFAULT_HISTORY_DAYS = 30;
     private static final int MAX_PAGE_SIZE = 200;
-    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
     private final StockLotRepository lotRepository;
     private final StockMovementRepository movementRepository;
     private final StockDailyDemandRepository demandRepository;
     private final MealPlanWeekRepository weekRepository;
     private final MealCountRepository mealCountRepository;
-    private final DishRepository dishRepository;
     private final FoodRepository foodRepository;
     private final SupplierRepository supplierRepository;
-    private final ClassroomService classroomService;
-    private final AgeGroupService ageGroupService;
+    private final MealDemandCalculator demandCalculator;
     private final CampusAccessPolicy campusAccessPolicy;
     private final StockMapper mapper;
     private final Clock clock;
-
-    /** Suất đã chốt của một bữa cho một nhóm tuổi. */
-    private record Servings(MealSession session, Long ageGroupId) {}
 
     @Override
     @Transactional(readOnly = true)
@@ -379,9 +358,8 @@ public class StockLedgerServiceImpl implements StockLedgerService {
     }
 
     /**
-     * NUT-07: nhu cầu thực phẩm kho khô của điểm trường–ngày = Σ bữa × nhóm tuổi (suất đã chốt × gam/trẻ của món theo
-     * nhóm tuổi) ÷ (1 − thải bỏ%), theo thực đơn tuần đã công bố. Suất thay thế tính theo món chuẩn (chưa có món thay
-     * thế dị ứng).
+     * NUT-07: nhu cầu thực phẩm kho khô của điểm trường–ngày theo suất đã chốt và thực đơn tuần đã công bố; công thức
+     * dùng chung với hàng tươi ở {@link MealDemandCalculator}.
      */
     private Map<Long, BigDecimal> dryDemand(Long campusId, LocalDate date) {
         MealPlanWeek week = weekRepository
@@ -392,76 +370,10 @@ public class StockLedgerServiceImpl implements StockLedgerService {
         if (day == null || day.isOff()) {
             return Map.of();
         }
-        List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(campusId, date).stream()
-                .filter(MealCount::isConfirmed)
-                .toList();
-        if (counts.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, Long> ageGroupOfClass = new HashMap<>();
-        for (ClassroomInfoResponse c :
-                classroomService.findYearClassrooms(counts.getFirst().getSchoolYearId())) {
-            if (c.ageGroupId() != null) {
-                ageGroupOfClass.put(c.id(), c.ageGroupId());
-            }
-        }
-        Map<Long, MenuBlock> blockOfAgeGroup = ageGroupService.getAgeGroups().stream()
-                .collect(Collectors.toMap(AgeGroupDetailResponse::id, g -> MenuBlock.ofAgeGroup(g.ageToMonths())));
-        Map<Servings, Integer> servings = new HashMap<>();
-        for (MealCount count : counts) {
-            for (MealCountLine line : count.getLines()) {
-                Long ageGroupId = ageGroupOfClass.get(line.getClassroomId());
-                // Dòng chờ xác nhận lại chưa phải số chốt: bếp và kho theo số đã xác nhận (NUT-03)
-                if (line.isPending() || ageGroupId == null) {
-                    continue;
-                }
-                servings.merge(
-                        new Servings(count.getSession(), ageGroupId),
-                        line.getNormal() + line.getSubstitute(),
-                        Integer::sum);
-            }
-        }
-        Map<Long, Dish> dishes =
-                dishRepository
-                        .findByIdIn(day.getItems().stream()
-                                .map(MealPlanItem::getDishId)
-                                .collect(Collectors.toSet()))
-                        .stream()
-                        .collect(Collectors.toMap(Dish::getId, Function.identity()));
-        Map<Long, BigDecimal> edible = new HashMap<>();
-        Map<Long, Food> foodById = new HashMap<>();
-        for (MealPlanItem item : day.getItems()) {
-            Dish dish = dishes.get(item.getDishId());
-            if (dish == null) {
-                continue;
-            }
-            servings.forEach((key, portions) -> {
-                if (key.session() != item.getSession()
-                        || blockOfAgeGroup.get(key.ageGroupId()) != item.getMenuBlock()
-                        || portions <= 0) {
-                    return;
-                }
-                for (DishIngredient ingredient : dish.getIngredients()) {
-                    Food food = ingredient.getFood();
-                    if (!Objects.equals(ingredient.getAgeGroupId(), key.ageGroupId())
-                            || food.getStorage() != FoodStorage.DRY) {
-                        continue;
-                    }
-                    foodById.put(food.getId(), food);
-                    edible.merge(
-                            food.getId(),
-                            ingredient.getGramsPerChild().multiply(BigDecimal.valueOf(portions)),
-                            BigDecimal::add);
-                }
-            });
-        }
-        Map<Long, BigDecimal> purchase = new HashMap<>();
-        edible.forEach((foodId, qty) -> {
-            BigDecimal waste = foodById.get(foodId).getWastePct();
-            BigDecimal usable = BigDecimal.ONE.subtract(waste.divide(HUNDRED, 6, RoundingMode.HALF_UP));
-            purchase.put(foodId, qty.divide(usable, 2, RoundingMode.HALF_UP));
-        });
-        return purchase;
+        return demandCalculator.demand(
+                day,
+                demandCalculator.confirmedServings(mealCountRepository.findByCampusIdAndDate(campusId, date)),
+                FoodStorage.DRY);
     }
 
     private Map<Long, BigDecimal> balances(List<StockLot> lots) {

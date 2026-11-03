@@ -305,6 +305,8 @@ public enum ApiCode {
     MEAL_CONFIG_DUPLICATED(6021, HttpStatus.CONFLICT, "Nhóm tuổi đã có cấu hình áp dụng từ ngày này"),
     MEAL_CONFIG_DATE_INVALID(6022, HttpStatus.BAD_REQUEST, "Ngày hiệu lực phải sau hôm nay"),
     NUTRITION_NORM_RANGE_INVALID(6023, HttpStatus.BAD_REQUEST, "Chuẩn {0}: giá trị tối thiểu lớn hơn tối đa"),
+    MEAL_SESSION_KCAL_PCT_INVALID(
+            6049, HttpStatus.BAD_REQUEST, "Tổng tỷ lệ năng lượng tối thiểu của các bữa là {0}%, vượt 100%"),
     AGE_GROUP_INVALID(6024, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
     SUPPLIER_NOT_FOUND(6025, HttpStatus.NOT_FOUND, "Không tìm thấy nhà cung cấp"),
     FOOD_ORIGIN_REQUIRED(6026, HttpStatus.BAD_REQUEST, "Cần chọn nguồn gốc động vật hoặc thực vật của thực phẩm"),
@@ -323,6 +325,31 @@ public enum ApiCode {
     MEAL_PLAN_DISH_INACTIVE(6038, HttpStatus.BAD_REQUEST, "Món {0} đã ngừng dùng"),
     MEAL_PLAN_NOT_PUBLISHABLE(
             6039, HttpStatus.CONFLICT, "Chưa công bố được: còn {0} lỗi chặn, ví dụ {1}. Xem mục Kiểm tra của tuần"),
+    FRESH_FORECAST_NOT_FOUND(6040, HttpStatus.NOT_FOUND, "Không tìm thấy bản dự trù hàng tươi"),
+    FRESH_FORECAST_PERIOD_INVALID(
+            6041,
+            HttpStatus.BAD_REQUEST,
+            "Kỳ dự trù không hợp lệ: ngày bắt đầu không sau ngày kết thúc, tối đa 31 ngày"),
+    FRESH_CHECK_NOT_AVAILABLE(6042, HttpStatus.CONFLICT, "Chưa kiểm nhận lần {0} được: {1}"),
+    FRESH_CHECK_LINES_MISMATCH(6043, HttpStatus.BAD_REQUEST, "Dòng kiểm nhận không khớp danh sách cần nhận: {0}"),
+    MENU_TEMPLATE_NOT_FOUND(6050, HttpStatus.NOT_FOUND, "Không tìm thấy bộ thực đơn mẫu"),
+
+    FOOD_SAMPLE_NOT_FOUND(6060, HttpStatus.NOT_FOUND, "Không tìm thấy bản lưu mẫu"),
+    FOOD_SAMPLE_LOCKED(6061, HttpStatus.CONFLICT, "Bản lưu mẫu đã duyệt hoặc đã ghi hủy, không sửa được"),
+    FOOD_SAMPLE_DISPOSAL_TOO_EARLY(
+            6062, HttpStatus.CONFLICT, "Chưa đủ 24 giờ kể từ lúc lấy mẫu, chưa ghi hủy mẫu được"),
+    KITCHEN_CAMPUS_DENIED(6063, HttpStatus.FORBIDDEN, "Bạn không có quyền bếp ở điểm trường này"),
+    MEAL_PHOTO_WINDOW_INVALID(
+            6064, HttpStatus.BAD_REQUEST, "Khung giờ đăng ảnh không hợp lệ: giờ bắt đầu phải trước giờ kết thúc"),
+    MEAL_PHOTO_OUT_OF_WINDOW(6065, HttpStatus.CONFLICT, "Ngoài khung giờ đăng ảnh bữa {0}"),
+    MEAL_PHOTO_WINDOW_NOT_CONFIGURED(6066, HttpStatus.CONFLICT, "Chưa cấu hình khung giờ đăng ảnh bữa {0}"),
+    MEAL_PHOTO_INVALID(6067, HttpStatus.BAD_REQUEST, "Ảnh không hợp lệ: chỉ nhận JPEG, PNG, WebP tối đa 10 MB"),
+    MEAL_PHOTO_NOT_FOUND(6068, HttpStatus.NOT_FOUND, "Không tìm thấy ảnh bữa ăn"),
+    FOOD_SAFETY_ACCESS_DENIED(
+            6069, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt lưu mẫu, hủy mẫu ở điểm trường này"),
+    FOOD_SAMPLE_STATE_INVALID(6070, HttpStatus.CONFLICT, "Bản lưu mẫu đang ở trạng thái không cho phép thao tác này"),
+    FOOD_SAMPLE_DISH_INVALID(6071, HttpStatus.BAD_REQUEST, "Cần chọn ít nhất một món, các món phải còn trong danh mục"),
+    MEAL_PHOTO_WINDOW_FORBIDDEN(6072, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được cấu hình khung giờ đăng ảnh bữa ăn"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.carenest.dto.meals.MealPlanResponse.Evaluation;
 import com.carenest.dto.meals.MealPlanResponse.Issue;
 import com.carenest.dto.meals.MealPlanResponse.NormRow;
+import com.carenest.dto.meals.MealPlanResponse.SessionRow;
 import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DayPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DishInfo;
@@ -12,6 +13,7 @@ import com.carenest.service.meals.impl.MealPlanEvaluator.FoodInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.ItemPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Norm;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Portion;
+import com.carenest.service.meals.impl.MealPlanEvaluator.Range;
 import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.MealSession;
@@ -55,7 +57,107 @@ class MealPlanEvaluatorTest {
         assertThat(row(evaluation, "protein").percent()).isEqualByComparingTo("15.7");
         assertThat(row(evaluation, "glucid").percent()).isEqualByComparingTo("59.6");
         assertThat(row(evaluation, "kcal").attainment()).isEqualTo(100);
-        assertThat(row(evaluation, "animalProteinPct").status()).isEqualTo("NA");
+        assertThat(row(evaluation, "animalProteinG").status()).isEqualTo("NA");
+        assertThat(evaluation.sessions()).singleElement().satisfies(r -> {
+            assertThat(r.kcal()).isEqualByComparingTo("310");
+            assertThat(r.percent()).isNull();
+            assertThat(r.status()).isEqualTo("NA");
+        });
+        assertThat(result.publishable()).isTrue();
+    }
+
+    @Test
+    @DisplayName("NUT-24: định mức gam ĐV-TV ⇒ dòng gam có tỷ lệ ĐV/TV, % đạt; dưới khoảng gam ⇒ chặn nêu gam")
+    void gramNormsAreEvaluatedWhenSet() {
+        Norm norm = withGrams(norm("280", "340"), range("6", "10"), range("6", "10"), range("40", "50"));
+
+        MealPlanEvaluator.Result result =
+                MealPlanEvaluator.evaluate(List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> norm);
+
+        Evaluation evaluation = result.evaluations().getFirst();
+        NormRow animal = row(evaluation, "animalProteinG");
+        assertThat(animal.value()).isEqualByComparingTo("8");
+        assertThat(animal.percent()).isEqualByComparingTo("65.6");
+        assertThat(animal.target()).isEqualByComparingTo("8");
+        assertThat(animal.attainment()).isEqualTo(100);
+        assertThat(animal.status()).isEqualTo("OK");
+        assertThat(row(evaluation, "plantProteinG").status()).isEqualTo("LOW");
+        assertThat(row(evaluation, "glucidG").status()).isEqualTo("OK");
+        assertThat(row(evaluation, "animalLipidG").status()).isEqualTo("NA");
+        assertThat(evaluation.status()).isEqualTo("LOW");
+        assertThat(result.issues())
+                .filteredOn(i -> "NOT_BALANCED".equals(i.code()))
+                .singleElement()
+                .satisfies(
+                        i -> assertThat(i.message()).contains("Đạm thực vật thấp hơn định mức (4.2 g so với 6–10 g)"));
+        assertThat(result.publishable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("NUT-25: % năng lượng từng bữa lệch định mức ⇒ cảnh báo theo bữa, không chặn công bố")
+    void sessionShareOutOfRangeWarns() {
+        AgeGroupInfo twoMeals = new AgeGroupInfo(
+                AG3, "Mẫu giáo bé", MenuBlock.KINDERGARTEN, List.of(MealSession.MORNING, MealSession.LUNCH));
+        DayPlan day = new DayPlan(
+                MONDAY,
+                false,
+                List.of(
+                        new ItemPlan(MealSession.MORNING, MenuBlock.KINDERGARTEN, 10L),
+                        new ItemPlan(MealSession.LUNCH, MenuBlock.KINDERGARTEN, 11L)));
+        Norm base = norm("280", "340");
+        Norm norm = new Norm(
+                base.mealPrice(),
+                base.kcal(),
+                base.proteinPct(),
+                base.lipidPct(),
+                base.glucidPct(),
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                Map.of(MealSession.MORNING, range("20", "25"), MealSession.LUNCH, range("10", "20")),
+                new BigDecimal("700"));
+
+        MealPlanEvaluator.Result result =
+                MealPlanEvaluator.evaluate(List.of(day), List.of(twoMeals), DISHES, (g, d) -> norm);
+
+        Evaluation evaluation = result.evaluations().getFirst();
+        // Mẫu số là nhu cầu cả ngày 700 kcal, không phải 310 kcal trường phục vụ: sáng 210 = 30%, trưa 100 = 14.3%
+        assertThat(evaluation.sessions())
+                .extracting(SessionRow::session, SessionRow::status)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(MealSession.MORNING, "HIGH"),
+                        org.assertj.core.groups.Tuple.tuple(MealSession.LUNCH, "OK"));
+        assertThat(evaluation.sessions().getFirst().percent()).isEqualByComparingTo("30");
+        assertThat(evaluation.sessions().get(1).percent()).isEqualByComparingTo("14.3");
+        Norm noNeed = new Norm(
+                norm.mealPrice(),
+                norm.kcal(),
+                norm.proteinPct(),
+                norm.lipidPct(),
+                norm.glucidPct(),
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                norm.sessionKcalPct(),
+                null);
+        assertThat(MealPlanEvaluator.evaluate(List.of(day), List.of(twoMeals), DISHES, (g, d) -> noNeed)
+                        .evaluations()
+                        .getFirst()
+                        .sessions())
+                .extracting(SessionRow::status)
+                .containsOnly("NA");
+        assertThat(evaluation.status()).isEqualTo("OK");
+        assertThat(result.issues())
+                .filteredOn(i -> "SESSION_KCAL_OFF".equals(i.code()))
+                .singleElement()
+                .satisfies(i -> {
+                    assertThat(i.severity()).isEqualTo("WARNING");
+                    assertThat(i.message()).contains("bữa sáng 30% nhu cầu năng lượng cả ngày (định mức 20–25%)");
+                });
         assertThat(result.publishable()).isTrue();
     }
 
@@ -164,18 +266,37 @@ class MealPlanEvaluatorTest {
     private static Norm norm(String kcalMin, String kcalMax, String mealPrice) {
         return new Norm(
                 new BigDecimal(mealPrice),
-                new BigDecimal(kcalMin),
-                new BigDecimal(kcalMax),
-                new BigDecimal("13"),
-                new BigDecimal("20"),
-                new BigDecimal("20"),
-                new BigDecimal("30"),
-                new BigDecimal("50"),
-                new BigDecimal("65"),
-                null,
-                null,
-                null,
+                range(kcalMin, kcalMax),
+                range("13", "20"),
+                range("20", "30"),
+                range("50", "65"),
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                Range.NONE,
+                Map.of(),
                 null);
+    }
+
+    private static Norm withGrams(Norm base, Range animalProtein, Range plantProtein, Range glucid) {
+        return new Norm(
+                base.mealPrice(),
+                base.kcal(),
+                base.proteinPct(),
+                base.lipidPct(),
+                base.glucidPct(),
+                animalProtein,
+                plantProtein,
+                Range.NONE,
+                Range.NONE,
+                glucid,
+                base.sessionKcalPct(),
+                base.dailyKcalNeed());
+    }
+
+    private static Range range(String min, String max) {
+        return new Range(new BigDecimal(min), new BigDecimal(max));
     }
 
     private static FoodInfo food(
@@ -196,6 +317,7 @@ class MealPlanEvaluatorTest {
                 origin,
                 new BigDecimal(unitPrice),
                 new BigDecimal("1000"),
+                BigDecimal.ZERO,
                 allergens);
     }
 

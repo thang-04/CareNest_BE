@@ -308,7 +308,8 @@ public class DishServiceImpl implements DishService {
                 plantLipid = plantLipid.add(grams.multiply(food.getLipid()));
             }
             glucid = glucid.add(grams.multiply(food.getGlucid()));
-            BigDecimal purchased = grams.multiply(HUNDRED.add(food.getWastePct()));
+            BigDecimal purchased =
+                    MealDemandCalculator.purchased(grams, food.getWastePct()).multiply(HUNDRED);
             cost = cost.add(purchased
                     .multiply(food.getUnitPrice())
                     .divide(food.getPurchaseUnitSize(), 10, RoundingMode.HALF_UP));

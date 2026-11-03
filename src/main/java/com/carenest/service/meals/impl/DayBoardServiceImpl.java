@@ -12,6 +12,8 @@ import com.carenest.repository.meals.StockDailyDemandRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.DayBoardService;
+import com.carenest.service.meals.FoodSampleService;
+import com.carenest.service.meals.FreshGoodsService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.organization.CampusService;
 import java.math.BigDecimal;
@@ -33,12 +35,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class DayBoardServiceImpl implements DayBoardService {
     private static final String LOG_PREFIX = "[DayBoardServiceImpl]";
     private static final String NONE = "NONE";
-    private static final String NOT_AVAILABLE = "NOT_AVAILABLE";
 
     private final MealPlanWeekRepository weekRepository;
     private final MealCountRepository mealCountRepository;
     private final StockDailyDemandRepository demandRepository;
     private final StockLedgerService stockLedgerService;
+    private final FreshGoodsService freshGoodsService;
+    private final FoodSampleService foodSampleService;
     private final CampusService campusService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
@@ -82,14 +85,16 @@ public class DayBoardServiceImpl implements DayBoardService {
                 .sorted(Comparator.comparing(MealCount::getSession))
                 .toList();
         DayBoardResponse.MealCounts mealCounts = mealCounts(counts);
+        FoodSampleService.ApprovalStatus samples = foodSampleService.getApprovalStatus(campus.id(), date);
         return new DayBoardResponse.CampusBoard(
                 campus.id(),
                 campus.name(),
                 menu,
                 mealCounts,
                 dryStock(campus.id(), date, menu.dayOff(), published, mealCounts.status()),
-                NOT_AVAILABLE,
-                NOT_AVAILABLE);
+                freshGoodsService.getReceiptStatus(campus.id(), date),
+                samples.status(),
+                samples.pendingCount());
     }
 
     /** Số suất người duyệt thấy: số chờ xác nhận lại nếu có, không thì số đã chốt (NUT-03). */

@@ -197,12 +197,25 @@ JOIN foods f ON f.code = v.food_code
 JOIN age_groups ag ON ag.code = v.age_group_code
 ON CONFLICT (dish_id, food_id, age_group_id) DO NOTHING;
 
--- Định mức demo theo nhóm tuổi cho các bữa ở trường (số minh họa, trường thay bằng chuẩn của Bộ — NUT-17, NUT-24)
+-- Định mức demo theo nhóm tuổi cho các bữa ở trường (số minh họa, trường thay bằng chuẩn của Bộ — NUT-17, NUT-24,
+-- NUT-25): kcal, cơ cấu P:L:G %, gam/trẻ/ngày (giữa khoảng kcal × % ÷ 4 hoặc 9, ĐV ≈ một nửa), nhu cầu năng lượng cả
+-- ngày và % của nó cho mỗi bữa
 INSERT INTO age_group_meal_configs (age_group_id, effective_from, meal_price, kcal_min, kcal_max,
                                     protein_pct_min, protein_pct_max, lipid_pct_min, lipid_pct_max,
-                                    glucid_pct_min, glucid_pct_max, norm_basis)
-SELECT ag.id, '2026-09-01'::date, v.price, v.kcal_min, v.kcal_max, 13, 20, 25, 35, 47, 60, 'Số liệu demo'
-FROM (VALUES ('ag-2', 25000, 600, 800), ('ag-3', 30000, 500, 750),
-             ('ag-4', 30000, 500, 750), ('ag-5', 30000, 500, 750)) AS v (code, price, kcal_min, kcal_max)
+                                    glucid_pct_min, glucid_pct_max,
+                                    animal_protein_g_min, animal_protein_g_max, plant_protein_g_min, plant_protein_g_max,
+                                    animal_lipid_g_min, animal_lipid_g_max, plant_lipid_g_min, plant_lipid_g_max,
+                                    glucid_g_min, glucid_g_max,
+                                    morning_kcal_pct_min, morning_kcal_pct_max, lunch_kcal_pct_min, lunch_kcal_pct_max,
+                                    afternoon_kcal_pct_min, afternoon_kcal_pct_max, daily_kcal_need, norm_basis)
+SELECT ag.id, '2026-09-01'::date, v.price, v.kcal_min, v.kcal_max, 13, 20, 25, 35, 47, 60,
+       v.protein_min, v.protein_max, v.protein_min, v.protein_max, v.lipid_min, v.lipid_max, v.lipid_min, v.lipid_max,
+       v.glucid_min, v.glucid_max, 5, 15, 30, 40, 15, 25, v.daily_need, 'Số liệu demo'
+FROM (VALUES ('ag-2', 25000, 600, 800, 11, 18, 10, 14, 82, 105, 1000),
+             ('ag-3', 30000, 500, 750, 10, 16, 9, 12, 73, 94, 1300),
+             ('ag-4', 30000, 500, 750, 10, 16, 9, 12, 73, 94, 1300),
+             ('ag-5', 30000, 500, 750, 10, 16, 9, 12, 73, 94, 1300))
+         AS v (code, price, kcal_min, kcal_max, protein_min, protein_max, lipid_min, lipid_max, glucid_min, glucid_max,
+               daily_need)
 JOIN age_groups ag ON ag.code = v.code
 ON CONFLICT (age_group_id, effective_from) DO NOTHING;

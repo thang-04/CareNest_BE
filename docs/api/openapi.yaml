@@ -3432,6 +3432,141 @@ paths:
           description: OK
       tags:
       - nutrition-dish-controller
+  /api/nutrition/food-samples:
+    get:
+      operationId: getSamples
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListFoodSampleResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
+    post:
+      operationId: createSample
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodSampleRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodSampleResponse"
+          description: Created
+      tags:
+      - kitchen-records-controller
+  /api/nutrition/food-samples/{sampleId}:
+    put:
+      operationId: updateSample
+      parameters:
+      - in: path
+        name: sampleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodSampleRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodSampleResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
+  /api/nutrition/food-samples/{sampleId}/approve:
+    post:
+      operationId: approveSample
+      parameters:
+      - in: path
+        name: sampleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodSampleResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
+  /api/nutrition/food-samples/{sampleId}/approve-disposal:
+    post:
+      operationId: approveDisposal
+      parameters:
+      - in: path
+        name: sampleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodSampleResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
+  /api/nutrition/food-samples/{sampleId}/dispose:
+    post:
+      operationId: disposeSample
+      parameters:
+      - in: path
+        name: sampleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodSampleDisposeRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodSampleResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
   /api/nutrition/foods:
     get:
       operationId: getFoods
@@ -3584,6 +3719,291 @@ paths:
           description: OK
       tags:
       - nutrition-food-controller
+  /api/nutrition/fresh-checks:
+    get:
+      operationId: getChecks
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFreshCheckResponse"
+          description: OK
+      tags:
+      - fresh-goods-controller
+    put:
+      operationId: recordCheck
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: round
+        required: true
+        schema:
+          type: integer
+          format: int32
+          maximum: 2
+          minimum: 1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FreshCheckRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFreshCheckResponse"
+          description: OK
+      tags:
+      - fresh-goods-controller
+  /api/nutrition/fresh-forecasts:
+    get:
+      operationId: getForecasts
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListFreshForecastSummaryResponse"
+          description: OK
+      tags:
+      - fresh-goods-controller
+    post:
+      operationId: createForecast
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FreshForecastRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFreshForecastResponse"
+          description: Created
+      tags:
+      - fresh-goods-controller
+  /api/nutrition/fresh-forecasts/preview:
+    post:
+      operationId: previewForecast
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FreshForecastRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFreshForecastResponse"
+          description: OK
+      tags:
+      - fresh-goods-controller
+  /api/nutrition/fresh-forecasts/{forecastId}:
+    delete:
+      operationId: deleteForecast
+      parameters:
+      - in: path
+        name: forecastId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - fresh-goods-controller
+    get:
+      operationId: getForecast
+      parameters:
+      - in: path
+        name: forecastId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFreshForecastResponse"
+          description: OK
+      tags:
+      - fresh-goods-controller
+  /api/nutrition/kitchen/day:
+    get:
+      operationId: getKitchenDay
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonKitchenDayResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
+  /api/nutrition/meal-photo-windows:
+    get:
+      operationId: getWindows
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListMealPhotoWindowResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
+    put:
+      operationId: updateWindows
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealPhotoWindowsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListMealPhotoWindowResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
+  /api/nutrition/meal-photos:
+    get:
+      operationId: getPhotos
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListMealPhotoResponse"
+          description: OK
+      tags:
+      - kitchen-records-controller
+    post:
+      operationId: uploadPhoto
+      parameters:
+      - in: query
+        name: session
+        required: true
+        schema:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealPhotoResponse"
+          description: Created
+      tags:
+      - kitchen-records-controller
+  /api/nutrition/meal-photos/{photoId}/content:
+    get:
+      operationId: getPhotoContent
+      parameters:
+      - in: path
+        name: photoId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: OK
+      tags:
+      - kitchen-records-controller
   /api/nutrition/meal-plans:
     get:
       operationId: getMealPlans
@@ -3671,6 +4091,138 @@ paths:
           description: OK
       tags:
       - meal-plan-controller
+  /api/nutrition/menu-statistics:
+    post:
+      operationId: getMenuStatistics
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuStatisticsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuStatisticsResponse"
+          description: OK
+      tags:
+      - meal-plan-controller
+  /api/nutrition/menu-templates:
+    get:
+      operationId: getTemplates
+      parameters:
+      - in: query
+        name: block
+        required: false
+        schema:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListMenuTemplateResponse"
+          description: OK
+      tags:
+      - menu-template-controller
+    post:
+      operationId: createTemplate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuTemplateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuTemplateResponse"
+          description: Created
+      tags:
+      - menu-template-controller
+  /api/nutrition/menu-templates/{templateId}:
+    get:
+      operationId: getTemplate
+      parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuTemplateResponse"
+          description: OK
+      tags:
+      - menu-template-controller
+    put:
+      operationId: updateTemplate
+      parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuTemplateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuTemplateResponse"
+          description: OK
+      tags:
+      - menu-template-controller
+  /api/nutrition/menu-templates/{templateId}/status:
+    patch:
+      operationId: changeTemplateStatus
+      parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuTemplateResponse"
+          description: OK
+      tags:
+      - menu-template-controller
   /api/nutrition/stock/days/{date}/sync:
     post:
       operationId: resyncDay
@@ -5085,28 +5637,48 @@ components:
     AgeGroupMealConfigRequest:
       type: object
       properties:
+        afternoonKcalPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        afternoonKcalPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
         ageGroupId:
           type: integer
           format: int64
-        animalLipidPctMax:
+        animalLipidGMax:
           type: number
-          maximum: 100
+          maximum: 9999
           minimum: 0
-        animalLipidPctMin:
+        animalLipidGMin:
           type: number
-          maximum: 100
+          maximum: 9999
           minimum: 0
-        animalProteinPctMax:
+        animalProteinGMax:
           type: number
-          maximum: 100
+          maximum: 9999
           minimum: 0
-        animalProteinPctMin:
+        animalProteinGMin:
           type: number
-          maximum: 100
+          maximum: 9999
           minimum: 0
+        dailyKcalNeed:
+          type: number
+          exclusiveMinimum: 0
+          maximum: 5000
         effectiveFrom:
           type: string
           format: date
+        glucidGMax:
+          type: number
+          maximum: 9999
+          minimum: 0
+        glucidGMin:
+          type: number
+          maximum: 9999
+          minimum: 0
         glucidPctMax:
           type: number
           maximum: 100
@@ -5129,13 +5701,45 @@ components:
           type: number
           maximum: 100
           minimum: 0
+        lunchKcalPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        lunchKcalPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
         mealPrice:
           type: number
+          minimum: 0
+        morningKcalPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        morningKcalPctMin:
+          type: number
+          maximum: 100
           minimum: 0
         normBasis:
           type: string
           maxLength: 300
           minLength: 0
+        plantLipidGMax:
+          type: number
+          maximum: 9999
+          minimum: 0
+        plantLipidGMin:
+          type: number
+          maximum: 9999
+          minimum: 0
+        plantProteinGMax:
+          type: number
+          maximum: 9999
+          minimum: 0
+        plantProteinGMin:
+          type: number
+          maximum: 9999
+          minimum: 0
         proteinPctMax:
           type: number
           maximum: 100
@@ -5151,22 +5755,32 @@ components:
     AgeGroupMealConfigResponse:
       type: object
       properties:
+        afternoonKcalPctMax:
+          type: number
+        afternoonKcalPctMin:
+          type: number
         ageGroupId:
           type: integer
           format: int64
-        animalLipidPctMax:
+        animalLipidGMax:
           type: number
-        animalLipidPctMin:
+        animalLipidGMin:
           type: number
-        animalProteinPctMax:
+        animalProteinGMax:
           type: number
-        animalProteinPctMin:
+        animalProteinGMin:
+          type: number
+        dailyKcalNeed:
           type: number
         editable:
           type: boolean
         effectiveFrom:
           type: string
           format: date
+        glucidGMax:
+          type: number
+        glucidGMin:
+          type: number
         glucidPctMax:
           type: number
         glucidPctMin:
@@ -5182,10 +5796,26 @@ components:
           type: number
         lipidPctMin:
           type: number
+        lunchKcalPctMax:
+          type: number
+        lunchKcalPctMin:
+          type: number
         mealPrice:
+          type: number
+        morningKcalPctMax:
+          type: number
+        morningKcalPctMin:
           type: number
         normBasis:
           type: string
+        plantLipidGMax:
+          type: number
+        plantLipidGMin:
+          type: number
+        plantProteinGMax:
+          type: number
+        plantProteinGMin:
+          type: number
         proteinPctMax:
           type: number
         proteinPctMin:
@@ -5620,6 +6250,9 @@ components:
           type: string
         dryStock:
           $ref: "#/components/schemas/DryStock"
+        foodSamplePendingCount:
+          type: integer
+          format: int32
         foodSampleStatus:
           type: string
         freshReceiptStatus:
@@ -6211,6 +6844,26 @@ components:
           type: integer
           format: int32
         size:
+          type: integer
+          format: int32
+    ClassServings:
+      type: object
+      properties:
+        classroomId:
+          type: integer
+          format: int64
+        classroomName:
+          type: string
+        normal:
+          type: integer
+          format: int32
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        substitute:
           type: integer
           format: int32
     ClassSummary:
@@ -7050,6 +7703,29 @@ components:
         weekStart:
           type: string
           format: date
+    Dish:
+      type: object
+      properties:
+        dishId:
+          type: integer
+          format: int64
+        dishName:
+          type: string
+        dishType:
+          type: string
+          enum:
+          - CARB
+          - MAIN
+          - SOUP
+          - VEGETABLE
+          - SNACK
+          - DESSERT
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
     DishCopyRequest:
       type: object
       properties:
@@ -7277,6 +7953,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/NormRow"
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionRow"
         status:
           type: string
         totals:
@@ -7472,6 +8152,15 @@ components:
         updated:
           type: integer
           format: int32
+    FoodNeed:
+      type: object
+      properties:
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        quantity:
+          type: number
+        storage:
+          type: string
     FoodRequest:
       type: object
       properties:
@@ -7634,6 +8323,105 @@ components:
           type: number
         wastePct:
           type: number
+    FoodSampleDisposeRequest:
+      type: object
+      properties:
+        disposedAt:
+          type: string
+          format: date-time
+    FoodSampleRequest:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        dishIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          minItems: 1
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        sampledAt:
+          type: string
+          format: date-time
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+      required:
+      - date
+      - dishIds
+      - session
+    FoodSampleResponse:
+      type: object
+      properties:
+        approvedAt:
+          type: string
+          format: date-time
+        approvedBy:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        canApprove:
+          type: boolean
+        date:
+          type: string
+          format: date
+        dishes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SampleDish"
+        disposableFrom:
+          type: string
+          format: date-time
+        disposalApprovedAt:
+          type: string
+          format: date-time
+        disposalApprovedBy:
+          type: integer
+          format: int64
+        disposalRecordedBy:
+          type: integer
+          format: int64
+        disposalStatus:
+          type: string
+          enum:
+          - NONE
+          - RECORDED
+          - APPROVED
+        disposedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        note:
+          type: string
+        recordedBy:
+          type: integer
+          format: int64
+        sampledAt:
+          type: string
+          format: date-time
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        status:
+          type: string
+          enum:
+          - RECORDED
+          - APPROVED
     Forgot:
       type: object
       properties:
@@ -7644,6 +8432,246 @@ components:
           minLength: 0
       required:
       - email
+    FreshCheckLine:
+      type: object
+      properties:
+        expectedQty:
+          type: number
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        note:
+          type: string
+        receivedQty:
+          type: number
+        result:
+          type: string
+          enum:
+          - ENOUGH
+          - SHORT
+          - OVER
+    FreshCheckLineInput:
+      type: object
+      properties:
+        foodId:
+          type: integer
+          format: int64
+        note:
+          type: string
+          maxLength: 300
+          minLength: 0
+        receivedQty:
+          type: number
+          minimum: 0
+        result:
+          type: string
+          enum:
+          - ENOUGH
+          - SHORT
+          - OVER
+      required:
+      - foodId
+      - result
+    FreshCheckRequest:
+      type: object
+      properties:
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshCheckLineInput"
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - lines
+    FreshCheckResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canManage:
+          type: boolean
+        date:
+          type: string
+          format: date
+        rounds:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshCheckRound"
+    FreshCheckRound:
+      type: object
+      properties:
+        available:
+          type: boolean
+        checkedAt:
+          type: string
+          format: date-time
+        checkedBy:
+          type: integer
+          format: int64
+        forecastId:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshCheckLine"
+        note:
+          type: string
+        recorded:
+          type: boolean
+        round:
+          type: integer
+          format: int32
+        source:
+          type: string
+          enum:
+          - FORECAST
+          - CONFIRMED_SERVINGS
+        unavailableReason:
+          type: string
+    FreshForecastCount:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        ageGroupName:
+          type: string
+        enrolledCount:
+          type: integer
+          format: int32
+        expectedCount:
+          type: integer
+          format: int32
+    FreshForecastCountInput:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        expectedCount:
+          type: integer
+          format: int32
+          maximum: 10000
+          minimum: 0
+      required:
+      - ageGroupId
+      - expectedCount
+    FreshForecastDay:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        "off":
+          type: boolean
+        planStatus:
+          type: string
+    FreshForecastDayQty:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        quantity:
+          type: number
+    FreshForecastLine:
+      type: object
+      properties:
+        byDate:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshForecastDayQty"
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        totalQty:
+          type: number
+    FreshForecastRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshForecastCountInput"
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        periodFrom:
+          type: string
+          format: date
+        periodTo:
+          type: string
+          format: date
+      required:
+      - campusId
+      - periodFrom
+      - periodTo
+    FreshForecastResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canManage:
+          type: boolean
+        counts:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshForecastCount"
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: integer
+          format: int64
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshForecastDay"
+        id:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshForecastLine"
+        note:
+          type: string
+        periodFrom:
+          type: string
+          format: date
+        periodTo:
+          type: string
+          format: date
+    FreshForecastSummaryResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        foodCount:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        note:
+          type: string
+        periodFrom:
+          type: string
+          format: date
+        periodTo:
+          type: string
+          format: date
     Goal:
       type: object
       properties:
@@ -8077,6 +9105,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/StaffBriefResponse"
+    KitchenDayResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        confirmedAt:
+          type: string
+          format: date-time
+        countStatus:
+          type: string
+        date:
+          type: string
+          format: date
+        dayOff:
+          type: boolean
+        foods:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodNeed"
+        menu:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionMenu"
+        menuStatus:
+          type: string
+        servings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassServings"
     KitchenRoom:
       type: object
       properties:
@@ -8456,6 +9514,60 @@ components:
         totalServings:
           type: integer
           format: int32
+    MealPhotoResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        contentType:
+          type: string
+        date:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        sizeBytes:
+          type: integer
+          format: int64
+        uploadedAt:
+          type: string
+          format: date-time
+        uploadedBy:
+          type: integer
+          format: int64
+    MealPhotoWindowResponse:
+      type: object
+      properties:
+        endTime:
+          type: string
+          format: time-local
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        startTime:
+          type: string
+          format: time-local
+    MealPhotoWindowsRequest:
+      type: object
+      properties:
+        windows:
+          type: array
+          items:
+            $ref: "#/components/schemas/WindowInput"
+          minItems: 1
+      required:
+      - windows
     MealPlanRequest:
       type: object
       properties:
@@ -8521,6 +9633,145 @@ components:
         weekStart:
           type: string
           format: date
+    MenuDish:
+      type: object
+      properties:
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    MenuStatisticsRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        children:
+          type: integer
+          format: int32
+          maximum: 2000
+          minimum: 0
+        date:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Item"
+          maxItems: 60
+          minItems: 0
+      required:
+      - ageGroupId
+      - items
+    MenuStatisticsResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        ageGroupName:
+          type: string
+        children:
+          type: integer
+          format: int32
+        childrenSource:
+          type: string
+        costPerChild:
+          type: number
+        date:
+          type: string
+          format: date
+        dishes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Dish"
+        evaluation:
+          $ref: "#/components/schemas/Evaluation"
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+        mealPrice:
+          type: number
+        totalCost:
+          type: number
+    MenuTemplateRequest:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Item"
+          maxItems: 600
+          minItems: 0
+        name:
+          type: string
+          maxLength: 100
+          minLength: 0
+        seasonLabel:
+          type: string
+          maxLength: 50
+          minLength: 0
+      required:
+      - block
+      - items
+      - name
+    MenuTemplateResponse:
+      type: object
+      properties:
+        ageGroupIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        canEdit:
+          type: boolean
+        dishCount:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Item"
+        name:
+          type: string
+        seasonLabel:
+          type: string
+        sessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        updatedAt:
+          type: string
+          format: date-time
     MultiSummary:
       type: object
       properties:
@@ -8574,6 +9825,8 @@ components:
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
+            - KITCHEN_RECORD
+            - FOOD_SAFETY_APPROVE
             - PERMISSION_MANAGE
         roles:
           type: array
@@ -8601,6 +9854,8 @@ components:
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
+            - KITCHEN_RECORD
+            - FOOD_SAFETY_APPROVE
             - PERMISSION_MANAGE
         userId:
           type: integer
@@ -8705,6 +9960,8 @@ components:
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
+          - KITCHEN_RECORD
+          - FOOD_SAFETY_APPROVE
           - PERMISSION_MANAGE
         scope:
           type: string
@@ -8920,6 +10177,8 @@ components:
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
+          - KITCHEN_RECORD
+          - FOOD_SAFETY_APPROVE
           - PERMISSION_MANAGE
         reason:
           type: string
@@ -8951,6 +10210,8 @@ components:
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
+          - KITCHEN_RECORD
+          - FOOD_SAFETY_APPROVE
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -9869,6 +11130,45 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonFoodSampleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/FoodSampleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonFreshCheckResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/FreshCheckResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonFreshForecastResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/FreshForecastResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonGoalFilePreviewResponse:
       type: object
       properties:
@@ -9890,6 +11190,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/GuardianCandidateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonKitchenDayResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/KitchenDayResponse"
         desc:
           type: string
         errorCode:
@@ -10176,6 +11489,36 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListFoodSampleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodSampleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListFreshForecastSummaryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FreshForecastSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListGuardianResponse:
       type: object
       properties:
@@ -10251,6 +11594,36 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListMealPhotoResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealPhotoResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListMealPhotoWindowResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealPhotoWindowResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListMealPlanSummaryResponse:
       type: object
       properties:
@@ -10261,6 +11634,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MealPlanSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListMenuTemplateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MenuTemplateResponse"
         desc:
           type: string
         errorCode:
@@ -10456,6 +11844,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonMealPhotoResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MealPhotoResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMealPlanResponse:
       type: object
       properties:
@@ -10464,6 +11865,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/MealPlanResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonMenuStatisticsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MenuStatisticsResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonMenuTemplateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MenuTemplateResponse"
         desc:
           type: string
         errorCode:
@@ -11128,6 +12555,8 @@ components:
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
+            - KITCHEN_RECORD
+            - FOOD_SAFETY_APPROVE
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -11145,6 +12574,8 @@ components:
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
+            - KITCHEN_RECORD
+            - FOOD_SAFETY_APPROVE
             - PERMISSION_MANAGE
         role:
           type: string
@@ -11266,6 +12697,16 @@ components:
           $ref: "#/components/schemas/Assignment"
         user:
           $ref: "#/components/schemas/VicePrincipal"
+    SampleDish:
+      type: object
+      properties:
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     SaveAttendanceRequest:
       type: object
       properties:
@@ -11460,6 +12901,43 @@ components:
         semester2Start:
           type: string
           format: date
+    SessionMenu:
+      type: object
+      properties:
+        dishes:
+          type: array
+          items:
+            $ref: "#/components/schemas/MenuDish"
+        menuBlock:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+    SessionRow:
+      type: object
+      properties:
+        kcal:
+          type: number
+        max:
+          type: number
+        min:
+          type: number
+        percent:
+          type: number
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        status:
+          type: string
     SessionServings:
       type: object
       properties:
@@ -12354,6 +13832,8 @@ components:
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
+            - KITCHEN_RECORD
+            - FOOD_SAFETY_APPROVE
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -12379,6 +13859,8 @@ components:
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
+            - KITCHEN_RECORD
+            - FOOD_SAFETY_APPROVE
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -12394,6 +13876,8 @@ components:
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
+            - KITCHEN_RECORD
+            - FOOD_SAFETY_APPROVE
             - PERMISSION_MANAGE
         overrides:
           type: array
@@ -12525,6 +14009,25 @@ components:
       required:
       - key
       - label
+    WindowInput:
+      type: object
+      properties:
+        endTime:
+          type: string
+          format: time-local
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        startTime:
+          type: string
+          format: time-local
+      required:
+      - endTime
+      - session
+      - startTime
     Year:
       type: object
       properties:

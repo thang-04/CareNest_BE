@@ -19,6 +19,10 @@ public interface MealPlanWeekRepository extends JpaRepository<MealPlanWeek, Long
 
     List<MealPlanWeek> findByWeekStartBetweenOrderByWeekStartAsc(LocalDate from, LocalDate to);
 
+    // Kỳ dự trù hàng tươi ≤ 31 ngày (≤ 6 tuần): lấy kèm ngày một lần, món của ngày nạp lười trong transaction
+    @EntityGraph(attributePaths = "days")
+    List<MealPlanWeek> findWithDaysByWeekStartBetweenOrderByWeekStartAsc(LocalDate from, LocalDate to);
+
     /**
      * Khóa dòng tuần tới hết transaction: lưu lưới và công bố chạy tuần tự, công bố luôn kiểm đúng lưới nó công bố
      * (NUT-08). Ngày, món của tuần nạp sau khi đã giữ khóa nên là bản mới nhất.

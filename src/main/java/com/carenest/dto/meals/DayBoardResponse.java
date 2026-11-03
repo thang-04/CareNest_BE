@@ -7,7 +7,13 @@ import java.util.List;
 /** Bán trú hôm nay: việc của ngày theo điểm trường, chỉ đọc. */
 public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
 
-    /** {@code freshReceiptStatus}, {@code foodSampleStatus}: NOT_AVAILABLE tới khi có lát hàng tươi, lưu mẫu. */
+    /**
+     * {@code freshReceiptStatus} (kiểm nhận hàng tươi): DAY_OFF, NO_FORECAST (chưa có bản dự trù chứa ngày),
+     * ROUND1_PENDING, ROUND1_DONE (chờ thực đơn công bố và suất chốt để kiểm lần 2), ROUND2_PENDING, DONE.
+     * {@code foodSampleStatus} (lưu mẫu, NUT-21): PENDING_APPROVAL (còn bản lưu mẫu hoặc hủy mẫu chờ duyệt của điểm
+     * trường, mọi ngày — số chờ ở {@code foodSamplePendingCount}), UP_TO_DATE (không chờ duyệt, ngày có bản ghi), NONE
+     * (không chờ duyệt, ngày chưa có bản ghi).
+     */
     public record CampusBoard(
             Long campusId,
             String campusName,
@@ -15,7 +21,8 @@ public record DayBoardResponse(LocalDate date, List<CampusBoard> campuses) {
             MealCounts mealCounts,
             DryStock dryStock,
             String freshReceiptStatus,
-            String foodSampleStatus) {}
+            String foodSampleStatus,
+            int foodSamplePendingCount) {}
 
     /** Thực đơn tuần chứa ngày và tuần sau: NONE, DRAFT, PUBLISHED. */
     public record WeekMenu(

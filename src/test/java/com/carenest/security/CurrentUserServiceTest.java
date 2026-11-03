@@ -186,6 +186,7 @@ class CurrentUserServiceTest {
                         Permission.NUTRITION_MANAGE,
                         Permission.MENU_MANAGE,
                         Permission.STOCK_MANAGE,
+                        Permission.FOOD_SAFETY_APPROVE,
                         Permission.PERMISSION_MANAGE);
         verifyNoInteractions(rolePermissionRepository, userPermissionOverrideRepository);
     }

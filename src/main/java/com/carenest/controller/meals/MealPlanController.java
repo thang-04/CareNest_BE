@@ -4,6 +4,8 @@ import com.carenest.dto.meals.DayBoardResponse;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
 import com.carenest.dto.meals.MealPlanSummaryResponse;
+import com.carenest.dto.meals.MenuStatisticsRequest;
+import com.carenest.dto.meals.MenuStatisticsResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.DayBoardService;
 import com.carenest.service.meals.MealPlanService;
@@ -83,6 +85,18 @@ public class MealPlanController {
         MealPlanResponse plan = mealPlanService.publishMealPlan(currentUser, weekStart);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Publish meal plan success", plan);
+    }
+
+    @PostMapping("/menu-statistics")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<MenuStatisticsResponse>> getMenuStatistics(
+            @Valid @RequestBody MenuStatisticsRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getMenuStatistics|userId=" + currentUser.userId() + "|ageGroupId="
+                + request.ageGroupId();
+        log.info("{}|START", logPrefix);
+        MenuStatisticsResponse statistics = mealPlanService.getMenuStatistics(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get menu statistics success", statistics);
     }
 
     @GetMapping("/day-board")

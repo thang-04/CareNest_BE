@@ -183,8 +183,8 @@ class MealPlanIntegrationTest {
         // Kho chưa có gạo ⇒ 600 g thiếu, xác nhận suất không bị chặn
         assertThat(after.dryStock().status()).isEqualTo("SHORTFALL");
         assertThat(after.dryStock().shortfallFoodCount()).isEqualTo(1);
-        assertThat(after.freshReceiptStatus()).isEqualTo("NOT_AVAILABLE");
-        assertThat(after.foodSampleStatus()).isEqualTo("NOT_AVAILABLE");
+        assertThat(after.freshReceiptStatus()).isEqualTo("NO_FORECAST");
+        assertThat(after.foodSampleStatus()).isEqualTo("NONE");
         assertThat(board(vp).dryStock().status()).isEqualTo("SHORTFALL");
         expectCode(() -> dayBoardService.getDayBoard(kitchen, MONDAY, campus), ApiCode.CAMPUS_ACCESS_DENIED);
     }

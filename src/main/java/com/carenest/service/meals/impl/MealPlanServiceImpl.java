@@ -3,6 +3,8 @@ package com.carenest.service.meals.impl;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
 import com.carenest.dto.meals.MealPlanSummaryResponse;
+import com.carenest.dto.meals.MenuStatisticsRequest;
+import com.carenest.dto.meals.MenuStatisticsResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.meals.AgeGroupMealConfig;
@@ -28,6 +30,7 @@ import com.carenest.service.meals.impl.MealPlanEvaluator.FoodInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.ItemPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Norm;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Portion;
+import com.carenest.service.meals.impl.MealPlanEvaluator.Range;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
@@ -35,11 +38,14 @@ import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
 import com.carenest.utils.enums.Permission;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -72,6 +78,7 @@ public class MealPlanServiceImpl implements MealPlanService {
     private final StockLedgerService stockLedgerService;
     private final AgeGroupService ageGroupService;
     private final ClassroomService classroomService;
+    private final MealDemandCalculator demandCalculator;
     private final Clock clock;
 
     @Override
@@ -195,6 +202,155 @@ public class MealPlanServiceImpl implements MealPlanService {
         if (weekStart.getDayOfWeek() != DayOfWeek.MONDAY) {
             throw GlobalException.of(ApiCode.MEAL_PLAN_WEEK_INVALID);
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MenuStatisticsResponse getMenuStatistics(CurrentUser currentUser, MenuStatisticsRequest request) {
+        String logPrefix = LOG_PREFIX + "|getMenuStatistics|userId=" + currentUser.userId() + "|ageGroupId="
+                + request.ageGroupId();
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate date = request.date() == null ? LocalDate.now(clock) : request.date();
+            AgeGroupDetailResponse group = ageGroupService.getAgeGroups().stream()
+                    .filter(g -> g.id().equals(request.ageGroupId()))
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
+            List<MealSession> sessions = group.mealSessions() == null ? List.of() : List.copyOf(group.mealSessions());
+            AgeGroupInfo info =
+                    new AgeGroupInfo(group.id(), group.name(), MenuBlock.ofAgeGroup(group.ageToMonths()), sessions);
+            Map<Long, Dish> dishes = dishRepository
+                    .findByIdIn(request.items().stream()
+                            .map(MenuStatisticsRequest.Item::dishId)
+                            .collect(Collectors.toSet()))
+                    .stream()
+                    .collect(Collectors.toMap(Dish::getId, Function.identity()));
+            // Chỉ bữa nhóm tuổi được phục vụ, mỗi món một lần trong bữa (như lưới kế hoạch tuần)
+            List<ItemPlan> items = request.items().stream()
+                    .filter(i -> dishes.containsKey(i.dishId()) && sessions.contains(i.session()))
+                    .map(i -> new ItemPlan(i.session(), info.block(), i.dishId()))
+                    .distinct()
+                    .toList();
+            Norm norm = configRepository.findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(date).stream()
+                    .filter(c -> c.getAgeGroupId().equals(group.id()))
+                    .findFirst()
+                    .map(MealPlanServiceImpl::toNorm)
+                    .orElse(null);
+            MealPlanResponse.Evaluation evaluation = MealPlanEvaluator.evaluate(
+                            List.of(new DayPlan(date, false, items)),
+                            List.of(info),
+                            dishes.values().stream()
+                                    .collect(Collectors.toMap(Dish::getId, MealPlanServiceImpl::toDishInfo)),
+                            (ageGroupId, day) -> norm)
+                    .evaluations()
+                    .getFirst();
+            Headcount headcount = headcountOf(request, group.id(), date);
+            List<MenuStatisticsResponse.Ingredient> ingredients =
+                    ingredientsOf(items, dishes, group.id(), headcount.count());
+            BigDecimal totalCost = ingredients.stream()
+                    .map(MenuStatisticsResponse.Ingredient::cost)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            List<MenuStatisticsResponse.Dish> dishViews = items.stream()
+                    .map(i -> {
+                        Dish dish = dishes.get(i.dishId());
+                        return new MenuStatisticsResponse.Dish(
+                                i.session(), dish.getId(), dish.getName(), dish.getDishType());
+                    })
+                    .toList();
+            MenuStatisticsResponse response = new MenuStatisticsResponse(
+                    group.id(),
+                    group.name(),
+                    date,
+                    headcount.count(),
+                    headcount.source(),
+                    dishViews,
+                    ingredients,
+                    totalCost,
+                    evaluation.cost(),
+                    evaluation.mealPrice(),
+                    evaluation);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private record Headcount(int count, String source) {}
+
+    // N trẻ: người xem nhập > suất đã xác nhận của điểm trường–ngày (NUT-03) > sĩ số đang học của nhóm tuổi
+    private Headcount headcountOf(MenuStatisticsRequest request, Long ageGroupId, LocalDate date) {
+        if (request.children() != null) {
+            return new Headcount(request.children(), "INPUT");
+        }
+        if (request.campusId() != null) {
+            List<MealCount> counts = mealCountRepository.findByCampusIdAndDate(request.campusId(), date);
+            // Cơ sở–ngày đã chốt suất thì dùng số chốt, kể cả 0 (cả nhóm vắng) — không quay về sĩ số
+            if (counts.stream().anyMatch(MealCount::isConfirmed)) {
+                int confirmed = demandCalculator.confirmedServings(counts).stream()
+                        .filter(s -> s.ageGroupId().equals(ageGroupId))
+                        .mapToInt(MealDemandCalculator.Servings::portions)
+                        .max()
+                        .orElse(0);
+                return new Headcount(confirmed, "CONFIRMED");
+            }
+        }
+        List<Long> classIds = classroomService.findActiveYearClassrooms().stream()
+                .filter(c -> ageGroupId.equals(c.ageGroupId()))
+                .filter(c -> request.campusId() == null || request.campusId().equals(c.campusId()))
+                .map(ClassroomInfoResponse::id)
+                .toList();
+        long enrolled = classIds.isEmpty()
+                ? 0
+                : classroomService.countActiveChildren(classIds, date).values().stream()
+                        .mapToLong(Long::longValue)
+                        .sum();
+        return new Headcount((int) enrolled, "ENROLLED");
+    }
+
+    // NUT-07: lượng ăn = gam/trẻ × N; lượng mua = ăn ÷ (1 − thải bỏ%); tiền = lượng mua theo đơn vị mua × đơn giá
+    private static List<MenuStatisticsResponse.Ingredient> ingredientsOf(
+            List<ItemPlan> items, Map<Long, Dish> dishes, Long ageGroupId, int children) {
+        Map<Long, BigDecimal> grams = new LinkedHashMap<>();
+        Map<Long, Food> foods = new HashMap<>();
+        for (ItemPlan item : items) {
+            for (DishIngredient ingredient : dishes.get(item.dishId()).getIngredients()) {
+                if (!ageGroupId.equals(ingredient.getAgeGroupId())) {
+                    continue;
+                }
+                foods.put(ingredient.getFood().getId(), ingredient.getFood());
+                grams.merge(ingredient.getFood().getId(), ingredient.getGramsPerChild(), BigDecimal::add);
+            }
+        }
+        BigDecimal n = BigDecimal.valueOf(children);
+        List<MenuStatisticsResponse.Ingredient> rows = new ArrayList<>();
+        grams.forEach((foodId, perChild) -> {
+            Food food = foods.get(foodId);
+            BigDecimal eaten = perChild.multiply(n);
+            BigDecimal purchase = MealDemandCalculator.purchased(eaten, food.getWastePct());
+            BigDecimal size = food.getPurchaseUnitSize();
+            boolean priced = size != null && size.signum() > 0;
+            BigDecimal qty = priced ? purchase.divide(size, 3, RoundingMode.HALF_UP) : null;
+            BigDecimal cost = priced && food.getUnitPrice() != null
+                    ? purchase.multiply(food.getUnitPrice()).divide(size, 0, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+            rows.add(new MenuStatisticsResponse.Ingredient(
+                    foodId,
+                    food.getName(),
+                    food.getUnit(),
+                    perChild,
+                    eaten.setScale(2, RoundingMode.HALF_UP),
+                    food.getWastePct(),
+                    purchase.setScale(2, RoundingMode.HALF_UP),
+                    food.getPurchaseUnit(),
+                    size,
+                    qty,
+                    food.getUnitPrice(),
+                    cost));
+        });
+        rows.sort(Comparator.comparing(MenuStatisticsResponse.Ingredient::foodName));
+        return rows;
     }
 
     private List<MealPlanDay> toDays(LocalDate weekStart, MealPlanRequest request) {
@@ -393,6 +549,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                     food.getOrigin(),
                     food.getUnitPrice(),
                     food.getPurchaseUnitSize(),
+                    food.getWastePct(),
                     food.getAllergens().stream().map(a -> a.getName()).sorted().toList());
             byAgeGroup
                     .computeIfAbsent(ingredient.getAgeGroupId(), id -> new ArrayList<>())
@@ -402,20 +559,23 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private static Norm toNorm(AgeGroupMealConfig c) {
+        Map<MealSession, Range> sessionKcalPct = new EnumMap<>(MealSession.class);
+        sessionKcalPct.put(MealSession.MORNING, new Range(c.getMorningKcalPctMin(), c.getMorningKcalPctMax()));
+        sessionKcalPct.put(MealSession.LUNCH, new Range(c.getLunchKcalPctMin(), c.getLunchKcalPctMax()));
+        sessionKcalPct.put(MealSession.AFTERNOON, new Range(c.getAfternoonKcalPctMin(), c.getAfternoonKcalPctMax()));
         return new Norm(
                 c.getMealPrice(),
-                c.getKcalMin(),
-                c.getKcalMax(),
-                c.getProteinPctMin(),
-                c.getProteinPctMax(),
-                c.getLipidPctMin(),
-                c.getLipidPctMax(),
-                c.getGlucidPctMin(),
-                c.getGlucidPctMax(),
-                c.getAnimalProteinPctMin(),
-                c.getAnimalProteinPctMax(),
-                c.getAnimalLipidPctMin(),
-                c.getAnimalLipidPctMax());
+                new Range(c.getKcalMin(), c.getKcalMax()),
+                new Range(c.getProteinPctMin(), c.getProteinPctMax()),
+                new Range(c.getLipidPctMin(), c.getLipidPctMax()),
+                new Range(c.getGlucidPctMin(), c.getGlucidPctMax()),
+                new Range(c.getAnimalProteinGMin(), c.getAnimalProteinGMax()),
+                new Range(c.getPlantProteinGMin(), c.getPlantProteinGMax()),
+                new Range(c.getAnimalLipidGMin(), c.getAnimalLipidGMax()),
+                new Range(c.getPlantLipidGMin(), c.getPlantLipidGMax()),
+                new Range(c.getGlucidGMin(), c.getGlucidGMax()),
+                sessionKcalPct,
+                c.getDailyKcalNeed());
     }
 
     private static String blockLabel(MenuBlock block) {

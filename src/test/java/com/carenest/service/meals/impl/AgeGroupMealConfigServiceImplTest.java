@@ -128,6 +128,19 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     @Test
+    @DisplayName("NUT-25: tổng tỷ lệ năng lượng tối thiểu của các bữa vượt 100% thì từ chối")
+    void rejectsSessionSharesOver100Percent() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+
+        assertThatThrownBy(() -> service.createConfig(
+                        VICE_PRINCIPAL,
+                        request(TODAY.plusDays(1), null, null, new BigDecimal("70"), new BigDecimal("35"))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.MEAL_SESSION_KCAL_PCT_INVALID);
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("NUT-19: bản áp dụng tại một ngày là bản có ngày hiệu lực lớn nhất không sau ngày đó")
     void effectiveConfigIsLatestNotAfterDate() {
         given(repository.findByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(TODAY))
@@ -139,6 +152,15 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     private static AgeGroupMealConfigRequest request(LocalDate from, BigDecimal kcalMin, BigDecimal kcalMax) {
+        return request(from, kcalMin, kcalMax, null, null);
+    }
+
+    private static AgeGroupMealConfigRequest request(
+            LocalDate from,
+            BigDecimal kcalMin,
+            BigDecimal kcalMax,
+            BigDecimal lunchPctMin,
+            BigDecimal afternoonPctMin) {
         return new AgeGroupMealConfigRequest(
                 AGE_GROUP,
                 from,
@@ -155,6 +177,19 @@ class AgeGroupMealConfigServiceImplTest {
                 null,
                 null,
                 null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                lunchPctMin,
+                null,
+                afternoonPctMin,
+                null,
+                null,
                 null);
     }
 
@@ -163,7 +198,9 @@ class AgeGroupMealConfigServiceImplTest {
         config.changeInfo(
                 from,
                 new BigDecimal("30000"),
-                new AgeGroupMealConfig.Norms(null, null, null, null, null, null, null, null, null, null, null, null),
+                new AgeGroupMealConfig.Norms(
+                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, null, null, null, null, null),
                 "",
                 3L);
         ReflectionTestUtils.setField(config, "id", id);
