@@ -12,18 +12,22 @@ import com.carenest.dto.health.HealthCheckResponse;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.dto.health.HealthScheduleWarningResponse;
+import com.carenest.entity.health.HealthCheckCampaign;
+import com.carenest.entity.health.HealthCheckCampaignHistory;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.health.HealthCheckCampaignHistoryRepository;
+import com.carenest.repository.health.HealthCheckCampaignRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthCheckService;
 import com.carenest.service.health.HealthMeasurementService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.HealthCheckAction;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckResult;
 import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.HealthScheduleWarning;
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -58,8 +62,8 @@ class HealthCheckIntegrationTest {
     static class ClockConfig {
         @Bean
         @Primary
-        Clock fixedClock() {
-            return Clock.fixed(Instant.parse("2026-11-10T02:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh"));
+        HealthTestClock fixedClock() {
+            return new HealthTestClock(Instant.parse("2026-11-10T02:00:00Z"));
         }
     }
 
@@ -67,10 +71,19 @@ class HealthCheckIntegrationTest {
     private HealthCheckService checks;
 
     @Autowired
+    private HealthTestClock testClock;
+
+    @Autowired
     private HealthMeasurementService measurements;
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private HealthCheckCampaignRepository campaignRepository;
+
+    @Autowired
+    private HealthCheckCampaignHistoryRepository historyRepository;
 
     private CurrentUser principal;
     private CurrentUser vpA;
@@ -85,6 +98,7 @@ class HealthCheckIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        testClock.setInstant(Instant.parse("2026-11-10T02:00:00Z"));
         campusA = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('HC-A', 'Điểm A', TRUE) RETURNING id");
         campusB = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('HC-B', 'Điểm B', FALSE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
@@ -116,7 +130,7 @@ class HealthCheckIntegrationTest {
     @Test
     void leadersManageTheirCampusesAndTeachersOnlyView() {
         HealthCheckResponse round = checks.createHealthCheck(
-                vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
+                vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"));
         assertThat(round.kind()).isEqualTo(HealthCheckKind.MEASUREMENT);
         assertThat(round.examiner()).isEmpty();
         assertThat(round.status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
@@ -129,7 +143,7 @@ class HealthCheckIntegrationTest {
                         teacherA, request(HealthCheckKind.EXAM, campusA, "2026-11-09", "2026-11-12")),
                 ApiCode.HEALTH_CHECK_ACCESS_DENIED);
         HealthCheckResponse exam =
-                checks.createHealthCheck(principal, request(null, campusB, "2026-11-09", "2026-11-12"));
+                checks.createHealthCheck(principal, request(null, campusB, "2026-11-10", "2026-11-12"));
         assertThat(exam.kind()).isEqualTo(HealthCheckKind.EXAM);
         assertThat(exam.examiner()).isEqualTo("Trạm Y tế (giả)");
 
@@ -149,6 +163,7 @@ class HealthCheckIntegrationTest {
                 vpA, round.id(), request(HealthCheckKind.EXAM, campusB, "2026-11-09", "2026-11-21"));
         assertThat(renamed.kind()).isEqualTo(HealthCheckKind.MEASUREMENT);
         assertThat(renamed.campusId()).isEqualTo(campusA);
+        assertThat(renamed.startDate()).isEqualTo(LocalDate.of(2026, 11, 9));
         assertThat(renamed.endDate()).isEqualTo(LocalDate.of(2026, 11, 21));
         assertThat(renamed.history())
                 .extracting(HealthCheckResponse.HealthCheckHistory::action)
@@ -158,7 +173,7 @@ class HealthCheckIntegrationTest {
 
     @Test
     void warnsWhenStartIsWithinTwoMonthsFifteenDaysOfAnotherRound() {
-        HealthCheckResponse first = checks.createHealthCheck(
+        HealthCheckResponse first = historicalCampaign(
                 principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-09-01", "2026-09-05"));
         checks.closeHealthCheck(principal, first.id());
         HealthCheckResponse cancelled = checks.createHealthCheck(
@@ -196,7 +211,7 @@ class HealthCheckIntegrationTest {
     @Test
     void secondExamInSchoolYearWarnsButCanBeCreated() {
         HealthCheckResponse exam =
-                checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusA, "2026-09-15", "2026-09-18"));
+                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-09-15", "2026-09-18"));
         checks.closeHealthCheck(principal, exam.id());
 
         HealthScheduleWarningResponse second =
@@ -216,7 +231,7 @@ class HealthCheckIntegrationTest {
 
     @Test
     void oneUnclosedRoundPerCampusAcrossKinds() {
-        HealthCheckResponse first = checks.createHealthCheck(
+        HealthCheckResponse first = historicalCampaign(
                 principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-01", "2026-11-05"));
         expectError(
                 () -> checks.createHealthCheck(vpA, request(HealthCheckKind.EXAM, campusA, "2026-11-20", "2026-11-21")),
@@ -230,8 +245,8 @@ class HealthCheckIntegrationTest {
 
     @Test
     void teacherRecordsMeasurementsOnlyInsideOpenRound() {
-        HealthCheckResponse round = checks.createHealthCheck(
-                vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
         HealthCheckClassResponse before = checks.getHealthCheckClass(teacherA, round.id(), classA);
         assertThat(before.canRecord()).isTrue();
         assertThat(before.children())
@@ -310,8 +325,8 @@ class HealthCheckIntegrationTest {
 
     @Test
     void editingMeasurementNeedsReasonAndKeepsHistory() {
-        HealthCheckResponse round = checks.createHealthCheck(
-                vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
         HealthMeasurementResponse saved =
                 measurements.createMeasurement(teacherA, child1, measure(round.id(), "2026-11-10"));
 
@@ -338,6 +353,169 @@ class HealthCheckIntegrationTest {
         expectError(
                 () -> measurements.updateMeasurement(teacherB, child1, saved.id(), edit("2026-11-10", "97.0", "Sửa")),
                 ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
+    }
+
+    @Test
+    void automaticallyClosesExpiredExamAndReleasesCampusOnlyOnce() {
+        HealthCheckResponse expired =
+                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-09"));
+
+        checks.closeExpiredHealthChecks();
+        HealthCheckResponse closed = checks.getHealthCheck(vpA, expired.id()).campaign();
+        assertThat(closed.status()).isEqualTo(HealthCheckStatus.CLOSED);
+        assertThat(closed.closedAt()).isEqualTo(Instant.parse("2026-11-10T02:00:00Z"));
+        assertThat(closed.closedBy()).isNull();
+        assertThat(closed.closedByName()).isEqualTo("Hệ thống");
+        assertThat(closed.progress().absent()).isEqualTo(2);
+        assertThat(closed.history())
+                .filteredOn(h -> h.action() == HealthCheckAction.CLOSED)
+                .singleElement()
+                .satisfies(h -> {
+                    assertThat(h.userId()).isNull();
+                    assertThat(h.userName()).isEqualTo("Hệ thống");
+                });
+        assertThat(checks.getHealthCheckClass(teacherA, expired.id(), classA).canRecord())
+                .isFalse();
+        assertThat(checks.getHealthCheckClass(teacherA, expired.id(), classA).children())
+                .extracting(HealthCheckClassResponse.HealthCheckChild::result)
+                .containsOnly(HealthCheckResult.ABSENT);
+        expectError(
+                () -> checks.updateHealthCheck(
+                        vpA, expired.id(), request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-11")),
+                ApiCode.HEALTH_CHECK_ENDED);
+
+        checks.closeExpiredHealthChecks();
+        campaignRepository.flush();
+        assertThat(checks.getHealthCheck(vpA, expired.id()).campaign().history())
+                .filteredOn(h -> h.action() == HealthCheckAction.CLOSED)
+                .hasSize(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM health_check_absences WHERE campaign_id = ?", Long.class, expired.id()))
+                .isEqualTo(2L);
+        assertThat(checks.createHealthCheck(vpA, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-11-12"))
+                        .status())
+                .isEqualTo(HealthCheckStatus.IN_PROGRESS);
+    }
+
+    @Test
+    void doesNotAutoCloseOnEndDateOrForExpiredMeasurementRound() {
+        HealthCheckResponse exam =
+                checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-11-10"));
+        HealthCheckResponse round = historicalCampaign(
+                principal, request(HealthCheckKind.MEASUREMENT, campusB, "2026-11-07", "2026-11-09"));
+
+        checks.closeExpiredHealthChecks();
+
+        for (Long id : Set.of(exam.id(), round.id())) {
+            HealthCheckResponse unchanged = checks.getHealthCheck(principal, id).campaign();
+            assertThat(unchanged.status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
+            assertThat(unchanged.closedAt()).isNull();
+            assertThat(unchanged.history()).hasSize(1);
+        }
+    }
+
+    @Test
+    void doesNotTouchCancelledOrManuallyClosedExam() {
+        HealthCheckResponse cancelled =
+                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-09"));
+        HealthCheckResponse closed =
+                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusB, "2026-11-07", "2026-11-09"));
+        checks.cancelHealthCheck(principal, cancelled.id());
+        HealthCheckResponse manual =
+                checks.closeHealthCheck(principal, closed.id()).campaign();
+
+        checks.closeExpiredHealthChecks();
+
+        HealthCheckResponse cancelledAfter =
+                checks.getHealthCheck(principal, cancelled.id()).campaign();
+        assertThat(cancelledAfter.status()).isEqualTo(HealthCheckStatus.CANCELLED);
+        assertThat(cancelledAfter.closedAt()).isNull();
+        assertThat(cancelledAfter.history())
+                .extracting(HealthCheckResponse.HealthCheckHistory::action)
+                .containsExactly(HealthCheckAction.CREATED, HealthCheckAction.CANCELLED);
+        HealthCheckResponse manualAfter =
+                checks.getHealthCheck(principal, closed.id()).campaign();
+        assertThat(manualAfter.closedBy()).isEqualTo(principal.userId());
+        assertThat(manualAfter.closedAt()).isEqualTo(manual.closedAt());
+        assertThat(manualAfter.history()).isEqualTo(manual.history());
+    }
+
+    @Test
+    void reopenedExamClosesAgainAfterItsNewEndDate() {
+        HealthCheckResponse expired =
+                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-09"));
+        checks.closeExpiredHealthChecks();
+        checks.reopenHealthCheck(
+                vpA, expired.id(), new HealthCheckReopenRequest("Nhập bù cho trẻ vắng", LocalDate.of(2026, 11, 10)));
+
+        checks.closeExpiredHealthChecks();
+
+        HealthCheckResponse reopened = checks.getHealthCheck(vpA, expired.id()).campaign();
+        assertThat(reopened.status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
+        assertThat(reopened.closedAt()).isNull();
+        assertThat(reopened.endDate()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(reopened.progress().notRecorded()).isEqualTo(2);
+        assertThat(reopened.history())
+                .extracting(HealthCheckResponse.HealthCheckHistory::action)
+                .containsExactly(HealthCheckAction.CREATED, HealthCheckAction.CLOSED, HealthCheckAction.REOPENED);
+
+        testClock.setInstant(Instant.parse("2026-11-10T17:00:00Z"));
+        checks.closeExpiredHealthChecks();
+        checks.closeExpiredHealthChecks();
+
+        HealthCheckResponse closedAgain =
+                checks.getHealthCheck(vpA, expired.id()).campaign();
+        assertThat(closedAgain.status()).isEqualTo(HealthCheckStatus.CLOSED);
+        assertThat(closedAgain.closedAt()).isEqualTo(Instant.parse("2026-11-10T17:00:00Z"));
+        assertThat(closedAgain.closedBy()).isNull();
+        assertThat(closedAgain.progress().absent()).isEqualTo(2);
+        assertThat(closedAgain.history())
+                .extracting(HealthCheckResponse.HealthCheckHistory::action)
+                .containsExactly(
+                        HealthCheckAction.CREATED,
+                        HealthCheckAction.CLOSED,
+                        HealthCheckAction.REOPENED,
+                        HealthCheckAction.CLOSED);
+    }
+
+    @Test
+    void reopeningExpiredExamRequiresAnEndDateFromToday() {
+        HealthCheckResponse expired =
+                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-09"));
+        checks.closeExpiredHealthChecks();
+
+        for (HealthCheckReopenRequest invalid : new HealthCheckReopenRequest[] {
+            new HealthCheckReopenRequest("Nhập bù"), new HealthCheckReopenRequest("Nhập bù", LocalDate.of(2026, 11, 9))
+        }) {
+            assertThatThrownBy(() -> checks.reopenHealthCheck(vpA, expired.id(), invalid))
+                    .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                        assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                        assertThat(ex.getFieldErrors())
+                                .extracting(com.carenest.dto.common.FieldErrorResponse::field)
+                                .contains("endDate");
+                    });
+        }
+        assertThat(checks.getHealthCheck(vpA, expired.id()).campaign().status()).isEqualTo(HealthCheckStatus.CLOSED);
+    }
+
+    // Đợt lịch sử là dữ liệu đã có; API tạo mới chỉ nhận ngày từ hôm nay.
+    private HealthCheckResponse historicalCampaign(CurrentUser creator, HealthCheckRequest request) {
+        Instant createdAt =
+                request.startDate().atStartOfDay(ZoneId.of("Asia/Ho_Chi_Minh")).toInstant();
+        HealthCheckCampaign campaign = campaignRepository.save(HealthCheckCampaign.builder()
+                .kind(request.kind())
+                .campusId(request.campusId())
+                .name(request.name())
+                .startDate(request.startDate())
+                .endDate(request.endDate())
+                .examiner(request.examiner())
+                .note(request.note())
+                .createdBy(creator.userId())
+                .createdAt(createdAt)
+                .build());
+        historyRepository.save(HealthCheckCampaignHistory.of(
+                campaign.getId(), HealthCheckAction.CREATED, creator.userId(), null, createdAt));
+        return checks.getHealthCheck(creator, campaign.getId()).campaign();
     }
 
     private HealthCheckRequest request(HealthCheckKind kind, long campusId, String start, String end) {

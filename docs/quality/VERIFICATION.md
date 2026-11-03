@@ -1,5 +1,11 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Tự đóng đợt khám và mở lại với hạn nhập bù — 2026-11-01
+
+- Nguồn user 2026-11-01 (HLT-17): EXAM tự đóng khi qua ngày kết thúc theo giờ trường, chạy lúc 00:00 và khi ứng dụng khởi động để xử lý thời gian tắt máy. Tái sử dụng đóng tay cho vắng/chưa kết luận/khóa kết quả; phiếu theo dõi vẫn mở; lịch sử đóng tự động ghi actor hệ thống. Kỳ cân đo giữ nguyên.
+- User chốt đợt mở lại vẫn tự đóng: request reopen nhận thêm ngày `endDate`; đợt khám đã hết hạn phải chọn ngày mới từ hôm nay. Web đã thêm ô ngày; request cũ chỉ có `reason` vẫn dùng với đợt còn hạn/kỳ cân đo; không đổi endpoint hoặc response. Snapshot OpenAPI chỉ thêm `endDate: string/date` trong `HealthCheckReopenRequest`.
+- Flyway V67 nới actor đóng/historical user cho hệ thống, không sửa migration cũ; PostgreSQL Testcontainers đã chạy migration và kiểm closure, reopen, lịch sử, kết quả và phiếu theo dõi thật. 25/25 test health + snapshot đạt, không skip. Snapshot cập nhật có chủ đích và kiểm diff 3 dòng; cổng full sau đó ghi kết quả trong `target/verify.log` và output bàn giao.
+- Chrome trên Web mock đã kiểm tự đóng, mở lại với ngày mới `dd/mm/yyyy`, validation và tự đóng lần hai. Chưa chạy UI nối API thật. Không commit/push.
 ## Pre-PR monthly roster fixes — 02/11/2026
 
 - User approved four findings from FE pre-PR report. Two monthly regressions RED against previous source → GREEN, covering first listing after transfer, leavers/joiners, name/history, repeated listing and teacher/VP scopes. MONTH uses period overlap; YEAR retains current roster.

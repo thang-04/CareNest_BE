@@ -1,6 +1,7 @@
 package com.carenest.service.health.impl;
 
 import com.carenest.dto.child.ChildBriefResponse;
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.health.HealthCheckClassResponse;
 import com.carenest.dto.health.HealthCheckCloseResponse;
 import com.carenest.dto.health.HealthCheckDetailResponse;
@@ -48,7 +49,10 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.domain.Sort;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -239,7 +243,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                     .isEmpty()) {
                 throw GlobalException.of(ApiCode.CAMPUS_NOT_FOUND);
             }
-            checkDates(request);
+            checkCreationDates(request);
             checkCampusFree(request.campusId(), null);
             HealthCheckCampaign campaign = campaignRepository.save(HealthCheckCampaign.builder()
                     .kind(request.kind() == null ? HealthCheckKind.EXAM : request.kind())
@@ -333,42 +337,67 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             if (campaign.statusOn(rules.today()) != HealthCheckStatus.IN_PROGRESS) {
                 throw GlobalException.of(ApiCode.HEALTH_CHECK_NOT_IN_PROGRESS);
             }
-            Results before = results(List.of(campaign.getId()));
-            List<HealthCheckRules.Row> rows = rules.classesOf(campaign).stream()
-                    .flatMap(cls -> rules.rosterOf(campaign, cls, before.measurements(), List.of()).stream())
-                    .toList();
-            // Trẻ chưa có kết quả ở mọi lớp của điểm trường thành "Vắng"; kết quả bị khóa tới khi mở lại. Phiếu khám
-            // còn nháp giữ nháp (chưa kết luận)
-            List<HealthCheckAbsence> absences = rows.stream()
-                    .filter(r -> r.result() == HealthCheckResult.NOT_RECORDED)
-                    .map(r -> HealthCheckAbsence.of(campaign.getId(), r.childId(), r.classId()))
-                    .toList();
-            int notConcluded = (int) rows.stream()
-                    .filter(r -> r.result() == HealthCheckResult.IN_PROGRESS)
-                    .count();
-            int waiting =
-                    (int) records
-                            .openStates(rows.stream()
-                                    .map(HealthCheckRules.Row::childId)
-                                    .collect(Collectors.toSet()))
-                            .values()
-                            .stream()
-                            .filter(st -> st.status() == HealthFollowUpStatus.WAITING_PARENT_CONTACT)
-                            .count();
-            absenceRepository.saveAll(absences);
-            campaign.close(currentUser.userId(), rules.now());
-            record(campaign, HealthCheckAction.CLOSED, currentUser, null);
+            Closure closure = closeCampaign(campaign, currentUser.userId(), null);
             HealthCheckCloseResponse closed = new HealthCheckCloseResponse(
-                    absences.size(),
-                    notConcluded,
-                    waiting,
-                    toView(currentUser, campaign, new Results(before.measurements(), absences, before.levels())));
+                    closure.absent(),
+                    closure.notConcluded(),
+                    closure.waiting(),
+                    toView(currentUser, campaign, closure.results()));
             log.info("{}|END", logPrefix);
             return closed;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Scheduled(cron = "0 0 0 * * *", zone = "${carenest.time-zone}")
+    @EventListener(ApplicationReadyEvent.class)
+    public void closeExpiredHealthChecks() {
+        String logPrefix = LOG_PREFIX + "|closeExpiredHealthChecks";
+        log.info("{}|START", logPrefix);
+        try {
+            List<HealthCheckCampaign> expired =
+                    campaignRepository.findByKindAndClosedAtIsNullAndCancelledAtIsNullAndEndDateBefore(
+                            HealthCheckKind.EXAM, rules.today());
+            expired.forEach(c -> closeCampaign(c, null, "Hệ thống tự đóng khi qua ngày kết thúc khám"));
+            log.info("{}|count={}|END", logPrefix, expired.size());
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private record Closure(int absent, int notConcluded, int waiting, Results results) {}
+
+    private Closure closeCampaign(HealthCheckCampaign campaign, Long userId, String reason) {
+        Results before = results(List.of(campaign.getId()));
+        List<HealthCheckRules.Row> rows = rules.classesOf(campaign).stream()
+                .flatMap(cls -> rules.rosterOf(campaign, cls, before.measurements(), List.of()).stream())
+                .toList();
+        // Đóng tay và tự động cùng chốt trẻ vắng; phiếu nháp giữ "Chưa kết luận", phiếu theo dõi tiếp tục mở.
+        List<HealthCheckAbsence> absences = rows.stream()
+                .filter(r -> r.result() == HealthCheckResult.NOT_RECORDED)
+                .map(r -> HealthCheckAbsence.of(campaign.getId(), r.childId(), r.classId()))
+                .toList();
+        int notConcluded = (int) rows.stream()
+                .filter(r -> r.result() == HealthCheckResult.IN_PROGRESS)
+                .count();
+        int waiting =
+                (int) records
+                        .openStates(
+                                rows.stream().map(HealthCheckRules.Row::childId).collect(Collectors.toSet()))
+                        .values()
+                        .stream()
+                        .filter(st -> st.status() == HealthFollowUpStatus.WAITING_PARENT_CONTACT)
+                        .count();
+        absenceRepository.saveAll(absences);
+        campaign.close(userId, rules.now());
+        historyRepository.save(
+                HealthCheckCampaignHistory.of(campaign.getId(), HealthCheckAction.CLOSED, userId, reason, rules.now()));
+        return new Closure(
+                absences.size(), notConcluded, waiting, new Results(before.measurements(), absences, before.levels()));
     }
 
     @Override
@@ -385,6 +414,21 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             String reason = trimmed(request.reason());
             if (reason.isEmpty()) {
                 throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "lý do mở lại");
+            }
+            if (campaign.getKind() == HealthCheckKind.EXAM) {
+                LocalDate endDate = request.endDate() != null ? request.endDate() : campaign.getEndDate();
+                if (endDate.isBefore(rules.today()) || endDate.isBefore(campaign.getStartDate())) {
+                    throw GlobalException.withFieldErrors(
+                            ApiCode.INVALID_REQUEST_DATA,
+                            List.of(new FieldErrorResponse("endDate", "Chọn ngày kết thúc mới từ hôm nay")));
+                }
+                campaign.update(
+                        campaign.getName(),
+                        campaign.getStartDate(),
+                        endDate,
+                        campaign.getExaminer(),
+                        campaign.getNote(),
+                        rules.now());
             }
             checkCampusFree(campaign.getCampusId(), campaign.getId());
             absenceRepository.deleteByCampaignId(campaign.getId());
@@ -503,7 +547,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                 names.get(c.getCreatedBy()),
                 c.getCreatedAt(),
                 c.getClosedBy(),
-                c.getClosedBy() == null ? null : names.get(c.getClosedBy()),
+                c.getClosedBy() != null ? names.get(c.getClosedBy()) : c.getClosedAt() != null ? "Hệ thống" : null,
                 c.getClosedAt(),
                 c.getCancelledAt(),
                 !results.measurements().isEmpty(),
@@ -524,7 +568,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                         .map(h -> new HealthCheckResponse.HealthCheckHistory(
                                 h.getAction(),
                                 h.getUserId(),
-                                names.get(h.getUserId()),
+                                h.getUserId() == null ? "Hệ thống" : names.get(h.getUserId()),
                                 h.getReason(),
                                 h.getCreatedAt()))
                         .toList());
@@ -590,6 +634,21 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     private void checkDates(HealthCheckRequest request) {
         if (request.endDate().isBefore(request.startDate())) {
             throw GlobalException.of(ApiCode.HEALTH_CHECK_DATES_INVALID);
+        }
+    }
+
+    private void checkCreationDates(HealthCheckRequest request) {
+        checkDates(request);
+        LocalDate today = rules.today();
+        List<FieldErrorResponse> errors = new ArrayList<>();
+        if (request.startDate().isBefore(today)) {
+            errors.add(new FieldErrorResponse("startDate", "Ngày bắt đầu không được trước hôm nay"));
+        }
+        if (request.endDate().isBefore(today)) {
+            errors.add(new FieldErrorResponse("endDate", "Ngày kết thúc không được trước hôm nay"));
+        }
+        if (!errors.isEmpty()) {
+            throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
         }
     }
 

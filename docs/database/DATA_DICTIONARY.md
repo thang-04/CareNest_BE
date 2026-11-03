@@ -366,7 +366,7 @@ Mục đích: sức khỏe trong ngày — mỗi lần giáo viên lớp ghi nh�
 Index: `(child_id, date)`, `(classroom_id, date)`.
 
 ## health_check_campaigns  (module: health, scope: CAMPUS)
-Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 lần/năm học) và kỳ cân đo (`MEASUREMENT`, giáo viên cân đo, khoảng 3 tháng/lần) của một điểm trường. Trạng thái (`UPCOMING`/`IN_PROGRESS`/`CLOSED`/`CANCELLED`) tính từ ngày và mốc đóng/hủy, không lưu. Đợt thuộc năm học của ngày bắt đầu (G94-180/HLT-08). Migration: `V64__create_health_checks.sql`.
+Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 lần/năm học) và kỳ cân đo (`MEASUREMENT`, giáo viên cân đo, khoảng 3 tháng/lần) của một điểm trường. Trạng thái (`UPCOMING`/`IN_PROGRESS`/`CLOSED`/`CANCELLED`) tính từ ngày và mốc đóng/hủy, không lưu. Đợt thuộc năm học của ngày bắt đầu (G94-180/HLT-08). Migration: `V64__create_health_checks.sql`, V67 (đóng tự động, HLT-17).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -377,17 +377,17 @@ Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 l�
 | examiner | VARCHAR(150) | không | Đơn vị khám/bác sĩ; kỳ cân đo luôn rỗng (CHECK) | HLT-08 |
 | note | VARCHAR(500) | không | Ghi chú | — |
 | created_by, created_at, updated_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
-| closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Đóng: khóa kết quả, trẻ chưa có kết quả thành vắng; cùng có hoặc cùng trống | — |
+| closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Đóng: khóa kết quả, trẻ chưa có phiếu thành vắng; `closed_by` null khi hệ thống tự đóng `EXAM`. Có người đóng thì phải có `closed_at` (V67) | HLT-17 |
 | cancelled_at | TIMESTAMPTZ | có | Hủy (chỉ khi chưa có kết quả); không đồng thời đóng | — |
 Index: UNIQUE `uk_health_check_campaigns_campus_open` (`campus_id`) WHERE chưa đóng, chưa hủy — mỗi điểm trường một đợt/kỳ chưa đóng, tính chung hai loại; `(campus_id, start_date)`.
 
 ## health_check_campaign_history  (module: health, scope: CAMPUS)
-Mục đích: lịch sử thao tác của đợt/kỳ, chỉ thêm. Migration: V64.
+Mục đích: lịch sử thao tác của đợt/kỳ, chỉ thêm. Migration: V64, V67 (actor hệ thống).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | campaign_id | BIGINT FK health_check_campaigns | không | | — |
 | action | VARCHAR(20) | không | `CREATED` / `UPDATED` / `CLOSED` / `REOPENED` / `CANCELLED` | — |
-| user_id | BIGINT FK user_accounts | không | Người thao tác | — |
+| user_id | BIGINT FK user_accounts | có | Người thao tác; null khi hệ thống tự đóng (`CLOSED`, hiển thị "Hệ thống", V67) | HLT-17 |
 | reason | VARCHAR(300) | có | Lý do (bắt buộc khi mở lại) | — |
 | created_at | TIMESTAMPTZ | không | | — |
 

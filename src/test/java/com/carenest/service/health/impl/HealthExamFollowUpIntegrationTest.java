@@ -32,6 +32,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckResult;
+import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.HealthConclusionCategory;
 import com.carenest.utils.enums.HealthConclusionMode;
 import com.carenest.utils.enums.HealthExamStatus;
@@ -43,10 +44,8 @@ import com.carenest.utils.enums.HealthFollowUpStatus;
 import com.carenest.utils.enums.HealthLatestSource;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.Base64;
 import java.util.List;
 import java.util.Set;
@@ -85,8 +84,8 @@ class HealthExamFollowUpIntegrationTest {
     static class ClockConfig {
         @Bean
         @Primary
-        Clock fixedClock() {
-            return Clock.fixed(Instant.parse("2026-11-10T02:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh"));
+        HealthTestClock fixedClock() {
+            return new HealthTestClock(Instant.parse("2026-11-10T02:00:00Z"));
         }
     }
 
@@ -95,6 +94,9 @@ class HealthExamFollowUpIntegrationTest {
 
     @Autowired
     private HealthCheckService checks;
+
+    @Autowired
+    private HealthTestClock testClock;
 
     @Autowired
     private HealthExamService exams;
@@ -125,6 +127,7 @@ class HealthExamFollowUpIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        testClock.setInstant(Instant.parse("2026-11-10T02:00:00Z"));
         campusA = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('HE-A', 'Điểm A', TRUE) RETURNING id");
         campusB = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('HE-B', 'Điểm B', FALSE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
@@ -256,7 +259,7 @@ class HealthExamFollowUpIntegrationTest {
 
         // Kỳ cân đo không dùng phiếu khám
         long round = checks.createHealthCheck(
-                        principal, request(HealthCheckKind.MEASUREMENT, campusB, "2026-11-09", "2026-11-20"))
+                        principal, request(HealthCheckKind.MEASUREMENT, campusB, "2026-11-10", "2026-11-20"))
                 .id();
         expectError(() -> exams.getExam(teacherB, round, child3), ApiCode.HEALTH_EXAM_ROUND_REQUIRED);
     }
@@ -425,8 +428,53 @@ class HealthExamFollowUpIntegrationTest {
         expectError(() -> followUps.getImage(vpB, followUpId, image.id()), ApiCode.HEALTH_FOLLOW_UP_NOT_FOUND);
     }
 
+    @Test
+    void autoCloseAtSchoolMidnightLocksResultsAndPreservesDraftsAndFollowUps() {
+        long campaign = checks.createHealthCheck(
+                        principal, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-11-10"))
+                .id();
+        Long followUpId = exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, referral()), true, ""))
+                .measurement()
+                .followUpId();
+        exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""));
+        long absentChild = child("Dũng", "2023-04-01");
+        enroll(absentChild, classA);
+
+        testClock.setInstant(Instant.parse("2026-11-10T16:59:59Z"));
+        checks.closeExpiredHealthChecks();
+        assertThat(checks.getHealthCheck(vpA, campaign).campaign().status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
+
+        // 00:00 ngày 11/11 ở trường; ngày UTC vẫn là 10/11.
+        testClock.setInstant(Instant.parse("2026-11-10T17:00:00Z"));
+        checks.closeExpiredHealthChecks();
+
+        HealthCheckResponse closed = checks.getHealthCheck(vpA, campaign).campaign();
+        assertThat(closed.status()).isEqualTo(HealthCheckStatus.CLOSED);
+        assertThat(closed.closedAt()).isEqualTo(Instant.parse("2026-11-10T17:00:00Z"));
+        assertThat(closed.progress().recorded()).isEqualTo(1);
+        assertThat(closed.progress().notConcluded()).isEqualTo(1);
+        assertThat(closed.progress().absent()).isEqualTo(1);
+        assertThat(rowOf(campaign, child1).result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(rowOf(campaign, child2).result()).isEqualTo(HealthCheckResult.NOT_CONCLUDED);
+        assertThat(rowOf(campaign, absentChild).result()).isEqualTo(HealthCheckResult.ABSENT);
+        assertThat(exams.getExam(teacherA, campaign, child1).canEdit()).isFalse();
+        assertThat(exams.getExam(teacherA, campaign, child2).measurement().examStatus())
+                .isEqualTo(HealthExamStatus.DRAFT);
+        assertThat(exams.getExam(teacherA, campaign, child2).measurement().published())
+                .isFalse();
+        assertThat(followUps.getFollowUp(teacherA, followUpId).status())
+                .isEqualTo(HealthFollowUpStatus.WAITING_PARENT_CONTACT);
+        assertThat(closed.waitingFollowUpCount()).isEqualTo(1);
+        expectError(
+                () -> exams.saveExam(teacherA, campaign, child1, save(exam("NO", null, normal()), true, "Nhập bù")),
+                ApiCode.HEALTH_EXAM_LOCKED);
+        expectError(
+                () -> exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, "")),
+                ApiCode.HEALTH_EXAM_LOCKED);
+    }
+
     private long examCampaign(long campusId) {
-        return checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusId, "2026-11-09", "2026-11-20"))
+        return checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusId, "2026-11-10", "2026-11-20"))
                 .id();
     }
 

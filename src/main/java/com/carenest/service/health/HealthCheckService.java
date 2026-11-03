@@ -38,5 +38,7 @@ public interface HealthCheckService {
 
     HealthCheckCloseResponse closeHealthCheck(CurrentUser currentUser, Long campaignId);
 
+    void closeExpiredHealthChecks();
+
     HealthCheckResponse reopenHealthCheck(CurrentUser currentUser, Long campaignId, HealthCheckReopenRequest request);
 }

@@ -32,7 +32,7 @@ public class HealthCheckCampaignHistory {
     @Column(nullable = false, length = 20)
     private HealthCheckAction action;
 
-    @Column(name = "user_id", nullable = false)
+    @Column(name = "user_id")
     private Long userId;
 
     @Column(length = 300)

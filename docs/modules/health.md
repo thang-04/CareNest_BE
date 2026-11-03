@@ -12,7 +12,7 @@ HealthRecord (mỗi lần đo; sửa kèm lý do, có lịch sử — HLT-13), p
 Dị ứng (child — HLT-06), chẩn đoán/điều trị (exclusion), quy trình can thiệp dinh dưỡng (HLT-12).
 
 ## Rules
-HLT-01..05, HLT-07..14, HLT-16, AI-01..06, AI-07 (giải thích xu hướng sức khỏe). Flow: `docs/business/flows/health-check.md`. G94-180/HLT-08 (lọc đợt khám, phiếu theo dõi theo năm học, chốt 2026-10-28 — `BUSINESS_RULES` mục G94-180): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9.
+HLT-01..05, HLT-07..14, HLT-16..17, AI-01..06, AI-07 (giải thích xu hướng sức khỏe). Flow: `docs/business/flows/health-check.md`. G94-180/HLT-08 (lọc đợt khám, phiếu theo dõi theo năm học, chốt 2026-10-28 — `BUSINESS_RULES` mục G94-180): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9.
 
 ## Phụ thuộc
 - Dùng: service `child` (mã trẻ, hồ sơ, lớp hiện tại; đọc/ghi tiền sử khai báo `ChildIntakeService.findMedicalHistory`/`updateMedicalHistory`), identity (scope), `HealthImageStorage` (S3 ảnh kết quả chuyên khoa), `AiClient` (`integration/`).
@@ -22,8 +22,9 @@ HLT-01..05, HLT-07..14, HLT-16, AI-01..06, AI-07 (giải thích xu hướng sứ
 
 ## API & bảng
 Plan: `docs/plans/completed/2026-10-31-health-check-rounds.md` (phạm vi B1, mặc định B2–B8), `docs/plans/completed/2026-10-31-health-exam-follow-ups.md` (mặc định C1–C10).
-- Bảng (V64): `health_check_campaigns`, `health_check_campaign_history`, `health_check_absences`, `health_measurements`, `health_measurement_edits`; (V65) cột phiếu khám ở `health_measurements`, `health_follow_ups`, `health_follow_up_events`, `health_follow_up_images` (`docs/database/DATA_DICTIONARY.md`).
+- Bảng (V64): `health_check_campaigns`, `health_check_campaign_history`, `health_check_absences`, `health_measurements`, `health_measurement_edits`; (V65) cột phiếu khám ở `health_measurements`, `health_follow_ups`, `health_follow_up_events`, `health_follow_up_images`; V67 cho phép người đóng/người ghi lịch sử trống khi hệ thống tự đóng (`docs/database/DATA_DICTIONARY.md`).
 - `/health-checks` (GET danh sách lọc `campusId`, `kind`, `status`, `schoolYear`; POST tạo), `/health-checks/schedule-warnings`, `/health-checks/{id}` (GET, PUT), `/{id}/classes/{classId}/children`, `/{id}/cancel|close|reopen` — HT, PHT quản lý theo điểm trường; GV xem điểm trường của lớp mình.
+- `/{id}/reopen`: nhận `reason` và `endDate` tùy chọn; `EXAM` đã hết hạn bắt buộc ngày kết thúc mới từ hôm nay (HLT-17). Request chỉ có `reason` giữ tương thích cho đợt chưa hết hạn/kỳ cân đo.
 - `/children/{childId}/health` (GET sổ sức khỏe rút gọn), `/children/{childId}/health/measurements` (POST), `/{measurementId}` (PUT, bắt buộc lý do) — GV phụ trách lớp nhập trong kỳ cân đo đang diễn ra (HLT-09).
 - `/health-checks/{id}/children/{childId}/exam` (GET; PUT lưu nháp/kết luận — GV lớp; POST `/review-preview`) — phiếu khám Phụ lục II của đợt khám.
 - `/health-follow-ups` (GET lọc `campusId`, `status`, `overdue`, `schoolYear` ⇒ `{ items, counts }`), `/{id}` (GET), `/{id}/parent-contacts`, `/{id}/external-results` (ảnh data URL, tối đa 3), `/{id}/close` (POST — GV lớp), `/{id}/images/{imageId}` (GET ảnh).
@@ -48,6 +49,8 @@ P-21 (triệu chứng chọn nhanh), P-22 (trẻ bất thường lúc nhận), P
 - Prompt + kiểm tra output AI phải chặn ngôn ngữ chẩn đoán (HLT-04).
 - Không có chu kỳ đo cấu hình: HT/PHT mở kỳ cân đo, hệ thống chỉ cảnh báo khi ngày bắt đầu cách đợt/kỳ khác dưới 2 tháng 15 ngày (HLT-01, sửa 2026-10-31).
 - Mỗi điểm trường một đợt/kỳ chưa đóng, tính chung hai loại (index UNIQUE có điều kiện).
+- Tạo đợt khám/kỳ cân đo chỉ nhận ngày bắt đầu và kết thúc từ hôm nay theo giờ trường; không áp giới hạn này khi sửa đợt đã bắt đầu (user yêu cầu 2026-11-01, `HealthCheckServiceImpl.checkCreationDates`).
+- Tự đóng `EXAM` theo HLT-17: chạy lúc 00:00 theo `carenest.time-zone` và khi ứng dụng khởi động để đóng bù đợt quá hạn; ghi `closed_at` và lịch sử `CLOSED` với actor trống/"Hệ thống". Không chỉ suy diễn nhãn trạng thái; mở lại cập nhật ngày kết thúc mới rồi tiếp tục tự đóng khi hết hạn (user yêu cầu 2026-11-01).
 - Đợt/kỳ thuộc năm học của ngày bắt đầu; lớp của đợt = lớp điểm trường trong năm đó (`findYearClassrooms(yearId)`, không truyền null vì null = năm đang hoạt động).
 - Tên record lồng trong DTO phải duy nhất toàn hệ thống: springdoc đặt tên schema theo tên đơn giản, trùng (vd. `History`) sẽ ghi đè schema của module khác trong `docs/api/openapi.yaml`.
 

@@ -1,10 +1,14 @@
 package com.carenest.repository.health;
 
 import com.carenest.entity.health.HealthCheckCampaign;
+import com.carenest.utils.enums.HealthCheckKind;
+import jakarta.persistence.LockModeType;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 
 public interface HealthCheckCampaignRepository extends JpaRepository<HealthCheckCampaign, Long> {
 
@@ -14,4 +18,8 @@ public interface HealthCheckCampaignRepository extends JpaRepository<HealthCheck
     Optional<HealthCheckCampaign> findFirstByCampusIdAndClosedAtIsNullAndCancelledAtIsNull(Long campusId);
 
     List<HealthCheckCampaign> findByCampusIdAndCancelledAtIsNull(Long campusId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<HealthCheckCampaign> findByKindAndClosedAtIsNullAndCancelledAtIsNullAndEndDateBefore(
+            HealthCheckKind kind, LocalDate date);
 }

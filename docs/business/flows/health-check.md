@@ -47,6 +47,19 @@ Còn mở: danh sách triệu chứng chọn nhanh (P-21), trẻ có dấu hiệ
 DevelopmentProfile đọc measurement + trend + interpretation APPROVED (OBS-03)
 ```
 
+## Đóng và mở lại đợt khám (HLT-17)
+
+```text
+[S] Hết ngày kết thúc khám theo giờ trường ⇒ tự đóng EXAM, ghi lịch sử "Hệ thống"
+    Trẻ chưa có phiếu ⇒ "Vắng"; phiếu nháp ⇒ "Chưa kết luận"; khóa nhập/sửa kết quả
+    Phiếu theo dõi sức khỏe vẫn mở theo HLT-16; đợt đã đóng/hủy không đóng lặp
+[B] HT/PHT có thể đóng sớm hoặc mở lại để nhập bù (cần lý do)
+    Đợt EXAM đã hết hạn ⇒ chọn ngày kết thúc mới từ hôm nay
+[S] Mở lại xóa danh sách vắng cũ; hết ngày kết thúc mới ⇒ tự đóng tiếp
+```
+
+Nguồn: user, 2026-11-01 (HLT-17, chưa có xác nhận trường/team). Job chạy lúc 00:00 theo `carenest.time-zone`, đồng thời đóng bù khi ứng dụng khởi động. Kỳ cân đo vẫn đóng thủ công theo luồng trên.
+
 ## Khám bác sĩ (HLT-08)
 
 ```text

@@ -10396,6 +10396,9 @@ components:
     HealthCheckReopenRequest:
       type: object
       properties:
+        endDate:
+          type: string
+          format: date
         reason:
           type: string
           maxLength: 300
