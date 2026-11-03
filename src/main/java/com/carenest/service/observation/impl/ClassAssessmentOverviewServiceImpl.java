@@ -275,7 +275,11 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
 
     /** Từng trẻ của lớp trong các ngày học của kỳ: có mặt, đã đánh giá, sức khỏe, MT, cờ, nhận xét. */
     private List<ChildStats> statsOf(ClassroomInfoResponse cls, Range range) {
-        List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(cls.id(), range.anchor());
+        // Trẻ từng học lớp trong kỳ; chỉ đếm dữ liệu ghi ở lớp này (chuyển lớp giữa kỳ không mất, không lẫn)
+        List<ClassChildResponse> children = range.days().isEmpty()
+                ? enrollmentService.findChildrenInClassroom(cls.id(), range.anchor())
+                : enrollmentService.findChildrenInClassroomDuring(
+                        cls.id(), range.days().getFirst(), range.days().getLast());
         List<ChildStats> stats = children.stream().map(ChildStats::new).toList();
         if (children.isEmpty() || range.days().isEmpty()) {
             return stats;
@@ -283,14 +287,17 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         List<Long> ids = children.stream().map(ClassChildResponse::id).toList();
         LocalDate from = range.days().getFirst();
         LocalDate to = range.days().getLast();
-        Set<String> present = attendanceService.findDayStatuses(ids, from, to).stream()
+        Set<String> present = attendanceService.findClassDays(List.of(cls.id()), from, to).stream()
                 .filter(s -> s.status() == AttendanceStatus.PRESENT)
                 .map(s -> s.childId() + "|" + s.date())
                 .collect(Collectors.toSet());
         Map<String, DailyObservation> observations =
                 observationRepository.findByChildIdInAndDateBetween(ids, from, to).stream()
+                        .filter(o -> cls.id().equals(o.getClassroomId()))
                         .collect(Collectors.toMap(o -> o.getChildId() + "|" + o.getDate(), Function.identity()));
-        List<DailyActivityResult> storedResults = resultRepository.findByChildIdInAndDateBetween(ids, from, to);
+        List<DailyActivityResult> storedResults = resultRepository.findByChildIdInAndDateBetween(ids, from, to).stream()
+                .filter(r -> cls.id().equals(r.getClassroomId()))
+                .toList();
         Map<String, List<DailyActivityResult>> results =
                 storedResults.stream().collect(Collectors.groupingBy(r -> r.getChildId() + "|" + r.getDate()));
         Map<DailyActivityResult, ActivityResult> projected = AssessmentResultProjection.project(
@@ -391,8 +398,12 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
             List<Long> ids = stats.stream().map(s -> s.child.id()).toList();
             LocalDate from = range.days().getFirst();
             LocalDate to = range.days().getLast();
-            observationRepository.findByChildIdInAndDateBetween(ids, from, to).forEach(o -> assessed.add(o.getDate()));
-            resultRepository.findByChildIdInAndDateBetween(ids, from, to).forEach(r -> assessed.add(r.getDate()));
+            observationRepository.findByChildIdInAndDateBetween(ids, from, to).stream()
+                    .filter(o -> cls.id().equals(o.getClassroomId()))
+                    .forEach(o -> assessed.add(o.getDate()));
+            resultRepository.findByChildIdInAndDateBetween(ids, from, to).stream()
+                    .filter(r -> cls.id().equals(r.getClassroomId()))
+                    .forEach(r -> assessed.add(r.getDate()));
         }
         Set<LocalDate> reopened = range.days().isEmpty()
                 ? Set.of()

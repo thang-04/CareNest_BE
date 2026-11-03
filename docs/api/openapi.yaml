@@ -5792,6 +5792,8 @@ components:
           format: int64
         className:
           type: string
+        current:
+          type: boolean
         dateOfBirth:
           type: string
           format: date
@@ -5992,6 +5994,11 @@ components:
             - KHONG_TAP_TRUNG
             - RUT_RE
             - KHAC
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
         comment:
           type: string
         date:
@@ -9865,6 +9872,8 @@ components:
     TicketBoardRow:
       type: object
       properties:
+        canIssue:
+          type: boolean
         child:
           $ref: "#/components/schemas/TicketChild"
         eligible:
@@ -9872,6 +9881,8 @@ components:
         flagCount:
           type: integer
           format: int32
+        issuedElsewhere:
+          type: boolean
         presentDays:
           type: integer
           format: int32
