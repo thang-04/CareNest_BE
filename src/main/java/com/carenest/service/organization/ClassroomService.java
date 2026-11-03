@@ -1,6 +1,7 @@
 package com.carenest.service.organization;
 
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -8,6 +9,9 @@ import java.util.Optional;
 
 public interface ClassroomService {
     Optional<Long> findCampusId(Long classroomId);
+
+    /** Khóa hàng lớp trong transaction ghi để tuần tự hóa các thao tác cùng lớp. */
+    void lockForUpdate(Long classroomId);
 
     Optional<ClassroomInfoResponse> findClassroomInfo(Long classroomId);
 
@@ -22,4 +26,7 @@ public interface ClassroomService {
 
     /** Mọi lớp (mọi năm học) thuộc các campus; lọc theo ngày do nơi gọi áp qua enrollment. */
     List<Long> findClassroomIdsOfCampuses(Collection<Long> campusIds);
+
+    /** classroomId → số trẻ đang học (enrollment còn hiệu lực) tại ngày; lớp không có trẻ thì không có khóa. */
+    Map<Long, Long> countActiveChildren(Collection<Long> classroomIds, LocalDate date);
 }

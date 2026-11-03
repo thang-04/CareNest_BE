@@ -47,25 +47,29 @@ class StaffingServiceImplTest {
             Clock.fixed(Instant.parse("2026-10-17T03:00:00Z"), ZoneOffset.UTC));
 
     @Test
-    @DisplayName("AUTH-16: phân công GV vào lớp ⇒ role theo tài khoản, kiểm phạm vi theo campus của lớp")
+    @DisplayName(
+            "AUTH-16: phân công GV vào lớp ⇒ role theo tài khoản, kiểm phạm vi theo campus của lớp, ghi người phân công")
     void assignsTeacherToClassroomInScope() {
         givenAccount(40L, CareNestRole.TEACHER);
         given(assignments.resolveCampusId(StaffRole.TEACHER, null, 11L)).willReturn(10L);
         given(assignments.createAssignment(any()))
-                .willReturn(new StaffAssignmentResponse(5L, 40L, StaffRole.TEACHER, null, 11L, TODAY, null));
+                .willReturn(new StaffAssignmentResponse(5L, 40L, StaffRole.TEACHER, null, 11L, TODAY, null, false));
 
         StaffAssignmentResponse created =
-                service.assignStaff(VICE, new CreateStaffAssignmentRequest(40L, null, 11L, null, null));
+                service.assignStaff(VICE, new CreateStaffAssignmentRequest(40L, null, 11L, null, null, null));
 
         verify(policy).checkCanAssign(VICE, StaffRole.TEACHER, 10L);
-        verify(assignments).createAssignment(new NewStaffAssignment(40L, StaffRole.TEACHER, null, 11L, TODAY, null));
+        verify(assignments)
+                .createAssignment(
+                        new NewStaffAssignment(40L, StaffRole.TEACHER, null, 11L, TODAY, null, VICE.userId(), false));
         assertThat(created.id()).isEqualTo(5L);
     }
 
     @Test
     @DisplayName("AUTH-12: không tự phân công cho chính mình")
     void cannotAssignSelf() {
-        assertThatThrownBy(() -> service.assignStaff(VICE, new CreateStaffAssignmentRequest(3L, 10L, null, null, null)))
+        assertThatThrownBy(() ->
+                        service.assignStaff(VICE, new CreateStaffAssignmentRequest(3L, 10L, null, null, null, null)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.CANNOT_CHANGE_OWN_ASSIGNMENTS);
     }
@@ -76,8 +80,8 @@ class StaffingServiceImplTest {
         givenAccount(61L, CareNestRole.PRINCIPAL);
 
         for (Long id : new Long[] {60L, 61L}) {
-            assertThatThrownBy(() ->
-                            service.assignStaff(VICE, new CreateStaffAssignmentRequest(id, 10L, null, null, null)))
+            assertThatThrownBy(() -> service.assignStaff(
+                            VICE, new CreateStaffAssignmentRequest(id, 10L, null, null, null, null)))
                     .extracting("apiCode")
                     .isEqualTo(ApiCode.ACCOUNT_NOT_ASSIGNABLE);
         }
@@ -92,8 +96,8 @@ class StaffingServiceImplTest {
                 .given(policy)
                 .checkCanAssign(VICE, StaffRole.TEACHER, 20L);
 
-        assertThatThrownBy(
-                        () -> service.assignStaff(VICE, new CreateStaffAssignmentRequest(40L, null, 99L, null, null)))
+        assertThatThrownBy(() ->
+                        service.assignStaff(VICE, new CreateStaffAssignmentRequest(40L, null, 99L, null, null, null)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
         verify(assignments, never()).createAssignment(any());
@@ -112,7 +116,7 @@ class StaffingServiceImplTest {
     @Test
     void endsAssignmentInScope() {
         StaffAssignmentResponse existing =
-                new StaffAssignmentResponse(5L, 40L, StaffRole.KITCHEN_STAFF, 10L, null, TODAY, null);
+                new StaffAssignmentResponse(5L, 40L, StaffRole.KITCHEN_STAFF, 10L, null, TODAY, null, false);
         given(assignments.findAssignment(5L)).willReturn(Optional.of(existing));
         given(assignments.resolveCampusId(StaffRole.KITCHEN_STAFF, 10L, null)).willReturn(10L);
 

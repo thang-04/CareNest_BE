@@ -10,6 +10,7 @@ import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -68,6 +69,9 @@ class EduYearPlanServiceIntegrationTest {
 
     @Autowired
     private EntityManager entityManager;
+
+    @Autowired
+    private EduPlanAccessPolicy policy;
 
     private long schoolYear;
     private long ageGroup3;
@@ -217,6 +221,9 @@ class EduYearPlanServiceIntegrationTest {
                 vicePrincipal.userId(),
                 campus);
         principal = user("principal", CareNestRole.PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-09-01')",
+                principal.userId());
         leader3 = user("leader3", CareNestRole.TEACHER);
         insertLeader(leader3, ageGroup3);
         leader4 = user("leader4", CareNestRole.TEACHER);
@@ -243,6 +250,29 @@ class EduYearPlanServiceIntegrationTest {
                         request(ageGroup3, List.of(), List.of()),
                         new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID())),
                 ApiCode.CONFLICT);
+    }
+
+    @Test
+    @DisplayName("AUTH-20: PHT có role nhưng không có hoặc đã hết phân công thì không lập, không xem được kế hoạch")
+    void vicePrincipalWithoutActiveAssignmentIsDenied() {
+        CurrentUser unassigned = user("vp-unassigned", CareNestRole.VICE_PRINCIPAL);
+        CurrentUser ended = user("vp-ended", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "SELECT ?, 'VICE_PRINCIPAL', id, '2026-09-01', '2026-09-30' FROM campuses WHERE code = 'CS-A'",
+                ended.userId());
+
+        for (CurrentUser vp : List.of(unassigned, ended)) {
+            assertApiError(
+                    () -> service.createYearPlan(
+                            vp,
+                            request(ageGroup3, List.of(), List.of()),
+                            new YearPlanEditRequest(session(vp), 0L, UUID.randomUUID())),
+                    ApiCode.FORBIDDEN);
+            assertThat(policy.isVicePrincipal(vp)).isFalse();
+        }
+        assertThat(policy.isVicePrincipal(vicePrincipal)).isTrue();
+        assertThat(policy.isPrincipal(principal)).isTrue();
     }
 
     @Test

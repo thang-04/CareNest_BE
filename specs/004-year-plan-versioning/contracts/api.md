@@ -25,3 +25,5 @@ Body `{ "adjustments": { "2026-09-07": "…" } }` (chỉ ngày Thứ 2–6 của
 - `PUT /class-docs/{kind}/{docKey}`: body nhận `sourceDocKey` khi tạo; khóa tuần phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<yearPlanId>`; 409 `YEAR_PLAN_SUPERSEDED` (7122) khi kế hoạch của tài liệu đã bị thay thế; 400 7102 khi `sourceDocKey` sai lớp/loại/chuỗi.
 - `POST /class-docs/{kind}/{docKey}/actions` submit: 409 7122 khi đã thay thế; 409 `CLASS_DOC_VERSION_FIX_REQUIRED` (7121, `{0}` = số mục) khi bản chép còn ô đỏ (research R5). approve/reject không đổi.
 - `POST /education-plans/goals` (tạo v1): 409 7002 `YEAR_PLAN_EXISTS` khi chuỗi đã có (không đổi hành vi).
+
+> Cập nhật 02/11/2026: header `X-Request-Id` trong tài liệu này đã đổi tên thành `Idempotency-Key` (cùng ý nghĩa, UUID) vì proxy hosting VPS ghi đè `X-Request-Id`; xem `docs/knowledge/incidents/BUG-261102-proxy-overrides-x-request-id.md`.

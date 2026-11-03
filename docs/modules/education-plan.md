@@ -69,14 +69,17 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 - So sánh phiên bản dùng lineage hiệu dụng `COALESCE(lineage_id, id)`; MT đánh lại số không phải là đổi. Tra "hiện hành" bằng truy vấn chuỗi, không lưu cờ.
 - Thứ tự chủ đề, đợt nghỉ = thứ tự mảng trong PUT (`sort_order`); dấu tích lưu theo chênh lệch, không xóa JPQL rồi ghi lại ([BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)).
 - Kế hoạch chủ đề lưu luôn MT, nội dung lấy từ kế hoạch năm để bản đã duyệt không đổi theo (EDU-15).
+- EDU-18 (01/11): chuỗi duyệt hồ sơ lớp chụp lúc gửi vào `edu_class_docs.sign_chain` (V41); duyệt/trả lại đi theo chuỗi đã chụp, đổi cấu hình giữa chừng không làm hồ sơ tự APPROVED. Hồ sơ cũ `sign_chain` NULL: dùng cấu hình; cấu hình đã bỏ bước đang chờ thì giữ bước đó + các bước cấu hình chưa duyệt. Đang chờ Tổ trưởng mà nhóm tuổi hết Tổ trưởng (hoặc Tổ trưởng dạy chính lớp) ⇒ `getClassDocs` hiện và `actOnClassDoc` duyệt ở bước kế (DB chỉ đổi khi có người thao tác); chuỗi chỉ còn bước Tổ trưởng thì vẫn chờ tới khi HT phân công Tổ trưởng mới.
 - Hai chỗ comment FE lệch code, làm BE theo code: mock ghi chủ đề nhánh "Phó HT duyệt" nhưng chuỗi mặc định là Tổ trưởng → Phó HT; gợi ý người ký `week` ghi "mỗi tuần duyệt riêng" nhưng code duyệt cả hồ sơ chủ đề một lần (EDU-17).
 - Mã YCCĐ (TC1.1…) trong `educationPlanConstants.js` của FE chỉ còn để đọc dữ liệu cũ; không dùng cho dữ liệu mới (EDU-09).
 
 - Lấy mục tiêu giữ context cả sau normalize/mở lại: thêm sub đầu tiên vào lĩnh vực đích vốn không-sub có thể đổi cha goal cũ; xem [case](../knowledge/incidents/CASE-261028-year-plan-import-first-sub-reparent.md). Helper import mới đã có guard và regression round-trip.
+- Khóa chống gửi trùng nhận ở header `Idempotency-Key` (UUID), không dùng `X-Request-Id`: proxy hosting VPS luôn đặt `X-Request-Id` thành ULID ⇒ 9002 cho mọi thao tác ghi; local/test không có proxy nên không lộ ([BUG-261102-proxy-overrides-x-request-id](../knowledge/incidents/BUG-261102-proxy-overrides-x-request-id.md)).
 
 ## Related issues
 - [CASE-261027-activity-media-positional-identity](../knowledge/incidents/CASE-261027-activity-media-positional-identity.md): không ghép học liệu theo ID vị trí đơn lẻ.
 - [BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)
+- [BUG-261102-proxy-overrides-x-request-id](../knowledge/incidents/BUG-261102-proxy-overrides-x-request-id.md): 9002 trên VPS do proxy ghi đè X-Request-Id.
 
 ## Đọc thêm khi
 Đổi quyền hoặc phân công Tổ trưởng ⇒ `docs/business/USER_ROLES.md`, ADR-0003. Đụng đánh giá theo MT ⇒ card learning-observation, ADR-0006.

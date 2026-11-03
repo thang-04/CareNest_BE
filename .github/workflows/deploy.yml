@@ -205,7 +205,7 @@ jobs:
             compose.vps.yaml \
             docker/postgres/init/ \
             docker/keycloak/auth/generated/carenest-realm.json \
-            docker/keycloak/dev/carenest-users-0.json \
+            docker/keycloak/vps/carenest-users-0.json \
             "$VPS_USER@$VPS_HOST:$APP_DIR/"
 
       # Đuôi .new không khớp `import *.caddy` nên Caddy chưa đọc tới khi bước Apply đổi tên
