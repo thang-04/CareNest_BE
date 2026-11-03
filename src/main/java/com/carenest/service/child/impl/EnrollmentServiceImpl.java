@@ -100,6 +100,45 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     @Override
+    public List<ClassStay> findStaysInClassroom(Long classroomId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findStaysInClassroom|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ClassStay> stays = enrollmentRepository.findDuring(classroomId, from, to).stream()
+                    .map(e -> new ClassStay(
+                            e.getChildId(),
+                            e.getValidFrom().isBefore(from) ? from : e.getValidFrom(),
+                            e.getValidTo() == null || e.getValidTo().isAfter(to) ? to : e.getValidTo()))
+                    .sorted(Comparator.comparing(ClassStay::childId).thenComparing(ClassStay::from))
+                    .toList();
+            log.info("{}|count={}|END", logPrefix, stays.size());
+            return stays;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<ChildClassStay> findChildStays(Long childId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findChildStays|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildClassStay> stays = enrollmentRepository.findChildDuring(childId, from, to).stream()
+                    .map(e -> new ChildClassStay(
+                            e.getClassroomId(),
+                            e.getValidFrom().isBefore(from) ? from : e.getValidFrom(),
+                            e.getValidTo() == null || e.getValidTo().isAfter(to) ? to : e.getValidTo()))
+                    .toList();
+            log.info("{}|count={}|END", logPrefix, stays.size());
+            return stays;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Map<Long, Long> findActiveClassroomIdByChildIds(Collection<Long> childIds, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveClassroomIdByChildIds|children=" + childIds.size();
         log.info("{}|START", logPrefix);
