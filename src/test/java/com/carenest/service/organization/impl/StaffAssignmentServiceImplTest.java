@@ -13,10 +13,14 @@ import com.carenest.entity.organization.StaffAssignment;
 import com.carenest.mapper.organization.StaffAssignmentMapper;
 import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
+import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.StaffRole;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
@@ -27,8 +31,14 @@ class StaffAssignmentServiceImplTest {
     private final StaffAssignmentRepository repository = mock(StaffAssignmentRepository.class);
     private final ClassroomRepository classrooms = mock(ClassroomRepository.class);
     private final CampusRepository campuses = mock(CampusRepository.class);
-    private final StaffAssignmentServiceImpl service =
-            new StaffAssignmentServiceImpl(repository, new StaffAssignmentMapper(), classrooms, campuses);
+    private final StaffAssignmentServiceImpl service = new StaffAssignmentServiceImpl(
+            repository,
+            new StaffAssignmentMapper(),
+            classrooms,
+            campuses,
+            mock(SchoolYearRepository.class),
+            mock(TeacherClassRules.class),
+            Clock.fixed(Instant.parse("2026-10-01T03:00:00Z"), ZoneOffset.UTC));
 
     @Test
     void scopeShapeFollowsRole() {
@@ -62,7 +72,7 @@ class StaffAssignmentServiceImplTest {
                 .willReturn(true);
 
         assertThatThrownBy(() -> service.createAssignment(
-                        new NewStaffAssignment(40L, StaffRole.KITCHEN_STAFF, 10L, null, START, null)))
+                        new NewStaffAssignment(40L, StaffRole.KITCHEN_STAFF, 10L, null, START, null, 1L, false)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.ASSIGNMENT_OVERLAP);
         verify(repository, never()).saveAndFlush(any());

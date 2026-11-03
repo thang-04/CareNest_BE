@@ -48,7 +48,7 @@ updated: 2026-10-31
 | POST | `/me/notifications/{id}/read`, `/me/notifications/read-all` | Mọi người dùng | |
 | PUT, DELETE | `/me/devices` | Mọi người dùng | Đăng ký / gỡ thiết bị nhận thông báo |
 
-## DB (V50)
+## DB (V66)
 
 - `user_accounts`: `photo_key`, `photo_content_type`, `photo_size_bytes`, `photo_updated_at`.
 - `pickup_records` (mỗi lần xác minh; trả thành công tối đa một lần/trẻ/ngày).
@@ -74,4 +74,4 @@ Bằng chứng: `PickupIntegrationTest` (3 test: bảng đón, trả trẻ khớ
 ## Progress log
 
 - 2026-10-31: tạo plan; user chốt ảnh, thông báo, bỏ phân biệt về sớm.
-- 2026-10-31: V50; ảnh phụ huynh (`ParentPhotoService`, `AccountPhotoStorage`, base `PrivateImageStorage` dùng chung với ảnh phiếu theo dõi); feature `notification` (bảng, API, `PushDispatchListener`, `LoggingPushGateway`); đón trẻ (`PickupService`, `PickupController`); khóa sức khỏe trong ngày khi trẻ đã được trả; rule PCK-02, PCK-04, đóng P-33; docs, OpenAPI.
+- 2026-10-31: V66; ảnh phụ huynh (`ParentPhotoService`, `AccountPhotoStorage`, base `PrivateImageStorage` dùng chung với ảnh phiếu theo dõi); feature `notification` (bảng, API, `PushDispatchListener`, `LoggingPushGateway`); đón trẻ (`PickupService`, `PickupController`); khóa sức khỏe trong ngày khi trẻ đã được trả; rule PCK-02, PCK-04, đóng P-33; docs, OpenAPI.

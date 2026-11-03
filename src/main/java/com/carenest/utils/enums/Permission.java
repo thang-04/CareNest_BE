@@ -59,12 +59,45 @@ public enum Permission {
             "Cấp, khóa/mở tài khoản phụ huynh và liên kết với trẻ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
-    // AUTH-20: PHT mặc định chỉ xem campus mình; HT cấp thì xem dữ liệu trường mọi campus, không mở quyền sửa
-    ALL_CAMPUS_VIEW(
-            "school",
-            "Xem dữ liệu trường ở mọi cơ sở (chỉ xem)",
-            EnumSet.noneOf(CareNestRole.class),
+    // NUT-02 + AUTH-20: việc của mảng dinh dưỡng; PHT mặc định bật ở cơ sở mình, HT thu hồi hoặc nâng lên cả trường
+    MEAL_COUNT_CONFIRM(
+            "meals",
+            "Xác nhận, điều chỉnh số suất",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    // AUTH-20: danh mục bán trú dùng chung cả trường (SCH-06); PHT mặc định tắt, HT cấp cho PHT dinh dưỡng
+    NUTRITION_MANAGE(
+            "meals",
+            "Quản lý danh mục bán trú: thực phẩm, món, cấu hình nhóm tuổi, nhà cung cấp",
+            EnumSet.of(CareNestRole.PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // NUT-08 + AUTH-20: lập và công bố thực đơn tuần cả trường (công bố là duyệt); PHT mặc định tắt
+    MENU_MANAGE(
+            "meals",
+            "Lập và công bố thực đơn tuần",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // NUT-11 + AUTH-20: phiếu nhập kho khô theo điểm trường; HT cấp cho PHT, có thể nâng lên cả trường
+    STOCK_MANAGE(
+            "meals",
+            "Nhập kho khô theo điểm trường",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    // AUTH-21, AUTH-22: tài khoản bếp chung mỗi điểm trường ghi lưu mẫu, hủy mẫu, ảnh bữa; HT tắt được
+    KITCHEN_RECORD(
+            "meals",
+            "Ghi lưu mẫu, hủy mẫu, đăng ảnh bữa ăn",
+            EnumSet.of(CareNestRole.KITCHEN_STAFF),
+            EnumSet.of(CareNestRole.KITCHEN_STAFF)),
+    // NUT-21 + AUTH-20: duyệt lưu mẫu, hủy mẫu theo điểm trường; PHT mặc định tắt, HT cấp và có thể nâng lên cả trường
+    FOOD_SAFETY_APPROVE(
+            "meals",
+            "Duyệt lưu mẫu thức ăn, duyệt hủy mẫu",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
     // Không giao được cho ai: nếu giao, người được giao tự cấp thêm quyền cho mình (AUTH-11)
     PERMISSION_MANAGE(
             "account", "Quản lý phân quyền", EnumSet.of(CareNestRole.PRINCIPAL), EnumSet.noneOf(CareNestRole.class));
@@ -77,12 +110,23 @@ public enum Permission {
     private final String description;
     private final Set<CareNestRole> defaultRoles;
     private final Set<CareNestRole> configurableRoles;
+    private final boolean campusScoped;
 
     Permission(String module, String description, Set<CareNestRole> defaultRoles, Set<CareNestRole> configurableRoles) {
+        this(module, description, defaultRoles, configurableRoles, false);
+    }
+
+    Permission(
+            String module,
+            String description,
+            Set<CareNestRole> defaultRoles,
+            Set<CareNestRole> configurableRoles,
+            boolean campusScoped) {
         this.module = module;
         this.description = description;
         this.defaultRoles = Collections.unmodifiableSet(defaultRoles);
         this.configurableRoles = Collections.unmodifiableSet(configurableRoles);
+        this.campusScoped = campusScoped;
     }
 
     public String module() {
@@ -99,6 +143,11 @@ public enum Permission {
 
     public Set<CareNestRole> configurableRoles() {
         return configurableRoles;
+    }
+
+    /** Mã sửa theo mảng: GRANT nhận phạm vi điểm trường hoặc cả trường (AUTH-20); mã khác chỉ có/không. */
+    public boolean campusScoped() {
+        return campusScoped;
     }
 
     public boolean isConfigurableFor(CareNestRole role) {

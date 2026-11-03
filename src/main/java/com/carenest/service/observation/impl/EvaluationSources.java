@@ -87,7 +87,18 @@ class EvaluationSources {
         dailyHealthService
                 .findLatestDaySigns(childIds, from, to)
                 .forEach(h -> health.put(key(h.childId(), h.date()), h));
-        Map<Long, ApprovedDayLessonResponse.Goal> goals = results.isEmpty() ? Map.of() : goalsOf(cls.id(), from, to);
+        Map<LocalDate, ApprovedDayLessonResponse> lessons =
+                results.isEmpty() ? Map.of() : eduLessonQueryService.findApprovedDayLessons(cls.id(), from, to);
+        Map<DailyActivityResult, com.carenest.dto.observation.DailySheetResponse.ActivityResult> projected =
+                AssessmentResultProjection.project(
+                        eduLessonQueryService,
+                        lessons,
+                        results.values().stream().flatMap(List::stream).toList());
+        Map<Long, ApprovedDayLessonResponse.Goal> goals = new HashMap<>();
+        lessons.values().stream()
+                .flatMap(d -> d.activities().stream())
+                .flatMap(a -> a.goals().stream())
+                .forEach(g -> goals.putIfAbsent(g.id(), g));
 
         Map<Long, ChildData> data = new LinkedHashMap<>();
         for (Long childId : childIds) {
@@ -102,7 +113,17 @@ class EvaluationSources {
             results.keySet().stream().filter(k -> k.startsWith(childId + "|")).forEach(k -> dates.add(dateOf(k)));
             data.put(
                     childId,
-                    summarize(cls, childId, presentDates, dates, observations, results, health, goals, withDays));
+                    summarize(
+                            cls,
+                            childId,
+                            presentDates,
+                            dates,
+                            observations,
+                            results,
+                            health,
+                            goals,
+                            projected,
+                            withDays));
         }
         return data;
     }
@@ -117,6 +138,7 @@ class EvaluationSources {
             Map<String, List<DailyActivityResult>> results,
             Map<String, DailyHealthService.ChildDaySigns> health,
             Map<Long, ApprovedDayLessonResponse.Goal> goals,
+            Map<DailyActivityResult, com.carenest.dto.observation.DailySheetResponse.ActivityResult> projected,
             boolean withDays) {
         int healthDays = 0;
         int normalDays = 0;
@@ -171,9 +193,10 @@ class EvaluationSources {
             List<GoalRef> effort = new ArrayList<>();
             List<GoalRef> notMet = new ArrayList<>();
             for (DailyActivityResult r : rs) {
-                tally(r.getGoalsMet(), 0, goalCounts, goals, met);
-                tally(r.getGoalsEffort(), 1, goalCounts, goals, effort);
-                tally(r.getGoalsNotMet(), 2, goalCounts, goals, notMet);
+                var result = projected.get(r);
+                tally(result.goalsMet(), 0, goalCounts, goals, met);
+                tally(result.goalsEffort(), 1, goalCounts, goals, effort);
+                tally(result.goalsNotMet(), 2, goalCounts, goals, notMet);
             }
             if (withDays) {
                 days.add(new EvaluationDay(
@@ -225,15 +248,6 @@ class EvaluationSources {
                 refs.add(new GoalRef(id, shortName(goals, id), g == null ? "" : g.text()));
             }
         }
-    }
-
-    private Map<Long, ApprovedDayLessonResponse.Goal> goalsOf(Long classId, LocalDate from, LocalDate to) {
-        Map<Long, ApprovedDayLessonResponse.Goal> goals = new HashMap<>();
-        eduLessonQueryService.findApprovedDayLessons(classId, from, to).values().stream()
-                .flatMap(d -> d.activities().stream())
-                .flatMap(a -> a.goals().stream())
-                .forEach(g -> goals.putIfAbsent(g.id(), g));
-        return goals;
     }
 
     // MT12 (tên ngắn trên chip); bảng tổng hợp dùng "MT12 – nội dung"

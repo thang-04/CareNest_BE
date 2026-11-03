@@ -208,8 +208,10 @@ public enum ApiCode {
     ASSIGNMENT_ALREADY_ENDED(2318, HttpStatus.CONFLICT, "Phân công đã kết thúc"),
     TEAM_LEADER_ASSIGNMENT_NOT_HERE(
             2319, HttpStatus.BAD_REQUEST, "Phân công Tổ trưởng thực hiện ở màn phân công giáo viên theo năm học"),
-    VICE_PRINCIPAL_INVALID(2320, HttpStatus.BAD_REQUEST, "Chỉ phân công tài khoản Phó hiệu trưởng"),
-    VICE_PRINCIPAL_ACCOUNT_LOCKED(2321, HttpStatus.CONFLICT, "Tài khoản Phó hiệu trưởng đã bị khóa"),
+    VICE_PRINCIPAL_INVALID(2322, HttpStatus.BAD_REQUEST, "Chỉ phân công tài khoản Phó hiệu trưởng"),
+    VICE_PRINCIPAL_ACCOUNT_LOCKED(2323, HttpStatus.CONFLICT, "Tài khoản Phó hiệu trưởng đã bị khóa"),
+    SUBSTITUTE_TEACHER_ONLY(2320, HttpStatus.BAD_REQUEST, "Chỉ phân công giáo viên mới chọn được dạy thay"),
+    SUBSTITUTE_END_DATE_REQUIRED(2321, HttpStatus.BAD_REQUEST, "Phân công dạy thay phải có ngày kết thúc"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
@@ -267,6 +269,19 @@ public enum ApiCode {
     UNLOCK_ALREADY_ACTIVE(4015, HttpStatus.CONFLICT, "Lớp/ngày này đang có lần mở lại còn hiệu lực"),
     UNLOCK_ALREADY_ENDED(4016, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
     LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, báo nghỉ cần xác nhận lại số suất"),
+    LEAVE_ATTENDANCE_LOCKED(4027, HttpStatus.CONFLICT, "Phụ huynh cần hủy đơn nghỉ trước giờ chốt để điểm danh lại"),
+    LEAVE_NOT_GUARDIAN(4026, HttpStatus.FORBIDDEN, "Bạn chỉ báo nghỉ được cho con mình"),
+    LEAVE_DATE_RANGE_INVALID(4019, HttpStatus.BAD_REQUEST, "Ngày kết thúc không được trước ngày bắt đầu"),
+    LEAVE_DATE_IN_PAST(4020, HttpStatus.BAD_REQUEST, "Không báo nghỉ cho ngày đã qua"),
+    LEAVE_NO_SCHOOL_DAY(4021, HttpStatus.BAD_REQUEST, "Không còn ngày học nào trước giờ chốt trong khoảng đã chọn"),
+    LEAVE_OVERLAP(4022, HttpStatus.CONFLICT, "Đã có đơn nghỉ trùng ngày {0}"),
+    LEAVE_NOT_FOUND(4023, HttpStatus.NOT_FOUND, "Không tìm thấy đơn nghỉ"),
+    LEAVE_CANNOT_CANCEL(4024, HttpStatus.CONFLICT, "Các ngày của đơn đã qua giờ chốt, không hủy được"),
+    LEAVE_CHILD_NO_CLASS(4025, HttpStatus.BAD_REQUEST, "Trẻ chưa có lớp trong năm học đang hoạt động vào ngày {0}"),
+    ATTENDANCE_EXCUSED_NOT_ALLOWED(
+            4018,
+            HttpStatus.BAD_REQUEST,
+            "Vắng có phép chỉ được ghi khi phụ huynh gửi đơn nghỉ, chọn Có mặt hoặc Vắng không phép"),
 
     // ========== 41xx ĐÓN TRẺ ==========
     PICKUP_CHILD_NOT_FOUND(4101, HttpStatus.NOT_FOUND, "Không tìm thấy trẻ hoặc bạn không có quyền trả trẻ này"),
@@ -352,6 +367,74 @@ public enum ApiCode {
     MEAL_COUNT_ALREADY_CONFIRMED(6005, HttpStatus.CONFLICT, "Sổ báo ăn bữa này đã được xác nhận"),
     MEAL_COUNT_UNCHANGED(6006, HttpStatus.BAD_REQUEST, "Số suất chưa thay đổi"),
     MEAL_COUNT_YEAR_READ_ONLY(6007, HttpStatus.CONFLICT, "Năm học không hoạt động, sổ báo ăn chỉ xem"),
+    MEAL_COUNT_NORMAL_NOT_EDITABLE(
+            6008,
+            HttpStatus.CONFLICT,
+            "Không sửa tay suất thường; số sai thì mở lại điểm danh để giáo viên sửa. Chỉ điều chỉnh được suất thay thế"),
+    MEAL_COUNT_ATTENDANCE_INCOMPLETE(
+            6009,
+            HttpStatus.CONFLICT,
+            "Còn lớp chưa điểm danh đủ trẻ: {0}. Mở lại điểm danh để giáo viên hoàn tất rồi xác nhận"),
+    FOOD_NOT_FOUND(6010, HttpStatus.NOT_FOUND, "Không tìm thấy thực phẩm"),
+    FOOD_CODE_DUPLICATED(6011, HttpStatus.CONFLICT, "Mã thực phẩm {0} đã tồn tại"),
+    NUTRIENT_SOURCE_REQUIRED(6012, HttpStatus.BAD_REQUEST, "Cần ghi nguồn số liệu dinh dưỡng của thực phẩm"),
+    ALLERGEN_INVALID(6013, HttpStatus.BAD_REQUEST, "Chất gây dị ứng không hợp lệ"),
+    FOOD_IMPORT_INVALID(6014, HttpStatus.BAD_REQUEST, "Dữ liệu nhập chưa lưu vì có lỗi: {0}"),
+    DISH_NOT_FOUND(6015, HttpStatus.NOT_FOUND, "Không tìm thấy món ăn"),
+    DISH_CODE_DUPLICATED(6016, HttpStatus.CONFLICT, "Mã món {0} đã tồn tại"),
+    DISH_REFERENCE_READ_ONLY(
+            6017, HttpStatus.CONFLICT, "Món tham khảo chỉ xem, hãy sao chép thành món của trường để sửa"),
+    DISH_INGREDIENT_INVALID(6018, HttpStatus.BAD_REQUEST, "Định lượng món không hợp lệ: {0}"),
+    MEAL_CONFIG_NOT_FOUND(6019, HttpStatus.NOT_FOUND, "Không tìm thấy cấu hình nhóm tuổi"),
+    MEAL_CONFIG_LOCKED(6020, HttpStatus.CONFLICT, "Cấu hình đã có hiệu lực, chỉ xem; hãy tạo bản mới từ ngày sau"),
+    MEAL_CONFIG_DUPLICATED(6021, HttpStatus.CONFLICT, "Nhóm tuổi đã có cấu hình áp dụng từ ngày này"),
+    MEAL_CONFIG_DATE_INVALID(6022, HttpStatus.BAD_REQUEST, "Ngày hiệu lực phải sau hôm nay"),
+    NUTRITION_NORM_RANGE_INVALID(6023, HttpStatus.BAD_REQUEST, "Chuẩn {0}: giá trị tối thiểu lớn hơn tối đa"),
+    MEAL_SESSION_KCAL_PCT_INVALID(
+            6049, HttpStatus.BAD_REQUEST, "Tổng tỷ lệ năng lượng tối thiểu của các bữa là {0}%, vượt 100%"),
+    AGE_GROUP_INVALID(6024, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
+    SUPPLIER_NOT_FOUND(6025, HttpStatus.NOT_FOUND, "Không tìm thấy nhà cung cấp"),
+    FOOD_ORIGIN_REQUIRED(6026, HttpStatus.BAD_REQUEST, "Cần chọn nguồn gốc động vật hoặc thực vật của thực phẩm"),
+    STOCK_RECEIPT_NOT_FOUND(6027, HttpStatus.NOT_FOUND, "Không tìm thấy phiếu nhập kho"),
+    STOCK_RECEIPT_STATUS_INVALID(6028, HttpStatus.CONFLICT, "Phiếu nhập đang ở trạng thái không cho phép thao tác này"),
+    STOCK_FOOD_NOT_DRY(
+            6029, HttpStatus.BAD_REQUEST, "Thực phẩm {0} không nhập kho khô được (hàng tươi hoặc đã ngừng dùng)"),
+    STOCK_EXPIRY_BEFORE_RECEIPT(6030, HttpStatus.BAD_REQUEST, "Hạn dùng của lô {0} trước ngày nhận hàng"),
+    STOCK_RECEIPT_EMPTY(6031, HttpStatus.BAD_REQUEST, "Phiếu nhập cần ít nhất một dòng thực phẩm"),
+    STOCK_RECEIPT_LOT_USED(6032, HttpStatus.CONFLICT, "Không hủy được phiếu: lô {0} đã bị trừ kho"),
+    STOCK_ACCESS_DENIED(6033, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý kho khô của điểm trường này"),
+    MEAL_PLAN_WEEK_INVALID(6034, HttpStatus.BAD_REQUEST, "Kế hoạch tuần phải bắt đầu từ thứ Hai"),
+    MEAL_PLAN_PUBLISHED(6035, HttpStatus.CONFLICT, "Thực đơn tuần đã công bố, không sửa được"),
+    MEAL_PLAN_DATE_INVALID(6036, HttpStatus.BAD_REQUEST, "Ngày {0} không thuộc tuần này (thứ Hai – thứ Sáu)"),
+    MEAL_PLAN_SESSION_INVALID(6037, HttpStatus.BAD_REQUEST, "Khối {0} không có bữa {1}"),
+    MEAL_PLAN_DISH_INACTIVE(6038, HttpStatus.BAD_REQUEST, "Món {0} đã ngừng dùng"),
+    MEAL_PLAN_NOT_PUBLISHABLE(
+            6039, HttpStatus.CONFLICT, "Chưa công bố được: còn {0} lỗi chặn, ví dụ {1}. Xem mục Kiểm tra của tuần"),
+    FRESH_FORECAST_NOT_FOUND(6040, HttpStatus.NOT_FOUND, "Không tìm thấy bản dự trù hàng tươi"),
+    FRESH_FORECAST_PERIOD_INVALID(
+            6041,
+            HttpStatus.BAD_REQUEST,
+            "Kỳ dự trù không hợp lệ: ngày bắt đầu không sau ngày kết thúc, tối đa 31 ngày"),
+    FRESH_CHECK_NOT_AVAILABLE(6042, HttpStatus.CONFLICT, "Chưa kiểm nhận lần {0} được: {1}"),
+    FRESH_CHECK_LINES_MISMATCH(6043, HttpStatus.BAD_REQUEST, "Dòng kiểm nhận không khớp danh sách cần nhận: {0}"),
+    MENU_TEMPLATE_NOT_FOUND(6050, HttpStatus.NOT_FOUND, "Không tìm thấy bộ thực đơn mẫu"),
+
+    FOOD_SAMPLE_NOT_FOUND(6060, HttpStatus.NOT_FOUND, "Không tìm thấy bản lưu mẫu"),
+    FOOD_SAMPLE_LOCKED(6061, HttpStatus.CONFLICT, "Bản lưu mẫu đã duyệt hoặc đã ghi hủy, không sửa được"),
+    FOOD_SAMPLE_DISPOSAL_TOO_EARLY(
+            6062, HttpStatus.CONFLICT, "Chưa đủ 24 giờ kể từ lúc lấy mẫu, chưa ghi hủy mẫu được"),
+    KITCHEN_CAMPUS_DENIED(6063, HttpStatus.FORBIDDEN, "Bạn không có quyền bếp ở điểm trường này"),
+    MEAL_PHOTO_WINDOW_INVALID(
+            6064, HttpStatus.BAD_REQUEST, "Khung giờ đăng ảnh không hợp lệ: giờ bắt đầu phải trước giờ kết thúc"),
+    MEAL_PHOTO_OUT_OF_WINDOW(6065, HttpStatus.CONFLICT, "Ngoài khung giờ đăng ảnh bữa {0}"),
+    MEAL_PHOTO_WINDOW_NOT_CONFIGURED(6066, HttpStatus.CONFLICT, "Chưa cấu hình khung giờ đăng ảnh bữa {0}"),
+    MEAL_PHOTO_INVALID(6067, HttpStatus.BAD_REQUEST, "Ảnh không hợp lệ: chỉ nhận JPEG, PNG, WebP tối đa 10 MB"),
+    MEAL_PHOTO_NOT_FOUND(6068, HttpStatus.NOT_FOUND, "Không tìm thấy ảnh bữa ăn"),
+    FOOD_SAFETY_ACCESS_DENIED(
+            6069, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt lưu mẫu, hủy mẫu ở điểm trường này"),
+    FOOD_SAMPLE_STATE_INVALID(6070, HttpStatus.CONFLICT, "Bản lưu mẫu đang ở trạng thái không cho phép thao tác này"),
+    FOOD_SAMPLE_DISH_INVALID(6071, HttpStatus.BAD_REQUEST, "Cần chọn ít nhất một món, các món phải còn trong danh mục"),
+    MEAL_PHOTO_WINDOW_FORBIDDEN(6072, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được cấu hình khung giờ đăng ảnh bữa ăn"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
@@ -389,6 +472,13 @@ public enum ApiCode {
             7030, HttpStatus.BAD_REQUEST, "Dòng lấy từ danh mục của Bộ không thuộc nhóm tuổi của kế hoạch"),
     THEME_WEEK_ALIGNMENT(7031, HttpStatus.BAD_REQUEST, "Chủ đề {0} phải bắt đầu vào Thứ 2 và kết thúc vào Thứ 6"),
     THEME_DATES_OVERLAP(7032, HttpStatus.BAD_REQUEST, "Chủ đề {0} trùng thời gian với chủ đề {1}"),
+    GOAL_FILE_UNSUPPORTED(
+            7033,
+            HttpStatus.BAD_REQUEST,
+            "Không đọc được file. Chỉ nhận Word (.doc, .docx), Excel (.xlsx) hoặc CSV; file không được đặt mật khẩu"),
+    GOAL_FILE_NO_TABLE(
+            7034, HttpStatus.BAD_REQUEST, "Không tìm thấy bảng mục tiêu trong file (cần cột Mục tiêu và Nội dung)"),
+    GOAL_FILE_TOO_LARGE(7035, HttpStatus.BAD_REQUEST, "File quá lớn: tối đa 2 MB và 2.000 dòng"),
 
     // ========== 71xx TÀI LIỆU LỚP (KẾ HOẠCH CHỦ ĐỀ, GIÁO ÁN) (module Tiền) ==========
     CLASS_DOC_NOT_FOUND(7101, HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"),
@@ -419,6 +509,15 @@ public enum ApiCode {
             7122, HttpStatus.CONFLICT, "Kế hoạch năm đã có phiên bản mới. Tạo tài liệu trên phiên bản hiện hành"),
     CLASS_DOC_ADJUSTMENT_INVALID(
             7123, HttpStatus.BAD_REQUEST, "Kế hoạch điều chỉnh chỉ ghi cho ngày Thứ 2–6 của tuần, tối đa 4000 ký tự"),
+    BRANCH_FILE_UNSUPPORTED(
+            7124,
+            HttpStatus.BAD_REQUEST,
+            "Không đọc được file chủ đề nhánh. Chỉ nhận Word (.doc, .docx), Excel (.xlsx) hoặc CSV; file không được đặt mật khẩu"),
+    BRANCH_FILE_NO_TABLE(
+            7125,
+            HttpStatus.BAD_REQUEST,
+            "Không tìm thấy bảng chủ đề nhánh trong file (cần cột Chủ đề và Chủ đề nhánh)"),
+    BRANCH_FILE_TOO_LARGE(7126, HttpStatus.BAD_REQUEST, "File chủ đề nhánh quá lớn: tối đa 2 MB và 2.000 dòng"),
 
     // ========== 72xx CẤU HÌNH KẾ HOẠCH GIÁO DỤC (module Tiền) ==========
     EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng hoặc Phó Hiệu trưởng sửa được cấu hình"),

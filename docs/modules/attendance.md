@@ -1,6 +1,6 @@
 # Module — attendance
 
-Feature: `attendance` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt 1 (điểm danh lớp/ngày, mở lại ngày, tổng hợp); đón trẻ (2026-10-31, V50)
+Feature: `attendance` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt 1 (điểm danh lớp/ngày, mở lại ngày, tổng hợp); đón trẻ (2026-10-31, V66)
 
 ## Mục đích
 Nguồn dữ liệu có mặt của trẻ theo ngày (số suất suy từ đây — ATT-02); mở lại điểm danh sau giờ chốt; đơn xin nghỉ; đón trẻ = xác nhận trả trẻ (người đón, giờ đón — PCK-01..04, ATT-10).
@@ -33,6 +33,8 @@ P-19 (ngày nghỉ tự khóa điểm danh), P-20 (trẻ có đơn nghỉ vẫn 
 - Không có đăng ký trước người đón hộ trên App (PCK-03); người lạ đón ⇒ GV gọi phụ huynh, ghi nội dung cuộc gọi (PCK-02).
 - Đón trẻ (plan `docs/plans/completed/2026-10-31-child-pickup.md`): `GET /classes/{classId}/pickups?date`, `GET /pickups/children/{childId}`, `POST /pickups`, `GET /pickups?date` — chỉ GV đang phụ trách lớp, năm học đang hoạt động; chỉ trẻ điểm danh Có mặt hôm nay trả được; khớp ảnh chọn phụ huynh theo vị trí trên hồ sơ (BE chép họ tên, quan hệ, SĐT); trả thành công một lần/trẻ/ngày (index UNIQUE có điều kiện); không phân biệt về sớm/đón muộn. Mã lỗi 4101–4107.
 - Trẻ đã trả ⇒ `DailyHealthServiceImpl` chặn ghi sức khỏe trong ngày (`HEALTH_CHILD_PICKED_UP`, HLT-15).
+- ATT-02 (01/11): bữa ăn suy từ `status` (`AttendanceServiceImpl.mealsFor`: có mặt ⇒ mọi bữa nhóm tuổi của lớp) cả khi lưu, tổng hợp suất, tổng hợp điểm danh và trả `record.meals`; field `meals` trong `SaveAttendanceRequest` deprecated, giá trị bị bỏ qua (giữ để client cũ không vỡ). Bản ghi cũ có `meals` lệch vẫn được đọc theo `status`.
+- ATT-09 (01/11): GV gửi `EXCUSED` cho trẻ chưa có bản ghi `EXCUSED` ⇒ 400 `4018` `ATTENDANCE_EXCUSED_NOT_ALLOWED`; gửi lại `EXCUSED` đang có (sau này do đơn nghỉ đặt) được chấp nhận để lưu cả sheet không vỡ.
 
 ## Related issues
 Chưa có. Rủi ro dự kiến: `docs/knowledge/CROSS_MODULE_ISSUES.md` CMR-01.

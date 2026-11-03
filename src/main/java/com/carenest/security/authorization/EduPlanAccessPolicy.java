@@ -5,6 +5,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanStatus;
+import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.EnumSet;
@@ -51,8 +52,27 @@ public class EduPlanAccessPolicy {
 
     public boolean hasPermission(CurrentUser user, String permission) {
         return user.roles().stream()
-                .map(role -> ROLE_PERMISSIONS.getOrDefault(role, Set.of()))
-                .anyMatch(permissions -> permissions.contains(permission));
+                .filter(role -> ROLE_PERMISSIONS.getOrDefault(role, Set.of()).contains(permission))
+                .anyMatch(role -> roleInEffect(user, role));
+    }
+
+    /** HT có phân công toàn trường còn hiệu lực. */
+    public boolean isPrincipal(CurrentUser user) {
+        return user.hasRole(CareNestRole.PRINCIPAL) && roleInEffect(user, CareNestRole.PRINCIPAL);
+    }
+
+    // AUTH-20: role HT/PHT chỉ có hiệu lực khi phân công còn hiệu lực (như attendance/meals); GV giới hạn theo nhóm
+    // tuổi
+    private boolean roleInEffect(CurrentUser user, CareNestRole role) {
+        LocalDate today = LocalDate.now(clock);
+        return switch (role) {
+            case PRINCIPAL -> staffAssignmentService.hasActivePrincipalAssignment(user.userId(), today);
+            case VICE_PRINCIPAL ->
+                !staffAssignmentService
+                        .findActiveCampusIds(user.userId(), StaffRole.VICE_PRINCIPAL, today)
+                        .isEmpty();
+            default -> true;
+        };
     }
 
     public ViewScope viewScope(CurrentUser user) {
@@ -63,7 +83,7 @@ public class EduPlanAccessPolicy {
         Set<EduPlanStatus> schoolWide = EnumSet.noneOf(EduPlanStatus.class);
         if (isVicePrincipal(user)) {
             schoolWide.addAll(EnumSet.allOf(EduPlanStatus.class));
-        } else if (user.hasRole(CareNestRole.PRINCIPAL)) {
+        } else if (isPrincipal(user)) {
             schoolWide.addAll(EnumSet.complementOf(EnumSet.of(EduPlanStatus.DRAFT, EduPlanStatus.EDITING)));
         }
         Set<Long> full = Set.of();
@@ -81,7 +101,7 @@ public class EduPlanAccessPolicy {
         return new ViewScope(Set.copyOf(schoolWide), full, approved);
     }
 
-    /** Phó HT có quyền duyệt; không giới hạn campus vì kế hoạch năm áp dụng toàn trường. */
+    /** Phó HT còn phân công có quyền duyệt; không giới hạn campus vì kế hoạch năm áp dụng toàn trường. */
     public boolean isVicePrincipal(CurrentUser user) {
         return hasPermission(user, EduPermission.GOALS_APPROVE);
     }

@@ -205,7 +205,13 @@ public class QualityReportServiceImpl implements QualityReportService {
         if (anchor.isBefore(cls.yearStart())) {
             anchor = cls.yearStart();
         }
-        List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(cls.id(), anchor);
+        LocalDate rosterFrom = month.atDay(1).isBefore(cls.yearStart()) ? cls.yearStart() : month.atDay(1);
+        if (anchor.isAfter(cls.yearEnd())) {
+            anchor = cls.yearEnd();
+        }
+        List<ClassChildResponse> children = anchor.isBefore(rosterFrom)
+                ? List.of()
+                : enrollmentService.findChildrenInClassroomDuring(cls.id(), rosterFrom, anchor);
         int sd = schoolDays.getOrDefault(month, Set.of()).size();
         int presentDays = children.stream()
                 .mapToInt(c -> childPresent.getOrDefault(c.id(), 0))

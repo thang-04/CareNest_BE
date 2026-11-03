@@ -28,7 +28,7 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
 
     java.util.List<UserAccount> findByEmailIgnoreCase(String email);
 
-    // CCCD phụ huynh là khóa nhận diện (AUTH-18, UNIQUE ở V47)
+    // CCCD phụ huynh là khóa nhận diện (AUTH-18, UNIQUE ở V63)
     Optional<UserAccount> findByCitizenId(String citizenId);
 
     List<UserAccount> findAllByCitizenIdIn(Collection<String> citizenIds);

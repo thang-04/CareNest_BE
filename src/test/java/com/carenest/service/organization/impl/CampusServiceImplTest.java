@@ -22,6 +22,7 @@ import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -35,6 +36,7 @@ import java.util.Optional;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -63,6 +65,7 @@ class CampusServiceImplTest {
             staffAssignmentService,
             new CampusMapper(),
             mock(YearSnapshotReader.class),
+            new CampusAccessPolicy(staffAssignmentService, FIXED_CLOCK),
             FIXED_CLOCK);
 
     @BeforeEach
@@ -71,6 +74,8 @@ class CampusServiceImplTest {
         given(staffAssignmentService.findActiveAssignments(3L, TODAY))
                 .willReturn(List.of(new StaffAssignmentSummaryResponse(
                         StaffRole.VICE_PRINCIPAL, 10L, null, null, TODAY.minusMonths(1), null)));
+        given(staffAssignmentService.findActiveCampusIds(3L, StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(10L));
         given(campusRepository.save(any(Campus.class))).willAnswer(invocation -> {
             Campus saved = invocation.getArgument(0);
             ReflectionTestUtils.setField(saved, "id", 99L);
@@ -146,21 +151,26 @@ class CampusServiceImplTest {
     }
 
     @Test
-    void vicePrincipalSeesOnlyOwnCampus() {
-        given(campusRepository.findAllByIdInOrderByMainDescCodeAsc(Set.of(10L)))
-                .willReturn(List.of(campus(10L, "CS-A", true)));
+    @DisplayName("AUTH-20: PHT còn phân công xem mọi điểm trường")
+    void vicePrincipalSeesEveryCampus() {
+        given(campusRepository.findAllByOrderByMainDescCodeAsc())
+                .willReturn(List.of(campus(10L, "CS-A", true), campus(11L, "CS-B", false)));
 
         List<CampusResponse> campuses = service.getCampuses(VICE_PRINCIPAL, null);
 
-        assertThat(campuses).extracting(CampusResponse::id).containsExactly(10L);
-        verify(campusRepository, never()).findAllByOrderByMainDescCodeAsc();
+        assertThat(campuses).extracting(CampusResponse::id).containsExactly(10L, 11L);
     }
 
     @Test
-    void vicePrincipalCannotOpenOtherCampus() {
+    @DisplayName("AUTH-20: PHT hết phân công không xem điểm trường nào")
+    void vicePrincipalWithoutAssignmentSeesNoCampus() {
+        CurrentUser formerVice =
+                new CurrentUser(4L, "kc-4", "viceprincipal.old", "Demo", null, Set.of(CareNestRole.VICE_PRINCIPAL));
         given(campusRepository.findById(11L)).willReturn(Optional.of(campus(11L, "CS-B", false)));
 
-        expectError(() -> service.getCampusDetail(VICE_PRINCIPAL, 11L, null), ApiCode.FORBIDDEN);
+        assertThat(service.getCampuses(formerVice, null)).isEmpty();
+        expectError(() -> service.getCampusDetail(formerVice, 11L, null), ApiCode.FORBIDDEN);
+        verify(campusRepository, never()).findAllByOrderByMainDescCodeAsc();
     }
 
     private static CampusRequest request(String code, String name, boolean main) {

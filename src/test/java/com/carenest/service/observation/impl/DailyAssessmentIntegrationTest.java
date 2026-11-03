@@ -54,7 +54,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Đánh giá trẻ trên PostgreSQL thật (V39). Hôm nay = thứ 4, 28/10/2026, 08:00 giờ trường (trước giờ chốt điểm danh). */
+/** Đánh giá trẻ trên PostgreSQL thật (V41). Hôm nay = thứ 4, 28/10/2026, 08:00 giờ trường (trước giờ chốt điểm danh). */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
@@ -96,6 +96,15 @@ class DailyAssessmentIntegrationTest {
 
     @Autowired
     private DailyAssessmentService service;
+
+    @Autowired
+    private EvaluationSources sources;
+
+    @Autowired
+    private com.carenest.service.organization.ClassroomService classrooms;
+
+    @Autowired
+    private com.carenest.service.observation.ChildEvaluationService evaluations;
 
     @Autowired
     private AssessmentDayUnlockService unlockService;
@@ -545,6 +554,19 @@ class DailyAssessmentIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "SELECT class_doc_id FROM daily_activity_results WHERE child_id = ?", Long.class, child1))
                 .isEqualTo(weekDoc);
+        var data = sources.load(classrooms.findClassroomInfo(classA).orElseThrow(), List.of(child1), TODAY, TODAY, true)
+                .get(child1);
+        assertThat(data.days()).singleElement().satisfies(day -> {
+            assertThat(day.met())
+                    .extracting(com.carenest.dto.observation.EvaluationDtos.GoalRef::id)
+                    .containsExactly(copiedGoal);
+            assertThat(day.notMet()).isEmpty();
+        });
+        assertThat(data.structured().goals().byGoal().values()).singleElement().satisfies(count -> {
+            assertThat(count.dat()).isEqualTo(1);
+            assertThat(count.chuaDat()).isZero();
+            assertThat(count.canCoGang()).isZero();
+        });
         service.saveSkills(
                 teacherA,
                 classA,
@@ -552,6 +574,137 @@ class DailyAssessmentIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "SELECT class_doc_id FROM daily_activity_results WHERE child_id = ?", Long.class, child1))
                 .isEqualTo(nextDoc);
+    }
+
+    @Test
+    void monthlyDraftSurvivesTransferWithoutDuplicateOrLostName() {
+        var month = com.carenest.utils.enums.EvaluationPeriodType.MONTH;
+        attendance(child1, classA, LocalDate.of(2026, 9, 15));
+        var old = evaluations
+                .list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1))
+                .getFirst();
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-20')",
+                child1,
+                classB);
+        attendance(child1, classB, LocalDate.of(2026, 9, 21));
+        entityManager.clear();
+        var next = evaluations
+                .list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1))
+                .getFirst();
+        assertThat(next.id()).isNotEqualTo(old.id());
+        assertThat(evaluations.list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1)))
+                .hasSize(1);
+        assertThat(evaluations.get(teacherA, old.id()).child().fullName()).isEqualTo("An");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM child_evaluations WHERE child_id = ? AND period_type = 'MONTH'",
+                        Integer.class,
+                        child1))
+                .isEqualTo(2);
+        expectCode(() -> evaluations.get(teacherB, old.id()), ApiCode.EVALUATION_VIEW_FORBIDDEN);
+    }
+
+    @Test
+    void yearDraftSurvivesTransferAndProgramReportCountsCurrentRosterOnce() {
+        var year = com.carenest.utils.enums.EvaluationPeriodType.YEAR;
+        jdbc.update("UPDATE school_years SET end_date = '2026-10-31' WHERE status = 'ACTIVE'");
+        jdbc.update(
+                "UPDATE classrooms SET age_group_id = (SELECT id FROM age_groups WHERE code = 'ag-5' LIMIT 1) WHERE id IN (?, ?)",
+                classA,
+                classB);
+        entityManager.clear();
+        var old = evaluations.list(teacherA, year, null, classA, null).stream()
+                .filter(e -> e.childId().equals(child1))
+                .findFirst()
+                .orElseThrow();
+        evaluations.markProgram(teacherA, old.id(), true);
+        evaluations.confirm(teacherA, old.id(), "Nhận xét cuối năm đã được giáo viên kiểm tra đầy đủ dữ liệu.");
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-10-27' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-10-28')",
+                child1,
+                classB);
+        entityManager.clear();
+        var next = evaluations.list(teacherB, year, null, classB, null).stream()
+                .filter(e -> e.childId().equals(child1))
+                .findFirst()
+                .orElseThrow();
+        assertThat(next.id()).isNotEqualTo(old.id());
+        evaluations.markProgram(teacherB, next.id(), true);
+        evaluations.confirm(teacherB, next.id(), "Nhận xét cuối năm đã được giáo viên lớp mới kiểm tra đầy đủ.");
+        evaluations.list(teacherB, year, null, classB, null);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM child_evaluations WHERE child_id = ? AND period_type = 'YEAR'",
+                        Integer.class,
+                        child1))
+                .isEqualTo(2);
+        assertThat(evaluations.get(teacherA, old.id()).child().fullName()).isEqualTo("An");
+        var report = evaluations.programReport(principal, null, null);
+        assertThat(report.totals().children()).isEqualTo(3);
+        assertThat(report.totals().completed()).isEqualTo(1);
+        assertThat(report.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> assertThat(r.completed()).isZero());
+    }
+
+    @Autowired
+    private com.carenest.service.observation.QualityReportService qualityReports;
+
+    @Test
+    void firstMonthlyListingIncludesChildWhoTransferredBeforeMonthEnd() {
+        attendance(child1, classA, LocalDate.of(2026, 9, 15));
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-20')",
+                child1,
+                classB);
+        attendance(child1, classB, LocalDate.of(2026, 9, 21));
+        entityManager.clear();
+        var month = com.carenest.utils.enums.EvaluationPeriodType.MONTH;
+        var old = evaluations.list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1));
+        assertThat(old)
+                .extracting(com.carenest.dto.observation.EvaluationDtos.EvaluationRow::childId)
+                .containsExactly(child1);
+        assertThat(old.getFirst().childName()).isEqualTo("An");
+        assertThat(evaluations.list(teacherB, month, null, classB, LocalDate.of(2026, 9, 1)))
+                .extracting(com.carenest.dto.observation.EvaluationDtos.EvaluationRow::childId)
+                .contains(child1);
+        assertThat(evaluations.list(teacherA, month, null, classA, LocalDate.of(2026, 9, 1)))
+                .hasSize(1);
+        expectCode(() -> evaluations.get(teacherB, old.getFirst().id()), ApiCode.EVALUATION_VIEW_FORBIDDEN);
+    }
+
+    @Test
+    void monthlyQualityCountsChildrenWhoLeftAndJoinedDuringMonth() {
+        attendance(child1, classA, LocalDate.of(2026, 9, 15));
+        attendance(child2, classA, LocalDate.of(2026, 9, 21));
+        jdbc.update("UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ?", child1);
+        jdbc.update("UPDATE enrollments SET valid_from = '2026-09-20' WHERE child_id = ?", child2);
+        entityManager.clear();
+        var report = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 9), null);
+        assertThat(report.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.children()).isEqualTo(2);
+                    assertThat(r.presentDays()).isEqualTo(2);
+                    assertThat(r.avgPresent()).isEqualTo(1);
+                });
+        assertThat(qualityReports
+                        .getReport(vpA, null, java.time.YearMonth.of(2026, 9), null)
+                        .rows())
+                .allMatch(r -> r.campusId().equals(campusA));
     }
 
     private static SaveDailySkillsRequest skills(LocalDate date, long childId, String comment, Activity... activities) {

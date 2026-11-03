@@ -16,6 +16,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.repository.meals.MealCountHistoryRepository;
 import com.carenest.repository.meals.MealCountRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.AttendanceService.ClassMealTally;
@@ -26,6 +27,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealCountStatus;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
@@ -41,10 +43,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,27 +66,35 @@ public class MealCountServiceImpl implements MealCountService {
     private final ClassroomService classroomService;
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
+    private final CampusAccessPolicy campusAccessPolicy;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
-    /** Phạm vi người xem: HT toàn trường; PHT, bếp theo điểm trường được phân công (AUTH-01, AUTH-02). */
-    private record Viewer(CurrentUser user, boolean principal, Set<Long> leadCampuses, Set<Long> kitchenCampuses) {
+    /** Phạm vi người xem: HT toàn trường; PHT còn phân công xem mọi điểm trường (AUTH-20); bếp điểm trường mình. */
+    private record Viewer(
+            CurrentUser user,
+            boolean principal,
+            Set<Long> leadCampuses,
+            Set<Long> kitchenCampuses,
+            Predicate<Long> editsCampus) {
         boolean sees(Long campusId) {
-            return principal || leadCampuses.contains(campusId) || kitchenCampuses.contains(campusId);
+            return reviews(campusId) || kitchenCampuses.contains(campusId);
         }
 
-        // HT, PHT thấy cả số chờ xác nhận lại; bếp chỉ thấy số đã xác nhận
+        // HT, PHT thấy cả số chờ xác nhận lại; bếp chỉ thấy số đã xác nhận.
+        // AUTH-20: PHT còn phân công xem số suất mọi điểm trường; xác nhận/điều chỉnh vẫn theo phạm vi
         boolean reviews(Long campusId) {
-            return principal || leadCampuses.contains(campusId);
+            return principal || !leadCampuses.isEmpty();
         }
 
-        // NUT-02 (Cần chốt 27/10/2026): HT xác nhận được mọi điểm trường, PHT điểm trường mình
+        // NUT-02 + AUTH-20: HT xác nhận mọi điểm trường; PHT có MEAL_COUNT_CONFIRM trong phạm vi được giao
         boolean confirms(Long campusId) {
-            return principal || leadCampuses.contains(campusId);
+            return editsCampus.test(campusId);
         }
 
-        // NUT-02: điều chỉnh số suất vẫn chỉ PHT điểm trường
+        // NUT-02: điều chỉnh suất thay thế chỉ PHT, cùng phạm vi xác nhận
         boolean adjusts(Long campusId) {
-            return leadCampuses.contains(campusId);
+            return !principal && editsCampus.test(campusId);
         }
 
         StaffRole confirmerRole() {
@@ -179,14 +191,25 @@ public class MealCountServiceImpl implements MealCountService {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
             Year year = editableYear(count.getSchoolYearId());
-            if (count.isConfirmed() && !count.hasPending()) {
-                throw GlobalException.of(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
+            // NUT-02, ATT-06: xác nhận theo cơ sở–ngày — một lần cho mọi bữa còn chờ của cơ sở trong ngày
+            List<MealCount> pending =
+                    mealCountRepository.findByCampusIdAndDate(count.getCampusId(), count.getDate()).stream()
+                            .filter(c -> c.getSchoolYearId().equals(count.getSchoolYearId()))
+                            .filter(c -> !c.isConfirmed() || c.hasPending())
+                            .toList();
+            // Bữa đã được xác nhận cùng ngày (vd. client gọi lần lượt từng bữa) ⇒ trả trạng thái hiện tại
+            if (!pending.isEmpty()) {
+                checkAttendanceComplete(count.getCampusId(), count.getDate(), year);
+                Instant at = clock.instant();
+                for (MealCount c : pending) {
+                    c.confirm(currentUser.userId(), viewer.confirmerRole(), at);
+                    historyRepository.save(
+                            MealCountHistory.of(c.getId(), MealCountHistory.CONFIRMED, currentUser.userId(), at));
+                }
+                mealCountRepository.flush();
+                // P-38: suất chốt ⇒ trừ kho khô ngày đó; nghe sau commit để lỗi kho không chặn xác nhận suất
+                eventPublisher.publishEvent(new MealCountConfirmedEvent(count.getCampusId(), count.getDate()));
             }
-            Instant at = clock.instant();
-            count.confirm(currentUser.userId(), viewer.confirmerRole(), at);
-            historyRepository.save(
-                    MealCountHistory.of(count.getId(), MealCountHistory.CONFIRMED, currentUser.userId(), at));
-            mealCountRepository.flush();
             MealCountResponse response = view(count, viewer, year);
             log.info("{}|END", logPrefix);
             return response;
@@ -213,19 +236,28 @@ public class MealCountServiceImpl implements MealCountService {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_NOT_FOUND);
             }
             Year year = editableYear(counts.getFirst().getSchoolYearId());
+            // NUT-02: suất thường chỉ đổi qua điểm danh (mở lại — ATT-08); normal null hoặc bằng số hiện tại = giữ
+            // nguyên
+            if (request.normal() != null
+                    && counts.stream()
+                            .anyMatch(c -> c.currentNormal(request.classId())
+                                    .filter(n -> !n.equals(request.normal()))
+                                    .isPresent())) {
+                throw GlobalException.of(ApiCode.MEAL_COUNT_NORMAL_NOT_EDITABLE);
+            }
             Instant at = clock.instant();
             String note = request.note().trim();
             int changed = 0;
             for (MealCount count : counts) {
                 // NUT-03: sổ đã xác nhận không sửa ngầm, số mới chờ xác nhận lại
-                int[] delta = count.adjust(request.classId(), request.normal(), request.substitute());
-                if (delta[0] == 0 && delta[1] == 0) {
+                int delta = count.adjustSubstitute(request.classId(), request.substitute());
+                if (delta == 0) {
                     continue;
                 }
                 historyRepository.save(
                         MealCountHistory.of(count.getId(), MealCountHistory.ADJUSTED, currentUser.userId(), at)
                                 .forClass(request.classId())
-                                .change(delta[0], delta[1], note));
+                                .change(0, delta, note));
                 changed++;
             }
             if (changed == 0) {
@@ -281,6 +313,17 @@ public class MealCountServiceImpl implements MealCountService {
         }
     }
 
+    // NUT-02 (D10): chặn xác nhận khi còn lớp có học trong ngày có trẻ đang học chưa được điểm danh
+    private void checkAttendanceComplete(Long campusId, LocalDate date, Year year) {
+        String incomplete = attendanceService.tallyMeals(date, campusId, year.id()).stream()
+                .filter(t -> t.missing() > 0)
+                .map(ClassMealTally::className)
+                .collect(Collectors.joining(", "));
+        if (!incomplete.isEmpty()) {
+            throw GlobalException.of(ApiCode.MEAL_COUNT_ATTENDANCE_INCOMPLETE, incomplete);
+        }
+    }
+
     private Viewer viewer(CurrentUser user) {
         LocalDate today = LocalDate.now(clock);
         boolean principal = user.hasRole(CareNestRole.PRINCIPAL)
@@ -292,7 +335,11 @@ public class MealCountServiceImpl implements MealCountService {
         if (!principal && lead.isEmpty() && kitchen.isEmpty()) {
             throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
         }
-        return new Viewer(user, principal, lead, kitchen);
+        // Mỗi request hỏi policy một lần cho mỗi điểm trường
+        Map<Long, Boolean> editable = new HashMap<>();
+        Predicate<Long> editsCampus = campusId -> editable.computeIfAbsent(
+                campusId, id -> campusAccessPolicy.canEditCampus(user, Permission.MEAL_COUNT_CONFIRM, id));
+        return new Viewer(user, principal, lead, kitchen, editsCampus);
     }
 
     private static Set<Long> campusesOf(

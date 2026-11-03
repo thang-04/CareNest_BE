@@ -13,6 +13,9 @@ import java.util.Map;
 public record SaveAttendanceRequest(
         @NotNull LocalDate date, @NotEmpty @Valid List<Entry> entries) {
 
-    /** meals: bữa ⇒ có ăn; bữa không gửi = không ăn. */
+    /**
+     * meals: deprecated, BE bỏ qua — suất tính từ status (ATT-02: có mặt là ăn mọi bữa của nhóm tuổi). Giữ field để
+     * client cũ không vỡ; sẽ bỏ ở bản sau.
+     */
     public record Entry(@NotNull Long childId, @NotNull AttendanceStatus status, Map<MealSession, Boolean> meals) {}
 }

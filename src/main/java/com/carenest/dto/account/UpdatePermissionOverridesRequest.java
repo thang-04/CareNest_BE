@@ -2,6 +2,7 @@ package com.carenest.dto.account;
 
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
+import com.carenest.utils.enums.PermissionScope;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -13,6 +14,7 @@ public record UpdatePermissionOverridesRequest(
         @NotNull List<@NotNull @Valid OverrideItem> overrides,
         @NotBlank @Size(max = 500) String reason) {
 
+    /** scope chỉ cho GRANT mã sửa theo mảng; bỏ trống ⇒ CAMPUS (AUTH-20). */
     public record OverrideItem(
-            @NotNull Permission permission, @NotNull PermissionEffect effect) {}
+            @NotNull Permission permission, @NotNull PermissionEffect effect, PermissionScope scope) {}
 }

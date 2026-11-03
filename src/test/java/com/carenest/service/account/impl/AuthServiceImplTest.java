@@ -103,6 +103,7 @@ class AuthServiceImplTest {
                 List.of(),
                 List.of(),
                 List.of(),
+                List.of(),
                 false,
                 false);
         service = new AuthServiceImpl(

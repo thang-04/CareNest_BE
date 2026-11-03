@@ -1,6 +1,7 @@
 package com.carenest.entity.account;
 
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.PermissionScope;
 import com.carenest.utils.enums.PermissionState;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -52,6 +53,14 @@ public class PermissionChangeLog {
     @Column(name = "after_state", nullable = false, updatable = false, length = 10)
     private PermissionState afterState;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "before_scope", updatable = false, length = 10)
+    private PermissionScope beforeScope;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "after_scope", updatable = false, length = 10)
+    private PermissionScope afterScope;
+
     @Column(nullable = false, updatable = false, length = 500)
     private String reason;
 
@@ -83,6 +92,13 @@ public class PermissionChangeLog {
         PermissionChangeLog log = base(batchId, actorUserId, permissionCode, before, after, reason);
         log.targetUserId = targetUserId;
         return log;
+    }
+
+    /** Phạm vi GRANT trước/sau (AUTH-20); chỉ ngoại lệ từng người có phạm vi. */
+    public PermissionChangeLog withScopes(PermissionScope before, PermissionScope after) {
+        this.beforeScope = before;
+        this.afterScope = after;
+        return this;
     }
 
     private static PermissionChangeLog base(

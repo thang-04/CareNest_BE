@@ -12,6 +12,7 @@ import com.carenest.dto.attendance.ClassAttendanceResponse.ChildRow;
 import com.carenest.dto.attendance.ClassAttendanceResponse.HealthSummary;
 import com.carenest.dto.attendance.ClassAttendanceResponse.RecordView;
 import com.carenest.dto.attendance.DayInfoResponse;
+import com.carenest.dto.attendance.LeaveRequestDtos.LeaveTag;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceResponse;
 import com.carenest.dto.child.ClassChildResponse;
@@ -19,10 +20,12 @@ import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
 import com.carenest.entity.attendance.DailyHealthEntry;
+import com.carenest.entity.attendance.LeaveRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
+import com.carenest.repository.attendance.LeaveRequestRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
@@ -61,6 +64,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class AttendanceServiceImpl implements AttendanceService {
+
     private static final String LOG_PREFIX = "[AttendanceServiceImpl]";
     private static final long MAX_SUMMARY_DAYS = 366;
 
@@ -72,6 +76,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final EnrollmentService enrollmentService;
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
+    private final LeaveRequestRepository leaveRequestRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -153,11 +158,14 @@ public class AttendanceServiceImpl implements AttendanceService {
                             .findByClassroomIdInAndDateOrderByRecordedAtDescIdDesc(List.of(classId), day)
                             .stream()
                             .collect(Collectors.groupingBy(DailyHealthEntry::getChildId));
+            Map<Long, LeaveTag> leaves =
+                    leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day);
             List<ChildRow> rows = children.stream()
                     .map(ch -> new ChildRow(
                             toBrief(ch),
                             toView(records.get(ch.id()), cls.mealSessions(), names),
-                            toHealth(health.getOrDefault(ch.id(), List.of()))))
+                            toHealth(health.getOrDefault(ch.id(), List.of())),
+                            leaves.get(ch.id())))
                     .toList();
             ClassAttendanceResponse sheet = new ClassAttendanceResponse(
                     rules.dayInfo(day, cls, null),
@@ -190,6 +198,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_YEAR_NOT_ACTIVE);
             }
+            classroomService.lockForUpdate(classId);
             LocalDate date = request.date();
             if (!AttendanceDayRules.isSchoolDay(date)) {
                 throw GlobalException.of(ApiCode.NOT_SCHOOL_DAY);
@@ -211,13 +220,23 @@ public class AttendanceServiceImpl implements AttendanceService {
                     throw GlobalException.of(ApiCode.CHILD_LIST_MISMATCH);
                 }
             }
-            Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
-            for (SaveAttendanceRequest.Entry entry : request.entries()) {
-                mealsByChild.put(entry.childId(), mealsOf(entry, cls.mealSessions()));
+            if (!leaveTags(seen, date).isEmpty()) {
+                throw GlobalException.of(ApiCode.LEAVE_ATTENDANCE_LOCKED);
             }
-
             Map<Long, AttendanceRecord> existing = recordRepository.findByChildIdInAndDate(seen, date).stream()
                     .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
+            // ATT-09: Vắng có phép chỉ do đơn nghỉ đặt; GV giữ nguyên được trạng thái đã có, không tự chọn mới
+            for (SaveAttendanceRequest.Entry entry : request.entries()) {
+                AttendanceRecord record = existing.get(entry.childId());
+                if (entry.status() == AttendanceStatus.EXCUSED
+                        && (record == null || record.getStatus() != AttendanceStatus.EXCUSED)) {
+                    throw GlobalException.of(ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
+                }
+            }
+            Map<Long, List<MealSession>> mealsByChild = new LinkedHashMap<>();
+            for (SaveAttendanceRequest.Entry entry : request.entries()) {
+                mealsByChild.put(entry.childId(), mealsFor(entry.status(), cls.mealSessions()));
+            }
             Instant at = rules.now();
             Long unlockId = info.unlock() == null ? null : info.unlock().id();
             int changed = 0;
@@ -290,7 +309,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .filter(c -> rules.canView(currentUser, c))
                     .map(c -> summarize(c, from, to))
                     .toList();
-            if (campusId != null && parts.isEmpty() && !rules.canUnlock(currentUser, campusId)) {
+            if (campusId != null && parts.isEmpty() && !rules.canReadCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<DayRow> days = schoolDays(from, to).stream()
@@ -353,7 +372,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
-    // NUT-01: suất = trẻ có mặt và có báo ăn bữa đó; trẻ chưa điểm danh không tính suất
+    // NUT-01, ATT-02: suất = trẻ có mặt × mọi bữa của nhóm tuổi; trẻ chưa điểm danh không tính suất
     private ClassMealTally tally(ClassroomInfoResponse cls, LocalDate date) {
         List<Long> childIds = enrollmentService.findChildrenInClassroom(cls.id(), date).stream()
                 .map(ClassChildResponse::id)
@@ -371,7 +390,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                 continue;
             }
             present++;
-            r.getMeals().stream().filter(meals::containsKey).forEach(s -> meals.merge(s, 1, Integer::sum));
+            cls.mealSessions().forEach(s -> meals.merge(s, 1, Integer::sum));
         }
         return new ClassMealTally(
                 cls.id(),
@@ -382,6 +401,19 @@ public class AttendanceServiceImpl implements AttendanceService {
                 absent,
                 childIds.size() - present - absent,
                 meals);
+    }
+
+    // ATT-04: đơn nghỉ còn hiệu lực của trẻ trong ngày (đơn đã hủy từ ngày này trở đi thì không tính)
+    private Map<Long, LeaveTag> leaveTags(Set<Long> childIds, LocalDate date) {
+        if (childIds.isEmpty()) {
+            return Map.of();
+        }
+        return leaveRequestRepository.findOverlapping(childIds, date, date).stream()
+                .filter(r -> r.coversDate(date))
+                .collect(Collectors.toMap(
+                        LeaveRequest::getChildId,
+                        r -> new LeaveTag(r.getId(), r.getFromDate(), r.effectiveTo(), r.getReason()),
+                        (a, b) -> a));
     }
 
     private ClassroomInfoResponse findClass(Long classId) {
@@ -398,22 +430,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         return cls;
     }
 
-    /** ATT-02: bữa ăn chỉ trong các bữa của nhóm tuổi; vắng thì không ăn. */
-    private static List<MealSession> mealsOf(SaveAttendanceRequest.Entry entry, List<MealSession> classSessions) {
-        List<MealSession> taken = entry.meals() == null
-                ? List.of()
-                : entry.meals().entrySet().stream()
-                        .filter(e -> e.getKey() != null && Boolean.TRUE.equals(e.getValue()))
-                        .map(Map.Entry::getKey)
-                        .sorted()
-                        .toList();
-        if (!classSessions.containsAll(taken)) {
-            throw GlobalException.of(ApiCode.MEAL_SESSION_NOT_SERVED);
-        }
-        if (entry.status().isAbsent() && !taken.isEmpty()) {
-            throw GlobalException.of(ApiCode.ABSENT_CHILD_NO_MEAL);
-        }
-        return taken;
+    /** ATT-02: có mặt là ăn mọi bữa đã cấu hình cho nhóm tuổi; vắng không ăn. Field meals client gửi bị bỏ qua. */
+    private static List<MealSession> mealsFor(AttendanceStatus status, List<MealSession> classSessions) {
+        return status.isAbsent() ? List.of() : classSessions.stream().sorted().toList();
     }
 
     private void checkRange(LocalDate from, LocalDate to) {
@@ -464,10 +483,11 @@ public class AttendanceServiceImpl implements AttendanceService {
                         : r.getStatus() == AttendanceStatus.EXCUSED ? 1 : 2;
                 counts[slot]++;
                 child[slot]++;
-                if (!r.getMeals().isEmpty()) {
+                List<MealSession> eaten = mealsFor(r.getStatus(), cls.mealSessions());
+                if (!eaten.isEmpty()) {
                     counts[4]++;
                     child[3]++;
-                    r.getMeals().forEach(s -> meals.merge(s, 1, Integer::sum));
+                    eaten.forEach(s -> meals.merge(s, 1, Integer::sum));
                 }
             }
             days.add(new DayRow(date, counts[0], counts[1], counts[2], counts[3], counts[4], meals));
@@ -495,7 +515,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             return null;
         }
         Map<MealSession, Boolean> meals = new EnumMap<>(MealSession.class);
-        sessions.forEach(s -> meals.put(s, r.getMeals().contains(s)));
+        sessions.forEach(s -> meals.put(s, !r.getStatus().isAbsent()));
         return new RecordView(
                 r.getId(), r.getStatus(), meals, r.getRecordedBy(), names.get(r.getRecordedBy()), r.getRecordedAt());
     }

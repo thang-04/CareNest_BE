@@ -116,7 +116,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             if (month != null && !years.isEmpty()) {
                 checkMonth(month, years.getFirst());
             }
-            for (ClassroomInfoResponse cls : visible) {
+            for (ClassroomInfoResponse cls : visible.stream()
+                    .sorted(Comparator.comparing(ClassroomInfoResponse::id))
+                    .toList()) {
                 if (cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)) {
                     ensureDrafts(cls, type);
                 }
@@ -165,7 +167,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                                             EvaluationPeriodType.MONTH,
                                             EvaluationStatus.CONFIRMED,
                                             ev.getPeriodStart(),
-                                            ev.getPeriodEnd()),
+                                            ev.getPeriodEnd())
+                                    .stream()
+                                    .filter(e -> e.getClassroomId().equals(cls.id()))
+                                    .toList(),
                             Map.of(cls.id(), cls),
                             false)
                     : List.of();
@@ -334,17 +339,19 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             List<ProgramRow> rows = visible.stream()
                     .map(c -> {
                         LocalDate at = maxDate(c.yearStart(), minDate(rules.today(), c.yearEnd()));
-                        int children = enrollmentService
-                                .findChildrenInClassroom(c.id(), at)
-                                .size();
-                        List<ChildEvaluation> evs = confirmed.getOrDefault(c.id(), List.of());
+                        Set<Long> roster = enrollmentService.findChildrenInClassroom(c.id(), at).stream()
+                                .map(ClassChildResponse::id)
+                                .collect(Collectors.toSet());
+                        List<ChildEvaluation> evs = confirmed.getOrDefault(c.id(), List.of()).stream()
+                                .filter(e -> roster.contains(e.getChildId()))
+                                .toList();
                         int done = (int) evs.stream()
                                 .filter(e -> Boolean.TRUE.equals(e.getProgramCompleted()))
                                 .count();
                         int notDone = (int) evs.stream()
                                 .filter(e -> Boolean.FALSE.equals(e.getProgramCompleted()))
                                 .count();
-                        int total = Math.max(children, done + notDone);
+                        int total = roster.size();
                         return new ProgramRow(
                                 c.id(),
                                 c.name(),
@@ -572,6 +579,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     // Tháng: mỗi tháng đã kết thúc của năm học, trẻ có đi học hoặc có đánh giá trong tháng.
     // Cuối năm: từ ngày 1 tháng cuối của năm học, mọi trẻ đang học lớp.
     private void ensureDrafts(ClassroomInfoResponse cls, EvaluationPeriodType type) {
+        classroomService.lockForUpdate(cls.id());
         LocalDate today = rules.today();
         Set<String> existing = evaluationRepository.findByClassroomIdInAndPeriodType(List.of(cls.id()), type).stream()
                 .map(e -> e.getChildId() + "|" + e.getPeriodStart())
@@ -614,10 +622,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             Set<String> existing,
             Map<Long, Integer> confirmedMonths) {
         LocalDate today = rules.today();
-        List<ClassChildResponse> children =
-                enrollmentService.findChildrenInClassroom(cls.id(), minDate(end, today)).stream()
-                        .filter(c -> !existing.contains(c.id() + "|" + start))
-                        .toList();
+        List<ClassChildResponse> roster = type == EvaluationPeriodType.MONTH
+                ? enrollmentService.findChildrenInClassroomDuring(cls.id(), start, minDate(end, today))
+                : enrollmentService.findChildrenInClassroom(cls.id(), minDate(end, today));
+        List<ClassChildResponse> children = roster.stream()
+                .filter(c -> !existing.contains(c.id() + "|" + start))
+                .toList();
         if (children.isEmpty()) {
             return List.of();
         }
@@ -808,20 +818,31 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 .toList();
     }
 
-    // Tên trẻ theo lớp tại ngày cuối kỳ (trẻ đã chuyển lớp sau đó vẫn có tên)
+    // Lịch sử kỳ cũ vẫn có tên trẻ dù trẻ đã chuyển lớp trong kỳ.
     private Map<String, String> childNames(Collection<ChildEvaluation> evaluations) {
         Map<String, String> names = new HashMap<>();
         evaluations.stream()
-                .map(e -> Map.entry(e.getClassroomId(), nameDate(e)))
-                .distinct()
-                .forEach(k -> enrollmentService
-                        .findChildrenInClassroom(k.getKey(), k.getValue())
-                        .forEach(c -> names.put(k.getKey() + "|" + c.id(), c.fullName())));
+                .collect(Collectors.groupingBy(ChildEvaluation::getClassroomId))
+                .forEach((classId, rows) -> {
+                    LocalDate from = rows.stream()
+                            .map(ChildEvaluation::getPeriodStart)
+                            .min(LocalDate::compareTo)
+                            .orElseThrow();
+                    LocalDate to = rows.stream()
+                            .map(ChildEvaluation::getPeriodEnd)
+                            .max(LocalDate::compareTo)
+                            .orElseThrow();
+                    enrollmentService
+                            .findChildrenInClassroomDuring(classId, from, to)
+                            .forEach(c -> names.put(classId + "|" + c.id(), c.fullName()));
+                });
         return names;
     }
 
     private ClassChildResponse childOf(ChildEvaluation ev) {
-        return enrollmentService.findChildrenInClassroom(ev.getClassroomId(), nameDate(ev)).stream()
+        return enrollmentService
+                .findChildrenInClassroomDuring(ev.getClassroomId(), ev.getPeriodStart(), ev.getPeriodEnd())
+                .stream()
                 .filter(c -> c.id().equals(ev.getChildId()))
                 .findFirst()
                 .orElse(null);
@@ -830,10 +851,6 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private String childName(ChildEvaluation ev) {
         ClassChildResponse child = childOf(ev);
         return child == null ? "" : child.fullName();
-    }
-
-    private LocalDate nameDate(ChildEvaluation e) {
-        return maxDate(e.getPeriodStart(), minDate(e.getPeriodEnd(), rules.today()));
     }
 
     // Ngày có cờ của từng trẻ (cờ chỉ ghi ở ngày trẻ có mặt)

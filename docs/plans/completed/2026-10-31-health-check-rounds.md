@@ -16,7 +16,7 @@ updated: 2026-10-31
 ## Context
 
 - User (2026-10-31): "hãy code BE cho phần đợt khám sức khỏe của tôi". FE đã có mock và contract đề xuất: `FE:docs/plans/completed/2026-10-31-health-measurement-rounds.md`, `FE:src/services/children/api/healthCheckApi.js`, `FE:src/services/children/api/childrenApi.js`.
-- BE chưa có bảng, API nào cho đợt khám hay số đo (`docs/modules/health.md` mục "API & bảng": "Chưa có"). Migration mới nhất: `V47__child_enrollment_guardian_accounts.sql`.
+- BE chưa có bảng, API nào cho đợt khám hay số đo (`docs/modules/health.md` mục "API & bảng": "Chưa có"). Migration mới nhất: `V63__child_enrollment_guardian_accounts.sql`.
 - Rule BE còn ghi theo khảo sát cũ: HLT-01 "mặc định 3 lần/năm, chu kỳ cấu hình được" (`docs/business/BUSINESS_RULES.md:128`), HLT-08 "2 lần/năm" (`:135`). User chốt lại 2026-10-31 (plan FE).
 
 ## Quyết định đã chốt
@@ -77,7 +77,7 @@ Không còn câu hỏi chặn; mặc định B1–B8 ghi ở trên.
 ## Phases
 
 ### Phase 1 — Migration, entity, repository, service, API, test
-- Files: C `V48__create_health_checks.sql`, `entity/health/*`, `repository/health/*`, `service/health/*`, `controller/health/*`, `dto/health/*`, `utils/enums/HealthCheck*.java`, test `HealthCheckIntegrationTest`; M `ApiCode`, `ChildService(+Impl)`, `SchoolStructureService(+Impl)`.
+- Files: C `V64__create_health_checks.sql`, `entity/health/*`, `repository/health/*`, `service/health/*`, `controller/health/*`, `dto/health/*`, `utils/enums/HealthCheck*.java`, test `HealthCheckIntegrationTest`; M `ApiCode`, `ChildService(+Impl)`, `SchoolStructureService(+Impl)`.
 - Exit: `node scripts/verify.mjs` → PASS.
 
 ### Phase 2 — Tài liệu

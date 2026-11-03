@@ -36,7 +36,7 @@ public class SchoolYear {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-    // Học kỳ I / II do Hiệu trưởng chọn trong khoảng năm học (V46); cả 4 null = chưa cấu hình
+    // Học kỳ I / II do Hiệu trưởng chọn trong khoảng năm học (V48); cả 4 null = chưa cấu hình
     @Column(name = "semester1_start")
     private LocalDate semester1Start;
 

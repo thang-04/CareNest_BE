@@ -17,13 +17,15 @@ public class PermissionMapper {
                 permission.module(),
                 permission.description(),
                 permission.defaultRoles().stream().sorted().toList(),
-                permission.configurableRoles().stream().sorted().toList());
+                permission.configurableRoles().stream().sorted().toList(),
+                permission.campusScoped());
     }
 
     public PermissionOverrideResponse toOverrideResponse(Permission permission, UserPermissionOverride override) {
         return new PermissionOverrideResponse(
                 permission,
                 override.getEffect(),
+                override.getScope(),
                 override.getReason(),
                 override.getCreatedBy(),
                 override.getUpdatedAt());
@@ -39,6 +41,8 @@ public class PermissionMapper {
                 log.getPermissionCode(),
                 log.getBeforeState(),
                 log.getAfterState(),
+                log.getBeforeScope(),
+                log.getAfterScope(),
                 log.getReason(),
                 log.getChangedAt());
     }

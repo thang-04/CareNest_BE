@@ -23,17 +23,17 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | | `architecture/DATA_FLOW.md` | Luồng trong/giữa module, dữ liệu nhạy cảm | FULL |
 | | `architecture/SECURITY.md` | Authz, privacy, AI data | FULL |
 | contracts | `contracts/API_CONVENTIONS.md` | URL, prefix, pagination (tóm tắt guide) | FULL |
-| | `contracts/ERROR_CONTRACT.md` | `{code, desc, data}` + ApiCode | FULL |
+| | `contracts/ERROR_CONTRACT.md` | `{code, errorCode, desc, data}` + ApiCode | FULL |
 | | `contracts/AUTH_CONTRACT.md` | Auth: Keycloak, Bearer token, 401/403 | ĐANG TRIỂN KHAI |
 | api | `api/openapi.yaml` | Snapshot hợp đồng OpenAPI, khóa bởi `OpenApiSnapshotTest` (đổi có chủ đích: `update-api.md`) | FULL |
 | api | `api/CareNest.postman_collection.json` + `CareNest-local.postman_environment.json` | Postman: mọi API hiện có + ma trận phân quyền (kiểm bằng newman) | FULL |
 | database | `database/DATABASE.md` | Nguyên tắc DB | FULL |
 | | `database/ERD.md`, `database/DATA_DICTIONARY.md` | Schema | SKELETON |
-| knowledge | `knowledge/ISSUE_INDEX.md` | **Search đầu tiên khi debug** | FULL (chưa có issue) |
+| knowledge | `knowledge/ISSUE_INDEX.md` | **Search đầu tiên khi debug** | FULL |
 | | `knowledge/incidents/_TEMPLATE.md` | Mẫu incident (status open/fixed, có Attempts) | FULL |
 | | `knowledge/CROSS_MODULE_ISSUES.md` | Rủi ro CMR + issue liên module | FULL |
 | | `knowledge/KNOWN_ISSUES.md`, `TROUBLESHOOTING.md`, `PATTERNS.md` | Giới hạn cố ý (không phải bug), lỗi môi trường/config, pattern | FULL |
-| decisions | `decisions/ADR-0001..0015`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
+| decisions | `decisions/ADR-0001..0023`, `ADR-TEMPLATE.md` | Quyết định kiến trúc | FULL |
 | plans | `plans/_TEMPLATE.md`, `plans/active/`, `plans/completed/` | Plan làn L (template + đang làm + đã xong) | FULL |
 | quality | `quality/DEFINITION_OF_DONE.md`, `VERIFICATION.md`, `TEST_STRATEGY.md`, `NFR.md` | Tiêu chí hoàn thành theo làn, bằng chứng kiểm chứng, test, NFR | FULL |
 
@@ -62,3 +62,5 @@ Người đọc: kiến trúc tài liệu AI giải thích ở `README_AI.md` (c
 | 0019 | Module kế hoạch giáo dục làm lại trên `dev` | SUPERSEDED bởi ADR-0020 (user chốt 29/10: theo code G94-226) |
 | 0020 | Module education-plan: CareNest soạn/duyệt kế hoạch giáo dục (số cũ 0017 trên G94-226) | ACCEPTED |
 | 0021 | Ba bảng mục tiêu năm học cha–con (số cũ 0019 trên G94-226) | ACCEPTED |
+| 0022 | Chặn theo nền tảng bằng client của token (`azp`) | ACCEPTED |
+| 0023 | Phạm vi quyền sửa theo mảng lưu trên ngoại lệ quyền | ACCEPTED |

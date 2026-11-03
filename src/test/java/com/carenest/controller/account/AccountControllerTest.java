@@ -88,6 +88,7 @@ class AccountControllerTest {
                         null,
                         List.of(CareNestRole.TEACHER, CareNestRole.PARENT),
                         List.of(Permission.CHILD_PROFILE_VIEW),
+                        List.of(),
                         List.of(new StaffAssignmentSummaryResponse(
                                 StaffRole.TEACHER, null, 11L, null, LocalDate.of(2026, 9, 1), null)),
                         List.of(101L),
@@ -237,6 +238,7 @@ class AccountControllerTest {
                         "Demo",
                         null,
                         List.of(CareNestRole.TEACHER),
+                        List.of(),
                         List.of(),
                         List.of(),
                         List.of(),

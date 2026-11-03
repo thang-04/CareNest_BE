@@ -24,6 +24,11 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     List<Enrollment> findActiveByClassroomIds(
             @Param("classroomIds") Collection<Long> classroomIds, @Param("date") LocalDate date);
 
+    @Query("select e from Enrollment e where e.classroomId = :classroomId"
+            + " and e.validFrom <= :to and (e.validTo is null or e.validTo >= :from)")
+    List<Enrollment> findDuring(
+            @Param("classroomId") Long classroomId, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
     // Enrollment chưa kết thúc tới ngày :date (gồm cả lớp sẽ học), dùng khi chuyển lớp
     @Query("select e from Enrollment e where e.childId = :childId and (e.validTo is null or e.validTo >= :date)")
     List<Enrollment> findOpenByChildId(@Param("childId") Long childId, @Param("date") LocalDate date);

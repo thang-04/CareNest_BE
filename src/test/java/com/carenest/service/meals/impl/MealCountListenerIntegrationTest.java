@@ -7,6 +7,7 @@ import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest.Entry;
 import com.carenest.dto.meals.MealCountResponse;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.TestPermissions;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.meals.MealCountService;
@@ -102,7 +103,8 @@ class MealCountListenerIntegrationTest {
 
         unlockService.unlockDay(
                 vp, new DayUnlockRequest(classroom, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "Quên lưu"));
-        attendanceService.saveClassAttendance(teacher, classroom, request(present(child1)));
+        // NUT-02: xác nhận cần đủ điểm danh ⇒ trẻ 2 ghi vắng trước
+        attendanceService.saveClassAttendance(teacher, classroom, request(present(child1), absent(child2)));
         MealCountResponse lunch = lunch(vp);
         service.confirm(vp, lunch.id());
 
@@ -132,10 +134,15 @@ class MealCountListenerIntegrationTest {
         return new Entry(childId, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true));
     }
 
+    private static Entry absent(long childId) {
+        return new Entry(childId, AttendanceStatus.UNEXCUSED, Map.of());
+    }
+
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        return new CurrentUser(
+                id, "kc-" + username, username, username, null, Set.of(role), TestPermissions.defaultsOf(role));
     }
 
     private long insertId(String sql) {

@@ -3,15 +3,19 @@ package com.carenest.service.organization.impl;
 import com.carenest.dto.organization.NewStaffAssignment;
 import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
+import com.carenest.entity.organization.Classroom;
+import com.carenest.entity.organization.SchoolYear;
 import com.carenest.entity.organization.StaffAssignment;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.StaffAssignmentMapper;
 import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
+import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.StaffRole;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.HashSet;
@@ -36,6 +40,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     private final StaffAssignmentMapper staffAssignmentMapper;
     private final ClassroomRepository classroomRepository;
     private final CampusRepository campusRepository;
+    private final SchoolYearRepository schoolYearRepository;
+    private final TeacherClassRules teacherClassRules;
+    private final Clock clock;
 
     @Override
     public boolean hasActivePrincipalAssignment(Long userId, LocalDate date) {
@@ -335,6 +342,15 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             if (assignment.validTo() != null && assignment.validTo().isBefore(assignment.validFrom())) {
                 throw GlobalException.of(ApiCode.ASSIGNMENT_END_BEFORE_START);
             }
+            if (assignment.substitute() && assignment.staffRole() != StaffRole.TEACHER) {
+                throw GlobalException.of(ApiCode.SUBSTITUTE_TEACHER_ONLY);
+            }
+            if (assignment.substitute() && assignment.validTo() == null) {
+                throw GlobalException.of(ApiCode.SUBSTITUTE_END_DATE_REQUIRED);
+            }
+            LocalDate validTo = assignment.staffRole() == StaffRole.TEACHER
+                    ? checkTeacherAssignment(assignment)
+                    : assignment.validTo();
             if (staffAssignmentRepository.existsOverlapping(
                     assignment.userId(),
                     assignment.staffRole(),
@@ -349,7 +365,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                     assignment.campusId(),
                     assignment.classroomId(),
                     assignment.validFrom(),
-                    assignment.validTo()));
+                    validTo,
+                    assignment.assignedBy(),
+                    assignment.substitute()));
             log.info("{}|assignmentId={}|END", logPrefix, saved.getId());
             return staffAssignmentMapper.toResponse(saved);
         } catch (RuntimeException ex) {
@@ -382,6 +400,27 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /**
+     * AUTH-24, cùng luật với PUT /classes/{id}/teachers: GV dạy chính tối đa một lớp/năm; phân công đánh dấu dạy thay
+     * được miễn. Phân công lớp không vượt quá năm học của lớp ⇒ trả về ngày kết thúc đã cắt.
+     */
+    private LocalDate checkTeacherAssignment(NewStaffAssignment assignment) {
+        Classroom classroom = classroomRepository
+                .findById(assignment.classroomId())
+                .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
+        SchoolYear year = schoolYearRepository
+                .findById(classroom.getSchoolYearId())
+                .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+        LocalDate today = LocalDate.now(clock);
+        Set<Long> teacher = Set.of(assignment.userId());
+        teacherClassRules.checkTeachers(classroom, year, teacher, today);
+        if (!assignment.substitute()) {
+            teacherClassRules.checkOneMainClass(classroom, year, teacher, today);
+        }
+        LocalDate validTo = assignment.validTo();
+        return validTo == null || validTo.isAfter(year.getEndDate()) ? year.getEndDate() : validTo;
     }
 
     // Hình dạng phạm vi khớp CHECK ck_staff_assignments_scope (V2); campus/lớp phải tồn tại

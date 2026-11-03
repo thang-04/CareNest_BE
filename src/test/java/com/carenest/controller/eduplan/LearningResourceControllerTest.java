@@ -56,7 +56,9 @@ class LearningResourceControllerTest {
                         .part(new org.springframework.mock.web.MockPart(
                                 "activitySignature", "a".repeat(64).getBytes()))
                         .part(new org.springframework.mock.web.MockPart("activityLabel", "A".getBytes()))
-                        .header("X-Request-Id", requestId.toString())
+                        // proxy hosting đặt X-Request-Id dạng ULID; khóa chống gửi trùng phải lấy từ Idempotency-Key
+                        .header("X-Request-Id", "01M6C4Y401Q2TBAJP49WXFHSVT")
+                        .header("Idempotency-Key", requestId.toString())
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.activityKey").value("9#0"));
@@ -78,7 +80,7 @@ class LearningResourceControllerTest {
                                 "file", "demo.pdf", "application/pdf", "%PDF-1.7".getBytes()))
                         .part(new org.springframework.mock.web.MockPart("activityKey", "9#0".getBytes()))
                         .part(new org.springframework.mock.web.MockPart("activityLabel", "A".getBytes()))
-                        .header("X-Request-Id", java.util.UUID.randomUUID().toString())
+                        .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value(ApiCode.REQUIRED_FIELD_MISSING.getErrorCode()))

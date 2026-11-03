@@ -1,6 +1,7 @@
 package com.carenest.entity.account;
 
 import com.carenest.utils.enums.PermissionEffect;
+import com.carenest.utils.enums.PermissionScope;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -37,6 +38,11 @@ public class UserPermissionOverride {
     @Column(nullable = false, length = 10)
     private PermissionEffect effect;
 
+    // AUTH-20: chỉ GRANT có phạm vi (CHECK DB); REVOKE luôn null
+    @Enumerated(EnumType.STRING)
+    @Column(length = 10)
+    private PermissionScope scope;
+
     @Column(nullable = false, length = 500)
     private String reason;
 
@@ -53,18 +59,34 @@ public class UserPermissionOverride {
 
     public static UserPermissionOverride create(
             Long userId, String permissionCode, PermissionEffect effect, String reason, Long createdBy) {
+        return create(userId, permissionCode, effect, defaultScope(effect), reason, createdBy);
+    }
+
+    public static UserPermissionOverride create(
+            Long userId,
+            String permissionCode,
+            PermissionEffect effect,
+            PermissionScope scope,
+            String reason,
+            Long createdBy) {
         UserPermissionOverride override = new UserPermissionOverride();
         override.userId = userId;
         override.permissionCode = permissionCode;
         override.effect = effect;
+        override.scope = scope;
         override.reason = reason;
         override.createdBy = createdBy;
         return override;
     }
 
-    public void change(PermissionEffect newEffect, String newReason, Long changedBy) {
+    public void change(PermissionEffect newEffect, PermissionScope newScope, String newReason, Long changedBy) {
         this.effect = newEffect;
+        this.scope = newScope;
         this.reason = newReason;
         this.createdBy = changedBy;
+    }
+
+    public static PermissionScope defaultScope(PermissionEffect effect) {
+        return effect == PermissionEffect.GRANT ? PermissionScope.CAMPUS : null;
     }
 }

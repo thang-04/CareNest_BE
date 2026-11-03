@@ -50,11 +50,11 @@ erDiagram
     }
     children {
         BIGINT id PK
-        VARCHAR code UK "V47"
+        VARCHAR code UK "V63"
         VARCHAR full_name
         DATE date_of_birth
-        VARCHAR status "V47: ACTIVE|PENDING_PLACEMENT|LEFT"
-        BIGINT intake_campus_id FK "V47: khi chưa có lớp"
+        VARCHAR status "V63: ACTIVE|PENDING_PLACEMENT|LEFT"
+        BIGINT intake_campus_id FK "V63: khi chưa có lớp"
     }
     enrollments {
         BIGINT id PK
@@ -95,7 +95,7 @@ erDiagram
 ```
 
 Ba bảng có ID từ sequence chung; FK cha ghép với year_plan_id/domain_id. FK goal→group kiểm sub_domain_key để sub của goal và group khớp kể cả NULL. Cấp cha tùy chọn theo user 29/10/2026; không đổi rows/kind API. Chi tiết: [ADR-0021](../decisions/ADR-0021-year-plan-goal-hierarchy.md).
-## child — tiếp nhận trẻ, phụ huynh trên hồ sơ, khai báo sức khỏe (V47)
+## child — tiếp nhận trẻ, phụ huynh trên hồ sơ, khai báo sức khỏe (V63)
 
 ```mermaid
 erDiagram
@@ -172,6 +172,7 @@ erDiagram
         BIGINT user_id FK
         VARCHAR permission_code
         VARCHAR effect "GRANT|REVOKE"
+        VARCHAR scope "CAMPUS|SCHOOL, chỉ GRANT"
         BIGINT created_by FK "khác user_id"
     }
     permission_change_log {
@@ -180,5 +181,7 @@ erDiagram
         VARCHAR target_role "hoặc target_user_id"
         VARCHAR before_state
         VARCHAR after_state
+        VARCHAR before_scope
+        VARCHAR after_scope
     }
 ```

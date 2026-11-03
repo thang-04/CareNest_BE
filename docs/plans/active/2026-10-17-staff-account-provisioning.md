@@ -5,10 +5,10 @@ owner: thangnd
 jira: G94-60 / BE-FEAT-01
 branch: feature/G94-60-BE-FEAT-01-authentication
 modules: [identity-access, school-structure]
-rules: [AUTH-01, AUTH-02, AUTH-03, AUTH-05, AUTH-06, AUTH-09, AUTH-10, AUTH-11, AUTH-12, AUTH-13]
+rules: [AUTH-01, AUTH-02, AUTH-03, AUTH-05, AUTH-06, AUTH-09, AUTH-10, AUTH-11, AUTH-12, AUTH-13, AUTH-15, AUTH-16]
 risk: high
 created: 2026-10-17
-updated: 2026-10-17
+updated: 2026-11-01
 ---
 # Cấp tài khoản nhân sự + phân công (phần B)
 
@@ -115,3 +115,10 @@ Phần A (phân quyền cấu hình được) xong ở `2026-10-16-permission-ma
 - Code FE: `services/account/{staffService.js, api/staffApi.js, mock/staffMockRepository.js}` (mock chép luật `StaffAccessPolicy`), `hooks/account/useStaff.js` (+`useStaffStructure`), `utils/account/staffValidation.js`, `components/account/AccountStatusBadge.jsx`; trang `/school/staff`, `/school/staff/new`, `/school/staff/:userId`; menu "Nhân sự" (mục nhận nhiều mã quyền); màn Ngoại lệ quyền chọn nhân sự từ `GET /accounts`; mock danh mục quyền cập nhật theo V8; sửa class `page__header` → `page__head` (class cũ không tồn tại).
 - Verify FE: `node scripts/verify.mjs` → `VERIFY PASS full`; `tests/auth/staff.test.mjs` 4/4 + `permissions.test.mjs` 5/5 pass; check-ai-layer FE 0 lỗi (4 cảnh báo có sẵn).
 - Giới hạn: chưa chạy UI trên trình duyệt, chưa nối BE thật; màn mock "Phân công PHT/GV" theo năm học giữ nguyên (mặc định e).
+### 2026-11-01 — GV tạo không chọn lớp (nhánh `dev`, chưa commit)
+- User chốt: "chỗ thêm tài khoản nhân sự ko chọn lớp, chỉ tạo thôi". Chọn phương án A (user chọn trong 3 phương án A/B/C): GV tạo không phân công; PHT gửi `assignment.campusId` chỉ để kiểm quyền; xếp lớp sau. B (chỉ HT tạo GV) và C (migration cho GV phân công cấp campus) bị loại.
+- Code: `StaffAssignmentScopeRequest` bỏ `classroomId`; `AccountProvisioningServiceImpl` GV không tạo phân công (cả gộp phụ huynh thành GV); `findTeacherRows` gồm tài khoản `primary_role = TEACHER` chưa có phân công (campus null); `TeacherAssignmentServiceImpl` cho GV chưa có điểm trường xếp vào lớp mọi điểm trường và không bị lọc mất khi lọc theo campus.
+- Giả định: GV chưa dạy lớp nào (kể cả người chỉ làm tổ trưởng) ⇒ xếp được vào lớp ở mọi điểm trường; lớp đầu tiên quyết định điểm trường. Chấp nhận: GV chưa có lớp vô hình với PHT tới khi được xếp lớp trong campus của PHT.
+- Contract: OpenAPI bỏ `StaffAssignmentScopeRequest.classroomId` (snapshot cập nhật có chủ đích, chỉ diff đó). Tác động FE: form tạo nhân sự (`StaffAccountModals.jsx`) vốn chỉ có "Điểm trường" — khi nối BE gửi `assignment: { campusId }`, GV xếp lớp sau bằng `PUT /classes/{id}/teachers` (HT) hoặc `POST /staff-assignments` (HT/PHT). APP không tạo tài khoản nhân sự.
+- Docs: `BUSINESS_RULES` AUTH-15, `AUTH_CONTRACT`, `SECURITY`, `identity-access` (pitfall), `school-structure`, `FE_MAPPING`.
+- Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 630 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`; `check-ai-layer` 0 lỗi (5 cảnh báo có sẵn ở plan khác).

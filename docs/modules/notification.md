@@ -1,6 +1,6 @@
 # Module — notification
 
-Feature: `notification` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thông báo trẻ đã được đón, danh sách trong App, đăng ký thiết bị (2026-10-31, V50); thông báo trường của BGH: thiết kế
+Feature: `notification` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thông báo trẻ đã được đón, danh sách trong App, đăng ký thiết bị (2026-10-31, V66); thông báo trường của BGH: thiết kế
 
 ## Mục đích
 Gửi thông báo (in-app, push mobile) khi domain phát event; thông báo chung của trường do BGH gửi (PAR-05).
@@ -20,7 +20,7 @@ PAR-05 (BGH gửi; push + trong App; không theo dõi đã đọc), PAR-06 (mộ
 
 ## API & bảng
 Plan `docs/plans/completed/2026-10-31-child-pickup.md`.
-- Bảng (V50): `notifications` (theo người nhận, `read_at` chỉ cho badge của chính người đó), `device_tokens` (`docs/database/DATA_DICTIONARY.md`).
+- Bảng (V66): `notifications` (theo người nhận, `read_at` chỉ cho badge của chính người đó), `device_tokens` (`docs/database/DATA_DICTIONARY.md`).
 - `NotificationService.notifyUsers(...)` — module khác gọi trong giao dịch của mình; `NotificationsCreatedEvent` ⇒ `PushDispatchListener` (after-commit) đẩy qua `integration/push/PushGateway`.
 - `PushGateway` hiện là `LoggingPushGateway` (cổng giả: chỉ log nền tảng, loại). Push provider chưa chốt (xem `CareNest_APP/docs/integration/PUSH_NOTIFICATION.md`); gắn Firebase Cloud Messaging cần project + thông tin xác thực ngoài repo.
 - API (mọi người dùng đã đăng nhập, thường là App phụ huynh): `GET /me/notifications?limit`, `POST /me/notifications/{id}/read`, `POST /me/notifications/read-all`, `PUT /me/devices`, `DELETE /me/devices`. Mã lỗi 1201.

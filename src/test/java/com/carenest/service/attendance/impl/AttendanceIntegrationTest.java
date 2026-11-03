@@ -25,8 +25,8 @@ import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
-import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.TemperatureLevel;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -109,6 +110,9 @@ class AttendanceIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private EntityManager entityManager;
+
     private CurrentUser principal;
     private CurrentUser vpA;
     private CurrentUser vpB;
@@ -167,9 +171,10 @@ class AttendanceIntegrationTest {
         assertThat(classes).extracting(AttendanceClassResponse::id).containsExactly(classA);
         assertThat(classes.getFirst().canRecord()).isTrue();
         assertThat(classes.getFirst().canUnlock()).isFalse();
+        // AUTH-20: PHT thấy lớp mọi cơ sở, chỉ mở lại được lớp cơ sở mình (ATT-08)
         assertThat(service.getClasses(vpA, null))
-                .extracting(AttendanceClassResponse::canUnlock)
-                .containsExactly(true);
+                .extracting(AttendanceClassResponse::id, AttendanceClassResponse::canUnlock)
+                .containsExactly(tuple(classA, true), tuple(classB, false));
         assertThat(service.getClasses(principal, null)).hasSize(2);
         // Năm chọn ở header là năm đã kết thúc ⇒ lớp năm đó, chỉ xem
         long closedYear = jdbc.queryForObject("SELECT id FROM school_years WHERE name = '2025-2026'", Long.class);
@@ -191,9 +196,11 @@ class AttendanceIntegrationTest {
 
         ClassAttendanceResponse sheet = service.getClassAttendance(teacherA, classA, TODAY);
         assertThat(sheet.children().getFirst().record().status()).isEqualTo(AttendanceStatus.PRESENT);
+        // ATT-02: có mặt là ăn mọi bữa của nhóm tuổi, dù client chỉ gửi bữa trưa
         assertThat(sheet.children().getFirst().record().meals())
                 .containsEntry(MealSession.LUNCH, true)
-                .containsEntry(MealSession.AFTERNOON, false);
+                .containsEntry(MealSession.AFTERNOON, true);
+        assertThat(sheet.children().getLast().record().meals()).doesNotContainValue(true);
         expectError(
                 () -> service.saveClassAttendance(teacherB, classA, request(TODAY, present(child1))),
                 ApiCode.FORBIDDEN);
@@ -253,18 +260,12 @@ class AttendanceIntegrationTest {
 
     @Test
     void rejectsInvalidEntries() {
-        expectError(
+        expectCode(
                 () -> service.saveClassAttendance(
                         teacherA,
                         classA,
                         request(TODAY, new Entry(child2, AttendanceStatus.EXCUSED, Map.of(MealSession.LUNCH, true)))),
-                ApiCode.BAD_REQUEST);
-        expectError(
-                () -> service.saveClassAttendance(
-                        teacherA,
-                        classA,
-                        request(TODAY, new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.MORNING, true)))),
-                ApiCode.BAD_REQUEST);
+                ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
         expectError(
                 () -> service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), present(child1))),
                 ApiCode.BAD_REQUEST);
@@ -281,6 +282,65 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("ATT-02: suất tính từ trạng thái — có mặt ⇒ mọi bữa của nhóm tuổi, field meals client gửi bị bỏ qua")
+    void mealsFollowAttendanceStatusAndIgnoreClientMeals() {
+        service.saveClassAttendance(
+                teacherA,
+                classA,
+                request(
+                        TODAY,
+                        new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.MORNING, true)),
+                        new Entry(child2, AttendanceStatus.PRESENT, null)));
+
+        assertThat(service.getClassAttendance(teacherA, classA, TODAY).children())
+                .allSatisfy(row -> assertThat(row.record().meals())
+                        .containsEntry(MealSession.LUNCH, true)
+                        .containsEntry(MealSession.AFTERNOON, true)
+                        .doesNotContainKey(MealSession.MORNING));
+        AttendanceService.ClassMealTally tally =
+                service.tallyMeals(TODAY, classCampus(classA), classYear(classA)).stream()
+                        .filter(t -> t.classroomId() == classA)
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(tally.meals()).containsEntry(MealSession.LUNCH, 2).containsEntry(MealSession.AFTERNOON, 2);
+        // Tắt bữa phía client (meals false) không còn bớt suất
+        var resend = service.saveClassAttendance(
+                teacherA,
+                classA,
+                request(TODAY, new Entry(child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, false))));
+        assertThat(resend.changed()).isZero();
+    }
+
+    @Test
+    @DisplayName(
+            "ATT-09: GV không tự chọn Vắng có phép; trạng thái có phép đã có (từ đơn nghỉ) vẫn đọc và gửi lại được")
+    void teacherCannotSetExcusedButKeepsExistingExcused() {
+        expectCode(
+                () -> service.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        request(TODAY, present(child1), new Entry(child2, AttendanceStatus.EXCUSED, null))),
+                ApiCode.ATTENDANCE_EXCUSED_NOT_ALLOWED);
+        assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ?", child1))
+                .isZero();
+
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), absent(child2)));
+        // Giả lập đơn nghỉ đã đặt có phép (module đơn nghỉ chưa có)
+        entityManager.flush();
+        jdbc.update("UPDATE attendance_records SET status = 'EXCUSED' WHERE child_id = ?", child2);
+        entityManager.clear();
+        var resend = service.saveClassAttendance(
+                teacherA, classA, request(TODAY, present(child1), new Entry(child2, AttendanceStatus.EXCUSED, null)));
+        assertThat(resend.changed()).isZero();
+        assertThat(service.getClassAttendance(teacherA, classA, TODAY)
+                        .children()
+                        .getLast()
+                        .record()
+                        .status())
+                .isEqualTo(AttendanceStatus.EXCUSED);
+    }
+
+    @Test
     void lockedAfterCutoffUntilUnlockedAndAfterRevoke() {
         clock.now = AFTER_CUTOFF;
         assertThat(service.getDayInfo(teacherA, TODAY, classA).locked()).isTrue();
@@ -290,16 +350,10 @@ class AttendanceIntegrationTest {
         DayUnlockRequest unlockRequest =
                 new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "  GV quên lưu  ");
         expectError(() -> unlockService.unlockDay(vpB, unlockRequest), ApiCode.FORBIDDEN);
-        // AUTH-20: xem liên cơ sở chỉ mở đường đọc, không mở lại điểm danh cơ sở khác (ATT-08)
-        CurrentUser vpBAllCampus = new CurrentUser(
-                vpB.userId(),
-                vpB.keycloakUserId(),
-                vpB.username(),
-                vpB.fullName(),
-                vpB.email(),
-                vpB.roles(),
-                Set.of(Permission.ALL_CAMPUS_VIEW));
-        expectError(() -> unlockService.unlockDay(vpBAllCampus, unlockRequest), ApiCode.FORBIDDEN);
+        // AUTH-20: PHT cơ sở B xem được điểm danh cơ sở A nhưng không mở lại được (ATT-08)
+        ClassAttendanceResponse otherCampus = service.getClassAttendance(vpB, classA, TODAY);
+        assertThat(otherCampus.classId()).isEqualTo(classA);
+        assertThat(otherCampus.canRecord()).isFalse();
         DayUnlockResponse unlock = unlockService.unlockDay(vpA, unlockRequest);
         assertThat(unlock.reason()).isEqualTo("GV quên lưu");
         assertThat(unlock.unlockedByName()).isEqualTo("vpa");
@@ -357,9 +411,12 @@ class AttendanceIntegrationTest {
         AttendanceSummaryResponse.MultiSummary all = service.getSummary(principal, null, null, TODAY, TODAY);
         assertThat(all.size()).isEqualTo(3);
         assertThat(all.days().getFirst().missing()).isEqualTo(1);
+        // AUTH-20: PHT xem tổng hợp mọi cơ sở như HT
         assertThat(service.getSummary(vpB, null, null, TODAY, TODAY).classes())
                 .extracting(AttendanceSummaryResponse.ClassTotal::classId)
-                .containsExactly(classB);
+                .containsExactlyElementsOf(all.classes().stream()
+                        .map(AttendanceSummaryResponse.ClassTotal::classId)
+                        .toList());
         expectError(() -> service.getSummary(teacherA, null, null, TODAY, TODAY), ApiCode.FORBIDDEN);
         expectError(() -> service.getClassSummary(teacherA, classA, TODAY, TODAY.plusDays(1)), ApiCode.BAD_REQUEST);
     }
@@ -481,17 +538,20 @@ class AttendanceIntegrationTest {
                 .extracting(DailyHealthResponse.Attention::childName)
                 .containsExactly("Bình");
         assertThat(all.classes()).hasSize(2);
+        // AUTH-20: PHT cơ sở B xem sức khỏe trong ngày của mọi cơ sở, chỉ xem
         assertThat(healthService.getOverview(vpB, TODAY, null, null, null, null).classes())
                 .extracting(DailyHealthResponse.ClassRow::classId)
-                .containsExactly(classB);
-        expectError(
-                () -> healthService.getOverview(
-                        vpB, TODAY, null, all.classes().getFirst().campusId(), null, null),
-                ApiCode.FORBIDDEN);
+                .containsExactlyElementsOf(all.classes().stream()
+                        .map(DailyHealthResponse.ClassRow::classId)
+                        .toList());
+        assertThat(healthService
+                        .getOverview(vpB, TODAY, null, all.classes().getFirst().campusId(), null, null)
+                        .classes())
+                .isNotEmpty();
         expectError(() -> healthService.getOverview(teacherA, TODAY, null, null, null, null), ApiCode.FORBIDDEN);
 
         assertThat(healthService.getChildHistory(vpA, child2, TODAY).entries()).hasSize(1);
-        expectError(() -> healthService.getChildHistory(vpB, child2, TODAY), ApiCode.FORBIDDEN);
+        assertThat(healthService.getChildHistory(vpB, child2, TODAY).entries()).hasSize(1);
     }
 
     @Test
@@ -523,7 +583,7 @@ class AttendanceIntegrationTest {
         assertThat(fever.checked()).isTrue();
         assertThat(fever.observation()).isEqualTo(HealthObservation.NOTED);
         assertThat(fever.temperature()).isEqualByComparingTo("39.0");
-        assertThat(fever.temperatureLevel()).isEqualTo(TemperatureLevel.VERY_HIGH);
+        assertThat(fever.temperatureLevel()).isEqualTo(TemperatureLevel.HIGH);
         assertThat(fever.symptoms()).containsExactly(HealthSymptom.FEVER);
 
         // Khám lại trong ngày: nhãn theo lần mới nhất
@@ -558,17 +618,18 @@ class AttendanceIntegrationTest {
 
     @Test
     void temperatureLevelsFollowAgreedThresholds() {
+        // Bộ Y tế: sốt khi nách ≥ 37,5 °C; nhẹ / vừa / cao / rất cao tách ở 38 / 39 / 40 °C
         assertThat(TemperatureLevel.of(null)).isNull();
         assertThat(TemperatureLevel.of(new BigDecimal("35.4"))).isEqualTo(TemperatureLevel.LOW);
         assertThat(TemperatureLevel.of(new BigDecimal("35.5"))).isEqualTo(TemperatureLevel.NORMAL);
         assertThat(TemperatureLevel.of(new BigDecimal("37.4"))).isEqualTo(TemperatureLevel.NORMAL);
-        assertThat(TemperatureLevel.of(new BigDecimal("37.5"))).isEqualTo(TemperatureLevel.WATCH);
-        assertThat(TemperatureLevel.of(new BigDecimal("37.9"))).isEqualTo(TemperatureLevel.WATCH);
-        assertThat(TemperatureLevel.of(new BigDecimal("38.0"))).isEqualTo(TemperatureLevel.FEVER);
-        assertThat(TemperatureLevel.of(new BigDecimal("38.4"))).isEqualTo(TemperatureLevel.FEVER);
-        assertThat(TemperatureLevel.of(new BigDecimal("38.5"))).isEqualTo(TemperatureLevel.HIGH);
-        assertThat(TemperatureLevel.of(new BigDecimal("38.9"))).isEqualTo(TemperatureLevel.HIGH);
-        assertThat(TemperatureLevel.of(new BigDecimal("39.0"))).isEqualTo(TemperatureLevel.VERY_HIGH);
+        assertThat(TemperatureLevel.of(new BigDecimal("37.5"))).isEqualTo(TemperatureLevel.MILD);
+        assertThat(TemperatureLevel.of(new BigDecimal("37.9"))).isEqualTo(TemperatureLevel.MILD);
+        assertThat(TemperatureLevel.of(new BigDecimal("38.0"))).isEqualTo(TemperatureLevel.MODERATE);
+        assertThat(TemperatureLevel.of(new BigDecimal("38.9"))).isEqualTo(TemperatureLevel.MODERATE);
+        assertThat(TemperatureLevel.of(new BigDecimal("39.0"))).isEqualTo(TemperatureLevel.HIGH);
+        assertThat(TemperatureLevel.of(new BigDecimal("39.9"))).isEqualTo(TemperatureLevel.HIGH);
+        assertThat(TemperatureLevel.of(new BigDecimal("40.0"))).isEqualTo(TemperatureLevel.VERY_HIGH);
     }
 
     private DailyHealthRequest health(String requestId, long childId, HealthObservation observation) {
@@ -631,6 +692,21 @@ class AttendanceIntegrationTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
                 .isEqualTo(apiCode.getHttpStatus());
+    }
+
+    private static void expectCode(ThrowingCallable call, ApiCode apiCode) {
+        assertThatThrownBy(call)
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(apiCode);
+    }
+
+    private long classCampus(long classroomId) {
+        return count("SELECT campus_id FROM classrooms WHERE id = ?", classroomId);
+    }
+
+    private long classYear(long classroomId) {
+        return count("SELECT school_year_id FROM classrooms WHERE id = ?", classroomId);
     }
 
     private long insertId(String sql) {

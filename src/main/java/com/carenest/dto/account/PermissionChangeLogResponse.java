@@ -1,6 +1,7 @@
 package com.carenest.dto.account;
 
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.PermissionScope;
 import com.carenest.utils.enums.PermissionState;
 import java.time.Instant;
 import java.util.UUID;
@@ -15,5 +16,7 @@ public record PermissionChangeLogResponse(
         String permissionCode,
         PermissionState beforeState,
         PermissionState afterState,
+        PermissionScope beforeScope,
+        PermissionScope afterScope,
         String reason,
         Instant changedAt) {}

@@ -185,6 +185,11 @@ class CurrentUserServiceTest {
                         Permission.ACCOUNT_STATUS_MANAGE,
                         Permission.STAFF_ASSIGNMENT_MANAGE,
                         Permission.PARENT_ACCOUNT_MANAGE,
+                        Permission.MEAL_COUNT_CONFIRM,
+                        Permission.NUTRITION_MANAGE,
+                        Permission.MENU_MANAGE,
+                        Permission.STOCK_MANAGE,
+                        Permission.FOOD_SAFETY_APPROVE,
                         Permission.PERMISSION_MANAGE);
         verifyNoInteractions(rolePermissionRepository, userPermissionOverrideRepository);
     }

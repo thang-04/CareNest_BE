@@ -16,11 +16,25 @@ public record CurrentUser(
         String fullName,
         String email,
         Set<CareNestRole> roles,
-        Set<Permission> permissions) {
+        Set<Permission> permissions,
+        Set<Permission> schoolWidePermissions) {
 
     public CurrentUser {
         roles = Set.copyOf(roles);
         permissions = Set.copyOf(permissions);
+        schoolWidePermissions = Set.copyOf(schoolWidePermissions);
+    }
+
+    /** Quyền không có phạm vi cả trường: mã sửa theo mảng chỉ áp ở điểm trường phân công (AUTH-20). */
+    public CurrentUser(
+            Long userId,
+            String keycloakUserId,
+            String username,
+            String fullName,
+            String email,
+            Set<CareNestRole> roles,
+            Set<Permission> permissions) {
+        this(userId, keycloakUserId, username, fullName, email, roles, permissions, Set.of());
     }
 
     /** Không mang quyền nào; dùng cho chỗ chỉ cần danh tính/role (service, policy). */
@@ -40,5 +54,9 @@ public record CurrentUser(
 
     public boolean hasPermission(Permission permission) {
         return permissions.contains(permission);
+    }
+
+    public boolean hasSchoolWidePermission(Permission permission) {
+        return schoolWidePermissions.contains(permission);
     }
 }

@@ -33,6 +33,7 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PermissionEffect;
+import com.carenest.utils.enums.PermissionScope;
 import com.carenest.utils.enums.PermissionState;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +53,7 @@ class PermissionServiceImplTest {
 
     private static final Long PRINCIPAL_ID = 1L;
     private static final Long TEACHER_ID = 20L;
+    private static final Long VICE_PRINCIPAL_ID = 30L;
 
     @Mock
     private RolePermissionRepository rolePermissionRepository;
@@ -234,8 +236,8 @@ class PermissionServiceImplTest {
         givenTarget(TEACHER_ID, "TEACHER");
         var request = new UpdatePermissionOverridesRequest(
                 List.of(
-                        new OverrideItem(Permission.CHILD_PROFILE_VIEW, PermissionEffect.GRANT),
-                        new OverrideItem(Permission.CHILD_PROFILE_VIEW, PermissionEffect.REVOKE)),
+                        new OverrideItem(Permission.CHILD_PROFILE_VIEW, PermissionEffect.GRANT, null),
+                        new OverrideItem(Permission.CHILD_PROFILE_VIEW, PermissionEffect.REVOKE, null)),
                 "trùng");
 
         assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, TEACHER_ID, request))
@@ -270,6 +272,72 @@ class PermissionServiceImplTest {
                 .isEqualTo(ApiCode.PERMISSION_LOG_FILTER_INVALID);
     }
 
+    @Test
+    @DisplayName("AUTH-20: phạm vi cả trường chỉ cho GRANT mã sửa theo mảng")
+    void schoolScopeOnlyForGrantOfCampusScopedPermission() {
+        givenTarget(VICE_PRINCIPAL_ID, "VICE_PRINCIPAL");
+        var notScoped = new UpdatePermissionOverridesRequest(
+                List.of(new OverrideItem(
+                        Permission.CHILD_PROFILE_VIEW, PermissionEffect.GRANT, PermissionScope.SCHOOL)),
+                "sai phạm vi");
+        var revokeWithScope = new UpdatePermissionOverridesRequest(
+                List.of(new OverrideItem(
+                        Permission.MEAL_COUNT_CONFIRM, PermissionEffect.REVOKE, PermissionScope.CAMPUS)),
+                "sai phạm vi");
+
+        assertThatThrownBy(() -> permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, notScoped))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.INVALID_VALUE);
+        assertThatThrownBy(() ->
+                        permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, revokeWithScope))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.INVALID_VALUE);
+        verify(userPermissionOverrideRepository, never()).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-20, AUTH-14: nâng phạm vi điểm trường lên cả trường lưu ngoại lệ và ghi lịch sử phạm vi")
+    void raisingScopeToSchoolSavesOverrideAndScopeHistory() {
+        givenTarget(VICE_PRINCIPAL_ID, "VICE_PRINCIPAL");
+        given(userPermissionOverrideRepository.findByUserId(VICE_PRINCIPAL_ID))
+                .willReturn(
+                        List.of(UserPermissionOverride.create(
+                                VICE_PRINCIPAL_ID, "MEAL_COUNT_CONFIRM", PermissionEffect.GRANT, "x", 1L)),
+                        List.of(UserPermissionOverride.create(
+                                VICE_PRINCIPAL_ID,
+                                "MEAL_COUNT_CONFIRM",
+                                PermissionEffect.GRANT,
+                                PermissionScope.SCHOOL,
+                                "x",
+                                1L)));
+        given(rolePermissionRepository.findByRoleIn(any()))
+                .willReturn(List.of(RolePermission.create(CareNestRole.VICE_PRINCIPAL, "MEAL_COUNT_CONFIRM", null)));
+        var request = new UpdatePermissionOverridesRequest(
+                List.of(new OverrideItem(
+                        Permission.MEAL_COUNT_CONFIRM, PermissionEffect.GRANT, PermissionScope.SCHOOL)),
+                "Phụ trách dinh dưỡng cả trường");
+
+        UserPermissionOverridesResponse response =
+                permissionService.updatePermissionOverrides(principal, VICE_PRINCIPAL_ID, request);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<UserPermissionOverride>> saved = ArgumentCaptor.forClass(List.class);
+        verify(userPermissionOverrideRepository).saveAll(saved.capture());
+        assertThat(saved.getValue()).singleElement().satisfies(override -> {
+            assertThat(override.getEffect()).isEqualTo(PermissionEffect.GRANT);
+            assertThat(override.getScope()).isEqualTo(PermissionScope.SCHOOL);
+        });
+        assertThat(capturedLogs()).singleElement().satisfies(log -> {
+            assertThat(log.getBeforeState()).isEqualTo(PermissionState.GRANT);
+            assertThat(log.getAfterState()).isEqualTo(PermissionState.GRANT);
+            assertThat(log.getBeforeScope()).isEqualTo(PermissionScope.CAMPUS);
+            assertThat(log.getAfterScope()).isEqualTo(PermissionScope.SCHOOL);
+        });
+        assertThat(response.overrides())
+                .singleElement()
+                .satisfies(override -> assertThat(override.scope()).isEqualTo(PermissionScope.SCHOOL));
+    }
+
     private void givenTarget(Long userId, String... realmRoles) {
         given(userAccountRepository.findById(userId)).willReturn(Optional.of(account(userId)));
         given(identityProviderClient.getRealmRoleNames("kc-" + userId)).willReturn(List.of(realmRoles));
@@ -283,7 +351,7 @@ class PermissionServiceImplTest {
 
     private static UpdatePermissionOverridesRequest revoke() {
         return new UpdatePermissionOverridesRequest(
-                List.of(new OverrideItem(Permission.CHILD_PROFILE_VIEW, PermissionEffect.REVOKE)), "Tạm dừng");
+                List.of(new OverrideItem(Permission.CHILD_PROFILE_VIEW, PermissionEffect.REVOKE, null)), "Tạm dừng");
     }
 
     private List<PermissionChangeLog> capturedLogs() {

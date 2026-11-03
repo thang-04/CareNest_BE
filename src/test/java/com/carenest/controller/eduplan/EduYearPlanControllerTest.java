@@ -14,12 +14,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
 import com.carenest.dto.common.PageResponse;
+import com.carenest.dto.eduplan.GoalFilePreviewResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.service.eduplan.EduGoalFileService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -53,6 +55,49 @@ class EduYearPlanControllerTest {
     @MockitoBean
     private EduYearPlanService eduYearPlanService;
 
+    @MockitoBean
+    private EduGoalFileService eduGoalFileService;
+
+    @Test
+    @DisplayName("EDU-46: gửi file bảng mục tiêu (multipart) trả bản xem trước")
+    void goalFilePreviewReturnsPreview() throws Exception {
+        authenticateAs(CareNestRole.TEACHER);
+        var preview = new GoalFilePreviewResponse(
+                List.of(new GoalFilePreviewResponse.Domain(
+                        "Phát triển thể chất",
+                        List.of(new GoalFilePreviewResponse.Row(
+                                "goal",
+                                "Trẻ tự phục vụ",
+                                List.of(new GoalFilePreviewResponse.Content("Tự cất đồ dùng", List.of("TMN"))))))),
+                List.of("TMN"),
+                List.of());
+        given(eduGoalFileService.preview(any(), any())).willReturn(preview);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                                GOALS + "/file-preview")
+                        .file(new org.springframework.mock.web.MockMultipartFile(
+                                "file", "muc-tieu.csv", "text/csv", "a,b".getBytes()))
+                        .with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.domains[0].rows[0].contents[0].themes[0]")
+                        .value("TMN"))
+                .andExpect(jsonPath("$.data.themeAbbrs[0]").value("TMN"));
+    }
+
+    @Test
+    @DisplayName("EDU-46: Hiệu trưởng không nhập file mục tiêu (chỉ người soạn)")
+    void principalCannotPreviewGoalFile() throws Exception {
+        authenticateAs(CareNestRole.PRINCIPAL);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                                GOALS + "/file-preview")
+                        .file(new org.springframework.mock.web.MockMultipartFile(
+                                "file", "muc-tieu.csv", "text/csv", "a,b".getBytes()))
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isForbidden());
+        verify(eduGoalFileService, never()).preview(any(), any());
+    }
+
     @Test
     void kitchenStaffIsRejectedByRole() throws Exception {
         authenticateAs(CareNestRole.KITCHEN_STAFF);
@@ -61,7 +106,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.KITCHEN_STAFF))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
         verify(eduYearPlanService, never()).getYearPlans(any(), any(), any(), any(), any());
@@ -78,7 +123,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.items").isArray());
@@ -93,7 +138,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.VICE_PRINCIPAL))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value(400));
     }
@@ -107,12 +152,54 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":\"Kế hoạch\",\"domains\":[]}"))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.code").value(201))
                 .andExpect(jsonPath("$.data.status").value("DRAFT"));
+    }
+
+    @Test
+    @DisplayName(
+            "EDU-10: X-Request-Id dạng ULID do proxy hosting đặt không làm hỏng request, khóa chống gửi trùng lấy từ Idempotency-Key")
+    void createIgnoresProxyRequestIdHeader() throws Exception {
+        CurrentUser leader = authenticateAs(CareNestRole.TEACHER);
+        given(eduYearPlanService.createYearPlan(eq(leader), any(), any())).willReturn(detail(EduPlanStatus.DRAFT));
+
+        mockMvc.perform(post(GOALS)
+                        .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .header("X-Request-Id", "01M6C4Y401Q2TBAJP49WXFHSVT")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":\"Kế hoạch\",\"domains\":[]}"))
+                .andExpect(status().isCreated());
+        verify(eduYearPlanService)
+                .createYearPlan(
+                        eq(leader),
+                        any(),
+                        eq(new com.carenest.dto.eduplan.YearPlanEditRequest(
+                                java.util.UUID.fromString("00000000-0000-0000-0000-000000000001"),
+                                0L,
+                                java.util.UUID.fromString("00000000-0000-0000-0000-000000000002"))));
+    }
+
+    @Test
+    void createWithoutIdempotencyKeyIs400NamingHeader() throws Exception {
+        authenticateAs(CareNestRole.TEACHER);
+
+        mockMvc.perform(post(GOALS)
+                        .with(token(CareNestRole.TEACHER))
+                        .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
+                        .header("X-Plan-Revision", "0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":\"Kế hoạch\",\"domains\":[]}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.REQUIRED_FIELD_MISSING.getErrorCode()))
+                .andExpect(jsonPath("$.desc").value(org.hamcrest.Matchers.containsString("Idempotency-Key")));
+        verify(eduYearPlanService, never()).createYearPlan(any(), any(), any());
     }
 
     @Test
@@ -123,7 +210,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"schoolYearId\":1,\"ageGroupId\":2,\"title\":null}"))
                 .andExpect(status().isBadRequest())
@@ -140,7 +227,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.VICE_PRINCIPAL))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002")
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"note\":\"\"}"))
                 .andExpect(status().isBadRequest())
@@ -156,7 +243,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isForbidden());
         verify(eduYearPlanService, never()).issueYearPlan(any(), any(), any(), any());
     }
@@ -171,7 +258,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.status").value("PENDING_VP"));
     }
@@ -186,7 +273,7 @@ class EduYearPlanControllerTest {
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
-                        .header("X-Request-Id", "00000000-0000-0000-0000-000000000002"))
+                        .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(409))
                 .andExpect(jsonPath("$.errorCode").value(ApiCode.YEAR_PLAN_LOCKED_BY_OTHER.getErrorCode()))
