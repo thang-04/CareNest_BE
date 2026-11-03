@@ -38,6 +38,7 @@ Kế hoạch giáo dục (đã có BE, chưa vào ma trận): `goals.view` · `g
 | `ACCOUNT_MANAGE` (tạo tài khoản, cấp lại mật khẩu tạm), `ACCOUNT_STATUS_MANAGE` (khóa/mở) | ADMIN, PRINCIPAL | VICE_PRINCIPAL (mặc định tắt; chỉ GV/bếp campus mình — AUTH-15, AUTH-17) |
 | `STAFF_ASSIGNMENT_MANAGE` (phân công) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; chỉ GV/bếp campus mình — AUTH-16) |
 | `PARENT_ACCOUNT_MANAGE` (tài khoản phụ huynh gắn trẻ, khóa/mở, mật khẩu tạm) | PRINCIPAL, VICE_PRINCIPAL | VICE_PRINCIPAL (mặc định bật; chỉ trẻ đang học trong campus mình — AUTH-18, AUTH-19) |
+| `NUTRITION_MANAGE` (danh mục bán trú: thực phẩm, món, cấu hình nhóm tuổi, NCC) | PRINCIPAL | VICE_PRINCIPAL (mặc định tắt — AUTH-20) |
 | `PERMISSION_MANAGE` | PRINCIPAL | không giao được (AUTH-11) |
 
 Theo khảo sát team 27/10 (đang triển khai — plan `2026-10-27-survey-auth-alignment.md` (chưa có trong repo)):

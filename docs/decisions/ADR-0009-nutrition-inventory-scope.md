@@ -1,6 +1,6 @@
 # ADR-0009 — Phạm vi kho/nhà cung cấp trong Nutrition
 
-- Status: **ACCEPTED — phương án B mở rộng** (kho khô theo lô, trừ một lần khi công bố thực đơn chuẩn ngày theo suất đã xác nhận; bản dự trù và kiểm nhận hàng tươi do PHT ghi; danh mục NCC; sổ lưu mẫu có PHT duyệt). Lịch sử: ACCEPTED "không kho trong V1" 03/10 → OPEN 04/10 → ACCEPTED B (bản gọn) 21/10 → thu hẹp 23/10 khi user giới hạn thiết kế mới khoảng 10–15 bảng → sửa 28/10 theo khảo sát team (user chốt) → sửa 01/11 theo sơ đồ quy trình bán trú của team (user chốt).
+- Status: **ACCEPTED — phương án B mở rộng** (kho khô theo lô, trừ một lần khi công bố thực đơn chuẩn ngày theo suất đã xác nhận; bản dự trù và kiểm nhận hàng tươi do PHT ghi; danh mục NCC; sổ lưu mẫu có PHT duyệt). Lịch sử: ACCEPTED "không kho trong V1" 03/10 → OPEN 04/10 → ACCEPTED B (bản gọn) 21/10 → thu hẹp 23/10 khi user giới hạn thiết kế mới khoảng 10–15 bảng → sửa 28/10 theo khảo sát team (user chốt) → sửa 01/11 theo sơ đồ quy trình bán trú của team (user chốt). **Sửa 02/11 (user chốt):** công bố thực đơn cả tuần, bỏ công bố thực đơn chuẩn theo ngày ⇒ các ý "trừ một lần khi công bố thực đơn chuẩn ngày" bên dưới thay bằng trừ theo ngày khi suất cơ sở được xác nhận, thiếu kho không chặn (NUT-11, P-38 user duyệt 02/11).
 - Date: 2026-10-04 (cập nhật 2026-11-01)
 - Liên quan: NUT-07, NUT-08, NUT-10..13, NUT-16, NUT-21, NUT-22; P-08, P-09 đã đóng 28/10; P-24, P-25 đã đóng 01/11; còn P-26; thiết kế bảng `MEAL_NUTRITION_AI_SCHEMA.md` (file thiết kế của dev, chưa có trong repo) §5, §13, §14
 

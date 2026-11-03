@@ -32,7 +32,7 @@ Code dùng tên tiếng Anh; UI/docs dùng tiếng Việt.
 | Sĩ số dự kiến | Expected headcount | Số trẻ dùng cho bản dự trù để đặt hàng tươi; hệ thống điền sẵn sĩ số đang học, PHT sửa (NUT-07). Không dùng để trừ kho |
 | Bản dự trù | Food estimate | Lượng thực phẩm cần theo thực đơn dự kiến × sĩ số dự kiến cho một kỳ và cơ sở; lưu, in danh sách đặt hàng (NUT-07, NUT-12) |
 | Thực đơn dự kiến ngày | Provisional daily menu | Thực đơn ngày đã cân đối, lưu trước khi chốt suất; chỉ cảnh báo kho, chưa trừ (NUT-08, NUT-11) |
-| Thực đơn chuẩn ngày | Final daily menu | Thực đơn ngày PHT công bố sau khi số suất hai cơ sở đã xác nhận; công bố thì trừ kho khô (NUT-08, NUT-11) |
+| Thực đơn tuần đã công bố | Published weekly menu | Thực đơn cả tuần PHT công bố một lần cho cả trường; không công bố theo ngày, đến ngày chỉ thêm ảnh bữa (NUT-08, chốt 02/11; thay "thực đơn chuẩn ngày") |
 | Kiểm tra đầu ngày | Morning health check | GV đo nhiệt độ, quan sát khi nhận trẻ, nhập cùng điểm danh (HLT-07) |
 | Đo sức khỏe / cân đo | HealthRecord | Chiều cao, cân nặng, tình trạng, ghi chú theo đợt; lưu mọi lần đo (HLT-13) |
 | Phân loại WHO | Growth classification | Hệ thống tự phân loại theo chuẩn WHO; GV chỉnh kèm lý do (HLT-03, HLT-10) |

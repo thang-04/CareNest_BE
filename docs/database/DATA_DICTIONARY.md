@@ -337,6 +337,56 @@ Mục đích: lịch sử sổ báo ăn (chỉ thêm). Migration: V26.
 | note | VARCHAR(200) | có | Lý do (bắt buộc khi điều chỉnh) | NUT-03 |
 | user_id, at | BIGINT FK user_accounts (có thể null: tự động), TIMESTAMPTZ | | | — |
 
+## Danh mục bán trú (module: nutrition, feature `meals`, scope: SCHOOL) — V54, V55
+Dùng chung hai điểm trường (SCH-06). Xóa = `status` `INACTIVE` (thực đơn, kho tham chiếu). Mọi bảng có `created_at`, `updated_at`; bảng sửa được có `created_by`, `updated_by` (FK `user_accounts`).
+
+| Bảng | Cột chính | Ràng buộc | Rule ID |
+| --- | --- | --- | --- |
+| allergens | code (UK), name, system_defined, sort_order | Seed 9 chất cố định | HLT-06 |
+| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price, kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), nutrient_source_version, waste_pct [0,100), storage `FRESH`/`DRY`, origin `ANIMAL`/`PLANT` (V55), note, status | CHECK nhóm, đơn vị, không âm | NUT-05, NUT-10, NUT-18, NUT-24 |
+| food_allergens | food_id, allergen_id (PK đôi) | ON DELETE CASCADE theo food | HLT-06 |
+| dishes | code (UK), name, dish_type, description, reference (món tham khảo chỉ đọc), status | | NUT-18 |
+| dish_ingredients | dish_id, food_id, age_group_id, grams_per_child (>0) | UK (dish, food, age_group) | NUT-18 |
+| age_group_meal_configs | age_group_id, effective_from, meal_price, kcal min–max, protein/lipid/glucid_pct min–max (cơ cấu P:L:G, % năng lượng), animal/plant_protein_g, animal/plant_lipid_g, glucid_g min–max (V58, gam/trẻ/ngày), morning/lunch/afternoon_kcal_pct min–max (V58, % nhu cầu năng lượng cả ngày của bữa), daily_kcal_need (V62, kcal/trẻ/ngày, > 0) — null = chưa chốt, norm_basis. V58 đổi animal_protein_pct/animal_lipid_pct (V55) sang gam rồi bỏ | UK (age_group, effective_from); min ≤ max; daily_kcal_need > 0 | NUT-17, NUT-19, NUT-24, NUT-25 |
+| suppliers | name, phone, address, id_card (dữ liệu cá nhân), delivery_person, status | | NUT-12 |
+
+Bữa trong ngày theo nhóm tuổi vẫn ở `age_groups.meal_sessions` (V16), không lặp ở `age_group_meal_configs`.
+
+## Kho khô (module: nutrition, feature `meals`, scope: CAMPUS) — V56
+Kho khô từng điểm trường theo lô (NUT-11). Tồn lô = Σ `stock_movements.quantity` của lô; bút toán không sửa, không xóa. Số lượng theo đơn vị gốc của thực phẩm (g/ml), giá theo đơn vị mua (như `foods.unit_price`).
+
+| Bảng | Cột chính | Ràng buộc | Rule ID |
+| --- | --- | --- | --- |
+| stock_receipts | campus_id, supplier_id, received_date, status `DRAFT`/`CONFIRMED`/`CANCELLED`, note, confirmed_by/at, cancelled_by/at, cancel_reason | Nháp sửa/xóa được; hủy chỉ khi lô chưa bị trừ | NUT-11 |
+| stock_receipt_lines | receipt_id (CASCADE), food_id (chỉ `DRY` — kiểm ở service), lot_no, expiry_date (≥ ngày nhận — service), quantity > 0, unit_price ≥ 0 | | NUT-10, NUT-11 |
+| stock_lots | campus_id, food_id, receipt_line_id (UK), supplier_id, lot_no, expiry_date, quantity, unit_price, received_date | Index FIFO (campus, food, expiry, id) | NUT-11 |
+| stock_movements | lot_id, campus_id, food_id, movement_type `RECEIPT`/`DEDUCT`/`ADJUST`/`SHORTFALL_DEDUCT`/`RECEIPT_CANCEL`, quantity ≠ 0 (dương vào, âm ra), meal_date (ngày ăn của bút toán trừ), receipt_id, reason, created_by (null = hệ thống) | | NUT-11, P-38 |
+
+## Kế hoạch tuần và nhu cầu kho (module: nutrition, feature `meals`) — V57
+| Bảng | Cột chính | Ràng buộc | Rule ID |
+| --- | --- | --- | --- |
+| meal_plan_weeks | week_start (thứ Hai, UK), status `DRAFT`/`PUBLISHED`, published_by/at | Công bố cả tuần một lần cho cả trường; đã công bố không sửa | NUT-08, NUT-13 |
+| meal_plan_days | week_id (CASCADE), menu_date, off (ngày không phục vụ), note | UK (week, date); luôn 5 ngày thứ 2–6 | NUT-08 |
+| meal_plan_items | day_id (CASCADE), session `MORNING`/`LUNCH`/`AFTERNOON`, menu_block `NURSERY`/`KINDERGARTEN`, dish_id, sort_order | UK (day, session, block, dish); khối suy từ `age_groups.age_to_months` ≤ 36 | NUT-13, NUT-18 |
+| menu_template_sets (V59) | name, season_label (nhãn mùa), menu_block `NURSERY`/`KINDERGARTEN`, status `ACTIVE`/`INACTIVE` | Bộ 4 tuần thứ 2–6 theo khối | NUT-13 |
+| menu_template_items (V59) | set_id (CASCADE), week_no 1–4, weekday 1–5, session, dish_id, sort_order | UK (set, week, weekday, session, dish) | NUT-13 |
+| stock_daily_demands | campus_id, meal_date, food_id, required_qty (nhu cầu theo suất đã chốt), shortfall_qty (phần thiếu chưa trừ) | UK (campus, date, food); 0 ≤ shortfall ≤ required | NUT-07, NUT-11, P-38 |
+
+## Hàng tươi: bản dự trù và kiểm nhận (module: nutrition, feature `meals`, scope: CAMPUS) — V60
+Hàng tươi (`foods.storage = FRESH`) không vào kho (NUT-12): chỉ có bản dự trù theo kỳ và kiểm nhận 2 lần/ngày. Số lượng theo đơn vị gốc (g/ml), đã cộng thải bỏ. Bảng con dùng khóa thay thế `id` + khóa duy nhất theo khóa nghiệp vụ.
+
+| Bảng | Cột chính | Ràng buộc | Rule ID |
+| --- | --- | --- | --- |
+| fresh_forecasts | campus_id, period_from, period_to, note, created_by, created_at, updated_at | CHECK from ≤ to và ≤ 31 ngày; lưu xong không sửa (đổi = lập bản mới), xóa được | NUT-07 |
+| fresh_forecast_counts | forecast_id (CASCADE), age_group_id, enrolled_count (số đang học lúc lập), expected_count (số PHT chốt) | UK (forecast, age_group); số ≥ 0 | NUT-07 |
+| fresh_forecast_lines | forecast_id (CASCADE), menu_date, food_id (chỉ `FRESH` — do service tính), quantity | UK (forecast, date, food); quantity ≥ 0 | NUT-07, NUT-10 |
+| fresh_checks | campus_id, check_date, round 1\|2, forecast_id (null ở lần 2; `ON DELETE SET NULL` — xóa bản dự trù giữ lịch sử), checked_by, checked_at, note | UK (campus, date, round) | NUT-12 |
+| fresh_check_lines | check_id (CASCADE), food_id, expected_qty (chụp lúc ghi), received_qty (không bắt buộc), result `ENOUGH`/`SHORT`/`OVER`, note | UK (check, food) | NUT-12 |
+| food_samples | campus_id, sample_date, session, sampled_at, recorded_by, status `RECORDED`/`APPROVED`, approved_by/at, disposed_at, disposal_recorded_by, disposal_status `NONE`/`RECORDED`/`APPROVED`, disposal_approved_by/at, note, created_at, updated_at | CHECK `disposal_status = NONE` ⇔ `disposed_at` null; không UK (một bữa có thể lưu nhiều lần); hủy ≥ 24 giờ sau `sampled_at` do service kiểm | NUT-21 |
+| food_sample_dishes | sample_id (CASCADE), dish_id | PK (sample, dish) | NUT-21 |
+| meal_photo_windows | session (PK), start_time, end_time, updated_by, updated_at | CHECK start < end; chung toàn trường, chưa có dòng của bữa ⇒ chưa đăng ảnh được | NUT-16 |
+| meal_photos | campus_id, photo_date, session, storage_key (UUID tệp trong kho S3), content_type, size_bytes, uploaded_by, uploaded_at | UK (campus, date, session) — đăng lại thì thay dòng và tệp; size > 0 | NUT-16 |
+
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
 

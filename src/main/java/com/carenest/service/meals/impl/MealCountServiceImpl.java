@@ -48,6 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -66,6 +67,7 @@ public class MealCountServiceImpl implements MealCountService {
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
     private final CampusAccessPolicy campusAccessPolicy;
+    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     /** Phạm vi người xem: HT toàn trường; PHT còn phân công xem mọi điểm trường (AUTH-20); bếp điểm trường mình. */
@@ -205,6 +207,8 @@ public class MealCountServiceImpl implements MealCountService {
                             MealCountHistory.of(c.getId(), MealCountHistory.CONFIRMED, currentUser.userId(), at));
                 }
                 mealCountRepository.flush();
+                // P-38: suất chốt ⇒ trừ kho khô ngày đó; nghe sau commit để lỗi kho không chặn xác nhận suất
+                eventPublisher.publishEvent(new MealCountConfirmedEvent(count.getCampusId(), count.getDate()));
             }
             MealCountResponse response = view(count, viewer, year);
             log.info("{}|END", logPrefix);

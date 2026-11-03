@@ -13,4 +13,6 @@ public interface MealCountRepository extends JpaRepository<MealCount, Long> {
 
     @EntityGraph(attributePaths = "lines")
     List<MealCount> findByCampusIdAndDate(Long campusId, LocalDate date);
+
+    List<MealCount> findByDateBetween(LocalDate from, LocalDate to);
 }
