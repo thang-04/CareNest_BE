@@ -17,6 +17,7 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.TicketType;
 import java.time.LocalDate;
@@ -71,16 +72,23 @@ public class QualityReportServiceImpl implements QualityReportService {
                 LOG_PREFIX + "|getReport|userId=" + currentUser.userId() + "|month=" + month + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!rules.isLeader(currentUser)) {
+            boolean leader = rules.isLeader(currentUser);
+            if (!leader && !currentUser.hasRole(CareNestRole.TEACHER)) {
                 throw GlobalException.of(ApiCode.QUALITY_REPORT_FORBIDDEN);
             }
             if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             LocalDate today = rules.today();
-            // PHT chỉ lớp điểm trường mình, HT toàn trường (AUTH-01, AUTH-02)
+            // HT, PHT mọi điểm trường (AUTH-20); GV lớp mình dạy, tổ trưởng thêm các lớp nhóm tuổi mình (Cần chốt
+            // 03/11)
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
+                    .filter(c -> leader
+                            ? rules.readsCampus(currentUser, c.campusId())
+                            : rules.canRecord(currentUser, c)
+                                    || rules.taughtClosedYear(currentUser, c)
+                                    || ledGroups.contains(c.ageGroupId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();
@@ -96,7 +104,11 @@ public class QualityReportServiceImpl implements QualityReportService {
             LocalDate dataEnd = today.isBefore(yearEnd) ? today : yearEnd;
             YearMonth firstMonth = YearMonth.from(yearStart);
             YearMonth lastMonth = dataEnd.isBefore(yearStart) ? firstMonth : YearMonth.from(dataEnd);
-            YearMonth m = month != null ? month : lastMonth;
+            // Mặc định tháng đã kết thúc gần nhất (tháng đang dở còn thiếu số liệu); đầu năm học thì tháng đầu
+            boolean lastOpen = !dataEnd.isBefore(yearStart) && dataEnd.isBefore(lastMonth.atEndOfMonth());
+            YearMonth m = month != null
+                    ? month
+                    : lastOpen && lastMonth.isAfter(firstMonth) ? lastMonth.minusMonths(1) : lastMonth;
             checkNotFuture(m, today);
             if (m.isBefore(firstMonth) || m.isAfter(YearMonth.from(yearEnd))) {
                 throw GlobalException.of(
@@ -161,7 +173,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                             .distinct()
                             .toList(),
                     rows,
-                    totalsOf(results, months));
+                    // Dòng tổng khối / toàn trường chỉ cho BGH
+                    leader ? totalsOf(results, months) : List.of());
             log.info("{}|classes={}|END", logPrefix, rows.size());
             return response;
         } catch (RuntimeException ex) {

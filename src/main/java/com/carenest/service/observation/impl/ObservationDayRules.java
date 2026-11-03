@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -80,6 +81,13 @@ class ObservationDayRules {
     }
 
     /** Giáo viên xem lại (chỉ xem) lớp mình từng dạy ở năm đã kết thúc. */
+    /** Nhóm tuổi người dùng đang làm tổ trưởng (AUTH-23); rỗng nếu không phải tổ trưởng. */
+    Set<Long> teamLeaderAgeGroupIds(CurrentUser user) {
+        return user.hasRole(CareNestRole.TEACHER)
+                ? staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), today())
+                : Set.of();
+    }
+
     boolean taughtClosedYear(CurrentUser user, ClassroomInfoResponse cls) {
         return cls.yearStatus() == SchoolYearStatus.CLOSED
                 && user.hasRole(CareNestRole.TEACHER)
