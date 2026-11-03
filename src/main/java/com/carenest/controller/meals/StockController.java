@@ -128,6 +128,19 @@ public class StockController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Cancel stock receipt success", receipt);
     }
 
+    @PostMapping("/days/{date}/sync")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<Void>> resyncDay(
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam Long campusId,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|resyncDay|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        stockLedgerService.resyncDay(currentUser, campusId, date);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Resync stock day success");
+    }
+
     @GetMapping("/lots")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
     public ResponseEntity<ResponseJson<List<StockLotResponse>>> getLots(

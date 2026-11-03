@@ -3671,6 +3671,31 @@ paths:
           description: OK
       tags:
       - meal-plan-controller
+  /api/nutrition/stock/days/{date}/sync:
+    post:
+      operationId: resyncDay
+      parameters:
+      - in: path
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - stock-controller
   /api/nutrition/stock/lots:
     get:
       operationId: getLots

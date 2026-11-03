@@ -12,6 +12,7 @@ import com.carenest.repository.meals.StockDailyDemandRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.DayBoardService;
+import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.organization.CampusService;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -37,6 +38,7 @@ public class DayBoardServiceImpl implements DayBoardService {
     private final MealPlanWeekRepository weekRepository;
     private final MealCountRepository mealCountRepository;
     private final StockDailyDemandRepository demandRepository;
+    private final StockLedgerService stockLedgerService;
     private final CampusService campusService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
@@ -131,14 +133,21 @@ public class DayBoardServiceImpl implements DayBoardService {
         } else if (NONE.equals(countStatus) || "PENDING_CONFIRMATION".equals(countStatus)) {
             status = "WAITING_COUNT";
         } else {
-            List<StockDailyDemand> demands = demandRepository.findByCampusIdAndMealDate(campusId, date).stream()
-                    .filter(d -> d.getRequiredQty().signum() > 0)
-                    .toList();
-            foodCount = demands.size();
-            shortfallFoods = (int) demands.stream()
-                    .filter(d -> d.getShortfallQty().signum() > 0)
-                    .count();
-            status = demands.isEmpty() ? "NOTHING_TO_DEDUCT" : shortfallFoods > 0 ? "SHORTFALL" : "DEDUCTED";
+            // Trừ kho sau commit từng lỗi: báo lệch, không để "không có thực phẩm khô" che phần chưa trừ
+            int unsynced = stockLedgerService.unsyncedFoodCount(campusId, date);
+            if (unsynced > 0) {
+                status = "NOT_SYNCED";
+                foodCount = unsynced;
+            } else {
+                List<StockDailyDemand> demands = demandRepository.findByCampusIdAndMealDate(campusId, date).stream()
+                        .filter(d -> d.getRequiredQty().signum() > 0)
+                        .toList();
+                foodCount = demands.size();
+                shortfallFoods = (int) demands.stream()
+                        .filter(d -> d.getShortfallQty().signum() > 0)
+                        .count();
+                status = demands.isEmpty() ? "NOTHING_TO_DEDUCT" : shortfallFoods > 0 ? "SHORTFALL" : "DEDUCTED";
+            }
         }
         return new DayBoardResponse.DryStock(status, foodCount, shortfallFoods, openShortfalls);
     }

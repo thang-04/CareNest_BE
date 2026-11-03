@@ -121,7 +121,7 @@ public class MealPlanServiceImpl implements MealPlanService {
             checkCanManage(currentUser);
             checkMonday(weekStart);
             MealPlanWeek week = weekRepository
-                    .findByWeekStart(weekStart)
+                    .findForUpdateByWeekStart(weekStart)
                     .orElseGet(() -> MealPlanWeek.draft(weekStart, currentUser.userId()));
             // NUT-08: đã công bố thì không sửa (ngoại lệ P-39 làm ở lát sau)
             if (week.isPublished()) {
@@ -146,7 +146,7 @@ public class MealPlanServiceImpl implements MealPlanService {
             checkCanManage(currentUser);
             checkMonday(weekStart);
             MealPlanWeek week = weekRepository
-                    .findByWeekStart(weekStart)
+                    .findForUpdateByWeekStart(weekStart)
                     .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PLAN_NOT_PUBLISHABLE, 1, "tuần chưa lập"));
             if (week.isPublished()) {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_PUBLISHED);

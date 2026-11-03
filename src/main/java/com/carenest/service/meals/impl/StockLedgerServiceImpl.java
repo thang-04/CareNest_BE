@@ -18,6 +18,7 @@ import com.carenest.entity.meals.StockDailyDemand;
 import com.carenest.entity.meals.StockLot;
 import com.carenest.entity.meals.StockMovement;
 import com.carenest.entity.meals.Supplier;
+import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.StockMapper;
 import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.FoodRepository;
@@ -32,9 +33,11 @@ import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StockMovementType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -210,6 +213,48 @@ public class StockLedgerServiceImpl implements StockLedgerService {
             for (Long foodId : foodIds) {
                 applyDemand(campusId, date, foodId, rows.get(foodId), wanted.getOrDefault(foodId, BigDecimal.ZERO));
             }
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public int unsyncedFoodCount(Long campusId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|unsyncedFoodCount|campusId=" + campusId + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, BigDecimal> wanted = dryDemand(campusId, date);
+            Map<Long, BigDecimal> stored = demandRepository.findByCampusIdAndMealDate(campusId, date).stream()
+                    .collect(Collectors.toMap(StockDailyDemand::getFoodId, StockDailyDemand::getRequiredQty));
+            Set<Long> foodIds = new TreeSet<>(wanted.keySet());
+            foodIds.addAll(stored.keySet());
+            int unsynced = (int) foodIds.stream()
+                    .filter(id ->
+                            wanted.getOrDefault(id, BigDecimal.ZERO).compareTo(stored.getOrDefault(id, BigDecimal.ZERO))
+                                    != 0)
+                    .count();
+            log.info("{}|END", logPrefix);
+            return unsynced;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public void resyncDay(CurrentUser currentUser, Long campusId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|resyncDay|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            // Người nhập kho hoặc người xác nhận suất của điểm trường được vá (AUTH-20)
+            if (!campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, campusId)
+                    && !campusAccessPolicy.canEditCampus(currentUser, Permission.MEAL_COUNT_CONFIRM, campusId)) {
+                throw GlobalException.of(ApiCode.STOCK_ACCESS_DENIED);
+            }
+            syncDay(campusId, date);
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());

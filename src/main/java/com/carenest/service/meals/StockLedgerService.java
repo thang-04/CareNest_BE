@@ -33,6 +33,15 @@ public interface StockLedgerService {
      */
     void syncDay(Long campusId, LocalDate date);
 
+    /**
+     * Số thực phẩm mà kho đã ghi cho điểm trường–ngày còn lệch nhu cầu theo thực đơn đã công bố × suất đã chốt (trừ kho
+     * sau commit từng lỗi); 0 = đã đồng bộ. Chỉ đọc.
+     */
+    int unsyncedFoodCount(Long campusId, LocalDate date);
+
+    /** Đồng bộ lại kho của điểm trường–ngày theo yêu cầu người dùng (vá lần trừ kho sau commit bị lỗi). */
+    void resyncDay(CurrentUser currentUser, Long campusId, LocalDate date);
+
     /** Trừ phần thiếu của các ngày trước (cũ trước) bằng lô mới nhập của các thực phẩm này. */
     void settleShortfalls(Long campusId, Collection<Long> foodIds, Long receiptId, Long userId);
 }

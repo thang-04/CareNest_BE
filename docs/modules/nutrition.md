@@ -39,6 +39,8 @@ P-26 (mẫu sổ lưu mẫu), P-27 (kiểm thực ba bước). Đã đóng 28/10
 - Kho khô trừ theo ngày, từng cơ sở, khi suất ngày của cơ sở được xác nhận (NUT-11, đóng P-38); lập/công bố tuần chỉ cảnh báo theo sĩ số dự kiến. Thiếu kho không chặn xác nhận suất. Xác nhận lại suất chỉ ghi phần chênh lệch — đừng trừ lại toàn bộ.
 - Sĩ số dự kiến chỉ dùng cho bản dự trù hàng tươi (NUT-07), không dùng để trừ kho.
 - Trừ kho (03/11): nhu cầu = Σ (suất đã chốt `normal + substitute` × gam/trẻ theo nhóm tuổi) ÷ (1 − thải bỏ%) cho thực phẩm `DRY`; bỏ qua lô hết hạn trước ngày ăn; `stock_daily_demands` giữ nhu cầu đã áp — `syncDay` chỉ ghi chênh lệch nên gọi lại an toàn. Suất thay thế đang tính theo món chuẩn (chưa có món thay thế dị ứng).
+- Lưu lưới và công bố khóa dòng tuần (`findForUpdateByWeekStart`), nếu không công bố có thể ra PUBLISHED với lưới chưa kiểm (test `MealPlanPublishConcurrencyIntegrationTest`).
+- Trừ kho sau commit lỗi ⇒ hub `NOT_SYNCED` (so nhu cầu tính lại với `stock_daily_demands`), vá bằng `POST /nutrition/stock/days/{date}/sync` — đừng để hub hiện `NOTHING_TO_DEDUCT` khi thiếu dòng nhu cầu.
 - Lưới kế hoạch tuần sửa tại chỗ (`MealPlanWeek.changeDays`): xóa rồi chèn lại cùng khóa trong một flush sẽ vỡ khóa duy nhất vì Hibernate chèn trước khi xóa.
 - Record lồng trong DTO phải có tên duy nhất toàn app (springdoc gộp schema theo tên đơn giản): `Line`, `Totals` đã có ở `MealCountResponse`.
 - Bếp chỉ dùng App, cả tổ dùng chung một tài khoản mỗi cơ sở (AUTH-21, AUTH-22); kiểm nhận hàng tươi và nhập kho do PHT ghi trên Web (NUT-11, NUT-12).
