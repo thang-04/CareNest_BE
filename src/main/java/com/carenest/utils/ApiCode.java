@@ -269,6 +269,7 @@ public enum ApiCode {
     UNLOCK_ALREADY_ACTIVE(4015, HttpStatus.CONFLICT, "Lớp/ngày này đang có lần mở lại còn hiệu lực"),
     UNLOCK_ALREADY_ENDED(4016, HttpStatus.CONFLICT, "Lần mở lại này đã hết hiệu lực"),
     LEAVE_AFTER_CUTOFF(4017, HttpStatus.CONFLICT, "Đã qua giờ chốt, báo nghỉ cần xác nhận lại số suất"),
+    LEAVE_TOO_LONG(4028, HttpStatus.BAD_REQUEST, "Một đơn nghỉ tối đa {0} ngày, hãy chia thành nhiều đơn"),
     LEAVE_ATTENDANCE_LOCKED(4027, HttpStatus.CONFLICT, "Phụ huynh cần hủy đơn nghỉ trước giờ chốt để điểm danh lại"),
     LEAVE_NOT_GUARDIAN(4026, HttpStatus.FORBIDDEN, "Bạn chỉ báo nghỉ được cho con mình"),
     LEAVE_DATE_RANGE_INVALID(4019, HttpStatus.BAD_REQUEST, "Ngày kết thúc không được trước ngày bắt đầu"),
@@ -655,7 +656,8 @@ public enum ApiCode {
     METHOD_NOT_ALLOWED(9008, HttpStatus.METHOD_NOT_ALLOWED, "Thao tác không được hỗ trợ"),
     RESOURCE_NOT_FOUND(9009, HttpStatus.NOT_FOUND, "Không tìm thấy dữ liệu"),
     INTERNAL_ERROR(9010, HttpStatus.INTERNAL_SERVER_ERROR, "Có lỗi hệ thống, vui lòng thử lại sau"),
-    CONFIG_MISSING(9011, HttpStatus.INTERNAL_SERVER_ERROR, "Thiếu dữ liệu cấu hình hệ thống, liên hệ quản trị");
+    CONFIG_MISSING(9011, HttpStatus.INTERNAL_SERVER_ERROR, "Thiếu dữ liệu cấu hình hệ thống, liên hệ quản trị"),
+    CONCURRENT_UPDATE(9012, HttpStatus.CONFLICT, "Dữ liệu vừa được người khác cập nhật, tải lại trang rồi thử lại");
 
     private static final DateTimeFormatter DISPLAY_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 

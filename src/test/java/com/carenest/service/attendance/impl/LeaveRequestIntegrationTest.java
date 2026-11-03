@@ -95,6 +95,9 @@ class LeaveRequestIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
+
     private CurrentUser parent;
     private CurrentUser otherParent;
     private CurrentUser principal;
@@ -195,6 +198,46 @@ class LeaveRequestIntegrationTest {
     }
 
     @Test
+    void leaveListShowsLeaveOnlyUnderTheClassChildWasInAndKeepsCancelledOnes() {
+        long leaveId = service.createLeaveRequest(parent, new CreateLeaveRequest(child1, FRI, FRI, "Ốm"))
+                .id();
+        // Trẻ chuyển sang lớp B từ thứ 6: đơn ngày thứ 6 thuộc lớp B, lớp A không thấy
+        jdbc.update("UPDATE enrollments SET valid_to = ? WHERE child_id = ?", THU, child1);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, ?)", child1, classB, FRI);
+        // Sửa thẳng bằng SQL ⇒ bỏ bản Enrollment đã nạp trong phiên JPA
+        entityManager.clear();
+
+        assertThat(service.searchLeaveRequests(teacherA, null, null, TODAY, FRI))
+                .extracting(LeaveRequestResponse::id)
+                .doesNotContain(leaveId);
+        assertThat(service.searchLeaveRequests(teacherB, null, null, TODAY, FRI))
+                .filteredOn(r -> r.id().equals(leaveId))
+                .extracting(LeaveRequestResponse::classId)
+                .containsExactly(classB);
+
+        // Đơn đã hủy hết vẫn hiện trong danh sách (giữ lịch sử đơn)
+        service.cancelLeaveRequest(parent, leaveId);
+        assertThat(service.searchLeaveRequests(teacherB, null, null, TODAY, FRI))
+                .filteredOn(r -> r.id().equals(leaveId))
+                .extracting(LeaveRequestResponse::status)
+                .containsExactly("CANCELLED");
+    }
+
+    @Test
+    void oneLeaveRequestCoversAtMostThirtyCalendarDays() {
+        // ATT-05: 30 ngày lịch tính cả ngày đầu và ngày cuối
+        assertThat(service.createLeaveRequest(
+                                parent, new CreateLeaveRequest(child1, TODAY, TODAY.plusDays(29), "Về quê"))
+                        .appliedDates())
+                .isNotEmpty();
+        expectError(
+                () -> service.createLeaveRequest(
+                        parent, new CreateLeaveRequest(child1, TODAY.plusDays(30), TODAY.plusDays(60), "Về quê")),
+                ApiCode.LEAVE_TOO_LONG);
+    }
+
+    @Test
     void onlyLinkedGuardianCanReportOrCancel() {
         expectError(
                 () -> service.createLeaveRequest(otherParent, new CreateLeaveRequest(child1, THU, THU, "Ốm")),
@@ -221,6 +264,13 @@ class LeaveRequestIntegrationTest {
         assertThat(leave.appliedDates()).containsExactly(THU);
         assertThat(count("SELECT count(*) FROM attendance_records WHERE child_id = ? AND date = '2026-10-21'", child1))
                 .isZero();
+        // Ngày bị bỏ qua không mang nhãn đơn nghỉ, nên không khóa điểm danh của GV hôm đó (ATT-05b)
+        assertThat(rowOf(attendanceService.getClassAttendance(teacherA, classA, TODAY), child1)
+                        .leave())
+                .isNull();
+        assertThat(rowOf(attendanceService.getClassAttendance(teacherA, classA, THU), child1)
+                        .leave())
+                .isNotNull();
 
         // Chỉ thứ 7, chủ nhật ⇒ không có ngày học
         expectError(
@@ -285,7 +335,14 @@ class LeaveRequestIntegrationTest {
                 .extracting(LeaveRequestResponse::childName)
                 .containsExactly("An");
         expectError(() -> service.searchLeaveRequests(teacherB, classA, null, TODAY, FRI), ApiCode.CLASS_ACCESS_DENIED);
-        expectError(() -> service.searchLeaveRequests(vpB, null, campusA, TODAY, FRI), ApiCode.CAMPUS_ACCESS_DENIED);
+        // AUTH-20: PHT xem đơn nghỉ mọi điểm trường
+        assertThat(service.searchLeaveRequests(vpB, null, campusA, TODAY, FRI)).hasSize(1);
+
+        // Trẻ đã rời lớp trước hôm nay vẫn thấy đơn trong khoảng trẻ còn học lớp (OBS-23)
+        jdbc.update("UPDATE enrollments SET valid_to = ? WHERE child_id = ?", TODAY.minusDays(1), child1);
+        assertThat(service.searchLeaveRequests(teacherA, null, null, TODAY.minusDays(7), FRI))
+                .extracting(LeaveRequestResponse::id)
+                .containsExactly(leaveId);
     }
 
     private static ClassAttendanceResponse.ChildRow rowOf(ClassAttendanceResponse sheet, long childId) {

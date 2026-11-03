@@ -1,8 +1,8 @@
 package com.carenest.service.attendance.impl;
 
+import com.carenest.config.AttendanceProperties;
 import com.carenest.dto.attendance.LeaveRequestDtos.CreateLeaveRequest;
 import com.carenest.dto.attendance.LeaveRequestDtos.LeaveRequestResponse;
-import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
@@ -25,7 +25,9 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +62,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final CampusAccessPolicy campusAccessPolicy;
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AttendanceProperties attendanceProperties;
 
     @Override
     public LeaveRequestResponse createLeaveRequest(CurrentUser currentUser, CreateLeaveRequest request) {
@@ -79,6 +82,10 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             ClassroomInfoResponse startingClass = activeClassOf(request.childId(), from);
             if (from.isBefore(startingClass.yearStart()) || to.isAfter(startingClass.yearEnd())) {
                 throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
+            }
+            // ATT-05: một đơn tối đa leaveMaxDays ngày lịch, tính cả ngày đầu và ngày cuối
+            if (ChronoUnit.DAYS.between(from, to) + 1 > attendanceProperties.leaveMaxDays()) {
+                throw GlobalException.of(ApiCode.LEAVE_TOO_LONG, attendanceProperties.leaveMaxDays());
             }
             lockClasses(request.childId(), from, to);
             for (LeaveRequest other : leaveRequestRepository.findOverlapping(List.of(request.childId()), from, to)) {
@@ -207,7 +214,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             if (end.isBefore(start)) {
                 throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
             }
-            if (campusId != null && !campusAccessPolicy.canViewCampus(currentUser, campusId)) {
+            if (campusId != null && !campusAccessPolicy.canReadCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
@@ -217,25 +224,35 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             if (classId != null && (classes.isEmpty() || !rules.canView(currentUser, classes.getFirst()))) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
-            // GV: lớp mình; PHT: lớp điểm trường mình; HT: mọi lớp (AUTH-01..03)
-            Map<Long, ClassroomInfoResponse> classOfChild = new HashMap<>();
+            // GV: lớp mình; PHT: lớp điểm trường mình; HT: mọi lớp (AUTH-01..03). Trẻ từng học lớp trong khoảng xem
+            // vẫn thấy đơn (OBS-23), nhưng chỉ đơn trùng thời gian trẻ ở lớp đó và gắn đúng lớp
+            Map<Long, List<StayInClass>> staysOfChild = new HashMap<>();
             Map<Long, String> names = new HashMap<>();
-            LocalDate rosterDay = start.isBefore(rules.today()) ? rules.today() : start;
             for (ClassroomInfoResponse c : classes) {
                 if (!rules.canView(currentUser, c)) {
                     continue;
                 }
-                for (ClassChildResponse ch : enrollmentService.findChildrenInClassroom(c.id(), rosterDay)) {
-                    classOfChild.putIfAbsent(ch.id(), c);
-                    names.putIfAbsent(ch.id(), ch.fullName());
+                enrollmentService
+                        .findChildrenInClassroomDuring(c.id(), start, end)
+                        .forEach(ch -> names.putIfAbsent(ch.id(), ch.fullName()));
+                enrollmentService
+                        .findStaysInClassroom(c.id(), start, end)
+                        .forEach(st -> staysOfChild
+                                .computeIfAbsent(st.childId(), k -> new ArrayList<>())
+                                .add(new StayInClass(c, st)));
+            }
+            List<LeaveRequestResponse> result = new ArrayList<>();
+            if (!staysOfChild.isEmpty()) {
+                for (LeaveRequest r : leaveRequestRepository.findOverlapping(staysOfChild.keySet(), start, end)) {
+                    // Đơn đã hủy hết vẫn hiện (giữ lịch sử đơn), xét theo khoảng ngày phụ huynh gửi
+                    LocalDate leaveEnd = r.effectiveTo().isBefore(r.getFromDate()) ? r.getToDate() : r.effectiveTo();
+                    staysOfChild.get(r.getChildId()).stream()
+                            .filter(x -> !x.stay().from().isAfter(leaveEnd)
+                                    && !x.stay().to().isBefore(r.getFromDate()))
+                            .min(Comparator.comparing(x -> x.stay().from()))
+                            .ifPresent(x -> result.add(toResponse(r, x.cls(), null, null, names)));
                 }
             }
-            List<LeaveRequestResponse> result = classOfChild.isEmpty()
-                    ? List.of()
-                    : leaveRequestRepository.findOverlapping(classOfChild.keySet(), start, end).stream()
-                            .filter(r -> !r.effectiveTo().isBefore(r.getFromDate()))
-                            .map(r -> toResponse(r, classOfChild.get(r.getChildId()), null, null, names))
-                            .toList();
             log.info("{}|count={}|END", logPrefix, result.size());
             return result;
         } catch (RuntimeException ex) {
@@ -243,6 +260,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             throw ex;
         }
     }
+
+    private record StayInClass(ClassroomInfoResponse cls, EnrollmentService.ClassStay stay) {}
 
     private void lockClasses(Long childId, LocalDate from, LocalDate to) {
         Set<Long> ids = new java.util.TreeSet<>();

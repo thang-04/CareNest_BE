@@ -40,6 +40,7 @@ import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.TemperatureLevel;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -159,7 +160,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                             .stream()
                             .collect(Collectors.groupingBy(DailyHealthEntry::getChildId));
             Map<Long, LeaveTag> leaves =
-                    leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day);
+                    leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day, cls);
             List<ChildRow> rows = children.stream()
                     .map(ch -> new ChildRow(
                             toBrief(ch),
@@ -220,7 +221,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     throw GlobalException.of(ApiCode.CHILD_LIST_MISMATCH);
                 }
             }
-            if (!leaveTags(seen, date).isEmpty()) {
+            if (!leaveTags(seen, date, cls).isEmpty()) {
                 throw GlobalException.of(ApiCode.LEAVE_ATTENDANCE_LOCKED);
             }
             Map<Long, AttendanceRecord> existing = recordRepository.findByChildIdInAndDate(seen, date).stream()
@@ -343,7 +344,12 @@ public class AttendanceServiceImpl implements AttendanceService {
                     campusId,
                     from,
                     to,
-                    parts.stream().mapToInt(ClassSummary::size).sum(),
+                    // OBS-23 (Z1): trẻ chuyển lớp trong khoảng chỉ đếm một lần ở sĩ số chung
+                    (int) parts.stream()
+                            .flatMap(p -> p.children().stream())
+                            .map(c -> c.child().id())
+                            .distinct()
+                            .count(),
                     days,
                     classes);
             log.info("{}|END", logPrefix);
@@ -403,13 +409,16 @@ public class AttendanceServiceImpl implements AttendanceService {
                 meals);
     }
 
-    // ATT-04: đơn nghỉ còn hiệu lực của trẻ trong ngày (đơn đã hủy từ ngày này trở đi thì không tính)
-    private Map<Long, LeaveTag> leaveTags(Set<Long> childIds, LocalDate date) {
+    // ATT-04: đơn nghỉ còn hiệu lực của trẻ trong ngày (đơn đã hủy từ ngày này trở đi thì không tính);
+    // ATT-05b: ngày đã khóa lúc tạo đơn bị bỏ qua nên không khóa điểm danh của GV ngày đó
+    private Map<Long, LeaveTag> leaveTags(Set<Long> childIds, LocalDate date, ClassroomInfoResponse cls) {
         if (childIds.isEmpty()) {
             return Map.of();
         }
+        LocalTime cutoff = rules.cutoff(cls.schoolYearId(), date);
         return leaveRequestRepository.findOverlapping(childIds, date, date).stream()
                 .filter(r -> r.coversDate(date))
+                .filter(r -> !rules.isLockedAt(date, cutoff, r.getCreatedAt()))
                 .collect(Collectors.toMap(
                         LeaveRequest::getChildId,
                         r -> new LeaveTag(r.getId(), r.getFromDate(), r.effectiveTo(), r.getReason()),
@@ -456,9 +465,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .toList();
     }
 
-    // Trẻ của lớp tại ngày cuối khoảng; ngày chưa có bản ghi tính "chưa điểm danh"
+    // Mọi trẻ từng học lớp trong khoảng; mỗi ngày chỉ tính trẻ thuộc lớp ngày đó (OBS-23)
     private ClassSummary summarize(ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
-        List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(cls.id(), to);
+        List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
+        List<ClassChildResponse> children = enrollmentService.findChildrenInClassroomDuring(cls.id(), from, to);
         List<Long> childIds = children.stream().map(ClassChildResponse::id).toList();
         Map<String, AttendanceRecord> records =
                 recordRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
@@ -475,7 +485,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                 AttendanceRecord r = records.get(ch.id() + ":" + date);
                 int[] child = perChild.get(ch.id());
                 if (r == null) {
-                    counts[3]++;
+                    if (inClass(stays, ch.id(), date)) {
+                        counts[3]++;
+                    }
                     continue;
                 }
                 int slot = r.getStatus() == AttendanceStatus.PRESENT
@@ -500,6 +512,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .toList();
         return new ClassSummary(
                 cls.id(), cls.name(), cls.campusId(), cls.mealSessions(), from, to, children.size(), days, childTotals);
+    }
+
+    private static boolean inClass(List<EnrollmentService.ClassStay> stays, Long childId, LocalDate date) {
+        return stays.stream().anyMatch(s -> s.childId().equals(childId) && s.covers(date));
     }
 
     private static int sum(List<DayRow> rows, ToIntFunction<DayRow> field) {

@@ -63,9 +63,14 @@ class AttendanceDayRules {
 
     /** ATT-06: ngày đã qua, hoặc hôm nay từ giờ chốt trở đi. */
     boolean isBaseLocked(LocalDate date, LocalTime cutoff) {
-        LocalDateTime now = LocalDateTime.now(clock);
-        LocalDate today = now.toLocalDate();
-        return date.isBefore(today) || (date.equals(today) && !now.toLocalTime().isBefore(cutoff));
+        return isLockedAt(date, cutoff, clock.instant());
+    }
+
+    /** ATT-06 tại thời điểm at (giờ trường): đơn nghỉ tạo lúc ngày đã khóa thì không áp cho ngày đó (ATT-05b). */
+    boolean isLockedAt(LocalDate date, LocalTime cutoff, Instant at) {
+        LocalDateTime when = LocalDateTime.ofInstant(at, clock.getZone());
+        LocalDate day = when.toLocalDate();
+        return date.isBefore(day) || (date.equals(day) && !when.toLocalTime().isBefore(cutoff));
     }
 
     Optional<AttendanceDayUnlock> activeUnlock(Long classroomId, LocalDate date) {

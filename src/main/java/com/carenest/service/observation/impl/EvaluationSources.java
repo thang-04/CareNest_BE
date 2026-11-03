@@ -16,6 +16,7 @@ import com.carenest.repository.observation.DailyObservationRepository;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.eduplan.EduLessonQueryService;
+import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.EatingLevel;
 import com.carenest.utils.enums.Emotion;
@@ -56,6 +57,7 @@ class EvaluationSources {
     private final DailyHealthService dailyHealthService;
     private final EduLessonQueryService eduLessonQueryService;
     private final ObjectMapper objectMapper;
+    private final ClassroomService classroomService;
 
     /** days rỗng khi không yêu cầu (danh sách / cuối năm); presentDates / flagDates cho biểu đồ tuần. */
     record ChildData(
@@ -66,39 +68,73 @@ class EvaluationSources {
             Set<LocalDate> presentDates,
             Set<LocalDate> flagDates) {}
 
+    /** Nhận xét của lớp cls: chỉ dữ liệu ghi ở lớp này (trẻ chuyển lớp giữa kỳ không lẫn ngày của lớp kia). */
     Map<Long, ChildData> load(
             ClassroomInfoResponse cls, Collection<Long> childIds, LocalDate from, LocalDate to, boolean withDays) {
+        return load(cls, childIds, from, to, withDays, true);
+    }
+
+    /** Hồ sơ phát triển: dòng thời gian của trẻ qua mọi lớp trong khoảng. */
+    Map<Long, ChildData> loadTimeline(ClassroomInfoResponse cls, Long childId, LocalDate from, LocalDate to) {
+        return load(cls, List.of(childId), from, to, true, false);
+    }
+
+    private Map<Long, ChildData> load(
+            ClassroomInfoResponse cls,
+            Collection<Long> childIds,
+            LocalDate from,
+            LocalDate to,
+            boolean withDays,
+            boolean classOnly) {
         if (childIds.isEmpty() || to.isBefore(from)) {
             return Map.of();
         }
-        Set<String> present = attendanceService.findDayStatuses(childIds, from, to).stream()
-                .filter(s -> s.status() == AttendanceStatus.PRESENT)
-                .map(s -> key(s.childId(), s.date()))
+        Set<String> present = (classOnly
+                        ? attendanceService.findClassDays(List.of(cls.id()), from, to).stream()
+                                .filter(d -> childIds.contains(d.childId()) && d.status() == AttendanceStatus.PRESENT)
+                                .map(d -> key(d.childId(), d.date()))
+                        : attendanceService.findDayStatuses(childIds, from, to).stream()
+                                .filter(d -> d.status() == AttendanceStatus.PRESENT)
+                                .map(d -> key(d.childId(), d.date())))
                 .collect(Collectors.toSet());
         Map<String, DailyObservation> observations = new HashMap<>();
         observationRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
-                .filter(o -> present.contains(key(o.getChildId(), o.getDate())))
+                .filter(o -> (!classOnly || cls.id().equals(o.getClassroomId()))
+                        && present.contains(key(o.getChildId(), o.getDate())))
                 .forEach(o -> observations.put(key(o.getChildId(), o.getDate()), o));
         Map<String, List<DailyActivityResult>> results =
                 activityResultRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
-                        .filter(r -> present.contains(key(r.getChildId(), r.getDate())))
+                        .filter(r -> (!classOnly || cls.id().equals(r.getClassroomId()))
+                                && present.contains(key(r.getChildId(), r.getDate())))
                         .collect(Collectors.groupingBy(r -> key(r.getChildId(), r.getDate())));
         Map<String, DailyHealthService.ChildDaySigns> health = new HashMap<>();
-        dailyHealthService
-                .findLatestDaySigns(childIds, from, to)
+        dailyHealthService.findLatestDaySigns(childIds, from, to).stream()
+                .filter(h -> present.contains(key(h.childId(), h.date())))
                 .forEach(h -> health.put(key(h.childId(), h.date()), h));
-        Map<LocalDate, ApprovedDayLessonResponse> lessons =
-                results.isEmpty() ? Map.of() : eduLessonQueryService.findApprovedDayLessons(cls.id(), from, to);
+        Map<Long, ClassroomInfoResponse> sourceClasses = new HashMap<>();
+        sourceClasses.put(cls.id(), cls);
+        Set<Long> sourceIds = new HashSet<>();
+        observations.values().forEach(o -> sourceIds.add(o.getClassroomId()));
+        Map<Long, List<DailyActivityResult>> byClass = results.values().stream()
+                .flatMap(List::stream)
+                .collect(Collectors.groupingBy(DailyActivityResult::getClassroomId));
+        sourceIds.addAll(byClass.keySet());
+        sourceIds.stream()
+                .filter(id -> !sourceClasses.containsKey(id))
+                .forEach(id -> classroomService.findClassroomInfo(id).ifPresent(c -> sourceClasses.put(id, c)));
         Map<DailyActivityResult, com.carenest.dto.observation.DailySheetResponse.ActivityResult> projected =
-                AssessmentResultProjection.project(
-                        eduLessonQueryService,
-                        lessons,
-                        results.values().stream().flatMap(List::stream).toList());
+                new HashMap<>();
         Map<Long, ApprovedDayLessonResponse.Goal> goals = new HashMap<>();
-        lessons.values().stream()
-                .flatMap(d -> d.activities().stream())
-                .flatMap(a -> a.goals().stream())
-                .forEach(g -> goals.putIfAbsent(g.id(), g));
+        // Mỗi kết quả dùng giáo án của lớp đã ghi, không chiếu lịch sử sang giáo án lớp mới.
+        byClass.forEach((classId, classResults) -> {
+            Map<LocalDate, ApprovedDayLessonResponse> lessons =
+                    eduLessonQueryService.findApprovedDayLessons(classId, from, to);
+            projected.putAll(AssessmentResultProjection.project(eduLessonQueryService, lessons, classResults));
+            lessons.values().stream()
+                    .flatMap(d -> d.activities().stream())
+                    .flatMap(a -> a.goals().stream())
+                    .forEach(g -> goals.putIfAbsent(g.id(), g));
+        });
 
         Map<Long, ChildData> data = new LinkedHashMap<>();
         for (Long childId : childIds) {
@@ -123,6 +159,7 @@ class EvaluationSources {
                             health,
                             goals,
                             projected,
+                            sourceClasses,
                             withDays));
         }
         return data;
@@ -139,13 +176,16 @@ class EvaluationSources {
             Map<String, DailyHealthService.ChildDaySigns> health,
             Map<Long, ApprovedDayLessonResponse.Goal> goals,
             Map<DailyActivityResult, com.carenest.dto.observation.DailySheetResponse.ActivityResult> projected,
+            Map<Long, ClassroomInfoResponse> sourceClasses,
             boolean withDays) {
         int healthDays = 0;
         int normalDays = 0;
         Set<LocalDate> flagDates = new TreeSet<>();
         Map<HealthSymptom, Integer> signDays = new EnumMap<>(HealthSymptom.class);
         Map<MealSession, Map<EatingLevel, Integer>> meals = new EnumMap<>(MealSession.class);
-        for (MealSession s : cls.mealSessions()) {
+        Set<MealSession> sourceSessions = new TreeSet<>(cls.mealSessions());
+        sourceClasses.values().forEach(c -> sourceSessions.addAll(c.mealSessions()));
+        for (MealSession s : sourceSessions) {
             Map<EatingLevel, Integer> levels = new EnumMap<>(EatingLevel.class);
             for (EatingLevel l : EatingLevel.values()) {
                 levels.put(l, 0);
@@ -210,7 +250,15 @@ class EvaluationSources {
                         met,
                         effort,
                         notMet,
-                        o == null ? "" : o.getComment()));
+                        o == null ? "" : o.getComment(),
+                        o != null ? o.getClassroomId() : rs.getFirst().getClassroomId(),
+                        sourceClasses
+                                .getOrDefault(
+                                        o != null
+                                                ? o.getClassroomId()
+                                                : rs.getFirst().getClassroomId(),
+                                        cls)
+                                .name()));
             }
         }
         Map<String, GoalCount> byGoal = new LinkedHashMap<>();

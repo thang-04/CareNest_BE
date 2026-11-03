@@ -390,7 +390,10 @@ class DailyAssessmentIntegrationTest {
         assertThat(reopened.unlock().id()).isEqualTo(opened.id());
         service.saveGeneral(teacherA, classA, general(YESTERDAY, child1, "Bổ sung"));
 
-        assertThat(unlockService.getUnlocks(vpB, null, null, null, null, null)).isEmpty();
+        // PHT điểm trường khác xem được lịch sử mở lại (chỉ xem), không mở/thu hồi được
+        assertThat(unlockService.getUnlocks(vpB, null, null, null, null, null))
+                .extracting(AssessmentDayUnlockResponse::id)
+                .containsExactly(opened.id());
         assertThat(unlockService.getUnlocks(principal, campusA, classA, true, YESTERDAY, YESTERDAY))
                 .extracting(AssessmentDayUnlockResponse::id)
                 .containsExactly(opened.id());
@@ -453,14 +456,19 @@ class DailyAssessmentIntegrationTest {
         assertThat(week.start()).isEqualTo(LocalDate.of(2026, 10, 26));
         assertThat(week.end()).isEqualTo(LocalDate.of(2026, 10, 30));
         assertThat(week.schoolDays()).isEqualTo(3);
-        assertThat(week.rows()).singleElement().satisfies(r -> {
-            assertThat(r.classId()).isEqualTo(classA);
-            assertThat(r.present()).isEqualTo(2);
-            assertThat(r.assessed()).isEqualTo(1);
-            assertThat(r.assessedDays()).isEqualTo(1);
-            // Thứ 2, thứ 3 đã qua và chưa mở lại
-            assertThat(r.lockedDays()).isEqualTo(2);
-        });
+        // AUTH-20 (Cần chốt 03/11/2026): PHT xem tổng quan mọi điểm trường
+        assertThat(week.rows()).extracting(r -> r.classId()).contains(classA, classB);
+        assertThat(week.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.classId()).isEqualTo(classA);
+                    assertThat(r.present()).isEqualTo(2);
+                    assertThat(r.assessed()).isEqualTo(1);
+                    assertThat(r.assessedDays()).isEqualTo(1);
+                    // Thứ 2, thứ 3 đã qua và chưa mở lại
+                    assertThat(r.lockedDays()).isEqualTo(2);
+                });
         assertThat(overviewService
                         .getOverview(principal, "MONTH", null, null, null, null)
                         .start())
@@ -477,7 +485,9 @@ class DailyAssessmentIntegrationTest {
         expectCode(
                 () -> overviewService.getOverview(teacherA, "DAY", null, null, null, null),
                 ApiCode.ASSESSMENT_OVERVIEW_FORBIDDEN);
-        expectCode(() -> overviewService.getClassDetail(vpB, classA, "DAY"), ApiCode.CLASS_ACCESS_DENIED);
+        // AUTH-20: PHT điểm trường khác xem chi tiết lớp; giáo viên không phải lớp mình vẫn bị chặn
+        assertThat(overviewService.getClassDetail(vpB, classA, "DAY").classId()).isEqualTo(classA);
+        expectCode(() -> overviewService.getClassDetail(teacherA, classA, "DAY"), ApiCode.CLASS_ACCESS_DENIED);
         expectCode(() -> overviewService.getOverview(principal, "YEAR", null, null, null, null), ApiCode.INVALID_VALUE);
     }
 
@@ -498,8 +508,8 @@ class DailyAssessmentIntegrationTest {
                         .getFirst()
                         .text())
                 .isEqualTo("Updated class note");
-        assertThatThrownBy(() -> overviewService.getClassDetail(vpB, classA, "DAY"))
-                .isInstanceOf(GlobalException.class);
+        // AUTH-20: PHT điểm trường khác xem được chi tiết lớp (chỉ xem)
+        assertThat(overviewService.getClassDetail(vpB, classA, "DAY").classId()).isEqualTo(classA);
         attendance(child1, classA, TODAY);
         service.saveGeneral(teacherA, classA, general(TODAY, child1, "Child note"));
         assertThat(service.getDailySheet(teacherA, classA, TODAY).classComment().text())
@@ -702,7 +712,7 @@ class DailyAssessmentIntegrationTest {
                     assertThat(r.avgPresent()).isEqualTo(1);
                 });
         assertThat(qualityReports
-                        .getReport(vpA, null, java.time.YearMonth.of(2026, 9), null)
+                        .getReport(vpA, null, java.time.YearMonth.of(2026, 9), campusA)
                         .rows())
                 .allMatch(r -> r.campusId().equals(campusA));
     }

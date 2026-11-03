@@ -96,9 +96,14 @@ class ObservationDayRules {
         return user.hasRole(CareNestRole.PRINCIPAL) || user.hasRole(CareNestRole.VICE_PRINCIPAL);
     }
 
-    /** HT mọi điểm trường, PHT điểm trường mình (AUTH-01, AUTH-02). */
+    /** Ghi (xét duyệt, mở lại ngày): HT mọi điểm trường, PHT điểm trường mình (AUTH-01, AUTH-02). */
     boolean leadsCampus(CurrentUser user, Long campusId) {
         return isLeader(user) && campusAccessPolicy.canViewCampus(user, campusId);
+    }
+
+    /** Xem: HT và PHT xem mọi điểm trường (AUTH-20, Cần chốt 03/11/2026 cho cả Đánh giá trẻ). */
+    boolean readsCampus(CurrentUser user, Long campusId) {
+        return isLeader(user) && campusAccessPolicy.canReadCampus(user, campusId);
     }
 
     List<ClassCommentResponse> commentViews(List<ClassDailyComment> comments) {

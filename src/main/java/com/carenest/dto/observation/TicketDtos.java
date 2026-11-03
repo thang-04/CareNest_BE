@@ -39,7 +39,9 @@ public final class TicketDtos {
             Integer flagCount,
             Integer weeklyTickets,
             boolean eligible,
-            IssuedTicket ticket) {}
+            IssuedTicket ticket,
+            boolean issuedElsewhere,
+            boolean canIssue) {}
 
     /** periods: các kỳ đã kết thúc, mới nhất trước; period null khi chưa có kỳ nào kết thúc. */
     public record TicketBoardResponse(
