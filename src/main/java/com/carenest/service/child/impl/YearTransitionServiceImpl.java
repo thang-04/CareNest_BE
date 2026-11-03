@@ -18,6 +18,7 @@ import com.carenest.repository.child.ClassPlacementRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.child.ProgramCompletionLookup;
 import com.carenest.service.child.YearTransitionService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -66,6 +67,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     private final Clock clock;
     private final DevActivationProperties devActivation;
     private final ApplicationEventPublisher eventPublisher;
+    private final List<ProgramCompletionLookup> programCompletionLookups;
 
     @Override
     @Transactional(readOnly = true)
@@ -82,6 +84,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
             Board board = loadBoard(setup);
             Map<Long, Long> nextGroups = nextAgeGroups(setup.ageGroups());
+            Map<Long, Boolean> completion = graduatingCompletion(setup, board, nextGroups);
             List<PlacementBoardResponse.SourceClass> classes = setup.sourceClasses().stream()
                     .map(c -> {
                         Long next = nextGroups.get(c.ageGroupId());
@@ -92,7 +95,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                                         child.getFullName(),
                                         null,
                                         child.getDateOfBirth(),
-                                        board.placementOf(child.getId())))
+                                        board.placementOf(child.getId()),
+                                        completion.get(child.getId())))
                                 .sorted(Comparator.comparing(PlacementBoardResponse.ChildPlacement::fullName))
                                 .toList();
                         return new PlacementBoardResponse.SourceClass(
@@ -203,7 +207,9 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             Map<Long, Long> nextGroups = nextAgeGroups(setup.ageGroups());
             int promoted = 0;
             int graduated = 0;
+            int undecided = 0;
             List<AutoPlaceResponse.Unplaced> unplaced = new ArrayList<>();
+            Map<Long, Boolean> completion = graduatingCompletion(setup, board, nextGroups);
             // Cả lớp lên nhóm tuổi kế tiếp, vào lớp còn nhiều chỗ nhất; nhóm lớn nhất ra trường. Trẻ đã xếp giữ nguyên
             for (YearSetupResponse.SetupClass from : setup.sourceClasses()) {
                 if ((request.campusId() != null && !request.campusId().equals(from.campusId()))
@@ -224,8 +230,13 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                         continue;
                     }
                     if (next == null) {
-                        board.place(child.getId(), from.id(), PlacementAction.GRADUATE, null, currentUser.userId());
-                        graduated++;
+                        // Chỉ trẻ đã hoàn thành chương trình tự ra trường; còn lại Hiệu trưởng chọn ra trường / ở lại
+                        if (Boolean.TRUE.equals(completion.get(child.getId()))) {
+                            board.place(child.getId(), from.id(), PlacementAction.GRADUATE, null, currentUser.userId());
+                            graduated++;
+                        } else {
+                            undecided++;
+                        }
                         continue;
                     }
                     Long target = board.suggestTarget(from.campusId(), next);
@@ -241,7 +252,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                 }
             }
             classPlacementRepository.flush();
-            AutoPlaceResponse response = new AutoPlaceResponse(promoted, graduated, unplaced);
+            AutoPlaceResponse response = new AutoPlaceResponse(promoted, graduated, undecided, unplaced);
             log.info("{}|promoted={}|graduated={}|END", logPrefix, promoted, graduated);
             return response;
         } catch (RuntimeException ex) {
@@ -582,6 +593,21 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     }
 
     /** Trạng thái xếp lớp trong một lần xử lý: trẻ của năm nguồn, kết quả đã xếp, chỗ đã dùng ở lớp năm mới. */
+    // Kết quả hoàn thành chương trình của trẻ ở lớp nhóm tuổi lớn nhất (năm nguồn), từ đánh giá cuối năm
+    private Map<Long, Boolean> graduatingCompletion(YearSetupResponse setup, Board board, Map<Long, Long> nextGroups) {
+        if (setup.sourceYear() == null || programCompletionLookups.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> childIds = setup.sourceClasses().stream()
+                .filter(c -> c.ageGroupId() != null && nextGroups.get(c.ageGroupId()) == null)
+                .flatMap(c -> board.childrenOf(c.id()).stream())
+                .map(Child::getId)
+                .toList();
+        return programCompletionLookups
+                .getFirst()
+                .programCompletion(setup.sourceYear().id(), childIds);
+    }
+
     private final class Board {
         private final YearSetupResponse setup;
         private final Map<Long, Long> childClass = new HashMap<>();
