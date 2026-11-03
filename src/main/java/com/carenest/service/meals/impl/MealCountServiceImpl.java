@@ -142,8 +142,10 @@ public class MealCountServiceImpl implements MealCountService {
                 mealCountRepository.findByCampusIdInAndDate(campusIds, day).stream()
                         .filter(c -> c.getSchoolYearId().equals(year.id()))
                         .forEach(c -> stored.put(key(c.getCampusId(), c.getSession()), c));
-                // Qua giờ chốt: tổng hợp sổ của ngày một lần (NUT-01), sau đó số chỉ đổi qua xác nhận/điều chỉnh
-                if (info.baseLocked() && year.active()) {
+                // Qua giờ chốt: tổng hợp sổ của ngày một lần (NUT-01), sau đó số chỉ đổi qua xác nhận/điều chỉnh.
+                // Ngày đã qua chỉ xem (NUT-03, user chốt 03/11/2026): không tạo sổ mới cho ngày cũ
+                boolean pastDay = day.isBefore(info.today());
+                if (info.baseLocked() && year.active() && !pastDay) {
                     campusIds.forEach(campusId -> aggregateMissing(year, campusId, day, stored));
                 }
                 Map<Long, ClassroomInfoResponse> classById = year.classById();
@@ -158,8 +160,8 @@ public class MealCountServiceImpl implements MealCountService {
                             if (viewer.reviews(campusId) || count.isConfirmed()) {
                                 counts.add(toView(count, viewer, year, classById, names, history));
                             }
-                        } else if (!info.baseLocked() && year.active() && viewer.reviews(campusId)) {
-                            // Trước giờ chốt: số tạm tính để PHT theo dõi, chưa lưu
+                        } else if ((!info.baseLocked() || pastDay) && year.active() && viewer.reviews(campusId)) {
+                            // Trước giờ chốt: số tạm tính để PHT theo dõi; ngày đã qua chưa có sổ: chỉ xem, không lưu
                             if (preview == null) {
                                 preview = attendanceService.tallyMeals(day, campusId, year.id());
                             }
@@ -191,6 +193,7 @@ public class MealCountServiceImpl implements MealCountService {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
             Year year = editableYear(count.getSchoolYearId());
+            checkNotPastDay(count.getDate(), count.hasPending());
             // NUT-02, ATT-06: xác nhận theo cơ sở–ngày — một lần cho mọi bữa còn chờ của cơ sở trong ngày
             List<MealCount> pending =
                     mealCountRepository.findByCampusIdAndDate(count.getCampusId(), count.getDate()).stream()
@@ -236,6 +239,7 @@ public class MealCountServiceImpl implements MealCountService {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_NOT_FOUND);
             }
             Year year = editableYear(counts.getFirst().getSchoolYearId());
+            checkNotPastDay(request.date(), counts.stream().anyMatch(MealCount::hasPending));
             // NUT-02: suất thường chỉ đổi qua điểm danh (mở lại — ATT-08); normal null hoặc bằng số hiện tại = giữ
             // nguyên
             if (request.normal() != null
@@ -439,6 +443,13 @@ public class MealCountServiceImpl implements MealCountService {
         return userIds.isEmpty() ? Map.of() : accountService.findFullNames(userIds);
     }
 
+    // Ngày đã qua chỉ xem; trừ sổ đang chờ xác nhận lại sau khi mở lại điểm danh (ATT-07, NUT-03)
+    private void checkNotPastDay(LocalDate date, boolean reconfirmation) {
+        if (date.isBefore(LocalDate.now(clock)) && !reconfirmation) {
+            throw GlobalException.of(ApiCode.MEAL_COUNT_PAST_DAY);
+        }
+    }
+
     private MealCountResponse toView(
             MealCount count,
             Viewer viewer,
@@ -447,8 +458,13 @@ public class MealCountServiceImpl implements MealCountService {
             Map<Long, String> names,
             Map<Long, List<MealCountHistory>> history) {
         boolean reviewer = viewer.reviews(count.getCampusId());
+        // Đang chờ xác nhận lại: kèm số đã chốt của từng lớp để người duyệt thấy thay đổi
+        Map<Long, MealCountLine> confirmed = reviewer && count.hasPending()
+                ? count.visibleLines(false).stream()
+                        .collect(Collectors.toMap(MealCountLine::getClassroomId, l -> l, (a, b) -> a))
+                : Map.of();
         List<Line> lines = count.visibleLines(reviewer).stream()
-                .map(l -> toLine(l, classById))
+                .map(l -> toLine(l, classById, confirmed.get(l.getClassroomId())))
                 .toList();
         MealCountStatus status = reviewer ? count.reviewStatus() : count.getStatus();
         List<Adjustment> adjustments = history.getOrDefault(count.getId(), List.of()).stream()
@@ -479,8 +495,15 @@ public class MealCountServiceImpl implements MealCountService {
                 lines,
                 totals(lines),
                 reviewer ? adjustments : List.of(),
-                year.active() && viewer.confirms(count.getCampusId()) && status == MealCountStatus.PENDING_CONFIRMATION,
-                year.active() && viewer.adjusts(count.getCampusId()));
+                year.active()
+                        && viewer.confirms(count.getCampusId())
+                        && status == MealCountStatus.PENDING_CONFIRMATION
+                        && editableDay(count),
+                year.active() && viewer.adjusts(count.getCampusId()) && editableDay(count));
+    }
+
+    private boolean editableDay(MealCount count) {
+        return !count.getDate().isBefore(LocalDate.now(clock)) || count.hasPending();
     }
 
     private static MealCountResponse toPreview(
@@ -500,7 +523,9 @@ public class MealCountServiceImpl implements MealCountService {
                         t.absent(),
                         t.missing(),
                         t.meals().getOrDefault(session, 0),
-                        0))
+                        0,
+                        null,
+                        null))
                 .toList();
         return new MealCountResponse(
                 null,
@@ -522,7 +547,7 @@ public class MealCountServiceImpl implements MealCountService {
                 false);
     }
 
-    private static Line toLine(MealCountLine l, Map<Long, ClassroomInfoResponse> classById) {
+    private static Line toLine(MealCountLine l, Map<Long, ClassroomInfoResponse> classById, MealCountLine confirmed) {
         ClassroomInfoResponse cls = classById.get(l.getClassroomId());
         return new Line(
                 l.getClassroomId(),
@@ -532,7 +557,9 @@ public class MealCountServiceImpl implements MealCountService {
                 l.getAbsent(),
                 l.getMissing(),
                 l.getNormal(),
-                l.getSubstitute());
+                l.getSubstitute(),
+                confirmed == null ? null : confirmed.getNormal(),
+                confirmed == null ? null : confirmed.getSubstitute());
     }
 
     private static Totals totals(List<Line> lines) {
