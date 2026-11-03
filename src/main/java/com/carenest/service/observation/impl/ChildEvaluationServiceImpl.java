@@ -116,7 +116,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             if (month != null && !years.isEmpty()) {
                 checkMonth(month, years.getFirst());
             }
-            for (ClassroomInfoResponse cls : visible) {
+            for (ClassroomInfoResponse cls : visible.stream()
+                    .sorted(Comparator.comparing(ClassroomInfoResponse::id))
+                    .toList()) {
                 if (cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)) {
                     ensureDrafts(cls, type);
                 }

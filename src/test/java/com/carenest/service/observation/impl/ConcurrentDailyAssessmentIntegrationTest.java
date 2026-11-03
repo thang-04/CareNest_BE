@@ -100,6 +100,9 @@ class ConcurrentDailyAssessmentIntegrationTest {
     private AttendanceService attendanceService;
 
     @Autowired
+    private com.carenest.service.attendance.LeaveRequestService leaveService;
+
+    @Autowired
     private DailyHealthService healthService;
 
     @Autowired
@@ -215,6 +218,37 @@ class ConcurrentDailyAssessmentIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "SELECT comment FROM daily_observations WHERE child_id = ?", String.class, child1))
                 .isEqualTo("General saved");
+
+        // Thứ tự tên ngược ID: đơn nghỉ đi qua hai lớp trong khi danh sách đánh giá cũng khóa cả hai.
+        jdbc.update("UPDATE classrooms SET name = 'Z' WHERE id = ?", classA);
+        jdbc.update("UPDATE classrooms SET campus_id = ?, name = 'A' WHERE id = ?", campusA, classB);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) VALUES (?, 'TEACHER', ?, '2026-09-01', false)",
+                teacherA.userId(),
+                classB);
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = ? WHERE child_id = ? AND classroom_id = ?", TODAY, child1, classA);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, ?)",
+                child1,
+                classB,
+                TODAY.plusDays(1));
+        var parent = user("parent-lock", CareNestRole.PARENT);
+        jdbc.update(
+                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                parent.userId(),
+                child1);
+        race(
+                () -> evaluations.list(teacherA, com.carenest.utils.enums.EvaluationPeriodType.YEAR, null, null, null),
+                () -> leaveService.createLeaveRequest(
+                        parent,
+                        new com.carenest.dto.attendance.LeaveRequestDtos.CreateLeaveRequest(
+                                child1, TODAY, TODAY.plusDays(1), "Demo leave")));
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM attendance_records WHERE child_id = ? AND status = 'EXCUSED'",
+                        Integer.class,
+                        child1))
+                .isEqualTo(2);
     }
 
     private void race(Runnable first, Runnable second) throws Exception {

@@ -54,16 +54,14 @@ final class GoalFileGrid {
         }
     }
 
-    private static final long MAX_ENTRY_BYTES = 20L * 1024 * 1024;
+    // Giới hạn dữ liệu mở rộng trước khi cấp phát DOM, kể cả entry không dùng.
+    private static final long MAX_ENTRY_BYTES = 8L * 1024 * 1024;
+    private static final long MAX_ARCHIVE_BYTES = 32L * 1024 * 1024;
+    private static final int MAX_ZIP_ENTRIES = 256;
     private static final int MAX_DOC_BYTES = 2 * 1024 * 1024;
     private static final int MAX_COLUMNS = 256;
     private static final byte[] OLE_HEADER = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0};
-    private static final Pattern HTML_ROW =
-            Pattern.compile("<tr\\b[^>]*>(.*?)</tr>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Pattern HTML_CELL =
-            Pattern.compile("<(td|th)\\b([^>]*)>(.*?)</\\1>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
-    private static final Pattern HTML_TABLE =
-            Pattern.compile("<table\\b[^>]*>(.*?)</table>", Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern HTML_TAG = Pattern.compile("<(/?)([a-zA-Z][a-zA-Z0-9]*)\\b([^<>]*+)>");
     private static final Pattern XLSX_REF = Pattern.compile("([A-Z]+)(\\d+)");
 
     private GoalFileGrid() {}
@@ -100,16 +98,21 @@ final class GoalFileGrid {
                 text = head.toString();
             } else if (name.endsWith(".doc") || name.endsWith(".html") || name.endsWith(".htm")) {
                 String html = decode(bytes);
-                Matcher tables = HTML_TABLE.matcher(html);
-                while (tables.find()) {
-                    String header = Normalizer.normalize(htmlText(tables.group()), Normalizer.Form.NFC)
+                StringBuilder outside = new StringBuilder();
+                int cursor = 0;
+                boolean goalTable = false;
+                for (HtmlBlock table : htmlBlocks(html, GoalFileTable.MAX_ROWS, "table")) {
+                    outside.append(html, cursor, table.start());
+                    String header = Normalizer.normalize(htmlText(table.body(html)), Normalizer.Form.NFC)
                             .toLowerCase(Locale.ROOT);
                     if (header.contains("mục tiêu") && header.contains("nội dung")) {
-                        html = html.substring(0, tables.start());
+                        goalTable = true;
                         break;
                     }
+                    cursor = table.end();
                 }
-                text = htmlText(HTML_TABLE.matcher(html).replaceAll(""));
+                if (!goalTable) outside.append(html, cursor, html.length());
+                text = htmlText(outside.toString());
             } else {
                 return "";
             }
@@ -406,32 +409,28 @@ final class GoalFileGrid {
 
     private static List<Table> html(String text) {
         List<Table> tables = new ArrayList<>();
-        Matcher tm = HTML_TABLE.matcher(text);
         int rowCount = 0;
-        while (tm.find()) {
+        for (HtmlBlock table : htmlBlocks(text, GoalFileTable.MAX_ROWS, "table")) {
+            String tableText = table.body(text);
             List<List<Cell>> rows = new ArrayList<>();
             // Ô rowspan còn phải phủ xuống các dòng sau: cột -> [số dòng còn lại, chữ]
             Map<Integer, Object[]> pending = new HashMap<>();
-            Matcher rm = HTML_ROW.matcher(tm.group(1));
-            while (rm.find()) {
+            for (HtmlBlock sourceRow : htmlBlocks(tableText, GoalFileTable.MAX_ROWS, "tr")) {
+                String rowText = sourceRow.body(tableText);
                 requireGridSize(++rowCount, 0);
                 List<Cell> row = new ArrayList<>();
-                Matcher cm = HTML_CELL.matcher(rm.group(1));
                 int col = 0;
-                while (true) {
+                for (HtmlBlock sourceCell : htmlBlocks(rowText, MAX_COLUMNS, "td", "th")) {
                     while (pending.containsKey(col)) {
                         col = fillPending(row, pending, col);
                     }
-                    if (!cm.find()) {
-                        break;
-                    }
-                    String attrs = cm.group(2);
+                    String attrs = sourceCell.attributes();
                     int colspan = Math.max(1, parseInt(htmlAttr(attrs, "colspan"), 1));
                     int rowspan = Math.max(1, parseInt(htmlAttr(attrs, "rowspan"), 1));
                     if (colspan > MAX_COLUMNS - col || rowspan > GoalFileTable.MAX_ROWS - rows.size()) {
                         throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
                     }
-                    String cellText = htmlText(cm.group(3));
+                    String cellText = htmlText(sourceCell.body(rowText));
                     set(row, col, new Cell(cellText, false));
                     for (int k = 1; k < colspan; k++) {
                         set(row, col + k, Cell.EMPTY);
@@ -482,11 +481,52 @@ final class GoalFileGrid {
         return m.find() ? m.group(1) : null;
     }
 
+    private record HtmlBlock(int start, int contentStart, int contentEnd, int end, String attributes) {
+        String body(String source) {
+            return source.substring(contentStart, contentEnd);
+        }
+    }
+
+    // Chỉ quét thẻ về phía trước; không tìm lại toàn bộ đuôi văn bản khi thiếu thẻ đóng.
+    private static List<HtmlBlock> htmlBlocks(String text, int limit, String... tags) {
+        var wanted = java.util.Set.of(tags);
+        List<HtmlBlock> blocks = new ArrayList<>();
+        Matcher matcher = HTML_TAG.matcher(text);
+        int start = -1, contentStart = -1;
+        String open = null, attributes = null;
+        while (matcher.find()) {
+            String name = matcher.group(2).toLowerCase(Locale.ROOT);
+            if (!wanted.contains(name)) continue;
+            if (matcher.group(1).isEmpty()) {
+                if (open != null) throw GlobalException.of(ApiCode.GOAL_FILE_UNSUPPORTED);
+                if (blocks.size() >= limit) throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+                start = matcher.start();
+                contentStart = matcher.end();
+                attributes = matcher.group(3);
+                open = name;
+            } else if (open != null) {
+                if (!open.equals(name)) throw GlobalException.of(ApiCode.GOAL_FILE_UNSUPPORTED);
+                blocks.add(new HtmlBlock(start, contentStart, matcher.start(), matcher.end(), attributes));
+                open = null;
+            }
+        }
+        if (open != null) throw GlobalException.of(ApiCode.GOAL_FILE_UNSUPPORTED);
+        return blocks;
+    }
+
     private static String htmlText(String html) {
-        String s = html.replaceAll("(?i)<br\\s*/?>", "\n")
-                .replaceAll("(?i)</(p|div|li)>", "\n")
-                .replaceAll("<[^>]+>", "");
-        s = s.replace("&nbsp;", " ")
+        Matcher tags = HTML_TAG.matcher(html);
+        StringBuilder plain = new StringBuilder();
+        while (tags.find()) {
+            String name = tags.group(2).toLowerCase(Locale.ROOT);
+            boolean line = name.equals("br")
+                    || (!tags.group(1).isEmpty()
+                            && java.util.Set.of("p", "div", "li").contains(name));
+            tags.appendReplacement(plain, line ? "\n" : "");
+        }
+        tags.appendTail(plain);
+        String s = plain.toString()
+                .replace("&nbsp;", " ")
                 .replace("&lt;", "<")
                 .replace("&gt;", ">")
                 .replace("&quot;", "\"")
@@ -495,8 +535,7 @@ final class GoalFileGrid {
         return s.lines()
                 .map(String::strip)
                 .filter(l -> !l.isEmpty())
-                .reduce((a, b) -> a + "\n" + b)
-                .orElse("");
+                .collect(java.util.stream.Collectors.joining("\n"));
     }
 
     /* ---------- CSV ---------- */
@@ -581,27 +620,30 @@ final class GoalFileGrid {
 
     /** Đọc 1 entry zip, chặn file nén quá lớn khi giải (zip bomb). */
     private static byte[] zipEntry(byte[] bytes, String name) throws IOException {
+        byte[] result = null;
+        long archiveBytes = 0;
+        int entries = 0;
         try (ZipInputStream zin = new ZipInputStream(new ByteArrayInputStream(bytes))) {
             ZipEntry e;
+            byte[] buffer = new byte[8192];
             while ((e = zin.getNextEntry()) != null) {
-                if (!name.equals(e.getName())) {
-                    continue;
-                }
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                byte[] buf = new byte[8192];
-                long total = 0;
+                if (++entries > MAX_ZIP_ENTRIES) throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
+                boolean requested = name.equals(e.getName());
+                if (requested && result != null) throw GlobalException.of(ApiCode.GOAL_FILE_UNSUPPORTED);
+                ByteArrayOutputStream out = requested ? new ByteArrayOutputStream() : null;
+                long entryBytes = 0;
                 int n;
-                while ((n = zin.read(buf)) > 0) {
-                    total += n;
-                    if (total > MAX_ENTRY_BYTES) {
+                while ((n = zin.read(buffer)) != -1) {
+                    entryBytes += n;
+                    archiveBytes += n;
+                    if (entryBytes > MAX_ENTRY_BYTES || archiveBytes > MAX_ARCHIVE_BYTES)
                         throw GlobalException.of(ApiCode.GOAL_FILE_TOO_LARGE);
-                    }
-                    out.write(buf, 0, n);
+                    if (requested) out.write(buffer, 0, n);
                 }
-                return out.toByteArray();
+                if (requested) result = out.toByteArray();
             }
         }
-        return null;
+        return result;
     }
 
     private static Document parseXml(byte[] xml) throws ParserConfigurationException, IOException, SAXException {
