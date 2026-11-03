@@ -3144,6 +3144,532 @@ paths:
           description: OK
       tags:
       - meal-count-controller
+  /api/nutrition/age-group-configs:
+    get:
+      operationId: getEffectiveConfigs
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAgeGroupMealConfigResponse"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
+    post:
+      operationId: createConfig
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgeGroupMealConfigRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAgeGroupMealConfigResponse"
+          description: Created
+      tags:
+      - age-group-meal-config-controller
+  /api/nutrition/age-group-configs/batch:
+    post:
+      operationId: saveConfigs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgeGroupMealConfigBatchRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAgeGroupMealConfigResponse"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
+  /api/nutrition/age-group-configs/{ageGroupId}/versions:
+    get:
+      operationId: getConfigVersions
+      parameters:
+      - in: path
+        name: ageGroupId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAgeGroupMealConfigResponse"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
+  /api/nutrition/age-group-configs/{configId}:
+    put:
+      operationId: updateConfig
+      parameters:
+      - in: path
+        name: configId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AgeGroupMealConfigRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAgeGroupMealConfigResponse"
+          description: OK
+      tags:
+      - age-group-meal-config-controller
+  /api/nutrition/allergens:
+    get:
+      operationId: getAllergens
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAllergenResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
+  /api/nutrition/dishes:
+    get:
+      operationId: getDishes
+      parameters:
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: dishType
+        required: false
+        schema:
+          type: string
+          enum:
+          - CARB
+          - MAIN
+          - SOUP
+          - VEGETABLE
+          - SNACK
+          - DESSERT
+      - in: query
+        name: reference
+        required: false
+        schema:
+          type: boolean
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListDishDetailResponse"
+          description: OK
+      tags:
+      - nutrition-dish-controller
+    post:
+      operationId: createDish
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DishRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDishDetailResponse"
+          description: Created
+      tags:
+      - nutrition-dish-controller
+  /api/nutrition/dishes/{dishId}:
+    get:
+      operationId: getDish
+      parameters:
+      - in: path
+        name: dishId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDishDetailResponse"
+          description: OK
+      tags:
+      - nutrition-dish-controller
+    put:
+      operationId: updateDish
+      parameters:
+      - in: path
+        name: dishId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DishRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDishDetailResponse"
+          description: OK
+      tags:
+      - nutrition-dish-controller
+  /api/nutrition/dishes/{dishId}/copy:
+    post:
+      operationId: copyDish
+      parameters:
+      - in: path
+        name: dishId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DishCopyRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDishDetailResponse"
+          description: Created
+      tags:
+      - nutrition-dish-controller
+  /api/nutrition/dishes/{dishId}/status:
+    patch:
+      operationId: changeDishStatus
+      parameters:
+      - in: path
+        name: dishId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDishDetailResponse"
+          description: OK
+      tags:
+      - nutrition-dish-controller
+  /api/nutrition/foods:
+    get:
+      operationId: getFoods
+      parameters:
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: foodGroup
+        required: false
+        schema:
+          type: string
+          enum:
+          - GRAIN
+          - MEAT
+          - SEAFOOD
+          - EGG_DAIRY
+          - LEGUME
+          - VEGETABLE
+          - FRUIT
+          - FAT_SUGAR
+          - OTHER
+      - in: query
+        name: storage
+        required: false
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListFoodResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
+    post:
+      operationId: createFood
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodResponse"
+          description: Created
+      tags:
+      - nutrition-food-controller
+  /api/nutrition/foods/import:
+    post:
+      operationId: importFoods
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodImportRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodImportResponse"
+          description: Created
+      tags:
+      - nutrition-food-controller
+  /api/nutrition/foods/{foodId}:
+    get:
+      operationId: getFood
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
+    put:
+      operationId: updateFood
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FoodRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
+  /api/nutrition/foods/{foodId}/status:
+    patch:
+      operationId: changeFoodStatus
+      parameters:
+      - in: path
+        name: foodId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFoodResponse"
+          description: OK
+      tags:
+      - nutrition-food-controller
+  /api/nutrition/suppliers:
+    get:
+      operationId: getSuppliers
+      parameters:
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSupplierResponse"
+          description: OK
+      tags:
+      - supplier-controller
+    post:
+      operationId: createSupplier
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSupplierResponse"
+          description: Created
+      tags:
+      - supplier-controller
+  /api/nutrition/suppliers/{supplierId}:
+    get:
+      operationId: getSupplier
+      parameters:
+      - in: path
+        name: supplierId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSupplierResponse"
+          description: OK
+      tags:
+      - supplier-controller
+    put:
+      operationId: updateSupplier
+      parameters:
+      - in: path
+        name: supplierId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SupplierRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSupplierResponse"
+          description: OK
+      tags:
+      - supplier-controller
+  /api/nutrition/suppliers/{supplierId}/status:
+    patch:
+      operationId: changeSupplierStatus
+      parameters:
+      - in: path
+        name: supplierId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSupplierResponse"
+          description: OK
+      tags:
+      - supplier-controller
   /api/parent-accounts/{userId}/status:
     patch:
       operationId: updateParentStatus
@@ -4134,6 +4660,149 @@ components:
         sortOrder:
           type: integer
           format: int32
+    AgeGroupMealConfigBatchRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupMealConfigRequest"
+          maxItems: 20
+          minItems: 0
+      required:
+      - items
+    AgeGroupMealConfigRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        animalLipidPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        animalLipidPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
+        animalProteinPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        animalProteinPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
+        effectiveFrom:
+          type: string
+          format: date
+        glucidPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        glucidPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
+        kcalMax:
+          type: number
+          minimum: 0
+        kcalMin:
+          type: number
+          minimum: 0
+        lipidPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        lipidPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
+        mealPrice:
+          type: number
+          minimum: 0
+        normBasis:
+          type: string
+          maxLength: 300
+          minLength: 0
+        proteinPctMax:
+          type: number
+          maximum: 100
+          minimum: 0
+        proteinPctMin:
+          type: number
+          maximum: 100
+          minimum: 0
+      required:
+      - ageGroupId
+      - effectiveFrom
+      - mealPrice
+    AgeGroupMealConfigResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        animalLipidPctMax:
+          type: number
+        animalLipidPctMin:
+          type: number
+        animalProteinPctMax:
+          type: number
+        animalProteinPctMin:
+          type: number
+        editable:
+          type: boolean
+        effectiveFrom:
+          type: string
+          format: date
+        glucidPctMax:
+          type: number
+        glucidPctMin:
+          type: number
+        id:
+          type: integer
+          format: int64
+        kcalMax:
+          type: number
+        kcalMin:
+          type: number
+        lipidPctMax:
+          type: number
+        lipidPctMin:
+          type: number
+        mealPrice:
+          type: number
+        normBasis:
+          type: string
+        proteinPctMax:
+          type: number
+        proteinPctMin:
+          type: number
+    AgeGroupNutrition:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        animalLipid:
+          type: number
+        animalProtein:
+          type: number
+        cost:
+          type: number
+        glucid:
+          type: number
+        kcal:
+          type: number
+        lipid:
+          type: number
+        plantLipid:
+          type: number
+        plantProtein:
+          type: number
+        protein:
+          type: number
     AgeGroupRequest:
       type: object
       properties:
@@ -4195,6 +4864,16 @@ components:
         sortOrder:
           type: integer
           format: int32
+    AllergenResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     ApprovedDayLessonResponse:
       type: object
       properties:
@@ -4638,6 +5317,16 @@ components:
           format: int64
         leadsGroup:
           type: string
+    CatalogStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      required:
+      - status
     ChangePassword:
       type: object
       properties:
@@ -5868,6 +6557,93 @@ components:
         weekStart:
           type: string
           format: date
+    DishCopyRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 20
+          minLength: 0
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+      required:
+      - name
+    DishDetailResponse:
+      type: object
+      properties:
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        code:
+          type: string
+        description:
+          type: string
+        dishType:
+          type: string
+          enum:
+          - CARB
+          - MAIN
+          - SOUP
+          - VEGETABLE
+          - SNACK
+          - DESSERT
+        id:
+          type: integer
+          format: int64
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+        name:
+          type: string
+        nutritionByAgeGroup:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupNutrition"
+        reference:
+          type: boolean
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+    DishRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          maxLength: 20
+          minLength: 0
+        description:
+          type: string
+          maxLength: 500
+          minLength: 0
+        dishType:
+          type: string
+          enum:
+          - CARB
+          - MAIN
+          - SOUP
+          - VEGETABLE
+          - SNACK
+          - DESSERT
+        ingredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ingredient"
+          maxItems: 200
+          minItems: 0
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+      required:
+      - dishType
+      - ingredients
+      - name
     Domain:
       type: object
       properties:
@@ -6141,6 +6917,188 @@ components:
           format: int64
         userName:
           type: string
+    FoodImportRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Item"
+          maxItems: 500
+          minItems: 0
+      required:
+      - items
+    FoodImportResponse:
+      type: object
+      properties:
+        created:
+          type: integer
+          format: int32
+        updated:
+          type: integer
+          format: int32
+    FoodRequest:
+      type: object
+      properties:
+        allergenIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        code:
+          type: string
+          maxLength: 20
+          minLength: 0
+        foodGroup:
+          type: string
+          enum:
+          - GRAIN
+          - MEAT
+          - SEAFOOD
+          - EGG_DAIRY
+          - LEGUME
+          - VEGETABLE
+          - FRUIT
+          - FAT_SUGAR
+          - OTHER
+        glucid:
+          type: number
+          minimum: 0
+        kcal:
+          type: number
+          minimum: 0
+        lipid:
+          type: number
+          minimum: 0
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        nutrientSource:
+          type: string
+          maxLength: 200
+          minLength: 0
+        nutrientSourceVersion:
+          type: string
+          maxLength: 50
+          minLength: 0
+        origin:
+          type: string
+          enum:
+          - ANIMAL
+          - PLANT
+        protein:
+          type: number
+          minimum: 0
+        purchaseUnit:
+          type: string
+          maxLength: 30
+          minLength: 0
+        purchaseUnitSize:
+          type: number
+          exclusiveMinimum: 0
+        storage:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+        unit:
+          type: string
+          enum:
+          - g
+          - ml
+        unitPrice:
+          type: number
+          minimum: 0
+        wastePct:
+          type: number
+          exclusiveMaximum: 100
+          minimum: 0
+      required:
+      - foodGroup
+      - glucid
+      - kcal
+      - lipid
+      - name
+      - protein
+      - purchaseUnit
+      - purchaseUnitSize
+      - storage
+      - unit
+      - unitPrice
+      - wastePct
+    FoodResponse:
+      type: object
+      properties:
+        allergens:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
+        code:
+          type: string
+        foodGroup:
+          type: string
+          enum:
+          - GRAIN
+          - MEAT
+          - SEAFOOD
+          - EGG_DAIRY
+          - LEGUME
+          - VEGETABLE
+          - FRUIT
+          - FAT_SUGAR
+          - OTHER
+        glucid:
+          type: number
+        id:
+          type: integer
+          format: int64
+        kcal:
+          type: number
+        lipid:
+          type: number
+        name:
+          type: string
+        note:
+          type: string
+        nutrientSource:
+          type: string
+        nutrientSourceVersion:
+          type: string
+        origin:
+          type: string
+          enum:
+          - ANIMAL
+          - PLANT
+        protein:
+          type: number
+        purchaseUnit:
+          type: string
+        purchaseUnitSize:
+          type: number
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        storage:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+        unit:
+          type: string
+          enum:
+          - g
+          - ml
+        unitPrice:
+          type: number
+        wastePct:
+          type: number
     Forgot:
       type: object
       properties:
@@ -6433,6 +7391,22 @@ components:
         move:
           type: integer
           format: int64
+    Ingredient:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        foodId:
+          type: integer
+          format: int64
+        gramsPerChild:
+          type: number
+          exclusiveMinimum: 0
+      required:
+      - ageGroupId
+      - foodId
+      - gramsPerChild
     IssueTicketsRequest:
       type: object
       properties:
@@ -6941,6 +7915,7 @@ components:
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
+            - NUTRITION_MANAGE
             - PERMISSION_MANAGE
         roles:
           type: array
@@ -6965,6 +7940,7 @@ components:
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
+            - NUTRITION_MANAGE
             - PERMISSION_MANAGE
         userId:
           type: integer
@@ -7025,6 +8001,7 @@ components:
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
           - MEAL_COUNT_CONFIRM
+          - NUTRITION_MANAGE
           - PERMISSION_MANAGE
         scope:
           type: string
@@ -7218,6 +8195,7 @@ components:
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
           - MEAL_COUNT_CONFIRM
+          - NUTRITION_MANAGE
           - PERMISSION_MANAGE
         reason:
           type: string
@@ -7246,6 +8224,7 @@ components:
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
           - MEAL_COUNT_CONFIRM
+          - NUTRITION_MANAGE
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -7730,6 +8709,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonAgeGroupMealConfigResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AgeGroupMealConfigResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAssessmentDayUnlockResponse:
       type: object
       properties:
@@ -8016,6 +9008,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonDishDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DishDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonEduConfigResponse:
       type: object
       properties:
@@ -8050,6 +9055,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EvaluationRow"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonFoodImportResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/FoodImportResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonFoodResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/FoodResponse"
         desc:
           type: string
         errorCode:
@@ -8117,6 +9148,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgeGroupDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListAgeGroupMealConfigResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgeGroupMealConfigResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListAllergenResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AllergenResponse"
         desc:
           type: string
         errorCode:
@@ -8287,6 +9348,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListDishDetailResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/DishDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListEvaluationRow:
       type: object
       properties:
@@ -8297,6 +9373,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EvaluationRow"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListFoodResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/FoodResponse"
         desc:
           type: string
         errorCode:
@@ -8447,6 +9538,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolYearDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListSupplierResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SupplierResponse"
         desc:
           type: string
         errorCode:
@@ -8793,6 +9899,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonSupplierResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SupplierResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonTeacherAssignmentResponse:
       type: object
       properties:
@@ -9124,6 +10243,7 @@ components:
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
+            - NUTRITION_MANAGE
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -9138,6 +10258,7 @@ components:
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
+            - NUTRITION_MANAGE
             - PERMISSION_MANAGE
         role:
           type: string
@@ -9698,6 +10819,52 @@ components:
           format: int32
         structured:
           $ref: "#/components/schemas/StructuredSummary"
+    SupplierRequest:
+      type: object
+      properties:
+        address:
+          type: string
+          maxLength: 300
+          minLength: 0
+        deliveryPerson:
+          type: string
+          maxLength: 100
+          minLength: 0
+        idCard:
+          type: string
+          pattern: "^[0-9]{9,12}$"
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+        phone:
+          type: string
+          minLength: 1
+          pattern: "^[0-9+ .]{8,20}$"
+      required:
+      - name
+      - phone
+    SupplierResponse:
+      type: object
+      properties:
+        address:
+          type: string
+        deliveryPerson:
+          type: string
+        id:
+          type: integer
+          format: int64
+        idCard:
+          type: string
+        name:
+          type: string
+        phone:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
     TargetClass:
       type: object
       properties:
@@ -10100,6 +11267,7 @@ components:
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
+            - NUTRITION_MANAGE
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -10122,6 +11290,7 @@ components:
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
+            - NUTRITION_MANAGE
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -10134,6 +11303,7 @@ components:
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
+            - NUTRITION_MANAGE
             - PERMISSION_MANAGE
         overrides:
           type: array
