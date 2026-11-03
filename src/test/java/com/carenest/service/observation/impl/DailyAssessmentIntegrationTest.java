@@ -488,6 +488,19 @@ class DailyAssessmentIntegrationTest {
         // AUTH-20: PHT điểm trường khác xem chi tiết lớp; giáo viên không phải lớp mình vẫn bị chặn
         assertThat(overviewService.getClassDetail(vpB, classA, "DAY").classId()).isEqualTo(classA);
         expectCode(() -> overviewService.getClassDetail(teacherA, classA, "DAY"), ApiCode.CLASS_ACCESS_DENIED);
+        // Tổ trưởng nhóm tuổi xem tổng quan và chi tiết các lớp cùng nhóm tuổi (lớp A, B)
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
+                        + "SELECT ?, 'AGE_GROUP_TEAM_LEADER', age_group_id, school_year_id, '2026-01-01' FROM classrooms WHERE id = ?",
+                teacherB.userId(),
+                classA);
+        assertThat(overviewService
+                        .getOverview(teacherB, "DAY", null, null, null, null)
+                        .rows())
+                .extracting(r -> r.classId())
+                .containsExactlyInAnyOrder(classA, classB);
+        assertThat(overviewService.getClassDetail(teacherB, classA, "DAY").classId())
+                .isEqualTo(classA);
         expectCode(() -> overviewService.getOverview(principal, "YEAR", null, null, null, null), ApiCode.INVALID_VALUE);
     }
 
@@ -698,6 +711,17 @@ class DailyAssessmentIntegrationTest {
                     assertThat(r.levels().overall()).isEqualTo(tot);
                     assertThat(r.canEdit()).isFalse();
                 });
+        // Tổ trưởng nhóm tuổi xem thêm các lớp cùng nhóm tuổi (lớp B), chỉ xem
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
+                        + "SELECT ?, 'AGE_GROUP_TEAM_LEADER', age_group_id, school_year_id, '2026-01-01' FROM classrooms WHERE id = ?",
+                teacherA.userId(),
+                classA);
+        assertThat(ratings.list(teacherA, null, period, null).rows())
+                .extracting(r -> r.classId())
+                .containsExactlyInAnyOrder(classA, classB);
+        assertThat(ratings.list(teacherA, null, period, null).rows()).noneMatch(r -> r.canEdit());
+
         // Cuối năm chỉ chấm từ tháng cuối năm học; đã chấm tiêu chí thì phải chọn xếp loại chung
         var yearRequest = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(
                 com.carenest.utils.enums.ClassRatingPeriod.YEAR, List.of(item));

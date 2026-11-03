@@ -23,6 +23,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -103,6 +104,13 @@ class AttendanceDayRules {
     // AUTH-20: xem điểm danh/sức khỏe là đường đọc ⇒ PHT xem mọi cơ sở; ghi vẫn qua canRecord/canUnlock
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
+    }
+
+    /** Nhóm tuổi người dùng đang làm tổ trưởng chuyên môn; rỗng nếu không phải tổ trưởng. */
+    Set<Long> teamLeaderAgeGroupIds(CurrentUser user) {
+        return user.hasRole(CareNestRole.TEACHER)
+                ? staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), LocalDate.now(clock))
+                : Set.of();
     }
 
     boolean canReadCampus(CurrentUser user, Long campusId) {

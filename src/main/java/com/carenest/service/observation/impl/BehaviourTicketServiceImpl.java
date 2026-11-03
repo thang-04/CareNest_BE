@@ -227,14 +227,18 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         String logPrefix = LOG_PREFIX + "|getOverview|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!rules.isLeader(currentUser)) {
+            boolean leader = rules.isLeader(currentUser);
+            // Tổ trưởng chuyên môn xem phiếu các lớp nhóm tuổi mình (Cần chốt 04/11)
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
-            if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
+            if (campusId != null && leader && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
+                    .filter(c ->
+                            leader ? rules.readsCampus(currentUser, c.campusId()) : ledGroups.contains(c.ageGroupId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();

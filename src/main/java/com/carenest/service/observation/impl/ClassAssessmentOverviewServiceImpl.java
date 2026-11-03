@@ -116,14 +116,18 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
                 LOG_PREFIX + "|getOverview|userId=" + currentUser.userId() + "|period=" + period + "|date=" + date;
         log.info("{}|START", logPrefix);
         try {
-            if (!rules.isLeader(currentUser)) {
+            boolean leader = rules.isLeader(currentUser);
+            // Tổ trưởng chuyên môn xem các lớp nhóm tuổi mình (Cần chốt 04/11); GV khác không xem
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_OVERVIEW_FORBIDDEN);
             }
             String p = checkPeriod(period);
             checkDate(date);
-            // PHT chỉ lớp điểm trường mình, HT toàn trường (AUTH-01, AUTH-02)
+            // HT, PHT xem mọi điểm trường (AUTH-20)
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
+                    .filter(c ->
+                            leader ? rules.readsCampus(currentUser, c.campusId()) : ledGroups.contains(c.ageGroupId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();
@@ -175,7 +179,8 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.readsCampus(currentUser, cls.campusId())) {
+            if (!rules.readsCampus(currentUser, cls.campusId())
+                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             String p = checkPeriod(period);

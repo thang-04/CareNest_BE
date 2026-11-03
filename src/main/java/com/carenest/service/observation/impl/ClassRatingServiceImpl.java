@@ -28,6 +28,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -154,8 +155,9 @@ public class ClassRatingServiceImpl implements ClassRatingService {
     }
 
     private ClassRatingResponse listOf(CurrentUser user, Long schoolYearId, ClassRatingPeriod period, Long campusId) {
+        Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(user);
         List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
-                .filter(c -> canRead(user, c))
+                .filter(c -> canRead(user, c) || ledGroups.contains(c.ageGroupId()))
                 .toList();
         List<Long> campusIds = visible.stream()
                 .map(ClassroomInfoResponse::campusId)
@@ -247,7 +249,8 @@ public class ClassRatingServiceImpl implements ClassRatingService {
         return rules.leadsCampus(user, cls.campusId());
     }
 
-    // Xem: HT, PHT mọi điểm trường (AUTH-20); GV lớp đang dạy hoặc từng dạy ở năm đã kết thúc
+    // Xem: HT, PHT mọi điểm trường (AUTH-20); GV lớp đang dạy hoặc từng dạy ở năm đã kết thúc; tổ trưởng thêm các lớp
+    // nhóm tuổi mình (xem ở listOf, Cần chốt 04/11)
     private boolean canRead(CurrentUser user, ClassroomInfoResponse cls) {
         return rules.readsCampus(user, cls.campusId())
                 || rules.canRecord(user, cls)
