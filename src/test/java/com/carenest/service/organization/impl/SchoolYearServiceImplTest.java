@@ -20,6 +20,7 @@ import com.carenest.repository.organization.AttendanceCutoffRepository;
 import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.organization.SemesterUsageCheck;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -49,6 +50,7 @@ class SchoolYearServiceImplTest {
     private final SchoolYearRepository schoolYearRepository = mock(SchoolYearRepository.class);
     private final ClassroomRepository classroomRepository = mock(ClassroomRepository.class);
     private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
+    private final SemesterUsageCheck semesterUsage = mock(SemesterUsageCheck.class);
     private final SchoolYearServiceImpl service = new SchoolYearServiceImpl(
             schoolYearRepository,
             classroomRepository,
@@ -56,7 +58,8 @@ class SchoolYearServiceImplTest {
             staffAssignmentService,
             new SchoolStructureMapper(),
             FIXED_CLOCK,
-            new DevActivationProperties(false, false, false));
+            new DevActivationProperties(false, false, false),
+            List.of(semesterUsage));
 
     @BeforeEach
     void principalHasActiveAssignment() {
@@ -170,6 +173,28 @@ class SchoolYearServiceImplTest {
 
         assertThat(updated.semester1Start()).isEqualTo(LocalDate.of(2027, 9, 1));
         assertThat(updated.semester2End()).isEqualTo(LocalDate.of(2028, 5, 31));
+    }
+
+    @Test
+    void semesterWithSemesterEvaluationsKeepsItsDates() {
+        var year = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01");
+        year.changeSemesters(
+                LocalDate.of(2027, 9, 1),
+                LocalDate.of(2028, 1, 14),
+                LocalDate.of(2028, 1, 17),
+                LocalDate.of(2028, 5, 31));
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(year));
+        given(semesterUsage.usedBySemester(5L, LocalDate.of(2027, 9, 1), LocalDate.of(2028, 1, 14)))
+                .willReturn(true);
+
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-10", "2028-01-17", "2028-05-31")),
+                ApiCode.SEMESTER_DATES_LOCKED);
+        // Học kỳ II chưa có đánh giá học kỳ: vẫn đổi được
+        SchoolYearDetailResponse updated = service.updateSemester(
+                PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-18", "2028-05-31"));
+        assertThat(updated.semester2Start()).isEqualTo(LocalDate.of(2028, 1, 18));
     }
 
     @Test

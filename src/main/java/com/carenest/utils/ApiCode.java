@@ -125,6 +125,7 @@ public enum ApiCode {
     SEMESTER_START_AFTER_END(2024, HttpStatus.BAD_REQUEST, "{0}: ngày bắt đầu không được sau ngày kết thúc"),
     SEMESTER_OVERLAP(2025, HttpStatus.BAD_REQUEST, "Học kỳ II phải bắt đầu sau ngày kết thúc học kỳ I ({0})"),
     SEMESTER_DATE_REQUIRED(2026, HttpStatus.BAD_REQUEST, "Chọn {0}"),
+    SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
     SCHOOL_CONFIG_ACCESS_DENIED(2101, HttpStatus.FORBIDDEN, "Bạn không có quyền xem cấu hình trường"),
@@ -539,6 +540,8 @@ public enum ApiCode {
     REWARD_DECISION_INVALID(7361, HttpStatus.BAD_REQUEST, "Quyết định không hợp lệ"),
     REWARD_COMMENT_REQUIRED(7362, HttpStatus.BAD_REQUEST, "Nhập lý do trả lại"),
     REWARD_COMMENT_TOO_LONG(7363, HttpStatus.BAD_REQUEST, "Ý kiến tối đa {0} ký tự"),
+    CLASS_RATING_FORBIDDEN(7370, HttpStatus.FORBIDDEN, "Bạn không được xếp loại lớp {0}"),
+    CLASS_RATING_MIXED_YEARS(7371, HttpStatus.BAD_REQUEST, "Chỉ lưu xếp loại các lớp cùng một năm học"),
     REWARD_REVIEW_FORBIDDEN(
             7364,
             HttpStatus.FORBIDDEN,

@@ -13,6 +13,7 @@ import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.SchoolYearService;
+import com.carenest.service.organization.SemesterUsageCheck;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -50,6 +51,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final SchoolStructureMapper schoolStructureMapper;
     private final Clock clock;
     private final DevActivationProperties devActivation;
+    private final List<SemesterUsageCheck> semesterUsageChecks;
 
     @Override
     @Transactional(readOnly = true)
@@ -167,6 +169,20 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
             SchoolYearRules.checkOpen(schoolYear);
             checkSemesters(request, schoolYear.getStartDate(), schoolYear.getEndDate());
+            checkSemesterLocked(
+                    schoolYear,
+                    "Học kỳ I",
+                    schoolYear.getSemester1Start(),
+                    schoolYear.getSemester1End(),
+                    request.semester1Start(),
+                    request.semester1End());
+            checkSemesterLocked(
+                    schoolYear,
+                    "Học kỳ II",
+                    schoolYear.getSemester2Start(),
+                    schoolYear.getSemester2End(),
+                    request.semester2Start(),
+                    request.semester2End());
             schoolYear.changeSemesters(
                     request.semester1Start(), request.semester1End(), request.semester2Start(), request.semester2End());
             schoolYearRepository.flush();
@@ -383,6 +399,17 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     // Cả 4 ngày bắt buộc, nằm trong năm học; mỗi học kỳ bắt đầu ≤ kết thúc; HK II bắt đầu sau khi HK I kết thúc
+    // Học kỳ đã có dữ liệu theo khoảng ngày cũ (đánh giá học kỳ) thì không đổi ngày học kỳ đó (OBS-06)
+    private void checkSemesterLocked(
+            SchoolYear year, String label, LocalDate oldStart, LocalDate oldEnd, LocalDate newStart, LocalDate newEnd) {
+        if (oldStart == null || oldEnd == null || (oldStart.equals(newStart) && oldEnd.equals(newEnd))) {
+            return;
+        }
+        if (semesterUsageChecks.stream().anyMatch(c -> c.usedBySemester(year.getId(), oldStart, oldEnd))) {
+            throw GlobalException.of(ApiCode.SEMESTER_DATES_LOCKED, label);
+        }
+    }
+
     private static void checkSemesters(SchoolYearSemesterRequest r, LocalDate startDate, LocalDate endDate) {
         Map<String, LocalDate> dates = new LinkedHashMap<>();
         dates.put("ngày bắt đầu học kỳ I", r.semester1Start());
