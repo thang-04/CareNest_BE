@@ -35,6 +35,9 @@ AUTH-01..03, AUTH-05, AUTH-15, AUTH-16, AUTH-23, CFG-YR-01..03, CFG-CP-01. ADR-0
 P-18 (học kỳ, trông hè), P-19 (ngày nghỉ tự khóa điểm danh). Đã đóng: P-14 (2026-10-27 — AUTH-02, AUTH-20), P-06 (2026-10-28 — mỗi cơ sở một bếp, AUTH-05). Cấu hình HT cần cho nghiệp vụ: giờ chốt theo mùa (ATT-06), số bữa theo nhóm tuổi (NUT-17), giá suất theo nhóm tuổi (NUT-19).
 
 ## Known pitfalls
+
+- Changed year bounds must include stored holidays; school-day reads use authoritative DB data without shared volatile cache. See [holiday lifecycle](../knowledge/incidents/BUG-261103-school-holiday-lifecycle.md).
+
 - Không biến School thành tenant: không thêm `school_id` vào mọi bảng; chiều phân vùng là `campus_id`.
 - Assignment có hiệu lực theo thời gian: luôn lọc theo ngày khi resolve scope.
 - Kết thúc phân công bằng `valid_to`, không xóa dòng (giữ lịch sử ai từng có quyền).

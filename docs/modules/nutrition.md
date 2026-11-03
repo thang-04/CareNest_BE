@@ -45,6 +45,9 @@ Phần chưa có API (món thay thế dị ứng, lưu mẫu, ảnh bữa, sửa
 P-26 (mẫu sổ lưu mẫu), P-27 (kiểm thực ba bước). Đã đóng 28/10: P-04..P-10; 01/11: P-24, P-25, P-37.
 
 ## Known pitfalls
+
+- Shared meal aggregates require campus/day transaction locks before entity reads; acquire multiple campus locks in sorted order. See [concurrent pending repair](../knowledge/incidents/BUG-261103-meal-campus-concurrent-pending.md).
+
 - Kho khô trừ theo ngày, từng cơ sở, khi suất ngày của cơ sở được xác nhận (NUT-11, đóng P-38); lập/công bố tuần chỉ cảnh báo theo sĩ số dự kiến. Thiếu kho không chặn xác nhận suất. Xác nhận lại suất chỉ ghi phần chênh lệch — đừng trừ lại toàn bộ.
 - Sĩ số dự kiến chỉ dùng cho bản dự trù hàng tươi (NUT-07), không dùng để trừ kho.
 - Trừ kho (03/11): nhu cầu = Σ (suất đã chốt `normal + substitute` × gam/trẻ theo nhóm tuổi) ÷ (1 − thải bỏ%) cho thực phẩm `DRY`; bỏ qua lô hết hạn trước ngày ăn; `stock_daily_demands` giữ nhu cầu đã áp — `syncDay` chỉ ghi chênh lệch nên gọi lại an toàn. Suất thay thế đang tính theo món chuẩn (chưa có món thay thế dị ứng).
