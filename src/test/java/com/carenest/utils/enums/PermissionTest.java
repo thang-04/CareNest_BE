@@ -3,6 +3,7 @@ package com.carenest.utils.enums;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -33,10 +34,27 @@ class PermissionTest {
     }
 
     @Test
+    @DisplayName("CHD-01: tiếp nhận, sửa hồ sơ, xếp lớp — HT cố định, PHT mặc định bật và HT tắt được, GV/bếp không có")
+    void childEnrollmentPermissionsArePrincipalFixedAndVicePrincipalConfigurable() {
+        for (Permission permission :
+                EnumSet.of(Permission.CHILD_ENROLL, Permission.CHILD_PROFILE_EDIT, Permission.CHILD_PLACEMENT)) {
+            assertThat(permission.defaultRoles())
+                    .as(permission.name())
+                    .containsExactlyInAnyOrder(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL);
+            assertThat(permission.configurableRoles())
+                    .as(permission.name())
+                    .containsExactly(CareNestRole.VICE_PRINCIPAL);
+        }
+    }
+
+    @Test
     void fixedRolesTakePermissionsFromCodeAndConfigurableRolesFromMatrix() {
         assertThat(Permission.fixedPermissionsOf(CareNestRole.PRINCIPAL))
                 .containsExactlyInAnyOrder(
                         Permission.CHILD_PROFILE_VIEW,
+                        Permission.CHILD_ENROLL,
+                        Permission.CHILD_PROFILE_EDIT,
+                        Permission.CHILD_PLACEMENT,
                         Permission.ACCOUNT_MANAGE,
                         Permission.ACCOUNT_STATUS_MANAGE,
                         Permission.STAFF_ASSIGNMENT_MANAGE,
