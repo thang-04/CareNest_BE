@@ -96,7 +96,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             }
             LocalDate date = request.date();
             LocalDate today = rules.today();
-            if (!AttendanceDayRules.isSchoolDay(date)
+            if (!rules.isSchoolDay(date)
                     || date.isAfter(today)
                     || (cls.yearStart() != null && date.isBefore(cls.yearStart()))) {
                 throw GlobalException.of(ApiCode.UNLOCK_DATE_OUT_OF_RANGE);

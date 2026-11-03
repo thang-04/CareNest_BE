@@ -1,15 +1,20 @@
 package com.carenest.service.organization.impl;
 
 import com.carenest.config.DevActivationProperties;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
 import com.carenest.dto.organization.SchoolYearSemesterRequest;
+import com.carenest.dto.organization.SemesterLockResponse;
 import com.carenest.entity.organization.Classroom;
+import com.carenest.entity.organization.SchoolHoliday;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
 import com.carenest.repository.organization.AttendanceCutoffRepository;
 import com.carenest.repository.organization.ClassroomRepository;
+import com.carenest.repository.organization.SchoolHolidayRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.SchoolYearService;
@@ -19,12 +24,15 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -52,6 +60,9 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final Clock clock;
     private final DevActivationProperties devActivation;
     private final List<SemesterUsageCheck> semesterUsageChecks;
+    private final SchoolHolidayRepository schoolHolidayRepository;
+    // Ngày nghỉ ít và đọc rất nhiều (mỗi ngày học): giữ trong bộ nhớ, xóa khi HT lưu lại danh sách
+    private volatile Set<LocalDate> holidayCache;
 
     @Override
     @Transactional(readOnly = true)
@@ -135,6 +146,15 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 }
                 if (classCount > 0) {
                     throw GlobalException.of(ApiCode.SCHOOL_YEAR_HAS_CLASSES);
+                }
+            }
+            // Năm đang hoạt động đã có dữ liệu theo ngày: khóa ngày bắt đầu, không kết thúc lùi về quá khứ
+            if (schoolYear.getStatus() == SchoolYearStatus.ACTIVE) {
+                if (!request.startDate().equals(schoolYear.getStartDate())) {
+                    throw GlobalException.of(ApiCode.SCHOOL_YEAR_START_LOCKED);
+                }
+                if (request.endDate().isBefore(LocalDate.now(clock))) {
+                    throw GlobalException.of(ApiCode.SCHOOL_YEAR_END_BEFORE_TODAY);
                 }
             }
             // Đổi ngày năm học: học kỳ đã đặt phải còn nằm trong năm
@@ -399,13 +419,110 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     // Cả 4 ngày bắt buộc, nằm trong năm học; mỗi học kỳ bắt đầu ≤ kết thúc; HK II bắt đầu sau khi HK I kết thúc
+    @Override
+    @Transactional(readOnly = true)
+    public List<SchoolHolidayItem> getHolidays(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|getHolidays|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            findSchoolYear(schoolYearId);
+            List<SchoolHolidayItem> holidays = holidaysOf(schoolYearId);
+            log.info("{}|END", logPrefix);
+            return holidays;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public List<SchoolHolidayItem> replaceHolidays(
+            CurrentUser currentUser, Long schoolYearId, SchoolHolidaysRequest request) {
+        String logPrefix = LOG_PREFIX + "|replaceHolidays|userId=" + currentUser.userId() + "|schoolYearId="
+                + schoolYearId + "|count=" + request.holidays().size();
+        log.info("{}|START", logPrefix);
+        try {
+            checkCanManage(currentUser);
+            SchoolYear year = findSchoolYear(schoolYearId);
+            SchoolYearRules.checkOpen(year);
+            Set<LocalDate> seen = new HashSet<>();
+            for (SchoolHolidayItem item : request.holidays()) {
+                if (item.date().isBefore(year.getStartDate()) || item.date().isAfter(year.getEndDate())) {
+                    throw GlobalException.of(ApiCode.HOLIDAY_OUT_OF_YEAR, DMY.format(item.date()));
+                }
+                if (!seen.add(item.date())) {
+                    throw GlobalException.of(ApiCode.HOLIDAY_DUPLICATE, DMY.format(item.date()));
+                }
+            }
+            schoolHolidayRepository.deleteAllBySchoolYearId(schoolYearId);
+            schoolHolidayRepository.flush();
+            schoolHolidayRepository.saveAllAndFlush(request.holidays().stream()
+                    .map(h -> SchoolHoliday.of(schoolYearId, h.date(), h.name().trim()))
+                    .toList());
+            holidayCache = null;
+            List<SchoolHolidayItem> holidays = holidaysOf(schoolYearId);
+            log.info("{}|END", logPrefix);
+            return holidays;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isSchoolDay(LocalDate date) {
+        DayOfWeek day = date.getDayOfWeek();
+        if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
+            return false;
+        }
+        Set<LocalDate> holidays = holidayCache;
+        if (holidays == null) {
+            holidays = Set.copyOf(schoolHolidayRepository.findAllDates());
+            holidayCache = holidays;
+        }
+        return !holidays.contains(date);
+    }
+
+    private List<SchoolHolidayItem> holidaysOf(Long schoolYearId) {
+        return schoolHolidayRepository.findAllBySchoolYearIdOrderByDateAsc(schoolYearId).stream()
+                .map(h -> new SchoolHolidayItem(h.getDate(), h.getName()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SemesterLockResponse getSemesterLocks(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix =
+                LOG_PREFIX + "|getSemesterLocks|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            SchoolYear year = findSchoolYear(schoolYearId);
+            SemesterLockResponse response = new SemesterLockResponse(
+                    semesterUsed(year, year.getSemester1Start(), year.getSemester1End()),
+                    semesterUsed(year, year.getSemester2Start(), year.getSemester2End()));
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private boolean semesterUsed(SchoolYear year, LocalDate start, LocalDate end) {
+        return start != null
+                && end != null
+                && semesterUsageChecks.stream().anyMatch(c -> c.usedBySemester(year.getId(), start, end));
+    }
+
     // Học kỳ đã có dữ liệu theo khoảng ngày cũ (đánh giá học kỳ) thì không đổi ngày học kỳ đó (OBS-06)
     private void checkSemesterLocked(
             SchoolYear year, String label, LocalDate oldStart, LocalDate oldEnd, LocalDate newStart, LocalDate newEnd) {
         if (oldStart == null || oldEnd == null || (oldStart.equals(newStart) && oldEnd.equals(newEnd))) {
             return;
         }
-        if (semesterUsageChecks.stream().anyMatch(c -> c.usedBySemester(year.getId(), oldStart, oldEnd))) {
+        if (semesterUsed(year, oldStart, oldEnd)) {
             throw GlobalException.of(ApiCode.SEMESTER_DATES_LOCKED, label);
         }
     }

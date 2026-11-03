@@ -70,7 +70,16 @@ class ClassCommentServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW, ZoneId.of("Asia/Ho_Chi_Minh"));
-        var rules = new ObservationDayRules(clock, unlocks, classes, staff, classPolicy, campusPolicy, accounts);
+        // Lịch: thứ 2–6 là ngày học (không có ngày nghỉ)
+        var calendar = mock(com.carenest.service.organization.SchoolYearService.class);
+        org.mockito.Mockito.when(calendar.isSchoolDay(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> {
+                    java.time.DayOfWeek d =
+                            inv.<java.time.LocalDate>getArgument(0).getDayOfWeek();
+                    return d != java.time.DayOfWeek.SATURDAY && d != java.time.DayOfWeek.SUNDAY;
+                });
+        var rules =
+                new ObservationDayRules(clock, unlocks, classes, staff, classPolicy, campusPolicy, accounts, calendar);
         service = new DailyAssessmentServiceImpl(
                 rules,
                 observations,

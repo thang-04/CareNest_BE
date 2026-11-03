@@ -19,6 +19,7 @@ AUTH-01..03, AUTH-05, AUTH-15, AUTH-16, AUTH-23, CFG-YR-01..03, CFG-CP-01. ADR-0
 - Được dùng bởi: child, attendance, nutrition, health, learning-observation, education-plan (năm học, nhóm tuổi, phân công tổ trưởng), reporting, kiểm tra scope (`security/`).
 
 ## API & bảng
+- Ngày nghỉ năm học: `GET|PUT /school-years/{id}/holidays` (HT sửa, PHT xem), bảng `school_holidays` (V65); `SchoolYearService.isSchoolDay` là nguồn duy nhất "ngày học" cho điểm danh, đánh giá (SCH-05). `GET /school-years/{id}/semester-locks` (OBS-25).
 - Bảng: `attendance_cutoffs` (V17), `rooms` (V15), `campuses`, `school_years`, `classrooms`, `staff_assignments` (`V2__create_school_structure.sql`), `age_groups` + cột nhóm tuổi của lớp/phân công Tổ trưởng (`V10__create_age_groups.sql`); xem `docs/database/DATA_DICTIONARY.md`.
 - Entity hiện có: `Classroom`, `StaffAssignment`, `SchoolYear`, `AgeGroup` (+ `Campus` V14, `Room` V15); enum `StaffRole` ở `utils/enums/` (ADR-0014).
 - Service cho kiểm tra scope: `StaffAssignmentService` (`hasActivePrincipalAssignment`, `hasActiveCampusAssignment`, `hasActiveTeacherAssignment` — lọc theo ngày, tính cả hai đầu), `ClassroomService.findCampusId`. Không gọi ngược `security/authorization`.

@@ -105,7 +105,7 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             }
             LocalDate date = request.date();
             LocalDate today = rules.today();
-            if (!ObservationDayRules.isSchoolDay(date)
+            if (!rules.isSchoolDay(date)
                     || date.isAfter(today)
                     || (cls.yearStart() != null && date.isBefore(cls.yearStart()))) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_DATE_OUT_OF_RANGE);

@@ -51,6 +51,8 @@ class SchoolYearServiceImplTest {
     private final ClassroomRepository classroomRepository = mock(ClassroomRepository.class);
     private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
     private final SemesterUsageCheck semesterUsage = mock(SemesterUsageCheck.class);
+    private final com.carenest.repository.organization.SchoolHolidayRepository holidayRepository =
+            mock(com.carenest.repository.organization.SchoolHolidayRepository.class);
     private final SchoolYearServiceImpl service = new SchoolYearServiceImpl(
             schoolYearRepository,
             classroomRepository,
@@ -59,7 +61,8 @@ class SchoolYearServiceImplTest {
             new SchoolStructureMapper(),
             FIXED_CLOCK,
             new DevActivationProperties(false, false, false),
-            List.of(semesterUsage));
+            List.of(semesterUsage),
+            holidayRepository);
 
     @BeforeEach
     void principalHasActiveAssignment() {
@@ -164,6 +167,54 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
+    void activeYearKeepsItsStartAndCannotEndInThePast() {
+        var active = year(4L, "2026-2027", SchoolYearStatus.ACTIVE, "2026-09-01");
+        given(schoolYearRepository.findById(4L)).willReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> service.updateSchoolYear(
+                        PRINCIPAL,
+                        4L,
+                        new SchoolYearRequest("2026-2027", LocalDate.of(2026, 9, 7), LocalDate.of(2027, 5, 31))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_START_LOCKED);
+        assertThatThrownBy(() -> service.updateSchoolYear(
+                        PRINCIPAL,
+                        4L,
+                        new SchoolYearRequest("2026-2027", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_END_BEFORE_TODAY);
+    }
+
+    @Test
+    void holidaysStayInsideTheYearAndAreNotSchoolDays() {
+        given(schoolYearRepository.findById(5L))
+                .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
+        var item = new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem(
+                LocalDate.of(2027, 9, 2), "Quốc khánh");
+
+        expectError(
+                () -> service.replaceHolidays(
+                        PRINCIPAL,
+                        5L,
+                        new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest(List.of(
+                                item,
+                                new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem(
+                                        LocalDate.of(2028, 6, 2), "Ngoài năm")))),
+                ApiCode.HOLIDAY_OUT_OF_YEAR);
+        expectError(
+                () -> service.replaceHolidays(
+                        PRINCIPAL,
+                        5L,
+                        new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest(List.of(item, item))),
+                ApiCode.HOLIDAY_DUPLICATE);
+
+        given(holidayRepository.findAllDates()).willReturn(List.of(LocalDate.of(2027, 9, 2)));
+        assertThat(service.isSchoolDay(LocalDate.of(2027, 9, 2))).isFalse(); // thứ 5 nhưng nghỉ lễ
+        assertThat(service.isSchoolDay(LocalDate.of(2027, 9, 3))).isTrue();
+        assertThat(service.isSchoolDay(LocalDate.of(2027, 9, 4))).isFalse(); // thứ 7
+    }
+
+    @Test
     void principalSetsBothSemesters() {
         given(schoolYearRepository.findById(5L))
                 .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
@@ -191,6 +242,8 @@ class SchoolYearServiceImplTest {
                 () -> service.updateSemester(
                         PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-10", "2028-01-17", "2028-05-31")),
                 ApiCode.SEMESTER_DATES_LOCKED);
+        assertThat(service.getSemesterLocks(PRINCIPAL, 5L))
+                .isEqualTo(new com.carenest.dto.organization.SemesterLockResponse(true, false));
         // Học kỳ II chưa có đánh giá học kỳ: vẫn đổi được
         SchoolYearDetailResponse updated = service.updateSemester(
                 PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-18", "2028-05-31"));

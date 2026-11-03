@@ -201,7 +201,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             }
             classroomService.lockForUpdate(classId);
             LocalDate date = request.date();
-            if (!AttendanceDayRules.isSchoolDay(date)) {
+            if (!rules.isSchoolDay(date)) {
                 throw GlobalException.of(ApiCode.NOT_SCHOOL_DAY);
             }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
@@ -459,9 +459,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
-    private static List<LocalDate> schoolDays(LocalDate from, LocalDate to) {
+    private List<LocalDate> schoolDays(LocalDate from, LocalDate to) {
         return Stream.iterate(from, d -> !d.isAfter(to), d -> d.plusDays(1))
-                .filter(AttendanceDayRules::isSchoolDay)
+                .filter(rules::isSchoolDay)
                 .toList();
     }
 

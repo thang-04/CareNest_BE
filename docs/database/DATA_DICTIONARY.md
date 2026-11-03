@@ -58,6 +58,14 @@ Mục đích: năm học; lớp gắn với 1 năm học. Migration: V2.
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Index: `uk_school_years_active` (unique một phần `WHERE status = 'ACTIVE'`) ⇒ tối đa một năm ACTIVE.
 
+## school_holidays  (module: school-structure, scope: SCHOOL)
+Mục đích: ngày nghỉ (lễ, Tết…) của năm học; không tính là ngày học dù là thứ 2–6. Migration: V65.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| school_year_id | BIGINT FK school_years (xóa theo năm) | không | Năm học | SCH-05 |
+| date | DATE | không | Ngày nghỉ, UNIQUE, nằm trong năm học | SCH-05 |
+| name | VARCHAR(100) | không | Tên ngày nghỉ | SCH-05 |
+
 ## attendance_cutoffs  (module: school-structure, scope: SCHOOL)
 Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó.
 | Column | Type | Null | Ý nghĩa | Rule ID |

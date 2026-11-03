@@ -239,8 +239,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
 
     // Neo theo ngày chọn (mặc định hôm nay); ngày sau cuối năm neo ngày cuối năm, trước đầu năm neo ngày đầu năm.
     // Ngày học trong kỳ tính tới hôm nay.
-    private static Range rangeOf(
-            String period, LocalDate today, LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
+    private Range rangeOf(String period, LocalDate today, LocalDate date, LocalDate yearStart, LocalDate yearEnd) {
         LocalDate base = date != null ? date : today;
         LocalDate anchor = yearEnd != null && base.isAfter(yearEnd)
                 ? yearEnd
@@ -264,7 +263,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         LocalDate last = end.isAfter(today) ? today : end;
         List<LocalDate> days = new ArrayList<>();
         for (LocalDate d = start; !d.isAfter(last); d = d.plusDays(1)) {
-            if (ObservationDayRules.isSchoolDay(d)
+            if (rules.isSchoolDay(d)
                     && (yearStart == null || !d.isBefore(yearStart))
                     && (yearEnd == null || !d.isAfter(yearEnd))) {
                 days.add(d);

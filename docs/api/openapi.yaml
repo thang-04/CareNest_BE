@@ -5127,6 +5127,49 @@ paths:
           description: OK
       tags:
       - attendance-cutoff-controller
+  /api/school-years/{schoolYearId}/holidays:
+    get:
+      operationId: getHolidays
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSchoolHolidayItem"
+          description: OK
+      tags:
+      - school-year-controller
+    put:
+      operationId: replaceHolidays
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchoolHolidaysRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSchoolHolidayItem"
+          description: OK
+      tags:
+      - school-year-controller
   /api/school-years/{schoolYearId}/placements:
     get:
       operationId: getPlacements
@@ -5235,6 +5278,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - school-year-controller
+  /api/school-years/{schoolYearId}/semester-locks:
+    get:
+      operationId: getSemesterLocks
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterLockResponse"
           description: OK
       tags:
       - school-year-controller
@@ -6795,6 +6857,9 @@ components:
           items:
             type: integer
             format: int64
+        openFrom:
+          type: string
+          format: date
         period:
           type: string
           enum:
@@ -9527,6 +9592,12 @@ components:
           format: int64
         className:
           type: string
+        confirmedNormal:
+          type: integer
+          format: int32
+        confirmedSubstitute:
+          type: integer
+          format: int32
         missing:
           type: integer
           format: int32
@@ -11925,6 +11996,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListSchoolHolidayItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchoolHolidayItem"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListSchoolYearDetailResponse:
       type: object
       properties:
@@ -12375,6 +12461,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/SchoolYearDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonSemesterLockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SemesterLockResponse"
         desc:
           type: string
         errorCode:
@@ -12992,6 +13091,30 @@ components:
           minItems: 1
       required:
       - items
+    SchoolHolidayItem:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        name:
+          type: string
+          maxLength: 100
+          minLength: 0
+      required:
+      - date
+      - name
+    SchoolHolidaysRequest:
+      type: object
+      properties:
+        holidays:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchoolHolidayItem"
+          maxItems: 120
+          minItems: 0
+      required:
+      - holidays
     SchoolStructureResponse:
       type: object
       properties:
@@ -13112,6 +13235,13 @@ components:
         semester2Start:
           type: string
           format: date
+    SemesterLockResponse:
+      type: object
+      properties:
+        semester1Locked:
+          type: boolean
+        semester2Locked:
+          type: boolean
     SessionMenu:
       type: object
       properties:

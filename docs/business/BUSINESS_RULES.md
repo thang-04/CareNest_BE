@@ -46,7 +46,7 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 | SCH-02 | Mỗi năm học giữ các lớp cũ, có lớp mới thì thêm; lớp có thể đổi tên; danh sách trẻ thay đổi theo năm. Cách lưu lớp qua năm (DATA_DICTIONARY `classrooms`) chờ thiết kế school-structure | CONFIRMED | Khảo sát team 27/10 (ORG-05) |
 | SCH-03 | Mỗi lớp một phòng cố định cả năm; sửa chữa thì có thể chuyển phòng khác | CONFIRMED | Khảo sát team 27/10 (ORG-06) |
 | SCH-04 | Mỗi lớp 2 GV cố định; GV dạy thay theo AUTH-16 | CONFIRMED | Khảo sát team 27/10 (ORG-07) |
-| SCH-05 | Ngày nghỉ/lễ thay đổi theo thông báo phòng giáo dục, phải sửa được linh hoạt; không học thứ Bảy. Học kỳ/trông hè: PENDING P-18 | CONFIRMED / PENDING | Khảo sát team 27/10 (ORG-08, ORG-09) |
+| SCH-05 | Ngày nghỉ/lễ thay đổi theo thông báo phòng giáo dục, phải sửa được linh hoạt; không học thứ Bảy. HT khai báo ngày nghỉ theo năm học ở Cấu hình thời gian (`school_holidays`); ngày học = thứ 2–6 trừ ngày nghỉ, dùng cho điểm danh, đơn nghỉ, đánh giá, báo cáo (user chốt 03/11/2026). Học kỳ/trông hè: PENDING P-18 | CONFIRMED / PENDING | Khảo sát team 27/10 (ORG-08, ORG-09) |
 | SCH-06 | Hai cơ sở dùng chung: thực đơn, kho khô (quản lý chung, hàng để riêng từng cơ sở), NCC, mục tiêu năm học và kế hoạch chủ đề, giờ đón trẻ và giờ chốt suất, tổ chuyên môn; báo cáo tách riêng từng cơ sở. Phần bán trú áp vào NUT-11, NUT-12, NUT-13 | CONFIRMED | Khảo sát team 27/10 (ORG-01); đối chiếu nutrition 2026-10-28 |
 
 ## CHD — Hồ sơ trẻ (module: child)

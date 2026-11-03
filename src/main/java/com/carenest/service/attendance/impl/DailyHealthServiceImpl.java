@@ -256,7 +256,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             Overview overview = new Overview(
                     date,
                     campusId,
-                    AttendanceDayRules.isSchoolDay(date),
+                    rules.isSchoolDay(date),
                     options,
                     // Chưa có module thông báo phụ huynh ⇒ notified = 0
                     new Totals(totals[0], totals[1], totals[2], 0),

@@ -139,7 +139,7 @@ public class QualityReportServiceImpl implements QualityReportService {
                                     yearStart,
                                     dataEnd)
                             .stream()
-                            .filter(d -> ObservationDayRules.isSchoolDay(d.date()))
+                            .filter(d -> rules.isSchoolDay(d.date()))
                             .collect(Collectors.groupingBy(ClassChildDay::classroomId));
             Map<Long, List<BehaviourTicket>> ticketsByClass = visible.isEmpty()
                     ? Map.of()
