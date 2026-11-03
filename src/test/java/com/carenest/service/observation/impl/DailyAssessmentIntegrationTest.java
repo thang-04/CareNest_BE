@@ -659,6 +659,23 @@ class DailyAssessmentIntegrationTest {
                     assertThat(r.levels().overall()).isEqualTo(tot);
                     assertThat(r.canEdit()).isFalse();
                 });
+        // Cuối năm chỉ chấm từ tháng cuối năm học; đã chấm tiêu chí thì phải chọn xếp loại chung
+        var yearRequest = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(
+                com.carenest.utils.enums.ClassRatingPeriod.YEAR, List.of(item));
+        expectCode(() -> ratings.save(principal, yearRequest), ApiCode.CLASS_RATING_NOT_OPEN);
+        var noOverall = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingItem(
+                classA,
+                new com.carenest.dto.observation.ClassRatingDtos.Levels(tot, null, null, null, null, null, null, null),
+                null);
+        expectCode(
+                () -> ratings.save(
+                        principal,
+                        new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(
+                                period, List.of(noOverall))),
+                ApiCode.CLASS_RATING_OVERALL_REQUIRED);
+        assertThat(ratings.list(principal, null, com.carenest.utils.enums.ClassRatingPeriod.YEAR, null)
+                        .rows())
+                .allSatisfy(r -> assertThat(r.canEdit()).isFalse());
         assertThat(ratings.list(teacherA, null, com.carenest.utils.enums.ClassRatingPeriod.YEAR, null)
                         .rows()
                         .getFirst()

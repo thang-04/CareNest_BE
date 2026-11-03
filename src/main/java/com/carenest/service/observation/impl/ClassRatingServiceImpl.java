@@ -7,6 +7,7 @@ import com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest;
 import com.carenest.dto.observation.ClassRatingDtos.Levels;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.entity.observation.ClassRating;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.observation.ClassRatingRepository;
@@ -15,17 +16,21 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.observation.ClassRatingService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.ClassRatingLevel;
 import com.carenest.utils.enums.ClassRatingPeriod;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -37,10 +42,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ClassRatingServiceImpl implements ClassRatingService {
     private static final String LOG_PREFIX = "[ClassRatingServiceImpl]";
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final ObservationDayRules rules;
     private final ClassroomService classroomService;
     private final AgeGroupService ageGroupService;
+    private final SchoolYearService schoolYearService;
     private final AccountService accountService;
     private final ClassRatingRepository ratingRepository;
 
@@ -83,6 +90,29 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                     throw GlobalException.of(ApiCode.CLASS_RATING_MIXED_YEARS);
                 }
                 yearId = cls.schoolYearId();
+            }
+            LocalDate openFrom = openFrom(currentUser, yearId, request.period());
+            if (openFrom == null || rules.today().isBefore(openFrom)) {
+                throw GlobalException.of(
+                        ApiCode.CLASS_RATING_NOT_OPEN,
+                        openFrom == null ? "đặt ở Cấu hình thời gian" : DATE.format(openFrom));
+            }
+            for (ClassRatingItem item : request.items()) {
+                Levels l = item.levels();
+                boolean anyCriterion = Stream.of(
+                                l.records(),
+                                l.program(),
+                                l.theme(),
+                                l.environment(),
+                                l.routine(),
+                                l.health(),
+                                l.parents())
+                        .anyMatch(Objects::nonNull);
+                if (anyCriterion && l.overall() == null) {
+                    throw GlobalException.of(
+                            ApiCode.CLASS_RATING_OVERALL_REQUIRED,
+                            classes.get(item.classId()).name());
+                }
             }
             Map<Long, ClassRating> existing =
                     ratingRepository.findByClassroomIdInAndPeriod(classes.keySet(), request.period()).stream()
@@ -158,7 +188,23 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                 .map(c -> rowOf(user, c, ratings.get(c.id()), names))
                 .toList();
         Long yearId = shown.isEmpty() ? schoolYearId : shown.getFirst().schoolYearId();
-        return new ClassRatingResponse(period, yearId, campusIds, rows);
+        LocalDate openFrom = yearId == null ? null : openFrom(user, yearId, period);
+        boolean open = openFrom != null && !rules.today().isBefore(openFrom);
+        List<ClassRatingRow> result = open
+                ? rows
+                : rows.stream()
+                        .map(r -> new ClassRatingRow(
+                                r.classId(),
+                                r.className(),
+                                r.campusId(),
+                                r.ageGroupId(),
+                                r.levels(),
+                                r.note(),
+                                r.ratedByName(),
+                                r.ratedAt(),
+                                false))
+                        .toList();
+        return new ClassRatingResponse(period, yearId, openFrom, campusIds, result);
     }
 
     private ClassRatingRow rowOf(CurrentUser user, ClassroomInfoResponse cls, ClassRating r, Map<Long, String> names) {
@@ -184,6 +230,16 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                 r == null ? null : names.get(r.getRatedBy()),
                 r == null ? null : r.getRatedAt(),
                 canEdit);
+    }
+
+    // Kỳ mở chấm (OBS-24): HK I, HK II từ ngày bắt đầu học kỳ; cuối năm từ ngày 1 tháng cuối năm học
+    private LocalDate openFrom(CurrentUser user, Long schoolYearId, ClassRatingPeriod period) {
+        SchoolYearDetailResponse year = schoolYearService.getSchoolYear(user, schoolYearId);
+        return switch (period) {
+            case SEMESTER_1 -> year.semester1Start() == null ? year.startDate() : year.semester1Start();
+            case SEMESTER_2 -> year.semester2Start();
+            case YEAR -> year.endDate().withDayOfMonth(1);
+        };
     }
 
     // Chấm: HT mọi lớp, PHT lớp điểm trường mình (AUTH-01, AUTH-02)

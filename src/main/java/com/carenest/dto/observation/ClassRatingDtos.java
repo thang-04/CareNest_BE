@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -37,8 +38,13 @@ public final class ClassRatingDtos {
             Instant ratedAt,
             boolean canEdit) {}
 
+    /** openFrom: ngày bắt đầu chấm được kỳ này (null khi năm học chưa đặt ngày học kỳ); trước ngày đó chỉ xem. */
     public record ClassRatingResponse(
-            ClassRatingPeriod period, Long schoolYearId, List<Long> campusIds, List<ClassRatingRow> rows) {}
+            ClassRatingPeriod period,
+            Long schoolYearId,
+            LocalDate openFrom,
+            List<Long> campusIds,
+            List<ClassRatingRow> rows) {}
 
     public record ClassRatingItem(
             @NotNull Long classId,
