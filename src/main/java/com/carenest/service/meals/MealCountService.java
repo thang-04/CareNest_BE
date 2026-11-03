@@ -19,4 +19,7 @@ public interface MealCountService {
 
     /** Điểm danh của lớp đổi sau khi đã tổng hợp ⇒ số đã xác nhận chuyển chờ xác nhận lại (ATT-07, ADR-0005). */
     void markAttendanceChanged(LocalDate date, Long campusId, Long classroomId);
+
+    /** Số suất của điểm trường–ngày vừa chuyển sang đã chốt (xác nhận hoặc xác nhận lại); phát sau commit (ADR-0004). */
+    record MealCountConfirmedEvent(Long campusId, LocalDate date) {}
 }

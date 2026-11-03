@@ -1,5 +1,6 @@
 package com.carenest.service.eduplan.impl;
 
+import com.carenest.dto.eduplan.BranchFilePreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.dto.eduplan.EduConfigResponse;
@@ -54,6 +55,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
@@ -130,6 +132,88 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     /** Tuần học của kế hoạch năm: số thứ tự cả năm, thứ Hai đầu tuần, chủ đề. */
     record TeachingWeek(int no, LocalDate start, Long themeId) {}
+
+    @Override
+    @Transactional(readOnly = true)
+    public BranchFilePreviewResponse previewBranchFile(
+            CurrentUser currentUser, Long classId, Long yearPlanId, MultipartFile file) {
+        String logPrefix = LOG_PREFIX + "|previewBranchFile|userId=" + currentUser.userId() + "|classId=" + classId
+                + "|yearPlanId=" + yearPlanId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            if (!currentUser.hasRole(CareNestRole.TEACHER)
+                    || !staffAssignmentService
+                            .findCurrentTeacherClassroomIds(currentUser.userId(), today)
+                            .contains(classId)) {
+                throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+            }
+            ClassroomInfoResponse cls = requireClass(classId);
+            EduYearPlan plan = requireIssuedPlan(yearPlanId, cls);
+            if (isSuperseded(plan.getId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
+            classDocRepository
+                    .findByDocKey(expectedKey(EduClassDoc.BRANCH, classId, plan, null, null))
+                    .filter(doc -> !doc.getStatus().editable())
+                    .ifPresent(doc -> {
+                        throw GlobalException.of(ApiCode.CLASS_DOC_SUBMITTED);
+                    });
+            if (file == null || file.isEmpty()) throw GlobalException.of(ApiCode.BRANCH_FILE_UNSUPPORTED);
+            if (file.getSize() > 2L * 1024 * 1024) throw GlobalException.of(ApiCode.BRANCH_FILE_TOO_LARGE);
+            BranchFileTable.Parsed parsed;
+            try {
+                parsed = BranchFileTable.interpret(GoalFileGrid.read(file.getOriginalFilename(), file.getBytes()));
+            } catch (java.io.IOException ex) {
+                throw GlobalException.withCause(ApiCode.BRANCH_FILE_UNSUPPORTED, ex);
+            } catch (GlobalException ex) {
+                if (ex.getApiCode() == ApiCode.GOAL_FILE_TOO_LARGE)
+                    throw GlobalException.withCause(ApiCode.BRANCH_FILE_TOO_LARGE, ex);
+                if (ex.getApiCode() == ApiCode.GOAL_FILE_UNSUPPORTED)
+                    throw GlobalException.withCause(ApiCode.BRANCH_FILE_UNSUPPORTED, ex);
+                throw ex;
+            }
+            List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
+            Map<String, List<EduTheme>> byName =
+                    themes.stream().collect(Collectors.groupingBy(t -> BranchFileTable.normalized(t.getName())));
+            Map<Long, List<TeachingWeek>> weeks =
+                    teachingWeeks(themes, breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())).stream()
+                            .collect(Collectors.groupingBy(TeachingWeek::themeId));
+            Map<Long, Integer> positions = new java.util.HashMap<>();
+            List<BranchFilePreviewResponse.Match> matches = new ArrayList<>();
+            List<BranchFilePreviewResponse.Warning> warnings = new ArrayList<>(parsed.warnings());
+            for (var entry : parsed.entries()) {
+                List<EduTheme> candidates =
+                        byName.getOrDefault(BranchFileTable.normalized(entry.themeName()), List.of());
+                if (candidates.size() != 1) {
+                    warnings.add(new BranchFilePreviewResponse.Warning(
+                            entry.row(),
+                            candidates.isEmpty()
+                                    ? "Chủ đề không khớp với kế hoạch năm"
+                                    : "Có nhiều chủ đề trùng tên, chưa thể ghép tên nhánh"));
+                    continue;
+                }
+                EduTheme theme = candidates.getFirst();
+                List<TeachingWeek> slots = weeks.getOrDefault(theme.getId(), List.of());
+                int position = positions.getOrDefault(theme.getId(), 0);
+                if (position >= slots.size()) {
+                    warnings.add(new BranchFilePreviewResponse.Warning(
+                            entry.row(), "Tên nhánh thừa so với số tuần học của chủ đề"));
+                    continue;
+                }
+                matches.add(new BranchFilePreviewResponse.Match(
+                        entry.row(),
+                        theme.getId(),
+                        theme.getName(),
+                        slots.get(position).start(),
+                        entry.name()));
+                positions.put(theme.getId(), position + 1);
+            }
+            log.info("{}|END", logPrefix);
+            return new BranchFilePreviewResponse(List.copyOf(matches), List.copyOf(warnings));
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     @Transactional

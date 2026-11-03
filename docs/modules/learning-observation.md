@@ -12,7 +12,7 @@ ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi tr�
 Kế hoạch giáo dục, giáo án và hoạt động, MT của chúng (module education-plan, ADR-0020 — chỉ đọc bản đã duyệt, OBS-07); dữ liệu sức khỏe/điểm danh/bữa ăn (chỉ đọc).
 
 ## Rules
-OBS-01..14 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/business/flows/child-observation.md`.
+OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/business/flows/child-observation.md`.
 
 ## Phụ thuộc
 - Dùng: service `child`, service `attendance`, service `meals`, service `health`, service `eduplan` (giáo án đã duyệt) — chỉ query; `AiClient` (`integration/`).
@@ -20,15 +20,20 @@ OBS-01..14 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 - Module downstream nhất trong child record — không module domain nào được import learning.
 
 ## API & bảng
-Chưa có. Nhập đánh giá ngày theo batch cả lớp.
+- `GET /classes/{classId}/daily-assessment?date=` (GV/PHT/HT), `PUT .../daily-assessment/general`, `PUT .../daily-assessment/skills` (GV lớp).
+- `GET|POST /assessment/day-unlocks`, `POST /assessment/day-unlocks/{id}/revoke` (PHT/HT).
+- `GET /assessment/overview?period=DAY|WEEK|MONTH`, `GET /assessment/overview/classes/{classId}` (PHT/HT).
+- Bảng: `daily_observations`, `daily_activity_results`, `assessment_day_unlocks` (V41). Mã lỗi 73xx.
+- Nhận xét chung lớp: `class_daily_comments` (V42), PUT General thêm `classComment` optional (thiếu/null giữ, rỗng xóa); cho phép entries rỗng khi chỉ lưu nhận xét. GET sheet có `classComment`, overview/detail có `classComments` theo đúng lớp/ngày; kèm người ghi/thời gian, không tính vào số trẻ đã đánh giá (OBS-19).
+- Đọc giáo án đã duyệt qua `EduLessonQueryService` (education-plan); điểm danh / sức khỏe qua `AttendanceService.findDayStatuses`, `DailyHealthService.findLatestDaySigns`.
 
 ## PENDING
-P-11 (tiêu chí cố định theo Bộ hay trường cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
+P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng enum theo danh sách FE đã chốt với Cần, lệch OBS-02 cho tới khi có màn cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
 
 ## Known pitfalls
 - Không enum cứng tiêu chí đánh giá khi P-11 chưa chốt (OBS-02).
 - Trẻ vắng không có đánh giá ngày; trẻ có mặt mặc định "bình thường", GV chỉ sửa trẻ khác thường (OBS-01).
-- Đánh giá ngày khóa sau hết ngày (OBS-12); không mở API sửa ngày cũ.
+- Đánh giá ngày khóa sau hết ngày (OBS-12); không mở API sửa ngày cũ, ngoại lệ là lần mở lại còn hiệu lực do PHT/HT cấp (OBS-18, OBS-19).
 - Nhận xét định kỳ không có bước BGH duyệt; GV xác nhận là xong (OBS-05).
 - Hệ thống không gợi ý trẻ nhận phiếu bé ngoan; GV tự chọn (OBS-10).
 - Không có mục theo dõi/can thiệp riêng trong hồ sơ phát triển (OBS-03).

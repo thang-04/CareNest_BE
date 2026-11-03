@@ -15,6 +15,7 @@ import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
@@ -84,6 +85,23 @@ class EduGoalFileServiceImplTest {
         assertThat(preview.domains())
                 .singleElement()
                 .satisfies(d -> assertThat(d.name()).isEqualTo("Phát triển thể chất"));
+    }
+
+    @Test
+    @DisplayName("EDU-46: .doc nhị phân qua service vẫn dùng quyền và lĩnh vực cấu hình hiện có")
+    void binaryDocUsesConfiguredDomains() throws IOException {
+        given(accessPolicy.hasPermission(any(), eq(EduPermission.GOALS_EDIT))).willReturn(true);
+        EduDomain active = Mockito.mock(EduDomain.class);
+        given(active.isActive()).willReturn(true);
+        given(active.getName()).willReturn("Phát triển thể chất");
+        given(domainRepository.findAllByOrderBySortOrderAsc()).willReturn(List.of(active));
+        try (var input = getClass().getResourceAsStream("/eduplan/goals-merged.doc")) {
+            var preview = service.preview(TEACHER, file("goals.doc", input.readAllBytes()));
+            assertThat(preview.domains()).singleElement().satisfies(domain -> {
+                assertThat(domain.name()).isEqualTo("Phát triển thể chất");
+                assertThat(domain.rows().getFirst().contents()).hasSize(2);
+            });
+        }
     }
 
     private static MockMultipartFile file(String name, byte[] bytes) {

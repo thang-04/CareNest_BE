@@ -8,6 +8,7 @@ import com.carenest.dto.eduplan.GoalFilePreviewResponse.Content;
 import com.carenest.dto.eduplan.GoalFilePreviewResponse.Row;
 import com.carenest.exception.GlobalException;
 import com.carenest.utils.ApiCode;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.apache.poi.hwpf.HWPFDocument;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -30,6 +32,92 @@ class GoalFileImportTest {
 
     private static GoalFilePreviewResponse preview(String name, byte[] bytes) {
         return GoalFileTable.interpret(GoalFileGrid.read(name, bytes), DOMAINS);
+    }
+
+    @Test
+    @DisplayName("EDU-46/47: chặn kích thước lưới trước mở rộng tọa độ/ô gộp trong file nhỏ")
+    void gridDimensionsAreCheckedBeforeExpansion() throws IOException {
+        String sheetPrefix =
+                "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\"><sheetData>";
+        String sheetSuffix = "</sheetData></worksheet>";
+        String doc =
+                "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\"><w:body><w:tbl>"
+                        + tr(tc("Tên", 257, null)) + "</w:tbl></w:body></w:document>";
+        Map<String, byte[]> files = Map.of(
+                "row.xlsx", zip(Map.of("xl/worksheets/sheet1.xml", sheetPrefix + row(2001, "A", "Tên") + sheetSuffix)),
+                "col.xlsx", zip(Map.of("xl/worksheets/sheet1.xml", sheetPrefix + row(1, "IW", "Tên") + sheetSuffix)),
+                "span.docx", zip(Map.of("word/document.xml", doc)),
+                "colspan.doc", "<table><tr><td colspan=\"257\">Tên</td></tr></table>".getBytes(StandardCharsets.UTF_8),
+                "rowspan.doc", "<table><tr><td rowspan=\"2001\">Tên</td></tr></table>".getBytes(StandardCharsets.UTF_8),
+                "rows.csv", "Tên\n".repeat(2001).getBytes(StandardCharsets.UTF_8),
+                "cols.csv", ("Tên,".repeat(256) + "Tên").getBytes(StandardCharsets.UTF_8));
+        org.junit.jupiter.api.Assertions.assertAll(files.entrySet().stream().map(entry -> () -> {
+            assertThatThrownBy(() -> GoalFileGrid.read(entry.getKey(), entry.getValue()))
+                    .as(entry.getKey())
+                    .isInstanceOfSatisfying(
+                            GlobalException.class,
+                            ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.GOAL_FILE_TOO_LARGE));
+        }));
+    }
+
+    @Test
+    @DisplayName("EDU-46: Word .doc nhị phân giữ ô gộp, mục tiêu và dấu tích như .docx")
+    void binaryDocMatchesDocx() throws IOException {
+        byte[] doc;
+        byte[] docx;
+        try (var input = getClass().getResourceAsStream("/eduplan/goals-merged.doc")) {
+            doc = input.readAllBytes();
+        }
+        try (var input = getClass().getResourceAsStream("/eduplan/goals-merged.docx")) {
+            docx = input.readAllBytes();
+        }
+        GoalFilePreviewResponse expected = preview("goals.docx", docx);
+        assertThat(expected.domains()).hasSize(1);
+        assertThat(expected.domains().getFirst().rows().getFirst().contents())
+                .containsExactly(
+                        new Content("Tập động tác", List.of("TMN")), new Content("Đi bước dồn", List.of("BT")));
+        assertThat(preview("goals.doc", doc)).isEqualTo(expected);
+    }
+
+    @Test
+    @DisplayName("EDU-46: Word .doc không bảng, mã hóa hoặc quá 2.000 dòng bị từ chối đúng mã")
+    void binaryDocErrors() throws IOException {
+        for (var entry : Map.of(
+                        "no-table.doc", ApiCode.GOAL_FILE_NO_TABLE,
+                        "encrypted.doc", ApiCode.GOAL_FILE_UNSUPPORTED,
+                        "row-limit.doc", ApiCode.GOAL_FILE_TOO_LARGE)
+                .entrySet()) {
+            try (var input = getClass().getResourceAsStream("/eduplan/" + entry.getKey())) {
+                byte[] bytes = input.readAllBytes();
+                assertThatThrownBy(() -> preview(entry.getKey(), bytes))
+                        .isInstanceOfSatisfying(
+                                GlobalException.class,
+                                ex -> assertThat(ex.getApiCode()).isEqualTo(entry.getValue()));
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("EDU-46: fixture .doc không có tác giả thật, OLE2 sai đuôi hoặc trên 2 MB bị chặn")
+    void binaryDocBoundariesAndFixturePrivacy() throws IOException {
+        byte[] bytes;
+        try (var input = getClass().getResourceAsStream("/eduplan/goals-merged.doc")) {
+            bytes = input.readAllBytes();
+        }
+        try (HWPFDocument document = new HWPFDocument(new ByteArrayInputStream(bytes))) {
+            assertThat(document.getSummaryInformation().getAuthor()).isNullOrEmpty();
+            assertThat(document.getSummaryInformation().getLastAuthor()).isNullOrEmpty();
+            assertThat(document.getDocumentSummaryInformation().getCompany()).isNullOrEmpty();
+        }
+        assertThatThrownBy(() -> preview("not-word.xls", bytes))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.GOAL_FILE_UNSUPPORTED));
+        byte[] tooLarge = java.util.Arrays.copyOf(bytes, 2 * 1024 * 1024 + 1);
+        assertThatThrownBy(() -> preview("large.doc", tooLarge))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.GOAL_FILE_TOO_LARGE));
     }
 
     @Test

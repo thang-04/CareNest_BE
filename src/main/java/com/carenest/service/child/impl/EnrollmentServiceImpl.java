@@ -80,6 +80,26 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     @Override
+    public List<ClassChildResponse> findChildrenInClassroomDuring(Long classroomId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findChildrenInClassroomDuring|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> ids = enrollmentRepository.findDuring(classroomId, from, to).stream()
+                    .map(Enrollment::getChildId)
+                    .collect(Collectors.toSet());
+            List<ClassChildResponse> children = childRepository.findAllById(ids).stream()
+                    .sorted(Comparator.comparing(Child::getFullName).thenComparing(Child::getId))
+                    .map(c -> new ClassChildResponse(c.getId(), c.getFullName(), c.getDateOfBirth()))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return children;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Map<Long, Long> findActiveClassroomIdByChildIds(Collection<Long> childIds, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveClassroomIdByChildIds|children=" + childIds.size();
         log.info("{}|START", logPrefix);

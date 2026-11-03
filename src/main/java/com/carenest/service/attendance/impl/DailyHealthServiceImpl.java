@@ -32,6 +32,7 @@ import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -370,5 +371,33 @@ public class DailyHealthServiceImpl implements DailyHealthService {
 
     private static boolean blank(String value) {
         return value == null || value.isBlank();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChildDaySigns> findLatestDaySigns(Collection<Long> childIds, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findLatestDaySigns|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            // Danh sách xếp mới nhất trước: lấy lần ghi nhận đầu tiên của mỗi trẻ / ngày
+            Map<String, ChildDaySigns> latest = new LinkedHashMap<>();
+            if (!childIds.isEmpty()) {
+                entryRepository
+                        .findByChildIdInAndDateBetweenOrderByRecordedAtDescIdDesc(childIds, from, to)
+                        .forEach(e -> latest.putIfAbsent(
+                                e.getChildId() + "|" + e.getDate(),
+                                new ChildDaySigns(
+                                        e.getChildId(),
+                                        e.getDate(),
+                                        e.getObservation() == HealthObservation.NOTED ? e.getSymptoms() : List.of(),
+                                        e.getNote())));
+            }
+            List<ChildDaySigns> result = List.copyOf(latest.values());
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
     }
 }

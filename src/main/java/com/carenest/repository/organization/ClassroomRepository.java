@@ -12,6 +12,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select c from Classroom c where c.id = :id")
+    Optional<Classroom> findForUpdate(@Param("id") Long id);
+
     @Query("select c.campusId from Classroom c where c.id = :classroomId")
     Optional<Long> findCampusIdById(@Param("classroomId") Long classroomId);
 
