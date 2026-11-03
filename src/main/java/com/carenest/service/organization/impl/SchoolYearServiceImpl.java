@@ -17,6 +17,7 @@ import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolHolidayRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.organization.SchoolDayUsageCheck;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.SemesterUsageCheck;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -28,11 +29,9 @@ import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -61,8 +60,9 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final DevActivationProperties devActivation;
     private final List<SemesterUsageCheck> semesterUsageChecks;
     private final SchoolHolidayRepository schoolHolidayRepository;
+    private final List<SchoolDayUsageCheck> schoolDayUsageChecks;
     // Ngày nghỉ ít và đọc rất nhiều (mỗi ngày học): giữ trong bộ nhớ, xóa khi HT lưu lại danh sách
-    private volatile Set<LocalDate> holidayCache;
+    private volatile List<SchoolHoliday> holidayCache;
 
     @Override
     @Transactional(readOnly = true)
@@ -417,6 +417,8 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     }
 
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    // Đợt nghỉ dài nhất (Tết, nghỉ giữa kỳ); nghỉ hè nằm ngoài năm học
+    private static final int HOLIDAY_MAX_DAYS = 31;
 
     // Cả 4 ngày bắt buộc, nằm trong năm học; mỗi học kỳ bắt đầu ≤ kết thúc; HK II bắt đầu sau khi HK I kết thúc
     @Override
@@ -446,19 +448,12 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             checkCanManage(currentUser);
             SchoolYear year = findSchoolYear(schoolYearId);
             SchoolYearRules.checkOpen(year);
-            Set<LocalDate> seen = new HashSet<>();
-            for (SchoolHolidayItem item : request.holidays()) {
-                if (item.date().isBefore(year.getStartDate()) || item.date().isAfter(year.getEndDate())) {
-                    throw GlobalException.of(ApiCode.HOLIDAY_OUT_OF_YEAR, DMY.format(item.date()));
-                }
-                if (!seen.add(item.date())) {
-                    throw GlobalException.of(ApiCode.HOLIDAY_DUPLICATE, DMY.format(item.date()));
-                }
-            }
+            checkHolidays(year, request.holidays());
             schoolHolidayRepository.deleteAllBySchoolYearId(schoolYearId);
             schoolHolidayRepository.flush();
             schoolHolidayRepository.saveAllAndFlush(request.holidays().stream()
-                    .map(h -> SchoolHoliday.of(schoolYearId, h.date(), h.name().trim()))
+                    .map(h -> SchoolHoliday.of(
+                            schoolYearId, h.startDate(), h.endDate(), h.name().trim()))
                     .toList());
             holidayCache = null;
             List<SchoolHolidayItem> holidays = holidaysOf(schoolYearId);
@@ -477,18 +472,53 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         if (day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY) {
             return false;
         }
-        Set<LocalDate> holidays = holidayCache;
+        List<SchoolHoliday> holidays = holidayCache;
         if (holidays == null) {
-            holidays = Set.copyOf(schoolHolidayRepository.findAllDates());
+            holidays = List.copyOf(schoolHolidayRepository.findAll());
             holidayCache = holidays;
         }
-        return !holidays.contains(date);
+        return holidays.stream().noneMatch(h -> h.covers(date));
     }
 
     private List<SchoolHolidayItem> holidaysOf(Long schoolYearId) {
-        return schoolHolidayRepository.findAllBySchoolYearIdOrderByDateAsc(schoolYearId).stream()
-                .map(h -> new SchoolHolidayItem(h.getDate(), h.getName()))
+        return schoolHolidayRepository.findAllBySchoolYearIdOrderByStartDateAsc(schoolYearId).stream()
+                .map(h -> new SchoolHolidayItem(h.getStartDate(), h.getEndDate(), h.getName()))
                 .toList();
+    }
+
+    // SCH-05: mỗi đợt từ ≤ đến, nằm trong năm học, dài tối đa HOLIDAY_MAX_DAYS, không chồng đợt khác, không trùm ngày
+    // đã có điểm danh (đặt nghỉ sau khi đã điểm danh làm lệch số liệu)
+    private void checkHolidays(SchoolYear year, List<SchoolHolidayItem> items) {
+        List<SchoolHolidayItem> sorted = items.stream()
+                .sorted(java.util.Comparator.comparing(SchoolHolidayItem::startDate))
+                .toList();
+        SchoolHolidayItem previous = null;
+        for (SchoolHolidayItem item : sorted) {
+            String name = item.name().trim();
+            if (item.endDate().isBefore(item.startDate())) {
+                throw GlobalException.of(ApiCode.HOLIDAY_RANGE_INVALID, name);
+            }
+            if (item.startDate().isBefore(year.getStartDate()) || item.endDate().isAfter(year.getEndDate())) {
+                throw GlobalException.of(
+                        ApiCode.HOLIDAY_OUT_OF_YEAR,
+                        name,
+                        DMY.format(year.getStartDate()),
+                        DMY.format(year.getEndDate()));
+            }
+            if (java.time.temporal.ChronoUnit.DAYS.between(item.startDate(), item.endDate()) + 1 > HOLIDAY_MAX_DAYS) {
+                throw GlobalException.of(ApiCode.HOLIDAY_TOO_LONG, name, HOLIDAY_MAX_DAYS);
+            }
+            if (previous != null && !item.startDate().isAfter(previous.endDate())) {
+                throw GlobalException.of(
+                        ApiCode.HOLIDAY_OVERLAP, name, previous.name().trim());
+            }
+            previous = item;
+            for (SchoolDayUsageCheck check : schoolDayUsageChecks) {
+                check.firstUsedDay(item.startDate(), item.endDate()).ifPresent(day -> {
+                    throw GlobalException.of(ApiCode.HOLIDAY_HAS_ATTENDANCE, DMY.format(day));
+                });
+            }
+        }
     }
 
     @Override

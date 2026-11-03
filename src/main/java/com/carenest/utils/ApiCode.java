@@ -128,8 +128,11 @@ public enum ApiCode {
     SCHOOL_YEAR_START_LOCKED(2028, HttpStatus.CONFLICT, "Năm học đang hoạt động, không đổi được ngày bắt đầu"),
     SCHOOL_YEAR_END_BEFORE_TODAY(
             2029, HttpStatus.BAD_REQUEST, "Ngày kết thúc năm học đang hoạt động không được trước hôm nay"),
-    HOLIDAY_OUT_OF_YEAR(2030, HttpStatus.BAD_REQUEST, "Ngày nghỉ {0} phải nằm trong năm học"),
-    HOLIDAY_DUPLICATE(2031, HttpStatus.BAD_REQUEST, "Ngày nghỉ {0} bị trùng"),
+    HOLIDAY_OUT_OF_YEAR(2030, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" phải nằm trong năm học ({1} – {2})"),
+    HOLIDAY_OVERLAP(2031, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" trùng ngày với đợt \"{1}\""),
+    HOLIDAY_RANGE_INVALID(2032, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\": ngày bắt đầu không được sau ngày kết thúc"),
+    HOLIDAY_TOO_LONG(2033, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" dài tối đa {1} ngày"),
+    HOLIDAY_HAS_ATTENDANCE(2034, HttpStatus.CONFLICT, "Ngày {0} đã có điểm danh, không đặt thành ngày nghỉ được"),
     SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
@@ -557,6 +560,7 @@ public enum ApiCode {
     CLASS_RATING_MIXED_YEARS(7371, HttpStatus.BAD_REQUEST, "Chỉ lưu xếp loại các lớp cùng một năm học"),
     CLASS_RATING_NOT_OPEN(7372, HttpStatus.CONFLICT, "Kỳ xếp loại chưa bắt đầu, xếp loại được từ ngày {0}"),
     CLASS_RATING_OVERALL_REQUIRED(7373, HttpStatus.BAD_REQUEST, "Lớp {0}: chọn xếp loại chung"),
+    CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,
             HttpStatus.FORBIDDEN,

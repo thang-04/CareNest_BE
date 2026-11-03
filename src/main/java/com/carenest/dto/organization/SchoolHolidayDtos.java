@@ -7,15 +7,16 @@ import jakarta.validation.constraints.Size;
 import java.time.LocalDate;
 import java.util.List;
 
-/** Ngày nghỉ của năm học (SCH-05). */
+/** Đợt nghỉ của năm học (SCH-05): từ ngày – đến ngày, tên đợt nghỉ. */
 public final class SchoolHolidayDtos {
     private SchoolHolidayDtos() {}
 
     public record SchoolHolidayItem(
-            @NotNull LocalDate date,
+            @NotNull LocalDate startDate,
+            @NotNull LocalDate endDate,
             @NotBlank @Size(max = 100) String name) {}
 
-    /** Thay toàn bộ danh sách ngày nghỉ của năm học. */
+    /** Thay toàn bộ danh sách đợt nghỉ của năm học. */
     public record SchoolHolidaysRequest(
-            @NotNull @Size(max = 120) List<@NotNull @Valid SchoolHolidayItem> holidays) {}
+            @NotNull @Size(max = 60) List<@NotNull @Valid SchoolHolidayItem> holidays) {}
 }

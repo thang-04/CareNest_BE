@@ -51,6 +51,8 @@ class SchoolYearServiceImplTest {
     private final ClassroomRepository classroomRepository = mock(ClassroomRepository.class);
     private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
     private final SemesterUsageCheck semesterUsage = mock(SemesterUsageCheck.class);
+    private final com.carenest.service.organization.SchoolDayUsageCheck dayUsage =
+            mock(com.carenest.service.organization.SchoolDayUsageCheck.class);
     private final com.carenest.repository.organization.SchoolHolidayRepository holidayRepository =
             mock(com.carenest.repository.organization.SchoolHolidayRepository.class);
     private final SchoolYearServiceImpl service = new SchoolYearServiceImpl(
@@ -62,7 +64,8 @@ class SchoolYearServiceImplTest {
             FIXED_CLOCK,
             new DevActivationProperties(false, false, false),
             List.of(semesterUsage),
-            holidayRepository);
+            holidayRepository,
+            List.of(dayUsage));
 
     @BeforeEach
     void principalHasActiveAssignment() {
@@ -186,32 +189,47 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
-    void holidaysStayInsideTheYearAndAreNotSchoolDays() {
+    void holidayRangesAreValidatedAndSkippedAsSchoolDays() {
         given(schoolYearRepository.findById(5L))
                 .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
-        var item = new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem(
-                LocalDate.of(2027, 9, 2), "Quốc khánh");
-
-        expectError(
-                () -> service.replaceHolidays(
-                        PRINCIPAL,
-                        5L,
-                        new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest(List.of(
-                                item,
-                                new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem(
-                                        LocalDate.of(2028, 6, 2), "Ngoài năm")))),
+        expectCode(
+                holidays(holiday("2027-09-02", "2027-09-03", "Quốc khánh"), holiday("2028-05-30", "2028-06-02", "Hè")),
                 ApiCode.HOLIDAY_OUT_OF_YEAR);
-        expectError(
-                () -> service.replaceHolidays(
-                        PRINCIPAL,
-                        5L,
-                        new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest(List.of(item, item))),
-                ApiCode.HOLIDAY_DUPLICATE);
+        expectCode(holidays(holiday("2027-09-03", "2027-09-02", "Ngược")), ApiCode.HOLIDAY_RANGE_INVALID);
+        expectCode(holidays(holiday("2028-01-20", "2028-02-25", "Tết quá dài")), ApiCode.HOLIDAY_TOO_LONG);
+        expectCode(
+                holidays(holiday("2028-02-01", "2028-02-10", "Tết"), holiday("2028-02-09", "2028-02-12", "Bù")),
+                ApiCode.HOLIDAY_OVERLAP);
+        given(dayUsage.firstUsedDay(LocalDate.of(2027, 9, 2), LocalDate.of(2027, 9, 3)))
+                .willReturn(Optional.of(LocalDate.of(2027, 9, 3)));
+        expectCode(holidays(holiday("2027-09-02", "2027-09-03", "Quốc khánh")), ApiCode.HOLIDAY_HAS_ATTENDANCE);
 
-        given(holidayRepository.findAllDates()).willReturn(List.of(LocalDate.of(2027, 9, 2)));
-        assertThat(service.isSchoolDay(LocalDate.of(2027, 9, 2))).isFalse(); // thứ 5 nhưng nghỉ lễ
-        assertThat(service.isSchoolDay(LocalDate.of(2027, 9, 3))).isTrue();
-        assertThat(service.isSchoolDay(LocalDate.of(2027, 9, 4))).isFalse(); // thứ 7
+        given(holidayRepository.findAll())
+                .willReturn(List.of(com.carenest.entity.organization.SchoolHoliday.of(
+                        5L, LocalDate.of(2028, 2, 7), LocalDate.of(2028, 2, 11), "Tết")));
+        assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 9))).isFalse(); // thứ 4 trong đợt Tết
+        assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 14))).isTrue();
+        assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 12))).isFalse(); // thứ 7
+    }
+
+    private static com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem holiday(
+            String from, String to, String name) {
+        return new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem(
+                LocalDate.parse(from), LocalDate.parse(to), name);
+    }
+
+    private ThrowingCallable holidays(com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem... items) {
+        return () -> service.replaceHolidays(
+                PRINCIPAL,
+                5L,
+                new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest(List.of(items)));
+    }
+
+    private static void expectCode(ThrowingCallable call, ApiCode apiCode) {
+        assertThatThrownBy(call)
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(apiCode);
     }
 
     @Test
