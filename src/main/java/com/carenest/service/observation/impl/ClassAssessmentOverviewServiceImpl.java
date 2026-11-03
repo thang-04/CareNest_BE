@@ -123,7 +123,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
             checkDate(date);
             // PHT chỉ lớp điểm trường mình, HT toàn trường (AUTH-01, AUTH-02)
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();
@@ -175,7 +175,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.leadsCampus(currentUser, cls.campusId())) {
+            if (!rules.readsCampus(currentUser, cls.campusId())) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             String p = checkPeriod(period);

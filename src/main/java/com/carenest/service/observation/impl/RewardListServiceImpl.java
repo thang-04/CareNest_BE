@@ -314,7 +314,7 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
-        return teaches(user, cls) || rules.leadsCampus(user, cls.campusId());
+        return teaches(user, cls) || rules.readsCampus(user, cls.campusId());
     }
 
     /** Bản nháp chỉ GV lớp thấy danh hiệu; PHT / HT thấy khi đã gửi. */

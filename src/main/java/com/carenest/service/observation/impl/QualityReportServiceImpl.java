@@ -74,13 +74,13 @@ public class QualityReportServiceImpl implements QualityReportService {
             if (!rules.isLeader(currentUser)) {
                 throw GlobalException.of(ApiCode.QUALITY_REPORT_FORBIDDEN);
             }
-            if (campusId != null && !rules.leadsCampus(currentUser, campusId)) {
+            if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             LocalDate today = rules.today();
             // PHT chỉ lớp điểm trường mình, HT toàn trường (AUTH-01, AUTH-02)
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();

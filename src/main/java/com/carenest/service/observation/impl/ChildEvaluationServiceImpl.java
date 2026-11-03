@@ -107,7 +107,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         try {
             List<ClassroomInfoResponse> years = classroomService.findYearClassrooms(schoolYearId);
             List<ClassroomInfoResponse> visible = years.stream()
-                    .filter(c -> teaches(currentUser, c) || rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> teaches(currentUser, c) || rules.readsCampus(currentUser, c.campusId()))
                     .filter(c -> classId == null || classId.equals(c.id()))
                     .toList();
             if (classId != null && visible.isEmpty()) {
@@ -151,7 +151,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             boolean teacher = teaches(currentUser, cls);
             if (!teacher
                     && !(ev.isConfirmed()
-                            && (rules.leadsCampus(currentUser, cls.campusId())
+                            && (rules.readsCampus(currentUser, cls.campusId())
                                     || canReadChildHistory(currentUser, ev.getChildId())))) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
@@ -315,12 +315,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             if (!rules.isLeader(currentUser)) {
                 throw GlobalException.of(ApiCode.PROGRAM_REPORT_FORBIDDEN);
             }
-            if (campusId != null && !rules.leadsCampus(currentUser, campusId)) {
+            if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             Map<Long, Integer> ageFrom = ageFromMonths();
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
                     .filter(c -> isProgramClass(c, ageFrom))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
@@ -389,7 +389,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> teaches(currentUser, c) || rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> teaches(currentUser, c) || rules.readsCampus(currentUser, c.campusId()))
                     .filter(c -> classId == null || classId.equals(c.id()))
                     .toList();
             if (classId != null && visible.isEmpty()) {
@@ -449,7 +449,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             for (int i = stays.size() - 1; i >= 0 && chosen == null; i--) {
                 ClassroomInfoResponse c = rules.findClass(stays.get(i).classroomId());
                 boolean t = teaches(currentUser, c);
-                if (t || rules.leadsCampus(currentUser, c.campusId())) {
+                if (t || rules.readsCampus(currentUser, c.campusId())) {
                     chosen = stays.get(i);
                     cls = c;
                     teacher = t;

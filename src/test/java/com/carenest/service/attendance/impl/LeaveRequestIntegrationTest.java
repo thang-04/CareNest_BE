@@ -333,7 +333,8 @@ class LeaveRequestIntegrationTest {
                 .extracting(LeaveRequestResponse::childName)
                 .containsExactly("An");
         expectError(() -> service.searchLeaveRequests(teacherB, classA, null, TODAY, FRI), ApiCode.CLASS_ACCESS_DENIED);
-        expectError(() -> service.searchLeaveRequests(vpB, null, campusA, TODAY, FRI), ApiCode.CAMPUS_ACCESS_DENIED);
+        // AUTH-20: PHT xem đơn nghỉ mọi điểm trường
+        assertThat(service.searchLeaveRequests(vpB, null, campusA, TODAY, FRI)).hasSize(1);
 
         // Trẻ đã rời lớp trước hôm nay vẫn thấy đơn trong khoảng trẻ còn học lớp (OBS-23)
         jdbc.update("UPDATE enrollments SET valid_to = ? WHERE child_id = ?", TODAY.minusDays(1), child1);

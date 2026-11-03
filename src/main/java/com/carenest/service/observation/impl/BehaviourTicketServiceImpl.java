@@ -230,11 +230,11 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
             if (!rules.isLeader(currentUser)) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
-            if (campusId != null && !rules.leadsCampus(currentUser, campusId)) {
+            if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();

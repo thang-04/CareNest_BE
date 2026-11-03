@@ -214,7 +214,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             if (end.isBefore(start)) {
                 throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
             }
-            if (campusId != null && !campusAccessPolicy.canViewCampus(currentUser, campusId)) {
+            if (campusId != null && !campusAccessPolicy.canReadCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
