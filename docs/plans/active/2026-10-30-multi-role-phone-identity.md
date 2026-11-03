@@ -90,7 +90,7 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 - **Dừng chờ review.**
 ### Phase 4 — Đổi SĐT (AC-7..11) — hoãn: chờ nhà cung cấp SMS
 - Spike: Keycloak 26.8 Admin API đổi username khi `editUsernameAllowed=false`; nếu cần bật thì user profile chỉ cho admin sửa username.
-- Files: C migration `V39__create_user_phone_changes.sql` (lịch sử + trạng thái + permission seed), service/controller đổi SĐT · M `IdentityProviderClient` (đổi username), `Permission`, realm json · test.
+- Files: C migration `V47__create_user_phone_changes.sql` (lịch sử + trạng thái + permission seed), service/controller đổi SĐT · M `IdentityProviderClient` (đổi username), `Permission`, realm json · test.
 - **Dừng chờ review.**
 
 ## Rủi ro & rollback

@@ -330,6 +330,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                     enrollmentRepository.delete(enrollment);
                 }
             }
+            // V10 uk_enrollments_child_open: mỗi trẻ một enrollment mở, ghi việc đóng lớp cũ trước khi mở lớp mới
+            enrollmentRepository.flush();
             if (placement.getAction().keepsChildInClass()) {
                 enrollmentRepository.save(
                         Enrollment.start(placement.getChildId(), placement.getToClassroomId(), start));

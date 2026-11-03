@@ -91,7 +91,9 @@ class AccountControllerTest {
                         List.of(),
                         List.of(new StaffAssignmentSummaryResponse(
                                 StaffRole.TEACHER, null, 11L, null, LocalDate.of(2026, 9, 1), null)),
-                        List.of(101L)));
+                        List.of(101L),
+                        false,
+                        false));
 
         mockMvc.perform(get(MY_ACCOUNT).with(jwt()))
                 .andExpect(status().isOk())
@@ -239,7 +241,9 @@ class AccountControllerTest {
                         List.of(),
                         List.of(),
                         List.of(),
-                        List.of()));
+                        List.of(),
+                        false,
+                        false));
 
         mockMvc.perform(get(MY_ACCOUNT + "?userId=999&keycloakUserId=kc-admin&roles=ADMIN")
                         .with(jwt()))

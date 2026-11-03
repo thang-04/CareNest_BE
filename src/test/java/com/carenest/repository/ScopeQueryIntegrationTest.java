@@ -71,6 +71,7 @@ class ScopeQueryIntegrationTest {
         }
     }
 
+    private int childCount;
     private long campusA;
     private long campusB;
     private long classA1;
@@ -260,7 +261,10 @@ class ScopeQueryIntegrationTest {
 
     private long insertChild(String fullName) {
         return insertId(
-                "INSERT INTO children (full_name, date_of_birth) VALUES (?, '2022-03-15') RETURNING id", fullName);
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) "
+                        + "VALUES (?, ?, '2022-03-15', 'FEMALE', 'ACTIVE', '2026-09-01') RETURNING id",
+                "HS26%03d".formatted(++childCount),
+                fullName);
     }
 
     private void insertClassroomAssignment(long userId, long classroomId, String validFrom, String validTo) {

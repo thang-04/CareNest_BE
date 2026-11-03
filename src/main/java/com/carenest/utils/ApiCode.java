@@ -95,6 +95,14 @@ public enum ApiCode {
             1129,
             HttpStatus.CONFLICT,
             "Số điện thoại đã là tài khoản phụ huynh, hãy tra số và xác nhận đúng người trước khi thêm vai trò nhân sự"),
+    // Form tiếp nhận trẻ (ChildEnrollmentService) chưa có bước xác nhận đúng người như thêm phụ huynh ⇒ tạm chặn SĐT
+    // nhân sự
+    PHONE_OF_STAFF_ACCOUNT(1130, HttpStatus.CONFLICT, "Số điện thoại này là tên đăng nhập của tài khoản nhân sự"),
+    ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP, tối đa 2 MB"),
+    ACCOUNT_PHOTO_NOT_FOUND(1132, HttpStatus.NOT_FOUND, "Chưa có ảnh hoặc bạn không có quyền xem ảnh này"),
+
+    // ========== 12xx THÔNG BÁO ==========
+    NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
 
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),
@@ -238,6 +246,17 @@ public enum ApiCode {
             3007,
             HttpStatus.CONFLICT,
             "Số điện thoại đã có tài khoản, hãy tra số và xác nhận đúng người trước khi liên kết"),
+    // CHD-04: trùng họ tên, ngày sinh và CCCD của một phụ huynh với trẻ đang học / chờ xếp lớp
+    CHILD_DUPLICATE(
+            3008,
+            HttpStatus.CONFLICT,
+            "Hồ sơ trẻ này đã tồn tại (trùng họ tên, ngày sinh và phụ huynh). Xem lại hồ sơ đã có."),
+    // AUTH-18: một người một tài khoản; data = các ô CCCD/SĐT lệch (guardians.{i}.idNumber|phone)
+    GUARDIAN_IDENTITY_CONFLICT(
+            3009,
+            HttpStatus.CONFLICT,
+            "Số CCCD hoặc số điện thoại đã thuộc phụ huynh khác. Kiểm tra các ô được đánh dấu."),
+    CHILD_NOT_LEFT(3010, HttpStatus.CONFLICT, "Trẻ chưa nghỉ học, không cần mở lại hồ sơ"),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
@@ -274,6 +293,18 @@ public enum ApiCode {
             HttpStatus.BAD_REQUEST,
             "Vắng có phép chỉ được ghi khi phụ huynh gửi đơn nghỉ, chọn Có mặt hoặc Vắng không phép"),
 
+    // ========== 41xx ĐÓN TRẺ ==========
+    PICKUP_CHILD_NOT_FOUND(4101, HttpStatus.NOT_FOUND, "Không tìm thấy trẻ hoặc bạn không có quyền trả trẻ này"),
+    PICKUP_ACCESS_DENIED(4102, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp được xem và trả trẻ của lớp"),
+    PICKUP_YEAR_NOT_ACTIVE(4103, HttpStatus.BAD_REQUEST, "Đón trẻ chỉ theo lớp của năm học đang hoạt động"),
+    PICKUP_DATE_INVALID(
+            4104,
+            HttpStatus.BAD_REQUEST,
+            "Chọn ngày từ đầu năm học đang hoạt động tới hôm nay, không chọn ngày tương lai"),
+    PICKUP_CHILD_NOT_PRESENT(4105, HttpStatus.CONFLICT, "Trẻ chưa được điểm danh có mặt hôm nay"),
+    PICKUP_CHILD_ABSENT(4106, HttpStatus.CONFLICT, "Trẻ được điểm danh vắng hôm nay"),
+    PICKUP_ALREADY_HANDED_OVER(4107, HttpStatus.CONFLICT, "Trẻ đã được trả cho người đón hôm nay"),
+
     // ========== 50xx SỨC KHỎE ==========
     HEALTH_OVERVIEW_ACCESS_DENIED(5001, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp sức khỏe"),
     HEALTH_YEAR_NOT_ACTIVE(5002, HttpStatus.CONFLICT, "Lớp không thuộc năm học đang hoạt động"),
@@ -283,6 +314,60 @@ public enum ApiCode {
     HEALTH_ACTIONS_NOT_ALLOWED(5006, HttpStatus.BAD_REQUEST, "Chỉ ghi xử trí khi có dấu hiệu cần lưu ý"),
     HEALTH_REFERRAL_INCOMPLETE(5007, HttpStatus.BAD_REQUEST, "Nhập nơi chuyển trẻ đến và giờ chuyển"),
     HEALTH_CHILD_PICKED_UP(5008, HttpStatus.CONFLICT, "Trẻ đã được trả cho phụ huynh, không ghi thêm được"),
+    HEALTH_CHECK_NOT_FOUND(5009, HttpStatus.NOT_FOUND, "Không tìm thấy đợt khám hoặc kỳ cân đo"),
+    HEALTH_CHECK_ACCESS_DENIED(
+            5010, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý đợt khám, kỳ cân đo của điểm trường này"),
+    HEALTH_CHECK_CAMPUS_BUSY(
+            5011,
+            HttpStatus.CONFLICT,
+            "Điểm trường đang có {0} \"{1}\" chưa đóng. Đóng hoặc hủy trước khi tạo hoặc mở lại"),
+    HEALTH_CHECK_ENDED(5012, HttpStatus.CONFLICT, "Đợt khám/kỳ cân đo đã đóng hoặc đã hủy, không thay đổi được"),
+    HEALTH_CHECK_HAS_RESULTS(5013, HttpStatus.CONFLICT, "Đã có kết quả nên không hủy được. Đóng thay vì hủy"),
+    HEALTH_CHECK_NOT_IN_PROGRESS(5014, HttpStatus.CONFLICT, "Chỉ đóng được đợt khám/kỳ cân đo đang diễn ra"),
+    HEALTH_CHECK_NOT_CLOSED(5015, HttpStatus.CONFLICT, "Chỉ mở lại được đợt khám/kỳ cân đo đã đóng"),
+    HEALTH_CHECK_RESULT_OUTSIDE_DATES(5016, HttpStatus.BAD_REQUEST, "Đã có kết quả ngày {0} nằm ngoài khoảng ngày mới"),
+    HEALTH_ROUND_REQUIRED(
+            5017,
+            HttpStatus.BAD_REQUEST,
+            "Chỉ nhập số đo trong kỳ cân đo của điểm trường; kết quả đợt khám nhập bằng phiếu khám"),
+    HEALTH_ROUND_NOT_OPEN(
+            5018, HttpStatus.CONFLICT, "Kỳ cân đo chưa bắt đầu, đã đóng hoặc đã hủy; không nhập hay sửa được số đo"),
+    HEALTH_MEASUREMENT_EXISTS(5019, HttpStatus.CONFLICT, "Trẻ đã có số đo trong kỳ này. Sửa lần đo đã có"),
+    HEALTH_MEASUREMENT_DATE_TAKEN(5020, HttpStatus.CONFLICT, "Ngày này trẻ đã có kết quả đo"),
+    HEALTH_MEASUREMENT_DATE_OUTSIDE(
+            5021, HttpStatus.BAD_REQUEST, "Chọn ngày đo trong khoảng ngày của kỳ cân đo, không chọn ngày tương lai"),
+    HEALTH_MEASUREMENT_NOT_FOUND(5022, HttpStatus.NOT_FOUND, "Không tìm thấy lần đo"),
+    HEALTH_MEASUREMENT_ACCESS_DENIED(
+            5023, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được nhập hoặc sửa số đo"),
+    HEALTH_EDIT_REASON_REQUIRED(5024, HttpStatus.BAD_REQUEST, "Nhập lý do sửa số đo đã công bố"),
+    HEALTH_RECORD_ACCESS_DENIED(5025, HttpStatus.FORBIDDEN, "Bạn không có quyền xem sổ sức khỏe của trẻ này"),
+    HEALTH_CHECK_DATES_INVALID(5026, HttpStatus.BAD_REQUEST, "Ngày kết thúc không được trước ngày bắt đầu"),
+    HEALTH_EXAM_NOT_FOUND(5027, HttpStatus.NOT_FOUND, "Không tìm thấy phiếu khám của trẻ trong đợt này"),
+    HEALTH_EXAM_ROUND_REQUIRED(
+            5028, HttpStatus.BAD_REQUEST, "Kỳ cân đo không dùng phiếu khám. Nhập số đo ở Sổ sức khỏe của trẻ"),
+    HEALTH_EXAM_ACCESS_DENIED(
+            5029, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được nhập hoặc sửa phiếu khám"),
+    HEALTH_EXAM_LOCKED(
+            5030,
+            HttpStatus.CONFLICT,
+            "Đợt khám đã đóng hoặc chưa bắt đầu. Hiệu trưởng mở lại đợt nếu cần nhập hoặc sửa phiếu"),
+    HEALTH_EXAM_CONCLUDED(
+            5031, HttpStatus.CONFLICT, "Phiếu đã có kết luận. Lưu lại kết luận kèm lý do sửa thay vì lưu nháp"),
+    HEALTH_EXAM_MODE_CHANGED(
+            5032,
+            HttpStatus.CONFLICT,
+            "Phiếu theo dõi của trẻ vừa thay đổi nên mẫu kết luận đã đổi. Tải lại phiếu khám rồi lưu lại"),
+    HEALTH_EXAM_INCOMPLETE(5033, HttpStatus.BAD_REQUEST, "Phiếu chưa đủ thông tin. Kiểm tra các ô được đánh dấu"),
+    HEALTH_MEASUREMENT_IS_EXAM(5034, HttpStatus.CONFLICT, "Kết quả này là phiếu khám. Sửa ở trang phiếu khám của đợt"),
+    HEALTH_FOLLOW_UP_NOT_FOUND(5035, HttpStatus.NOT_FOUND, "Không tìm thấy phiếu theo dõi"),
+    HEALTH_FOLLOW_UP_ACCESS_DENIED(
+            5036, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được cập nhật phiếu theo dõi"),
+    HEALTH_FOLLOW_UP_CLOSED(5037, HttpStatus.CONFLICT, "Phiếu theo dõi đã đóng"),
+    HEALTH_FOLLOW_UP_CONTACT_FIRST(
+            5038,
+            HttpStatus.CONFLICT,
+            "Ghi trao đổi với phụ huynh về kết quả khám mới nhất trước khi ghi kết quả khám bên ngoài"),
+    HEALTH_FOLLOW_UP_IMAGE_NOT_FOUND(5039, HttpStatus.NOT_FOUND, "Không tìm thấy ảnh kết quả khám"),
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),

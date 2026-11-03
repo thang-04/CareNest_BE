@@ -148,6 +148,7 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 | Body sai | 400 | `Invalid request data` (+ lỗi theo field) |
 | `role` = ADMIN | 400 | `This role cannot be created via API` |
 | Thiếu mật khẩu tạm khi không gửi được email | 400 | `Temporary password is required when a setup email cannot be sent` |
+| `username` là SĐT (AUTH-18) | 400 | `Staff username must not be a phone number` |
 | Username đã có trong CareNest | 409 | `Username already exists` |
 | Username/email đã có bên Keycloak | 409 | `Username or email already exists` |
 | Keycloak từ chối dữ liệu (mật khẩu vi phạm policy, vd. trùng username; họ tên có ký tự như `( ) < > & /`) | 400 | `Account data rejected by identity provider (check password policy and full name)` |
@@ -211,19 +212,22 @@ Ai tạo / quản lý được ai (`StaffAccessPolicy`): Admin → tạo PRINCIP
 
 ## Tài khoản phụ huynh gắn trẻ (đã có — `PARENT_ACCOUNT_MANAGE`, AUTH-18, AUTH-19)
 
+Từ 29/10/2026 tài khoản phụ huynh còn được tạo khi lưu form tiếp nhận `POST /children/enrollments` (AUTH-20; quyền `CHILD_ENROLL`, tạo tài khoản khi người lưu có thêm `PARENT_ACCOUNT_MANAGE`): mật khẩu tạm **không** trả về, chỉ gửi SMS (L-15, cổng SMS giả tới khi chọn nhà cung cấp), kết quả từng phụ huynh trong `guardianAccounts[]`. Tài khoản lưu `citizen_id` (CCCD, khóa nhận diện); tra theo CCCD: `GET /children/parent-accounts/by-citizen-id`. Contract: `docs/modules/child.md` mục "API & bảng", plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 4.1.
+
 Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang học (lớp hôm nay) trong campus mình, và phụ huynh có ít nhất một trẻ liên kết như vậy. PHT nhận cùng 403 cho trẻ/tài khoản không tồn tại và ngoài phạm vi.
 
 | Method + path | Body / query | `data` |
 | --- | --- | --- |
 | `GET /children` | `campusId`, `classroomId`, `q` (họ tên), `page`, `size` (1–100) | `PageResponse` của `{ id, fullName, dateOfBirth, classroomId, campusId, guardianCount }` (lớp/campus hiện tại, `null` nếu chưa có lớp) |
-| `GET /children/{childId}/guardians` | — | `[{ userId, username, fullName, relationship, status, linkedAt }]` (`username` = SĐT) |
+| `GET /children/{childId}/guardians` | — | `[{ userId, username, fullName, email, relationship, status, linkedAt }]` (`username` = SĐT, `email` có thể `null`) |
 | `POST /children/{childId}/guardians/lookup` | `{ "phone": "0912 345 678" }` | `{ exists, userId, maskedFullName, staffAccount, alreadyLinked, status }` (`exists=false` ⇒ các field khác `null`/`false`) |
-| `POST /children/{childId}/guardians` | `{ "phone": "0912 345 678", "fullName": "...", "relationship": "MOTHER" \| "FATHER" \| "GUARDIAN" \| "OTHER", "confirmUserId": 61 }` | 201 `{ userId, username, fullName, relationship, status, newAccount, temporaryPassword }` |
+| `POST /children/{childId}/guardians` | `{ "phone": "0912 345 678", "fullName": "...", "relationship": "MOTHER" \| "FATHER" \| "GUARDIAN" \| "OTHER", "email": "...", "confirmUserId": 61 }` (`email` tùy chọn) | 201 `{ userId, username, fullName, email, relationship, status, newAccount, temporaryPassword }` |
 | `DELETE /children/{childId}/guardians/{userId}` | — | 200, `data` rỗng; tài khoản giữ nguyên |
 | `PATCH /parent-accounts/{userId}/status` | `{ "status": "INACTIVE" \| "ACTIVE" }` | `{ userId, username, fullName, email, status }` |
 | `POST /parent-accounts/{userId}/temporary-password` | — | `{ userId, username, temporaryPassword }` (mật khẩu mới hệ thống sinh, hủy mọi phiên) |
 
 - `phone` chấp nhận `+84`/`84`, khoảng trắng, `.`, `-`, `()`; chuẩn hóa thành 10 số bắt đầu `0` = tên đăng nhập.
+- `email` chỉ để liên hệ (AUTH-18, G94-180 2026-10-28): đúng định dạng, ≤255 ký tự, lưu chữ thường, rỗng ⇒ `null`. Chỉ lưu ở CareNest, không gửi Keycloak ⇒ không đăng nhập bằng email này; được trùng email nhân sự hoặc phụ huynh khác. SĐT đã có tài khoản ⇒ giữ họ tên, email của tài khoản (không sửa ở API này).
 - `newAccount = true` ⇒ `temporaryPassword` (10 ký tự) trả **đúng lần này** để in phiếu, CareNest không lưu/log; bắt đổi ở lần đăng nhập đầu. `newAccount = false` ⇒ SĐT đã có tài khoản, chỉ thêm liên kết, giữ mật khẩu, `temporaryPassword = null`.
 - Một người một tài khoản (chốt 30/10/2026): SĐT đã có tài khoản (phụ huynh **hoặc** nhân sự) ⇒ FE gọi `lookup` trước, hiện `maskedFullName` (chữ đầu mỗi từ, vd. `N***** T** L**`) để người nhập xác nhận đúng người, rồi gửi `confirmUserId` = `userId`. Thiếu/sai `confirmUserId` ⇒ 409. Tài khoản nhân sự (`staffAccount=true`) được thêm role `PARENT`, giữ role/phân công nhân sự; phải nằm trong phạm vi quản lý tài khoản của người thao tác (AUTH-17), không được là chính mình. GV kiêm phụ huynh: Web chỉ thấy quyền GV, App chuyển chế độ (ADR-0022).
 
@@ -234,7 +238,7 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 | Lọc campus/lớp ngoài phạm vi | 403 | `You do not have access to this campus` / `... classroom` |
 | Trẻ không tồn tại (HT) | 404 | `Child not found` |
 | SĐT sai định dạng | 400 | `Invalid phone number` |
-| `relationship` không thuộc danh sách, thiếu field | 400 | `Malformed request` / `Invalid request data` |
+| `relationship` không thuộc danh sách, thiếu field, `email` sai định dạng hoặc quá 255 ký tự | 400 | `Malformed request` / `Invalid request data` |
 | SĐT đã có tài khoản mà thiếu/sai `confirmUserId` | 409 | `errorCode` 3007 `GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED` (bỏ 1125 `PHONE_BELONGS_TO_STAFF`) |
 | SĐT là tài khoản nhân sự ngoài phạm vi quản lý / của chính mình | 403 / 400 | `errorCode` 1112 `ACCOUNT_MANAGE_DENIED` / 1114 `CANNOT_MANAGE_OWN_ACCOUNT` |
 | Phụ huynh đã liên kết trẻ này | 409 | `This parent is already linked to the child` |
@@ -244,7 +248,7 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 
 ## Tác động FE/APP (BE không sửa repo khác)
 
-Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
+Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `FE:docs/integration/AUTH_FLOW.md`, `APP:docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
 
 - Web Phase 3: ghép các màn hình login/forgot-password/verify-otp/reset-password/change-password và AuthContext/HTTP client vào gateway phía trên. Public client `carenest-web` vẫn giữ PKCE cho legacy; Mobile `carenest-mobile` tiếp tục public + PKCE S256, cùng issuer/audience.
 - Gửi `Authorization: Bearer <access token>` cho mọi `{API_PREFIX}/**`; refresh: Web gateway gọi `POST /auth/refresh` (cookie + `withCredentials`), PKCE tự refresh với Keycloak; 401 ⇒ refresh 1 lần rồi gọi lại, thất bại ⇒ về đăng nhập.

@@ -26,6 +26,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
@@ -237,7 +238,9 @@ class ClassCommentServiceTest {
                 LocalDate.of(2026, 9, 5),
                 LocalDate.of(2027, 5, 31),
                 1L,
-                List.of(MealSession.LUNCH));
+                List.of(MealSession.LUNCH),
+                null,
+                ClassroomStatus.ACTIVE);
     }
 
     private static CurrentUser user(Long id, CareNestRole role) {

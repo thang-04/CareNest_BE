@@ -55,6 +55,8 @@ class EvaluationLockOrderTest {
                 LocalDate.of(2026, 9, 1),
                 LocalDate.of(2027, 5, 31),
                 1L,
-                List.of());
+                List.of(),
+                null,
+                ClassroomStatus.ACTIVE);
     }
 }

@@ -50,3 +50,27 @@ Lĩnh vực con, nhóm kết quả mong đợi, mục tiêu, nội dung giáo d�
 ## Clarifications
 - 29/10: User chọn giữ cấp cha tùy chọn, sau đó nhắc lại đúng ba bảng cha–con.
 - 29/10: User duyệt kế hoạch và yêu cầu triển khai theo vòng lặp spec.
+
+## Delta02/11 — approved nghiệp vụ và plan
+User đã chọn “Duyệt kế hoạch và triển khai tới khi sạch” sau khi chấp nhận xóa toàn nhánh và ô Lĩnh vực ellipsis. Delta thuộc D2 của plan quản trị, không dùng evidence DB29/10 cho code mới.
+### Clarifications
+Xóa lĩnh vực con ở Web phải xóa cả nhóm, goal trực tiếp/thuộc nhóm, content/tick thuộc nhánh; có xác nhận số lượng, Hủy giữ form, các nhánh/chủ đề khác giữ nguyên. PUT vẫn cho giữ/chuyển cha có chủ đích. Ô Lĩnh vực trong lấy từ Bộ dùng một dòng/ellipsis như ô Thêm vào mục tiêu, đủ title/value/option.
+### User Story 4 — Xóa cả nhánh (P1)
+Người soạn có quyền xóa nhánh sau khi xem ảnh hưởng. Independent test: nhiều nhánh/cùng tên/goal trực tiếp/nhóm rỗng; mở, Hủy, xác nhận, normalize, đánh số/tick và lưu/mở lại.
+### User Story 5 — Tên lĩnh vực dài (P2)
+Người soạn chọn lĩnh vực dài tại360/390/768/1440px, ô một dòng/ellipsis nhưng title/option/value đầy đủ, bàn phím và bộ lọc hoạt động.
+### Functional Requirements mới
+- **FR-009** (EDU-48): Sau xác nhận, xóa đúng nhánh lĩnh vực con gồm nhóm/goal trực tiếp hoặc thuộc nhóm/content/tick; giữ nhánh khác.
+- **FR-010** (EDU-48): Xác nhận nêu tên và số nhóm/goal/content/tick sẽ xóa; mở/Hủy không đổi form.
+- **FR-011** (EDU-09/48): Đúng nhánh đầu/giữa/cuối/duy nhất/rỗng, ID không có/cùng tên khác ID và cha tùy chọn; không mutate hoặc đổi cha phần giữ sau normalize.
+- **FR-012** (EDU-06/10/22): Giữ quyền/read-only/lease/revision/lưu tay; chỉ ghi khi Lưu; chủ đề/đợt nghỉ/nguồn Bộ không bị xóa.
+- **FR-013**: Ô Lĩnh vực trong lấy từ Bộ một dòng/ellipsis khi dài, title đủ nhãn, không cắt dữ liệu value/option.
+- **FR-014**: Dùng cơ chế cắt chữ của ô Thêm vào mục tiêu, giữ target/filter/keyboard, không thư viện mới; không tràn body360/390/768/1440.
+- **FR-015**: Tách evidence docs/analyze/RED-GREEN/browser/verify/converge; không nhận sạch khi còn task/gap hoặc persistence chưa kiểm.
+### Success Criteria mới
+- **SC-005**: Fixture xóa nhánh giữ100%ID/text/tick/thứ tự ngoài nhánh; con bị xóa không quay lại sau normalize.
+- **SC-006**: Counts xác nhận đúng; Hủy giữ100%form; read-only không có thùng rác.
+- **SC-007**: Select lĩnh vực một dòng/ellipsis/title/value/option/filter đúng ở4viewport, target và keyboard không hồi quy.
+- **SC-008**: Analyze không blocker trước code; converge cuối giữ tasks byte-for-byte và không gap; giữ lịch sử T001..T011.
+### Edge cases
+Nhánh cuối không có mốc kết thúc; nhánh rỗng/duy nhất; goal không nhóm; nhóm không goal; ID mất; cùng tên khác ID; content nhiều tick; chủ đề giữ nguyên; lựa chọn mặc định theo target.

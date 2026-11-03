@@ -191,6 +191,8 @@ public class ClassroomServiceImpl implements ClassroomService {
                 year.getStartDate(),
                 year.getEndDate(),
                 c.getAgeGroupId(),
-                sessions);
+                sessions,
+                c.getCapacity() == null ? null : c.getCapacity().intValue(),
+                c.getStatus());
     }
 }
