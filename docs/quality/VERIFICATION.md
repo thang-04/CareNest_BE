@@ -6,6 +6,19 @@
 - User chốt đợt mở lại vẫn tự đóng: request reopen nhận thêm ngày `endDate`; đợt khám đã hết hạn phải chọn ngày mới từ hôm nay. Web đã thêm ô ngày; request cũ chỉ có `reason` vẫn dùng với đợt còn hạn/kỳ cân đo; không đổi endpoint hoặc response. Snapshot OpenAPI chỉ thêm `endDate: string/date` trong `HealthCheckReopenRequest`.
 - Flyway V67 nới actor đóng/historical user cho hệ thống, không sửa migration cũ; PostgreSQL Testcontainers đã chạy migration và kiểm closure, reopen, lịch sử, kết quả và phiếu theo dõi thật. 25/25 test health + snapshot đạt, không skip. Snapshot cập nhật có chủ đích và kiểm diff 3 dòng; cổng full sau đó ghi kết quả trong `target/verify.log` và output bàn giao.
 - Chrome trên Web mock đã kiểm tự đóng, mở lại với ngày mới `dd/mm/yyyy`, validation và tự đóng lần hai. Chưa chạy UI nối API thật. Không commit/push.
+## Delta006 EDU-48 và ellipsis — 02/11/2026
+
+- User chốt xóa cả nhánh và select một dòng, sau đó duyệt plan L bằng “Duyệt kế hoạch và triển khai tới khi sạch”. Domain14/spec/clarify/plan/research/data-model/contracts/tasks giữ lịch sửT001..T011, thêmT012..T022; constitution1.0.0 không đổi. Analyze/review không blocker, prefix lịch sử4artifact/14mục/22task unique đã kiểm trước code; sự cố sửa trạng thái docs được phục hồi và ghi ENV-261102-powershell-replacement-pairs.
+- Delta chỉ production FE và hồ sơ BE; không source/API/DB/dependency/APP backend. FE11unit mới/44targeted/full386fail0skip0 và browser4viewport đạt. Real-BE API-only E2E1/1(15.7s) xác nhận/Quay lại/xóa/lưu/mở lại/ID-content-theme-break preservation/ellipsis; cleanup ownedmarkers0, không SQL. Xem [FE evidence](../../../CareNest_FE/docs/quality/VERIFICATION.md) và [quickstart006](../../specs/006-year-plan-goal-hierarchy/quickstart.md).
+- BE verify --quick trong lượt:14tests fail0err0skip0, archunit/spotlessok, snapshot không chạy; không dùng quick để nhận lại toàn bộ migration/contract. Cổng cuối: check-ai-layer hai repo và verify theo scope sau hồ sơ; output bàn giao/target/verify.log.
+- Converge chỉ đánh giá deltaFR009..015/SC005..008, không lấy completionDB29/10 thay evidence mới; kết quả/hash ở quickstart006. Không commit/push/deploy hoặc sửa dữ liệu thật, giữ .tmp_doc_edit ngoài phạm vi.
+
+## Hồ sơ sửa LVC và giao diện chọn từ Bộ — 02/11/2026
+
+- User cho commit/push bản fix trước rồi triển khai UI/commit/push FE và BE. Fix FE994002c đã push; RED4ca ban đầu và1ca nguồn hỗn hợp → GREEN39targeted, FEfull375/375fail0/skip0. BE chỉ đồng bộ incident/index và bằng chứng; không thay source backend/API/DB/dependency/APP.
+- UI dựa ảnh thứ hai đã duyệt, chỉ trình bày chức năng hiện có EDU-24/28: chọn tất cả mục tiêu đang hiển thị, đếm, tìm/lọc, phân cấp, xem nội dung đi kèm; thẻ nội dung chọn đích/lọc/tick từng dòng, nhắc lưu tay. Xem [bằng chứng FE](../../../CareNest_FE/docs/quality/VERIFICATION.md). Không coi đề xuất đầu hoặc ảnh AI là feature đã code.
+- Browser FE source/CSS thật với hook/dữ liệu/callback giả đạt tại360/390/768/1440,0lỗiJS; bước ghép dùng helper thật. Chưa kiểm persistence/API với BE thật. Cổng BE cuối cho delta tài liệu: check-ai-layer và verify --quick, kết quả xem output bàn giao/target/verify.log; không dùng quick để tuyên bố toàn bộ test API đã chạy.
+
 ## Pre-PR monthly roster fixes — 02/11/2026
 
 - User approved four findings from FE pre-PR report. Two monthly regressions RED against previous source → GREEN, covering first listing after transfer, leavers/joiners, name/history, repeated listing and teacher/VP scopes. MONTH uses period overlap; YEAR retains current roster.
