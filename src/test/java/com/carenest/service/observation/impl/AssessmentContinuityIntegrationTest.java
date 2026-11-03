@@ -255,9 +255,11 @@ class AssessmentContinuityIntegrationTest {
                 .toList();
     }
 
+    // Hồ sơ trẻ bắt buộc mã, giới tính, trạng thái (tiếp nhận trẻ G94-180)
     private long child(String name) {
-        return insertId(
-                "INSERT INTO children (full_name, date_of_birth) VALUES ('" + name + "', '2023-01-01') RETURNING id");
+        return insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ("
+                + "'IT' || substr(md5(random()::text), 1, 12), '" + name
+                + "', '2023-01-01', 'MALE', 'ACTIVE', '2026-09-01') RETURNING id");
     }
 
     private void enroll(long childId, long classroomId, String from, String to) {

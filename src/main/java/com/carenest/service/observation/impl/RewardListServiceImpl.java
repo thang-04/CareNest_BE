@@ -72,14 +72,18 @@ public class RewardListServiceImpl implements RewardListService {
     static final String DILIGENT_GOOD = "Bé chăm ngoan";
     static final String HEALTHY_GOOD = "Bé khỏe, bé ngoan";
     static final String EXCELLENT = "Bé chăm ngoan xuất sắc";
+    // Cần chốt 04/11: Cháu ngoan Bác Hồ cho mọi lớp, chọn thêm độc lập với danh hiệu bé ngoan; GV tự tích, không gợi ý
+    static final String UNCLE_HO = "Cháu ngoan Bác Hồ";
     // Riêng lớp 5–6 tuổi đã hoàn thành chương trình (đánh giá cuối năm), tối đa một
     static final String PROGRAM_EXCELLENT = "Hoàn thành xuất sắc chương trình giáo dục mầm non";
     static final String PROGRAM_GOOD = "Hoàn thành tốt chương trình giáo dục mầm non";
     static final List<String> GENERAL_TITLES = List.of(GOOD, DILIGENT_GOOD, HEALTHY_GOOD, EXCELLENT);
     static final List<String> PROGRAM_TITLES = List.of(PROGRAM_EXCELLENT, PROGRAM_GOOD);
+    /** Danh hiệu lớp không phải 5–6 tuổi: bé ngoan + Cháu ngoan Bác Hồ. */
+    static final List<String> CLASS_TITLES = List.of(GOOD, DILIGENT_GOOD, HEALTHY_GOOD, EXCELLENT, UNCLE_HO);
     /** Danh hiệu như FE REWARD_TITLES. */
     static final List<String> TITLES =
-            List.of(GOOD, DILIGENT_GOOD, HEALTHY_GOOD, EXCELLENT, PROGRAM_EXCELLENT, PROGRAM_GOOD);
+            List.of(GOOD, DILIGENT_GOOD, HEALTHY_GOOD, EXCELLENT, UNCLE_HO, PROGRAM_EXCELLENT, PROGRAM_GOOD);
     // Bé chăm: đi học từ 90% số ngày học của lớp (như báo cáo chất lượng tháng)
     static final int DILIGENT_PERCENT = 90;
     static final int NOTE_MAX = 300;
@@ -577,7 +581,7 @@ public class RewardListServiceImpl implements RewardListService {
                                 list.getDecisionAt(),
                                 list.getDecision(),
                                 list.getDecisionComment()),
-                programClass ? TITLES : GENERAL_TITLES,
+                programClass ? TITLES : CLASS_TITLES,
                 rows,
                 events.stream()
                         .map(e -> new HistoryRow(
