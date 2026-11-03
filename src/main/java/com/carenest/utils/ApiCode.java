@@ -308,6 +308,21 @@ public enum ApiCode {
     AGE_GROUP_INVALID(6024, HttpStatus.BAD_REQUEST, "Nhóm tuổi không hợp lệ"),
     SUPPLIER_NOT_FOUND(6025, HttpStatus.NOT_FOUND, "Không tìm thấy nhà cung cấp"),
     FOOD_ORIGIN_REQUIRED(6026, HttpStatus.BAD_REQUEST, "Cần chọn nguồn gốc động vật hoặc thực vật của thực phẩm"),
+    STOCK_RECEIPT_NOT_FOUND(6027, HttpStatus.NOT_FOUND, "Không tìm thấy phiếu nhập kho"),
+    STOCK_RECEIPT_STATUS_INVALID(6028, HttpStatus.CONFLICT, "Phiếu nhập đang ở trạng thái không cho phép thao tác này"),
+    STOCK_FOOD_NOT_DRY(
+            6029, HttpStatus.BAD_REQUEST, "Thực phẩm {0} không nhập kho khô được (hàng tươi hoặc đã ngừng dùng)"),
+    STOCK_EXPIRY_BEFORE_RECEIPT(6030, HttpStatus.BAD_REQUEST, "Hạn dùng của lô {0} trước ngày nhận hàng"),
+    STOCK_RECEIPT_EMPTY(6031, HttpStatus.BAD_REQUEST, "Phiếu nhập cần ít nhất một dòng thực phẩm"),
+    STOCK_RECEIPT_LOT_USED(6032, HttpStatus.CONFLICT, "Không hủy được phiếu: lô {0} đã bị trừ kho"),
+    STOCK_ACCESS_DENIED(6033, HttpStatus.FORBIDDEN, "Bạn không có quyền quản lý kho khô của điểm trường này"),
+    MEAL_PLAN_WEEK_INVALID(6034, HttpStatus.BAD_REQUEST, "Kế hoạch tuần phải bắt đầu từ thứ Hai"),
+    MEAL_PLAN_PUBLISHED(6035, HttpStatus.CONFLICT, "Thực đơn tuần đã công bố, không sửa được"),
+    MEAL_PLAN_DATE_INVALID(6036, HttpStatus.BAD_REQUEST, "Ngày {0} không thuộc tuần này (thứ Hai – thứ Sáu)"),
+    MEAL_PLAN_SESSION_INVALID(6037, HttpStatus.BAD_REQUEST, "Khối {0} không có bữa {1}"),
+    MEAL_PLAN_DISH_INACTIVE(6038, HttpStatus.BAD_REQUEST, "Món {0} đã ngừng dùng"),
+    MEAL_PLAN_NOT_PUBLISHABLE(
+            6039, HttpStatus.CONFLICT, "Chưa công bố được: còn {0} lỗi chặn, ví dụ {1}. Xem mục Kiểm tra của tuần"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

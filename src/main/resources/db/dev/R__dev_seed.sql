@@ -156,3 +156,53 @@ JOIN dishes d ON d.code = 'M001'
 JOIN foods f ON f.code = v.food_code
 JOIN age_groups ag ON ag.code = v.age_group_code
 ON CONFLICT (dish_id, food_id, age_group_id) DO NOTHING;
+
+-- Lập thực đơn tuần demo (L3): thêm thực phẩm, món đủ định lượng cho mẫu giáo nhỡ/lớn (ag-4, ag-5 có lớp demo)
+INSERT INTO foods (code, name, food_group, unit, purchase_unit, purchase_unit_size, unit_price,
+                   kcal, protein, lipid, glucid, nutrient_source, waste_pct, storage, origin)
+VALUES ('TP005', 'Dầu đậu nành', 'FAT_SUGAR', 'g', 'chai 1 kg', 1000, 45000, 900, 0, 100, 0, 'DEV_SAMPLE', 0, 'DRY', 'PLANT'),
+       ('TP006', 'Bí xanh', 'VEGETABLE', 'g', 'kg', 1000, 15000, 14, 0.6, 0, 2.4, 'DEV_SAMPLE', 10, 'FRESH', 'PLANT'),
+       ('TP007', 'Đường kính', 'FAT_SUGAR', 'g', 'kg', 1000, 25000, 397, 0, 0, 99.3, 'DEV_SAMPLE', 0, 'DRY', 'PLANT'),
+       ('TP008', 'Trứng gà', 'EGG_DAIRY', 'g', 'kg', 1000, 60000, 166, 14.8, 11.6, 0.5, 'DEV_SAMPLE', 12, 'FRESH', 'ANIMAL')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO food_allergens (food_id, allergen_id)
+SELECT f.id, a.id FROM foods f JOIN allergens a ON a.code = 'EGG' WHERE f.code = 'TP008'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO dishes (code, name, dish_type, description)
+VALUES ('M002', 'Cơm trắng', 'CARB', 'Món demo'),
+       ('M003', 'Thịt lợn rim', 'MAIN', 'Món demo'),
+       ('M004', 'Canh bí xanh', 'SOUP', 'Món demo'),
+       ('M005', 'Sữa tươi', 'SNACK', 'Món demo'),
+       ('M006', 'Trứng đúc thịt', 'MAIN', 'Món demo')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO dish_ingredients (dish_id, food_id, age_group_id, grams_per_child)
+SELECT d.id, f.id, ag.id, v.grams
+FROM (VALUES ('M001', 'TP001', 'ag-4', 28), ('M001', 'TP002', 'ag-4', 18), ('M001', 'TP003', 'ag-4', 9),
+             ('M002', 'TP001', 'ag-4', 55), ('M002', 'TP001', 'ag-5', 65),
+             ('M003', 'TP002', 'ag-4', 35), ('M003', 'TP002', 'ag-5', 40),
+             ('M003', 'TP005', 'ag-4', 4), ('M003', 'TP005', 'ag-5', 5),
+             ('M003', 'TP007', 'ag-4', 2), ('M003', 'TP007', 'ag-5', 2),
+             ('M004', 'TP006', 'ag-4', 40), ('M004', 'TP006', 'ag-5', 50),
+             ('M004', 'TP005', 'ag-4', 2), ('M004', 'TP005', 'ag-5', 2),
+             ('M005', 'TP004', 'ag-4', 180), ('M005', 'TP004', 'ag-5', 180),
+             ('M006', 'TP008', 'ag-4', 30), ('M006', 'TP008', 'ag-5', 35),
+             ('M006', 'TP002', 'ag-4', 10), ('M006', 'TP002', 'ag-5', 12),
+             ('M006', 'TP005', 'ag-4', 3), ('M006', 'TP005', 'ag-5', 3))
+         AS v (dish_code, food_code, age_group_code, grams)
+JOIN dishes d ON d.code = v.dish_code
+JOIN foods f ON f.code = v.food_code
+JOIN age_groups ag ON ag.code = v.age_group_code
+ON CONFLICT (dish_id, food_id, age_group_id) DO NOTHING;
+
+-- Định mức demo theo nhóm tuổi cho các bữa ở trường (số minh họa, trường thay bằng chuẩn của Bộ — NUT-17, NUT-24)
+INSERT INTO age_group_meal_configs (age_group_id, effective_from, meal_price, kcal_min, kcal_max,
+                                    protein_pct_min, protein_pct_max, lipid_pct_min, lipid_pct_max,
+                                    glucid_pct_min, glucid_pct_max, norm_basis)
+SELECT ag.id, '2026-09-01'::date, v.price, v.kcal_min, v.kcal_max, 13, 20, 25, 35, 47, 60, 'Số liệu demo'
+FROM (VALUES ('ag-2', 25000, 600, 800), ('ag-3', 30000, 500, 750),
+             ('ag-4', 30000, 500, 750), ('ag-5', 30000, 500, 750)) AS v (code, price, kcal_min, kcal_max)
+JOIN age_groups ag ON ag.code = v.code
+ON CONFLICT (age_group_id, effective_from) DO NOTHING;

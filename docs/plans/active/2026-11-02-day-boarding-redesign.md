@@ -149,3 +149,7 @@ FE làm song song: bước dọn bố cục (mục 1, 2, 3, 7, 11 bảng lệch)
 ### 2026-11-02 — Plan con L1 (chờ user duyệt)
 - BE: `docs/plans/completed/2026-11-02-day-boarding-l1-catalog.md`
 - FE: `CareNest_FE:docs/plans/active/2026-11-02-day-boarding-l1-catalog-fe.md` (gồm dọn bố cục Phase 1)
+
+### 2026-11-03 — Lát L2 + L3 (user chọn làm đủ một đợt)
+- BE: `docs/plans/active/2026-11-03-day-boarding-l2-dry-stock.md`, `docs/plans/active/2026-11-03-day-boarding-l3-weekly-menu.md` (V56, V57; AC-1..AC-3 của plan ô có test). FE: `CareNest_FE:docs/plans/active/2026-11-03-day-boarding-l2-l3-fe.md`.
+- Còn lại của L3: bộ mẫu 4 tuần, món thay thế dị ứng, cảnh báo thiếu kho theo sĩ số dự kiến khi công bố (làm cùng L4).

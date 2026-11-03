@@ -3254,6 +3254,31 @@ paths:
           description: OK
       tags:
       - nutrition-food-controller
+  /api/nutrition/day-board:
+    get:
+      operationId: getDayBoard
+      parameters:
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayBoardResponse"
+          description: OK
+      tags:
+      - meal-plan-controller
   /api/nutrition/dishes:
     get:
       operationId: getDishes
@@ -3559,6 +3584,367 @@ paths:
           description: OK
       tags:
       - nutrition-food-controller
+  /api/nutrition/meal-plans:
+    get:
+      operationId: getMealPlans
+      parameters:
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListMealPlanSummaryResponse"
+          description: OK
+      tags:
+      - meal-plan-controller
+  /api/nutrition/meal-plans/{weekStart}:
+    get:
+      operationId: getMealPlan
+      parameters:
+      - in: path
+        name: weekStart
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealPlanResponse"
+          description: OK
+      tags:
+      - meal-plan-controller
+    put:
+      operationId: saveMealPlan
+      parameters:
+      - in: path
+        name: weekStart
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MealPlanRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealPlanResponse"
+          description: OK
+      tags:
+      - meal-plan-controller
+  /api/nutrition/meal-plans/{weekStart}/publish:
+    post:
+      operationId: publishMealPlan
+      parameters:
+      - in: path
+        name: weekStart
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMealPlanResponse"
+          description: OK
+      tags:
+      - meal-plan-controller
+  /api/nutrition/stock/lots:
+    get:
+      operationId: getLots
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: foodId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: includeEmpty
+        required: false
+        schema:
+          type: boolean
+          default: false
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListStockLotResponse"
+          description: OK
+      tags:
+      - stock-controller
+  /api/nutrition/stock/movements:
+    get:
+      operationId: getMovements
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: foodId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: type
+        required: false
+        schema:
+          type: string
+          enum:
+          - RECEIPT
+          - DEDUCT
+          - ADJUST
+          - SHORTFALL_DEDUCT
+          - RECEIPT_CANCEL
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponseStockMovementResponse"
+          description: OK
+      tags:
+      - stock-controller
+  /api/nutrition/stock/receipts:
+    get:
+      operationId: getReceipts
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - DRAFT
+          - CONFIRMED
+          - CANCELLED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListStockReceiptResponse"
+          description: OK
+      tags:
+      - stock-controller
+    post:
+      operationId: createReceipt
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockReceiptRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockReceiptResponse"
+          description: Created
+      tags:
+      - stock-controller
+  /api/nutrition/stock/receipts/{receiptId}:
+    delete:
+      operationId: deleteReceipt
+      parameters:
+      - in: path
+        name: receiptId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - stock-controller
+    get:
+      operationId: getReceipt
+      parameters:
+      - in: path
+        name: receiptId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockReceiptResponse"
+          description: OK
+      tags:
+      - stock-controller
+    put:
+      operationId: updateReceipt
+      parameters:
+      - in: path
+        name: receiptId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockReceiptRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockReceiptResponse"
+          description: OK
+      tags:
+      - stock-controller
+  /api/nutrition/stock/receipts/{receiptId}/cancel:
+    post:
+      operationId: cancelReceipt
+      parameters:
+      - in: path
+        name: receiptId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockReceiptCancelRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockReceiptResponse"
+          description: OK
+      tags:
+      - stock-controller
+  /api/nutrition/stock/receipts/{receiptId}/confirm:
+    post:
+      operationId: confirmReceipt
+      parameters:
+      - in: path
+        name: receiptId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonStockReceiptResponse"
+          description: OK
+      tags:
+      - stock-controller
+  /api/nutrition/stock/shortfalls:
+    get:
+      operationId: getShortfalls
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListStockShortfallResponse"
+          description: OK
+      tags:
+      - stock-controller
   /api/nutrition/suppliers:
     get:
       operationId: getSuppliers
@@ -5143,6 +5529,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Unplaced"
+    Block:
+      type: object
+      properties:
+        ageGroupIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        sessions:
+          type: array
+          items:
+            type: string
+            enum:
+            - MORNING
+            - LUNCH
+            - AFTERNOON
     BranchFilePreviewResponse:
       type: object
       properties:
@@ -5178,6 +5585,24 @@ components:
           format: int64
         name:
           type: string
+    CampusBoard:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        campusName:
+          type: string
+        dryStock:
+          $ref: "#/components/schemas/DryStock"
+        foodSampleStatus:
+          type: string
+        freshReceiptStatus:
+          type: string
+        mealCounts:
+          $ref: "#/components/schemas/MealCounts"
+        menu:
+          $ref: "#/components/schemas/WeekMenu"
     CampusBrief:
       type: object
       properties:
@@ -6339,6 +6764,30 @@ components:
         start:
           type: string
           format: date
+    Day:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Item"
+        note:
+          type: string
+        "off":
+          type: boolean
+    DayBoardResponse:
+      type: object
+      properties:
+        campuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/CampusBoard"
+        date:
+          type: string
+          format: date
     DayHealth:
       type: object
       properties:
@@ -6385,6 +6834,25 @@ components:
         yearStart:
           type: string
           format: date
+    DayInput:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ItemInput"
+        note:
+          type: string
+          maxLength: 300
+          minLength: 0
+        "off":
+          type: boolean
+      required:
+      - date
+      - items
     DayRow:
       type: object
       properties:
@@ -6664,6 +7132,20 @@ components:
         generatedAt:
           type: string
           format: date-time
+    DryStock:
+      type: object
+      properties:
+        foodCount:
+          type: integer
+          format: int32
+        openShortfallCount:
+          type: integer
+          format: int32
+        shortfallFoodCount:
+          type: integer
+          format: int32
+        status:
+          type: string
     EduConfigRequest:
       type: object
       properties:
@@ -6746,6 +7228,34 @@ components:
           format: int64
         userName:
           type: string
+    Evaluation:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        ageGroupName:
+          type: string
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        cost:
+          type: number
+        date:
+          type: string
+          format: date
+        mealPrice:
+          type: number
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/NormRow"
+        status:
+          type: string
+        totals:
+          $ref: "#/components/schemas/NutritionTotals"
     EvaluationContentRequest:
       type: object
       properties:
@@ -7407,6 +7917,29 @@ components:
       - ageGroupId
       - foodId
       - gramsPerChild
+    Issue:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        code:
+          type: string
+        date:
+          type: string
+          format: date
+        dishId:
+          type: integer
+          format: int64
+        message:
+          type: string
+        severity:
+          type: string
     IssueTicketsRequest:
       type: object
       properties:
@@ -7487,6 +8020,27 @@ components:
       required:
       - action
       - childId
+    ItemInput:
+      type: object
+      properties:
+        block:
+          type: string
+          enum:
+          - NURSERY
+          - KINDERGARTEN
+        dishId:
+          type: integer
+          format: int64
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+      required:
+      - block
+      - dishId
+      - session
     Kitchen:
       type: object
       properties:
@@ -7865,6 +8419,83 @@ components:
           type: string
         totals:
           $ref: "#/components/schemas/Totals"
+    MealCounts:
+      type: object
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SessionServings"
+        status:
+          type: string
+        totalServings:
+          type: integer
+          format: int32
+    MealPlanRequest:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayInput"
+      required:
+      - days
+    MealPlanResponse:
+      type: object
+      properties:
+        blocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Block"
+        canEdit:
+          type: boolean
+        canPublish:
+          type: boolean
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/Day"
+        evaluations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evaluation"
+        id:
+          type: integer
+          format: int64
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/Issue"
+        publishable:
+          type: boolean
+        publishedAt:
+          type: string
+          format: date-time
+        publishedBy:
+          type: integer
+          format: int64
+        status:
+          type: string
+        weekStart:
+          type: string
+          format: date
+    MealPlanSummaryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        publishedAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - PUBLISHED
+        weekStart:
+          type: string
+          format: date
     MultiSummary:
       type: object
       properties:
@@ -7916,6 +8547,8 @@ components:
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
             - NUTRITION_MANAGE
+            - MENU_MANAGE
+            - STOCK_MANAGE
             - PERMISSION_MANAGE
         roles:
           type: array
@@ -7941,12 +8574,36 @@ components:
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
             - NUTRITION_MANAGE
+            - MENU_MANAGE
+            - STOCK_MANAGE
             - PERMISSION_MANAGE
         userId:
           type: integer
           format: int64
         username:
           type: string
+    NormRow:
+      type: object
+      properties:
+        attainment:
+          type: integer
+          format: int32
+        key:
+          type: string
+        max:
+          type: number
+        min:
+          type: number
+        optional:
+          type: boolean
+        percent:
+          type: number
+        status:
+          type: string
+        target:
+          type: number
+        value:
+          type: number
     Note:
       type: object
       properties:
@@ -7954,6 +8611,25 @@ components:
           type: string
           maxLength: 2000
           minLength: 0
+    NutritionTotals:
+      type: object
+      properties:
+        animalLipid:
+          type: number
+        animalProtein:
+          type: number
+        glucid:
+          type: number
+        kcal:
+          type: number
+        lipid:
+          type: number
+        plantLipid:
+          type: number
+        plantProtein:
+          type: number
+        protein:
+          type: number
     Option:
       type: object
       properties:
@@ -8002,6 +8678,8 @@ components:
           - PARENT_ACCOUNT_MANAGE
           - MEAL_COUNT_CONFIRM
           - NUTRITION_MANAGE
+          - MENU_MANAGE
+          - STOCK_MANAGE
           - PERMISSION_MANAGE
         scope:
           type: string
@@ -8079,6 +8757,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PermissionChangeLogResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseStockMovementResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockMovementResponse"
         page:
           type: integer
           format: int32
@@ -8196,6 +8893,8 @@ components:
           - PARENT_ACCOUNT_MANAGE
           - MEAL_COUNT_CONFIRM
           - NUTRITION_MANAGE
+          - MENU_MANAGE
+          - STOCK_MANAGE
           - PERMISSION_MANAGE
         reason:
           type: string
@@ -8225,6 +8924,8 @@ components:
           - PARENT_ACCOUNT_MANAGE
           - MEAL_COUNT_CONFIRM
           - NUTRITION_MANAGE
+          - MENU_MANAGE
+          - STOCK_MANAGE
           - PERMISSION_MANAGE
         configurableRoles:
           type: array
@@ -8544,6 +9245,50 @@ components:
         mealRate:
           type: integer
           format: int32
+    ReceiptLine:
+      type: object
+      properties:
+        expiryDate:
+          type: string
+          format: date
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        id:
+          type: integer
+          format: int64
+        lotNo:
+          type: string
+        quantity:
+          type: number
+        unitPrice:
+          type: number
+        value:
+          type: number
+    ReceiptLineInput:
+      type: object
+      properties:
+        expiryDate:
+          type: string
+          format: date
+        foodId:
+          type: integer
+          format: int64
+        lotNo:
+          type: string
+          maxLength: 50
+          minLength: 0
+        quantity:
+          type: number
+          exclusiveMinimum: 0
+        unitPrice:
+          type: number
+          minimum: 0
+      required:
+      - expiryDate
+      - foodId
+      - lotNo
+      - quantity
+      - unitPrice
     RecordView:
       type: object
       properties:
@@ -8964,6 +9709,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/DailySheetResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonDayBoardResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayBoardResponse"
         desc:
           type: string
         errorCode:
@@ -9468,6 +10226,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListMealPlanSummaryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/MealPlanSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListPermissionResponse:
       type: object
       properties:
@@ -9543,6 +10316,51 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListStockLotResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockLotResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListStockReceiptResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockReceiptResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListStockShortfallResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/StockShortfallResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListSupplierResponse:
       type: object
       properties:
@@ -9608,6 +10426,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/MealCountResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonMealPlanResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MealPlanResponse"
         desc:
           type: string
         errorCode:
@@ -9699,6 +10530,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/PageResponsePermissionChangeLogResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPageResponseStockMovementResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponseStockMovementResponse"
         desc:
           type: string
         errorCode:
@@ -9881,6 +10725,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/StaffAssignmentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonStockReceiptResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/StockReceiptResponse"
         desc:
           type: string
         errorCode:
@@ -10244,6 +11101,8 @@ components:
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
             - NUTRITION_MANAGE
+            - MENU_MANAGE
+            - STOCK_MANAGE
             - PERMISSION_MANAGE
         editable:
           type: boolean
@@ -10259,6 +11118,8 @@ components:
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
             - NUTRITION_MANAGE
+            - MENU_MANAGE
+            - STOCK_MANAGE
             - PERMISSION_MANAGE
         role:
           type: string
@@ -10574,6 +11435,18 @@ components:
         semester2Start:
           type: string
           format: date
+    SessionServings:
+      type: object
+      properties:
+        servings:
+          type: integer
+          format: int32
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
     Setting:
       type: object
       properties:
@@ -10768,6 +11641,192 @@ components:
           type: string
         decision:
           type: string
+    StockFoodRef:
+      type: object
+      properties:
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        purchaseUnit:
+          type: string
+        purchaseUnitSize:
+          type: number
+        unit:
+          type: string
+    StockLotResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        expiryDate:
+          type: string
+          format: date
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        id:
+          type: integer
+          format: int64
+        lotNo:
+          type: string
+        quantity:
+          type: number
+        receivedDate:
+          type: string
+          format: date
+        remaining:
+          type: number
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
+        unitPrice:
+          type: number
+    StockMovementResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        createdBy:
+          type: integer
+          format: int64
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        id:
+          type: integer
+          format: int64
+        lotId:
+          type: integer
+          format: int64
+        lotNo:
+          type: string
+        mealDate:
+          type: string
+          format: date
+        quantity:
+          type: number
+        reason:
+          type: string
+        receiptId:
+          type: integer
+          format: int64
+        type:
+          type: string
+          enum:
+          - RECEIPT
+          - DEDUCT
+          - ADJUST
+          - SHORTFALL_DEDUCT
+          - RECEIPT_CANCEL
+    StockReceiptCancelRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - reason
+    StockReceiptRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceiptLineInput"
+          minItems: 1
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+        receivedDate:
+          type: string
+          format: date
+        supplierId:
+          type: integer
+          format: int64
+      required:
+      - campusId
+      - lines
+      - receivedDate
+      - supplierId
+    StockReceiptResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canManage:
+          type: boolean
+        cancelReason:
+          type: string
+        cancelledAt:
+          type: string
+          format: date-time
+        cancelledBy:
+          type: integer
+          format: int64
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedBy:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReceiptLine"
+        note:
+          type: string
+        receivedDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - CONFIRMED
+          - CANCELLED
+        supplierId:
+          type: integer
+          format: int64
+        supplierName:
+          type: string
+        totalValue:
+          type: number
+    StockShortfallResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        mealDate:
+          type: string
+          format: date
+        requiredQty:
+          type: number
+        shortfallQty:
+          type: number
     StructuredSummary:
       type: object
       properties:
@@ -11268,6 +12327,8 @@ components:
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
             - NUTRITION_MANAGE
+            - MENU_MANAGE
+            - STOCK_MANAGE
             - PERMISSION_MANAGE
         reason:
           type: string
@@ -11291,6 +12352,8 @@ components:
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
             - NUTRITION_MANAGE
+            - MENU_MANAGE
+            - STOCK_MANAGE
             - PERMISSION_MANAGE
         effectivePermissions:
           type: array
@@ -11304,6 +12367,8 @@ components:
             - PARENT_ACCOUNT_MANAGE
             - MEAL_COUNT_CONFIRM
             - NUTRITION_MANAGE
+            - MENU_MANAGE
+            - STOCK_MANAGE
             - PERMISSION_MANAGE
         overrides:
           type: array
@@ -11398,6 +12463,21 @@ components:
         row:
           type: integer
           format: int32
+    WeekMenu:
+      type: object
+      properties:
+        dayOff:
+          type: boolean
+        nextWeekStart:
+          type: string
+          format: date
+        nextWeekStatus:
+          type: string
+        status:
+          type: string
+        weekStart:
+          type: string
+          format: date
     WeekRow:
       type: object
       properties:
