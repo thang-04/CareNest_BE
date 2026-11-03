@@ -59,12 +59,23 @@ Mục đích: năm học; lớp gắn với 1 năm học. Migration: V2.
 Index: `uk_school_years_active` (unique một phần `WHERE status = 'ACTIVE'`) ⇒ tối đa một năm ACTIVE.
 
 ## school_holidays  (module: school-structure, scope: SCHOOL)
-Mục đích: ngày nghỉ (lễ, Tết…) của năm học; không tính là ngày học dù là thứ 2–6. Migration: V65.
+Mục đích: đợt nghỉ (lễ, Tết…) của năm học; các ngày trong đợt không tính là ngày học dù là thứ 2–6. Migration: V70.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | school_year_id | BIGINT FK school_years (xóa theo năm) | không | Năm học | SCH-05 |
-| date | DATE | không | Ngày nghỉ, UNIQUE, nằm trong năm học | SCH-05 |
-| name | VARCHAR(100) | không | Tên ngày nghỉ | SCH-05 |
+| start_date / end_date | DATE | không | Từ ngày – đến ngày (CHECK end ≥ start); trong năm học, ≤ 31 ngày, không chồng đợt (service) | SCH-05 |
+| name | VARCHAR(100) | không | Tên đợt nghỉ | SCH-05 |
+
+## class_monthly_comments  (module: learning-observation, scope: CLASS)
+Mục đích: nhận xét chung cả lớp theo tháng. Migration: V72.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| classroom_id / campus_id / school_year_id | BIGINT FK | không | Lớp; UNIQUE `(classroom_id, month)` | OBS-26 |
+| month | DATE | không | Ngày 1 của tháng | OBS-26 |
+| draft_content | TEXT | có | Nháp hệ thống viết từ số liệu tháng | OBS-26 |
+| content | VARCHAR(3000) | có | Nội dung GV lưu / xác nhận | OBS-26 |
+| confirmed_by / confirmed_at | BIGINT, TIMESTAMPTZ | có | Người, lúc xác nhận; có thì không sửa | OBS-26 |
+| updated_by / updated_at / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Lần lưu gần nhất, khóa lạc quan | OBS-26 |
 
 ## attendance_cutoffs  (module: school-structure, scope: SCHOOL)
 Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó.
@@ -278,7 +289,7 @@ Mục đích: Kiến thức kỹ năng — kết quả theo MT cho mỗi hoạt 
 | goals_met / goals_effort / goals_not_met | VARCHAR(500) | không | id `edu_goal_rows` dạng `1,2`; một MT chỉ một kết quả; không tự ghi Đạt | OBS-17 |
 
 ## class_ratings  (module: learning-observation, scope: CLASS)
-Mục đích: xếp loại nhóm lớp theo kỳ (sổ chỉ đạo chuyên môn mục 7). Migration: V64.
+Mục đích: xếp loại nhóm lớp theo kỳ (sổ chỉ đạo chuyên môn mục 7). Migration: V69.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | classroom_id / campus_id / school_year_id | BIGINT FK | không | Lớp được chấm; UNIQUE `(classroom_id, period)` | OBS-24 |

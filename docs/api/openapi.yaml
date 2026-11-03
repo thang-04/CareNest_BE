@@ -517,6 +517,66 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
+  /api/assessment/class-monthly-comments:
+    get:
+      operationId: getComment
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: month
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
+    put:
+      operationId: saveComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
+  /api/assessment/class-monthly-comments/confirm:
+    post:
+      operationId: confirmComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
   /api/assessment/class-ratings:
     get:
       operationId: listRatings
@@ -6294,6 +6354,9 @@ components:
         promoted:
           type: integer
           format: int32
+        undecided:
+          type: integer
+          format: int32
         unplaced:
           type: array
           items:
@@ -6593,6 +6656,8 @@ components:
           type: string
         placement:
           $ref: "#/components/schemas/Placement"
+        programCompleted:
+          type: boolean
     ChildProfileResponse:
       type: object
       properties:
@@ -6820,6 +6885,47 @@ components:
             type: string
       required:
       - adjustments
+    ClassMonthlyCommentRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        month:
+          type: string
+          format: date
+      required:
+      - classId
+      - month
+    ClassMonthlyCommentResponse:
+      type: object
+      properties:
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedByName:
+          type: string
+        content:
+          type: string
+        draft:
+          type: string
+        month:
+          type: string
+          format: date
+        status:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
     ClassOption:
       type: object
       properties:
@@ -10737,6 +10843,12 @@ components:
         goodRate:
           type: integer
           format: int32
+        leftChildren:
+          type: integer
+          format: int32
+        leftRate:
+          type: integer
+          format: int32
         level:
           type: string
         mealChildren:
@@ -10790,6 +10902,12 @@ components:
           type: integer
           format: int32
         goodRate:
+          type: integer
+          format: int32
+        leftChildren:
+          type: integer
+          format: int32
+        leftRate:
           type: integer
           format: int32
         level:
@@ -11147,6 +11265,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassAttendanceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassMonthlyCommentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassMonthlyCommentResponse"
         desc:
           type: string
         errorCode:
@@ -13094,16 +13225,20 @@ components:
     SchoolHolidayItem:
       type: object
       properties:
-        date:
+        endDate:
           type: string
           format: date
         name:
           type: string
           maxLength: 100
           minLength: 0
+        startDate:
+          type: string
+          format: date
       required:
-      - date
+      - endDate
       - name
+      - startDate
     SchoolHolidaysRequest:
       type: object
       properties:
@@ -13111,7 +13246,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SchoolHolidayItem"
-          maxItems: 120
+          maxItems: 60
           minItems: 0
       required:
       - holidays
