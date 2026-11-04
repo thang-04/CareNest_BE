@@ -37,6 +37,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
+import com.carenest.utils.enums.Micronutrient;
 import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -550,7 +551,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     food.getUnitPrice(),
                     food.getPurchaseUnitSize(),
                     food.getWastePct(),
-                    food.getAllergens().stream().map(a -> a.getName()).sorted().toList());
+                    food.getAllergens().stream().map(a -> a.getName()).sorted().toList(),
+                    microOf(food));
             byAgeGroup
                     .computeIfAbsent(ingredient.getAgeGroupId(), id -> new ArrayList<>())
                     .add(new Portion(info, ingredient.getGramsPerChild()));
@@ -558,7 +560,19 @@ public class MealPlanServiceImpl implements MealPlanService {
         return new DishInfo(dish.getId(), dish.getName(), dish.getDishType(), byAgeGroup);
     }
 
+    private static Map<Micronutrient, BigDecimal> microOf(Food food) {
+        Map<Micronutrient, BigDecimal> micro = new EnumMap<>(Micronutrient.class);
+        for (Micronutrient nutrient : Micronutrient.values()) {
+            micro.put(nutrient, MicronutrientValues.of(food, nutrient));
+        }
+        return micro;
+    }
+
     private static Norm toNorm(AgeGroupMealConfig c) {
+        Map<Micronutrient, Range> micro = new EnumMap<>(Micronutrient.class);
+        for (Micronutrient nutrient : Micronutrient.values()) {
+            micro.put(nutrient, new Range(MicronutrientValues.min(c, nutrient), MicronutrientValues.max(c, nutrient)));
+        }
         Map<MealSession, Range> sessionKcalPct = new EnumMap<>(MealSession.class);
         sessionKcalPct.put(MealSession.MORNING, new Range(c.getMorningKcalPctMin(), c.getMorningKcalPctMax()));
         sessionKcalPct.put(MealSession.LUNCH, new Range(c.getLunchKcalPctMin(), c.getLunchKcalPctMax()));
@@ -575,7 +589,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                 new Range(c.getPlantLipidGMin(), c.getPlantLipidGMax()),
                 new Range(c.getGlucidGMin(), c.getGlucidGMax()),
                 sessionKcalPct,
-                c.getDailyKcalNeed());
+                c.getDailyKcalNeed(),
+                micro);
     }
 
     private static String blockLabel(MenuBlock block) {

@@ -308,3 +308,49 @@ FROM (VALUES ('ag-2', 25000, 600, 800, 11, 18, 10, 14, 82, 105, 1000),
                daily_need)
 JOIN age_groups ag ON ag.code = v.code
 ON CONFLICT (age_group_id, effective_from) DO NOTHING;
+
+-- NUT-26: vi chất mẫu của thực phẩm demo, trên 100 g/ml ăn được (mg; vitamin A µg retinol equivalent).
+-- Số liệu do AI ước lượng theo Bảng thành phần thực phẩm Việt Nam (Viện Dinh dưỡng), CHỈ để demo — cần người có chuyên môn soát lại.
+-- Chỉ điền khi thực phẩm chưa có vi chất nào, không đè số liệu PHT đã nhập
+UPDATE foods f
+SET calcium = v.calcium, phosphorus = v.phosphorus, iron = v.iron, vitamin_a = v.vitamin_a,
+    vitamin_b1 = v.vitamin_b1, vitamin_b2 = v.vitamin_b2, vitamin_pp = v.vitamin_pp, vitamin_c = v.vitamin_c
+FROM (VALUES ('Gạo tẻ', 30, 104, 1.3, 0, 0.10, 0.03, 1.6, 0),
+             ('Thịt lợn nạc', 7, 190, 0.96, 2, 0.90, 0.18, 4.4, 1),
+             ('Cà rốt', 43, 39, 0.8, 840, 0.06, 0.02, 0.4, 8),
+             ('Sữa bò tươi', 120, 95, 0.1, 50, 0.05, 0.19, 0.1, 1),
+             ('Dầu đậu nành', 0, 0, 0, 0, 0, 0, 0, 0),
+             ('Bí xanh', 26, 23, 0.3, 0, 0.01, 0.02, 0.3, 16),
+             ('Đường kính', 0, 0, 0, 0, 0, 0, 0, 0),
+             ('Trứng gà', 55, 210, 2.7, 700, 0.16, 0.31, 0.2, 0))
+         AS v (name, calcium, phosphorus, iron, vitamin_a, vitamin_b1, vitamin_b2, vitamin_pp, vitamin_c)
+WHERE f.name = v.name
+  AND num_nonnulls(f.calcium, f.phosphorus, f.iron, f.vitamin_a, f.vitamin_b1, f.vitamin_b2, f.vitamin_pp, f.vitamin_c) = 0;
+
+-- NUT-26: định mức vi chất demo mỗi trẻ mỗi ngày cho các bữa ở trường (khoảng 60–70% nhu cầu khuyến nghị của Bộ Y tế).
+-- Nhà trẻ (ag-2) theo nhóm 1–3 tuổi, mẫu giáo (ag-3 đến ag-5) theo nhóm 3–6 tuổi. Số minh họa do AI ước lượng, cần soát lại;
+-- chỉ điền cho cấu hình demo chưa có định mức vi chất
+UPDATE age_group_meal_configs c
+SET calcium_min = v.calcium_min, calcium_max = v.calcium_max,
+    phosphorus_min = v.phosphorus_min, phosphorus_max = v.phosphorus_max,
+    iron_min = v.iron_min, iron_max = v.iron_max,
+    vitamin_a_min = v.vitamin_a_min, vitamin_a_max = v.vitamin_a_max,
+    vitamin_b1_min = v.vitamin_b1_min, vitamin_b1_max = v.vitamin_b1_max,
+    vitamin_b2_min = v.vitamin_b2_min, vitamin_b2_max = v.vitamin_b2_max,
+    vitamin_pp_min = v.vitamin_pp_min, vitamin_pp_max = v.vitamin_pp_max,
+    vitamin_c_min = v.vitamin_c_min, vitamin_c_max = v.vitamin_c_max
+FROM (VALUES ('ag-2', 300, 500, 250, 400, 5, 8, 250, 400, 0.3, 0.6, 0.3, 0.6, 3, 6, 20, 40),
+             ('ag-3', 350, 600, 300, 500, 6, 10, 270, 450, 0.4, 0.7, 0.4, 0.7, 4, 8, 25, 45),
+             ('ag-4', 350, 600, 300, 500, 6, 10, 270, 450, 0.4, 0.7, 0.4, 0.7, 4, 8, 25, 45),
+             ('ag-5', 350, 600, 300, 500, 6, 10, 270, 450, 0.4, 0.7, 0.4, 0.7, 4, 8, 25, 45))
+         AS v (code, calcium_min, calcium_max, phosphorus_min, phosphorus_max, iron_min, iron_max,
+               vitamin_a_min, vitamin_a_max, vitamin_b1_min, vitamin_b1_max, vitamin_b2_min, vitamin_b2_max,
+               vitamin_pp_min, vitamin_pp_max, vitamin_c_min, vitamin_c_max),
+     age_groups ag
+WHERE ag.code = v.code
+  AND c.age_group_id = ag.id
+  AND c.effective_from = DATE '2026-09-01'
+  AND c.norm_basis = 'Số liệu demo'
+  AND num_nonnulls(c.calcium_min, c.calcium_max, c.phosphorus_min, c.phosphorus_max, c.iron_min, c.iron_max,
+                   c.vitamin_a_min, c.vitamin_a_max, c.vitamin_b1_min, c.vitamin_b1_max, c.vitamin_b2_min,
+                   c.vitamin_b2_max, c.vitamin_pp_min, c.vitamin_pp_max, c.vitamin_c_min, c.vitamin_c_max) = 0;
