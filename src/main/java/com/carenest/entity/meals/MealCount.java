@@ -96,8 +96,12 @@ public class MealCount {
         return count;
     }
 
-    public void addLine(Long classroomId, int present, int absent, int missing, int normal) {
-        lines.add(MealCountLine.of(this, classroomId, false, present, absent, missing, normal));
+    /** eating: trẻ ăn bữa này; substitute: trong đó trẻ ăn suất thay thế (dị ứng theo hồ sơ). */
+    public void addLine(Long classroomId, int present, int absent, int missing, int eating, int substitute) {
+        MealCountLine line = MealCountLine.of(this, classroomId, false, present, absent, missing, eating);
+        int sub = Math.min(substitute, eating);
+        line.setServings(eating - sub, sub);
+        lines.add(line);
     }
 
     public boolean isConfirmed() {
@@ -144,9 +148,15 @@ public class MealCount {
         return visibleLine(classroomId).map(MealCountLine::getNormal);
     }
 
+    /** Số trẻ ăn bữa này của lớp = suất thường + suất thay thế (người duyệt thấy); rỗng nếu sổ không có lớp. */
+    public Optional<Integer> currentEating(Long classroomId) {
+        return visibleLine(classroomId).map(l -> l.getNormal() + l.getSubstitute());
+    }
+
     /**
-     * NUT-02: PHT chỉ điều chỉnh suất thay thế (trẻ dị ứng nặng), suất thường chỉ đổi theo điểm danh. Trả về chênh
-     * lệch suất thay thế (0 nếu không đổi).
+     * NUT-02: PHT chỉ điều chỉnh suất thay thế (trẻ dị ứng nặng), suất thường chỉ đổi theo điểm danh. Suất thay thế nằm
+     * trong số trẻ ăn (Cần chốt 04/11/2026: 20 trẻ, 1 thay thế = 20 suất gồm 19 thường + 1 thay thế). Trả về chênh lệch
+     * suất thay thế (0 nếu không đổi).
      */
     public int adjustSubstitute(Long classroomId, int substitute) {
         MealCountLine current = visibleLine(classroomId).orElse(null);
@@ -154,22 +164,28 @@ public class MealCount {
             return 0;
         }
         MealCountLine line = workingLine(classroomId).orElseThrow();
+        int eating = line.getNormal() + line.getSubstitute();
         int delta = substitute - line.getSubstitute();
-        line.setServings(line.getNormal(), substitute);
+        line.setServings(eating - substitute, substitute);
         return delta;
     }
 
     /**
-     * Điểm danh của lớp đổi sau khi tổng hợp (ATT-07); suất thay thế PHT đã điều chỉnh được giữ (NUT-02). Trả về true
-     * nếu số của lớp thay đổi.
+     * Điểm danh của lớp đổi sau khi tổng hợp (ATT-07): số trẻ ăn và suất thay thế tính lại theo điểm danh + dị ứng trong
+     * hồ sơ (Cần chốt 04/11/2026). Trả về true nếu số của lớp thay đổi.
      */
-    public boolean replaceClassFigures(Long classroomId, int present, int absent, int missing, int normal) {
+    public boolean replaceClassFigures(
+            Long classroomId, int present, int absent, int missing, int eating, int allergicEating) {
         MealCountLine current = visibleLine(classroomId).orElse(null);
-        if (current == null || current.sameAs(present, absent, missing, normal, current.getSubstitute())) {
+        if (current == null) {
+            return false;
+        }
+        int substitute = Math.min(allergicEating, eating);
+        if (current.sameAs(present, absent, missing, eating - substitute, substitute)) {
             return false;
         }
         MealCountLine line = workingLine(classroomId).orElseThrow();
-        line.setFigures(present, absent, missing, normal, line.getSubstitute());
+        line.setFigures(present, absent, missing, eating - substitute, substitute);
         return true;
     }
 

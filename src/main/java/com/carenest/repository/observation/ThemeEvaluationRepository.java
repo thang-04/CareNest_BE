@@ -18,6 +18,9 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
     interface ThemeRow {
         Long getId();
 
+        /** Dòng gốc của chủ đề (giữ qua các bản kế hoạch): khóa lưu bảng đánh giá. */
+        Long getLineage();
+
         String getName();
 
         String getAbbr();
@@ -40,7 +43,7 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
 
     @Query(
             value =
-                    "SELECT t.id AS id, t.name AS name, t.abbr AS abbr, t.start_date AS startDate, t.end_date AS endDate"
+                    "SELECT t.id AS id, COALESCE(t.lineage_id, t.id) AS lineage, t.name AS name, t.abbr AS abbr, t.start_date AS startDate, t.end_date AS endDate"
                             + " FROM edu_themes t WHERE t.year_plan_id = (SELECT p.id FROM edu_year_plans p"
                             + " WHERE p.school_year_id = :schoolYearId AND p.age_group_id = :ageGroupId AND p.status = 'APPROVED'"
                             + " ORDER BY p.version_no DESC, p.id DESC LIMIT 1)"

@@ -203,7 +203,9 @@ public class QualityReportServiceImpl implements QualityReportService {
             Set<Long> good,
             Set<Long> allRound) {}
 
-    // Ngày học của lớp = thứ 2–6 có điểm danh; trẻ ra lớp bình quân = tổng lượt có mặt / số ngày học (làm tròn).
+    // Ngày học = ngày học theo lịch năm học (thứ 2–6 trừ ngày nghỉ HT cấu hình), tới hôm nay; ngày GV quên điểm danh
+    // vẫn
+    // tính (Cần chốt 04/11/2026). Trẻ ra lớp bình quân = tổng lượt có mặt / số ngày học (làm tròn).
     // OBS-23: trẻ vào/nghỉ trong tháng vẫn thuộc danh sách tháng đó; ngày phải đi chỉ tính lúc trẻ thuộc lớp
     private ClassResult rowOf(
             ClassroomInfoResponse cls,
@@ -214,12 +216,17 @@ public class QualityReportServiceImpl implements QualityReportService {
             LocalDate today,
             Map<Long, Integer> ageFrom) {
         Map<YearMonth, Set<LocalDate>> schoolDays = new HashMap<>();
+        for (YearMonth ym : months) {
+            schoolDays.put(ym, calendarDays(cls, ym, today));
+        }
+        schoolDays.computeIfAbsent(month, ym -> calendarDays(cls, ym, today));
+        Set<LocalDate> recorded = new HashSet<>();
         Map<YearMonth, Integer> presentByMonth = new HashMap<>();
         Map<Long, Integer> childPresent = new HashMap<>();
         Set<Long> lunch = new HashSet<>();
         for (ClassChildDay d : classDays) {
             YearMonth ym = YearMonth.from(d.date());
-            schoolDays.computeIfAbsent(ym, k -> new TreeSet<>()).add(d.date());
+            recorded.add(d.date());
             if (d.status() != AttendanceStatus.PRESENT) {
                 continue;
             }
@@ -305,8 +312,34 @@ public class QualityReportServiceImpl implements QualityReportService {
                 percent(good.size(), n),
                 allRound.size(),
                 percent(allRound.size(), n),
-                avgByMonth);
+                avgByMonth,
+                // Chỉ nhắc ngày lớp có trẻ đang học mà chưa điểm danh
+                monthDays.stream()
+                        .filter(day -> day.isBefore(today)
+                                && !recorded.contains(day)
+                                && stays.stream().anyMatch(st -> st.covers(day)))
+                        .sorted()
+                        .toList());
         return new ClassResult(row, children, left, meal, diligent, good, allRound);
+    }
+
+    // Ngày học của tháng theo lịch năm học của lớp (trừ cuối tuần, ngày nghỉ cấu hình), không quá hôm nay
+    private Set<LocalDate> calendarDays(ClassroomInfoResponse cls, YearMonth month, LocalDate today) {
+        LocalDate from = month.atDay(1).isBefore(cls.yearStart()) ? cls.yearStart() : month.atDay(1);
+        LocalDate to = month.atEndOfMonth();
+        if (to.isAfter(today)) {
+            to = today;
+        }
+        if (to.isAfter(cls.yearEnd())) {
+            to = cls.yearEnd();
+        }
+        Set<LocalDate> days = new TreeSet<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if (rules.isSchoolDay(d)) {
+                days.add(d);
+            }
+        }
+        return days;
     }
 
     // OBS-23: trẻ ra lớp = trẻ có ngày cuối ở lớp rơi vào tháng (thôi học hoặc chuyển lớp) và ngày đó đã qua; kết thúc

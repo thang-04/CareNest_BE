@@ -204,7 +204,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     @Override
     @Transactional(readOnly = true)
     public List<LeaveRequestResponse> searchLeaveRequests(
-            CurrentUser currentUser, Long classId, Long campusId, LocalDate from, LocalDate to) {
+            CurrentUser currentUser, Long classId, Long campusId, LocalDate from, LocalDate to, Long schoolYearId) {
         String logPrefix = LOG_PREFIX + "|searchLeaveRequests|userId=" + currentUser.userId() + "|classId=" + classId
                 + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
@@ -214,7 +214,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             if (end.isBefore(start)) {
                 throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
             }
-            List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
+            List<ClassroomInfoResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> classId == null || c.id().equals(classId))
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
                     .toList();

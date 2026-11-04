@@ -7,6 +7,7 @@ import com.carenest.dto.common.PageResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.child.ChildMapper;
+import com.carenest.repository.child.ChildAllergyRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
@@ -39,6 +40,7 @@ public class ChildServiceImpl implements ChildService {
     private static final String LOG_PREFIX = "[ChildServiceImpl]";
 
     private final ChildRepository childRepository;
+    private final ChildAllergyRepository allergyRepository;
     private final EnrollmentService enrollmentService;
     private final ChildAccessPolicy childAccessPolicy;
     private final ChildMapper childMapper;
@@ -121,6 +123,22 @@ public class ChildServiceImpl implements ChildService {
                                     c.getId(), c.getCode(), c.getFullName(), c.getDateOfBirth(), c.getGender())));
             log.info("{}|END", logPrefix);
             return briefs;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> findChildIdsWithAllergies(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findChildIdsWithAllergies|count=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> result =
+                    childIds.isEmpty() ? Set.of() : Set.copyOf(allergyRepository.findChildIdsWithAllergy(childIds));
+            log.info("{}|allergic={}|END", logPrefix, result.size());
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

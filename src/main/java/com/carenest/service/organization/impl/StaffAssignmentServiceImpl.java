@@ -229,6 +229,24 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Set<Long> findCampusConfirmerIds(Long campusId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findCampusConfirmerIds|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<Long> ids = staffAssignmentRepository.findActiveLeaderIds(StaffRole.VICE_PRINCIPAL, campusId, date);
+            if (ids.isEmpty()) {
+                ids = staffAssignmentRepository.findActiveLeaderIds(StaffRole.PRINCIPAL, null, date);
+            }
+            Set<Long> result = Set.copyOf(ids);
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findActiveCampusIds(Long userId, StaffRole staffRole, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveCampusIds|userId=" + userId + "|role=" + staffRole;
         log.info("{}|START", logPrefix);
@@ -370,6 +388,25 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                     assignment.substitute()));
             log.info("{}|assignmentId={}|END", logPrefix, saved.getId());
             return staffAssignmentMapper.toResponse(saved);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void realignYearAssignments(
+            Long schoolYearId, LocalDate oldStart, LocalDate oldEnd, LocalDate newStart, LocalDate newEnd) {
+        String logPrefix = LOG_PREFIX + "|realignYearAssignments|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            int ends =
+                    oldEnd.equals(newEnd) ? 0 : staffAssignmentRepository.realignYearEnd(schoolYearId, oldEnd, newEnd);
+            int starts = oldStart.equals(newStart)
+                    ? 0
+                    : staffAssignmentRepository.realignYearStart(schoolYearId, oldStart, newStart);
+            log.info("{}|ends={}|starts={}|END", logPrefix, ends, starts);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

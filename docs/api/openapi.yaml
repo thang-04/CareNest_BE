@@ -3874,6 +3874,12 @@ paths:
         schema:
           type: string
           format: date
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -4204,6 +4210,18 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: seenServings
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - in: query
+        name: seenSubstitute
+        required: false
+        schema:
+          type: integer
+          format: int32
       responses:
         "200":
           content:
@@ -7634,6 +7652,8 @@ components:
     Cell:
       type: object
       properties:
+        auto:
+          type: boolean
         goalId:
           type: integer
           format: int64
@@ -9226,6 +9246,9 @@ components:
           type: integer
           format: int32
         present:
+          type: integer
+          format: int32
+        substitute:
           type: integer
           format: int32
         unexcused:
@@ -13203,6 +13226,7 @@ components:
           type: string
           enum:
           - CHILD_PICKED_UP
+          - MEAL_COUNT_RECONFIRM
     NutritionTotals:
       type: object
       properties:
@@ -14053,6 +14077,11 @@ components:
         schoolDays:
           type: integer
           format: int32
+        unrecordedDays:
+          type: array
+          items:
+            type: string
+            format: date
     QualityTotal:
       type: object
       properties:
@@ -16441,6 +16470,11 @@ components:
           type: array
           items:
             type: string
+        unrecordedDays:
+          type: array
+          items:
+            type: string
+            format: date
         updatedBy:
           type: integer
           format: int64

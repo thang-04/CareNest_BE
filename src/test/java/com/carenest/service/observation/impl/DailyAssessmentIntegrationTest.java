@@ -198,6 +198,18 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    void sheetWithoutDateOpensLatestSchoolDaySkippingConfiguredHoliday() {
+        // Hôm nay (28/10) là ngày nghỉ trong cấu hình năm học: mở màn không chọn ngày thì ra ngày học gần nhất (27/10)
+        long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
+        jdbc.update(
+                "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) VALUES (?, ?, ?, 'Nghỉ thử')",
+                year,
+                TODAY,
+                TODAY);
+        assertThat(service.getDailySheet(teacherA, classA, null).date()).isEqualTo(YESTERDAY);
+    }
+
+    @Test
     void teacherAssessesOnlyPresentChildrenAgainstApprovedLesson() {
         attendanceService.saveClassAttendance(
                 teacherA,
@@ -231,11 +243,19 @@ class DailyAssessmentIntegrationTest {
         assertThat(sheet.rows()).extracting(DailySheetResponse.Row::childId).containsExactly(child1);
         assertThat(sheet.rows().getFirst().health().signs()).containsExactly(HealthSymptom.COUGH);
         assertThat(sheet.rows().getFirst().recorded()).isFalse();
+        assertThat(sheet.rows().getFirst().generalRecorded()).isFalse();
         assertThat(sheet.lesson().classDocId()).isEqualTo(weekDoc);
         assertThat(sheet.lesson().activities()).singleElement().satisfies(a -> {
             assertThat(a.key()).isEqualTo("hoc");
             assertThat(a.goals()).extracting(g -> g.id()).containsExactly(goal1, goal2);
         });
+        // Chấm KTKN trước: trẻ đã có ghi nhận nhưng Hoạt động chung (ăn, ngủ, cảm xúc) vẫn chưa lưu
+        service.saveSkills(teacherA, classA, skills(TODAY, child1, null, activity("hoc", List.of(), List.of(goal2))));
+        DailySheetResponse.Row skillsOnly =
+                service.getDailySheet(teacherA, classA, TODAY).rows().getFirst();
+        assertThat(skillsOnly.recorded()).isTrue();
+        assertThat(skillsOnly.skillsRecorded()).isTrue();
+        assertThat(skillsOnly.generalRecorded()).isFalse();
 
         service.saveGeneral(
                 teacherA,
@@ -261,6 +281,8 @@ class DailyAssessmentIntegrationTest {
         DailySheetResponse.Row row =
                 service.getDailySheet(teacherA, classA, TODAY).rows().getFirst();
         assertThat(row.recorded()).isTrue();
+        assertThat(row.generalRecorded()).isTrue();
+        assertThat(row.skillsRecorded()).isTrue();
         assertThat(row.comment()).isEqualTo("Bé ngoan");
         assertThat(row.flag()).isTrue();
         // Tham gia cả ngày lưu ở bản ghi ngày, không tạo kết quả theo hoạt động
@@ -878,7 +900,10 @@ class DailyAssessmentIntegrationTest {
                 .satisfies(r -> {
                     assertThat(r.children()).isEqualTo(2);
                     assertThat(r.presentDays()).isEqualTo(2);
-                    assertThat(r.avgPresent()).isEqualTo(1);
+                    // Ngày học theo lịch (22 ngày thứ 2–6 của tháng 9/2026), ngày chưa điểm danh vẫn tính và được báo
+                    assertThat(r.schoolDays()).isEqualTo(22);
+                    assertThat(r.avgPresent()).isZero();
+                    assertThat(r.unrecordedDays()).hasSize(20).doesNotContain(LocalDate.of(2026, 9, 15));
                     // Trẻ ra lớp: An thôi học 19/09 trên sĩ số 2
                     assertThat(r.leftChildren()).isEqualTo(1);
                     assertThat(r.leftRate()).isEqualTo(50);

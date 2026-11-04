@@ -29,6 +29,7 @@ import com.carenest.repository.attendance.LeaveRequestRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
+import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
@@ -75,6 +76,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
+    private final ChildService childService;
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
     private final LeaveRequestRepository leaveRequestRepository;
@@ -124,6 +126,26 @@ public class AttendanceServiceImpl implements AttendanceService {
                                 .findFirst()
                                 .orElse(null));
             }
+            log.info("{}|END", logPrefix);
+            return info;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DayInfoResponse getActiveYearDayInfo(LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|getActiveYearDayInfo";
+        log.info("{}|START", logPrefix);
+        try {
+            DayInfoResponse info = rules.dayInfo(
+                    date,
+                    null,
+                    classroomService.findActiveYearClassrooms().stream()
+                            .findFirst()
+                            .orElse(null));
             log.info("{}|END", logPrefix);
             return info;
         } catch (RuntimeException ex) {
@@ -335,6 +357,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                                 sum(rows, DayRow::unexcused),
                                 sum(rows, DayRow::missing),
                                 sum(rows, DayRow::mealTotal),
+                                sum(rows, DayRow::substitute),
                                 Map.of());
                     })
                     .toList();
@@ -398,14 +421,26 @@ public class AttendanceServiceImpl implements AttendanceService {
         int present = 0;
         int absent = 0;
         Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
-        cls.mealSessions().forEach(s -> meals.put(s, 0));
+        Map<MealSession, Integer> substitutes = new EnumMap<>(MealSession.class);
+        cls.mealSessions().forEach(s -> {
+            meals.put(s, 0);
+            substitutes.put(s, 0);
+        });
+        // Trẻ có dị ứng trong hồ sơ ăn suất thay thế (Cần chốt 04/11/2026: map theo hồ sơ, cô chỉ điểm danh)
+        Set<Long> allergic = childService.findChildIdsWithAllergies(records.keySet());
         for (AttendanceRecord r : records.values()) {
             if (r.getStatus().isAbsent()) {
                 absent++;
                 continue;
             }
             present++;
-            cls.mealSessions().forEach(s -> meals.merge(s, 1, Integer::sum));
+            boolean substitute = allergic.contains(r.getChildId());
+            cls.mealSessions().forEach(s -> {
+                meals.merge(s, 1, Integer::sum);
+                if (substitute) {
+                    substitutes.merge(s, 1, Integer::sum);
+                }
+            });
         }
         return new ClassMealTally(
                 cls.id(),
@@ -415,7 +450,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                 present,
                 absent,
                 childIds.size() - present - absent,
-                meals);
+                meals,
+                substitutes);
     }
 
     // ATT-04: đơn nghỉ còn hiệu lực của trẻ trong ngày (đơn đã hủy từ ngày này trở đi thì không tính);
@@ -485,9 +521,11 @@ public class AttendanceServiceImpl implements AttendanceService {
                         .collect(Collectors.toMap(r -> r.getChildId() + ":" + r.getDate(), Function.identity()));
         Map<Long, int[]> perChild = new LinkedHashMap<>();
         children.forEach(ch -> perChild.put(ch.id(), new int[4]));
+        // Trẻ có khai dị ứng trong hồ sơ ăn suất thay thế (giống Sổ báo ăn, Cần chốt 04/11/2026)
+        Set<Long> allergic = childService.findChildIdsWithAllergies(childIds);
         List<DayRow> days = new ArrayList<>();
         for (LocalDate date : schoolDays(from, to)) {
-            int[] counts = new int[5]; // present, excused, unexcused, missing, mealTotal
+            int[] counts = new int[6]; // present, excused, unexcused, missing, mealTotal, substitute
             Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
             cls.mealSessions().forEach(s -> meals.put(s, 0));
             for (ClassChildResponse ch : children) {
@@ -507,11 +545,14 @@ public class AttendanceServiceImpl implements AttendanceService {
                 List<MealSession> eaten = mealsFor(r.getStatus(), cls.mealSessions());
                 if (!eaten.isEmpty()) {
                     counts[4]++;
+                    if (allergic.contains(ch.id())) {
+                        counts[5]++;
+                    }
                     child[3]++;
                     eaten.forEach(s -> meals.merge(s, 1, Integer::sum));
                 }
             }
-            days.add(new DayRow(date, counts[0], counts[1], counts[2], counts[3], counts[4], meals));
+            days.add(new DayRow(date, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], meals));
         }
         List<ChildTotal> childTotals = children.stream()
                 .map(ch -> {

@@ -208,17 +208,17 @@ class LeaveRequestIntegrationTest {
         // Sửa thẳng bằng SQL ⇒ bỏ bản Enrollment đã nạp trong phiên JPA
         entityManager.clear();
 
-        assertThat(service.searchLeaveRequests(teacherA, null, null, TODAY, FRI))
+        assertThat(service.searchLeaveRequests(teacherA, null, null, TODAY, FRI, null))
                 .extracting(LeaveRequestResponse::id)
                 .doesNotContain(leaveId);
-        assertThat(service.searchLeaveRequests(teacherB, null, null, TODAY, FRI))
+        assertThat(service.searchLeaveRequests(teacherB, null, null, TODAY, FRI, null))
                 .filteredOn(r -> r.id().equals(leaveId))
                 .extracting(LeaveRequestResponse::classId)
                 .containsExactly(classB);
 
         // Đơn đã hủy hết vẫn hiện trong danh sách (giữ lịch sử đơn)
         service.cancelLeaveRequest(parent, leaveId);
-        assertThat(service.searchLeaveRequests(teacherB, null, null, TODAY, FRI))
+        assertThat(service.searchLeaveRequests(teacherB, null, null, TODAY, FRI, null))
                 .filteredOn(r -> r.id().equals(leaveId))
                 .extracting(LeaveRequestResponse::status)
                 .containsExactly("CANCELLED");
@@ -325,22 +325,26 @@ class LeaveRequestIntegrationTest {
         long leaveId = service.createLeaveRequest(parent, new CreateLeaveRequest(child1, THU, THU, "Ốm"))
                 .id();
 
-        assertThat(service.searchLeaveRequests(teacherA, null, null, TODAY, FRI))
+        assertThat(service.searchLeaveRequests(teacherA, null, null, TODAY, FRI, null))
                 .extracting(LeaveRequestResponse::id)
                 .containsExactly(leaveId);
-        assertThat(service.searchLeaveRequests(teacherB, null, null, TODAY, FRI))
+        assertThat(service.searchLeaveRequests(teacherB, null, null, TODAY, FRI, null))
                 .isEmpty();
-        assertThat(service.searchLeaveRequests(vpA, null, campusA, TODAY, FRI)).hasSize(1);
-        assertThat(service.searchLeaveRequests(principal, classA, null, TODAY, FRI))
+        assertThat(service.searchLeaveRequests(vpA, null, campusA, TODAY, FRI, null))
+                .hasSize(1);
+        assertThat(service.searchLeaveRequests(principal, classA, null, TODAY, FRI, null))
                 .extracting(LeaveRequestResponse::childName)
                 .containsExactly("An");
-        expectError(() -> service.searchLeaveRequests(teacherB, classA, null, TODAY, FRI), ApiCode.CLASS_ACCESS_DENIED);
+        expectError(
+                () -> service.searchLeaveRequests(teacherB, classA, null, TODAY, FRI, null),
+                ApiCode.CLASS_ACCESS_DENIED);
         // AUTH-20: PHT xem đơn nghỉ mọi điểm trường
-        assertThat(service.searchLeaveRequests(vpB, null, campusA, TODAY, FRI)).hasSize(1);
+        assertThat(service.searchLeaveRequests(vpB, null, campusA, TODAY, FRI, null))
+                .hasSize(1);
 
         // Trẻ đã rời lớp trước hôm nay vẫn thấy đơn trong khoảng trẻ còn học lớp (OBS-23)
         jdbc.update("UPDATE enrollments SET valid_to = ? WHERE child_id = ?", TODAY.minusDays(1), child1);
-        assertThat(service.searchLeaveRequests(teacherA, null, null, TODAY.minusDays(7), FRI))
+        assertThat(service.searchLeaveRequests(teacherA, null, null, TODAY.minusDays(7), FRI, null))
                 .extracting(LeaveRequestResponse::id)
                 .containsExactly(leaveId);
     }

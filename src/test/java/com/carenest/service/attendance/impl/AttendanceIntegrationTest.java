@@ -396,6 +396,15 @@ class AttendanceIntegrationTest {
 
     @Test
     void summaryCountsDaysChildrenAndMeals() {
+        // Trẻ có khai dị ứng: lượt ăn tính là suất thay thế (giống Sổ báo ăn)
+        jdbc.update(
+                "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
+                        + " self_history_state, family_history_state, tb_contact_state, declared_by)"
+                        + " VALUES (?, 'REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED',"
+                        + " 'NONE_REPORTED', ?)",
+                child1,
+                principal.userId());
+        jdbc.update("INSERT INTO child_allergies (child_id, name) VALUES (?, 'Tôm')", child1);
         service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), absent(child2)));
 
         AttendanceSummaryResponse.ClassSummary summary =
@@ -405,6 +414,7 @@ class AttendanceIntegrationTest {
         assertThat(today.present()).isEqualTo(1);
         assertThat(today.unexcused()).isEqualTo(1);
         assertThat(today.mealTotal()).isEqualTo(1);
+        assertThat(today.substitute()).isEqualTo(1);
         assertThat(today.meals()).containsEntry(MealSession.LUNCH, 1);
         assertThat(summary.days().getFirst().missing()).isEqualTo(2);
 
@@ -495,6 +505,17 @@ class AttendanceIntegrationTest {
                         .getClassChildHealth(teacherA, classA, child2, TODAY)
                         .canRecord())
                 .isFalse();
+        assertThat(healthService
+                        .getOverview(vpA, TODAY, null, null, null, classA)
+                        .attention())
+                .extracting(DailyHealthResponse.Attention::childId)
+                .containsExactly(child1);
+        // Sức khỏe chỉ đo khi có mặt: đổi sang vắng thì không còn trong danh sách cần chú ý
+        service.saveClassAttendance(teacherA, classA, request(TODAY, absent(child1), absent(child2)));
+        assertThat(healthService
+                        .getOverview(vpA, TODAY, null, null, null, classA)
+                        .attention())
+                .isEmpty();
     }
 
     @Test

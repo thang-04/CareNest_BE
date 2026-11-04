@@ -208,6 +208,36 @@ class ThemeEvaluationIntegrationTest {
     }
 
     @Test
+    void confirmedTableSurvivesNewYearPlanVersion() {
+        service.save(
+                teacher,
+                new ThemeEvaluationRequest(classA, 9201L, "Lưu ý", List.of(new CellInput(kid1, oldGoal1, true))));
+        service.confirm(teacher, new ThemeEvaluationRequest(classA, 9201L, "Lưu ý", List.of()));
+        // PHT ban hành bản 3: chủ đề được chép với id mới, giữ dòng gốc
+        jdbc.update("INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
+                + " version_no, source_plan_id) OVERRIDING SYSTEM VALUE SELECT 9003, 'KH-T3', school_year_id,"
+                + " age_group_id, title, 'APPROVED', owner_id, 3, 9002 FROM edu_year_plans WHERE id = 9002");
+        jdbc.update("INSERT INTO edu_themes (id, year_plan_id, sort_order, name, start_date, end_date, lineage_id)"
+                + " OVERRIDING SYSTEM VALUE VALUES (9211, 9003, 1, 'Trường mầm non thân yêu', '2026-09-07',"
+                + " '2026-10-02', 9201)");
+        long copiedGoal = insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no,"
+                + " lineage_id) VALUES (9003, 9100, 1, 'Trẻ chạy được 15m', 1, " + oldGoal1 + ") RETURNING id");
+        tick(9311, copiedGoal, 9211);
+
+        assertThat(service.listThemes(teacher, classA))
+                .extracting(t -> t.themeId() + ":" + t.status())
+                .containsExactly("9211:CONFIRMED");
+        ThemeEvaluationResponse view = service.get(teacher, classA, 9211L);
+        assertThat(view.status()).isEqualTo("CONFIRMED");
+        assertThat(row(view, kid1).cells().getFirst().manual()).isTrue();
+        // Link cũ (id chủ đề bản trước) vẫn mở được bảng; không tạo được bảng thứ hai
+        assertThat(service.get(teacher, classA, 9201L).status()).isEqualTo("CONFIRMED");
+        expectCode(
+                () -> service.save(teacher, new ThemeEvaluationRequest(classA, 9211L, null, List.of())),
+                ApiCode.EVALUATION_ALREADY_CONFIRMED);
+    }
+
+    @Test
     void scopeAndRulesAreEnforced() {
         // Lớp nhà trẻ không có đánh giá cuối chủ đề
         expectCode(() -> service.listThemes(principal, nurseryClass), ApiCode.THEME_EVALUATION_KINDERGARTEN_ONLY);

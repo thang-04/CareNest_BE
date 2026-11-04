@@ -459,15 +459,22 @@ public class RewardListServiceImpl implements RewardListService {
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(cls.id(), at(cls));
         List<Long> childIds = children.stream().map(ClassChildResponse::id).toList();
 
-        // Ngày học của lớp = thứ 2–6 có điểm danh (như báo cáo chất lượng tháng)
+        // Ngày học = lịch năm học (thứ 2–6 trừ ngày nghỉ HT cấu hình) tới hôm nay, kể cả ngày GV quên điểm danh (như
+        // báo cáo chất lượng tháng, Cần chốt 04/11/2026)
         Set<LocalDate> schoolDays = new HashSet<>();
+        Set<LocalDate> recorded = new HashSet<>();
+        for (LocalDate d = cls.yearStart(); !d.isAfter(to); d = d.plusDays(1)) {
+            if (rules.isSchoolDay(d)) {
+                schoolDays.add(d);
+            }
+        }
         Map<Long, Integer> present = new HashMap<>();
         if (!to.isBefore(cls.yearStart())) {
             for (ClassChildDay d : attendanceService.findClassDays(List.of(cls.id()), cls.yearStart(), to)) {
-                if (!rules.isSchoolDay(d.date())) {
+                if (!schoolDays.contains(d.date())) {
                     continue;
                 }
-                schoolDays.add(d.date());
+                recorded.add(d.date());
                 if (d.status() == AttendanceStatus.PRESENT) {
                     present.merge(d.childId(), 1, Integer::sum);
                 }
@@ -614,6 +621,12 @@ public class RewardListServiceImpl implements RewardListService {
                         .toList(),
                 canEdit(user, cls, list),
                 canReview(user, list),
-                canDecide(user, list));
+                canDecide(user, list),
+                schoolDays.stream()
+                        .filter(day -> day.isBefore(today)
+                                && !recorded.contains(day)
+                                && stays.stream().anyMatch(st -> st.covers(day)))
+                        .sorted()
+                        .toList());
     }
 }

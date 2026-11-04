@@ -21,12 +21,14 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.AttendanceService.ClassMealTally;
 import com.carenest.service.meals.MealCountService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealCountStatus;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.StaffRole;
@@ -49,6 +51,7 @@ import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +63,9 @@ public class MealCountServiceImpl implements MealCountService {
     private static final String LOG_PREFIX = "[MealCountServiceImpl]";
     private static final String OPEN = "OPEN";
 
+    private static final java.time.format.DateTimeFormatter DMY =
+            java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private final MealCountRepository mealCountRepository;
     private final MealCountHistoryRepository historyRepository;
     private final AttendanceService attendanceService;
@@ -68,6 +74,7 @@ public class MealCountServiceImpl implements MealCountService {
     private final AccountService accountService;
     private final CampusAccessPolicy campusAccessPolicy;
     private final ApplicationEventPublisher eventPublisher;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     /** Phạm vi người xem: HT toàn trường; PHT còn phân công xem mọi điểm trường (AUTH-20); bếp điểm trường mình. */
@@ -185,7 +192,48 @@ public class MealCountServiceImpl implements MealCountService {
     }
 
     @Override
+    // Sổ chỉ lập khi có người mở Sổ báo ăn sau giờ chốt; cả ngày không ai mở thì ngày đó không có sổ lưu lại (hôm sau
+    // chỉ xem, NUT-03). 23:50 lập sổ cho cơ sở còn thiếu, cùng cách lập như khi mở màn
+    @Scheduled(cron = "0 50 23 * * *", zone = "${carenest.time-zone}")
+    public void aggregateLockedDay() {
+        String logPrefix = LOG_PREFIX + "|aggregateLockedDay";
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate day = LocalDate.now(clock);
+            DayInfoResponse info = attendanceService.getActiveYearDayInfo(day);
+            Year year = year(null);
+            int campuses = 0;
+            if (year != null && year.active() && info.schoolDay() && info.baseLocked()) {
+                List<Long> campusIds = year.classes().stream()
+                        .map(ClassroomInfoResponse::campusId)
+                        .distinct()
+                        .sorted()
+                        .toList();
+                for (Long campusId : campusIds) {
+                    mealCountRepository.lockCampusDay(campusId, day);
+                    Map<String, MealCount> stored = new HashMap<>();
+                    mealCountRepository.findByCampusIdAndDate(campusId, day).stream()
+                            .filter(c -> c.getSchoolYearId().equals(year.id()))
+                            .forEach(c -> stored.put(key(c.getCampusId(), c.getSession()), c));
+                    aggregateMissing(year, campusId, day, stored);
+                }
+                campuses = campusIds.size();
+            }
+            log.info("{}|campuses={}|END", logPrefix, campuses);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public MealCountResponse confirm(CurrentUser currentUser, Long mealCountId) {
+        return confirm(currentUser, mealCountId, null, null);
+    }
+
+    @Override
+    public MealCountResponse confirm(
+            CurrentUser currentUser, Long mealCountId, Integer seenServings, Integer seenSubstitute) {
         String logPrefix = LOG_PREFIX + "|confirm|userId=" + currentUser.userId() + "|mealCountId=" + mealCountId;
         log.info("{}|START", logPrefix);
         try {
@@ -215,6 +263,20 @@ public class MealCountServiceImpl implements MealCountService {
             // Bữa đã được xác nhận cùng ngày (vd. client gọi lần lượt từng bữa) ⇒ trả trạng thái hiện tại
             if (!pending.isEmpty()) {
                 checkAttendanceComplete(count.getCampusId(), count.getDate(), year);
+                // NUT-03: không xác nhận số người duyệt chưa thấy (GV sửa điểm danh khi đang mở lại, điều chỉnh khác)
+                if (seenServings != null || seenSubstitute != null) {
+                    List<MealCountResponse.Totals> now = totalsOf(count, viewer, year);
+                    int servings = now.stream()
+                            .mapToInt(t -> t.normal() + t.substitute())
+                            .sum();
+                    int substitute = now.stream()
+                            .mapToInt(MealCountResponse.Totals::substitute)
+                            .sum();
+                    if ((seenServings != null && seenServings != servings)
+                            || (seenSubstitute != null && seenSubstitute != substitute)) {
+                        throw GlobalException.of(ApiCode.MEAL_COUNT_CHANGED_SINCE_VIEW);
+                    }
+                }
                 Instant at = clock.instant();
                 for (MealCount c : pending) {
                     c.confirm(currentUser.userId(), viewer.confirmerRole(), at);
@@ -262,6 +324,13 @@ public class MealCountServiceImpl implements MealCountService {
                                     .isPresent())) {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_NORMAL_NOT_EDITABLE);
             }
+            // Suất thay thế nằm trong số trẻ ăn bữa đó (Cần chốt 04/11/2026), không nhập lớn hơn
+            if (counts.stream()
+                    .anyMatch(c -> c.currentEating(request.classId())
+                            .filter(eating -> request.substitute() > eating)
+                            .isPresent())) {
+                throw GlobalException.of(ApiCode.MEAL_SUBSTITUTE_EXCEEDS_EATING);
+            }
             Instant at = clock.instant();
             String note = request.note().trim();
             int changed = 0;
@@ -307,6 +376,7 @@ public class MealCountServiceImpl implements MealCountService {
                                 .findFirst()
                                 .orElse(null);
                 Instant at = clock.instant();
+                boolean alreadyFlagged = counts.stream().anyMatch(MealCount::isNeedsReconfirmation);
                 for (MealCount count : counts) {
                     if (tally == null || !tally.sessions().contains(count.getSession())) {
                         continue;
@@ -316,12 +386,24 @@ public class MealCountServiceImpl implements MealCountService {
                             tally.present(),
                             tally.absent(),
                             tally.missing(),
-                            tally.meals().getOrDefault(count.getSession(), 0));
+                            tally.meals().getOrDefault(count.getSession(), 0),
+                            tally.substitutes().getOrDefault(count.getSession(), 0));
                     if (changed) {
                         historyRepository.save(
                                 MealCountHistory.of(count.getId(), MealCountHistory.ATTENDANCE_CHANGED, null, at)
                                         .forClass(classroomId));
                     }
+                }
+                // NUT-03 (Cần chốt 04/11/2026): sổ đã chốt vừa có số mới ⇒ báo PHT điểm trường (không có PHT thì HT)
+                if (!alreadyFlagged && counts.stream().anyMatch(MealCount::isNeedsReconfirmation)) {
+                    notificationService.notifyUsers(
+                            staffAssignmentService.findCampusConfirmerIds(campusId, LocalDate.now(clock)),
+                            NotificationType.MEAL_COUNT_RECONFIRM,
+                            "Sổ báo ăn cần xác nhận lại",
+                            "Số suất ngày " + DMY.format(date)
+                                    + " đã thay đổi sau khi xác nhận (giáo viên sửa điểm danh). Vào Sổ báo ăn để xác"
+                                    + " nhận lại; bếp vẫn dùng số đã xác nhận trước đó.",
+                            null);
                 }
             }
             log.info("{}|END", logPrefix);
@@ -420,11 +502,20 @@ public class MealCountServiceImpl implements MealCountService {
                             t.present(),
                             t.absent(),
                             t.missing(),
-                            t.meals().getOrDefault(session, 0)));
+                            t.meals().getOrDefault(session, 0),
+                            t.substitutes().getOrDefault(session, 0)));
             MealCount saved = mealCountRepository.save(count);
             historyRepository.save(MealCountHistory.of(saved.getId(), MealCountHistory.AGGREGATED, null, at));
             stored.put(key(campusId, session), saved);
         }
+    }
+
+    // Tổng suất các bữa của cơ sở–ngày theo đúng số màn hình hiện (số chờ xác nhận nếu có)
+    private List<MealCountResponse.Totals> totalsOf(MealCount count, Viewer viewer, Year year) {
+        return mealCountRepository.findByCampusIdAndDate(count.getCampusId(), count.getDate()).stream()
+                .filter(c -> c.getSchoolYearId().equals(count.getSchoolYearId()))
+                .map(c -> view(c, viewer, year).totals())
+                .toList();
     }
 
     private MealCountResponse view(MealCount count, Viewer viewer, Year year) {
@@ -529,8 +620,8 @@ public class MealCountServiceImpl implements MealCountService {
                         t.present(),
                         t.absent(),
                         t.missing(),
-                        t.meals().getOrDefault(session, 0),
-                        0,
+                        t.meals().getOrDefault(session, 0) - t.substitutes().getOrDefault(session, 0),
+                        t.substitutes().getOrDefault(session, 0),
                         null,
                         null))
                 .toList();

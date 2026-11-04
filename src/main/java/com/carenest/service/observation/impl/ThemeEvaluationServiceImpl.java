@@ -130,7 +130,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                                     t.getStartDate(),
                                     t.getEndDate(),
                                     period(t.getStartDate(), t.getEndDate(), today),
-                                    status(saved.get(t.getId()))))
+                                    status(saved.get(t.getLineage()))))
                             .toList();
             log.info("{}|themes={}|END", logPrefix, items.size());
             return items;
@@ -149,7 +149,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             ClassroomInfoResponse cls = readableKindergarten(currentUser, classId);
             ThemeRow theme = findTheme(cls, themeId);
             ThemeEvaluation saved = evaluationRepository
-                    .findByClassroomIdAndThemeId(classId, themeId)
+                    .findByClassroomIdAndThemeId(classId, theme.getLineage())
                     .orElse(null);
             ThemeEvaluationResponse response = view(currentUser, cls, theme, saved);
             log.info("{}|END", logPrefix);
@@ -239,7 +239,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
 
     private ThemeRow findTheme(ClassroomInfoResponse cls, Long themeId) {
         return evaluationRepository.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId()).stream()
-                .filter(t -> t.getId().equals(themeId))
+                // Link cũ của bản kế hoạch trước vẫn mở được: khớp id hoặc dòng gốc
+                .filter(t -> t.getId().equals(themeId) || t.getLineage().equals(themeId))
                 .findFirst()
                 .orElseThrow(() -> GlobalException.of(ApiCode.THEME_EVALUATION_THEME_NOT_FOUND));
     }
@@ -257,12 +258,12 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         }
         rules.lockClassForUpdate(cls.id());
         ThemeEvaluation evaluation = evaluationRepository
-                .findByClassroomIdAndThemeId(cls.id(), theme.getId())
+                .findByClassroomIdAndThemeId(cls.id(), theme.getLineage())
                 .orElseGet(() -> ThemeEvaluation.open(
                         cls.id(),
                         cls.campusId(),
                         cls.schoolYearId(),
-                        theme.getId(),
+                        theme.getLineage(),
                         theme.getName(),
                         theme.getStartDate(),
                         theme.getEndDate(),
@@ -405,9 +406,14 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             int met = 0;
             int notMet = 0;
             for (GoalRow goal : matrix.goals()) {
-                Value v = matrix.cells().get(new Key(child.id(), goal.getLineage()));
+                Key key = new Key(child.id(), goal.getLineage());
+                Value v = matrix.cells().get(key);
                 Boolean result = v == null ? null : v.met();
-                cells.add(new Cell(goal.getLineage(), result, v != null && v.manual()));
+                cells.add(new Cell(
+                        goal.getLineage(),
+                        result,
+                        v != null && v.manual(),
+                        matrix.auto().get(key)));
                 if (result != null) {
                     int[] counts = perGoal.computeIfAbsent(goal.getLineage(), k -> new int[2]);
                     counts[1]++;

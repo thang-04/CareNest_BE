@@ -221,6 +221,11 @@ public enum ApiCode {
     VICE_PRINCIPAL_ACCOUNT_LOCKED(2323, HttpStatus.CONFLICT, "Tài khoản Phó hiệu trưởng đã bị khóa"),
     SUBSTITUTE_TEACHER_ONLY(2320, HttpStatus.BAD_REQUEST, "Chỉ phân công giáo viên mới chọn được dạy thay"),
     SUBSTITUTE_END_DATE_REQUIRED(2321, HttpStatus.BAD_REQUEST, "Phân công dạy thay phải có ngày kết thúc"),
+    TEACHER_END_VIA_CLASS(
+            2324,
+            HttpStatus.BAD_REQUEST,
+            "Thay hoặc gỡ giáo viên của lớp tại màn Phân công giáo viên (năm đang học lớp phải còn giáo viên)"),
+    ASSIGNMENT_END_IN_PAST(2325, HttpStatus.BAD_REQUEST, "Không kết thúc phân công lùi về trước hôm qua"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
@@ -390,6 +395,12 @@ public enum ApiCode {
             6073,
             HttpStatus.CONFLICT,
             "Sổ báo ăn ngày đã qua chỉ xem; chỉ xác nhận lại khi có thay đổi sau lúc mở lại điểm danh"),
+    MEAL_COUNT_CHANGED_SINCE_VIEW(
+            6074,
+            HttpStatus.CONFLICT,
+            "Số suất vừa thay đổi (giáo viên sửa điểm danh hoặc có điều chỉnh). Tải lại để xem số mới rồi xác nhận"),
+    MEAL_SUBSTITUTE_EXCEEDS_EATING(
+            6075, HttpStatus.BAD_REQUEST, "Suất thay thế không được nhiều hơn số trẻ ăn bữa đó của lớp"),
     FOOD_NOT_FOUND(6010, HttpStatus.NOT_FOUND, "Không tìm thấy thực phẩm"),
     FOOD_CODE_DUPLICATED(6011, HttpStatus.CONFLICT, "Mã thực phẩm {0} đã tồn tại"),
     NUTRIENT_SOURCE_REQUIRED(6012, HttpStatus.BAD_REQUEST, "Cần ghi nguồn số liệu dinh dưỡng của thực phẩm"),
