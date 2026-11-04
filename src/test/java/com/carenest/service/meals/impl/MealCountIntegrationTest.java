@@ -376,6 +376,31 @@ class MealCountIntegrationTest {
                 .containsExactly("AGGREGATED", "ADJUSTED", "CONFIRMED", "ATTENDANCE_CHANGED");
     }
 
+    @Test
+    void pastDayReconfirmationIsIdempotentAcrossSessions() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        var counts = service.getMealCounts(vpA, TODAY, null).counts();
+        service.confirm(vpA, counts.getFirst().id());
+        service.adjust(vpA, new MealAdjustRequest(campusA, TODAY, null, classA, null, 1, "Test substitute"));
+        clock.now = AFTER_CUTOFF.plus(Duration.ofDays(1));
+        for (var count : counts) {
+            assertThat(service.confirm(vpA, count.id()).needsReconfirmation()).isFalse();
+        }
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM meal_count_history WHERE action='CONFIRMED'", Integer.class))
+                .isEqualTo(4);
+    }
+
+    @Test
+    void pastDayInitialConfirmationRemainsBlocked() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        var count = service.getMealCounts(vpA, TODAY, null).counts().getFirst();
+        clock.now = AFTER_CUTOFF.plus(Duration.ofDays(1));
+        expectCode(() -> service.confirm(vpA, count.id()), ApiCode.MEAL_COUNT_PAST_DAY);
+    }
+
     private static MealCountResponse lunch(MealCountDayResponse day) {
         return day.counts().stream()
                 .filter(c -> c.session() == MealSession.LUNCH)

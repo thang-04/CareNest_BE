@@ -76,7 +76,7 @@ public class QualityReportServiceImpl implements QualityReportService {
             if (!leader && !currentUser.hasRole(CareNestRole.TEACHER)) {
                 throw GlobalException.of(ApiCode.QUALITY_REPORT_FORBIDDEN);
             }
-            if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
+            if (leader && campusId != null && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             LocalDate today = rules.today();
@@ -92,6 +92,10 @@ public class QualityReportServiceImpl implements QualityReportService {
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();
+            // GV, tổ trưởng lọc điểm trường: chỉ điểm trường có lớp mình được xem (không cấp thêm lớp nào)
+            if (!leader && campusId != null && scoped.stream().noneMatch(c -> campusId.equals(c.campusId()))) {
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
+            }
             if (scoped.isEmpty()) {
                 YearMonth m = month != null ? month : YearMonth.from(today);
                 checkNotFuture(m, today);

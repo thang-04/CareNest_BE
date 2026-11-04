@@ -204,7 +204,8 @@ public class MealCountServiceImpl implements MealCountService {
                 throw GlobalException.of(ApiCode.MEAL_COUNT_ACCESS_DENIED);
             }
             Year year = editableYear(count.getSchoolYearId());
-            checkNotPastDay(count.getDate(), count.hasPending());
+            // Sổ đã chốt mà gọi xác nhận lại (vd. client gọi lần lượt từng bữa sang ngày sau) ⇒ trả trạng thái hiện tại
+            checkNotPastDay(count.getDate(), count.hasPending() || count.isConfirmed());
             // NUT-02, ATT-06: xác nhận theo cơ sở–ngày — một lần cho mọi bữa còn chờ của cơ sở trong ngày
             List<MealCount> pending =
                     mealCountRepository.findByCampusIdAndDate(count.getCampusId(), count.getDate()).stream()
