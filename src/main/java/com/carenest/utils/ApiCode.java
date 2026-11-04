@@ -261,6 +261,7 @@ public enum ApiCode {
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
     CUTOFF_UNCHANGED(4002, HttpStatus.BAD_REQUEST, "Giờ chốt và ngày áp dụng chưa thay đổi"),
+    CUTOFF_DATE_PAST(4029, HttpStatus.BAD_REQUEST, "Giờ chốt mới chỉ áp dụng từ hôm nay trở đi"),
     ATTENDANCE_SUMMARY_ACCESS_DENIED(4003, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp điểm danh"),
     ATTENDANCE_YEAR_NOT_ACTIVE(
             4004, HttpStatus.CONFLICT, "Lớp thuộc năm học đã kết thúc hoặc chưa bắt đầu, chỉ xem được"),

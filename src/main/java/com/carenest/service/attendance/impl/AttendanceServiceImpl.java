@@ -283,7 +283,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|getClassSummary|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
-            ClassroomInfoResponse cls = viewableClass(currentUser, classId);
+            ClassroomInfoResponse cls = findClass(classId);
+            // Tổ trưởng chuyên môn xem tổng hợp (không xem phiếu điểm danh/sức khỏe từng ngày) các lớp nhóm tuổi mình
+            if (!rules.canView(currentUser, cls)
+                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            }
             checkRange(from, to);
             ClassSummary summary = summarize(cls, from, to);
             log.info("{}|END", logPrefix);
@@ -437,7 +442,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private ClassroomInfoResponse viewableClass(CurrentUser user, Long classId) {
         ClassroomInfoResponse cls = findClass(classId);
-        if (!rules.canView(user, cls) && !rules.teamLeaderAgeGroupIds(user).contains(cls.ageGroupId())) {
+        if (!rules.canView(user, cls)) {
             throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
         }
         return cls;

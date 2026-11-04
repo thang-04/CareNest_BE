@@ -284,7 +284,8 @@ public class RewardListServiceImpl implements RewardListService {
         try {
             RewardList list = find(listId);
             ClassroomInfoResponse cls = rules.findClass(list.getClassroomId());
-            if (!currentUser.hasRole(CareNestRole.PRINCIPAL)) {
+            // HT đang được phân công (AUTH-01), không chỉ dựa vào role trong token
+            if (!currentUser.hasRole(CareNestRole.PRINCIPAL) || !rules.leadsCampus(currentUser, cls.campusId())) {
                 throw GlobalException.of(ApiCode.REWARD_REVIEW_FORBIDDEN);
             }
             if (!canDecide(currentUser, list)) {
@@ -350,6 +351,7 @@ public class RewardListServiceImpl implements RewardListService {
     private boolean canDecide(CurrentUser user, RewardList list) {
         return list != null
                 && user.hasRole(CareNestRole.PRINCIPAL)
+                && rules.leadsCampus(user, list.getCampusId())
                 && (list.getStatus() == RewardStatus.PENDING_PRINCIPAL || list.getStatus() == RewardStatus.PENDING_VP);
     }
 
@@ -471,16 +473,28 @@ public class RewardListServiceImpl implements RewardListService {
                 }
             }
         }
-        long weeks = schoolDays.stream()
-                .map(d -> d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
-                .distinct()
-                .count();
-        long months = schoolDays.stream().map(YearMonth::from).distinct().count();
+        // OBS-23: ngày phải đi của từng trẻ = ngày học của lớp trong thời gian trẻ thuộc lớp (trẻ vào giữa năm không
+        // bị tính các ngày trước khi vào); số tuần / tháng học cũng theo thời gian trẻ ở lớp
+        List<EnrollmentService.ClassStay> stays = to.isBefore(cls.yearStart())
+                ? List.of()
+                : enrollmentService.findStaysInClassroom(cls.id(), cls.yearStart(), to);
+        Map<Long, List<LocalDate>> expectedDays = new HashMap<>();
+        for (LocalDate day : schoolDays) {
+            stays.stream()
+                    .filter(st -> st.covers(day))
+                    .map(EnrollmentService.ClassStay::childId)
+                    .distinct()
+                    .forEach(id -> expectedDays
+                            .computeIfAbsent(id, k -> new ArrayList<>())
+                            .add(day));
+        }
+        // Phiếu bé ngoan phát ở chính lớp này
         Map<Long, List<BehaviourTicket>> tickets = childIds.isEmpty()
                 ? Map.of()
                 : ticketRepository
                         .findByChildIdInAndPeriodStartBetween(childIds, cls.yearStart(), cls.yearEnd())
                         .stream()
+                        .filter(t -> cls.id().equals(t.getClassroomId()))
                         .collect(Collectors.groupingBy(BehaviourTicket::getChildId));
         Map<Long, ChildEvaluation> yearEnds = confirmedYearEnds(cls);
         boolean programClass = isProgramClass(cls);
@@ -493,7 +507,13 @@ public class RewardListServiceImpl implements RewardListService {
         List<RewardChildRow> rows = children.stream()
                 .map(c -> {
                     int presentDays = present.getOrDefault(c.id(), 0);
-                    Integer rate = schoolDays.isEmpty() ? null : Math.round(presentDays * 100f / schoolDays.size());
+                    List<LocalDate> own = expectedDays.getOrDefault(c.id(), List.of());
+                    Integer rate = own.isEmpty() ? null : Math.round(presentDays * 100f / own.size());
+                    long weeks = own.stream()
+                            .map(d -> d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
+                            .distinct()
+                            .count();
+                    long months = own.stream().map(YearMonth::from).distinct().count();
                     List<BehaviourTicket> ts = tickets.getOrDefault(c.id(), List.of());
                     int weekly = (int) ts.stream()
                             .filter(t -> t.getType() == TicketType.WEEKLY)
@@ -525,7 +545,7 @@ public class RewardListServiceImpl implements RewardListService {
                             c.id(),
                             c.fullName(),
                             c.dateOfBirth(),
-                            schoolDays.size(),
+                            own.size(),
                             presentDays,
                             rate,
                             weekly,

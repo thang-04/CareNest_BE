@@ -303,7 +303,8 @@ class DailyAssessmentIntegrationTest {
                 () -> service.saveSkills(teacherA, classA, skills(TODAY, child1, "Nghi tự kỷ")),
                 ApiCode.ASSESSMENT_DIAGNOSTIC_TERM);
         expectCode(() -> service.getDailySheet(teacherB, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
-        expectCode(() -> service.getDailySheet(vpB, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
+        // AUTH-20: PHT điểm trường khác xem được (chỉ xem), không ghi
+        assertThat(service.getDailySheet(vpB, classA, TODAY)).isNotNull();
         expectCode(() -> service.saveSkills(vpA, classA, skills(TODAY, child1, "x")), ApiCode.CLASS_ACCESS_DENIED);
         expectCode(() -> service.getDailySheet(teacherA, classA, TODAY.plusDays(1)), ApiCode.ASSESSMENT_FUTURE_DATE);
         expectCode(
