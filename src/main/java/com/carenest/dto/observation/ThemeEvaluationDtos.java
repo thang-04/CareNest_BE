@@ -11,6 +11,9 @@ import java.util.List;
 public final class ThemeEvaluationDtos {
     private ThemeEvaluationDtos() {}
 
+    /** Lớp mẫu giáo người dùng xem được; teaches = GV đang dạy lớp (được sửa, xác nhận). */
+    public record ClassItem(Long classId, String name, Long campusId, Long ageGroupId, boolean teaches) {}
+
     /**
      * period: UPCOMING | ONGOING | ENDED theo ngày chủ đề; status: NONE (chưa mở bảng) | DRAFT | CONFIRMED.
      */
@@ -59,7 +62,14 @@ public final class ThemeEvaluationDtos {
             boolean canEdit,
             boolean canConfirm,
             String confirmedByName,
-            Instant confirmedAt) {}
+            Instant confirmedAt,
+            ThemeSigners signers) {}
+
+    /**
+     * Họ tên in dưới chỗ ký của bản in (không phải bước duyệt): GV chủ nhiệm (chưa có thì các GV lớp), tổ trưởng nhóm tuổi, PHT ban hành kế hoạch năm
+     * của nhóm tuổi; không xác định được thì rỗng / null để ký tay.
+     */
+    public record ThemeSigners(List<String> teachers, List<String> teamLeaders, String vicePrincipal) {}
 
     /** met null = bỏ sửa tay, dùng lại kết quả hệ thống tính. */
     public record CellInput(@NotNull Long childId, @NotNull Long goalId, Boolean met) {}

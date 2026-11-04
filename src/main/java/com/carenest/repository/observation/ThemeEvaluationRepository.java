@@ -48,6 +48,14 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
             nativeQuery = true)
     List<ThemeRow> findApprovedThemes(@Param("schoolYearId") Long schoolYearId, @Param("ageGroupId") Long ageGroupId);
 
+    // PHT chuyên môn ban hành kế hoạch năm của nhóm tuổi (EDU-30): người ký "Phó hiệu trưởng" trên bản in
+    @Query(
+            value =
+                    "SELECT p.issued_by FROM edu_year_plans p WHERE p.school_year_id = :schoolYearId"
+                            + " AND p.age_group_id = :ageGroupId AND p.status = 'APPROVED' ORDER BY p.version_no DESC, p.id DESC LIMIT 1",
+            nativeQuery = true)
+    Long findApprovedPlanIssuer(@Param("schoolYearId") Long schoolYearId, @Param("ageGroupId") Long ageGroupId);
+
     @Query(
             value = "SELECT g.id AS id, COALESCE(g.lineage_id, g.id) AS lineage, g.goal_no AS goalNo, g.text AS text"
                     + " FROM edu_plan_goals g WHERE EXISTS (SELECT 1 FROM edu_goal_contents c"

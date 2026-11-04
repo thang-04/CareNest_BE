@@ -1187,6 +1187,25 @@ paths:
           description: OK
       tags:
       - theme-evaluation-controller
+  /api/assessment/theme-evaluations/classes:
+    get:
+      operationId: getClasses_1
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListClassItem"
+          description: OK
+      tags:
+      - theme-evaluation-controller
   /api/assessment/theme-evaluations/confirm:
     post:
       operationId: confirmEvaluation
@@ -8222,6 +8241,22 @@ components:
             type: string
       required:
       - adjustments
+    ClassItem:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        teaches:
+          type: boolean
     ClassMonthlyCommentRequest:
       type: object
       properties:
@@ -15095,6 +15130,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListClassItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassItem"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListClassroomResponse:
       type: object
       properties:
@@ -17600,6 +17650,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ChildRow"
+        signers:
+          $ref: "#/components/schemas/ThemeSigners"
         startDate:
           type: string
           format: date
@@ -17630,6 +17682,19 @@ components:
         themeId:
           type: integer
           format: int64
+    ThemeSigners:
+      type: object
+      properties:
+        teachers:
+          type: array
+          items:
+            type: string
+        teamLeaders:
+          type: array
+          items:
+            type: string
+        vicePrincipal:
+          type: string
     TicketBoardResponse:
       type: object
       properties:

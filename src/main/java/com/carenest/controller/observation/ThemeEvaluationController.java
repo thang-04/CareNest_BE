@@ -1,5 +1,6 @@
 package com.carenest.controller.observation;
 
+import com.carenest.dto.observation.ThemeEvaluationDtos.ClassItem;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationRequest;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationResponse;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeItem;
@@ -28,6 +29,17 @@ public class ThemeEvaluationController {
     private static final String LOG_PREFIX = "[ThemeEvaluationController]";
 
     private final ThemeEvaluationService themeEvaluationService;
+
+    @GetMapping("/assessment/theme-evaluations/classes")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<List<ClassItem>>> getClasses(
+            @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getClasses|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        List<ClassItem> response = themeEvaluationService.listClasses(currentUser, schoolYearId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get theme evaluation classes success", response);
+    }
 
     @GetMapping("/assessment/theme-evaluations/themes")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")

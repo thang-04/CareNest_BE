@@ -231,6 +231,26 @@ class ThemeEvaluationIntegrationTest {
                 otherTeacher.userId(),
                 classA);
         assertThat(service.get(otherTeacher, classA, 9201L).rows()).hasSize(2);
+        // Danh sách lớp: chỉ lớp mẫu giáo; tổ trưởng thấy cả lớp trong nhóm (không dạy), HT thấy mọi lớp mẫu giáo
+        assertThat(service.listClasses(otherTeacher, null))
+                .extracting(c -> c.classId() + ":" + c.teaches())
+                .containsExactly(classB + ":true", classA + ":false");
+        assertThat(service.listClasses(teacher, null))
+                .extracting(c -> c.classId())
+                .containsExactly(classA);
+        assertThat(service.listClasses(principal, null))
+                .extracting(c -> c.classId())
+                .containsExactlyInAnyOrder(classA, classB);
+        // Tên in dưới chỗ ký: GV lớp, tổ trưởng nhóm tuổi, PHT ban hành kế hoạch năm (không có thì để trống)
+        assertThat(service.get(principal, classA, 9201L).signers().teachers()).containsExactly("teacher-t");
+        assertThat(service.get(principal, classA, 9201L).signers().teamLeaders())
+                .containsExactly("teacher-b");
+        assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
+                .isNull();
+        CurrentUser vp = user("vp-t", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update("UPDATE edu_year_plans SET issued_by = ? WHERE status = 'APPROVED'", vp.userId());
+        assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
+                .isEqualTo("vp-t");
     }
 
     private static ChildRow row(ThemeEvaluationResponse view, long childId) {

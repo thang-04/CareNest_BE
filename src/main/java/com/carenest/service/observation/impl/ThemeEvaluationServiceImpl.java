@@ -4,10 +4,12 @@ import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.observation.ThemeEvaluationDtos.Cell;
 import com.carenest.dto.observation.ThemeEvaluationDtos.CellInput;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ChildRow;
+import com.carenest.dto.observation.ThemeEvaluationDtos.ClassItem;
 import com.carenest.dto.observation.ThemeEvaluationDtos.GoalColumn;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationRequest;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationResponse;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeItem;
+import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeSigners;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.observation.DailyActivityResult;
@@ -23,7 +25,10 @@ import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.organization.AgeGroupService;
+import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -61,6 +66,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private final EnrollmentService enrollmentService;
     private final EduLessonQueryService lessonQueryService;
     private final AgeGroupService ageGroupService;
+    private final ClassroomService classroomService;
+    private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
 
@@ -68,6 +75,41 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     record StoredCell(Long c, Long g, Boolean m, boolean x) {}
 
     private record Key(Long childId, Long goal) {}
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClassItem> listClasses(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> kindergarten = kindergartenAgeGroupIds();
+            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
+            List<ClassroomInfoResponse> year = schoolYearId == null
+                    ? classroomService.findActiveYearClassrooms()
+                    : classroomService.findYearClassrooms(schoolYearId);
+            // Cùng phạm vi xem với bảng đánh giá: GV lớp mình, tổ trưởng lớp nhóm tuổi mình, HT/PHT theo điểm trường
+            List<ClassItem> items = year.stream()
+                    .filter(c -> kindergarten.contains(c.ageGroupId()))
+                    .map(c -> {
+                        boolean teaches = rules.canRecord(currentUser, c) || rules.taughtClosedYear(currentUser, c);
+                        boolean reads = teaches
+                                || rules.readsCampus(currentUser, c.campusId())
+                                || ledGroups.contains(c.ageGroupId());
+                        return reads ? new ClassItem(c.id(), c.name(), c.campusId(), c.ageGroupId(), teaches) : null;
+                    })
+                    .filter(Objects::nonNull)
+                    .sorted(Comparator.comparing(ClassItem::teaches)
+                            .reversed()
+                            .thenComparing(ClassItem::campusId)
+                            .thenComparing(ClassItem::name))
+                    .toList();
+            log.info("{}|classes={}|END", logPrefix, items.size());
+            return items;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -181,18 +223,18 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         if (!reads) {
             throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
         }
-        Integer from = cls.ageGroupId() == null
-                ? null
-                : ageGroupService.getAgeGroups().stream()
-                        .filter(g -> cls.ageGroupId().equals(g.id()))
-                        .map(AgeGroupDetailResponse::ageFromMonths)
-                        .filter(Objects::nonNull)
-                        .findFirst()
-                        .orElse(null);
-        if (from == null || from < KINDERGARTEN_FROM_MONTHS) {
+        if (!kindergartenAgeGroupIds().contains(cls.ageGroupId())) {
             throw GlobalException.of(ApiCode.THEME_EVALUATION_KINDERGARTEN_ONLY);
         }
         return cls;
+    }
+
+    // Nhóm tuổi mẫu giáo: từ 36 tháng (nhà trẻ không đánh giá cuối chủ đề)
+    private Set<Long> kindergartenAgeGroupIds() {
+        return ageGroupService.getAgeGroups().stream()
+                .filter(g -> g.ageFromMonths() != null && g.ageFromMonths() >= KINDERGARTEN_FROM_MONTHS)
+                .map(AgeGroupDetailResponse::id)
+                .collect(Collectors.toSet());
     }
 
     private ThemeRow findTheme(ClassroomInfoResponse cls, Long themeId) {
@@ -428,7 +470,47 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 canEdit,
                 canEdit && !today.isBefore(theme.getEndDate()),
                 confirmedByName,
-                confirmed ? saved.getConfirmedAt() : null);
+                confirmed ? saved.getConfirmedAt() : null,
+                signers(cls, theme, today));
+    }
+
+    // Tên tại ngày cuối chủ đề (chủ đề chưa kết thúc: hôm nay); PHT không rõ người ban hành thì lấy PHT duy nhất
+    private ThemeSigners signers(ClassroomInfoResponse cls, ThemeRow theme, LocalDate today) {
+        LocalDate at = theme.getEndDate().isAfter(today) ? today : theme.getEndDate();
+        // Mẫu ký "Giáo viên chủ nhiệm": GV chủ nhiệm của lớp, lớp chưa có chủ nhiệm thì các GV lớp
+        Long homeroom = staffAssignmentService
+                .findHomeroomTeacherIds(List.of(cls.id()), at)
+                .get(cls.id());
+        List<Long> teacherIds = homeroom != null
+                ? List.of(homeroom)
+                : staffAssignmentService
+                        .findCurrentTeacherIds(List.of(cls.id()), at)
+                        .getOrDefault(cls.id(), List.of());
+        Set<Long> leaderIds = cls.ageGroupId() == null
+                ? Set.of()
+                : staffAssignmentService.findActiveTeamLeaderIds(cls.ageGroupId(), at);
+        Long issuer = cls.ageGroupId() == null
+                ? null
+                : evaluationRepository.findApprovedPlanIssuer(cls.schoolYearId(), cls.ageGroupId());
+        List<Long> ids = new ArrayList<>(teacherIds);
+        ids.addAll(leaderIds);
+        if (issuer != null) {
+            ids.add(issuer);
+        }
+        Map<Long, String> names = accountService.findFullNames(ids);
+        String vicePrincipal = issuer != null ? names.get(issuer) : null;
+        if (vicePrincipal == null) {
+            List<String> vps = accountService.findActiveFullNamesByRole(CareNestRole.VICE_PRINCIPAL);
+            vicePrincipal = vps.size() == 1 ? vps.getFirst() : null;
+        }
+        return new ThemeSigners(
+                teacherIds.stream().map(names::get).filter(Objects::nonNull).toList(),
+                leaderIds.stream()
+                        .map(names::get)
+                        .filter(Objects::nonNull)
+                        .sorted()
+                        .toList(),
+                vicePrincipal);
     }
 
     private static String period(LocalDate start, LocalDate end, LocalDate today) {

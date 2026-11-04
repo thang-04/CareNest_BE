@@ -1,5 +1,6 @@
 package com.carenest.service.observation;
 
+import com.carenest.dto.observation.ThemeEvaluationDtos.ClassItem;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationRequest;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationResponse;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeItem;
@@ -8,6 +9,9 @@ import java.util.List;
 
 /** Đánh giá cuối chủ đề của lớp mẫu giáo (OBS-27). */
 public interface ThemeEvaluationService {
+
+    /** schoolYearId null = năm học đang hoạt động. */
+    List<ClassItem> listClasses(CurrentUser currentUser, Long schoolYearId);
 
     List<ThemeItem> listThemes(CurrentUser currentUser, Long classId);
 
