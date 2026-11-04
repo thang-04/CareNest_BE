@@ -770,3 +770,20 @@ Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm 
 | reason | VARCHAR(500) | không | Lý do bắt buộc | AUTH-14 |
 | changed_at | TIMESTAMPTZ | không | Thời điểm đổi | — |
 Index: `idx_permission_change_log_changed_at`, `idx_permission_change_log_target_role`, `idx_permission_change_log_target_user` (kèm `changed_at DESC`).
+
+### theme_evaluations
+
+Mục đích: đánh giá cuối chủ đề của lớp mẫu giáo (OBS-27). Migration: V74. Không khóa ngoại sang bảng kế hoạch giáo dục (lưu theme_id kèm tên, ngày).
+
+| Cột | Kiểu | Ghi chú |
+| --- | --- | --- |
+| classroom_id, campus_id, school_year_id | BIGINT | lớp, điểm trường, năm học |
+| theme_id, theme_name, start_date, end_date | BIGINT / VARCHAR / DATE | chủ đề (edu_themes) lúc mở bảng |
+| cells | TEXT (JSON) | ô sửa tay trước khi xác nhận; cả bảng khi đã xác nhận: [{c: trẻ, g: dòng gốc MT, m: đạt, x: sửa tay}] |
+| note | VARCHAR(1000) | Một số lưu ý |
+| confirmed_by, confirmed_at | BIGINT / TIMESTAMPTZ | xác nhận (cùng có hoặc cùng trống) |
+| updated_by, updated_at, version | | khóa lạc quan |
+
+Ràng buộc: UNIQUE (classroom_id, theme_id); end_date ≥ start_date.
+
+V73: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "Cần cố gắng", OBS-15).
