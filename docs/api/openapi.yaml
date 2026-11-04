@@ -6775,6 +6775,14 @@ components:
           type: number
           maximum: 9999
           minimum: 0
+        calciumMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        calciumMin:
+          type: number
+          maximum: 100000
+          minimum: 0
         dailyKcalNeed:
           type: number
           exclusiveMinimum: 0
@@ -6797,6 +6805,14 @@ components:
         glucidPctMin:
           type: number
           maximum: 100
+          minimum: 0
+        ironMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        ironMin:
+          type: number
+          maximum: 100000
           minimum: 0
         kcalMax:
           type: number
@@ -6835,6 +6851,14 @@ components:
           type: string
           maxLength: 300
           minLength: 0
+        phosphorusMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        phosphorusMin:
+          type: number
+          maximum: 100000
+          minimum: 0
         plantLipidGMax:
           type: number
           maximum: 9999
@@ -6858,6 +6882,46 @@ components:
         proteinPctMin:
           type: number
           maximum: 100
+          minimum: 0
+        vitaminAMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminAMin:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminB1Max:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminB1Min:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminB2Max:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminB2Min:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminCMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminCMin:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminPpMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminPpMin:
+          type: number
+          maximum: 100000
           minimum: 0
       required:
       - ageGroupId
@@ -6881,6 +6945,10 @@ components:
           type: number
         animalProteinGMin:
           type: number
+        calciumMax:
+          type: number
+        calciumMin:
+          type: number
         dailyKcalNeed:
           type: number
         editable:
@@ -6899,6 +6967,10 @@ components:
         id:
           type: integer
           format: int64
+        ironMax:
+          type: number
+        ironMin:
+          type: number
         kcalMax:
           type: number
         kcalMin:
@@ -6919,6 +6991,10 @@ components:
           type: number
         normBasis:
           type: string
+        phosphorusMax:
+          type: number
+        phosphorusMin:
+          type: number
         plantLipidGMax:
           type: number
         plantLipidGMin:
@@ -6931,6 +7007,26 @@ components:
           type: number
         proteinPctMin:
           type: number
+        vitaminAMax:
+          type: number
+        vitaminAMin:
+          type: number
+        vitaminB1Max:
+          type: number
+        vitaminB1Min:
+          type: number
+        vitaminB2Max:
+          type: number
+        vitaminB2Min:
+          type: number
+        vitaminCMax:
+          type: number
+        vitaminCMin:
+          type: number
+        vitaminPpMax:
+          type: number
+        vitaminPpMin:
+          type: number
     AgeGroupNutrition:
       type: object
       properties:
@@ -6941,19 +7037,35 @@ components:
           type: number
         animalProtein:
           type: number
+        calcium:
+          type: number
         cost:
           type: number
         glucid:
           type: number
+        iron:
+          type: number
         kcal:
           type: number
         lipid:
+          type: number
+        phosphorus:
           type: number
         plantLipid:
           type: number
         plantProtein:
           type: number
         protein:
+          type: number
+        vitaminA:
+          type: number
+        vitaminB1:
+          type: number
+        vitaminB2:
+          type: number
+        vitaminC:
+          type: number
+        vitaminPp:
           type: number
     AgeGroupRequest:
       type: object
@@ -9765,6 +9877,10 @@ components:
           items:
             type: integer
             format: int64
+        calcium:
+          type: number
+          maximum: 1000000
+          minimum: 0
         code:
           type: string
           maxLength: 20
@@ -9783,6 +9899,10 @@ components:
           - OTHER
         glucid:
           type: number
+          minimum: 0
+        iron:
+          type: number
+          maximum: 1000000
           minimum: 0
         kcal:
           type: number
@@ -9811,6 +9931,10 @@ components:
           enum:
           - ANIMAL
           - PLANT
+        phosphorus:
+          type: number
+          maximum: 1000000
+          minimum: 0
         protein:
           type: number
           minimum: 0
@@ -9833,6 +9957,26 @@ components:
           - ml
         unitPrice:
           type: number
+          minimum: 0
+        vitaminA:
+          type: number
+          maximum: 1000000
+          minimum: 0
+        vitaminB1:
+          type: number
+          maximum: 1000000
+          minimum: 0
+        vitaminB2:
+          type: number
+          maximum: 1000000
+          minimum: 0
+        vitaminC:
+          type: number
+          maximum: 1000000
+          minimum: 0
+        vitaminPp:
+          type: number
+          maximum: 1000000
           minimum: 0
         wastePct:
           type: number
@@ -9858,6 +10002,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AllergenResponse"
+        calcium:
+          type: number
         code:
           type: string
         foodGroup:
@@ -9877,6 +10023,8 @@ components:
         id:
           type: integer
           format: int64
+        iron:
+          type: number
         kcal:
           type: number
         lipid:
@@ -9894,6 +10042,8 @@ components:
           enum:
           - ANIMAL
           - PLANT
+        phosphorus:
+          type: number
         protein:
           type: number
         purchaseUnit:
@@ -9916,6 +10066,16 @@ components:
           - g
           - ml
         unitPrice:
+          type: number
+        vitaminA:
+          type: number
+        vitaminB1:
+          type: number
+        vitaminB2:
+          type: number
+        vitaminC:
+          type: number
+        vitaminPp:
           type: number
         wastePct:
           type: number
@@ -13051,17 +13211,33 @@ components:
           type: number
         animalProtein:
           type: number
+        calcium:
+          type: number
         glucid:
+          type: number
+        iron:
           type: number
         kcal:
           type: number
         lipid:
+          type: number
+        phosphorus:
           type: number
         plantLipid:
           type: number
         plantProtein:
           type: number
         protein:
+          type: number
+        vitaminA:
+          type: number
+        vitaminB1:
+          type: number
+        vitaminB2:
+          type: number
+        vitaminC:
+          type: number
+        vitaminPp:
           type: number
     Option:
       type: object

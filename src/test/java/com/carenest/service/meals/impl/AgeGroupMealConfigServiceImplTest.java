@@ -128,6 +128,52 @@ class AgeGroupMealConfigServiceImplTest {
     }
 
     @Test
+    @DisplayName("NUT-26: vi chất có min lớn hơn max thì từ chối, báo tên vi chất")
+    void rejectsInvertedMicronutrientRange() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+
+        assertThatThrownBy(() -> service.createConfig(
+                        VICE_PRINCIPAL, ironRequest(TODAY.plusDays(1), new BigDecimal("10"), new BigDecimal("6"))))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.NUTRITION_NORM_RANGE_INVALID);
+                    assertThat(ex.getMessage()).contains("sắt");
+                });
+        verify(repository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("NUT-26: lưu cả lô có vi chất min lớn hơn max thì từ chối, không lưu dòng nào")
+    void batchRejectsInvertedMicronutrientRange() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.existsByAgeGroupId(AGE_GROUP)).willReturn(false);
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatThrownBy(() -> service.saveConfigs(
+                        VICE_PRINCIPAL,
+                        List.of(
+                                ironRequest(TODAY.plusDays(5), new BigDecimal("6"), new BigDecimal("10")),
+                                ironRequest(TODAY.plusDays(6), new BigDecimal("10"), new BigDecimal("6")))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.NUTRITION_NORM_RANGE_INVALID);
+    }
+
+    @Test
+    @DisplayName("NUT-26: vi chất chỉ có min (max trống) là hợp lệ và được lưu")
+    void micronutrientMaxMayBeEmpty() {
+        given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
+        given(repository.existsByAgeGroupId(AGE_GROUP)).willReturn(false);
+        given(repository.save(any())).willAnswer(invocation -> invocation.getArgument(0));
+
+        AgeGroupMealConfigResponse created =
+                service.createConfig(VICE_PRINCIPAL, ironRequest(TODAY.plusDays(1), new BigDecimal("6"), null));
+
+        assertThat(created.ironMin()).isEqualByComparingTo("6");
+        assertThat(created.ironMax()).isNull();
+        assertThat(created.calciumMin()).isNull();
+    }
+
+    @Test
     @DisplayName("NUT-25: tổng tỷ lệ năng lượng tối thiểu của các bữa vượt 100% thì từ chối")
     void rejectsSessionSharesOver100Percent() {
         given(ageGroupService.getAgeGroups()).willReturn(List.of(ageGroup()));
@@ -161,6 +207,21 @@ class AgeGroupMealConfigServiceImplTest {
             BigDecimal kcalMax,
             BigDecimal lunchPctMin,
             BigDecimal afternoonPctMin) {
+        return request(from, kcalMin, kcalMax, lunchPctMin, afternoonPctMin, null, null);
+    }
+
+    private static AgeGroupMealConfigRequest ironRequest(LocalDate from, BigDecimal ironMin, BigDecimal ironMax) {
+        return request(from, null, null, null, null, ironMin, ironMax);
+    }
+
+    private static AgeGroupMealConfigRequest request(
+            LocalDate from,
+            BigDecimal kcalMin,
+            BigDecimal kcalMax,
+            BigDecimal lunchPctMin,
+            BigDecimal afternoonPctMin,
+            BigDecimal ironMin,
+            BigDecimal ironMax) {
         return new AgeGroupMealConfigRequest(
                 AGE_GROUP,
                 from,
@@ -190,6 +251,23 @@ class AgeGroupMealConfigServiceImplTest {
                 afternoonPctMin,
                 null,
                 null,
+                // vi chất theo thứ tự canxi, photpho, sắt, A, B1, B2, PP, C (mỗi cặp min, max)
+                null,
+                null,
+                null,
+                null,
+                ironMin,
+                ironMax,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null);
     }
 
@@ -199,6 +277,7 @@ class AgeGroupMealConfigServiceImplTest {
                 from,
                 new BigDecimal("30000"),
                 new AgeGroupMealConfig.Norms(
+                        null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                         null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null,
                         null, null, null, null, null, null, null, null, null),
                 "",

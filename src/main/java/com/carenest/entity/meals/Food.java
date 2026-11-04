@@ -72,6 +72,28 @@ public class Food {
     @Column(nullable = false)
     private BigDecimal glucid;
 
+    // NUT-26: vi chất trên 100 đơn vị ăn được; null = chưa có số liệu
+    private BigDecimal calcium;
+
+    private BigDecimal phosphorus;
+
+    private BigDecimal iron;
+
+    @Column(name = "vitamin_a")
+    private BigDecimal vitaminA;
+
+    @Column(name = "vitamin_b1")
+    private BigDecimal vitaminB1;
+
+    @Column(name = "vitamin_b2")
+    private BigDecimal vitaminB2;
+
+    @Column(name = "vitamin_pp")
+    private BigDecimal vitaminPp;
+
+    @Column(name = "vitamin_c")
+    private BigDecimal vitaminC;
+
     @Column(name = "nutrient_source", nullable = false, length = 200)
     private String nutrientSource;
 
@@ -124,7 +146,8 @@ public class Food {
         return food;
     }
 
-    public void changeInfo(Info info, Nutrients nutrients, Set<Allergen> allergens, Long updatedBy) {
+    public void changeInfo(
+            Info info, Nutrients nutrients, Micronutrients micro, Set<Allergen> allergens, Long updatedBy) {
         this.code = info.code();
         this.name = info.name();
         this.foodGroup = info.foodGroup();
@@ -142,6 +165,14 @@ public class Food {
         this.glucid = nutrients.glucid();
         this.nutrientSource = nutrients.source();
         this.nutrientSourceVersion = nutrients.sourceVersion();
+        this.calcium = micro.calcium();
+        this.phosphorus = micro.phosphorus();
+        this.iron = micro.iron();
+        this.vitaminA = micro.vitaminA();
+        this.vitaminB1 = micro.vitaminB1();
+        this.vitaminB2 = micro.vitaminB2();
+        this.vitaminPp = micro.vitaminPp();
+        this.vitaminC = micro.vitaminC();
         this.allergens = new HashSet<>(allergens);
         this.updatedBy = updatedBy;
     }
@@ -172,4 +203,15 @@ public class Food {
             BigDecimal glucid,
             String source,
             String sourceVersion) {}
+
+    /** Vi chất trên 100 đơn vị ăn được (NUT-26): mg, riêng vitamin A là µg; null = chưa có số liệu. */
+    public record Micronutrients(
+            BigDecimal calcium,
+            BigDecimal phosphorus,
+            BigDecimal iron,
+            BigDecimal vitaminA,
+            BigDecimal vitaminB1,
+            BigDecimal vitaminB2,
+            BigDecimal vitaminPp,
+            BigDecimal vitaminC) {}
 }
