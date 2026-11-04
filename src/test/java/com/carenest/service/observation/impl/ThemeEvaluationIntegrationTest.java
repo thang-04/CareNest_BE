@@ -269,6 +269,8 @@ class ThemeEvaluationIntegrationTest {
         assertThat(service.listClasses(teacher, null))
                 .extracting(c -> c.classId())
                 .containsExactly(classA);
+        // GV thường chỉ xem lớp mình: lớp khác cùng nhóm tuổi vẫn bị chặn ở server
+        expectCode(() -> service.listThemes(teacher, classB), ApiCode.EVALUATION_VIEW_FORBIDDEN);
         assertThat(service.listClasses(principal, null))
                 .extracting(c -> c.classId())
                 .containsExactlyInAnyOrder(classA, classB, nurseryClass);
