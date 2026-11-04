@@ -894,6 +894,49 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
+  /api/assessment/evaluations/{id}/year-sheet:
+    get:
+      operationId: getYearSheet
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearEndSheetResponse"
+          description: OK
+      tags:
+      - child-evaluation-controller
+    put:
+      operationId: saveYearSheet
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearEndSheetRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearEndSheetResponse"
+          description: OK
+      tags:
+      - child-evaluation-controller
   /api/assessment/overview:
     get:
       operationId: getOverview_1
@@ -16512,6 +16555,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonYearEndSheetResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/YearEndSheetResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonYearPlanChangesResponse:
       type: object
       properties:
@@ -17196,6 +17252,68 @@ components:
           type: integer
           format: int64
         updatedByName:
+          type: string
+    SheetDomain:
+      type: object
+      properties:
+        domainId:
+          type: integer
+          format: int64
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SheetGoal"
+        name:
+          type: string
+    SheetGoal:
+      type: object
+      properties:
+        auto:
+          type: boolean
+        goalId:
+          type: integer
+          format: int64
+        goalNo:
+          type: integer
+          format: int32
+        manual:
+          type: boolean
+        met:
+          type: boolean
+        source:
+          type: string
+        text:
+          type: string
+    SheetGoalInput:
+      type: object
+      properties:
+        goalId:
+          type: integer
+          format: int64
+        met:
+          type: boolean
+      required:
+      - goalId
+    SheetMeasurement:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        heightCm:
+          type: number
+        weightKg:
+          type: number
+    SheetNotes:
+      type: object
+      properties:
+        forChild:
+          type: string
+        forParent:
+          type: string
+        forSchool:
+          type: string
+        forTeacher:
           type: string
     SignerNames:
       type: object
@@ -18464,6 +18582,62 @@ components:
         id:
           type: integer
           format: int64
+    YearEndSheetRequest:
+      type: object
+      properties:
+        forChild:
+          type: string
+        forParent:
+          type: string
+        forSchool:
+          type: string
+        forTeacher:
+          type: string
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SheetGoalInput"
+          maxItems: 500
+          minItems: 0
+    YearEndSheetResponse:
+      type: object
+      properties:
+        ageGroupName:
+          type: string
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        confirmedAt:
+          type: string
+          format: date-time
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/SheetDomain"
+        evaluationId:
+          type: integer
+          format: int64
+        measurement:
+          $ref: "#/components/schemas/SheetMeasurement"
+        metCount:
+          type: integer
+          format: int32
+        notMetCount:
+          type: integer
+          format: int32
+        notes:
+          $ref: "#/components/schemas/SheetNotes"
+        status:
+          type: string
+          enum:
+          - AWAITING_REVIEW
+          - CONFIRMED
+        teachers:
+          type: array
+          items:
+            type: string
     YearPlanChangesResponse:
       type: object
       properties:

@@ -33,6 +33,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.observation.ChildEvaluationService;
+import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolYearService;
@@ -94,6 +95,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final ChildEvaluationEventRepository eventRepository;
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
+    private final YearEndSheetService yearEndSheetService;
 
     @Override
     @Transactional
@@ -249,6 +251,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 throw GlobalException.of(ApiCode.EVALUATION_PROGRAM_REQUIRED);
             }
             Instant at = rules.now();
+            // Cuối năm: chốt phiếu đánh giá sự phát triển (OBS-28) trước khi đổi trạng thái
+            yearEndSheetService.freeze(ev);
             ev.confirm(text, currentUser.userId(), at);
             evaluationRepository.saveAndFlush(ev);
             eventRepository.save(

@@ -773,7 +773,7 @@ Index: `idx_permission_change_log_changed_at`, `idx_permission_change_log_target
 
 ### theme_evaluations
 
-Mục đích: đánh giá cuối chủ đề của lớp mẫu giáo (OBS-27). Migration: V75 (V76: theme_id = dòng gốc của chủ đề). Không khóa ngoại sang bảng kế hoạch giáo dục (lưu theme_id kèm tên, ngày).
+Mục đích: đánh giá cuối chủ đề của lớp mọi nhóm tuổi (OBS-27). Migration: V75 (V76: theme_id = dòng gốc của chủ đề). Không khóa ngoại sang bảng kế hoạch giáo dục (lưu theme_id kèm tên, ngày).
 
 | Cột | Kiểu | Ghi chú |
 | --- | --- | --- |
@@ -785,5 +785,7 @@ Mục đích: đánh giá cuối chủ đề của lớp mẫu giáo (OBS-27). M
 | updated_by, updated_at, version | | khóa lạc quan |
 
 Ràng buộc: UNIQUE (classroom_id, theme_id); end_date ≥ start_date.
+
+V79: child_evaluations thêm phiếu đánh giá sự phát triển cuối năm (OBS-28): `goal_results` TEXT (JSON ô GV sửa tay trước khi xác nhận; cả phiếu khi đã xác nhận: [{g: dòng gốc MT, m: đạt, x: sửa tay}]), `note_for_child`, `note_for_teacher`, `note_for_school`, `note_for_parent` VARCHAR(1000) (lưu ý điều chỉnh kế hoạch năm sau, null = để trống).
 
 V74: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "Cần cố gắng", OBS-15).

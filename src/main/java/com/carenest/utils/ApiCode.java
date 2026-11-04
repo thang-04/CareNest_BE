@@ -663,6 +663,9 @@ public enum ApiCode {
     THEME_EVALUATION_NOT_STARTED(7378, HttpStatus.CONFLICT, "Chủ đề chưa bắt đầu, chưa đánh giá được"),
     THEME_EVALUATION_NOT_ENDED(7379, HttpStatus.CONFLICT, "Chủ đề chưa kết thúc, chưa xác nhận được"),
     THEME_EVALUATION_CELL_INVALID(7380, HttpStatus.BAD_REQUEST, "Có ô không thuộc bảng đánh giá, tải lại trang"),
+    YEAR_SHEET_ONLY_YEAR_END(7381, HttpStatus.BAD_REQUEST, "Phiếu đánh giá sự phát triển chỉ có ở đánh giá cuối năm"),
+    YEAR_SHEET_GOAL_INVALID(7382, HttpStatus.BAD_REQUEST, "Có mục tiêu không thuộc phiếu đánh giá, tải lại trang"),
+    YEAR_SHEET_NOTE_TOO_LONG(7383, HttpStatus.BAD_REQUEST, "Mỗi lưu ý tối đa {0} ký tự"),
     CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,

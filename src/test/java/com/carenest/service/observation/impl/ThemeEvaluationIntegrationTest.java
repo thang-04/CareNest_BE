@@ -7,9 +7,15 @@ import com.carenest.dto.observation.ThemeEvaluationDtos.CellInput;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ChildRow;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationRequest;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationResponse;
+import com.carenest.dto.observation.YearEndSheetDtos.SheetGoal;
+import com.carenest.dto.observation.YearEndSheetDtos.SheetGoalInput;
+import com.carenest.dto.observation.YearEndSheetDtos.YearEndSheetRequest;
+import com.carenest.dto.observation.YearEndSheetDtos.YearEndSheetResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.observation.ChildEvaluationService;
 import com.carenest.service.observation.ThemeEvaluationService;
+import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
@@ -75,6 +81,12 @@ class ThemeEvaluationIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private YearEndSheetService sheetService;
+
+    @Autowired
+    private ChildEvaluationService evaluationService;
 
     private CurrentUser teacher;
     private CurrentUser otherTeacher;
@@ -205,6 +217,128 @@ class ThemeEvaluationIntegrationTest {
                         .met())
                 .isTrue();
         expectCode(() -> service.save(teacher, override), ApiCode.EVALUATION_ALREADY_CONFIRMED);
+    }
+
+    @Test
+    void yearEndSheetAggregatesThemesThenTeacherEditsAndConfirmFreezesIt() {
+        long yearEval = insertId("INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id,"
+                + " period_type, period_start, period_end, status, draft_content, program_completed, created_at,"
+                + " updated_at) SELECT " + kid1 + ", c.id, c.campus_id, c.school_year_id, 'YEAR', '2026-09-01',"
+                + " '2027-05-31', 'AWAITING_REVIEW', 'Nháp', TRUE, now(), now() FROM classrooms c WHERE c.id = "
+                + classA
+                + " RETURNING id");
+        String campaignSql = "INSERT INTO health_check_campaigns (kind, campus_id, name, start_date, end_date,"
+                + " created_by) SELECT 'MEASUREMENT', c.campus_id, 'Cân đo', '2026-09-01', '2026-10-30', "
+                + teacher.userId() + " FROM classrooms c WHERE c.id = " + classA + " RETURNING id";
+        long campaign = insertId(campaignSql);
+        // Mỗi điểm trường chỉ một đợt đang mở: đóng đợt 1 rồi mở đợt 2
+        jdbc.update(
+                "UPDATE health_check_campaigns SET closed_at = now(), closed_by = ? WHERE id = ?",
+                teacher.userId(),
+                campaign);
+        long campaign2 = insertId(campaignSql);
+        jdbc.update(
+                "INSERT INTO health_measurements (child_id, campaign_id, classroom_id, date, height_cm, weight_kg,"
+                        + " measured_by, published_at) VALUES (?, ?, ?, '2026-09-20', 98.5, 15.2, ?, now()),"
+                        + " (?, ?, ?, '2026-10-30', 99.0, 15.6, ?, now())",
+                kid1,
+                campaign,
+                classA,
+                teacher.userId(),
+                kid1,
+                campaign2,
+                classA,
+                teacher.userId());
+
+        // MT lấy từ kế hoạch năm theo lĩnh vực; kết quả từ chủ đề gần nhất có MT; chủ đề chưa bắt đầu thì để trống
+        YearEndSheetResponse sheet = sheetService.get(teacher, yearEval);
+        assertThat(sheet.domains()).extracting(d -> d.name()).containsExactly("TEST lĩnh vực chủ đề");
+        List<SheetGoal> goals = sheet.domains().getFirst().goals();
+        assertThat(goals).extracting(SheetGoal::goalNo).containsExactly((short) 1, (short) 3, (short) 4);
+        assertThat(goals).extracting(SheetGoal::met).containsExactly(false, true, null);
+        assertThat(goals.getFirst().source()).isEqualTo("Trường mầm non thân yêu");
+        assertThat(sheet.metCount()).isEqualTo(1);
+        assertThat(sheet.notMetCount()).isEqualTo(1);
+        assertThat(sheet.canEdit()).isTrue();
+        // Lần cân đo gần nhất tới hôm nay (21/10): lần 30/10 chưa tới nên chưa lấy
+        assertThat(sheet.measurement().weightKg()).isEqualByComparingTo("15.2");
+        assertThat(sheet.teachers()).containsExactly("teacher-t");
+
+        // Bảng cuối chủ đề GV sửa tay thì phiếu cuối năm theo
+        themeService()
+                .save(
+                        teacher,
+                        new ThemeEvaluationRequest(classA, 9201L, null, List.of(new CellInput(kid1, oldGoal1, true))));
+        assertThat(sheetService
+                        .get(teacher, yearEval)
+                        .domains()
+                        .getFirst()
+                        .goals()
+                        .getFirst()
+                        .met())
+                .isTrue();
+
+        // GV sửa tay trên phiếu và ghi lưu ý; trùng kết quả tổng hợp thì không tính sửa tay
+        YearEndSheetResponse saved = sheetService.save(
+                teacher,
+                yearEval,
+                new YearEndSheetRequest(
+                        List.of(new SheetGoalInput(goal2, false), new SheetGoalInput(oldGoal1, true)),
+                        "  Rèn trẻ biết tên trường ",
+                        null,
+                        " ",
+                        "Cha mẹ cùng trò chuyện với trẻ"));
+        List<SheetGoal> edited = saved.domains().getFirst().goals();
+        assertThat(edited).extracting(SheetGoal::met).containsExactly(true, false, null);
+        assertThat(edited).extracting(SheetGoal::manual).containsExactly(false, true, false);
+        assertThat(saved.notes().forChild()).isEqualTo("Rèn trẻ biết tên trường");
+        assertThat(saved.notes().forSchool()).isNull();
+
+        // Ngoài phạm vi / sai dữ liệu
+        expectCode(() -> sheetService.get(otherTeacher, yearEval), ApiCode.EVALUATION_VIEW_FORBIDDEN);
+        expectCode(() -> sheetService.get(principal, yearEval), ApiCode.EVALUATION_VIEW_FORBIDDEN);
+        expectCode(
+                () -> sheetService.save(
+                        teacher,
+                        yearEval,
+                        new YearEndSheetRequest(List.of(new SheetGoalInput(424242L, true)), null, null, null, null)),
+                ApiCode.YEAR_SHEET_GOAL_INVALID);
+        expectCode(
+                () -> sheetService.save(
+                        teacher, yearEval, new YearEndSheetRequest(List.of(), "x".repeat(1001), null, null, null)),
+                ApiCode.YEAR_SHEET_NOTE_TOO_LONG);
+        long monthEval = insertId("INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id,"
+                + " period_type, period_start, period_end, status, created_at, updated_at) SELECT " + kid1
+                + ", c.id, c.campus_id, c.school_year_id, 'MONTH', '2026-09-01', '2026-09-30', 'AWAITING_REVIEW',"
+                + " now(), now() FROM classrooms c WHERE c.id = " + classA + " RETURNING id");
+        expectCode(() -> sheetService.get(teacher, monthEval), ApiCode.YEAR_SHEET_ONLY_YEAR_END);
+
+        // Xác nhận đánh giá cuối năm: chốt cả phiếu; kết quả ngày đổi sau đó không đổi phiếu
+        evaluationService.confirm(teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động.");
+        result(kid1, classA, "2026-10-20", "k8", "", String.valueOf(goal2));
+        YearEndSheetResponse frozen = sheetService.get(principal, yearEval);
+        assertThat(frozen.canEdit()).isFalse();
+        assertThat(frozen.domains().getFirst().goals())
+                .extracting(SheetGoal::met)
+                .containsExactly(true, false, null);
+        assertThat(frozen.notes().forParent()).isEqualTo("Cha mẹ cùng trò chuyện với trẻ");
+        expectCode(
+                () -> sheetService.save(teacher, yearEval, new YearEndSheetRequest(List.of(), null, null, null, null)),
+                ApiCode.EVALUATION_ALREADY_CONFIRMED);
+
+        // Đánh giá cuối năm xác nhận trước khi có phiếu (chưa chốt ô nào): vẫn hiện kết quả tổng hợp, chỉ xem
+        long legacy = insertId("INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id,"
+                + " period_type, period_start, period_end, status, final_content, confirmed_by, confirmed_at,"
+                + " created_at, updated_at) SELECT " + kid2 + ", c.id, c.campus_id, c.school_year_id, 'YEAR',"
+                + " '2026-09-01', '2027-05-31', 'CONFIRMED', 'Đã xác nhận', " + teacher.userId() + ", now(), now(),"
+                + " now() FROM classrooms c WHERE c.id = " + classA + " RETURNING id");
+        YearEndSheetResponse old = sheetService.get(principal, legacy);
+        assertThat(old.canEdit()).isFalse();
+        assertThat(old.domains().getFirst().goals().getFirst().met()).isTrue();
+    }
+
+    private ThemeEvaluationService themeService() {
+        return service;
     }
 
     @Test

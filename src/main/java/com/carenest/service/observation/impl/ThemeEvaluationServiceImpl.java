@@ -207,6 +207,43 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, ThemeGoalResult> childThemeResults(Long classId, Long childId) {
+        String logPrefix = LOG_PREFIX + "|childThemeResults|classId=" + classId + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            ClassroomInfoResponse cls = rules.findClass(classId);
+            Map<Long, ThemeGoalResult> results = new HashMap<>();
+            if (cls.ageGroupId() == null) {
+                log.info("{}|goals=0|END", logPrefix);
+                return results;
+            }
+            LocalDate today = rules.today();
+            // Chủ đề theo ngày bắt đầu tăng dần: chủ đề sau ghi đè, nên mỗi MT giữ kết quả của chủ đề gần nhất
+            for (ThemeRow theme : evaluationRepository.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId())) {
+                if (today.isBefore(theme.getStartDate())) {
+                    continue;
+                }
+                ThemeEvaluation saved = evaluationRepository
+                        .findByClassroomIdAndThemeId(classId, theme.getLineage())
+                        .orElse(null);
+                Matrix matrix = matrixOf(cls, theme, saved);
+                for (GoalRow goal : matrix.goals()) {
+                    Value v = matrix.cells().get(new Key(childId, goal.getLineage()));
+                    if (v != null && v.met() != null) {
+                        results.put(goal.getLineage(), new ThemeGoalResult(v.met(), theme.getName()));
+                    }
+                }
+            }
+            log.info("{}|goals={}|END", logPrefix, results.size());
+            return results;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     // ---------- quyền, chủ đề ----------
 
     // Xem: GV lớp (cả năm đã kết thúc), HT/PHT mọi điểm trường (AUTH-20), tổ trưởng các lớp nhóm tuổi mình (AUTH-23)

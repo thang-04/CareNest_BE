@@ -66,4 +66,27 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
                     + " ORDER BY g.goal_no, g.sort_order, g.id",
             nativeQuery = true)
     List<GoalRow> findThemeGoals(@Param("themeId") Long themeId);
+
+    /** MT của kế hoạch năm học đã duyệt (bản mới nhất) kèm lĩnh vực, cho phiếu đánh giá cuối năm (OBS-28). */
+    interface YearGoalRow {
+        Long getLineage();
+
+        Short getGoalNo();
+
+        String getText();
+
+        Long getDomainId();
+
+        String getDomainName();
+    }
+
+    @Query(
+            value = "SELECT COALESCE(g.lineage_id, g.id) AS lineage, g.goal_no AS goalNo, g.text AS text,"
+                    + " d.id AS domainId, d.name AS domainName FROM edu_plan_goals g"
+                    + " LEFT JOIN edu_domains d ON d.id = g.domain_id"
+                    + " WHERE g.year_plan_id = (SELECT p.id FROM edu_year_plans p WHERE p.school_year_id = :schoolYearId"
+                    + " AND p.age_group_id = :ageGroupId AND p.status = 'APPROVED' ORDER BY p.version_no DESC, p.id DESC LIMIT 1)"
+                    + " ORDER BY d.sort_order NULLS LAST, d.id NULLS LAST, g.goal_no, g.sort_order, g.id",
+            nativeQuery = true)
+    List<YearGoalRow> findYearGoals(@Param("schoolYearId") Long schoolYearId, @Param("ageGroupId") Long ageGroupId);
 }
