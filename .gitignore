@@ -26,3 +26,7 @@ Thumbs.db
 # Logs
 *.log
 *.txt
+
+# File test tạm (không push)
+*.tmp
+*.temp
