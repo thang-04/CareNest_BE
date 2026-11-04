@@ -452,6 +452,7 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                 .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
         LocalDate today = LocalDate.now(clock);
         Set<Long> teacher = Set.of(assignment.userId());
+        teacherClassRules.lockForAssignment(classroom, teacher);
         // Dạy thay / phân công lẻ: GV trong điểm trường của lớp
         teacherClassRules.checkTeachers(classroom, year, teacher, today, false);
         if (!assignment.substitute()) {

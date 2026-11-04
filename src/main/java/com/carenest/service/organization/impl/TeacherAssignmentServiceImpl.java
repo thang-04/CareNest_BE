@@ -104,6 +104,8 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             SchoolYear year = findYear(classroom.getSchoolYearId());
             SchoolYearRules.checkOpen(year);
             Set<Long> teacherIds = new HashSet<>(request.teacherIds());
+            // AUTH-24: tuần tự hóa với các phân công đồng thời khác của lớp / GV trước khi đọc hiện trạng
+            teacherClassRules.lockForAssignment(classroom, teacherIds);
             LocalDate start = effectiveStart(year);
             List<StaffAssignment> current =
                     staffAssignmentRepository.findCurrentTeachers(List.of(classId), schoolConfigAccess.today());

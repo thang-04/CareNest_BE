@@ -13,6 +13,19 @@ import org.springframework.data.repository.query.Param;
 /** Mọi query lọc theo ngày: chỉ phân công có hiệu lực tại {@code date} mới tạo phạm vi. */
 public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment, Long> {
 
+    // AUTH-24: khóa phân công GV của lớp / của GV trong năm học tới hết transaction (mọi đường phân công dùng chung)
+    @Query(
+            value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(concat('carenest:class-teachers:',"
+                    + " CAST(:classId AS text)), 0))",
+            nativeQuery = true)
+    Integer lockClassTeachers(@Param("classId") Long classId);
+
+    @Query(
+            value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(concat('carenest:teacher-year:',"
+                    + " CAST(:teacherId AS text), ':', CAST(:yearId AS text)), 0))",
+            nativeQuery = true)
+    Integer lockTeacherYear(@Param("teacherId") Long teacherId, @Param("yearId") Long yearId);
+
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
             where a.userId = :userId and a.staffRole = :staffRole
