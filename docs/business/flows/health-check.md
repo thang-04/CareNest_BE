@@ -32,12 +32,11 @@ Còn mở: danh sách triệu chứng chọn nhanh (P-21), trẻ có dấu hiệ
 [S] GV nhập trong kỳ đang diễn ra cho lớp mình: chiều cao, cân nặng, ghi chú (HLT-09)
     Không đo vòng đầu (chỉ ở phiếu khám — HLT-01, bỏ 2026-11-04)
     Không cân đo lẻ ngoài kỳ; mỗi trẻ một lần đo/kỳ
-[S] Ngày đo hệ thống ghi = hôm nay, kẹp trong kỳ; GV không chọn ngày          (HLT-01, sửa 2026-11-04)
-    Kỳ chưa đóng mà đã qua ngày kết thúc ⇒ vẫn nhập, ngày đo = ngày kết thúc của kỳ
-    (đánh đổi: nhập muộn ghi ngày kết thúc, không phải ngày cân thật — chờ user soát)
+[S] Ngày đo = ngày nhập, hệ thống ghi; GV không chọn ngày                     (HLT-01, sửa 2026-11-04)
     Ngày đo trẻ đã có kết quả của đợt/kỳ khác ⇒ không lưu, báo HT/PHT (5020)
-    [B] HT/PHT: trùng hôm nay ⇒ GV nhập ngày sau; kỳ quá hạn trùng ngày kết thúc ⇒ sửa ngày kết thúc của kỳ
-[B] HT/PHT đóng kỳ ⇒ trẻ chưa cân thành "Vắng", số đo khóa; mở lại cần lý do
+    [B] HT/PHT: trùng hôm nay ⇒ GV nhập ngày sau
+[S] Qua ngày kết thúc ⇒ hệ thống tự đóng kỳ như đợt khám (HLT-17, kỳ cân đo từ 2026-11-04):
+    trẻ chưa cân thành "Vắng", số đo khóa; HT/PHT vẫn đóng sớm, mở lại cần lý do
       ↓
 [S] Lưu từng lần đo; trend, chênh lệch so với lần trước, biểu đồ             (HLT-02, HLT-13)
 [S] Xếp mức BMI theo tuổi chuẩn WHO khi đọc: gầy còm nặng, gầy còm, bình thường,
@@ -56,18 +55,19 @@ Còn mở: danh sách triệu chứng chọn nhanh (P-21), trẻ có dấu hiệ
 DevelopmentProfile đọc measurement + trend + interpretation APPROVED (OBS-03)
 ```
 
-## Đóng và mở lại đợt khám (HLT-17)
+## Đóng và mở lại đợt khám, kỳ cân đo (HLT-17)
 
 ```text
-[S] Hết ngày kết thúc khám theo giờ trường ⇒ tự đóng EXAM, ghi lịch sử "Hệ thống"
-    Trẻ chưa có phiếu ⇒ "Vắng"; phiếu nháp ⇒ "Chưa kết luận"; khóa nhập/sửa kết quả
-    Đợt đã đóng/hủy không đóng lặp
+[S] Hết ngày kết thúc theo giờ trường ⇒ tự đóng đợt khám (EXAM) và kỳ cân đo (MEASUREMENT),
+    ghi lịch sử "Hệ thống": "Hệ thống tự đóng khi qua ngày kết thúc khám" / "… cân đo"
+    Trẻ chưa có kết quả ⇒ "Vắng"; phiếu nháp ⇒ "Chưa kết luận"; khóa nhập/sửa kết quả
+    Đợt/kỳ đã đóng/hủy không đóng lặp; kết thúc hôm nay vẫn nhập tới hết ngày
 [B] HT/PHT có thể đóng sớm hoặc mở lại để nhập bù (cần lý do)
-    Đợt EXAM đã hết hạn ⇒ chọn ngày kết thúc mới từ hôm nay
+    Đợt/kỳ đã hết hạn ⇒ chọn ngày kết thúc mới từ hôm nay
 [S] Mở lại xóa danh sách vắng cũ; hết ngày kết thúc mới ⇒ tự đóng tiếp
 ```
 
-Nguồn: user, 2026-11-01 (HLT-17, chưa có xác nhận trường/team). Job chạy lúc 00:00 theo `carenest.time-zone`, đồng thời đóng bù khi ứng dụng khởi động. Kỳ cân đo vẫn đóng thủ công theo luồng trên.
+Nguồn: user, 2026-11-01 (HLT-17, chưa có xác nhận trường/team); user chốt 2026-11-04 (kỳ cân đo cũng tự đóng). Job chạy lúc 00:00 theo `carenest.time-zone`, đồng thời đóng bù khi ứng dụng khởi động.
 
 ## Khám bác sĩ (HLT-08)
 

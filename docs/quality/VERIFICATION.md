@@ -1,5 +1,11 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Kỳ cân đo tự đóng như đợt khám (HLT-17) — 2026-11-04
+
+- Nguồn user 2026-11-04: "Kỳ cân đo cũng sẽ tự đóng khi qua ngày kết thúc". Job tự đóng mọi loại, lý do lịch sử theo loại, mở lại kỳ hết hạn bắt buộc ngày kết thúc mới; plan `docs/plans/active/2026-11-04-intake-weeks-round-dates.md` (phần 2).
+- Sau sửa source/test cuối: `VERIFY PASS full | tests 1014 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 557s | log target/verify.log`. Snapshot OpenAPI không đổi; không migration, không đổi mã/câu lỗi.
+- Testcontainers chạy thật: 5 test HLT-17 chạy cho cả EXAM và MEASUREMENT (tự đóng một lần, kết thúc hôm nay chưa đóng, không đụng đợt đã hủy/đóng tay, mở lại rồi tự đóng lại, mở lại cần ngày từ hôm nay); kỳ cân đo tự đóng ⇒ vắng, nhập/sửa 5018; kết thúc hôm nay vẫn nhập tới 00:00. Chưa chạy Web nối BE thật; không commit/push.
+
 ## Tuần thai bắt buộc, kỳ cân đo bỏ vòng đầu, ngày đo/ngày khám do hệ thống ghi — 2026-11-04
 
 - Nguồn user 2026-11-04 (G94-180/CHD-05, HLT-01, HLT-08, HLT-13) và điều chỉnh của người điều phối cùng ngày (kỳ cân đo chưa đóng mà đã qua ngày kết thúc ⇒ ngày đo = ngày kết thúc, chờ user soát). Plan `docs/plans/active/2026-11-04-intake-weeks-round-dates.md`.

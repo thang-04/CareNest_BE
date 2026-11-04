@@ -357,10 +357,10 @@ public class HealthCheckServiceImpl implements HealthCheckService {
         String logPrefix = LOG_PREFIX + "|closeExpiredHealthChecks";
         log.info("{}|START", logPrefix);
         try {
+            // HLT-17: đợt khám và kỳ cân đo (từ 2026-11-04) cùng tự đóng khi qua ngày kết thúc theo giờ trường
             List<HealthCheckCampaign> expired =
-                    campaignRepository.findByKindAndClosedAtIsNullAndCancelledAtIsNullAndEndDateBefore(
-                            HealthCheckKind.EXAM, rules.today());
-            expired.forEach(c -> closeCampaign(c, null, "Hệ thống tự đóng khi qua ngày kết thúc khám"));
+                    campaignRepository.findByClosedAtIsNullAndCancelledAtIsNullAndEndDateBefore(rules.today());
+            expired.forEach(c -> closeCampaign(c, null, autoCloseReason(c.getKind())));
             log.info("{}|count={}|END", logPrefix, expired.size());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -369,6 +369,13 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     }
 
     private record Closure(int absent, int notConcluded, Results results) {}
+
+    /** Lý do ghi vào lịch sử khi hệ thống tự đóng (hiện cho người dùng). */
+    private static String autoCloseReason(HealthCheckKind kind) {
+        return kind == HealthCheckKind.MEASUREMENT
+                ? "Hệ thống tự đóng khi qua ngày kết thúc cân đo"
+                : "Hệ thống tự đóng khi qua ngày kết thúc khám";
+    }
 
     private Closure closeCampaign(HealthCheckCampaign campaign, Long userId, String reason) {
         Results before = results(List.of(campaign.getId()));
@@ -408,21 +415,20 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             if (reason.isEmpty()) {
                 throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "lý do mở lại");
             }
-            if (campaign.getKind() == HealthCheckKind.EXAM) {
-                LocalDate endDate = request.endDate() != null ? request.endDate() : campaign.getEndDate();
-                if (endDate.isBefore(rules.today()) || endDate.isBefore(campaign.getStartDate())) {
-                    throw GlobalException.withFieldErrors(
-                            ApiCode.INVALID_REQUEST_DATA,
-                            List.of(new FieldErrorResponse("endDate", "Chọn ngày kết thúc mới từ hôm nay")));
-                }
-                campaign.update(
-                        campaign.getName(),
-                        campaign.getStartDate(),
-                        endDate,
-                        campaign.getExaminer(),
-                        campaign.getNote(),
-                        rules.now());
+            // HLT-17: đợt/kỳ đã hết hạn phải có ngày kết thúc mới từ hôm nay, qua ngày đó lại tự đóng (cả hai loại)
+            LocalDate endDate = request.endDate() != null ? request.endDate() : campaign.getEndDate();
+            if (endDate.isBefore(rules.today()) || endDate.isBefore(campaign.getStartDate())) {
+                throw GlobalException.withFieldErrors(
+                        ApiCode.INVALID_REQUEST_DATA,
+                        List.of(new FieldErrorResponse("endDate", "Chọn ngày kết thúc mới từ hôm nay")));
             }
+            campaign.update(
+                    campaign.getName(),
+                    campaign.getStartDate(),
+                    endDate,
+                    campaign.getExaminer(),
+                    campaign.getNote(),
+                    rules.now());
             checkCampusFree(campaign.getCampusId(), campaign.getId());
             absenceRepository.deleteByCampaignId(campaign.getId());
             campaign.reopen(rules.now());

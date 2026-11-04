@@ -5,7 +5,7 @@ owner: user (CareNest team)
 jira: G94-180 / BE-FEAT-43 (nhánh hiện tại; task Jira riêng cho thay đổi này chưa có — hỏi khi commit)
 branch: feature/G94-180-BE-FEAT-43-child-health-pickup
 modules: [child, health]
-rules: [G94-180/CHD-05, HLT-01, HLT-08, HLT-13]
+rules: [G94-180/CHD-05, HLT-01, HLT-08, HLT-13, HLT-17]
 risk: high   # đổi API contract (bỏ trường request/response, bỏ mã 5021, đổi câu lỗi), ảnh hưởng FE; không migration
 created: 2026-11-04
 updated: 2026-11-04
@@ -27,7 +27,8 @@ Hiện trạng trước sửa (commit `eaa3aa9`):
 1. Tuần thai khi sinh bắt buộc với mọi trẻ khi tiếp nhận; giữ "Sinh non", kiểm khớp (dưới 37 tuần là sinh non) — user, 2026-11-04.
 2. Kỳ cân đo bỏ vòng đầu; phiếu khám Phụ lục II giữ vòng đầu (trẻ ≤60 tháng) — user, 2026-11-04.
 3. Ngày đo/ngày khám từng trẻ do hệ thống ghi (ngày nhập, trong khoảng đợt/kỳ), không sửa; ngày của đợt/kỳ vẫn sửa được — user, 2026-11-04.
-4. Kỳ cân đo chưa đóng mà đã qua ngày kết thúc: vẫn nhập, ngày đo = ngày kết thúc (kẹp như phiếu khám) — người điều phối, 2026-11-04 khi triển khai; chờ user soát (Key decisions).
+4. ~~Kỳ cân đo chưa đóng mà đã qua ngày kết thúc: vẫn nhập, ngày đo = ngày kết thúc (người điều phối, chờ user soát)~~ — thay bằng 5.
+5. Kỳ cân đo tự đóng khi qua ngày kết thúc như đợt khám (HLT-17) ⇒ ngày đo là ngày nhập — user, 2026-11-04 ("Kỳ cân đo cũng sẽ tự đóng khi qua ngày kết thúc").
 
 ## Làm rõ nghiệp vụ
 - **Hiểu nghiệp vụ:** HT/PHT (tiếp nhận), GV lớp (số đo, phiếu khám) · outcome: hồ sơ luôn có tuần thai khớp "Sinh non"; số đo kỳ cân đo chỉ chiều cao, cân nặng, ghi chú; ngày đo/ngày khám không chỉnh · G94-180/CHD-05, HLT-01, HLT-08, HLT-13 (CONFIRMED, user sửa 2026-11-04) · `[B]` GV cân đo/khám → `[S]` ghi ngày.
@@ -42,7 +43,7 @@ Hiện trạng trước sửa (commit `eaa3aa9`):
 | --- | --- | --- | --- | --- |
 | "Thời gian" là ngày nào? | Ngày đo/ngày khám của từng trẻ, hệ thống ghi ngày nhập | user | 2026-11-04 | HLT-01, HLT-08, HLT-13, flow, card health |
 | Giữ "Sinh non"? | Giữ, kiểm khớp tuần thai | user | 2026-11-04 | G94-180/CHD-05, card child, DATA_DICTIONARY |
-| Nhập sau ngày kết thúc khi kỳ cân đo chưa đóng? | Vẫn nhập, ngày đo = ngày kết thúc | người điều phối (chờ user soát) | 2026-11-04 | HLT-01, flow, card health, CROSS_REPO_MAP |
+| Nhập sau ngày kết thúc khi kỳ cân đo chưa đóng? | ~~Vẫn nhập, ngày đo = ngày kết thúc~~ ⇒ kỳ cân đo tự đóng như đợt khám | người điều phối; user chốt thay | 2026-11-04 | HLT-01, HLT-17, flow, card health, CROSS_REPO_MAP |
 
 ## Acceptance criteria
 - **AC-1** (`G94-180/CHD-05`): Given form tiếp nhận không có tuần thai (kể cả trẻ không sinh non) When lưu Then 400 9001, ô `profile.gestationWeeks` "Nhập tuần thai khi sinh".
@@ -52,11 +53,12 @@ Hiện trạng trước sửa (commit `eaa3aa9`):
 - **AC-5** (`HLT-08`): Given phiếu khám lưu nháp ngày X When kết luận, sửa ở ngày Y Then ngày khám vẫn X; phiếu mới ⇒ hôm nay kẹp trong đợt; review-preview theo ngày đó; trùng kết quả khác ⇒ lỗi ô `date` kèm ngày.
 - **AC-6** (tương thích): Given client cũ gửi `date`, `headCircumferenceCm` When gọi API Then không bị từ chối, các trường bị bỏ qua.
 - **AC-7** (contract): `GET /children/{id}/health` bỏ `headCircumferenceUntil`; mã 5021 bỏ; snapshot OpenAPI cập nhật có chủ đích.
+- **AC-8** (`HLT-17`, phần 2): Given kỳ cân đo chưa đóng có `endDate` < hôm nay When job chạy (00:00, khởi động) Then đóng như đợt khám (trẻ chưa cân thành vắng, lý do "Hệ thống tự đóng khi qua ngày kết thúc cân đo"), sau đó nhập/sửa số đo ⇒ 5018; kết thúc hôm nay vẫn nhập; mở lại kỳ hết hạn bắt buộc `endDate` từ hôm nay.
 
 ## Key decisions
 | Quyết định | Chọn | Phương án khác | Vì sao |
 | --- | --- | --- | --- |
-| Ngày đo khi kỳ cân đo chưa đóng mà đã qua ngày kết thúc | Kẹp: ngày đo = min(hôm nay, ngày kết thúc) — `HealthCheckRules.referenceDate`, dùng chung với phiếu khám (người điều phối chốt 2026-11-04) | Chặn nhập (5021) tới khi HT/PHT gia hạn kỳ | Kỳ cân đo đóng tay nên vốn nhận nhập muộn; trước đây GV nhập muộn chọn ngày ≤ ngày kết thúc; giống phiếu khám và BE giả FE; chặn thì thêm việc cho HT. **Đánh đổi:** lần nhập muộn ghi ngày kết thúc, không phải ngày cân thật — user soát |
+| Ngày đo khi kỳ cân đo đã qua ngày kết thúc | User chốt 2026-11-04: kỳ tự đóng (HLT-17) ⇒ ngày đo là ngày nhập; giữ kẹp `HealthCheckRules.referenceDate` (dùng chung với phiếu khám) làm chốt chặn khi job chưa chạy | Kẹp về ngày kết thúc khi nhập muộn (người điều phối, thay thế); chặn nhập (5021) | Đánh đổi "ghi ngày kết thúc thay ngày cân thật" không còn: kỳ quá hạn không nhận nhập; nhập bù thì mở lại với ngày kết thúc mới |
 | Mã 5021 `HEALTH_MEASUREMENT_DATE_OUTSIDE` | Bỏ (không dùng lại mã) | Giữ cho ca ngày sinh | Ngày kẹp luôn trong kỳ và ≤ hôm nay (lưu chỉ sau `checkOpen`); kiểm ngày sinh không thể xảy ra vì `classOn(ngày đo)` cần enrollment đang mở, mà enrollment chỉ bắt đầu ở ngày tiếp nhận (validator: ngày sinh ≤ hôm nay) hoặc ngày chuyển năm (≥ hôm nay), ngày sinh không sửa được. Điều kiện này ghi ở card child/health cho Sửa hồ sơ sau này |
 | Thứ tự kiểm khi tạo số đo | Giữ: điểm trường, quyền GV rồi mới trạng thái kỳ (5018) | Đưa `checkOpen` lên đầu (review gợi ý) | Không lộ trạng thái đợt/kỳ của điểm trường khác cho người ngoài phạm vi; kỳ chưa mở vẫn không lưu (`#upcomingRoundSavesNothing`) |
 | Câu 5020, lỗi ô `date` của phiếu khám | Kèm ngày dd/MM/yyyy, "Báo Hiệu trưởng hoặc Phó hiệu trưởng" | "Chọn ngày khác…" | GV không còn chọn được ngày; câu phiếu khám khớp BE giả FE |
@@ -70,6 +72,9 @@ Hiện trạng trước sửa (commit `eaa3aa9`):
 - Files: M `EnrollmentFormValidator`, `ChildProfileInput`, `HealthMeasurementRequest`, `HealthExamRequest`, `ChildHealthRecordResponse`, `HealthMeasurement`, `HealthMeasurementServiceImpl`, `HealthExamServiceImpl`, `HealthExamValidator`, `HealthExamDiff`, `HealthCheckRules`, `HealthRecords`, `ApiCode`, 6 test; C `src/test/java/com/carenest/controller/health/HealthControllerTest.java`; docs: BUSINESS_RULES, flow health-check, card health/child, DATA_DICTIONARY, ERROR_CONTRACT, CROSS_REPO_MAP, CURRENT_STATE, VERIFICATION, `docs/api/openapi.yaml`.
 - Exit: `node scripts/verify.mjs` → `VERIFY PASS full`, skip 0; `node scripts/check-ai-layer.mjs` không thêm lỗi.
 ### Phase 2 — FE (agent song song, repo FE, theo contract ở `docs/system/CROSS_REPO_MAP.md` mục 04/11)
+### Phần 2 (BE) — Kỳ cân đo tự đóng (user chốt 2026-11-04)
+- Files: M `HealthCheckCampaignRepository` (truy vấn mọi loại), `HealthCheckServiceImpl` (job, lý do theo loại, mở lại), `HealthCheckReopenRequest`, `HealthMeasurementServiceImpl` (comment), `HealthCheckIntegrationTest`; docs HLT-01, HLT-17, flow, card health, DATA_DICTIONARY, CROSS_REPO_MAP, CURRENT_STATE, VERIFICATION. Không migration, không đổi API/mã lỗi/câu lỗi.
+- Exit: `node scripts/verify.mjs` → `VERIFY PASS full`, skip 0.
 
 ## Test matrix
 | AC | Rule | Test (tầng) | Phase | Kết quả |
@@ -80,12 +85,13 @@ Hiện trạng trước sửa (commit `eaa3aa9`):
 | AC-5 | HLT-08 | `HealthExamIntegrationTest#examDateIsRecordedOnFirstSaveAndKept`, `#newExamOnTakenDateAsksLeaders`; `HealthExamLogicTest#examDateIsNotAFormField`, `#diffDisplayFormats` | 1 | pass |
 | AC-6 | HLT-01, HLT-08 | `HealthControllerTest` (WebMvc, 3 test) | 1 | pass |
 | AC-7 | HLT-01 | `OpenApiSnapshotTest`, `ApiCodeTest` | 1 | pass |
+| AC-8 | HLT-17 | `HealthCheckIntegrationTest#automaticallyClosesExpiredCampaignAndReleasesCampusOnlyOnce`, `#doesNotAutoCloseOnEndDate`, `#doesNotTouchCancelledOrManuallyClosedCampaign`, `#reopenedCampaignClosesAgainAfterItsNewEndDate`, `#reopeningExpiredCampaignRequiresAnEndDateFromToday` (mỗi test chạy cho EXAM, MEASUREMENT), `#expiredMeasurementRoundClosesAndRejectsEntry`, `#measurementRoundEndingTodayAcceptsEntryUntilMidnight` | 2 | xem Progress log |
 
 ## Rủi ro & rollback
 | Rủi ro | Tác động | Giảm thiểu | Rollback |
 | --- | --- | --- | --- |
 | FE chưa cập nhật gửi tiếp nhận không có tuần thai | 400 ô `profile.gestationWeeks` | FE làm song song cùng ngày; câu lỗi rõ | git revert phần validator |
-| Nhập muộn ghi ngày kết thúc của kỳ | Ngày đo khác ngày cân thật, tuổi tháng/BMI có thể lệch vài ngày | Ghi đánh đổi ở HLT-01 để user soát | Chỉ trong `createMeasurement`: dùng `rules.today()` và chặn khi qua ngày kết thúc (không đổi `referenceDate` dùng chung cho sĩ số lớp, phiếu khám) |
+| Kỳ cân đo quá hạn tự đóng (HLT-17) | GV hết nhập được sau ngày kết thúc, trẻ chưa cân thành vắng | Ngày kết thúc vẫn nhập tới hết ngày; HT/PHT mở lại với ngày kết thúc mới | Khôi phục truy vấn chỉ `EXAM` trong `closeExpiredHealthChecks` và điều kiện `EXAM` khi mở lại |
 | Sửa hồ sơ (sau này) cho đổi ngày sinh sang sau ngày vào lớp | Ngày đo/khám trước ngày sinh (không còn 5021 chặn) | Ghi điều kiện ở card child, health | Chặn ở Sửa hồ sơ |
 | Phiếu nháp cũ do client gọi thẳng API lưu ngày ngoài đợt | Kết luận không còn kiểm ngày | FE cũ chỉ cho chọn ngày trong [bắt đầu, min(kết thúc, hôm nay)]; kiểm SQL ở Progress log trước deploy | Sửa dữ liệu |
 | Client cũ còn gửi `date`/vòng đầu | Trường bị bỏ qua | Jackson bỏ trường lạ (`HealthControllerTest`) | — |
@@ -95,7 +101,7 @@ Hiện trạng trước sửa (commit `eaa3aa9`):
 - [x] Đổi contract ⇒ consumer: FE form tiếp nhận, form số đo sổ sức khỏe, phiếu khám, BE giả (`FE:src/services/children/api/childrenApi.js`, `FE:src/services/children/api/healthCheckApi.js`); APP không gọi (đã rà `lib/`)
 - [x] Mỗi AC có test; phase có Exit
 - [x] >8 file: FE tách sang repo FE; BE một phase vì DTO/service/test cùng contract
-- [x] Không dùng rule PENDING/OPEN như đã chốt; quyết định 4 ghi rõ chờ user soát
+- [x] Không dùng rule PENDING/OPEN như đã chốt; quyết định 4 (chờ user soát) đã được thay bằng quyết định 5 (user chốt)
 - [x] Tự review: không placeholder, không mâu thuẫn
 
 ## Progress log
@@ -109,3 +115,11 @@ Hiện trạng trước sửa (commit `eaa3aa9`):
 - Review độc lập lượt 2 (subagent, chỉ đọc phần đổi): không P1/P2; xác nhận 5021 không thể xảy ra. P3 đã xử lý: test kỳ chưa bắt đầu không lưu (`#upcomingRoundSavesNothing`), sửa comment test sửa số đo, điều kiện ngày sinh cho Sửa hồ sơ (card child, health), câu 5020 trong HLT-01 + cách HT/PHT xử lý ở flow, CROSS_REPO_MAP liệt kê đủ 4 câu lỗi ô `date` đã bỏ và lịch sử cũ còn ô `date`, ERROR_CONTRACT ghi 5033 có thể chỉ mang ô `date`, rollback chỉ trong `createMeasurement`. Không làm: đưa `checkOpen` lên đầu (lộ trạng thái kỳ của điểm trường khác — Key decisions); `canRecord` của sổ theo lớp tại ngày kẹp (ca hiếm, ghi Known pitfalls card health); BE giả FE còn câu 5020 khác — báo người điều phối.
 - Lượt 3, sau lần sửa test cuối: `VERIFY PASS full | tests 1007 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 461s | log target/verify.log`. `node scripts/check-ai-layer.mjs` → 1 lỗi (E2 `BUG-261102` có sẵn, link FE chỉ có trên `origin/dev`), 12 cảnh báo — như trước task.
 - Tiếp: Phase 2 FE; user soát quyết định 4 (đánh đổi ngày kết thúc) và các giả định trên.
+
+### 2026-11-04 — Phần 2: kỳ cân đo tự đóng (user chốt)
+- Commit phần 1: `99b9f6e`; phần 2 commit, push lên nhánh feature (user cho phép 2026-11-04).
+- User: "Kỳ cân đo cũng sẽ tự đóng khi qua ngày kết thúc" ⇒ quyết định 4 hết hiệu lực; HLT-01 bỏ đánh đổi "ghi ngày kết thúc" và dấu chờ soát, HLT-17 phủ cả kỳ cân đo.
+- Đổi (mọi quy tắc tự đóng chỉ áp `EXAM`): truy vấn job `findByKindAnd…EndDateBefore(EXAM)` ⇒ `findByClosedAtIsNullAndCancelledAtIsNullAndEndDateBefore` (giữ khóa `PESSIMISTIC_WRITE`); lý do lịch sử theo loại; mở lại kỳ hết hạn bắt buộc `endDate` từ hôm nay như đợt khám (bỏ điều kiện `EXAM`). Không còn quy tắc chỉ-`EXAM` nào khác: sửa `endDate` khi đang diễn ra, đóng sớm, câu 5018/5030, nhãn "Hệ thống" vốn chung hai loại.
+- Quyết định: giữ `referenceDate` (chốt chặn khi job chưa chạy); không đổi câu 5018 (5030 có gợi ý "Hiệu trưởng mở lại", 5018 không — để nguyên, không thêm thay đổi cho FE); test cũ `oneUnclosedRoundPerCampusAcrossKinds` mở lại kỳ hết hạn chỉ có lý do nay vướng kiểm ngày trước ⇒ thêm `endDate` hợp lệ để vẫn kiểm điểm trường bận (5011).
+- Hệ quả khi deploy: lần khởi động đầu (và mỗi 00:00) đóng mọi kỳ cân đo đang mở đã qua ngày kết thúc, ghi trẻ chưa cân là vắng (seed dev không có đợt/kỳ).
+- Verify sau sửa cuối: `VERIFY PASS full | tests 1014 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 557s | log target/verify.log` (snapshot OpenAPI không đổi).

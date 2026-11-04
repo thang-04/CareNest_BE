@@ -111,8 +111,8 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     .flatMap(campaignRepository::findById)
                     .filter(c -> c.getKind() == HealthCheckKind.MEASUREMENT)
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_ROUND_REQUIRED));
-            // Ngày đo hệ thống ghi, GV không chọn (HLT-01): hôm nay kẹp trong kỳ; kỳ cân đo đóng tay nên qua ngày kết
-            // thúc mà chưa đóng thì ghi ngày kết thúc. Trẻ có lớp tại ngày đo nên ngày đo không trước ngày sinh
+            // Ngày đo hệ thống ghi, GV không chọn (HLT-01): ngày nhập, vì kỳ tự đóng sau ngày kết thúc (HLT-17); kẹp
+            // trong kỳ chỉ là chốt chặn khi job chưa chạy. Trẻ có lớp tại ngày đo nên ngày đo không trước ngày sinh
             LocalDate date = rules.referenceDate(round);
             ClassroomInfoResponse cls =
                     classOn(childId, date).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_IN_CLASS));

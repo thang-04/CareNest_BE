@@ -377,7 +377,7 @@ Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 l�
 | examiner | VARCHAR(150) | không | Đơn vị khám/bác sĩ; kỳ cân đo luôn rỗng (CHECK) | HLT-08 |
 | note | VARCHAR(500) | không | Ghi chú | — |
 | created_by, created_at, updated_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
-| closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Đóng: khóa kết quả, trẻ chưa có phiếu thành vắng; `closed_by` null khi hệ thống tự đóng `EXAM`. Có người đóng thì phải có `closed_at` (V67) | HLT-17 |
+| closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Đóng: khóa kết quả, trẻ chưa có kết quả (phiếu khám, số đo) thành vắng; `closed_by` null khi hệ thống tự đóng (`EXAM`, `MEASUREMENT` — HLT-17). Có người đóng thì phải có `closed_at` (V67) | HLT-17 |
 | cancelled_at | TIMESTAMPTZ | có | Hủy (chỉ khi chưa có kết quả); không đồng thời đóng | — |
 Index: UNIQUE `uk_health_check_campaigns_campus_open` (`campus_id`) WHERE chưa đóng, chưa hủy — mỗi điểm trường một đợt/kỳ chưa đóng, tính chung hai loại; `(campus_id, start_date)`.
 
@@ -405,7 +405,7 @@ Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng 
 | child_id | BIGINT FK children | không | | — |
 | campaign_id | BIGINT FK health_check_campaigns | không | Đợt/kỳ; UNIQUE `(child_id, campaign_id)` | HLT-01 |
 | classroom_id | BIGINT FK classrooms | không | Lớp của trẻ tại ngày đo (scope, báo cáo theo lớp) | HLT-09 |
-| date | DATE | không | Ngày đo do hệ thống ghi, không sửa (user chốt 2026-11-04): lần nhập đầu = hôm nay kẹp trong khoảng của đợt/kỳ (kỳ cân đo chưa đóng mà đã qua ngày kết thúc ⇒ ngày kết thúc); phiếu khám = ngày lưu lần đầu. Trong khoảng của đợt/kỳ, không ở tương lai; UNIQUE `(child_id, date)` | HLT-01, HLT-08, HLT-13 |
+| date | DATE | không | Ngày đo do hệ thống ghi, không sửa (user chốt 2026-11-04): lần nhập đầu = hôm nay kẹp trong khoảng của đợt/kỳ (đợt/kỳ tự đóng sau ngày kết thúc — HLT-17 — nên thực tế là ngày nhập); phiếu khám = ngày lưu lần đầu. Trong khoảng của đợt/kỳ, không ở tương lai; UNIQUE `(child_id, date)` | HLT-01, HLT-08, HLT-13 |
 | height_cm, weight_kg | NUMERIC(4,1) | có (chỉ phiếu khám nháp) | 40–150 cm, 3–60 kg (CHECK) | HLT-01 |
 | head_circumference_cm | NUMERIC(3,1) | có | 30–60 cm; chỉ phiếu khám ghi, khi trẻ chưa quá 60 tháng tại ngày khám. Kỳ cân đo không ghi từ 2026-11-04 (null); số đo kỳ cân đo cũ có thể còn giá trị, sửa số đo giữ nguyên | HLT-01, HLT-08 |
 | note | VARCHAR(500) | không | Ghi chú, không ghi chẩn đoán | — |

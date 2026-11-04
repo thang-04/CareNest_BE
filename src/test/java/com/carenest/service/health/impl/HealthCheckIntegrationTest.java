@@ -2,6 +2,7 @@ package com.carenest.service.health.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthCheckClassResponse;
@@ -37,6 +38,9 @@ import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -243,8 +247,10 @@ class HealthCheckIntegrationTest {
                 ApiCode.HEALTH_CHECK_CAMPUS_BUSY);
         checks.closeHealthCheck(principal, first.id());
         checks.createHealthCheck(vpA, request(HealthCheckKind.EXAM, campusA, "2026-11-20", "2026-11-21"));
+        // Kỳ đã hết hạn mở lại cần ngày kết thúc mới (HLT-17); ngày hợp lệ vẫn vướng đợt khác chưa đóng
         expectError(
-                () -> checks.reopenHealthCheck(principal, first.id(), new HealthCheckReopenRequest("Nhập bù")),
+                () -> checks.reopenHealthCheck(
+                        principal, first.id(), new HealthCheckReopenRequest("Nhập bù", LocalDate.of(2026, 11, 10))),
                 ApiCode.HEALTH_CHECK_CAMPUS_BUSY);
     }
 
@@ -335,12 +341,11 @@ class HealthCheckIntegrationTest {
     }
 
     @Test
-    @DisplayName(
-            "HLT-01: ngày đo = hôm nay kẹp trong kỳ; kỳ còn mở mà đã qua ngày kết thúc ⇒ vẫn nhập, ghi ngày kết thúc")
+    @DisplayName("HLT-01: ngày đo không vượt ngày kết thúc khi kỳ quá hạn chưa được tự đóng; trùng ngày ⇒ báo HT/PHT")
     void measurementDateIsEntryDateClampedToRound() {
         HealthCheckResponse round =
                 historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-01", "2026-11-09"));
-        // Kỳ cân đo đóng tay: hôm nay 10/11 kỳ vẫn đang diễn ra dù đã qua ngày kết thúc 09/11
+        // Chốt chặn: job tự đóng (HLT-17) chưa chạy nên kỳ quá hạn còn mở ⇒ ngày đo kẹp về ngày kết thúc 09/11
         assertThat(round.status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
         HealthMeasurementResponse late = measurements.createMeasurement(teacherA, child1, measure(round.id()));
         assertThat(late.date()).isEqualTo(LocalDate.of(2026, 11, 9));
@@ -408,7 +413,7 @@ class HealthCheckIntegrationTest {
                 () -> measurements.updateMeasurement(teacherB, child1, saved.id(), edit("97.0", "Sửa")),
                 ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
 
-        // Kỳ còn mở mà hôm nay đã qua ngày kết thúc: vẫn sửa được, ngày đo giữ nguyên
+        // Job tự đóng chưa chạy nên kỳ quá hạn còn mở: vẫn sửa được, ngày đo giữ nguyên
         testClock.setInstant(Instant.parse("2026-11-21T02:00:00Z"));
         HealthMeasurementResponse late =
                 measurements.updateMeasurement(teacherA, child1, saved.id(), edit("99.5", "Đo lại lần hai (giả)"));
@@ -417,10 +422,14 @@ class HealthCheckIntegrationTest {
         assertThat(late.edits()).hasSize(2);
     }
 
-    @Test
-    void automaticallyClosesExpiredExamAndReleasesCampusOnlyOnce() {
-        HealthCheckResponse expired =
-                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-09"));
+    @ParameterizedTest
+    @CsvSource({
+        "EXAM, Hệ thống tự đóng khi qua ngày kết thúc khám",
+        "MEASUREMENT, Hệ thống tự đóng khi qua ngày kết thúc cân đo"
+    })
+    @DisplayName("HLT-17: đợt khám, kỳ cân đo quá hạn tự đóng một lần, trẻ chưa có kết quả thành vắng, nhả điểm trường")
+    void automaticallyClosesExpiredCampaignAndReleasesCampusOnlyOnce(HealthCheckKind kind, String reason) {
+        HealthCheckResponse expired = historicalCampaign(principal, request(kind, campusA, "2026-11-07", "2026-11-09"));
 
         checks.closeExpiredHealthChecks();
         HealthCheckResponse closed = checks.getHealthCheck(vpA, expired.id()).campaign();
@@ -435,6 +444,7 @@ class HealthCheckIntegrationTest {
                 .satisfies(h -> {
                     assertThat(h.userId()).isNull();
                     assertThat(h.userName()).isEqualTo("Hệ thống");
+                    assertThat(h.reason()).isEqualTo(reason);
                 });
         assertThat(checks.getHealthCheckClass(teacherA, expired.id(), classA).canRecord())
                 .isFalse();
@@ -442,8 +452,7 @@ class HealthCheckIntegrationTest {
                 .extracting(HealthCheckClassResponse.HealthCheckChild::result)
                 .containsOnly(HealthCheckResult.ABSENT);
         expectError(
-                () -> checks.updateHealthCheck(
-                        vpA, expired.id(), request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-11")),
+                () -> checks.updateHealthCheck(vpA, expired.id(), request(kind, campusA, "2026-11-07", "2026-11-11")),
                 ApiCode.HEALTH_CHECK_ENDED);
 
         checks.closeExpiredHealthChecks();
@@ -454,34 +463,34 @@ class HealthCheckIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM health_check_absences WHERE campaign_id = ?", Long.class, expired.id()))
                 .isEqualTo(2L);
-        assertThat(checks.createHealthCheck(vpA, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-11-12"))
+        assertThat(checks.createHealthCheck(vpA, request(kind, campusA, "2026-11-10", "2026-11-12"))
                         .status())
                 .isEqualTo(HealthCheckStatus.IN_PROGRESS);
     }
 
-    @Test
-    void doesNotAutoCloseOnEndDateOrForExpiredMeasurementRound() {
-        HealthCheckResponse exam =
-                checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-11-10"));
-        HealthCheckResponse round = historicalCampaign(
-                principal, request(HealthCheckKind.MEASUREMENT, campusB, "2026-11-07", "2026-11-09"));
+    @ParameterizedTest
+    @EnumSource(HealthCheckKind.class)
+    @DisplayName("HLT-17: đợt khám, kỳ cân đo kết thúc hôm nay chưa tự đóng")
+    void doesNotAutoCloseOnEndDate(HealthCheckKind kind) {
+        HealthCheckResponse campaign =
+                checks.createHealthCheck(principal, request(kind, campusA, "2026-11-10", "2026-11-10"));
 
         checks.closeExpiredHealthChecks();
 
-        for (Long id : Set.of(exam.id(), round.id())) {
-            HealthCheckResponse unchanged = checks.getHealthCheck(principal, id).campaign();
-            assertThat(unchanged.status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
-            assertThat(unchanged.closedAt()).isNull();
-            assertThat(unchanged.history()).hasSize(1);
-        }
+        HealthCheckResponse unchanged =
+                checks.getHealthCheck(principal, campaign.id()).campaign();
+        assertThat(unchanged.status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
+        assertThat(unchanged.closedAt()).isNull();
+        assertThat(unchanged.history()).hasSize(1);
     }
 
-    @Test
-    void doesNotTouchCancelledOrManuallyClosedExam() {
+    @ParameterizedTest
+    @EnumSource(HealthCheckKind.class)
+    @DisplayName("HLT-17: không đụng đợt khám, kỳ cân đo đã hủy hoặc đã đóng tay (đóng sớm vẫn được)")
+    void doesNotTouchCancelledOrManuallyClosedCampaign(HealthCheckKind kind) {
         HealthCheckResponse cancelled =
-                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-09"));
-        HealthCheckResponse closed =
-                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusB, "2026-11-07", "2026-11-09"));
+                historicalCampaign(principal, request(kind, campusA, "2026-11-07", "2026-11-09"));
+        HealthCheckResponse closed = historicalCampaign(principal, request(kind, campusB, "2026-11-07", "2026-11-09"));
         checks.cancelHealthCheck(principal, cancelled.id());
         HealthCheckResponse manual =
                 checks.closeHealthCheck(principal, closed.id()).campaign();
@@ -502,10 +511,11 @@ class HealthCheckIntegrationTest {
         assertThat(manualAfter.history()).isEqualTo(manual.history());
     }
 
-    @Test
-    void reopenedExamClosesAgainAfterItsNewEndDate() {
-        HealthCheckResponse expired =
-                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-09"));
+    @ParameterizedTest
+    @EnumSource(HealthCheckKind.class)
+    @DisplayName("HLT-17: đợt khám, kỳ cân đo mở lại với ngày kết thúc mới lại tự đóng sau ngày đó")
+    void reopenedCampaignClosesAgainAfterItsNewEndDate(HealthCheckKind kind) {
+        HealthCheckResponse expired = historicalCampaign(principal, request(kind, campusA, "2026-11-07", "2026-11-09"));
         checks.closeExpiredHealthChecks();
         checks.reopenHealthCheck(
                 vpA, expired.id(), new HealthCheckReopenRequest("Nhập bù cho trẻ vắng", LocalDate.of(2026, 11, 10)));
@@ -540,10 +550,11 @@ class HealthCheckIntegrationTest {
                         HealthCheckAction.CLOSED);
     }
 
-    @Test
-    void reopeningExpiredExamRequiresAnEndDateFromToday() {
-        HealthCheckResponse expired =
-                historicalCampaign(principal, request(HealthCheckKind.EXAM, campusA, "2026-11-07", "2026-11-09"));
+    @ParameterizedTest
+    @EnumSource(HealthCheckKind.class)
+    @DisplayName("HLT-17: mở lại đợt khám, kỳ cân đo đã hết hạn bắt buộc ngày kết thúc mới từ hôm nay")
+    void reopeningExpiredCampaignRequiresAnEndDateFromToday(HealthCheckKind kind) {
+        HealthCheckResponse expired = historicalCampaign(principal, request(kind, campusA, "2026-11-07", "2026-11-09"));
         checks.closeExpiredHealthChecks();
 
         for (HealthCheckReopenRequest invalid : new HealthCheckReopenRequest[] {
@@ -553,11 +564,72 @@ class HealthCheckIntegrationTest {
                     .isInstanceOfSatisfying(GlobalException.class, ex -> {
                         assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
                         assertThat(ex.getFieldErrors())
-                                .extracting(com.carenest.dto.common.FieldErrorResponse::field)
-                                .contains("endDate");
+                                .extracting(
+                                        com.carenest.dto.common.FieldErrorResponse::field,
+                                        com.carenest.dto.common.FieldErrorResponse::message)
+                                .containsExactly(tuple("endDate", "Chọn ngày kết thúc mới từ hôm nay"));
                     });
         }
         assertThat(checks.getHealthCheck(vpA, expired.id()).campaign().status()).isEqualTo(HealthCheckStatus.CLOSED);
+
+        HealthCheckResponse reopened = checks.reopenHealthCheck(
+                vpA, expired.id(), new HealthCheckReopenRequest("Nhập bù", LocalDate.of(2026, 11, 10)));
+        assertThat(reopened.status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
+        assertThat(reopened.endDate()).isEqualTo(LocalDate.of(2026, 11, 10));
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-17: kỳ cân đo tự đóng sau ngày kết thúc ⇒ trẻ chưa cân thành vắng, không nhập, không sửa số đo (5018)")
+    void expiredMeasurementRoundClosesAndRejectsEntry() {
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-01", "2026-11-09"));
+        // An cân ngày 09/11, ngày cuối của kỳ
+        testClock.setInstant(Instant.parse("2026-11-09T02:00:00Z"));
+        HealthMeasurementResponse saved = measurements.createMeasurement(teacherA, child1, measure(round.id()));
+        assertThat(saved.date()).isEqualTo(LocalDate.of(2026, 11, 9));
+        testClock.setInstant(Instant.parse("2026-11-10T02:00:00Z"));
+
+        checks.closeExpiredHealthChecks();
+
+        HealthCheckResponse closed = checks.getHealthCheck(vpA, round.id()).campaign();
+        assertThat(closed.status()).isEqualTo(HealthCheckStatus.CLOSED);
+        assertThat(closed.progress().recorded()).isEqualTo(1);
+        assertThat(closed.progress().absent()).isEqualTo(1);
+        assertThat(checks.getHealthCheckClass(teacherA, round.id(), classA).children())
+                .extracting(
+                        HealthCheckClassResponse.HealthCheckChild::childId,
+                        HealthCheckClassResponse.HealthCheckChild::result)
+                .containsExactlyInAnyOrder(
+                        tuple(child1, HealthCheckResult.RECORDED), tuple(child2, HealthCheckResult.ABSENT));
+        expectError(
+                () -> measurements.createMeasurement(teacherA, child2, measure(round.id())),
+                ApiCode.HEALTH_ROUND_NOT_OPEN);
+        expectError(
+                () -> measurements.updateMeasurement(teacherA, child1, saved.id(), edit("99.0", "Đo lại (giả)")),
+                ApiCode.HEALTH_ROUND_NOT_OPEN);
+        assertThat(measurements.getHealthRecord(teacherA, child1).openCampaign())
+                .isNull();
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-17: kỳ cân đo kết thúc hôm nay vẫn nhập được, ngày đo là hôm nay; qua 00:00 giờ trường thì tự đóng")
+    void measurementRoundEndingTodayAcceptsEntryUntilMidnight() {
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-01", "2026-11-10"));
+        checks.closeExpiredHealthChecks();
+
+        HealthMeasurementResponse saved = measurements.createMeasurement(teacherA, child1, measure(round.id()));
+        assertThat(saved.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+
+        // 00:00 ngày 11/11 ở trường; ngày UTC vẫn là 10/11
+        testClock.setInstant(Instant.parse("2026-11-10T17:00:00Z"));
+        checks.closeExpiredHealthChecks();
+        assertThat(checks.getHealthCheck(vpA, round.id()).campaign().status()).isEqualTo(HealthCheckStatus.CLOSED);
+        expectError(
+                () -> measurements.createMeasurement(teacherA, child2, measure(round.id())),
+                ApiCode.HEALTH_ROUND_NOT_OPEN);
     }
 
     // Đợt lịch sử là dữ liệu đã có; API tạo mới chỉ nhận ngày từ hôm nay.
