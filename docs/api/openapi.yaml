@@ -3219,6 +3219,30 @@ paths:
           description: Created
       tags:
       - health-check-controller
+  /api/health-checks/growth-report:
+    get:
+      operationId: getGrowthReport
+      parameters:
+      - in: query
+        name: month
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthGrowthReportResponse"
+          description: OK
+      tags:
+      - health-check-controller
   /api/health-checks/schedule-warnings:
     get:
       operationId: getScheduleWarnings
@@ -10786,6 +10810,122 @@ components:
           type: number
         temperatureStatus:
           type: string
+    HealthGrowthCampaign:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+        name:
+          type: string
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+          - UPCOMING
+          - IN_PROGRESS
+          - CLOSED
+          - CANCELLED
+    HealthGrowthCampus:
+      type: object
+      properties:
+        campaigns:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthGrowthCampaign"
+        campusId:
+          type: integer
+          format: int64
+        campusName:
+          type: string
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthGrowthClass"
+        nursery:
+          $ref: "#/components/schemas/HealthGrowthCounts"
+        preschool:
+          $ref: "#/components/schemas/HealthGrowthCounts"
+        total:
+          $ref: "#/components/schemas/HealthGrowthCounts"
+    HealthGrowthClass:
+      type: object
+      properties:
+        ageGroupName:
+          type: string
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        counts:
+          $ref: "#/components/schemas/HealthGrowthCounts"
+        level:
+          type: string
+          enum:
+          - PRESCHOOL
+          - NURSERY
+    HealthGrowthCounts:
+      type: object
+      properties:
+        bmiNormal:
+          type: integer
+          format: int32
+        enrolled:
+          type: integer
+          format: int32
+        heightNormal:
+          type: integer
+          format: int32
+        measured:
+          type: integer
+          format: int32
+        obese:
+          type: integer
+          format: int32
+        overweight:
+          type: integer
+          format: int32
+        stunted:
+          type: integer
+          format: int32
+        unclassified:
+          type: integer
+          format: int32
+        underweight:
+          type: integer
+          format: int32
+        wasted:
+          type: integer
+          format: int32
+        weightNormal:
+          type: integer
+          format: int32
+    HealthGrowthReportResponse:
+      type: object
+      properties:
+        campuses:
+          type: array
+          items:
+            $ref: "#/components/schemas/HealthGrowthCampus"
+        month:
+          type: string
+        nursery:
+          $ref: "#/components/schemas/HealthGrowthCounts"
+        preschool:
+          $ref: "#/components/schemas/HealthGrowthCounts"
+        total:
+          $ref: "#/components/schemas/HealthGrowthCounts"
     HealthLatestBmi:
       type: object
       properties:
@@ -13863,6 +14003,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/HealthExamReviewResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthGrowthReportResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthGrowthReportResponse"
         desc:
           type: string
         errorCode:

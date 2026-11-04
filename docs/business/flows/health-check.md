@@ -101,6 +101,22 @@ Nguồn: user, 2026-11-01 (HLT-17, chưa có xác nhận trường/team); user c
     Tính khi đọc; không phiếu, không hạn, không nhắc
 ```
 
+## Báo cáo tổng hợp tăng trưởng theo tháng (HLT-20, mẫu 5.1)
+
+```text
+[B] HT (mọi điểm trường, lọc được) / PHT (điểm trường được phân công) chọn tháng
+[S] Đợt khám, kỳ cân đo chưa hủy có ngày bắt đầu trong tháng; điểm trường không có ⇒ vẫn hiện, số 0
+    (điểm trường ngừng hoạt động không có đợt/kỳ ⇒ ẩn, trừ khi lọc đúng điểm trường đó)
+[S] Trẻ theo danh sách lớp của đợt/kỳ (như màn đợt/kỳ), hợp theo trẻ trong điểm trường
+    Được cân đo = số đo kỳ cân đo hoặc phiếu khám đã kết luận; nhiều lần ⇒ lần mới nhất; vắng, nháp không tính
+[S] Xếp cân nặng/tuổi, chiều cao/tuổi, BMI/tuổi chuẩn WHO (HLT-03, HLT-18), tuổi tháng tròn 0–84
+    PTBT/SDDNC, PTBT/SDDTC (< −2SD); BT (gồm nguy cơ thừa cân)/gầy còm/thừa cân/béo phì; ngoài tuổi ⇒ chưa xếp được
+[S] Lớp: MG theo nhóm tuổi lớn trước, NT, lớp chưa có nhóm tuổi; Tổng MG, Tổng NT, tổng điểm trường, toàn trường
+[B] Client tính tỷ lệ %, in/xuất bảng
+```
+
+Tính khi đọc, không lưu, không đổi sổ sức khỏe. Nguồn: user yêu cầu 2026-11-04 (mở lại báo cáo 5.1 hoãn 2026-10-31); quy tắc đếm theo brief người điều phối cùng ngày.
+
 Phiếu theo dõi sức khỏe (HLT-16) đã bỏ ngày 2026-11-04: dữ liệu cũ (`health_follow_ups`, `health_follow_up_events`, `health_follow_up_images`) giữ trong DB, không còn API/màn hình. Phiếu khám đã kết luận theo mẫu theo dõi cũ vẫn xem, sửa được theo mẫu đó.
 
 Dị ứng không thuộc module này (thuộc child — HLT-06).

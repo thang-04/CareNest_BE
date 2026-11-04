@@ -1,5 +1,11 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Báo cáo tổng hợp tăng trưởng theo tháng, mẫu 5.1 (HLT-20) — 2026-11-04
+
+- Nguồn user 2026-11-04: HT (mọi điểm trường), PHT (điểm trường được phân công) xem bảng 5.1 theo tháng; quy tắc đếm theo brief người điều phối cùng ngày. Plan `docs/plans/active/2026-11-04-health-growth-report.md`, bằng chứng chi tiết `specs/011-health-growth-report/quickstart.md`.
+- Sau sửa source/test cuối: `VERIFY PASS full | tests 1055 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 477s | log target/verify.log`. Snapshot OpenAPI chỉ thêm path `/api/health-checks/growth-report` và schema `HealthGrowth*`; không đổi API cũ, không migration. Consumer FE: agent FE làm màn báo cáo với BE giả; APP không gọi.
+- Testcontainers chạy thật (skip 0): phạm vi HT/PHT, 403/404, tháng không có đợt/kỳ, phiếu khám kết luận tính, nháp/vắng không tính, `unclassified`, thứ tự lớp, tổng MG/NT/điểm trường/toàn trường, trẻ chuyển lớp, điểm trường ngừng hoạt động. Review độc lập 1 lượt (subagent, chỉ đọc): không P1/P2, P3 đã sửa trừ hiệu năng (chấp nhận). Chưa chạy Web nối BE thật; không commit/push.
+
 ## Kỳ cân đo tự đóng như đợt khám (HLT-17) — 2026-11-04
 
 - Nguồn user 2026-11-04: "Kỳ cân đo cũng sẽ tự đóng khi qua ngày kết thúc". Job tự đóng mọi loại, lý do lịch sử theo loại, mở lại kỳ hết hạn bắt buộc ngày kết thúc mới; plan `docs/plans/active/2026-11-04-intake-weeks-round-dates.md` (phần 2).

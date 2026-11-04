@@ -84,6 +84,15 @@ User chốt 2026-11-04: "Kỳ cân đo cũng sẽ tự đóng khi qua ngày kế
 - Đóng sớm bằng tay giữ cho cả hai loại. Sửa `endDate` của đợt/kỳ đang diễn ra về trước hôm nay ⇒ lần chạy job kế tiếp tự đóng.
 - FE: BE giả và màn chi tiết đợt/kỳ (tự đóng kỳ cân đo, ô ngày kết thúc mới khi mở lại kỳ hết hạn, người đóng "Hệ thống", lý do lịch sử) — agent FE làm song song. APP: không gọi.
 
+## Báo cáo tổng hợp tăng trưởng mẫu 5.1 (HLT-20) — 04/11/2026
+
+User yêu cầu 2026-11-04. API mới, không đổi API cũ; snapshot thêm path `/api/health-checks/growth-report` và schema `HealthGrowthReportResponse`, `HealthGrowthCampus`, `HealthGrowthCampaign`, `HealthGrowthClass`, `HealthGrowthCounts`. Contract đủ: `specs/011-health-growth-report/contracts/health-growth-report.md`; plan `docs/plans/active/2026-11-04-health-growth-report.md`.
+- `GET /health-checks/growth-report?month=yyyy-MM[&campusId=]`, vai trò HT/PHT (GV ⇒ 403 1101). `month` thiếu/sai dạng ⇒ 400 9002. PHT `campusId` ngoài phân công (kể cả id không tồn tại) ⇒ 403 5010; HT `campusId` không có ⇒ 404 2103.
+- `data`: `{ month, campuses[{ campusId, campusName, campaigns[{id, name, kind, status, startDate, endDate}], classes[{classId, className, ageGroupName, level: PRESCHOOL|NURSERY|null, counts}], preschool, nursery, total }], preschool, nursery, total }`; `counts` = `{ enrolled, measured, weightNormal, underweight, heightNormal, stunted, bmiNormal, wasted, overweight, obese, unclassified }` (số nguyên). Điểm trường không có đợt/kỳ trong tháng: `campaigns`, `classes` rỗng, mọi số 0 ⇒ FE hiện "chưa có kỳ cân đo" (điểm trường ngừng hoạt động không có đợt/kỳ thì BE ẩn, trừ khi lọc đúng nó). Thứ tự lớp đã sắp ở BE; `total` ngoài cùng = cộng các điểm trường.
+- Ánh xạ cột mẫu 5.1: TS trẻ = `enrolled`, TS được cân đo = `measured`; cân nặng PTBT = `weightNormal`, SDDNC = `underweight`; chiều cao PTBT = `heightNormal`, SDDTC = `stunted`; BMI BT = `bmiNormal` (gồm nguy cơ thừa cân), SDD thể GC = `wasted`, thừa cân = `overweight`, béo phì = `obese` (cột "cân nặng/chiều cao" của mẫu tính bằng BMI/tuổi WHO — giả định chờ trường xác nhận). Tỷ lệ % FE tính (vd. chia cho `measured`); `unclassified` (trẻ ngoài 0–84 tháng, thiếu ngày sinh/giới tính) không có cột trong mẫu, FE ghi chú khi > 0.
+- Bảng WHO cho BE giả FE: `src/main/resources/health/who-weight-for-age.csv`, `who-height-for-age.csv` (cùng định dạng `who-bmi-for-age.csv`). W/A giới hạn đuôi ngoài ±3SD, H/A công thức thường; z làm tròn 2 chữ số.
+- FE: màn báo cáo mới và BE giả — agent FE làm song song. APP: không gọi.
+
 ## Nhận xét chung lớp — 29/10/2026
 
 - GET daily-assessment thêm `classComment` (classId, date, text, recordedBy, recordedByName, updatedAt).
