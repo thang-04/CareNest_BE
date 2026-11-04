@@ -266,7 +266,6 @@ class HealthExamIntegrationTest {
             assertThat(latest.followUpLevel()).isEqualTo(HealthFollowUpLevel.CLOSE_WATCH);
             assertThat(latest.conclusionCategory()).isEqualTo(HealthConclusionCategory.REFERRAL);
             assertThat(latest.conclusion().specialty()).isEqualTo("Mắt");
-            assertThat(latest.knownCondition()).isNull();
         });
         assertThat(record.latestBmi()).isNull();
         // Không có phiếu, không có việc GV phải xử lý; tiền sử chỉ ghi từ phiếu khám
@@ -310,8 +309,8 @@ class HealthExamIntegrationTest {
 
     @Test
     @DisplayName(
-            "HLT-10: vấn đề đã biết lấy từ tiền sử bản thân đã khai báo ⇒ kết luận mức ổn định, lần khám sau hỏi lại")
-    void declaredHistoryMakesAKnownStableConclusion() {
+            "HLT-10: phiếu không hỏi vấn đề mới hay đã biết ⇒ có vấn đề là cần theo dõi; phiếu cũ đã trả lời giữ mức")
+    void healthIssueIsWatchedWithoutAskingIfKnown() {
         jdbc.update(
                 "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state, "
                         + "self_history_state, self_history_text, family_history_state, tb_contact_state, declared_by) "
@@ -320,23 +319,34 @@ class HealthExamIntegrationTest {
                 child1,
                 principal.userId());
         long campaign = examCampaign(campusA);
-        assertThat(exams.getExam(teacherA, campaign, child1).knownCondition()).isEqualTo("Hen suyễn (giả)");
-        assertThat(exams.getExam(teacherA, campaign, child2).knownCondition()).isNull();
-
+        // Trẻ có tiền sử đã khai, phiếu vẫn lưu được mà không chọn mới hay đã biết; gửi kèm "KNOWN" cũng bị bỏ
         HealthExamForm asthma = withHistory(
-                exam("NO", null, knownIssue("")),
-                new HealthExamForm.HealthExamHistory("YES", "Hen suyễn (giả)", "NO", "", "NO", null));
-        expectError(
-                () -> exams.saveExam(teacherA, campaign, child1, save(asthma, true, "")),
-                ApiCode.HEALTH_EXAM_INCOMPLETE);
-        HealthExamForm known = withHistory(
                 exam("NO", null, knownIssue("KNOWN")),
                 new HealthExamForm.HealthExamHistory("YES", "Hen suyễn (giả)", "NO", "", "NO", null));
-        HealthExamResponse concluded = exams.saveExam(teacherA, campaign, child1, save(known, true, ""));
-        assertThat(concluded.measurement().followUpLevel()).isEqualTo(HealthFollowUpLevel.KNOWN_STABLE);
-        assertThat(measurements.getHealthRecord(teacherA, child1).latestExam().knownCondition())
-                .isEqualTo("Hen suyễn tái phát nhẹ (giả)");
-        assertThat(checks.getHealthCheck(vpA, campaign).watchList()).isEmpty();
+        HealthExamResponse concluded = exams.saveExam(teacherA, campaign, child1, save(asthma, true, ""));
+        assertThat(concluded.measurement().followUpLevel()).isEqualTo(HealthFollowUpLevel.WATCH);
+        assertThat(concluded.measurement().exam().conclusion().issueKind()).isEmpty();
+        assertThat(checks.getHealthCheck(vpA, campaign).watchList())
+                .extracting(HealthCheckClassResponse.HealthCheckChild::childId)
+                .containsExactly(child1);
+
+        // Dữ liệu cũ: phiếu đã trả lời "vấn đề đã biết" giữ mức ổn định khi sửa
+        long id = concluded.measurement().id();
+        entityManager.flush();
+        jdbc.update(
+                "UPDATE health_measurements SET exam = jsonb_set(exam, '{conclusion,issueKind}', '\"KNOWN\"') "
+                        + "WHERE id = ?",
+                id);
+        entityManager.clear();
+        HealthExamResponse legacy = exams.getExam(teacherA, campaign, child1);
+        assertThat(legacy.measurement().followUpLevel()).isEqualTo(HealthFollowUpLevel.KNOWN_STABLE);
+        HealthExamResponse edited = exams.saveExam(
+                teacherA,
+                campaign,
+                child1,
+                save(withVitals(legacy.measurement().exam(), feverVitals()), true, "Sửa nhiệt độ (giả)"));
+        assertThat(edited.measurement().followUpLevel()).isEqualTo(HealthFollowUpLevel.KNOWN_STABLE);
+        assertThat(edited.measurement().exam().conclusion().issueKind()).isEqualTo("KNOWN");
     }
 
     @Test

@@ -16,7 +16,6 @@ import static com.carenest.service.health.impl.HealthExamCatalog.FOLLOW_UP_FINDI
 import static com.carenest.service.health.impl.HealthExamCatalog.HEAD_STATUS_OPTIONS;
 import static com.carenest.service.health.impl.HealthExamCatalog.HISTORY_ITEMS;
 import static com.carenest.service.health.impl.HealthExamCatalog.IMMUNIZATION_ITEMS;
-import static com.carenest.service.health.impl.HealthExamCatalog.ISSUE_KIND_OPTIONS;
 import static com.carenest.service.health.impl.HealthExamCatalog.NORMAL;
 import static com.carenest.service.health.impl.HealthExamCatalog.NO_YES;
 import static com.carenest.service.health.impl.HealthExamCatalog.NUTRITION_STATUS_OPTIONS;
@@ -58,8 +57,7 @@ final class HealthExamValidator {
 
     /**
      * {@code exam} đã chuẩn hóa ({@link HealthExamNormalizer}); số đo lấy theo body, chưa làm tròn.
-     * {@code alreadyConcluded}: sửa phiếu đã kết luận ⇒ bắt buộc lý do. {@code hasKnownCondition}: trẻ có vấn đề đã
-     * biết ⇒ mẫu STANDARD hỏi "vấn đề mới hay đã biết".
+     * {@code alreadyConcluded}: sửa phiếu đã kết luận ⇒ bắt buộc lý do.
      */
     record Input(
             HealthExamForm exam,
@@ -75,8 +73,7 @@ final class HealthExamValidator {
             LocalDate dateOfBirth,
             LocalDate campaignStart,
             LocalDate campaignEnd,
-            int guardianCount,
-            boolean hasKnownCondition) {}
+            int guardianCount) {}
 
     private HealthExamValidator() {}
 
@@ -179,7 +176,7 @@ final class HealthExamValidator {
         if (in.mode() == HealthConclusionMode.FOLLOW_UP) {
             checkFollowUpConclusion(errors, c);
         } else {
-            checkStandardConclusion(errors, c, in.hasKnownCondition());
+            checkStandardConclusion(errors, c);
         }
         if (isBlank(c.doctorName())) {
             errors.putIfAbsent("exam.conclusion.doctorName", "Nhập họ tên bác sĩ kết luận");
@@ -317,8 +314,7 @@ final class HealthExamValidator {
         checkLength(errors, "exam.conclusion.specialty", c.specialty(), SPECIALTY);
     }
 
-    private static void checkStandardConclusion(
-            Map<String, String> errors, HealthExamConclusion c, boolean hasKnownCondition) {
+    private static void checkStandardConclusion(Map<String, String> errors, HealthExamConclusion c) {
         if (!c.normal() && !c.tbRisk() && !c.healthIssue()) {
             errors.putIfAbsent("exam.conclusion.flags", "Chọn kết luận của bác sĩ");
         } else if (c.normal() && (c.tbRisk() || c.healthIssue())) {
@@ -336,14 +332,8 @@ final class HealthExamValidator {
                     "exam.conclusion.action",
                     "Có nguy cơ lao hoặc có vấn đề sức khỏe: chọn Tư vấn hoặc Chuyển khám chuyên khoa");
         }
-        // Trẻ có vấn đề đã biết, lần này có vấn đề mà không chuyển khám, không nguy cơ lao: bác sĩ nói mới hay đã biết
-        if (hasKnownCondition
-                && c.healthIssue()
-                && !c.tbRisk()
-                && !ACTION_REFERRAL.equals(action)
-                && find(ISSUE_KIND_OPTIONS, c.issueKind()) == null) {
-            errors.putIfAbsent("exam.conclusion.issueKind", "Chọn vấn đề mới hay vấn đề đã biết");
-        }
+        // Phiếu không còn hỏi "vấn đề mới hay đã biết" (user bỏ 2026-11-04); phiếu cũ giữ câu trả lời đã lưu
+        // (normalizer)
         if (ACTION_ADVICE.equals(action) && isBlank(c.adviceText())) {
             errors.putIfAbsent("exam.conclusion.adviceText", "Ghi lời tư vấn của bác sĩ");
         }

@@ -14,14 +14,12 @@ import java.util.List;
  *
  * @param conclusionMode mẫu kết luận: STANDARD; FOLLOW_UP chỉ còn ở phiếu đã kết luận theo mẫu phiếu theo dõi cũ (HLT-16
  *     đã bỏ)
- * @param knownCondition vấn đề đã biết của trẻ (lần khám gần nhất mức "ổn định"), để hỏi vấn đề mới hay đã biết
  * @param doctorNames tên bác sĩ đã ghi trong đợt, để chọn nhanh
  * @param canEdit GV lớp, đợt đang diễn ra
  * @param locked đợt không còn diễn ra (đã đóng, đã hủy, chưa bắt đầu)
  */
 public record HealthExamResponse(
         HealthConclusionMode conclusionMode,
-        String knownCondition,
         HealthExamCampaign campaign,
         HealthExamChild child,
         HealthMeasurementResponse measurement,

@@ -61,7 +61,7 @@ Rule: HLT-16 REMOVED, HLT-18 (mức BMI WHO), HLT-19 (cảnh báo ở sổ sức
 - Bỏ endpoint `/health-follow-ups/**` và mã lỗi 5035–5039; message 5032 đổi.
 - `GET /children/{id}/health`: bỏ `latestHealth`, `openFollowUp`, `externalResults`; thêm `latestExam`, `latestBmi`. Mỗi lần đo bỏ `followUpId`, `followUpEffect`, `parentContact`; thêm `bmiStatus`, `bmiZScore` (chỉ số đo kỳ cân đo).
 - `/health-checks`: đợt/kỳ bỏ `waitingFollowUpCount`, `overdueFollowUpCount`, thêm `progress.bmi`; chi tiết thêm `classes[].bmiWarning`, `watchList` gồm trẻ có BMI khác bình thường ở kỳ cân đo; dòng trẻ bỏ `followUp`, thêm `bmi`, `bmiStatus`; đóng đợt bỏ `waitingFollowUpCount`.
-- Phiếu khám: bỏ `openFollowUp`, `latestExternalResult`; `conclusionMode` = FOLLOW_UP chỉ với phiếu cũ đã kết luận theo mẫu đó.
+- Phiếu khám: bỏ `openFollowUp`, `latestExternalResult`, `knownCondition` (bỏ câu "vấn đề mới hay đã biết" cùng ngày; `latestExam` cũng bỏ `knownCondition`); `conclusionMode` = FOLLOW_UP chỉ với phiếu cũ đã kết luận theo mẫu đó.
 - FE: module sức khỏe chạy BE giả (`integrationModules.js` `children: demo`); mock và màn hình sổ sức khỏe, đợt/kỳ, phiếu khám cập nhật cùng ngày theo plan FE `docs/plans/active/2026-11-04-health-warnings-book.md`. APP: chưa gọi API sức khỏe (dữ liệu giả); khi nối, `HealthSummary.nutritionLabel`/`MeasureResult` lấy từ `bmiStatus`.
 
 ## Nhận xét chung lớp — 29/10/2026

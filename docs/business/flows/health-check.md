@@ -73,8 +73,8 @@ Nguồn: user, 2026-11-01 (HLT-17, chưa có xác nhận trường/team). Job ch
 [S] "Điểm cần bác sĩ xem lại" (gợi ý theo tuổi, không phải kết luận)
 [B] GV nhập kết luận của bác sĩ ⇒ [S] kiểm đủ phiếu, công bố, mức theo dõi theo kết luận (HLT-10, HLT-11)
 [S] Tiền sử ghi ngược về khai báo sức khỏe                                      (HLT-06)
-    ├─ bình thường / vấn đề sức khỏe ⇒ mức NONE / WATCH (vấn đề đã biết: KNOWN_STABLE;
-    │   "đã biết" = tiền sử bản thân đã khai báo hoặc lần khám gần nhất ở mức ổn định)
+    ├─ bình thường / vấn đề sức khỏe ⇒ mức NONE / WATCH (không hỏi vấn đề mới hay đã biết — bỏ 2026-11-04;
+    │   KNOWN_STABLE chỉ còn ở phiếu cũ đã trả lời "đã biết")
     └─ chuyển khám chuyên khoa / nguy cơ lao ⇒ CLOSE_WATCH                      (HLT-10)
 [S] Kết luận là cảnh báo ở sổ sức khỏe; không mở phiếu, không việc GV phải xử lý (HLT-19, bỏ HLT-16 2026-11-04)
 [S] Sửa phiếu đã kết luận ⇒ bắt buộc lý do, lưu các ô đổi, công bố lại        (HLT-13, HLT-11)

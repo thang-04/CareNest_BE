@@ -35,11 +35,7 @@ public record ChildHealthRecordResponse(
             Long resultMeasurementId,
             String resultStatus) {}
 
-    /**
-     * Lần khám gần nhất có kết luận bác sĩ (HLT-10): mức theo dõi, nhóm kết luận, kết luận rút gọn.
-     *
-     * @param knownCondition vấn đề đã biết khi mức là "ổn định", để phiếu khám sau hỏi vấn đề mới hay đã biết
-     */
+    /** Lần khám gần nhất có kết luận bác sĩ (HLT-10): mức theo dõi, nhóm kết luận, kết luận rút gọn. */
     public record HealthLatestExam(
             Long measurementId,
             Long campaignId,
@@ -47,8 +43,7 @@ public record ChildHealthRecordResponse(
             LocalDate date,
             HealthFollowUpLevel followUpLevel,
             HealthConclusionCategory conclusionCategory,
-            HealthMeasurementResponse.HealthConclusionBrief conclusion,
-            String knownCondition) {}
+            HealthMeasurementResponse.HealthConclusionBrief conclusion) {}
 
     /** Lần đo gần nhất trong kỳ cân đo có mức BMI theo tuổi (HLT-18). */
     public record HealthLatestBmi(

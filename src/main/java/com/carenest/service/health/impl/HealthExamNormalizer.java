@@ -48,10 +48,11 @@ final class HealthExamNormalizer {
 
     /**
      * {@code raw} null hoặc thiếu phần/ô ⇒ ô trống ({@code ""}, null, false, danh sách rỗng), không lấy giá trị mặc
-     * định của phiếu mới. {@code hasKnownCondition}: trẻ có vấn đề đã biết (mẫu STANDARD hỏi "mới hay đã biết").
+     * định của phiếu mới. {@code keepsIssueKind}: phiếu cũ đã kết luận có câu trả lời "vấn đề mới hay đã biết" ⇒ giữ khi
+     * sửa; phiếu mới không còn câu này (user bỏ 2026-11-04).
      */
     static HealthExamForm normalize(
-            HealthExamForm raw, HealthConclusionMode mode, HealthExamReference reference, boolean hasKnownCondition) {
+            HealthExamForm raw, HealthConclusionMode mode, HealthExamReference reference, boolean keepsIssueKind) {
         HealthExamForm r = raw == null ? new HealthExamForm(null, null, null, null, null, null, null, null, null) : raw;
         boolean headApplies = reference == null || reference.headApplies();
         boolean autismQuestion = reference != null && reference.autismQuestion();
@@ -65,7 +66,7 @@ final class HealthExamNormalizer {
                 development(r.development(), autismQuestion),
                 immunization(r.immunization()),
                 clinical(r.clinical()),
-                conclusion(r.conclusion(), mode, hasKnownCondition, admin.hasCompanion()));
+                conclusion(r.conclusion(), mode, keepsIssueKind, admin.hasCompanion()));
     }
 
     /**
@@ -251,7 +252,7 @@ final class HealthExamNormalizer {
 
     /** Kết luận chỉ giữ ô của mẫu đang dùng. */
     private static HealthExamConclusion conclusion(
-            HealthExamConclusion raw, HealthConclusionMode mode, boolean hasKnownCondition, String hasCompanion) {
+            HealthExamConclusion raw, HealthConclusionMode mode, boolean keepsIssueKind, String hasCompanion) {
         HealthExamConclusion c = raw == null
                 ? new HealthExamConclusion(false, false, false, null, null, null, null, null, null, null, null)
                 : raw;
@@ -278,13 +279,13 @@ final class HealthExamNormalizer {
                     needsOpinion(hasCompanion, mode, tbRisk, "") ? parentOpinion : "");
         }
         String action = choice("exam.conclusion.action", c.action());
-        // "Mới hay đã biết" chỉ hỏi trẻ có vấn đề đã biết, lần này có vấn đề, không chuyển khám, không nguy cơ lao
-        boolean asksKind = hasKnownCondition && c.healthIssue() && !tbRisk && !ACTION_REFERRAL.equals(action);
+        // "Mới hay đã biết" chỉ còn ở phiếu cũ đã trả lời, khi vẫn có vấn đề, không chuyển khám, không nguy cơ lao
+        boolean keepsKind = keepsIssueKind && c.healthIssue() && !tbRisk && !ACTION_REFERRAL.equals(action);
         return new HealthExamConclusion(
                 c.normal(),
                 tbRisk,
                 c.healthIssue(),
-                asksKind ? choice("exam.conclusion.issueKind", c.issueKind()) : "",
+                keepsKind ? choice("exam.conclusion.issueKind", c.issueKind()) : "",
                 "",
                 action,
                 issueText,

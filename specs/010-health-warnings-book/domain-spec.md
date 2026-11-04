@@ -45,6 +45,6 @@ AC-1..AC-5 trong plan quản trị (mức BMI, tính lại khi sửa, kết lu�
 Cảnh báo sức khỏe; mức BMI theo tuổi; z-score; gầy còm (thinness/wasting); nguy cơ thừa cân (possible risk of overweight); trẻ cần chú ý. Xem `docs/context/GLOSSARY.md`.
 
 ## 14. Assumptions & Open Questions
-- Giả định (agent, chờ user soát): có mức "nguy cơ thừa cân" cho trẻ đến 60 tháng; giữ bảng phiếu cũ thay vì xóa; mức theo dõi hiện tại chỉ từ lần khám gần nhất (bỏ xét phiếu đã đóng); `watchList` kỳ cân đo = trẻ BMI khác bình thường; "vấn đề đã biết" lấy từ lần khám mức ổn định hoặc tiền sử bản thân đã khai báo; z-score làm tròn 2 chữ số trước khi xếp mức.
+- Giả định (agent, chờ user soát): có mức "nguy cơ thừa cân" cho trẻ đến 60 tháng; giữ bảng phiếu cũ thay vì xóa; mức theo dõi hiện tại chỉ từ lần khám gần nhất (bỏ xét phiếu đã đóng); `watchList` kỳ cân đo = trẻ BMI khác bình thường; không còn câu "vấn đề mới hay đã biết" (user bỏ 2026-11-04, phiếu cũ giữ câu trả lời); z-score làm tròn 2 chữ số trước khi xếp mức.
 - Mở: P-40 (điều chỉnh tay mức BMI, kèm lý do).
 - Constitution: clone này không có `.specify/memory/constitution.md`; áp nguyên tắc AGENTS.md.

@@ -11,3 +11,6 @@
 - Chưa chạy UI Web nối BE thật (module sức khỏe Web vẫn dùng BE giả `children: demo`).
 - APP chưa gọi API sức khỏe; chưa có màn phụ huynh xem mức BMI.
 - Không commit/push, không migration, không xóa dữ liệu phiếu cũ.
+
+## Bỏ câu "vấn đề mới hay đã biết" (04/11/2026, chưa commit)
+- `node scripts/verify.mjs` → `VERIFY PASS full | tests 999 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 522s`; test sức khỏe chạy riêng 89/89 (`HealthExamIntegrationTest#healthIssueIsWatchedWithoutAskingIfKnown`, `HealthExamLogicTest#issueKindIsNeverRequired`). Snapshot OpenAPI chỉ bỏ `knownCondition` ở phiếu khám và `latestExam`.

@@ -157,8 +157,8 @@ class HealthExamLogicTest {
     }
 
     @Test
-    @DisplayName("STANDARD: chỉ trẻ có vấn đề đã biết mới bắt buộc chọn vấn đề mới hay đã biết")
-    void issueKindRequiredOnlyWithKnownCondition() {
+    @DisplayName("HLT-10: không còn bắt chọn vấn đề mới hay đã biết, kể cả phiếu cũ đã có câu trả lời")
+    void issueKindIsNeverRequired() {
         Case c = new Case();
         c.draft.normal = false;
         c.draft.healthIssue = true;
@@ -167,9 +167,8 @@ class HealthExamLogicTest {
         c.draft.adviceText = "Đeo kính đúng độ";
         assertThat(c.errors()).isEmpty();
 
-        c.knownCondition = true;
-        assertThat(c.errors())
-                .containsExactly(entry("exam.conclusion.issueKind", "Chọn vấn đề mới hay vấn đề đã biết"));
+        c.keepsIssueKind = true;
+        assertThat(c.errors()).isEmpty();
         c.draft.issueKind = "KNOWN";
         assertThat(c.errors()).isEmpty();
     }
@@ -335,7 +334,7 @@ class HealthExamLogicTest {
     }
 
     @Test
-    @DisplayName("Chuẩn hóa STANDARD: bỏ followUpFinding; loại vấn đề chỉ giữ khi hỏi mới hay đã biết")
+    @DisplayName("Chuẩn hóa STANDARD: bỏ followUpFinding; loại vấn đề chỉ giữ ở phiếu cũ đã trả lời")
     void standardNormalization() {
         Draft d = new Draft();
         d.normal = false;
@@ -676,8 +675,8 @@ class HealthExamLogicTest {
 
     // ---------- Dữ liệu giả ----------
 
-    private static HealthExamForm normalize(Draft draft, HealthConclusionMode mode, boolean knownCondition) {
-        return HealthExamNormalizer.normalize(draft.build(), mode, AT_40_MONTHS, knownCondition);
+    private static HealthExamForm normalize(Draft draft, HealthConclusionMode mode, boolean keepsIssueKind) {
+        return HealthExamNormalizer.normalize(draft.build(), mode, AT_40_MONTHS, keepsIssueKind);
     }
 
     private static HealthExamDiff.Snapshot snapshot(HealthExamForm exam) {
@@ -777,11 +776,11 @@ class HealthExamLogicTest {
         BigDecimal head = new BigDecimal("49.0");
         String reason = "";
         boolean alreadyConcluded;
-        boolean knownCondition;
+        boolean keepsIssueKind;
 
         Map<String, String> errors() {
             HealthExamReference reference = HealthExamReview.reference(dob, date == null ? EXAM_DATE : date);
-            HealthExamForm exam = HealthExamNormalizer.normalize(draft.build(), mode, reference, knownCondition);
+            HealthExamForm exam = HealthExamNormalizer.normalize(draft.build(), mode, reference, keepsIssueKind);
             List<FieldErrorResponse> errors = HealthExamValidator.validate(new HealthExamValidator.Input(
                     exam,
                     date,
@@ -796,8 +795,7 @@ class HealthExamLogicTest {
                     dob,
                     CAMPAIGN_START,
                     CAMPAIGN_END,
-                    2,
-                    knownCondition));
+                    2));
             Map<String, String> byField = new LinkedHashMap<>();
             errors.forEach(e -> byField.put(e.field(), e.message()));
             assertThat(byField).hasSameSizeAs(errors);

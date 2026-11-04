@@ -295,8 +295,6 @@ class HealthRecords {
                     .map(m -> {
                         HealthExamOutcome.Outcome outcome = outcome(m);
                         HealthCheckCampaign c = campaign(m.getCampaignId());
-                        String issue =
-                                HealthExamOutcome.text(exam(m).conclusion().issueText());
                         return new ChildHealthRecordResponse.HealthLatestExam(
                                 m.getId(),
                                 m.getCampaignId(),
@@ -304,8 +302,7 @@ class HealthRecords {
                                 m.getDate(),
                                 outcome.level(),
                                 outcome.category(),
-                                conclusion(m),
-                                outcome.level() == HealthFollowUpLevel.KNOWN_STABLE && !issue.isEmpty() ? issue : null);
+                                conclusion(m));
                     })
                     .orElse(null);
         }

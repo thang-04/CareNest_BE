@@ -10722,8 +10722,6 @@ components:
             type: string
         draft:
           $ref: "#/components/schemas/HealthExamDraft"
-        knownCondition:
-          type: string
         locked:
           type: boolean
         measurement:
@@ -10854,8 +10852,6 @@ components:
           - WATCH
           - CLOSE_WATCH
           - KNOWN_STABLE
-        knownCondition:
-          type: string
         measurementId:
           type: integer
           format: int64

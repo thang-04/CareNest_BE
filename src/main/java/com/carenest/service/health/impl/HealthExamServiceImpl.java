@@ -5,7 +5,6 @@ import com.carenest.dto.child.ChildMedicalHistory;
 import com.carenest.dto.child.ChildProfileDetailResponse;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.common.FieldErrorResponse;
-import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthExamForm;
 import com.carenest.dto.health.HealthExamReference;
 import com.carenest.dto.health.HealthExamRequest;
@@ -123,11 +122,13 @@ public class HealthExamServiceImpl implements HealthExamService {
             if (request.conclude() && request.conclusionMode() != null && request.conclusionMode() != mode) {
                 throw GlobalException.of(ApiCode.HEALTH_EXAM_MODE_CHANGED);
             }
-            boolean hasKnownCondition =
-                    knownCondition(s, childId, childIntakeService.findMedicalHistory(childId)) != null;
-            HealthExamForm cleaned = HealthExamNormalizer.normalize(request.exam(), mode, reference, hasKnownCondition);
             // Sửa phiếu đã kết luận giữ hành chính lúc kết luận; người đi cùng luôn lấy theo danh sách phụ huynh
             HealthExamForm before = m == null ? null : s.exam(m);
+            // Câu "vấn đề mới hay đã biết" đã bỏ (user 2026-11-04): chỉ phiếu cũ đã trả lời giữ câu trả lời khi sửa
+            boolean keepsIssueKind = concluded
+                    && before.conclusion() != null
+                    && !HealthExamOutcome.text(before.conclusion().issueKind()).isEmpty();
+            HealthExamForm cleaned = HealthExamNormalizer.normalize(request.exam(), mode, reference, keepsIssueKind);
             HealthExamForm exam = withProfile(cleaned, concluded ? before.admin() : null, child);
             BigDecimal height = HealthExamNormalizer.round(request.heightCm(), 1);
             BigDecimal weight = HealthExamNormalizer.round(request.weightKg(), 1);
@@ -150,8 +151,7 @@ public class HealthExamServiceImpl implements HealthExamService {
                                     child.dateOfBirth(),
                                     campaign.getStartDate(),
                                     campaign.getEndDate(),
-                                    child.guardians().size(),
-                                    hasKnownCondition))
+                                    child.guardians().size()))
                             : draftErrors(height, weight, head));
             // Mỗi trẻ một lần đo một ngày (cả nháp, ràng buộc DB)
             Long currentId = m == null ? null : m.getId();
@@ -288,22 +288,6 @@ public class HealthExamServiceImpl implements HealthExamService {
                 : HealthConclusionMode.STANDARD;
     }
 
-    /**
-     * Vấn đề đã biết để phiếu hỏi "vấn đề mới hay đã biết" (HLT-10): lần khám gần nhất ở mức ổn định; chưa có thì tiền sử
-     * bản thân đã khai báo (HLT-06). Null khi trẻ chưa có vấn đề đã biết.
-     */
-    private static String knownCondition(
-            HealthRecords.Snapshot s, Long childId, Optional<ChildMedicalHistory> declared) {
-        ChildHealthRecordResponse.HealthLatestExam latest = s.latestExam(childId);
-        if (latest != null && latest.knownCondition() != null) {
-            return latest.knownCondition();
-        }
-        return declared.filter(d -> d.self() == DeclarationState.REPORTED)
-                .map(d -> trimmed(d.selfText()))
-                .filter(text -> !text.isEmpty())
-                .orElse(null);
-    }
-
     private HealthExamResponse view(CurrentUser user, Target target, HealthRecords.Snapshot s, HealthMeasurement m) {
         HealthCheckCampaign c = target.campaign();
         ChildViewResponse child = target.child();
@@ -325,7 +309,6 @@ public class HealthExamServiceImpl implements HealthExamService {
         }
         return new HealthExamResponse(
                 conclusionMode(s, m),
-                knownCondition(s, childId, declared),
                 new HealthExamResponse.HealthExamCampaign(
                         c.getId(), c.getName(), c.getStartDate(), c.getEndDate(), c.getExaminer(), status),
                 new HealthExamResponse.HealthExamChild(

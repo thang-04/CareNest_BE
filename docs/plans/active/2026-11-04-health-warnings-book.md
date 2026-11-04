@@ -40,7 +40,7 @@ User 2026-11-04: nghiệp vụ sức khỏe gồm đợt khám (bác sĩ kết l
 - **AC-3** (HLT-19): Given phiếu khám kết luận chuyển khám/nguy cơ lao When lưu Then không tạo phiếu; sổ có `latestExam` (mức, nhóm, kết luận rút gọn).
 - **AC-4** (HLT-19): Given kỳ cân đo When xem chi tiết/danh sách lớp Then có `progress.bmi`, `classes[].bmiWarning`, dòng trẻ có `bmi`, `bmiStatus`, `watchList` = trẻ BMI khác bình thường, mức nặng trước.
 - **AC-5** (HLT-16 REMOVED): `/health-follow-ups/**`, `followUp*`, `openFollowUp`, `externalResults`, mã 5035–5039 không còn; phiếu cũ mẫu FOLLOW_UP vẫn xem/sửa đúng mẫu, gửi mẫu khác ⇒ 409 5032.
-- **AC-6** (HLT-10): Given trẻ có tiền sử bản thân đã khai báo When phiếu khám kết luận có vấn đề sức khỏe Then phiếu bắt chọn mới hay đã biết; "đã biết" ⇒ mức ổn định, không vào danh sách trẻ cần chú ý.
+- **AC-6** (HLT-10, sửa 2026-11-04): Given phiếu khám kết luận có vấn đề sức khỏe When lưu Then không hỏi vấn đề mới hay đã biết, mức cần theo dõi; phiếu cũ đã trả lời "đã biết" giữ mức ổn định khi sửa.
 
 ## Key decisions
 | Quyết định | Chọn | Phương án khác | Vì sao |
@@ -51,13 +51,13 @@ User 2026-11-04: nghiệp vụ sức khỏe gồm đợt khám (bác sĩ kết l
 | Dữ liệu phiếu cũ | Giữ bảng, bỏ entity/API | Migration xóa bảng | Không mất dữ liệu, không thao tác không đảo ngược; xóa sau khi team chốt |
 | Mẫu FOLLOW_UP cũ | Giữ khi phiếu đã kết luận theo mẫu đó | Chuyển hết sang STANDARD | Không đổi nội dung phiếu đã công bố |
 | `watchList` kỳ cân đo | Trẻ BMI khác bình thường | Để FE tự lọc | BE sở hữu nghiệp vụ; FE không tính |
-| Nguồn "vấn đề đã biết" (HLT-10) | Lần khám gần nhất mức ổn định, không có thì tiền sử bản thân đã khai báo | Luôn hỏi mới/đã biết; bỏ mức ổn định | Phiếu theo dõi từng là nguồn duy nhất bắt đầu chuỗi (review P1); tiền sử khai báo là nơi phiếu cũ ghi vấn đề đã biết |
+| Câu "vấn đề mới hay đã biết" (HLT-10) | Bỏ (user 2026-11-04); phiếu cũ đã trả lời giữ câu trả lời khi sửa | Lấy "đã biết" từ lần khám ổn định/tiền sử khai báo (bản sửa review P1, thay thế cùng ngày) | User thấy câu này rối; giữ dữ liệu cũ không đổi mức khi sửa |
 | Z-score khi xếp mức | Làm tròn 2 chữ số rồi so ngưỡng | So z thô | Mức khớp số hiển thị, như phần mềm WHO |
 
 ## Phases
 ### Phase 1 — BE + tri thức (xong 2026-11-04)
 - Files: C `WhoBmiForAge`, `HealthBmiStatus`, `health/who-bmi-for-age.csv`, `WhoBmiForAgeTest`, `HealthExamIntegrationTest` · M `HealthRecords`, `HealthExamOutcome`, `HealthExamServiceImpl`, `HealthCheckServiceImpl`, `HealthMeasurementServiceImpl`, DTO sức khỏe, `ApiCode`, `application.yml`, `.env.example`, docs · D 24 file main của phiếu theo dõi (gồm `HealthImageStorage`, `HealthImageData`), test `HealthExamFollowUpIntegrationTest`, `HealthFollowUpSelfHistoryTest`.
-- Tests: AC-1 → `WhoBmiForAgeTest`; AC-2, AC-4 → `HealthExamIntegrationTest#measurementRoundWarnsByBmiForAge`; AC-3 → `#referralIsAHealthBookWarningWithoutFollowUpForm`, `#examCampaignListsChildrenNeedingAttention`; AC-5 → OpenAPI snapshot + `#legacyFollowUpConclusionKeepsItsMode`; AC-6 → `#declaredHistoryMakesAKnownStableConclusion`.
+- Tests: AC-1 → `WhoBmiForAgeTest`; AC-2, AC-4 → `HealthExamIntegrationTest#measurementRoundWarnsByBmiForAge`; AC-3 → `#referralIsAHealthBookWarningWithoutFollowUpForm`, `#examCampaignListsChildrenNeedingAttention`; AC-5 → OpenAPI snapshot + `#legacyFollowUpConclusionKeepsItsMode`; AC-6 → `#healthIssueIsWatchedWithoutAskingIfKnown`.
 - Exit: `node scripts/verify.mjs` → `VERIFY PASS full`, skip 0.
 ### Phase 2 — FE (agent song song, plan FE)
 - Bỏ màn phiếu theo dõi, thẻ "Cảnh báo sức khỏe", cột "Cảnh báo", BE giả theo contract mới. Exit: FE `node scripts/verify.mjs`.
@@ -69,7 +69,7 @@ User 2026-11-04: nghiệp vụ sức khỏe gồm đợt khám (bác sĩ kết l
 | AC-2, AC-4 | HLT-18, HLT-19 | `HealthExamIntegrationTest#measurementRoundWarnsByBmiForAge` (Testcontainers) | 1 | pass |
 | AC-3 | HLT-19 | `HealthExamIntegrationTest#referral…`, `#examCampaign…` | 1 | pass |
 | AC-5 | HLT-16 | `OpenApiSnapshotTest`, `HealthExamIntegrationTest#legacyFollowUpConclusionKeepsItsMode` | 1 | pass |
-| AC-6 | HLT-10 | `HealthExamIntegrationTest#declaredHistoryMakesAKnownStableConclusion` | 1 | pass |
+| AC-6 | HLT-10 | `HealthExamIntegrationTest#healthIssueIsWatchedWithoutAskingIfKnown`, `HealthExamLogicTest#issueKindIsNeverRequired` | 1 | pass |
 
 ## Rủi ro & rollback
 | Rủi ro | Tác động | Giảm thiểu | Rollback |
@@ -92,3 +92,7 @@ User 2026-11-04: nghiệp vụ sức khỏe gồm đợt khám (bác sĩ kết l
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 999 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 471s | log target/verify.log` (sau sửa theo review); chi tiết `specs/010-health-warnings-book/quickstart.md`.
 - Khác plan: thêm AC-6 và nguồn "vấn đề đã biết" từ tiền sử khai báo (review P1); xếp mức theo z đã làm tròn; xóa `HealthCheckRules.managedCampusIds` (chỉ phiếu theo dõi dùng).
 - Tiếp: Phase 2 FE; user soát quyết định mở (P-40, giữ bảng phiếu cũ, có "nguy cơ thừa cân", nguồn "vấn đề đã biết").
+
+### 2026-11-04 — Bỏ câu "Vấn đề này" (user yêu cầu)
+- User: "thiết kế lại UI cho dễ nhìn hơn, bỏ phần vấn đề này". Phiếu không còn hỏi vấn đề mới hay đã biết ⇒ có vấn đề sức khỏe là WATCH; KNOWN_STABLE chỉ còn ở phiếu cũ (normalizer giữ `issueKind` khi sửa phiếu đã kết luận có câu trả lời). Bỏ `knownCondition` khỏi `HealthExamResponse` và `HealthLatestExam`, bỏ `HealthExamServiceImpl.knownCondition` (bản sửa review P1 cùng ngày), validator không còn bắt `issueKind`. HLT-10, flow, module card, contract, CROSS_REPO_MAP cập nhật; snapshot OpenAPI bỏ 2 trường.
+- Commit: commit, push (user cho phép 2026-11-04).

@@ -11,7 +11,7 @@ Snapshot: `docs/api/openapi.yaml`. Consumer: FE (BE giả `src/services/children
 
 ## `GET /children/{childId}/health` — `ChildHealthRecordResponse`
 - Bỏ: `latestHealth`, `openFollowUp`, `externalResults`.
-- Thêm: `latestExam {measurementId, campaignId, campaignName, date, followUpLevel, conclusionCategory, conclusion, knownCondition}` | null; `latestBmi {measurementId, campaignId, campaignName, date, ageMonths, bmi, bmiStatus, bmiZScore}` | null.
+- Thêm: `latestExam {measurementId, campaignId, campaignName, date, followUpLevel, conclusionCategory, conclusion}` | null; `latestBmi {measurementId, campaignId, campaignName, date, ageMonths, bmi, bmiStatus, bmiZScore}` | null.
 
 ## `/health-checks`
 - `HealthCheckResponse`: bỏ `waitingFollowUpCount`, `overdueFollowUpCount`; `progress.bmi {severeThinness, thinness, overweightRisk, overweight, obese}` (đợt khám luôn 0).
@@ -20,7 +20,7 @@ Snapshot: `docs/api/openapi.yaml`. Consumer: FE (BE giả `src/services/children
 - `POST /{id}/close` — `HealthCheckCloseResponse`: bỏ `waitingFollowUpCount`.
 
 ## Phiếu khám `GET|PUT /health-checks/{id}/children/{childId}/exam`
-- Bỏ: `openFollowUp`, `latestExternalResult`. `conclusionMode`: `STANDARD`; `FOLLOW_UP` chỉ với phiếu đã kết luận theo mẫu cũ. 409 5032 nếu client gửi mẫu khác (message mới).
+- Bỏ: `openFollowUp`, `latestExternalResult`, `knownCondition` (bỏ câu "vấn đề mới hay đã biết", user 2026-11-04; `latestExam` cũng bỏ `knownCondition`). `conclusionMode`: `STANDARD`; `FOLLOW_UP` chỉ với phiếu đã kết luận theo mẫu cũ. 409 5032 nếu client gửi mẫu khác (message mới).
 
 ## Bỏ
 - `GET /health-follow-ups`, `GET /health-follow-ups/{id}`, `POST /{id}/parent-contacts`, `POST /{id}/external-results`, `POST /{id}/close`, `GET /{id}/images/{imageId}`.

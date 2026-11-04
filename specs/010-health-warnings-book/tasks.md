@@ -22,5 +22,8 @@ Thứ tự: Design → BE → tri thức → verify → FE (agent song song, cli
 ## Phase2b — Review độc lập BE (04/11, append)
 - [x] T012 (`HealthExamServiceImpl.java`, `WhoBmiForAge.java`, `HealthCheckRules.java`, `HealthExamIntegrationTest.java`, `WhoBmiForAgeTest.java`, docs) Sửa P1 "vấn đề đã biết" không còn nguồn (lấy thêm từ tiền sử khai báo — AC-6); xếp mức theo z đã làm tròn; bỏ `managedCampusIds` chết; BOM/LF bảng WHO; test mẫu FOLLOW_UP cũ (AC-5); Javadoc/tài liệu còn nhắc phiếu theo dõi.
 
+## Phase2c — Bỏ câu "Vấn đề này" (04/11, append)
+- [x] T013 (`HealthExamValidator.java`, `HealthExamNormalizer.java`, `HealthExamServiceImpl.java`, `HealthExamResponse.java`, `ChildHealthRecordResponse.java`, `HealthRecords.java`, tests, docs) Phiếu không hỏi vấn đề mới hay đã biết; phiếu cũ giữ câu trả lời; bỏ `knownCondition`; snapshot OpenAPI. AC-6 sửa.
+
 ## Test trace
-AC-1 → `WhoBmiForAgeTest` (21 case) · AC-2, AC-4 → `HealthExamIntegrationTest#measurementRoundWarnsByBmiForAge` · AC-3 → `#referralIsAHealthBookWarningWithoutFollowUpForm`, `#examCampaignListsChildrenNeedingAttention` · AC-5 → `OpenApiSnapshotTest`, `#legacyFollowUpConclusionKeepsItsMode` · AC-6 → `#declaredHistoryMakesAKnownStableConclusion`. Dữ liệu test tổng hợp, tên "(giả)".
+AC-1 → `WhoBmiForAgeTest` (21 case) · AC-2, AC-4 → `HealthExamIntegrationTest#measurementRoundWarnsByBmiForAge` · AC-3 → `#referralIsAHealthBookWarningWithoutFollowUpForm`, `#examCampaignListsChildrenNeedingAttention` · AC-5 → `OpenApiSnapshotTest`, `#legacyFollowUpConclusionKeepsItsMode` · AC-6 → `#healthIssueIsWatchedWithoutAskingIfKnown`, `HealthExamLogicTest#issueKindIsNeverRequired`. Dữ liệu test tổng hợp, tên "(giả)".
