@@ -646,6 +646,12 @@ public enum ApiCode {
     CLASS_RATING_MIXED_YEARS(7371, HttpStatus.BAD_REQUEST, "Chỉ lưu xếp loại các lớp cùng một năm học"),
     CLASS_RATING_NOT_OPEN(7372, HttpStatus.CONFLICT, "Kỳ xếp loại chưa bắt đầu, xếp loại được từ ngày {0}"),
     CLASS_RATING_OVERALL_REQUIRED(7373, HttpStatus.BAD_REQUEST, "Lớp {0}: chọn xếp loại chung"),
+    THEME_EVALUATION_KINDERGARTEN_ONLY(7376, HttpStatus.BAD_REQUEST, "Đánh giá cuối chủ đề chỉ dành cho lớp mẫu giáo"),
+    THEME_EVALUATION_THEME_NOT_FOUND(
+            7377, HttpStatus.NOT_FOUND, "Không tìm thấy chủ đề trong kế hoạch năm học đã duyệt của lớp"),
+    THEME_EVALUATION_NOT_STARTED(7378, HttpStatus.CONFLICT, "Chủ đề chưa bắt đầu, chưa đánh giá được"),
+    THEME_EVALUATION_NOT_ENDED(7379, HttpStatus.CONFLICT, "Chủ đề chưa kết thúc, chưa xác nhận được"),
+    THEME_EVALUATION_CELL_INVALID(7380, HttpStatus.BAD_REQUEST, "Có ô không thuộc bảng đánh giá, tải lại trang"),
     CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,
