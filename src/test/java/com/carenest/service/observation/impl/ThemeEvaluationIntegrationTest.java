@@ -336,6 +336,19 @@ class ThemeEvaluationIntegrationTest {
         YearEndSheetResponse old = sheetService.get(principal, legacy);
         assertThat(old.canEdit()).isFalse();
         assertThat(old.domains().getFirst().goals().getFirst().met()).isTrue();
+        // Kế hoạch năm có bản mới (đổi câu MT, thêm MT): phiếu đã xác nhận giữ nguyên danh sách và câu MT đã chốt
+        jdbc.update("INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
+                + " version_no, source_plan_id) OVERRIDING SYSTEM VALUE SELECT 9004, 'KH-T4', school_year_id,"
+                + " age_group_id, title, 'APPROVED', owner_id, 4, 9002 FROM edu_year_plans WHERE id = 9002");
+        jdbc.update("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no, lineage_id)"
+                + " VALUES (9004, 9100, 1, 'Câu MT đã sửa', 1, " + oldGoal1 + ")");
+        jdbc.update("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no)"
+                + " VALUES (9004, 9100, 2, 'MT mới thêm', 9)");
+        List<SheetGoal> afterNewPlan =
+                sheetService.get(principal, yearEval).domains().getFirst().goals();
+        assertThat(afterNewPlan).extracting(SheetGoal::text).doesNotContain("Câu MT đã sửa", "MT mới thêm");
+        assertThat(afterNewPlan).hasSize(3);
+        assertThat(afterNewPlan).extracting(SheetGoal::met).containsExactly(true, false, null);
     }
 
     @Test

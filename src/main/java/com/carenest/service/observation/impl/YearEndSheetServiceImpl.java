@@ -61,7 +61,14 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     private final ObjectMapper objectMapper;
 
     /** Ô lưu trong JSON: g = dòng gốc MT, m = đạt, x = GV sửa tay. */
-    record StoredGoal(Long g, Boolean m, boolean x) {}
+    record StoredGoal(Long g, Boolean m, boolean x, Short n, String t, Long d, String dn, String s) {
+        StoredGoal(Long g, Boolean m, boolean x) {
+            this(g, m, x, null, null, null, null, null);
+        }
+    }
+
+    /** MT trên phiếu: số, câu MT, lĩnh vực; đã xác nhận thì lấy từ bản chốt (s = nguồn "Theo chủ đề"). */
+    private record GoalMeta(Long lineage, Short goalNo, String text, Long domainId, String domainName, String source) {}
 
     private record Cell(Boolean met, boolean manual) {}
 
@@ -144,9 +151,24 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                 return;
             }
             ClassroomInfoResponse cls = rules.findClass(evaluation.getClassroomId());
-            Map<Long, Cell> cells = cells(evaluation, cls, yearGoals(cls), autoOf(evaluation, cls));
+            List<YearGoalRow> goals = yearGoals(cls);
+            Map<Long, ThemeGoalResult> auto = autoOf(evaluation, cls);
+            Map<Long, Cell> cells = cells(evaluation, cls, goals, auto);
+            // Chốt cả danh sách, câu MT, lĩnh vực: kế hoạch năm có bản mới cũng không làm đổi phiếu đã xác nhận
             List<StoredGoal> all = new ArrayList<>();
-            cells.forEach((g, c) -> all.add(new StoredGoal(g, c.met(), c.manual())));
+            for (YearGoalRow goal : goals) {
+                Cell c = cells.get(goal.getLineage());
+                ThemeGoalResult a = auto.get(goal.getLineage());
+                all.add(new StoredGoal(
+                        goal.getLineage(),
+                        c == null ? null : c.met(),
+                        c != null && c.manual(),
+                        goal.getGoalNo(),
+                        goal.getText(),
+                        goal.getDomainId(),
+                        goal.getDomainName(),
+                        a == null || (c != null && c.manual()) ? null : source(a)));
+            }
             evaluation.freezeGoals(objectMapper.writeValueAsString(all));
             log.info("{}|goals={}|END", logPrefix, all.size());
         } catch (RuntimeException ex) {
@@ -189,6 +211,35 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         return result;
     }
 
+    // Phiếu đã chốt kèm câu MT: dùng đúng danh sách đã chốt; còn lại (chưa xác nhận, bản chốt cũ chỉ có kết quả) lấy
+    // từ kế hoạch năm học đã duyệt mới nhất
+    private List<GoalMeta> goalList(ChildEvaluation ev, ClassroomInfoResponse cls, Map<Long, ThemeGoalResult> auto) {
+        if (frozen(ev)) {
+            List<StoredGoal> stored = readGoals(ev.getGoalResults());
+            if (!stored.isEmpty() && stored.stream().allMatch(g -> g.t() != null)) {
+                return stored.stream()
+                        .map(g -> new GoalMeta(g.g(), g.n(), g.t(), g.d(), g.dn(), g.s()))
+                        .toList();
+            }
+        }
+        return yearGoals(cls).stream()
+                .map(g -> {
+                    ThemeGoalResult a = auto.get(g.getLineage());
+                    return new GoalMeta(
+                            g.getLineage(),
+                            g.getGoalNo(),
+                            g.getText(),
+                            g.getDomainId(),
+                            g.getDomainName(),
+                            a == null ? null : source(a));
+                })
+                .toList();
+    }
+
+    private List<YearGoalRow> yearGoalsIfLive(ChildEvaluation ev, ClassroomInfoResponse cls) {
+        return frozen(ev) ? List.of() : yearGoals(cls);
+    }
+
     // Đánh giá xác nhận trước khi có phiếu (chưa chốt ô nào) vẫn hiện kết quả tổng hợp, chỉ xem
     private static boolean frozen(ChildEvaluation ev) {
         return ev.isConfirmed() && ev.getGoalResults() != null;
@@ -203,33 +254,33 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     }
 
     private YearEndSheetResponse view(CurrentUser user, ChildEvaluation ev, ClassroomInfoResponse cls) {
-        List<YearGoalRow> goals = yearGoals(cls);
         Map<Long, ThemeGoalResult> auto = autoOf(ev, cls);
-        Map<Long, Cell> cells = cells(ev, cls, goals, auto);
+        List<GoalMeta> goals = goalList(ev, cls, auto);
+        Map<Long, Cell> cells = cells(ev, cls, goals.isEmpty() ? List.of() : yearGoalsIfLive(ev, cls), auto);
         Map<Long, SheetDomain> domains = new LinkedHashMap<>();
         int met = 0;
         int notMet = 0;
-        for (YearGoalRow goal : goals) {
-            Cell c = cells.get(goal.getLineage());
-            ThemeGoalResult a = auto.get(goal.getLineage());
+        for (GoalMeta goal : goals) {
+            Cell c = cells.get(goal.lineage());
             Boolean result = c == null ? null : c.met();
             if (Boolean.TRUE.equals(result)) {
                 met++;
             } else if (Boolean.FALSE.equals(result)) {
                 notMet++;
             }
+            ThemeGoalResult a = auto.get(goal.lineage());
             domains.computeIfAbsent(
-                            goal.getDomainId() == null ? -1L : goal.getDomainId(),
-                            k -> new SheetDomain(goal.getDomainId(), goal.getDomainName(), new ArrayList<>()))
+                            goal.domainId() == null ? -1L : goal.domainId(),
+                            k -> new SheetDomain(goal.domainId(), goal.domainName(), new ArrayList<>()))
                     .goals()
                     .add(new SheetGoal(
-                            goal.getLineage(),
-                            goal.getGoalNo(),
-                            goal.getText(),
+                            goal.lineage(),
+                            goal.goalNo(),
+                            goal.text(),
                             result,
                             c != null && c.manual(),
                             a == null ? null : a.met(),
-                            a == null ? null : source(a)));
+                            goal.source()));
         }
         LocalDate at = ev.getPeriodEnd().isAfter(rules.today()) ? rules.today() : ev.getPeriodEnd();
         SheetMeasurement measurement = healthMeasurementService

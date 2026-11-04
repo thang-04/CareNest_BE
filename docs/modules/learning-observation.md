@@ -37,6 +37,8 @@ P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng e
 
 ## Known pitfalls
 
+- OBS-28: freeze chốt cả kết quả và metadata MT (số, câu, lĩnh vực) — đã sửa, xem [lỗi phiếu cuối năm](../knowledge/incidents/BUG-261104-confirmed-year-sheet-live-goals.md). Khi client lưu/tải lại phiếu, cần giữ hoặc khóa nháp trong lúc chờ để tránh mất nội dung.
+
 - Class-comment get/save/confirm must validate the month intersects the class year, including partial boundary months. See [month scope](../knowledge/incidents/BUG-261103-class-comment-month-scope.md).
 
 - Không enum cứng tiêu chí đánh giá khi P-11 chưa chốt (OBS-02).
