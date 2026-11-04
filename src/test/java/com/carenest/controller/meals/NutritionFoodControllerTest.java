@@ -95,6 +95,25 @@ class NutritionFoodControllerTest {
                 .andExpect(jsonPath("$.data.storage").value("DRY"));
     }
 
+    @Test
+    @DisplayName("NUT-26: vi chất âm thì 400, không gọi service; vi chất để trống vẫn tạo được")
+    void negativeMicronutrientIsRejected() throws Exception {
+        CurrentUser user = authenticate(Set.of(Permission.NUTRITION_MANAGE));
+        given(foodService.createFood(eq(user), any())).willReturn(food());
+
+        mockMvc.perform(post(FOODS)
+                        .with(token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.replace("\"glucid\":76.2,", "\"glucid\":76.2,\"vitaminB1\":-0.1,")))
+                .andExpect(status().isBadRequest());
+        verify(foodService, never()).createFood(any(), any());
+        mockMvc.perform(post(FOODS)
+                        .with(token())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY.replace("\"glucid\":76.2,", "\"glucid\":76.2,\"calcium\":30,\"iron\":null,")))
+                .andExpect(status().isCreated());
+    }
+
     private CurrentUser authenticate(Set<Permission> permissions) {
         CurrentUser user = new CurrentUser(
                 7L, "kc-7", "demo.user", "Demo", null, Set.of(CareNestRole.VICE_PRINCIPAL), permissions);
@@ -120,6 +139,14 @@ class NutritionFoodControllerTest {
                 BigDecimal.valueOf(7.9),
                 BigDecimal.ONE,
                 BigDecimal.valueOf(76.2),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 "Bảng thành phần thực phẩm Việt Nam",
                 null,
                 BigDecimal.ZERO,
