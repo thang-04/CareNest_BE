@@ -6,6 +6,7 @@ import com.carenest.utils.ResponseJson;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -34,7 +35,7 @@ import tools.jackson.core.JacksonException;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(GlobalException.class)
-    public ResponseEntity<ResponseJson<Void>> handleGlobalException(GlobalException ex) {
+    public ResponseEntity<ResponseJson<List<FieldErrorResponse>>> handleGlobalException(GlobalException ex) {
         if (ex.getApiCode().getHttpStatus().is5xxServerError()) {
             log.error(
                     "[handleGlobalException]|code={}|errorCode={}|desc={}",
@@ -43,13 +44,17 @@ public class GlobalExceptionHandler {
                     ex.getMessage(),
                     ex);
         } else {
+            // Chỉ log tên ô, không log câu lỗi theo ô (có thể nhắc lại dữ liệu người dùng nhập)
             log.warn(
-                    "[handleGlobalException]|code={}|errorCode={}|desc={}",
+                    "[handleGlobalException]|code={}|errorCode={}|desc={}|fields={}",
                     ex.getApiCode().getCode(),
                     ex.getApiCode().getErrorCode(),
-                    ex.getMessage());
+                    ex.getMessage(),
+                    ex.getFieldErrors().stream().map(FieldErrorResponse::field).toList());
         }
-        return ResponseJson.toJson(ex.getApiCode(), ex.getMessage());
+        // Lỗi theo ô (C-5): data = [{ field, message }]; lỗi khác data = null như trước
+        List<FieldErrorResponse> fields = ex.getFieldErrors().isEmpty() ? null : ex.getFieldErrors();
+        return ResponseJson.toJsonWithData(ex.getApiCode(), ex.getMessage(), fields);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -144,6 +149,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ResponseJson<Void>> handleAuthentication(AuthenticationException ex) {
         log.warn("[handleAuthentication]|type={}", ex.getClass().getSimpleName());
         return error(ApiCode.UNAUTHENTICATED);
+    }
+
+    // Bản ghi có @Version bị người khác cập nhật trước (2 người duyệt/lưu cùng lúc) ⇒ 409, không phải lỗi hệ thống
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ResponseEntity<ResponseJson<Void>> handleOptimisticLock(OptimisticLockingFailureException ex) {
+        log.warn("[handleOptimisticLock]|type={}", ex.getClass().getSimpleName());
+        return error(ApiCode.CONCURRENT_UPDATE);
     }
 
     @ExceptionHandler(Exception.class)

@@ -18,8 +18,10 @@ import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
+import com.carenest.utils.enums.Micronutrient;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -248,6 +250,208 @@ class MealPlanEvaluatorTest {
                         org.assertj.core.groups.Tuple.tuple("WARNING", "DISH_REPEATED"),
                         org.assertj.core.groups.Tuple.tuple("INFO", "ALLERGENS"));
         assertThat(result.publishable()).isTrue();
+    }
+
+    // Gạo 60 g + thịt 40 g: canxi 18 + 2,8 = 20,8; sắt 0,78 + 0,38 = 1,16; B1 0,06 + 0,36 = 0,42; thịt thiếu photpho
+    private static final FoodInfo RICE_MICRO = microFood(
+            RICE,
+            Map.of(
+                    Micronutrient.CALCIUM, "30",
+                    Micronutrient.PHOSPHORUS, "104",
+                    Micronutrient.IRON, "1.3",
+                    Micronutrient.VITAMIN_A, "0",
+                    Micronutrient.VITAMIN_B1, "0.10",
+                    Micronutrient.VITAMIN_B2, "0.03",
+                    Micronutrient.VITAMIN_PP, "1.6",
+                    Micronutrient.VITAMIN_C, "0"));
+    private static final FoodInfo PORK_MICRO = microFood(
+            PORK,
+            Map.of(
+                    Micronutrient.CALCIUM, "7",
+                    Micronutrient.IRON, "0.96",
+                    Micronutrient.VITAMIN_A, "2",
+                    Micronutrient.VITAMIN_B1, "0.90",
+                    Micronutrient.VITAMIN_B2, "0.18",
+                    Micronutrient.VITAMIN_PP, "4.4",
+                    Micronutrient.VITAMIN_C, "1"));
+    private static final Map<Long, DishInfo> DISHES_MICRO = Map.of(
+            10L,
+            new DishInfo(
+                    10L, "Cơm", DishType.CARB, Map.of(AG3, List.of(new Portion(RICE_MICRO, new BigDecimal("60"))))),
+            11L,
+            new DishInfo(
+                    11L,
+                    "Thịt rim",
+                    DishType.MAIN,
+                    Map.of(AG3, List.of(new Portion(PORK_MICRO, new BigDecimal("40"))))));
+
+    @Test
+    @DisplayName(
+            "NUT-26: vi chất OK/LOW/HIGH/NA/INCOMPLETE từng dòng; thực phẩm thiếu số liệu ⇒ tổng null, chưa đủ dữ liệu")
+    void micronutrientRowsCoverEveryStatus() {
+        Norm norm = withMicro(
+                norm("280", "340"),
+                Map.of(
+                        Micronutrient.CALCIUM, range("15", "25"),
+                        Micronutrient.IRON, new Range(new BigDecimal("2"), null),
+                        Micronutrient.VITAMIN_B1, range("0.1", "0.3"),
+                        Micronutrient.PHOSPHORUS, range("50", "100")));
+
+        MealPlanEvaluator.Result result =
+                MealPlanEvaluator.evaluate(List.of(lunch(MONDAY)), List.of(GROUP), DISHES_MICRO, (g, d) -> norm);
+
+        Evaluation evaluation = result.evaluations().getFirst();
+        assertThat(evaluation.totals().calcium()).isEqualByComparingTo("20.8");
+        assertThat(evaluation.totals().iron()).isEqualByComparingTo("1.16");
+        assertThat(evaluation.totals().vitaminB1()).isEqualByComparingTo("0.42");
+        assertThat(evaluation.totals().phosphorus()).isNull();
+        NormRow calcium = row(evaluation, "calcium");
+        assertThat(calcium.status()).isEqualTo("OK");
+        assertThat(calcium.percent()).isNull();
+        assertThat(calcium.optional()).isTrue();
+        assertThat(calcium.min()).isEqualByComparingTo("15");
+        assertThat(calcium.max()).isEqualByComparingTo("25");
+        assertThat(calcium.target()).isEqualByComparingTo("20");
+        assertThat(calcium.attainment()).isEqualTo(104);
+        NormRow iron = row(evaluation, "iron");
+        assertThat(iron.status()).isEqualTo("LOW");
+        assertThat(iron.max()).isNull();
+        assertThat(iron.target()).isEqualByComparingTo("2");
+        assertThat(iron.attainment()).isEqualTo(58);
+        NormRow b1 = row(evaluation, "vitaminB1");
+        assertThat(b1.status()).isEqualTo("HIGH");
+        assertThat(b1.target()).isEqualByComparingTo("0.2");
+        assertThat(b1.attainment()).isEqualTo(210);
+        NormRow phosphorus = row(evaluation, "phosphorus");
+        assertThat(phosphorus.status()).isEqualTo("INCOMPLETE");
+        assertThat(phosphorus.value()).isNull();
+        assertThat(phosphorus.attainment()).isNull();
+        NormRow vitaminC = row(evaluation, "vitaminC");
+        assertThat(vitaminC.status()).isEqualTo("NA");
+        assertThat(vitaminC.min()).isNull();
+        assertThat(vitaminC.target()).isNull();
+        assertThat(vitaminC.value()).isEqualByComparingTo("0.4");
+        assertThat(evaluation.rows())
+                .extracting(NormRow::key)
+                .containsSubsequence(
+                        "glucidG",
+                        "calcium",
+                        "phosphorus",
+                        "iron",
+                        "vitaminA",
+                        "vitaminB1",
+                        "vitaminB2",
+                        "vitaminPp",
+                        "vitaminC");
+        // Vi chất lệch hoặc thiếu số liệu chỉ báo, không đổi trạng thái ngày, không chặn công bố
+        assertThat(evaluation.status()).isEqualTo("OK");
+        assertThat(result.issues())
+                .filteredOn(i -> "MICRONUTRIENT_INCOMPLETE".equals(i.code()))
+                .singleElement()
+                .satisfies(i -> {
+                    assertThat(i.severity()).isEqualTo("INFO");
+                    assertThat(i.message()).contains("Photpho");
+                });
+        assertThat(result.issues()).extracting(Issue::code).doesNotContain("INCOMPLETE_DATA", "NOT_BALANCED");
+        assertThat(result.issues())
+                .filteredOn(i -> "BLOCKING".equals(i.severity()))
+                .isEmpty();
+        assertThat(result.publishable()).isTrue();
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-26: vi chất thấp / cao hơn định mức ⇒ một cảnh báo nêu đơn vị, không chặn; max trống thì không có HIGH")
+    void micronutrientOutOfRangeBlocksAndMissingMaxNeverHigh() {
+        Norm norm = withMicro(
+                norm("280", "340"),
+                Map.of(
+                        Micronutrient.IRON, new Range(new BigDecimal("2"), null),
+                        Micronutrient.VITAMIN_B1, range("0.1", "0.3"),
+                        Micronutrient.CALCIUM, new Range(new BigDecimal("5"), null)));
+
+        MealPlanEvaluator.Result result =
+                MealPlanEvaluator.evaluate(List.of(lunch(MONDAY)), List.of(GROUP), DISHES_MICRO, (g, d) -> norm);
+
+        Evaluation evaluation = result.evaluations().getFirst();
+        // Canxi 20,8 gấp hơn 4 lần mức tối thiểu 5 vẫn đạt vì không có trần
+        assertThat(row(evaluation, "calcium").status()).isEqualTo("OK");
+        assertThat(row(evaluation, "calcium").attainment()).isEqualTo(416);
+        assertThat(row(evaluation, "phosphorus").status()).isEqualTo("NA");
+        assertThat(row(evaluation, "iron").status()).isEqualTo("LOW");
+        assertThat(row(evaluation, "vitaminB1").status()).isEqualTo("HIGH");
+        assertThat(evaluation.status()).isEqualTo("OK");
+        assertThat(result.issues())
+                .filteredOn(i -> "MICRONUTRIENT_OFF".equals(i.code()))
+                .singleElement()
+                .satisfies(i -> {
+                    assertThat(i.severity()).isEqualTo("WARNING");
+                    assertThat(i.message())
+                            .contains(
+                                    "Sắt thấp hơn định mức (1.16 mg so với tối thiểu 2 mg)",
+                                    "Vitamin B1 cao hơn định mức (0.42 mg so với 0.1–0.3 mg)");
+                });
+        assertThat(result.issues()).extracting(Issue::code).doesNotContain("NOT_BALANCED");
+        assertThat(result.publishable()).isTrue();
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-26: chưa đặt định mức vi chất ⇒ dòng NA tùy chọn, không đổi trạng thái ngày dù thực phẩm thiếu số liệu")
+    void unsetMicronutrientNormsDoNotChangeDayStatus() {
+        MealPlanEvaluator.Result withData = MealPlanEvaluator.evaluate(
+                List.of(lunch(MONDAY)), List.of(GROUP), DISHES_MICRO, (g, d) -> norm("280", "340"));
+        MealPlanEvaluator.Result noData = MealPlanEvaluator.evaluate(
+                List.of(lunch(MONDAY)), List.of(GROUP), DISHES, (g, d) -> norm("280", "340"));
+
+        for (MealPlanEvaluator.Result result : List.of(withData, noData)) {
+            Evaluation evaluation = result.evaluations().getFirst();
+            assertThat(evaluation.status()).isEqualTo("OK");
+            assertThat(result.publishable()).isTrue();
+            assertThat(evaluation.rows())
+                    .filteredOn(r -> r.key().equals("calcium") || r.key().equals("vitaminC"))
+                    .hasSize(2)
+                    .allSatisfy(r -> {
+                        assertThat(r.status()).isEqualTo("NA");
+                        assertThat(r.optional()).isTrue();
+                    });
+        }
+        assertThat(noData.evaluations().getFirst().totals().calcium()).isNull();
+        assertThat(withData.evaluations().getFirst().totals().calcium()).isEqualByComparingTo("20.8");
+    }
+
+    private static Norm withMicro(Norm base, Map<Micronutrient, Range> micro) {
+        return new Norm(
+                base.mealPrice(),
+                base.kcal(),
+                base.proteinPct(),
+                base.lipidPct(),
+                base.glucidPct(),
+                base.animalProteinG(),
+                base.plantProteinG(),
+                base.animalLipidG(),
+                base.plantLipidG(),
+                base.glucidG(),
+                base.sessionKcalPct(),
+                base.dailyKcalNeed(),
+                micro);
+    }
+
+    private static FoodInfo microFood(FoodInfo base, Map<Micronutrient, String> values) {
+        Map<Micronutrient, BigDecimal> micro = new EnumMap<>(Micronutrient.class);
+        values.forEach((nutrient, value) -> micro.put(nutrient, new BigDecimal(value)));
+        return new FoodInfo(
+                base.id(),
+                base.kcal(),
+                base.protein(),
+                base.lipid(),
+                base.glucid(),
+                base.origin(),
+                base.unitPrice(),
+                base.purchaseUnitSize(),
+                base.wastePct(),
+                base.allergens(),
+                micro);
     }
 
     private static DayPlan lunch(LocalDate date) {

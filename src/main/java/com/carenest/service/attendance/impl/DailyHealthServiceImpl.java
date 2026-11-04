@@ -17,6 +17,7 @@ import com.carenest.entity.attendance.DailyHealthEntry;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.DailyHealthEntryRepository;
+import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.DailyHealthService;
@@ -29,6 +30,7 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
+import com.carenest.utils.enums.PickupOutcome;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -56,6 +58,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
 
     private final DailyHealthEntryRepository entryRepository;
     private final AttendanceRecordRepository recordRepository;
+    private final PickupRecordRepository pickupRepository;
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
@@ -99,6 +102,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
         log.info("{}|START", logPrefix);
         try {
             // Gửi lặp cùng requestId ⇒ trả lại lần đã lưu, không tạo dòng mới
+            entryRepository.lockRequest(currentUser.userId(), request.requestId());
             var previous = entryRepository.findByRecordedByAndRequestId(currentUser.userId(), request.requestId());
             if (previous.isPresent()) {
                 DailyHealthEntryResponse same = toViews(List.of(previous.get())).getFirst();
@@ -115,10 +119,14 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 throw GlobalException.of(ApiCode.HEALTH_YEAR_NOT_ACTIVE);
             }
             childInClass(cls.id(), request.childId(), request.date());
-            // HLT-15: ghi cả sau giờ chốt, khóa khi hết ngày
+            // HLT-15: ghi cả sau giờ chốt, khóa khi hết ngày; ngày cũ đang được mở lại điểm danh (ATT-08) thì ghi được
             // TODO(Cần): khi có BE Đón trẻ, khóa từ lúc trẻ được trả cho phụ huynh (HLT-15)
-            if (!request.date().equals(rules.today())) {
+            if (!writableDay(cls.id(), request.date())) {
                 throw GlobalException.of(ApiCode.HEALTH_TODAY_ONLY);
+            }
+            if (pickupRepository.existsByChildIdAndDateAndOutcome(
+                    request.childId(), request.date(), PickupOutcome.HANDED_OVER)) {
+                throw GlobalException.of(ApiCode.HEALTH_CHILD_PICKED_UP);
             }
             if (!isPresent(request.childId(), cls.id(), request.date())) {
                 throw GlobalException.of(ApiCode.HEALTH_CHILD_NOT_PRESENT);
@@ -256,7 +264,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             Overview overview = new Overview(
                     date,
                     campusId,
-                    AttendanceDayRules.isSchoolDay(date),
+                    rules.isSchoolDay(date),
                     options,
                     // Chưa có module thông báo phụ huynh ⇒ notified = 0
                     new Totals(totals[0], totals[1], totals[2], 0),
@@ -325,6 +333,12 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_IN_CLASS));
     }
 
+    private boolean writableDay(Long classId, LocalDate date) {
+        LocalDate today = rules.today();
+        return date.equals(today)
+                || (date.isBefore(today) && rules.activeUnlock(classId, date).isPresent());
+    }
+
     private boolean isPresent(Long childId, Long classId, LocalDate date) {
         return recordRepository.findByChildIdInAndDate(List.of(childId), date).stream()
                 .anyMatch(r -> r.getClassroomId().equals(classId) && r.getStatus() == AttendanceStatus.PRESENT);
@@ -332,7 +346,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
 
     private boolean canRecordFor(CurrentUser user, ClassroomInfoResponse cls, Long childId, LocalDate date) {
         return cls.yearStatus() == SchoolYearStatus.ACTIVE
-                && date.equals(rules.today())
+                && writableDay(cls.id(), date)
                 && rules.canRecord(user, cls)
                 && isPresent(childId, cls.id(), date);
     }

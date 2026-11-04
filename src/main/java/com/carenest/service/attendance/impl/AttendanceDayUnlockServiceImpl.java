@@ -96,7 +96,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             }
             LocalDate date = request.date();
             LocalDate today = rules.today();
-            if (!AttendanceDayRules.isSchoolDay(date)
+            if (!rules.isSchoolDay(date)
                     || date.isAfter(today)
                     || (cls.yearStart() != null && date.isBefore(cls.yearStart()))) {
                 throw GlobalException.of(ApiCode.UNLOCK_DATE_OUT_OF_RANGE);
@@ -117,6 +117,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
                 throw GlobalException.of(ApiCode.UNLOCK_DEADLINE_INVALID);
             }
             String reason = request.reason().trim();
+            classroomService.lockForUpdate(cls.id());
             if (rules.activeUnlock(cls.id(), date).isPresent()) {
                 throw GlobalException.of(ApiCode.UNLOCK_ALREADY_ACTIVE);
             }

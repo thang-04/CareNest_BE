@@ -1,8 +1,11 @@
 package com.carenest.service.organization;
 
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
 import com.carenest.dto.organization.SchoolYearSemesterRequest;
+import com.carenest.dto.organization.SemesterLockResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
@@ -24,6 +27,18 @@ public interface SchoolYearService {
     /** Cấu hình thời gian › Học kỳ: Hiệu trưởng đặt ngày kết thúc học kỳ I (năm chưa kết thúc). */
     SchoolYearDetailResponse updateSemester(
             CurrentUser currentUser, Long schoolYearId, SchoolYearSemesterRequest request);
+
+    /** Ngày nghỉ của năm học (SCH-05). */
+    List<SchoolHolidayItem> getHolidays(CurrentUser currentUser, Long schoolYearId);
+
+    /** HT thay toàn bộ ngày nghỉ của năm học chưa kết thúc; ngày phải nằm trong năm học, không trùng. */
+    List<SchoolHolidayItem> replaceHolidays(CurrentUser currentUser, Long schoolYearId, SchoolHolidaysRequest request);
+
+    /** Ngày học = thứ 2–6 và không phải ngày nghỉ đã khai báo (SCH-05). */
+    boolean isSchoolDay(LocalDate date);
+
+    /** Học kỳ nào đã khóa ngày (OBS-25), để màn Cấu hình thời gian khóa sẵn ô ngày. */
+    SemesterLockResponse getSemesterLocks(CurrentUser currentUser, Long schoolYearId);
 
     SchoolYearDetailResponse activateSchoolYear(CurrentUser currentUser, Long schoolYearId, String confirmName);
 

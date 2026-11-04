@@ -26,6 +26,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
@@ -70,7 +71,16 @@ class ClassCommentServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW, ZoneId.of("Asia/Ho_Chi_Minh"));
-        var rules = new ObservationDayRules(clock, unlocks, classes, staff, classPolicy, campusPolicy, accounts);
+        // Lịch: thứ 2–6 là ngày học (không có ngày nghỉ)
+        var calendar = mock(com.carenest.service.organization.SchoolYearService.class);
+        org.mockito.Mockito.when(calendar.isSchoolDay(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> {
+                    java.time.DayOfWeek d =
+                            inv.<java.time.LocalDate>getArgument(0).getDayOfWeek();
+                    return d != java.time.DayOfWeek.SATURDAY && d != java.time.DayOfWeek.SUNDAY;
+                });
+        var rules =
+                new ObservationDayRules(clock, unlocks, classes, staff, classPolicy, campusPolicy, accounts, calendar);
         service = new DailyAssessmentServiceImpl(
                 rules,
                 observations,
@@ -90,6 +100,9 @@ class ClassCommentServiceTest {
         when(classPolicy.canViewClassroom(teacher, 10L)).thenReturn(true);
         when(campusPolicy.canViewCampus(eq(principal), anyLong())).thenReturn(true);
         when(campusPolicy.canViewCampus(vp, 100L)).thenReturn(true);
+        // AUTH-20: HT, PHT xem mọi điểm trường
+        when(campusPolicy.canReadCampus(eq(principal), anyLong())).thenReturn(true);
+        when(campusPolicy.canReadCampus(eq(vp), anyLong())).thenReturn(true);
         when(accounts.findFullNames(anyList())).thenReturn(Map.of(1L, "Review Teacher"));
         when(comments.findByClassroomIdAndDate(anyLong(), any()))
                 .thenAnswer(i -> Optional.ofNullable(stored.get(i.getArgument(0) + "|" + i.getArgument(1))));
@@ -146,17 +159,22 @@ class ClassCommentServiceTest {
         stored.put("20|" + TODAY, foreign);
         for (String period : List.of("WEEK", "MONTH")) {
             var board = overview.getOverview(vp, period, 1L, null, null, null);
-            assertThat(board.rows()).hasSize(1);
-            assertThat(board.rows().getFirst().assessed()).isZero();
-            assertThat(board.rows().getFirst().flags()).isZero();
-            assertThat(board.rows().getFirst().classComments())
-                    .extracting(c -> c.text())
-                    .containsExactly("Today", "Yesterday");
+            // PHT xem cả lớp điểm trường khác (AUTH-20); nhận xét không lẫn giữa các lớp
+            assertThat(board.rows()).hasSize(2);
+            var own = board.rows().stream()
+                    .filter(r -> r.classId() == 10L)
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(own.assessed()).isZero();
+            assertThat(own.flags()).isZero();
+            assertThat(own.classComments()).extracting(c -> c.text()).containsExactly("Today", "Yesterday");
             assertThat(overview.getClassDetail(vp, 10L, period).classComments()).hasSize(2);
         }
         assertThat(overview.getOverview(principal, "DAY", 1L, null, null, null).rows())
                 .hasSize(2);
-        assertThatThrownBy(() -> overview.getClassDetail(vp, 20L, "DAY")).isInstanceOf(GlobalException.class);
+        assertThat(overview.getClassDetail(vp, 20L, "DAY").classComments())
+                .extracting(c -> c.text())
+                .containsExactly("Other campus");
     }
 
     @Test
@@ -220,7 +238,9 @@ class ClassCommentServiceTest {
                 LocalDate.of(2026, 9, 5),
                 LocalDate.of(2027, 5, 31),
                 1L,
-                List.of(MealSession.LUNCH));
+                List.of(MealSession.LUNCH),
+                null,
+                ClassroomStatus.ACTIVE);
     }
 
     private static CurrentUser user(Long id, CareNestRole role) {

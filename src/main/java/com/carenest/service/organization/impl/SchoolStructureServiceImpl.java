@@ -16,9 +16,12 @@ import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.organization.SchoolStructureService;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -96,6 +99,21 @@ public class SchoolStructureServiceImpl implements SchoolStructureService {
                     ageGroupRepository.findById(ageGroupId).map(schoolStructureMapper::toResponse);
             log.info("{}|END", logPrefix);
             return ageGroup;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, String> findCampusNames(Collection<Long> campusIds) {
+        String logPrefix = LOG_PREFIX + "|findCampusNames|count=" + campusIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, String> names = campusRepository.findAllById(campusIds).stream()
+                    .collect(Collectors.toMap(Campus::getId, Campus::getName));
+            log.info("{}|END", logPrefix);
+            return names;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

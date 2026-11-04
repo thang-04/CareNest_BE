@@ -316,6 +316,15 @@ public class FoodServiceImpl implements FoodService {
                         isBlank(request.nutrientSourceVersion())
                                 ? null
                                 : request.nutrientSourceVersion().trim()),
+                new Food.Micronutrients(
+                        request.calcium(),
+                        request.phosphorus(),
+                        request.iron(),
+                        request.vitaminA(),
+                        request.vitaminB1(),
+                        request.vitaminB2(),
+                        request.vitaminPp(),
+                        request.vitaminC()),
                 allergens,
                 userId);
     }

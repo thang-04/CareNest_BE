@@ -125,8 +125,10 @@ class MealCountIntegrationTest {
                 year);
         classA = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusA
                 + ", " + year + ", 'Lớp A', " + ag3 + ") RETURNING id");
-        child1 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('An', '2023-01-01') RETURNING id");
-        child2 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('Bình', '2023-02-01') RETURNING id");
+        child1 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'An', '2023-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
+        child2 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Bình', '2023-02-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
         enroll(child1);
         enroll(child2);
 
@@ -260,7 +262,17 @@ class MealCountIntegrationTest {
         assertThat(review.status()).isEqualTo("PENDING_CONFIRMATION");
         assertThat(review.needsReconfirmation()).isTrue();
         assertThat(review.totals().normal()).isEqualTo(2);
+        // Người duyệt thấy số đã chốt cũ cạnh số mới của lớp thay đổi (NUT-03)
+        assertThat(review.classes())
+                .filteredOn(l -> l.classId().equals(classA))
+                .singleElement()
+                .satisfies(l -> {
+                    assertThat(l.normal()).isEqualTo(2);
+                    assertThat(l.confirmedNormal()).isEqualTo(1);
+                });
         MealCountResponse kitchen = lunch(service.getMealCounts(kitchenA, TODAY, null));
+        assertThat(kitchen.classes())
+                .allSatisfy(l -> assertThat(l.confirmedNormal()).isNull());
         assertThat(kitchen.status()).isEqualTo("CONFIRMED");
         assertThat(kitchen.needsReconfirmation()).isFalse();
         assertThat(kitchen.totals().normal()).isEqualTo(1);

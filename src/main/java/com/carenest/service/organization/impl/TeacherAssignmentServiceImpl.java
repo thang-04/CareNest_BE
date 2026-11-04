@@ -123,8 +123,13 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (teacherIds.size() != request.teacherIds().size()) {
                 throw GlobalException.of(ApiCode.TEACHERS_MUST_DIFFER);
             }
-            // AUTH-24: năm mở, tài khoản hoạt động, GV thuộc điểm trường của lớp (luật chung với /staff-assignments)
-            teacherClassRules.checkTeachers(classroom, year, teacherIds, schoolConfigAccess.today());
+            // AUTH-24: năm mở, tài khoản hoạt động; PHT chỉ xếp GV thuộc điểm trường của lớp, HT mọi điểm trường
+            teacherClassRules.checkTeachers(
+                    classroom,
+                    year,
+                    teacherIds,
+                    schoolConfigAccess.today(),
+                    schoolConfigAccess.isPrincipal(currentUser));
             // Lớp còn 1 giáo viên mà không chọn chủ nhiệm (vd. vừa gỡ chủ nhiệm) ⇒ người còn lại làm chủ nhiệm
             Long homeroomId = request.homeroomTeacherId() == null && teacherIds.size() == 1
                     ? teacherIds.iterator().next()

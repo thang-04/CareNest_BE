@@ -194,6 +194,27 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Map<Long, Long> findHomeroomTeacherIds(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findHomeroomTeacherIds|classCount=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> homeroom = classroomIds.isEmpty()
+                    ? Map.of()
+                    : staffAssignmentRepository.findCurrentTeachers(classroomIds, date).stream()
+                            .filter(StaffAssignment::isHomeroom)
+                            .collect(Collectors.toMap(
+                                    StaffAssignment::getClassroomId,
+                                    StaffAssignment::getUserId,
+                                    (first, second) -> first));
+            log.info("{}|END", logPrefix);
+            return homeroom;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderIds|ageGroupId=" + ageGroupId;
         log.info("{}|START", logPrefix);
@@ -394,7 +415,8 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                 .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
         LocalDate today = LocalDate.now(clock);
         Set<Long> teacher = Set.of(assignment.userId());
-        teacherClassRules.checkTeachers(classroom, year, teacher, today);
+        // Dạy thay / phân công lẻ: GV trong điểm trường của lớp
+        teacherClassRules.checkTeachers(classroom, year, teacher, today, false);
         if (!assignment.substitute()) {
             teacherClassRules.checkOneMainClass(classroom, year, teacher, today);
         }

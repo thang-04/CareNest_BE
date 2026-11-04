@@ -19,6 +19,7 @@ import com.carenest.dto.observation.EvaluationDtos.SummaryInfo;
 import com.carenest.dto.observation.EvaluationDtos.TicketRef;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.entity.observation.BehaviourTicket;
 import com.carenest.entity.observation.ChildEvaluation;
 import com.carenest.entity.observation.ChildEvaluationEvent;
@@ -34,6 +35,7 @@ import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.observation.ChildEvaluationService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationAction;
@@ -83,6 +85,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
 
     private final ObservationDayRules rules;
     private final ClassroomService classroomService;
+    private final SchoolYearService schoolYearService;
     private final AgeGroupService ageGroupService;
     private final EnrollmentService enrollmentService;
     private final AccountService accountService;
@@ -107,7 +110,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         try {
             List<ClassroomInfoResponse> years = classroomService.findYearClassrooms(schoolYearId);
             List<ClassroomInfoResponse> visible = years.stream()
-                    .filter(c -> teaches(currentUser, c) || rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> teaches(currentUser, c) || rules.readsCampus(currentUser, c.campusId()))
                     .filter(c -> classId == null || classId.equals(c.id()))
                     .toList();
             if (classId != null && visible.isEmpty()) {
@@ -119,8 +122,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             for (ClassroomInfoResponse cls : visible.stream()
                     .sorted(Comparator.comparing(ClassroomInfoResponse::id))
                     .toList()) {
-                if (cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)) {
-                    ensureDrafts(cls, type);
+                // GV lớp hoặc BGH mở danh sách đều tạo bản nháp kỳ đã kết thúc (BGH chỉ thấy bản đã xác nhận)
+                if (cls.yearStatus() == SchoolYearStatus.ACTIVE
+                        && (rules.canRecord(currentUser, cls) || rules.readsCampus(currentUser, cls.campusId()))) {
+                    ensureDrafts(currentUser, cls, type);
                 }
             }
             Map<Long, ClassroomInfoResponse> byId =
@@ -149,7 +154,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             ChildEvaluation ev = find(id);
             ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
             boolean teacher = teaches(currentUser, cls);
-            if (!teacher && !(ev.isConfirmed() && rules.leadsCampus(currentUser, cls.campusId()))) {
+            if (!teacher
+                    && !(ev.isConfirmed()
+                            && (rules.readsCampus(currentUser, cls.campusId())
+                                    || canReadChildHistory(currentUser, ev.getChildId())))) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
             boolean year = ev.getPeriodType() == EvaluationPeriodType.YEAR;
@@ -158,7 +166,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls, List.of(ev.getChildId()), ev.getPeriodStart(), to, !year)
                     .getOrDefault(ev.getChildId(), null);
             ClassChildResponse child = childOf(ev);
-            List<EvaluationRow> monthly = year
+            // Học kỳ, cuối năm: kèm các đánh giá tháng đã xác nhận trong kỳ để GV viết nhận xét chung
+            List<EvaluationRow> monthly = ev.getPeriodType() != EvaluationPeriodType.MONTH
                     ? toRows(
                             currentUser,
                             evaluationRepository
@@ -312,12 +321,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             if (!rules.isLeader(currentUser)) {
                 throw GlobalException.of(ApiCode.PROGRAM_REPORT_FORBIDDEN);
             }
-            if (campusId != null && !rules.leadsCampus(currentUser, campusId)) {
+            if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             Map<Long, Integer> ageFrom = ageFromMonths();
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
                     .filter(c -> isProgramClass(c, ageFrom))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
@@ -386,20 +395,30 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> teaches(currentUser, c) || rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> teaches(currentUser, c) || rules.readsCampus(currentUser, c.campusId()))
                     .filter(c -> classId == null || classId.equals(c.id()))
                     .toList();
             if (classId != null && visible.isEmpty()) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             Collator vi = Collator.getInstance(Locale.of("vi"));
+            // Trẻ từng học lớp trong năm; current = còn học lớp tại hôm nay (trẻ đã chuyển/nghỉ vẫn mở được hồ sơ)
             List<DevelopmentChildRow> rows = visible.stream()
-                    .flatMap(c -> enrollmentService
-                            .findChildrenInClassroom(
-                                    c.id(), maxDate(c.yearStart(), minDate(rules.today(), c.yearEnd())))
-                            .stream()
-                            .map(ch -> new DevelopmentChildRow(
-                                    ch.id(), ch.fullName(), ch.dateOfBirth(), c.id(), c.name(), c.campusId())))
+                    .flatMap(c -> {
+                        LocalDate anchor = maxDate(c.yearStart(), minDate(rules.today(), c.yearEnd()));
+                        Set<Long> current = enrollmentService.findChildrenInClassroom(c.id(), anchor).stream()
+                                .map(ClassChildResponse::id)
+                                .collect(Collectors.toSet());
+                        return enrollmentService.findChildrenInClassroomDuring(c.id(), c.yearStart(), anchor).stream()
+                                .map(ch -> new DevelopmentChildRow(
+                                        ch.id(),
+                                        ch.fullName(),
+                                        ch.dateOfBirth(),
+                                        c.id(),
+                                        c.name(),
+                                        c.campusId(),
+                                        current.contains(ch.id())));
+                    })
                     .sorted(Comparator.comparing(DevelopmentChildRow::className, vi)
                             .thenComparing(DevelopmentChildRow::fullName, vi))
                     .toList();
@@ -423,33 +442,48 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             if (ChronoUnit.DAYS.between(start, end) + 1 > DEVELOPMENT_MAX_DAYS) {
                 throw GlobalException.of(ApiCode.DATE_RANGE_TOO_LONG, DEVELOPMENT_MAX_DAYS);
             }
-            LocalDate to = minDate(end, today);
-            // Lớp của trẻ ở cuối khoảng (trẻ chuyển lớp giữa kỳ: lớp mới), không có thì lớp ở đầu khoảng
-            List<Long> classIds = enrollmentService.findActiveClassroomIds(childId, to);
-            LocalDate at = to;
-            if (classIds.isEmpty()) {
-                classIds = enrollmentService.findActiveClassroomIds(childId, start);
-                at = start;
-            }
-            if (classIds.isEmpty()) {
+            LocalDate rangeEnd = minDate(end, today);
+            List<EnrollmentService.ChildClassStay> stays = enrollmentService.findChildStays(childId, start, rangeEnd);
+            if (stays.isEmpty()) {
                 throw GlobalException.of(ApiCode.DEVELOPMENT_CHILD_NO_CLASS);
             }
-            ClassroomInfoResponse cls = rules.findClass(classIds.getFirst());
-            boolean teacher = teaches(currentUser, cls);
-            if (!teacher && !rules.leadsCampus(currentUser, cls.campusId())) {
+            // Lớp gần nhất trong khoảng mà người xem có quyền (GV đang dạy / BGH phụ trách). GV lớp cũ (Cần chốt
+            // 03/11/2026, E5) chỉ xem dữ liệu tới hết thời gian trẻ còn ở lớp mình
+            EnrollmentService.ChildClassStay chosen = null;
+            ClassroomInfoResponse cls = null;
+            boolean teacher = false;
+            for (int i = stays.size() - 1; i >= 0 && chosen == null; i--) {
+                ClassroomInfoResponse c = rules.findClass(stays.get(i).classroomId());
+                boolean t = teaches(currentUser, c);
+                if (t || rules.readsCampus(currentUser, c.campusId())) {
+                    chosen = stays.get(i);
+                    cls = c;
+                    teacher = t;
+                }
+            }
+            if (chosen == null) {
                 throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
             }
+            // Xem lại lớp cũ: chỉ khoảng trẻ ở lớp đó và chỉ nhận xét, phiếu của lớp đó
+            boolean history = chosen != stays.getLast();
+            LocalDate from = history ? chosen.from() : start;
+            LocalDate to = history ? chosen.to() : rangeEnd;
+            Long historyClassId = history ? cls.id() : null;
+            LocalDate at = chosen.to();
             ClassChildResponse child = enrollmentService.findChildrenInClassroom(cls.id(), at).stream()
                     .filter(c -> c.id().equals(childId))
                     .findFirst()
                     .orElse(null);
             EvaluationSources.ChildData data =
-                    sources.load(cls, List.of(childId), start, to, true).get(childId);
+                    sources.loadTimeline(cls, childId, from, to).get(childId);
             List<EvaluationDay> days = data == null ? List.of() : data.days();
 
-            List<ChildEvaluation> confirmed =
-                    evaluationRepository.findByChildIdAndStatusAndPeriodEndGreaterThanEqualAndPeriodStartLessThanEqual(
-                            childId, EvaluationStatus.CONFIRMED, start, to);
+            List<ChildEvaluation> confirmed = evaluationRepository
+                    .findByChildIdAndStatusAndPeriodEndGreaterThanEqualAndPeriodStartLessThanEqual(
+                            childId, EvaluationStatus.CONFIRMED, from, to)
+                    .stream()
+                    .filter(e -> historyClassId == null || historyClassId.equals(e.getClassroomId()))
+                    .toList();
             Map<Long, ClassroomInfoResponse> classes = new HashMap<>();
             classes.put(cls.id(), cls);
             confirmed.stream()
@@ -461,9 +495,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
 
             List<TicketRef> tickets =
                     ticketRepository
-                            .findByChildIdInAndPeriodStartBetween(List.of(childId), start.minusMonths(1), to)
+                            .findByChildIdInAndPeriodStartBetween(List.of(childId), from.minusMonths(1), to)
                             .stream()
-                            .filter(t -> !t.getPeriodEnd().isBefore(start))
+                            .filter(t -> !t.getPeriodEnd().isBefore(from))
+                            .filter(t -> historyClassId == null || historyClassId.equals(t.getClassroomId()))
                             .sorted(Comparator.comparing(BehaviourTicket::getPeriodStart)
                                     .reversed())
                             .map(t -> new TicketRef(t.getId(), t.getType(), t.getPeriodStart(), t.getPeriodEnd()))
@@ -480,15 +515,16 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.campusId(),
                             teacher,
                             cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)),
-                    new DateRange(start, to),
+                    new DateRange(from, to),
                     data == null ? 0 : data.presentDays(),
                     data == null ? 0 : data.flagCount(),
                     data == null ? null : data.structured(),
                     days,
                     cls.mealSessions(),
-                    weeks(start, to, today, data),
+                    weeks(from, to, today, data),
+                    // Đánh giá tháng và học kỳ đã xác nhận; cuối năm tách riêng
                     rows.stream()
-                            .filter(r -> r.periodType() == EvaluationPeriodType.MONTH)
+                            .filter(r -> r.periodType() != EvaluationPeriodType.YEAR)
                             .toList(),
                     rows.stream()
                             .filter(r -> r.periodType() == EvaluationPeriodType.YEAR)
@@ -577,8 +613,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     // ---------- tạo bản nháp ----------
 
     // Tháng: mỗi tháng đã kết thúc của năm học, trẻ có đi học hoặc có đánh giá trong tháng.
+    // Học kỳ (OBS-06): mỗi học kỳ đã đặt ngày ở Cấu hình thời gian và đã kết thúc, như tháng.
     // Cuối năm: từ ngày 1 tháng cuối của năm học, mọi trẻ đang học lớp.
-    private void ensureDrafts(ClassroomInfoResponse cls, EvaluationPeriodType type) {
+    private void ensureDrafts(CurrentUser currentUser, ClassroomInfoResponse cls, EvaluationPeriodType type) {
         classroomService.lockForUpdate(cls.id());
         LocalDate today = rules.today();
         Set<String> existing = evaluationRepository.findByClassroomIdInAndPeriodType(List.of(cls.id()), type).stream()
@@ -593,6 +630,26 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                     break;
                 }
                 created.addAll(draftsFor(cls, type, start, end, existing, Map.of()));
+            }
+        } else if (type == EvaluationPeriodType.SEMESTER) {
+            SchoolYearDetailResponse year = schoolYearService.getSchoolYear(currentUser, cls.schoolYearId());
+            List<LocalDate[]> semesters = List.of(
+                    new LocalDate[] {year.semester1Start(), year.semester1End()},
+                    new LocalDate[] {year.semester2Start(), year.semester2End()});
+            for (LocalDate[] s : semesters) {
+                if (s[0] == null || s[1] == null) {
+                    continue;
+                }
+                LocalDate start = maxDate(s[0], cls.yearStart());
+                LocalDate end = minDate(s[1], cls.yearEnd());
+                // Học kỳ kết thúc trong tháng cuối năm học mở cùng lúc với cuối năm: năm cũ có thể bị đóng ngay khi
+                // kích hoạt năm mới, không chờ được tới sau ngày kết thúc
+                boolean lastMonth =
+                        yearEndOpen(cls) && !end.isBefore(cls.yearEnd().withDayOfMonth(1));
+                if (!end.isBefore(today) && !lastMonth) {
+                    continue;
+                }
+                created.addAll(draftsFor(cls, type, start, end, existing, confirmedMonthsBetween(cls, start, end)));
             }
         } else if (yearEndOpen(cls)) {
             Map<Long, Integer> months =
@@ -622,7 +679,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             Set<String> existing,
             Map<Long, Integer> confirmedMonths) {
         LocalDate today = rules.today();
-        List<ClassChildResponse> roster = type == EvaluationPeriodType.MONTH
+        List<ClassChildResponse> roster = type != EvaluationPeriodType.YEAR
                 ? enrollmentService.findChildrenInClassroomDuring(cls.id(), start, minDate(end, today))
                 : enrollmentService.findChildrenInClassroom(cls.id(), minDate(end, today));
         List<ClassChildResponse> children = roster.stream()
@@ -639,7 +696,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             EvaluationSources.ChildData d = data.get(child.id());
             boolean noData =
                     d == null || (d.presentDays() == 0 && d.structured().observedDays() == 0);
-            if (type == EvaluationPeriodType.MONTH && noData) {
+            if (type != EvaluationPeriodType.YEAR && noData) {
                 continue;
             }
             String content = d == null
@@ -676,16 +733,30 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                         type, childName, start, d.presentDays(), d.flagCount(), d.structured(), confirmedMonths);
     }
 
+    // Số đánh giá tháng đã xác nhận của từng trẻ trong lớp, tháng bắt đầu trong khoảng [start, end]
+    private Map<Long, Integer> confirmedMonthsBetween(ClassroomInfoResponse cls, LocalDate start, LocalDate end) {
+        return evaluationRepository
+                .findByClassroomIdInAndPeriodType(List.of(cls.id()), EvaluationPeriodType.MONTH)
+                .stream()
+                .filter(ChildEvaluation::isConfirmed)
+                .filter(e -> !e.getPeriodStart().isBefore(start)
+                        && !e.getPeriodStart().isAfter(end))
+                .collect(Collectors.toMap(ChildEvaluation::getChildId, e -> 1, Integer::sum));
+    }
+
+    // Chỉ đếm đánh giá tháng của chính lớp này, khớp danh sách ở trang chi tiết
     private int confirmedMonths(ChildEvaluation ev) {
-        return ev.getPeriodType() == EvaluationPeriodType.YEAR
-                ? evaluationRepository
+        return ev.getPeriodType() != EvaluationPeriodType.MONTH
+                ? (int) evaluationRepository
                         .findByChildIdAndPeriodTypeAndStatusAndPeriodStartBetweenOrderByPeriodStartAsc(
                                 ev.getChildId(),
                                 EvaluationPeriodType.MONTH,
                                 EvaluationStatus.CONFIRMED,
                                 ev.getPeriodStart(),
                                 ev.getPeriodEnd())
-                        .size()
+                        .stream()
+                        .filter(e -> e.getClassroomId().equals(ev.getClassroomId()))
+                        .count()
                 : 0;
     }
 
@@ -770,7 +841,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 .filter(Objects::nonNull)
                 .distinct()
                 .toList());
-        Map<Long, Map<LocalDate, Boolean>> flags = flagsOf(evaluations);
+        Map<String, Map<LocalDate, Boolean>> flags = flagsOf(evaluations);
         Map<Long, Integer> ageFrom = evaluations.stream().anyMatch(e -> e.getPeriodType() == EvaluationPeriodType.YEAR)
                 ? ageFromMonths()
                 : Map.of();
@@ -778,9 +849,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 .map(e -> {
                     ClassroomInfoResponse cls = classes.get(e.getClassroomId());
                     boolean teacher = teaches(user, cls);
-                    int flagCount = (int) flags.getOrDefault(e.getChildId(), Map.of()).keySet().stream()
-                            .filter(d -> !d.isBefore(e.getPeriodStart()) && !d.isAfter(e.getPeriodEnd()))
-                            .count();
+                    int flagCount = (int)
+                            flags.getOrDefault(e.getChildId() + "|" + e.getClassroomId(), Map.of()).keySet().stream()
+                                    .filter(d -> !d.isBefore(e.getPeriodStart()) && !d.isAfter(e.getPeriodEnd()))
+                                    .count();
                     return new EvaluationRow(
                             e.getId(),
                             e.getChildId(),
@@ -854,7 +926,14 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     }
 
     // Ngày có cờ của từng trẻ (cờ chỉ ghi ở ngày trẻ có mặt)
-    private Map<Long, Map<LocalDate, Boolean>> flagsOf(List<ChildEvaluation> evaluations) {
+    private boolean canReadChildHistory(CurrentUser user, Long childId) {
+        return enrollmentService.findActiveClassroomIds(childId, rules.today()).stream()
+                .map(classroomService::findClassroomInfo)
+                .flatMap(java.util.Optional::stream)
+                .anyMatch(c -> rules.canRecord(user, c));
+    }
+
+    private Map<String, Map<LocalDate, Boolean>> flagsOf(List<ChildEvaluation> evaluations) {
         LocalDate from = evaluations.stream()
                 .map(ChildEvaluation::getPeriodStart)
                 .min(LocalDate::compareTo)
@@ -865,10 +944,15 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 .orElseThrow();
         Set<Long> childIds =
                 evaluations.stream().map(ChildEvaluation::getChildId).collect(Collectors.toSet());
-        Map<Long, Map<LocalDate, Boolean>> flags = new HashMap<>();
+        // Cờ chỉ lấy ở lớp của nhận xét: trẻ chuyển lớp không mang cờ của lớp kia
+        Set<String> childClass = evaluations.stream()
+                .map(e -> e.getChildId() + "|" + e.getClassroomId())
+                .collect(Collectors.toSet());
+        Map<String, Map<LocalDate, Boolean>> flags = new HashMap<>();
         for (DailyObservation o : observationRepository.findByChildIdInAndDateBetween(childIds, from, to)) {
-            if (Boolean.TRUE.equals(o.getFlag())) {
-                flags.computeIfAbsent(o.getChildId(), x -> new HashMap<>()).put(o.getDate(), true);
+            if (Boolean.TRUE.equals(o.getFlag()) && childClass.contains(o.getChildId() + "|" + o.getClassroomId())) {
+                flags.computeIfAbsent(o.getChildId() + "|" + o.getClassroomId(), x -> new HashMap<>())
+                        .put(o.getDate(), true);
             }
         }
         return flags;

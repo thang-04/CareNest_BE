@@ -26,3 +26,5 @@ Thumbs.db
 # Logs
 *.log
 *.txt
+# Thư mục tạm khi soát/xuất tài liệu nghiệp vụ (ảnh render, script một lần): không commit
+.tmp_doc_*/

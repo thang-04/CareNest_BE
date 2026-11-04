@@ -34,9 +34,18 @@ public record PlacementBoardResponse(
             Long suggestedTargetId,
             List<ChildPlacement> children) {}
 
-    /** code, photoUrl: BE chưa có (luôn null), giữ để khớp dạng FE. */
+    /**
+     * code, photoUrl: BE chưa có (luôn null), giữ để khớp dạng FE. programCompleted: lớp nhóm tuổi lớn nhất, kết quả
+     * hoàn thành chương trình ở đánh giá cuối năm đã xác nhận (null = chưa đánh giá hoặc không phải lớp ra trường).
+     */
     public record ChildPlacement(
-            Long id, String code, String fullName, String photoUrl, LocalDate birthDate, Placement placement) {}
+            Long id,
+            String code,
+            String fullName,
+            String photoUrl,
+            LocalDate birthDate,
+            Placement placement,
+            Boolean programCompleted) {}
 
     public record Placement(
             Long schoolYear,
