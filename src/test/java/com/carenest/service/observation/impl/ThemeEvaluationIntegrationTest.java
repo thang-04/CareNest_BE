@@ -18,6 +18,7 @@ import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.EvaluationPeriodType;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -335,6 +336,52 @@ class ThemeEvaluationIntegrationTest {
         YearEndSheetResponse old = sheetService.get(principal, legacy);
         assertThat(old.canEdit()).isFalse();
         assertThat(old.domains().getFirst().goals().getFirst().met()).isTrue();
+    }
+
+    @Test
+    void yearEndSheetTakesResultsFromPreviousClassAndTeamLeaderReadsConfirmedSheets() {
+        // Bé Cường học MG B (cùng nhóm tuổi) tới 30/9 rồi chuyển sang MG A
+        long kid3 = child("Cường");
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01',"
+                        + " '2026-09-30'), (?, ?, '2026-10-01', NULL)",
+                kid3,
+                classB,
+                kid3,
+                classA);
+        result(kid3, classB, "2026-09-20", "k1", String.valueOf(goal2), "");
+        long yearEval = insertId("INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id,"
+                + " period_type, period_start, period_end, status, draft_content, program_completed, created_at,"
+                + " updated_at) SELECT " + kid3 + ", c.id, c.campus_id, c.school_year_id, 'YEAR', '2026-09-01',"
+                + " '2027-05-31', 'AWAITING_REVIEW', 'Nháp', TRUE, now(), now() FROM classrooms c WHERE c.id = "
+                + classA + " RETURNING id");
+
+        SheetGoal fromOldClass =
+                sheetService.get(teacher, yearEval).domains().getFirst().goals().get(1);
+        assertThat(fromOldClass.met()).isTrue();
+        assertThat(fromOldClass.source()).isEqualTo("Trường mầm non thân yêu (lớp MG B)");
+
+        // Tổ trưởng nhóm tuổi (không dạy MG A): chỉ xem khi đã xác nhận, không sửa
+        CurrentUser leader = user("leader-y", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, valid_from) "
+                        + "SELECT ?, 'AGE_GROUP_TEAM_LEADER', age_group_id, '2026-01-01' FROM classrooms WHERE id = ?",
+                leader.userId(),
+                classA);
+        expectCode(() -> sheetService.get(leader, yearEval), ApiCode.EVALUATION_VIEW_FORBIDDEN);
+        assertThat(evaluationService.list(leader, EvaluationPeriodType.YEAR, null, null, null))
+                .extracting(r -> r.id())
+                .doesNotContain(yearEval);
+        evaluationService.confirm(teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động.");
+        assertThat(sheetService.get(leader, yearEval).canEdit()).isFalse();
+        assertThat(evaluationService.get(leader, yearEval).evaluation().id()).isEqualTo(yearEval);
+        assertThat(evaluationService.list(leader, EvaluationPeriodType.YEAR, null, null, null))
+                .extracting(r -> r.id())
+                .contains(yearEval);
+        // Tổ trưởng không xem đánh giá tháng của lớp không dạy
+        expectCode(
+                () -> evaluationService.list(leader, EvaluationPeriodType.MONTH, null, classA, null),
+                ApiCode.EVALUATION_VIEW_FORBIDDEN);
     }
 
     private ThemeEvaluationService themeService() {

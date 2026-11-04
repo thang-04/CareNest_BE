@@ -220,19 +220,34 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 return results;
             }
             LocalDate today = rules.today();
+            // Trẻ chuyển lớp giữa năm (Cần chốt 04/11/2026): lấy cả lớp cũ cùng năm, cùng nhóm tuổi (cùng kế hoạch năm,
+            // MT khớp); theo thứ tự vào lớp, lớp hiện tại cuối cùng
+            List<ClassroomInfoResponse> classes = new ArrayList<>();
+            enrollmentService.findChildStays(childId, cls.yearStart(), cls.yearEnd()).stream()
+                    .map(EnrollmentService.ChildClassStay::classroomId)
+                    .distinct()
+                    .filter(id -> !id.equals(classId))
+                    .map(rules::findClass)
+                    .filter(c -> cls.schoolYearId().equals(c.schoolYearId())
+                            && cls.ageGroupId().equals(c.ageGroupId()))
+                    .forEach(classes::add);
+            classes.add(cls);
             // Chủ đề theo ngày bắt đầu tăng dần: chủ đề sau ghi đè, nên mỗi MT giữ kết quả của chủ đề gần nhất
             for (ThemeRow theme : evaluationRepository.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId())) {
                 if (today.isBefore(theme.getStartDate())) {
                     continue;
                 }
-                ThemeEvaluation saved = evaluationRepository
-                        .findByClassroomIdAndThemeId(classId, theme.getLineage())
-                        .orElse(null);
-                Matrix matrix = matrixOf(cls, theme, saved);
-                for (GoalRow goal : matrix.goals()) {
-                    Value v = matrix.cells().get(new Key(childId, goal.getLineage()));
-                    if (v != null && v.met() != null) {
-                        results.put(goal.getLineage(), new ThemeGoalResult(v.met(), theme.getName()));
+                for (ClassroomInfoResponse c : classes) {
+                    ThemeEvaluation saved = evaluationRepository
+                            .findByClassroomIdAndThemeId(c.id(), theme.getLineage())
+                            .orElse(null);
+                    Matrix matrix = matrixOf(c, theme, saved);
+                    String className = c.id().equals(classId) ? null : c.name();
+                    for (GoalRow goal : matrix.goals()) {
+                        Value v = matrix.cells().get(new Key(childId, goal.getLineage()));
+                        if (v != null && v.met() != null) {
+                            results.put(goal.getLineage(), new ThemeGoalResult(v.met(), theme.getName(), className));
+                        }
                     }
                 }
             }

@@ -22,12 +22,13 @@ public interface ThemeEvaluationService {
 
     ThemeEvaluationResponse confirm(CurrentUser currentUser, ThemeEvaluationRequest request);
 
-    /** Kết quả một MT của trẻ ở bảng cuối chủ đề: đạt / chưa đạt và tên chủ đề lấy kết quả. */
-    record ThemeGoalResult(Boolean met, String themeName) {}
+    /** Kết quả một MT của trẻ ở bảng cuối chủ đề: đạt / chưa đạt, tên chủ đề; className = lớp cũ (null = lớp hiện tại). */
+    record ThemeGoalResult(Boolean met, String themeName, String className) {}
 
     /**
-     * Kết quả MT của một trẻ tổng hợp từ các bảng cuối chủ đề của lớp (phiếu cuối năm, OBS-28; không kiểm quyền, nơi gọi
-     * tự kiểm): khóa = dòng gốc MT; mỗi MT lấy chủ đề gần nhất có kết quả (bảng đã xác nhận: bản đã chốt).
+     * Kết quả MT của một trẻ tổng hợp từ các bảng cuối chủ đề (phiếu cuối năm, OBS-28; không kiểm quyền, nơi gọi tự kiểm):
+     * khóa = dòng gốc MT; gồm lớp classId và các lớp trẻ đã học trong năm cùng nhóm tuổi; mỗi MT lấy chủ đề gần nhất có
+     * kết quả (bảng đã xác nhận: bản đã chốt).
      */
     Map<Long, ThemeGoalResult> childThemeResults(Long classId, Long childId);
 }

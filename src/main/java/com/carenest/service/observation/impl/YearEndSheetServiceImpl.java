@@ -74,7 +74,11 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
             ChildEvaluation ev = findYearEnd(evaluationId);
             ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
             boolean teacher = teaches(currentUser, cls);
-            if (!teacher && !(ev.isConfirmed() && rules.readsCampus(currentUser, cls.campusId()))) {
+            // Xem như đánh giá cuối năm: GV lớp; đã xác nhận thì PHT / HT điểm trường và tổ trưởng nhóm tuổi của lớp
+            boolean reader = rules.readsCampus(currentUser, cls.campusId())
+                    || (cls.ageGroupId() != null
+                            && rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId()));
+            if (!teacher && !(ev.isConfirmed() && reader)) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
             YearEndSheetResponse response = view(currentUser, ev, cls);
@@ -225,7 +229,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                             result,
                             c != null && c.manual(),
                             a == null ? null : a.met(),
-                            a == null ? null : a.themeName()));
+                            a == null ? null : source(a)));
         }
         LocalDate at = ev.getPeriodEnd().isAfter(rules.today()) ? rules.today() : ev.getPeriodEnd();
         SheetMeasurement measurement = healthMeasurementService
@@ -248,6 +252,11 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                 ev.getStatus(),
                 canEdit,
                 ev.getConfirmedAt());
+    }
+
+    // Kết quả lấy ở lớp cũ (trẻ chuyển lớp cùng nhóm tuổi) ghi kèm tên lớp
+    private static String source(ThemeGoalResult r) {
+        return r.className() == null ? r.themeName() : r.themeName() + " (lớp " + r.className() + ")";
     }
 
     // Chỗ ký "Giáo viên": GV chủ nhiệm, lớp chưa có chủ nhiệm thì các GV lớp (như bản in cuối chủ đề)
