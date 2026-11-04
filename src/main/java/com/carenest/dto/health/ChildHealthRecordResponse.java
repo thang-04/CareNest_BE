@@ -10,12 +10,11 @@ import java.util.List;
 
 /**
  * Sổ sức khỏe phần module health có: các lần đo đã công bố kèm cảnh báo (mới nhất trước; phiếu khám nháp không có), đợt/kỳ
- * đang diễn ra ở điểm trường của trẻ, ngày cuối còn đo vòng đầu (trẻ chưa quá 60 tháng), cảnh báo hiện tại (HLT-19): kết
- * luận bác sĩ của lần khám gần nhất, mức BMI của lần đo gần nhất trong kỳ cân đo. Hồ sơ, khai báo lấy ở API khác.
+ * đang diễn ra ở điểm trường của trẻ, cảnh báo hiện tại (HLT-19): kết luận bác sĩ của lần khám gần nhất, mức BMI của lần
+ * đo gần nhất trong kỳ cân đo. Hồ sơ, khai báo lấy ở API khác.
  */
 public record ChildHealthRecordResponse(
         Long childId,
-        LocalDate headCircumferenceUntil,
         boolean canRecord,
         HealthOpenCampaign openCampaign,
         List<HealthMeasurementResponse> measurements,

@@ -115,8 +115,8 @@ public class HealthExamServiceImpl implements HealthExamService {
             if (concluded && !request.conclude()) {
                 throw GlobalException.of(ApiCode.HEALTH_EXAM_CONCLUDED);
             }
-            LocalDate date =
-                    request.date() != null ? request.date() : m != null ? m.getDate() : clamp(campaign, rules.today());
+            // Ngày khám hệ thống ghi ở lần lưu đầu, nháp hay kết luận đều giữ (HLT-08, user chốt 2026-11-04)
+            LocalDate date = m != null ? m.getDate() : rules.referenceDate(campaign);
             HealthExamReference reference = HealthExamReview.reference(child.dateOfBirth(), date);
             HealthConclusionMode mode = conclusionMode(s, m);
             if (request.conclude() && request.conclusionMode() != null && request.conclusionMode() != mode) {
@@ -149,19 +149,19 @@ public class HealthExamServiceImpl implements HealthExamService {
                                     reference,
                                     rules.today(),
                                     child.dateOfBirth(),
-                                    campaign.getStartDate(),
-                                    campaign.getEndDate(),
                                     child.guardians().size()))
                             : draftErrors(height, weight, head));
-            // Mỗi trẻ một lần đo một ngày (cả nháp, ràng buộc DB)
+            // Mỗi trẻ một lần đo một ngày (cả nháp, ràng buộc DB); chỉ phiếu mới có thể trùng vì ngày không đổi
             Long currentId = m == null ? null : m.getId();
-            if (errors.stream().noneMatch(e -> "date".equals(e.field()))
-                    && measurementRepository
-                            .findByChildIdAndDate(childId, date)
-                            .filter(other -> !other.getId().equals(currentId))
-                            .isPresent()) {
+            if (measurementRepository
+                    .findByChildIdAndDate(childId, date)
+                    .filter(other -> !other.getId().equals(currentId))
+                    .isPresent()) {
+                // Người nhập không chọn được ngày khác: báo HT/PHT xử lý
                 errors.add(new FieldErrorResponse(
-                        "date", "Ngày này trẻ đã có kết quả đo khác. Chọn ngày khám khác trong đợt."));
+                        "date",
+                        "Ngày khám " + DMY.format(date)
+                                + " trẻ đã có kết quả đo khác. Báo Hiệu trưởng hoặc Phó hiệu trưởng."));
             }
             if (!errors.isEmpty()) {
                 throw GlobalException.withFieldErrors(ApiCode.HEALTH_EXAM_INCOMPLETE, errors);
@@ -177,8 +177,8 @@ public class HealthExamServiceImpl implements HealthExamService {
             if (concluded) {
                 List<HealthMeasurementResponse.HealthMeasurementChange> changes = HealthExamDiff.changes(
                         new HealthExamDiff.Snapshot(
-                                m.getDate(), m.getHeightCm(), m.getWeightKg(), m.getHeadCircumferenceCm(), before),
-                        new HealthExamDiff.Snapshot(date, height, weight, head, exam));
+                                m.getHeightCm(), m.getWeightKg(), m.getHeadCircumferenceCm(), before),
+                        new HealthExamDiff.Snapshot(height, weight, head, exam));
                 if (changes.isEmpty()) {
                     // Không đổi gì: không ghi lịch sử, không công bố lại
                     HealthExamResponse unchanged = view(currentUser, target, s, m);
@@ -235,11 +235,13 @@ public class HealthExamServiceImpl implements HealthExamService {
         try {
             Target target = target(currentUser, campaignId, childId);
             HealthRecords.Snapshot s = records.load(List.of(childId));
-            LocalDate date = request.date() != null ? request.date() : clamp(target.campaign(), rules.today());
+            HealthMeasurement m = examOf(s, childId, campaignId);
+            // Gợi ý theo tuổi tại ngày khám đã ghi; phiếu chưa lưu theo ngày sẽ ghi khi lưu
+            LocalDate date = m != null ? m.getDate() : rules.referenceDate(target.campaign());
             HealthExamReference reference =
                     HealthExamReview.reference(target.child().dateOfBirth(), date);
-            HealthExamForm exam = HealthExamNormalizer.normalize(
-                    request.exam(), conclusionMode(s, examOf(s, childId, campaignId)), reference, false);
+            HealthExamForm exam =
+                    HealthExamNormalizer.normalize(request.exam(), conclusionMode(s, m), reference, false);
             HealthExamReviewResponse response = new HealthExamReviewResponse(HealthExamReview.points(exam, reference));
             log.info("{}|END", logPrefix);
             return response;
@@ -293,7 +295,7 @@ public class HealthExamServiceImpl implements HealthExamService {
         ChildViewResponse child = target.child();
         Long childId = child.id();
         HealthCheckStatus status = c.statusOn(rules.today());
-        LocalDate refDate = m != null ? m.getDate() : clamp(c, rules.today());
+        LocalDate refDate = m != null ? m.getDate() : rules.referenceDate(c);
         Optional<ChildMedicalHistory> declared = childIntakeService.findMedicalHistory(childId);
         HealthMeasurementResponse measurement = null;
         HealthExamResponse.HealthExamDraft draft = null;
@@ -507,14 +509,6 @@ public class HealthExamServiceImpl implements HealthExamService {
     private static boolean outside(BigDecimal value, int min, int max) {
         return value != null
                 && (value.compareTo(BigDecimal.valueOf(min)) < 0 || value.compareTo(BigDecimal.valueOf(max)) > 0);
-    }
-
-    /** Hôm nay, kẹp trong khoảng ngày của đợt. */
-    private static LocalDate clamp(HealthCheckCampaign c, LocalDate today) {
-        if (today.isBefore(c.getStartDate())) {
-            return c.getStartDate();
-        }
-        return today.isAfter(c.getEndDate()) ? c.getEndDate() : today;
     }
 
     /** Bản sao phiếu thay bước, hành chính, tiền sử (null = giữ nguyên). */

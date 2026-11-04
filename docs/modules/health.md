@@ -1,6 +1,6 @@
 # Module — health
 
-Feature: `health` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt khám/kỳ cân đo, số đo trong kỳ, phiếu khám Phụ lục II, mức theo dõi đã có (2026-10-31); cảnh báo ở sổ sức khỏe, mức BMI theo tuổi WHO của kỳ cân đo đã có, phiếu theo dõi đã bỏ (2026-11-04); phân loại WHO khác (hoãn), trend, AI: thiết kế
+Feature: `health` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đợt khám/kỳ cân đo, số đo trong kỳ, phiếu khám Phụ lục II, mức theo dõi đã có (2026-10-31); cảnh báo ở sổ sức khỏe, mức BMI theo tuổi WHO của kỳ cân đo đã có, phiếu theo dõi đã bỏ, kỳ cân đo bỏ vòng đầu, ngày đo/ngày khám do hệ thống ghi (2026-11-04); phân loại WHO khác (hoãn), trend, AI: thiết kế
 
 ## Mục đích
 Cân đo theo kỳ cân đo do HT/PHT mở (thường 3 tháng/lần, cảnh báo khi sát nhau — HLT-01), đợt khám bác sĩ 1 lần/năm học (HLT-08), cảnh báo sức khỏe lưu ở sổ sức khỏe: kết luận bác sĩ của đợt khám, mức BMI theo tuổi chuẩn WHO của kỳ cân đo (HLT-18, HLT-19), trend xác định, diễn giải AI có duyệt; kiểm tra sức khỏe đầu ngày nhập cùng màn điểm danh (HLT-07); sức khỏe trong ngày báo phụ huynh ngay (HLT-14).
@@ -20,13 +20,13 @@ HLT-01..05, HLT-07..14, HLT-17..19, AI-01..06, AI-07 (giải thích xu hướng 
 - Event: ghi nhận sức khỏe trong ngày, công bố kết quả cân đo ⇒ notification.
 
 ## API & bảng
-Plan: `docs/plans/completed/2026-10-31-health-check-rounds.md` (phạm vi B1, mặc định B2–B8), `docs/plans/completed/2026-10-31-health-exam-follow-ups.md` (mặc định C1–C10), `docs/plans/active/2026-11-04-health-warnings-book.md` (cảnh báo ở sổ sức khỏe, bỏ phiếu theo dõi).
+Plan: `docs/plans/completed/2026-10-31-health-check-rounds.md` (phạm vi B1, mặc định B2–B8), `docs/plans/completed/2026-10-31-health-exam-follow-ups.md` (mặc định C1–C10), `docs/plans/active/2026-11-04-health-warnings-book.md` (cảnh báo ở sổ sức khỏe, bỏ phiếu theo dõi), `docs/plans/active/2026-11-04-intake-weeks-round-dates.md` (kỳ cân đo bỏ vòng đầu, ngày đo/ngày khám do hệ thống ghi).
 - Bảng (V64): `health_check_campaigns`, `health_check_campaign_history`, `health_check_absences`, `health_measurements`, `health_measurement_edits`; (V65) cột phiếu khám ở `health_measurements`; V67 cho phép người đóng/người ghi lịch sử trống khi hệ thống tự đóng (`docs/database/DATA_DICTIONARY.md`). Bảng phiếu theo dõi (V65: `health_follow_ups`, `health_follow_up_events`, `health_follow_up_images`) ngừng dùng từ 2026-11-04, giữ dữ liệu cũ, không entity/API.
 - `/health-checks` (GET danh sách lọc `campusId`, `kind`, `status`, `schoolYear`; POST tạo), `/health-checks/schedule-warnings`, `/health-checks/{id}` (GET, PUT), `/{id}/classes/{classId}/children`, `/{id}/cancel|close|reopen` — HT, PHT quản lý theo điểm trường; GV xem điểm trường của lớp mình. `progress.bmi` đếm trẻ theo mức BMI; chi tiết có `classes[].bmiWarning`, `watchList` = trẻ cần chú ý (đợt khám: theo dõi/theo dõi sát; kỳ cân đo: BMI khác bình thường).
 - `/{id}/reopen`: nhận `reason` và `endDate` tùy chọn; `EXAM` đã hết hạn bắt buộc ngày kết thúc mới từ hôm nay (HLT-17). Request chỉ có `reason` giữ tương thích cho đợt chưa hết hạn/kỳ cân đo.
-- `/children/{childId}/health` (GET sổ sức khỏe: lần đo kèm cảnh báo, `latestExam`, `latestBmi`), `/children/{childId}/health/measurements` (POST), `/{measurementId}` (PUT, bắt buộc lý do) — GV phụ trách lớp nhập trong kỳ cân đo đang diễn ra (HLT-09); phản hồi có `bmiStatus`, `bmiZScore`.
-- `/health-checks/{id}/children/{childId}/exam` (GET; PUT lưu nháp/kết luận — GV lớp; POST `/review-preview`) — phiếu khám Phụ lục II của đợt khám.
-- Mã lỗi 5009–5034 (`docs/contracts/ERROR_CONTRACT.md`); 5035–5039 của phiếu theo dõi đã bỏ, không dùng lại.
+- `/children/{childId}/health` (GET sổ sức khỏe: lần đo kèm cảnh báo, `latestExam`, `latestBmi`), `/children/{childId}/health/measurements` (POST), `/{measurementId}` (PUT, bắt buộc lý do) — GV phụ trách lớp nhập trong kỳ cân đo đang diễn ra (HLT-09); body chỉ `campaignId` (POST), `heightCm`, `weightKg`, `note`, `reason` (không còn `date`, `headCircumferenceCm` từ 2026-11-04); phản hồi có `bmiStatus`, `bmiZScore`.
+- `/health-checks/{id}/children/{childId}/exam` (GET; PUT lưu nháp/kết luận — GV lớp; POST `/review-preview`) — phiếu khám Phụ lục II của đợt khám; body không còn `date` (ngày khám hệ thống ghi), vẫn có `headCircumferenceCm`.
+- Mã lỗi 5009–5034 (`docs/contracts/ERROR_CONTRACT.md`); 5021 (ngày đo ngoài kỳ) bỏ 2026-11-04 và 5035–5039 của phiếu theo dõi đã bỏ, không dùng lại.
 - Chưa có: phân loại WHO khác BMI (hoãn), điều chỉnh tay mức BMI (P-40), báo cáo 5.1, 5.3 (hoãn), trend, AI, thông báo (mở đợt, cập nhật kết quả — chưa có module thông báo), API phụ huynh xem kết quả.
 
 ## PENDING
@@ -41,7 +41,12 @@ P-21 (triệu chứng chọn nhanh), P-22 (trẻ bất thường lúc nhận), P
 - Nháp vẫn chiếm ngày đo (UNIQUE `(child_id, date)`) và vẫn kiểm khoảng chiều cao/cân nặng/vòng đầu để không vi phạm CHECK.
 - Phiếu đã kết luận theo mẫu FOLLOW_UP cũ (có `followUpFinding`) giữ mẫu đó khi xem/sửa; phiếu mới, phiếu nháp luôn STANDARD. Mức theo dõi hiện tại chỉ từ lần khám gần nhất, không còn xét phiếu theo dõi đã đóng.
 - Đọc nhiều trẻ một lần qua `HealthRecords.load` (snapshot), tránh truy vấn theo từng trẻ.
-- Vòng đầu đo khi trẻ chưa quá 60 tháng: tới trước ngày đủ 61 tháng (`HealthRecords.headCircumferenceUntil`).
+- Vòng đầu chỉ đo ở phiếu khám, khi trẻ chưa quá 60 tháng tại ngày khám (`HealthExamReview.reference`, `headApplies`). Kỳ cân đo bỏ vòng đầu (user chốt 2026-11-04): tạo số đo không ghi, sửa giữ giá trị của số đo cũ, không ghi ô đổi vòng đầu; sổ sức khỏe bỏ `headCircumferenceUntil`; phản hồi vẫn có `headCircumferenceCm` (phiếu khám, số đo cũ).
+- Ngày đo/ngày khám do hệ thống ghi (user chốt 2026-11-04), request không còn `date` (client cũ gửi thì Jackson bỏ qua — `HealthControllerTest`). Lần nhập mới (tạo số đo, lưu phiếu lần đầu, xem phiếu/review-preview chưa lưu) dùng `HealthCheckRules.referenceDate` = hôm nay kẹp trong đợt/kỳ, cũng là ngày lấy sĩ số lớp nên lớp của lần đo khớp danh sách lớp. Kỳ cân đo đóng tay, `HealthCheckCampaign.statusOn` không xét ngày kết thúc ⇒ kỳ chưa đóng mà đã qua ngày kết thúc vẫn nhập, ghi ngày kết thúc (5021 đã bỏ: ngày luôn trong kỳ; trẻ có lớp tại ngày đo thì đã vào học sau ngày sinh). Sau đó luôn giữ `m.getDate()`; sửa số đo chỉ kiểm kỳ còn mở (5018). `HealthExamValidator` không kiểm ngày khám như ô nhập (vẫn so ngày tiếp xúc lao với ngày khám); lịch sử sửa phiếu không còn ô `date`. Trùng ngày với kết quả khác: số đo 409 5020, phiếu mới lỗi ô `date` trong 5033 — câu kèm ngày, báo HT/PHT.
+- Ngày khám chốt từ lần lưu nháp đầu: kết luận muộn hơn vẫn tính tuổi (vòng đầu, câu tự kỷ) và so ngày tiếp xúc lao theo ngày đó; tiếp xúc lao sau ngày khám ghi ở Khai báo sức khỏe, không ghi vào phiếu.
+- Bỏ kiểm "ngày đo trước ngày sinh" (5021) dựa vào điều kiện: ngày sinh không sau ngày vào lớp đầu tiên (enrollment chỉ bắt đầu ở ngày tiếp nhận hoặc ngày chuyển năm). Làm Sửa hồ sơ cho đổi ngày sinh ⇒ phải chặn ngày sinh sau ngày vào lớp đầu tiên và sau lần đo/khám sớm nhất (`docs/modules/child.md`).
+- `createMeasurement` kiểm điểm trường, quyền GV trước trạng thái kỳ (5018) để không lộ trạng thái đợt/kỳ của điểm trường khác; kỳ chưa mở vẫn không lưu được (`HealthCheckIntegrationTest#upcomingRoundSavesNothing`).
+- Sổ sức khỏe tính `canRecord`, `openCampaign` theo lớp hôm nay, còn tạo số đo theo lớp tại ngày đo kẹp: kỳ quá hạn mà trẻ đã chuyển lớp/vào học sau ngày kết thúc ⇒ sổ vẫn hiện nhập được nhưng tạo trả 5023/3003 (ca hiếm, chưa xử lý).
 - Suy dinh dưỡng/thừa cân chỉ đánh dấu; không làm quy trình theo dõi/can thiệp (HLT-12).
 - Lưu là công bố (HLT-11): số đo khi lưu, phiếu khám khi kết luận; sức khỏe trong ngày thì báo ngay (HLT-14).
 - Sửa số đo không ghi đè mất dấu: lưu lịch sử + lý do (HLT-13).

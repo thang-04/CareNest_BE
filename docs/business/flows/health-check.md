@@ -29,15 +29,22 @@ Còn mở: danh sách triệu chứng chọn nhanh (P-21), trẻ có dấu hiệ
 [B] HT/PHT mở kỳ cân đo cho điểm trường (thường 3 tháng/lần)                    (HLT-01, sửa 2026-10-31)
 [S] Ngày bắt đầu cách đợt/kỳ khác chưa hủy dưới 2 tháng 15 ngày ⇒ cảnh báo, vẫn lưu
     Mỗi điểm trường một đợt/kỳ chưa đóng (tính chung đợt khám)
-[S] GV nhập trong kỳ đang diễn ra cho lớp mình: chiều cao, cân nặng, vòng đầu, ghi chú (HLT-09)
+[S] GV nhập trong kỳ đang diễn ra cho lớp mình: chiều cao, cân nặng, ghi chú (HLT-09)
+    Không đo vòng đầu (chỉ ở phiếu khám — HLT-01, bỏ 2026-11-04)
     Không cân đo lẻ ngoài kỳ; mỗi trẻ một lần đo/kỳ
+[S] Ngày đo hệ thống ghi = hôm nay, kẹp trong kỳ; GV không chọn ngày          (HLT-01, sửa 2026-11-04)
+    Kỳ chưa đóng mà đã qua ngày kết thúc ⇒ vẫn nhập, ngày đo = ngày kết thúc của kỳ
+    (đánh đổi: nhập muộn ghi ngày kết thúc, không phải ngày cân thật — chờ user soát)
+    Ngày đo trẻ đã có kết quả của đợt/kỳ khác ⇒ không lưu, báo HT/PHT (5020)
+    [B] HT/PHT: trùng hôm nay ⇒ GV nhập ngày sau; kỳ quá hạn trùng ngày kết thúc ⇒ sửa ngày kết thúc của kỳ
 [B] HT/PHT đóng kỳ ⇒ trẻ chưa cân thành "Vắng", số đo khóa; mở lại cần lý do
       ↓
 [S] Lưu từng lần đo; trend, chênh lệch so với lần trước, biểu đồ             (HLT-02, HLT-13)
 [S] Xếp mức BMI theo tuổi chuẩn WHO khi đọc: gầy còm nặng, gầy còm, bình thường,
     nguy cơ thừa cân (đến 60 tháng), thừa cân, béo phì                        (HLT-18, sửa 2026-11-04)
     Chỉ đánh dấu, không chẩn đoán, không quy trình can thiệp                  (HLT-12)
-[S] Sửa số đo ⇒ ghi lý do, lưu lịch sử, mức BMI tính lại                      (HLT-13)
+[S] Sửa số đo ⇒ chỉ chiều cao, cân nặng, ghi chú; ngày đo (và vòng đầu của số đo cũ) giữ nguyên;
+    ghi lý do, lưu lịch sử, mức BMI tính lại                                  (HLT-13, sửa 2026-11-04)
       ↓
 [S] Lưu là công bố ⇒ phụ huynh thấy kết quả + biểu đồ                        (HLT-11, PAR-01)
 [S] Cảnh báo BMI lưu ở sổ sức khỏe; danh sách lớp, chi tiết kỳ hiện mức và số trẻ theo mức (HLT-19)
@@ -69,8 +76,12 @@ Nguồn: user, 2026-11-01 (HLT-17, chưa có xác nhận trường/team). Job ch
 [S] Năm học đã có đợt khám ⇒ cảnh báo khi tạo; đợt khám cũng là một kỳ cân đo
 [S] GV lớp mở phiếu khám Phụ lục II của trẻ: hành chính từ hồ sơ, tiền sử điền sẵn từ khai báo,
     người đi cùng chọn trong danh sách phụ huynh                                 (HLT-08)
-[B] Bác sĩ khám; GV nhập sinh tồn, cân đo, dinh dưỡng, phát triển, tiêm chủng, lâm sàng; lưu nháp nhiều lần
-[S] "Điểm cần bác sĩ xem lại" (gợi ý theo tuổi, không phải kết luận)
+[B] Bác sĩ khám; GV nhập sinh tồn, cân đo (vòng đầu khi trẻ ≤60 tháng), dinh dưỡng, phát triển, tiêm chủng,
+    lâm sàng; lưu nháp nhiều lần
+[S] Lưu lần đầu ⇒ hệ thống ghi ngày khám (hôm nay, kẹp trong đợt); lưu nháp tiếp, kết luận,
+    sửa sau kết luận giữ ngày đó; GV không chọn ngày                            (HLT-08, sửa 2026-11-04)
+    Ngày khám trẻ đã có kết quả đo khác ⇒ không lưu, báo HT/PHT
+[S] "Điểm cần bác sĩ xem lại" (gợi ý theo tuổi tại ngày khám, không phải kết luận)
 [B] GV nhập kết luận của bác sĩ ⇒ [S] kiểm đủ phiếu, công bố, mức theo dõi theo kết luận (HLT-10, HLT-11)
 [S] Tiền sử ghi ngược về khai báo sức khỏe                                      (HLT-06)
     ├─ bình thường / vấn đề sức khỏe ⇒ mức NONE / WATCH (không hỏi vấn đề mới hay đã biết — bỏ 2026-11-04;

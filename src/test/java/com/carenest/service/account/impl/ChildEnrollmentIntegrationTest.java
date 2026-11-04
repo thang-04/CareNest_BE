@@ -50,6 +50,7 @@ import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.IdentityProviderErrorReason;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SmsStatus;
+import com.carenest.utils.enums.YesNo;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
@@ -206,6 +207,9 @@ class ChildEnrollmentIntegrationTest {
         assertThat(child.enrolledAt()).isEqualTo(TODAY);
         assertThat(child.hasDeclaration()).isTrue();
         assertThat(child.profile().paymentSource()).isEqualTo("BHYT");
+        // CHD-05 (user chốt 2026-11-04): tuần thai lưu cả khi trẻ không sinh non
+        assertThat(child.profile().premature()).isEqualTo(YesNo.NO);
+        assertThat(child.profile().gestationWeeks()).isEqualTo((short) 39);
         assertThat(child.history()).singleElement().satisfies(h -> {
             assertThat(h.action()).isEqualTo(ChildHistoryAction.ENROLLED);
             assertThat(h.userFullName()).isEqualTo("ht.enroll");
@@ -617,7 +621,7 @@ class ChildEnrollmentIntegrationTest {
                         new ChildProfileInput(
                                 null,
                                 "NO",
-                                null,
+                                39,
                                 "Kinh",
                                 "Không",
                                 null,

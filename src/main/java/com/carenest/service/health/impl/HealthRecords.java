@@ -43,7 +43,7 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 class HealthRecords {
 
-    // Vòng đầu chỉ đo khi trẻ chưa quá 60 tháng tại ngày đo
+    // Vòng đầu chỉ đo ở phiếu khám, khi trẻ chưa quá 60 tháng tại ngày khám
     static final int HEAD_CIRCUMFERENCE_MAX_MONTHS = 60;
     static final String HEAD_NOT_MEASURED = "NOT_MEASURED";
     private static final TypeReference<List<HealthMeasurementResponse.HealthMeasurementChange>> CHANGES =
@@ -66,11 +66,6 @@ class HealthRecords {
 
     String writeChanges(List<HealthMeasurementResponse.HealthMeasurementChange> changes) {
         return objectMapper.writeValueAsString(changes);
-    }
-
-    /** Ngày cuối còn đo vòng đầu: trước ngày trẻ đủ 61 tháng. */
-    static LocalDate headCircumferenceUntil(LocalDate dateOfBirth) {
-        return dateOfBirth.plusMonths(HEAD_CIRCUMFERENCE_MAX_MONTHS + 1L).minusDays(1);
     }
 
     /** Tuổi theo tháng tròn tại ngày đo. */

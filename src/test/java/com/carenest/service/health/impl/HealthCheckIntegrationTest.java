@@ -27,6 +27,7 @@ import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckResult;
 import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.HealthScheduleWarning;
+import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -34,6 +35,7 @@ import java.time.ZoneId;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -84,6 +86,9 @@ class HealthCheckIntegrationTest {
 
     @Autowired
     private HealthCheckCampaignHistoryRepository historyRepository;
+
+    @Autowired
+    private EntityManager entityManager;
 
     private CurrentUser principal;
     private CurrentUser vpA;
@@ -256,27 +261,21 @@ class HealthCheckIntegrationTest {
                 .isFalse();
 
         expectError(
-                () -> measurements.createMeasurement(teacherA, child1, measure(round.id(), "2026-11-08")),
-                ApiCode.HEALTH_MEASUREMENT_DATE_OUTSIDE);
+                () -> measurements.createMeasurement(teacherA, child1, measure(null)), ApiCode.HEALTH_ROUND_REQUIRED);
         expectError(
-                () -> measurements.createMeasurement(teacherA, child1, measure(round.id(), "2026-11-11")),
-                ApiCode.HEALTH_MEASUREMENT_DATE_OUTSIDE);
-        expectError(
-                () -> measurements.createMeasurement(teacherA, child1, measure(null, "2026-11-10")),
-                ApiCode.HEALTH_ROUND_REQUIRED);
-        expectError(
-                () -> measurements.createMeasurement(teacherB, child1, measure(round.id(), "2026-11-10")),
+                () -> measurements.createMeasurement(teacherB, child1, measure(round.id())),
                 ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
 
-        HealthMeasurementResponse saved =
-                measurements.createMeasurement(teacherA, child1, measure(round.id(), "2026-11-10"));
+        HealthMeasurementResponse saved = measurements.createMeasurement(teacherA, child1, measure(round.id()));
         assertThat(saved.campaignKind()).isEqualTo(HealthCheckKind.MEASUREMENT);
         assertThat(saved.source()).isEqualTo(HealthMeasurementResponse.SOURCE_MEASUREMENT_ONLY);
         assertThat(saved.published()).isTrue();
-        assertThat(saved.headCircumferenceCm()).isEqualByComparingTo("48.5");
+        // HLT-01 (user chốt 2026-11-04): ngày đo = ngày nhập, kỳ cân đo không có vòng đầu
+        assertThat(saved.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(saved.headCircumferenceCm()).isNull();
         assertThat(saved.bmi()).isEqualByComparingTo("15.7");
         expectError(
-                () -> measurements.createMeasurement(teacherA, child1, measure(round.id(), "2026-11-09")),
+                () -> measurements.createMeasurement(teacherA, child1, measure(round.id())),
                 ApiCode.HEALTH_MEASUREMENT_EXISTS);
 
         HealthCheckClassResponse after = checks.getHealthCheckClass(teacherA, round.id(), classA);
@@ -299,8 +298,6 @@ class HealthCheckIntegrationTest {
                 .containsExactly(saved.id());
         assertThat(record.openCampaign().kind()).isEqualTo(HealthCheckKind.MEASUREMENT);
         assertThat(record.openCampaign().resultStatus()).isEqualTo("RECORDED");
-        // Vòng đầu đo khi trẻ chưa quá 60 tháng: tới trước ngày đủ 61 tháng (sinh 2023-01-01)
-        assertThat(record.headCircumferenceUntil()).isEqualTo(LocalDate.of(2028, 1, 31));
         expectError(() -> measurements.getHealthRecord(vpB, child1), ApiCode.HEALTH_RECORD_ACCESS_DENIED);
 
         HealthCheckCloseResponse closed = checks.closeHealthCheck(vpA, round.id());
@@ -313,8 +310,7 @@ class HealthCheckIntegrationTest {
                         org.assertj.core.groups.Tuple.tuple(child1, HealthCheckResult.RECORDED),
                         org.assertj.core.groups.Tuple.tuple(child2, HealthCheckResult.ABSENT));
         expectError(
-                () -> measurements.updateMeasurement(
-                        teacherA, child1, saved.id(), edit("2026-11-10", "99.0", "Đo lại")),
+                () -> measurements.updateMeasurement(teacherA, child1, saved.id(), edit("99.0", "Đo lại")),
                 ApiCode.HEALTH_ROUND_NOT_OPEN);
         checks.reopenHealthCheck(vpA, round.id(), new HealthCheckReopenRequest("Nhập bù cho trẻ vắng"));
         assertThat(checks.getHealthCheckClass(teacherA, round.id(), classA).children())
@@ -324,21 +320,79 @@ class HealthCheckIntegrationTest {
     }
 
     @Test
+    @DisplayName("HLT-01: kỳ chưa bắt đầu ⇒ không nhập (5018), không lưu số đo mang ngày tương lai")
+    void upcomingRoundSavesNothing() {
+        HealthCheckResponse round = checks.createHealthCheck(
+                vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-11", "2026-11-20"));
+        assertThat(round.status()).isEqualTo(HealthCheckStatus.UPCOMING);
+
+        expectError(
+                () -> measurements.createMeasurement(teacherA, child1, measure(round.id())),
+                ApiCode.HEALTH_ROUND_NOT_OPEN);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM health_measurements WHERE campaign_id = ?", Long.class, round.id()))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-01: ngày đo = hôm nay kẹp trong kỳ; kỳ còn mở mà đã qua ngày kết thúc ⇒ vẫn nhập, ghi ngày kết thúc")
+    void measurementDateIsEntryDateClampedToRound() {
+        HealthCheckResponse round =
+                historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-01", "2026-11-09"));
+        // Kỳ cân đo đóng tay: hôm nay 10/11 kỳ vẫn đang diễn ra dù đã qua ngày kết thúc 09/11
+        assertThat(round.status()).isEqualTo(HealthCheckStatus.IN_PROGRESS);
+        HealthMeasurementResponse late = measurements.createMeasurement(teacherA, child1, measure(round.id()));
+        assertThat(late.date()).isEqualTo(LocalDate.of(2026, 11, 9));
+
+        // HT/PHT sửa ngày kết thúc (vẫn sửa được) ⇒ lần nhập mới ghi hôm nay; lần đo đã có giữ ngày cũ
+        checks.updateHealthCheck(
+                vpA, round.id(), request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-01", "2026-11-12"));
+        HealthMeasurementResponse onTime = measurements.createMeasurement(teacherA, child2, measure(round.id()));
+        assertThat(onTime.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(measurements.getHealthRecord(teacherA, child1).measurements())
+                .extracting(HealthMeasurementResponse::date)
+                .containsExactly(LocalDate.of(2026, 11, 9));
+
+        // Kỳ đóng sáng nay, kỳ mới mở cùng ngày: ngày đo trùng kết quả đã có ⇒ GV không chọn được ngày khác, báo HT/PHT
+        checks.closeHealthCheck(vpA, round.id());
+        HealthCheckResponse next = checks.createHealthCheck(
+                vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"));
+        assertThatThrownBy(() -> measurements.createMeasurement(teacherA, child2, measure(next.id())))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage("Ngày đo 10/11/2026 trẻ đã có kết quả đo khác. Báo Hiệu trưởng hoặc Phó hiệu trưởng")
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN);
+        assertThat(measurements
+                        .createMeasurement(teacherA, child1, measure(next.id()))
+                        .date())
+                .isEqualTo(LocalDate.of(2026, 11, 10));
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-13: sửa số đo phải có lý do, lưu lịch sử; chỉ đổi chiều cao, cân nặng, ghi chú, giữ ngày đo và vòng đầu")
     void editingMeasurementNeedsReasonAndKeepsHistory() {
         HealthCheckResponse round =
                 historicalCampaign(vpA, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-09", "2026-11-20"));
-        HealthMeasurementResponse saved =
-                measurements.createMeasurement(teacherA, child1, measure(round.id(), "2026-11-10"));
+        HealthMeasurementResponse saved = measurements.createMeasurement(teacherA, child1, measure(round.id()));
+        // Số đo cũ (trước 04/11/2026) có vòng đầu: sửa không đụng tới; sửa ngày khác vẫn giữ ngày đo
+        entityManager.flush();
+        jdbc.update("UPDATE health_measurements SET head_circumference_cm = 48.5 WHERE id = ?", saved.id());
+        entityManager.clear();
+        testClock.setInstant(Instant.parse("2026-11-12T02:00:00Z"));
 
         expectError(
-                () -> measurements.updateMeasurement(teacherA, child1, saved.id(), edit("2026-11-10", "99.0", " ")),
+                () -> measurements.updateMeasurement(teacherA, child1, saved.id(), edit("99.0", " ")),
                 ApiCode.HEALTH_EDIT_REASON_REQUIRED);
         HealthMeasurementResponse unchanged =
-                measurements.updateMeasurement(teacherA, child1, saved.id(), edit("2026-11-10", "98.5", "Không đổi"));
+                measurements.updateMeasurement(teacherA, child1, saved.id(), edit("98.5", "Không đổi"));
         assertThat(unchanged.edits()).isEmpty();
         HealthMeasurementResponse edited =
-                measurements.updateMeasurement(teacherA, child1, saved.id(), edit("2026-11-10", "99.0", " Đo lại "));
+                measurements.updateMeasurement(teacherA, child1, saved.id(), edit("99.0", " Đo lại "));
         assertThat(edited.heightCm()).isEqualByComparingTo("99.0");
+        assertThat(edited.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(edited.headCircumferenceCm()).isEqualByComparingTo("48.5");
         assertThat(edited.edits()).singleElement().satisfies(e -> {
             assertThat(e.reason()).isEqualTo("Đo lại");
             assertThat(e.userName()).isEqualTo("hc-teachera");
@@ -351,8 +405,16 @@ class HealthCheckIntegrationTest {
                     .containsExactly("heightCm", "98.5", "99.0");
         });
         expectError(
-                () -> measurements.updateMeasurement(teacherB, child1, saved.id(), edit("2026-11-10", "97.0", "Sửa")),
+                () -> measurements.updateMeasurement(teacherB, child1, saved.id(), edit("97.0", "Sửa")),
                 ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
+
+        // Kỳ còn mở mà hôm nay đã qua ngày kết thúc: vẫn sửa được, ngày đo giữ nguyên
+        testClock.setInstant(Instant.parse("2026-11-21T02:00:00Z"));
+        HealthMeasurementResponse late =
+                measurements.updateMeasurement(teacherA, child1, saved.id(), edit("99.5", "Đo lại lần hai (giả)"));
+        assertThat(late.heightCm()).isEqualByComparingTo("99.5");
+        assertThat(late.date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(late.edits()).hasSize(2);
     }
 
     @Test
@@ -529,26 +591,15 @@ class HealthCheckIntegrationTest {
                 "");
     }
 
-    private static HealthMeasurementRequest measure(Long campaignId, String date) {
+    // Ngày đo do hệ thống ghi (hôm nay), kỳ cân đo không đo vòng đầu
+    private static HealthMeasurementRequest measure(Long campaignId) {
         return new HealthMeasurementRequest(
-                campaignId,
-                LocalDate.parse(date),
-                new BigDecimal("98.5"),
-                new BigDecimal("15.2"),
-                new BigDecimal("48.5"),
-                "Cân đo tại lớp (giả)",
-                null);
+                campaignId, new BigDecimal("98.5"), new BigDecimal("15.2"), "Cân đo tại lớp (giả)", null);
     }
 
-    private static HealthMeasurementRequest edit(String date, String height, String reason) {
+    private static HealthMeasurementRequest edit(String height, String reason) {
         return new HealthMeasurementRequest(
-                null,
-                LocalDate.parse(date),
-                new BigDecimal(height),
-                new BigDecimal("15.2"),
-                new BigDecimal("48.5"),
-                "Cân đo tại lớp (giả)",
-                reason);
+                null, new BigDecimal(height), new BigDecimal("15.2"), "Cân đo tại lớp (giả)", reason);
     }
 
     private long child(String name, String dateOfBirth) {

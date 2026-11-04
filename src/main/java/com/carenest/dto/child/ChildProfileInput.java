@@ -1,6 +1,9 @@
 package com.carenest.dto.child;
 
-/** Hành chính của trẻ (CHD-05): bắt buộc trừ số định danh, nhóm máu, tuần thai khi không sinh non; premature YES/NO. */
+/**
+ * Hành chính của trẻ (CHD-05): bắt buộc trừ số định danh, nhóm máu; premature YES/NO khớp tuần thai (dưới 37 tuần là sinh
+ * non).
+ */
 public record ChildProfileInput(
         String idNumber,
         String premature,

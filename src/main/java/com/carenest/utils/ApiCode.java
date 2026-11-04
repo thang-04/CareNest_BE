@@ -323,9 +323,10 @@ public enum ApiCode {
     HEALTH_ROUND_NOT_OPEN(
             5018, HttpStatus.CONFLICT, "Kỳ cân đo chưa bắt đầu, đã đóng hoặc đã hủy; không nhập hay sửa được số đo"),
     HEALTH_MEASUREMENT_EXISTS(5019, HttpStatus.CONFLICT, "Trẻ đã có số đo trong kỳ này. Sửa lần đo đã có"),
-    HEALTH_MEASUREMENT_DATE_TAKEN(5020, HttpStatus.CONFLICT, "Ngày này trẻ đã có kết quả đo"),
-    HEALTH_MEASUREMENT_DATE_OUTSIDE(
-            5021, HttpStatus.BAD_REQUEST, "Chọn ngày đo trong khoảng ngày của kỳ cân đo, không chọn ngày tương lai"),
+    // Ngày đo do hệ thống ghi, GV không chọn được ngày khác (HLT-01, 2026-11-04)
+    HEALTH_MEASUREMENT_DATE_TAKEN(
+            5020, HttpStatus.CONFLICT, "Ngày đo {0} trẻ đã có kết quả đo khác. Báo Hiệu trưởng hoặc Phó hiệu trưởng"),
+    // 5021 (ngày đo ngoài kỳ) đã bỏ 2026-11-04: ngày đo hệ thống ghi luôn trong kỳ; không dùng lại mã
     HEALTH_MEASUREMENT_NOT_FOUND(5022, HttpStatus.NOT_FOUND, "Không tìm thấy lần đo"),
     HEALTH_MEASUREMENT_ACCESS_DENIED(
             5023, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được nhập hoặc sửa số đo"),

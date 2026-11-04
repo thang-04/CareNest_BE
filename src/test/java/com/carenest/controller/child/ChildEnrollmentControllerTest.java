@@ -72,7 +72,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 @Import({WebMvcConfig.class, SecurityConfig.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
 class ChildEnrollmentControllerTest {
 
-    // Như form FE gửi: tuần thai để trống là chuỗi rỗng
+    // Như form FE gửi: ô không bắt buộc để trống là chuỗi rỗng; tuần thai bắt buộc với mọi trẻ (CHD-05)
     private static final String ENROLL_JSON = """
             {
               "child": {
@@ -91,7 +91,7 @@ class ChildEnrollmentControllerTest {
                 "profile": {
                   "idNumber": "",
                   "premature": "NO",
-                  "gestationWeeks": "",
+                  "gestationWeeks": 39,
                   "ethnicity": "Kinh",
                   "beneficiary": "Không",
                   "bloodType": "",
@@ -168,7 +168,8 @@ class ChildEnrollmentControllerTest {
     private ChildEnrollmentService childEnrollmentService;
 
     @Test
-    @DisplayName("CHD-01: PHT tiếp nhận ⇒ 201, trường hồ sơ cùng cấp với guardianAccounts, tuần thai trống nhận được")
+    @DisplayName(
+            "CHD-01: PHT tiếp nhận ⇒ 201, trường hồ sơ cùng cấp với guardianAccounts, tuần thai chuyển xuống service")
     void vicePrincipalEnrollsChild() throws Exception {
         CurrentUser vice = authenticate(CareNestRole.VICE_PRINCIPAL);
         given(childEnrollmentService.enroll(eq(vice), any()))
@@ -194,7 +195,7 @@ class ChildEnrollmentControllerTest {
 
         ArgumentCaptor<EnrollChildRequest> request = ArgumentCaptor.forClass(EnrollChildRequest.class);
         verify(childEnrollmentService).enroll(eq(vice), request.capture());
-        assertThat(request.getValue().child().profile().gestationWeeks()).isNull();
+        assertThat(request.getValue().child().profile().gestationWeeks()).isEqualTo(39);
         assertThat(request.getValue().campusId()).isEqualTo(11L);
         assertThat(request.getValue().classId()).isNull();
         verifyNoInteractions(childIntakeService);
@@ -233,7 +234,7 @@ class ChildEnrollmentControllerTest {
     }
 
     @Test
-    @DisplayName("C-5: lỗi theo ô từ service ⇒ 400 errorCode 9001, data = [{ field, message }]")
+    @DisplayName("C-5, CHD-05: tuần thai trống vẫn tới service; lỗi theo ô ⇒ 400 mã 9001, data = [{ field, message }]")
     void fieldErrorsAreReturnedAsList() throws Exception {
         authenticate(CareNestRole.PRINCIPAL);
         willThrow(GlobalException.withFieldErrors(
@@ -241,18 +242,23 @@ class ChildEnrollmentControllerTest {
                         List.of(
                                 new FieldErrorResponse(
                                         "guardians.0.phone", "Nhập số điện thoại hợp lệ, ví dụ 0912 345 678"),
-                                new FieldErrorResponse("profile.address.ward", "Nhập phường/xã nơi ở"))))
+                                new FieldErrorResponse("profile.gestationWeeks", "Nhập tuần thai khi sinh"))))
                 .given(childEnrollmentService)
                 .enroll(any(), any());
 
+        // Ô số để trống gửi chuỗi rỗng: JSON vẫn nhận (null), service báo lỗi theo ô thay vì 400 JSON hỏng
         mockMvc.perform(post("/api/children/enrollments")
                         .with(token(CareNestRole.PRINCIPAL))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(ENROLL_JSON))
+                        .content(ENROLL_JSON.replace("\"gestationWeeks\": 39", "\"gestationWeeks\": \"\"")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value(9001))
                 .andExpect(jsonPath("$.data[0].field").value("guardians.0.phone"))
-                .andExpect(jsonPath("$.data[1].field").value("profile.address.ward"));
+                .andExpect(jsonPath("$.data[1].field").value("profile.gestationWeeks"));
+
+        ArgumentCaptor<EnrollChildRequest> request = ArgumentCaptor.forClass(EnrollChildRequest.class);
+        verify(childEnrollmentService).enroll(any(), request.capture());
+        assertThat(request.getValue().child().profile().gestationWeeks()).isNull();
     }
 
     @Test

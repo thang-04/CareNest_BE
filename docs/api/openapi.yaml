@@ -7377,9 +7377,6 @@ components:
         childId:
           type: integer
           format: int64
-        headCircumferenceUntil:
-          type: string
-          format: date
         latestBmi:
           $ref: "#/components/schemas/HealthLatestBmi"
         latestExam:
@@ -10689,9 +10686,6 @@ components:
           enum:
           - STANDARD
           - FOLLOW_UP
-        date:
-          type: string
-          format: date
         exam:
           $ref: "#/components/schemas/HealthExamForm"
         headCircumferenceCm:
@@ -10889,13 +10883,6 @@ components:
         campaignId:
           type: integer
           format: int64
-        date:
-          type: string
-          format: date
-        headCircumferenceCm:
-          type: number
-          maximum: 60.0
-          minimum: 30.0
         heightCm:
           type: number
           maximum: 150.0
@@ -10913,7 +10900,6 @@ components:
           maximum: 60.0
           minimum: 3.0
       required:
-      - date
       - heightCm
       - weightKg
     HealthMeasurementResponse:

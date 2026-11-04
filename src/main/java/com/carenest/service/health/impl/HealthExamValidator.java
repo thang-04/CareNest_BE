@@ -51,13 +51,14 @@ import java.util.Map;
 
 /**
  * Kiểm phiếu khám khi lưu kết luận (như {@code healthExamValidation.js} của FE): câu lỗi và khóa ô như FE để form mở đúng bước.
- * Mỗi ô một lỗi (luật hỏng đầu tiên), thứ tự như BE giả. Không kiểm trùng ngày đo với lần đo khác (service kiểm).
+ * Mỗi ô một lỗi (luật hỏng đầu tiên), thứ tự như BE giả. Không kiểm ngày khám (hệ thống ghi, người nhập không chọn —
+ * HLT-08) và trùng ngày đo với lần đo khác (service kiểm).
  */
 final class HealthExamValidator {
 
     /**
-     * {@code exam} đã chuẩn hóa ({@link HealthExamNormalizer}); số đo lấy theo body, chưa làm tròn.
-     * {@code alreadyConcluded}: sửa phiếu đã kết luận ⇒ bắt buộc lý do.
+     * {@code exam} đã chuẩn hóa ({@link HealthExamNormalizer}); số đo lấy theo body, chưa làm tròn; {@code date}: ngày
+     * khám hệ thống ghi. {@code alreadyConcluded}: sửa phiếu đã kết luận ⇒ bắt buộc lý do.
      */
     record Input(
             HealthExamForm exam,
@@ -71,8 +72,6 @@ final class HealthExamValidator {
             HealthExamReference reference,
             LocalDate today,
             LocalDate dateOfBirth,
-            LocalDate campaignStart,
-            LocalDate campaignEnd,
             int guardianCount) {}
 
     private HealthExamValidator() {}
@@ -82,7 +81,6 @@ final class HealthExamValidator {
         HealthExamForm exam = in.exam() == null ? HealthExamNormalizer.blank() : in.exam();
         HealthExamReference reference = in.reference();
 
-        checkDate(errors, in);
         checkCompanion(errors, exam.admin(), in.guardianCount());
         checkHistory(errors, exam.history(), in);
 
@@ -202,20 +200,6 @@ final class HealthExamValidator {
         return errors.entrySet().stream()
                 .map(e -> new FieldErrorResponse(e.getKey(), e.getValue()))
                 .toList();
-    }
-
-    private static void checkDate(Map<String, String> errors, Input in) {
-        LocalDate date = in.date();
-        if (date == null) {
-            errors.putIfAbsent("date", "Chọn ngày khám");
-        } else if (in.today() != null && date.isAfter(in.today())) {
-            errors.putIfAbsent("date", "Ngày khám không được ở tương lai");
-        } else if (in.dateOfBirth() != null && date.isBefore(in.dateOfBirth())) {
-            errors.putIfAbsent("date", "Ngày khám không được trước ngày sinh của trẻ");
-        } else if ((in.campaignStart() != null && date.isBefore(in.campaignStart()))
-                || (in.campaignEnd() != null && date.isAfter(in.campaignEnd()))) {
-            errors.putIfAbsent("date", "Chọn ngày khám trong khoảng ngày khám của đợt");
-        }
     }
 
     // Người đi cùng chọn trong danh sách phụ huynh của hồ sơ trẻ (guardianIndex)

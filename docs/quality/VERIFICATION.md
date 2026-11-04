@@ -1,5 +1,11 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Tuần thai bắt buộc, kỳ cân đo bỏ vòng đầu, ngày đo/ngày khám do hệ thống ghi — 2026-11-04
+
+- Nguồn user 2026-11-04 (G94-180/CHD-05, HLT-01, HLT-08, HLT-13) và điều chỉnh của người điều phối cùng ngày (kỳ cân đo chưa đóng mà đã qua ngày kết thúc ⇒ ngày đo = ngày kết thúc, chờ user soát). Plan `docs/plans/active/2026-11-04-intake-weeks-round-dates.md`.
+- Sau sửa source/test cuối: `VERIFY PASS full | tests 1007 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 461s | log target/verify.log`. Snapshot OpenAPI đổi có chủ đích 3 schema (`HealthMeasurementRequest` bỏ `date`, `headCircumferenceCm`; `HealthExamRequest` bỏ `date`; `ChildHealthRecordResponse` bỏ `headCircumferenceUntil`); bỏ mã 5021, đổi câu 5020 và lỗi ô `date` của phiếu khám (`docs/system/CROSS_REPO_MAP.md` mục 04/11). Consumer FE: agent FE làm song song; APP không gọi.
+- Testcontainers chạy thật (skip 0): tuần thai lưu cho trẻ không sinh non, ngày đo kẹp trong kỳ, sửa giữ ngày đo và vòng đầu cũ, ngày khám chốt ở lần lưu đầu, trùng ngày báo HT/PHT; WebMvc: client cũ gửi `date`/`headCircumferenceCm` vẫn được nhận. Review độc lập 2 lượt (subagent, chỉ đọc): không P1/P2. Chưa chạy Web nối BE thật; không migration, không commit/push.
+
 ## Cảnh báo ở sổ sức khỏe, mức BMI kỳ cân đo, bỏ phiếu theo dõi — 2026-11-04
 
 - Nguồn user 2026-11-04: đợt khám = kết luận bác sĩ, kỳ cân đo = cảnh báo BMI, bỏ phiếu theo dõi, cảnh báo lưu ở sổ sức khỏe (HLT-16 REMOVED, HLT-18, HLT-19, P-40). Plan `docs/plans/active/2026-11-04-health-warnings-book.md`, bằng chứng chi tiết `specs/010-health-warnings-book/quickstart.md`.

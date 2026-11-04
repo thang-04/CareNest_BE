@@ -243,7 +243,7 @@ FE đọc `campusId` của trẻ = điểm trường hiện tại (theo lớp n�
 
 #### 3.2 `child_profiles` — hành chính, 1–1 với trẻ (mới; dữ liệu nhạy cảm, CHD-05)
 `child_id` (PK, FK) · `id_number` VARCHAR(20) NULL (CCCD/mã định danh 12 số hoặc hộ chiếu 6–12 chữ và số) · `premature` (`YES`/`NO`) · `gestation_weeks` SMALLINT NULL (20–42, bắt buộc khi `YES`) · `ethnicity`, `beneficiary` VARCHAR(100) · `payment_source` = `BHYT` (luôn, không nhập) · `blood_type` VARCHAR(100) NULL · `address_province`, `address_ward` VARCHAR(100), `address_street` VARCHAR(300).
-Bắt buộc trừ `id_number`, `blood_type` (và `gestation_weeks` khi không sinh non): không có hồ sơ thiếu, nên cột bắt buộc để NOT NULL (mục 3.9). Danh sách trẻ không trả phần này; phiếu khám sức khỏe đọc từ đây.
+Bắt buộc trừ `id_number`, `blood_type` (và `gestation_weeks` khi không sinh non): không có hồ sơ thiếu, nên cột bắt buộc để NOT NULL (mục 3.9). Danh sách trẻ không trả phần này; phiếu khám sức khỏe đọc từ đây. Sửa 2026-11-04 (user chốt): API tiếp nhận bắt buộc `gestation_weeks` với mọi trẻ, khớp `premature`; cột giữ NULL được cho hồ sơ cũ — plan `docs/plans/active/2026-11-04-intake-weeks-round-dates.md`.
 
 #### 3.3 `child_guardians` — phụ huynh trên hồ sơ trẻ (mới, AUTH-20)
 Phụ huynh có trên hồ sơ trước khi có tài khoản.

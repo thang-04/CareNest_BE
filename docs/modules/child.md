@@ -51,6 +51,8 @@ P-28 (một trẻ cần mấy tài khoản phụ huynh). Đã đóng 28/10: P-17
 - Số định danh/CCCD và tiền sử bệnh là dữ liệu nhạy cảm (CHD-02).
 - DB chưa chặn enrollment chồng thời gian (V63 chỉ chặn 2 enrollment đang mở); khi viết API ghi enrollment phải kiểm ở service.
 - V63 có ràng buộc NOT VALID (`ck_children_complete`, `ck_child_guardians_citizen_id_required`): dòng có trước V63 được giữ, nhưng **mọi UPDATE** dòng đó phải nhập đủ (giới tính; CCCD phụ huynh) nếu không DB trả lỗi CHECK.
+- Tuần thai khi sinh bắt buộc với mọi trẻ khi tiếp nhận, khớp "Sinh non" (dưới 37 tuần là sinh non) — G94-180/CHD-05, user chốt 2026-11-04; kiểm ở `EnrollmentFormValidator` (lỗi ô `profile.gestationWeeks`), lưu cả khi không sinh non. DB vẫn cho NULL (hồ sơ cũ, seed dev); CHECK V63 chỉ bắt khi `premature = YES` ⇒ đọc hồ sơ phải chịu `gestationWeeks` null.
+- Ngày sinh không sau ngày vào lớp đầu tiên: module health dựa vào điều này (ngày đo/ngày khám hệ thống ghi không kiểm ngày sinh — 2026-11-04). Khi làm Sửa hồ sơ đổi ngày sinh phải chặn ngày sinh sau ngày vào lớp đầu tiên và sau lần đo/khám sớm nhất.
 - UNIQUE của `child_guardians` theo trẻ là DEFERRABLE INITIALLY DEFERRED: trùng SĐT/CCCD/vị trí chỉ lỗi lúc commit, không lỗi lúc flush ⇒ service phải tự kiểm (422/409 theo ô) trước khi lưu, DB chỉ là chốt chặn cuối.
 - Seed dev: `parent.a`, `parent.b` có tên đăng nhập kiểu cũ (không phải SĐT) nên SĐT của họ trên hồ sơ trẻ (`0900000006`, `0900000007`) khác tên đăng nhập; phụ huynh khác của trẻ demo chờ kích hoạt.
 - Dữ liệu trẻ là nhạy cảm: không đưa vào log/test fixture thật.

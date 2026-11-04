@@ -194,7 +194,10 @@ class HealthCheckRules {
         return HealthCheckResult.RECORDED;
     }
 
-    /** Ngày lấy sĩ số lớp: hôm nay, kẹp trong khoảng ngày của đợt/kỳ. */
+    /**
+     * Hôm nay, kẹp trong khoảng ngày của đợt/kỳ: ngày lấy sĩ số lớp, cũng là ngày đo/ngày khám hệ thống ghi khi nhập mới
+     * (HLT-01, HLT-08) để trẻ trong danh sách lớp khớp lớp của lần đo.
+     */
     LocalDate referenceDate(HealthCheckCampaign campaign) {
         LocalDate today = today();
         if (today.isBefore(campaign.getStartDate())) {

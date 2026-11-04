@@ -231,14 +231,7 @@ class HealthExamIntegrationTest {
                         teacherA,
                         child1,
                         edited.measurement().id(),
-                        new HealthMeasurementRequest(
-                                null,
-                                LocalDate.of(2026, 11, 10),
-                                new BigDecimal("99.0"),
-                                new BigDecimal("15.2"),
-                                null,
-                                "",
-                                "Sửa")),
+                        new HealthMeasurementRequest(null, new BigDecimal("99.0"), new BigDecimal("15.2"), "", "Sửa")),
                 ApiCode.HEALTH_MEASUREMENT_IS_EXAM);
 
         // Kỳ cân đo không dùng phiếu khám
@@ -485,6 +478,91 @@ class HealthExamIntegrationTest {
                 ApiCode.HEALTH_EXAM_LOCKED);
     }
 
+    @Test
+    @DisplayName(
+            "HLT-08: ngày khám hệ thống ghi ở lần lưu đầu; kết luận, sửa sau đó giữ ngày, gợi ý theo tuổi tại ngày đó")
+    void examDateIsRecordedOnFirstSaveAndKept() {
+        // Hai trẻ đủ 60 tháng ngày 10/11/2026 (còn đo vòng đầu), 61 tháng từ 10/12/2026 (không đo)
+        long drafted = child("Dương", "2021-11-10");
+        long fresh = child("Giang", "2021-11-10");
+        enroll(drafted, classA);
+        enroll(fresh, classA);
+        long campaign = checks.createHealthCheck(
+                        principal, request(HealthCheckKind.EXAM, campusA, "2026-11-10", "2026-12-20"))
+                .id();
+        exams.saveExam(teacherA, campaign, drafted, save(HealthExamCatalog.template(), false, ""));
+
+        testClock.setInstant(Instant.parse("2026-12-11T02:00:00Z"));
+        // Phiếu đã lưu: gợi ý theo tuổi tại ngày khám đã ghi (có vòng đầu); phiếu chưa lưu: theo hôm nay
+        assertThat(exams.reviewPreview(teacherA, campaign, drafted, save(exam("NO", null, normal()), false, ""))
+                        .reviewPoints()
+                        .combined()
+                        .total())
+                .isEqualTo(3);
+        assertThat(exams.reviewPreview(teacherA, campaign, fresh, save(exam("NO", null, normal()), false, ""))
+                        .reviewPoints()
+                        .combined()
+                        .total())
+                .isEqualTo(2);
+
+        HealthExamResponse concluded =
+                exams.saveExam(teacherA, campaign, drafted, save(exam("NO", null, normal()), true, ""));
+        assertThat(concluded.measurement().date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(concluded.reference().headApplies()).isTrue();
+        assertThat(concluded.measurement().headCircumferenceCm()).isEqualByComparingTo("48.5");
+
+        testClock.setInstant(Instant.parse("2026-12-12T02:00:00Z"));
+        HealthExamResponse edited = exams.saveExam(
+                teacherA,
+                campaign,
+                drafted,
+                save(withVitals(exam("NO", null, normal()), feverVitals()), true, "Sửa nhiệt độ (giả)"));
+        assertThat(edited.measurement().date()).isEqualTo(LocalDate.of(2026, 11, 10));
+        assertThat(edited.measurement().edits())
+                .singleElement()
+                .satisfies(e -> assertThat(e.changes())
+                        .extracting(HealthMeasurementResponse.HealthMeasurementChange::field)
+                        .isNotEmpty()
+                        .doesNotContain("date"));
+
+        // Phiếu mới lưu hôm nay: ngày khám là hôm nay, trẻ đã quá 60 tháng nên không ghi vòng đầu
+        HealthExamResponse first =
+                exams.saveExam(teacherA, campaign, fresh, save(exam("NO", null, normal()), true, ""));
+        assertThat(first.measurement().date()).isEqualTo(LocalDate.of(2026, 12, 12));
+        assertThat(first.reference().headApplies()).isFalse();
+        assertThat(first.measurement().headCircumferenceCm()).isNull();
+    }
+
+    @Test
+    @DisplayName("HLT-08: phiếu mới trùng ngày khám với kết quả đo khác của trẻ ⇒ lỗi ô date kèm ngày, báo HT/PHT")
+    void newExamOnTakenDateAsksLeaders() {
+        long round = checks.createHealthCheck(
+                        principal, request(HealthCheckKind.MEASUREMENT, campusA, "2026-11-10", "2026-11-20"))
+                .id();
+        measurements.createMeasurement(teacherA, child1, measure(round, "15.2", ""));
+        checks.closeHealthCheck(principal, round);
+        long campaign = examCampaign(campusA);
+
+        assertThatThrownBy(
+                        () -> exams.saveExam(teacherA, campaign, child1, save(HealthExamCatalog.template(), false, "")))
+                .isInstanceOf(GlobalException.class)
+                .satisfies(ex -> {
+                    GlobalException g = (GlobalException) ex;
+                    assertThat(g.getApiCode()).isEqualTo(ApiCode.HEALTH_EXAM_INCOMPLETE);
+                    assertThat(g.getFieldErrors()).singleElement().satisfies(e -> {
+                        assertThat(e.field()).isEqualTo("date");
+                        assertThat(e.message())
+                                .isEqualTo("Ngày khám 10/11/2026 trẻ đã có kết quả đo khác. "
+                                        + "Báo Hiệu trưởng hoặc Phó hiệu trưởng.");
+                    });
+                });
+        // Trẻ khác chưa có kết quả hôm nay ⇒ lưu được
+        assertThat(exams.saveExam(teacherA, campaign, child2, save(HealthExamCatalog.template(), false, ""))
+                        .measurement()
+                        .date())
+                .isEqualTo(LocalDate.of(2026, 11, 10));
+    }
+
     private long examCampaign(long campusId) {
         return checks.createHealthCheck(principal, request(HealthCheckKind.EXAM, campusId, "2026-11-10", "2026-11-20"))
                 .id();
@@ -504,33 +582,20 @@ class HealthExamIntegrationTest {
                 childId);
     }
 
-    // Số đo kỳ cân đo ngày 2026-11-10, cao 98,5 cm, vòng đầu 49 cm
+    // Số đo kỳ cân đo, cao 98,5 cm; ngày đo hệ thống ghi (hôm nay)
     private static HealthMeasurementRequest measure(long round, String weightKg, String reason) {
-        return new HealthMeasurementRequest(
-                round,
-                LocalDate.of(2026, 11, 10),
-                new BigDecimal("98.5"),
-                new BigDecimal(weightKg),
-                new BigDecimal("49.0"),
-                "",
-                reason);
+        return new HealthMeasurementRequest(round, new BigDecimal("98.5"), new BigDecimal(weightKg), "", reason);
     }
 
     private static HealthExamRequest save(HealthExamForm exam, boolean conclude, String reason) {
         return save(exam, conclude, reason, null);
     }
 
+    // Ngày khám hệ thống ghi ở lần lưu đầu
     private static HealthExamRequest save(
             HealthExamForm exam, boolean conclude, String reason, HealthConclusionMode mode) {
         return new HealthExamRequest(
-                LocalDate.of(2026, 11, 10),
-                new BigDecimal("98.5"),
-                new BigDecimal("15.2"),
-                new BigDecimal("48.5"),
-                exam,
-                conclude,
-                reason,
-                mode);
+                new BigDecimal("98.5"), new BigDecimal("15.2"), new BigDecimal("48.5"), exam, conclude, reason, mode);
     }
 
     private static HealthExamForm.HealthExamVitals feverVitals() {
