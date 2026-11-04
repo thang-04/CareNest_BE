@@ -99,7 +99,9 @@ FROM (VALUES
      ) AS v (username, staff_role, campus_code, classroom_name, valid_from, valid_to)
 JOIN user_accounts u ON u.username = v.username
 LEFT JOIN campuses c ON c.code = v.campus_code
+-- Lớp demo của năm 2026-2027: năm khác có lớp trùng tên (A1, B1) thì không gán nhầm
 LEFT JOIN classrooms r ON r.name = v.classroom_name
+    AND r.school_year_id = (SELECT id FROM school_years WHERE name = '2026-2027')
 WHERE NOT EXISTS (
     SELECT 1 FROM staff_assignments a
     WHERE a.user_id = u.id AND a.staff_role = v.staff_role AND a.valid_from = v.valid_from::date
@@ -134,8 +136,11 @@ FROM (VALUES ('Trẻ Demo A1-01', 'Lớp A1'),
              ('Trẻ Demo A1-02', 'Lớp A1'),
              ('Trẻ Demo B1-01', 'Lớp B1')) AS v (child_name, classroom_name)
 JOIN children ch ON ch.full_name = v.child_name
+-- Chỉ lớp năm 2026-2027 và trẻ chưa có lớp đang học (V63: mỗi trẻ một lớp đang học)
 JOIN classrooms r ON r.name = v.classroom_name
-WHERE NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.child_id = ch.id AND e.classroom_id = r.id);
+    AND r.school_year_id = (SELECT id FROM school_years WHERE name = '2026-2027')
+WHERE NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.child_id = ch.id AND e.classroom_id = r.id)
+  AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.child_id = ch.id AND e.valid_to IS NULL);
 
 INSERT INTO guardian_child_links (user_id, child_id, relationship)
 SELECT u.id, ch.id, v.relationship
