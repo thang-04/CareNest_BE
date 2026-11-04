@@ -11,7 +11,7 @@ import java.util.List;
 public final class ThemeEvaluationDtos {
     private ThemeEvaluationDtos() {}
 
-    /** Lớp mẫu giáo người dùng xem được; teaches = GV đang dạy lớp (được sửa, xác nhận). */
+    /** Lớp (mọi nhóm tuổi) người dùng xem được; teaches = GV đang dạy lớp (được sửa, xác nhận). */
     public record ClassItem(Long classId, String name, Long campusId, Long ageGroupId, boolean teaches) {}
 
     /**

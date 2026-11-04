@@ -10,7 +10,6 @@ import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationRequest;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeEvaluationResponse;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeItem;
 import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeSigners;
-import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.observation.DailyActivityResult;
 import com.carenest.entity.observation.ThemeEvaluation;
@@ -24,7 +23,6 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.observation.ThemeEvaluationService;
-import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
@@ -57,7 +55,6 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private static final String LOG_PREFIX = "[ThemeEvaluationServiceImpl]";
     // OBS-27 (Cần chốt 04/11/2026): trẻ đạt chủ đề khi đạt từ 70% số MT đã chấm; ngưỡng cố định
     static final int PASS_PERCENT = 70;
-    private static final int KINDERGARTEN_FROM_MONTHS = 36;
     private static final TypeReference<List<StoredCell>> CELLS = new TypeReference<>() {};
 
     private final ObservationDayRules rules;
@@ -65,7 +62,6 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private final DailyActivityResultRepository resultRepository;
     private final EnrollmentService enrollmentService;
     private final EduLessonQueryService lessonQueryService;
-    private final AgeGroupService ageGroupService;
     private final ClassroomService classroomService;
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
@@ -82,14 +78,14 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            Set<Long> kindergarten = kindergartenAgeGroupIds();
             Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
             List<ClassroomInfoResponse> year = schoolYearId == null
                     ? classroomService.findActiveYearClassrooms()
                     : classroomService.findYearClassrooms(schoolYearId);
-            // Cùng phạm vi xem với bảng đánh giá: GV lớp mình, tổ trưởng lớp nhóm tuổi mình, HT/PHT theo điểm trường
+            // Cùng phạm vi xem với bảng đánh giá: GV lớp mình, tổ trưởng lớp nhóm tuổi mình, HT/PHT theo điểm trường;
+            // mọi nhóm tuổi (Cần chốt 04/11/2026, gồm cả nhà trẻ)
             List<ClassItem> items = year.stream()
-                    .filter(c -> kindergarten.contains(c.ageGroupId()))
+                    .filter(c -> c.ageGroupId() != null)
                     .map(c -> {
                         boolean teaches = rules.canRecord(currentUser, c) || rules.taughtClosedYear(currentUser, c);
                         boolean reads = teaches
@@ -117,7 +113,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         String logPrefix = LOG_PREFIX + "|listThemes|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
-            ClassroomInfoResponse cls = readableKindergarten(currentUser, classId);
+            ClassroomInfoResponse cls = readableClass(currentUser, classId);
             Map<Long, ThemeEvaluation> saved = evaluationRepository.findByClassroomId(classId).stream()
                     .collect(Collectors.toMap(ThemeEvaluation::getThemeId, Function.identity()));
             LocalDate today = rules.today();
@@ -146,7 +142,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         String logPrefix = LOG_PREFIX + "|get|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
-            ClassroomInfoResponse cls = readableKindergarten(currentUser, classId);
+            ClassroomInfoResponse cls = readableClass(currentUser, classId);
             ThemeRow theme = findTheme(cls, themeId);
             ThemeEvaluation saved = evaluationRepository
                     .findByClassroomIdAndThemeId(classId, theme.getLineage())
@@ -166,7 +162,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         String logPrefix = LOG_PREFIX + "|save|userId=" + currentUser.userId() + "|classId=" + request.classId();
         log.info("{}|START", logPrefix);
         try {
-            ClassroomInfoResponse cls = readableKindergarten(currentUser, request.classId());
+            ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
             ThemeEvaluation evaluation = editable(currentUser, cls, theme);
             Matrix matrix = matrixOf(cls, theme, evaluation);
@@ -188,7 +184,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         String logPrefix = LOG_PREFIX + "|confirm|userId=" + currentUser.userId() + "|classId=" + request.classId();
         log.info("{}|START", logPrefix);
         try {
-            ClassroomInfoResponse cls = readableKindergarten(currentUser, request.classId());
+            ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
             ThemeEvaluation evaluation = editable(currentUser, cls, theme);
             if (rules.today().isBefore(theme.getEndDate())) {
@@ -214,7 +210,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     // ---------- quyền, chủ đề ----------
 
     // Xem: GV lớp (cả năm đã kết thúc), HT/PHT mọi điểm trường (AUTH-20), tổ trưởng các lớp nhóm tuổi mình (AUTH-23)
-    private ClassroomInfoResponse readableKindergarten(CurrentUser user, Long classId) {
+    private ClassroomInfoResponse readableClass(CurrentUser user, Long classId) {
         ClassroomInfoResponse cls = rules.findClass(classId);
         boolean reads = rules.canRecord(user, cls)
                 || rules.taughtClosedYear(user, cls)
@@ -223,18 +219,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         if (!reads) {
             throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
         }
-        if (!kindergartenAgeGroupIds().contains(cls.ageGroupId())) {
-            throw GlobalException.of(ApiCode.THEME_EVALUATION_KINDERGARTEN_ONLY);
-        }
         return cls;
-    }
-
-    // Nhóm tuổi mẫu giáo: từ 36 tháng (nhà trẻ không đánh giá cuối chủ đề)
-    private Set<Long> kindergartenAgeGroupIds() {
-        return ageGroupService.getAgeGroups().stream()
-                .filter(g -> g.ageFromMonths() != null && g.ageFromMonths() >= KINDERGARTEN_FROM_MONTHS)
-                .map(AgeGroupDetailResponse::id)
-                .collect(Collectors.toSet());
     }
 
     private ThemeRow findTheme(ClassroomInfoResponse cls, Long themeId) {

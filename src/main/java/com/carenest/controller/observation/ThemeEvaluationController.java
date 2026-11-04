@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Đánh giá cuối chủ đề của lớp mẫu giáo (OBS-27): GV lớp sửa, xác nhận; BGH, tổ trưởng xem. */
+/** Đánh giá cuối chủ đề của lớp mọi nhóm tuổi (OBS-27): GV lớp sửa, xác nhận; BGH, tổ trưởng xem. */
 @RestController
 @RequiredArgsConstructor
 @Slf4j

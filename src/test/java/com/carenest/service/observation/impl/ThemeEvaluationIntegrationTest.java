@@ -239,8 +239,9 @@ class ThemeEvaluationIntegrationTest {
 
     @Test
     void scopeAndRulesAreEnforced() {
-        // Lớp nhà trẻ không có đánh giá cuối chủ đề
-        expectCode(() -> service.listThemes(principal, nurseryClass), ApiCode.THEME_EVALUATION_KINDERGARTEN_ONLY);
+        // Mọi nhóm tuổi đều có đánh giá cuối chủ đề (Cần chốt 04/11/2026): nhà trẻ chưa có kế hoạch năm thì chưa có chủ
+        // đề
+        assertThat(service.listThemes(principal, nurseryClass)).isEmpty();
         // GV lớp khác không xem; HT xem nhưng không sửa
         expectCode(() -> service.get(otherTeacher, classA, 9201L), ApiCode.EVALUATION_VIEW_FORBIDDEN);
         assertThat(service.get(principal, classA, 9201L).canEdit()).isFalse();
@@ -261,7 +262,7 @@ class ThemeEvaluationIntegrationTest {
                 otherTeacher.userId(),
                 classA);
         assertThat(service.get(otherTeacher, classA, 9201L).rows()).hasSize(2);
-        // Danh sách lớp: chỉ lớp mẫu giáo; tổ trưởng thấy cả lớp trong nhóm (không dạy), HT thấy mọi lớp mẫu giáo
+        // Danh sách lớp: tổ trưởng thấy cả lớp trong nhóm (không dạy), HT thấy mọi lớp mọi nhóm tuổi
         assertThat(service.listClasses(otherTeacher, null))
                 .extracting(c -> c.classId() + ":" + c.teaches())
                 .containsExactly(classB + ":true", classA + ":false");
@@ -270,7 +271,7 @@ class ThemeEvaluationIntegrationTest {
                 .containsExactly(classA);
         assertThat(service.listClasses(principal, null))
                 .extracting(c -> c.classId())
-                .containsExactlyInAnyOrder(classA, classB);
+                .containsExactlyInAnyOrder(classA, classB, nurseryClass);
         // Tên in dưới chỗ ký: GV lớp, tổ trưởng nhóm tuổi, PHT ban hành kế hoạch năm (không có thì để trống)
         assertThat(service.get(principal, classA, 9201L).signers().teachers()).containsExactly("teacher-t");
         assertThat(service.get(principal, classA, 9201L).signers().teamLeaders())

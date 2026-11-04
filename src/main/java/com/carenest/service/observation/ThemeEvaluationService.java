@@ -7,7 +7,7 @@ import com.carenest.dto.observation.ThemeEvaluationDtos.ThemeItem;
 import com.carenest.security.CurrentUser;
 import java.util.List;
 
-/** Đánh giá cuối chủ đề của lớp mẫu giáo (OBS-27). */
+/** Đánh giá cuối chủ đề của lớp mọi nhóm tuổi (OBS-27). */
 public interface ThemeEvaluationService {
 
     /** schoolYearId null = năm học đang hoạt động. */
