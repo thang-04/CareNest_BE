@@ -262,7 +262,17 @@ class MealCountIntegrationTest {
         assertThat(review.status()).isEqualTo("PENDING_CONFIRMATION");
         assertThat(review.needsReconfirmation()).isTrue();
         assertThat(review.totals().normal()).isEqualTo(2);
+        // Người duyệt thấy số đã chốt cũ cạnh số mới của lớp thay đổi (NUT-03)
+        assertThat(review.classes())
+                .filteredOn(l -> l.classId().equals(classA))
+                .singleElement()
+                .satisfies(l -> {
+                    assertThat(l.normal()).isEqualTo(2);
+                    assertThat(l.confirmedNormal()).isEqualTo(1);
+                });
         MealCountResponse kitchen = lunch(service.getMealCounts(kitchenA, TODAY, null));
+        assertThat(kitchen.classes())
+                .allSatisfy(l -> assertThat(l.confirmedNormal()).isNull());
         assertThat(kitchen.status()).isEqualTo("CONFIRMED");
         assertThat(kitchen.needsReconfirmation()).isFalse();
         assertThat(kitchen.totals().normal()).isEqualTo(1);

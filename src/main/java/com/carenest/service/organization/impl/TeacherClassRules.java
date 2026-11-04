@@ -30,10 +30,17 @@ class TeacherClassRules {
     private final RoomRepository roomRepository;
     private final TeacherDirectory teacherDirectory;
 
-    /** Năm còn mở, tài khoản còn hoạt động, GV thuộc điểm trường của lớp (GV chưa dạy lớp nào xếp được mọi nơi). */
-    void checkTeachers(Classroom classroom, SchoolYear year, Collection<Long> teacherIds, LocalDate today) {
+    /**
+     * Năm còn mở, tài khoản còn hoạt động, GV thuộc điểm trường của lớp (GV chưa dạy lớp nào xếp được mọi nơi).
+     * anyCampus: HT xếp GV vào lớp toàn trường, kể cả chuyển sang điểm trường khác (AUTH-16, user chốt 03/11/2026).
+     */
+    void checkTeachers(
+            Classroom classroom, SchoolYear year, Collection<Long> teacherIds, LocalDate today, boolean anyCampus) {
         SchoolYearRules.checkOpen(year);
         checkAccountsActive(teacherIds);
+        if (anyCampus) {
+            return;
+        }
         Set<Long> campusTeachers = teacherDirectory.findTeachers(today).stream()
                 .filter(t -> t.campusIds().isEmpty() || t.campusIds().contains(classroom.getCampusId()))
                 .map(TeacherCandidateResponse::id)

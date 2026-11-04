@@ -26,6 +26,9 @@ Bảng `attendance_records`, `attendance_record_history`, `attendance_day_unlock
 P-19 (ngày nghỉ tự khóa điểm danh), P-20 (trẻ có đơn nghỉ vẫn đến lớp), P-21, P-22 (sức khỏe đầu ngày). Đã đóng 31/10: P-33 (ảnh phụ huynh ở hồ sơ, phụ huynh tải khi đăng nhập App lần đầu). Đã đóng 28/10: P-03 (giờ chốt — ATT-06), P-04 (đến muộn — ATT-03). Đơn nghỉ: thông báo, không duyệt, GV không tạo thay (ATT-05).
 
 ## Known pitfalls
+
+- Concurrent health retries serialize before UUID lookup; unlock creation locks the class before checking active grants. Open FE sheets reconcile parent leave without replacing unrelated drafts. See [concurrency repair](../knowledge/incidents/BUG-261104-reception-concurrency.md).
+
 - Số suất = trẻ có mặt × các bữa cấu hình cho nhóm tuổi (ATT-02, NUT-01, NUT-17); không còn MealParticipation riêng (đổi 28/10).
 - Sau giờ chốt trường không nhận trẻ đến muộn: không có trạng thái "đến muộn" (ATT-03, ATT-09). Sửa sau giờ chốt chỉ qua mở lại có lý do (ATT-08).
 - Sửa điểm danh sau khi số suất đã xác nhận ⇒ số suất phải được đánh dấu thay đổi + xác nhận lại, không sửa ngầm (ADR-0005).

@@ -233,6 +233,43 @@ class AssessmentHistoryIntegrationTest {
     }
 
     @Test
+    void qualityReportScopeForTeacherAndTeamLeader() {
+        long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        long classC = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
+                + campusA + ", " + year + ", 'Lớp C', " + ag4 + ") RETURNING id");
+        long ag3 = jdbc.queryForObject("SELECT age_group_id FROM classrooms WHERE id = ?", Long.class, classA);
+        CurrentUser teacher = teacherOf("teacherqa", classA);
+        CurrentUser leader = teacherOf("teamleader", classC);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, valid_from) "
+                        + "VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, '2026-09-01')",
+                leader.userId(),
+                ag3);
+        java.time.YearMonth oct = java.time.YearMonth.of(2026, 10);
+
+        // GV: chỉ lớp mình dạy, không có dòng tổng
+        var own = qualityReportService.getReport(teacher, null, oct, null);
+        assertThat(own.rows()).extracting(r -> r.classId()).containsExactly(classA);
+        assertThat(own.totals()).isEmpty();
+        // Tổ trưởng nhóm tuổi của A, B: các lớp nhóm tuổi đó + lớp mình dạy
+        assertThat(qualityReportService.getReport(leader, null, oct, null).rows())
+                .extracting(r -> r.classId())
+                .containsExactlyInAnyOrder(classA, classB, classC);
+        // GV không có lớp: không thấy gì
+        assertThat(qualityReportService
+                        .getReport(user("teachernone", CareNestRole.TEACHER), null, oct, null)
+                        .rows())
+                .isEmpty();
+    }
+
+    @Test
+    void qualityReportDefaultsToLastFinishedMonth() {
+        // Hôm nay 21/10: tháng 10 còn dở ⇒ mặc định tháng 9
+        assertThat(qualityReportService.getReport(principal, null, null, null).month())
+                .isEqualTo("2026-09");
+    }
+
+    @Test
     void qualityReportUsesDaysChildBelongsToClassAndIssuedTickets() {
         long full = child("Cả tháng");
         long joined = child("Vào 15/10");
@@ -284,9 +321,11 @@ class AssessmentHistoryIntegrationTest {
                 .toList();
     }
 
+    // Hồ sơ trẻ bắt buộc mã, giới tính, trạng thái (tiếp nhận trẻ G94-180)
     private long child(String name) {
-        return insertId(
-                "INSERT INTO children (full_name, date_of_birth) VALUES ('" + name + "', '2023-01-01') RETURNING id");
+        return insertId("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ("
+                + "'IT' || substr(md5(random()::text), 1, 12), '" + name
+                + "', '2023-01-01', 'MALE', 'ACTIVE', '2026-09-01') RETURNING id");
     }
 
     private void enroll(long childId, long classroomId, String from, String to) {

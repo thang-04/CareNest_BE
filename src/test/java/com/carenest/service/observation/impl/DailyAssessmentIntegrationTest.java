@@ -488,6 +488,19 @@ class DailyAssessmentIntegrationTest {
         // AUTH-20: PHT điểm trường khác xem chi tiết lớp; giáo viên không phải lớp mình vẫn bị chặn
         assertThat(overviewService.getClassDetail(vpB, classA, "DAY").classId()).isEqualTo(classA);
         expectCode(() -> overviewService.getClassDetail(teacherA, classA, "DAY"), ApiCode.CLASS_ACCESS_DENIED);
+        // Tổ trưởng nhóm tuổi xem tổng quan và chi tiết các lớp cùng nhóm tuổi (lớp A, B)
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
+                        + "SELECT ?, 'AGE_GROUP_TEAM_LEADER', age_group_id, school_year_id, '2026-01-01' FROM classrooms WHERE id = ?",
+                teacherB.userId(),
+                classA);
+        assertThat(overviewService
+                        .getOverview(teacherB, "DAY", null, null, null, null)
+                        .rows())
+                .extracting(r -> r.classId())
+                .containsExactlyInAnyOrder(classA, classB);
+        assertThat(overviewService.getClassDetail(teacherB, classA, "DAY").classId())
+                .isEqualTo(classA);
         expectCode(() -> overviewService.getOverview(principal, "YEAR", null, null, null, null), ApiCode.INVALID_VALUE);
     }
 
@@ -618,6 +631,161 @@ class DailyAssessmentIntegrationTest {
         expectCode(() -> evaluations.get(teacherB, old.id()), ApiCode.EVALUATION_VIEW_FORBIDDEN);
     }
 
+    @Autowired
+    private com.carenest.service.observation.ClassMonthlyCommentService monthlyComments;
+
+    @Test
+    void classMonthlyCommentIsDraftedConfirmedByTeacherAndReadByLeaders() {
+        attendance(child1, classA, LocalDate.of(2026, 9, 15));
+        LocalDate september = LocalDate.of(2026, 9, 1);
+        // PHT chưa thấy nội dung khi GV chưa xác nhận
+        assertThat(monthlyComments.get(vpB, classA, september).content()).isNull();
+
+        var draft = monthlyComments.get(teacherA, classA, september);
+        assertThat(draft.status()).isEqualTo("AWAITING_REVIEW");
+        assertThat(draft.draft()).contains("Tháng 09/2026").contains("Lớp A");
+        assertThat(draft.canEdit()).isTrue();
+        var request = new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
+                classA, september, "Lớp đi học đều, các bé mạnh dạn tham gia hoạt động, cần rèn thêm nề nếp ăn.");
+        monthlyComments.save(teacherA, request);
+        var confirmed = monthlyComments.confirm(teacherA, request);
+        assertThat(confirmed.status()).isEqualTo("CONFIRMED");
+        expectCode(() -> monthlyComments.save(teacherA, request), ApiCode.EVALUATION_ALREADY_CONFIRMED);
+
+        var leaderView = monthlyComments.get(vpB, classA, september);
+        assertThat(leaderView.content()).startsWith("Lớp đi học đều");
+        assertThat(leaderView.draft()).isNull();
+        assertThat(leaderView.canEdit()).isFalse();
+        // Tháng đang diễn ra: chưa viết được
+        assertThat(monthlyComments
+                        .get(teacherA, classA, LocalDate.of(2026, 10, 1))
+                        .status())
+                .isEqualTo("NOT_READY");
+        expectCode(
+                () -> monthlyComments.confirm(
+                        teacherA,
+                        new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
+                                classA, LocalDate.of(2026, 10, 1), "Nhận xét tháng mười còn đang diễn ra.")),
+                ApiCode.CLASS_MONTHLY_COMMENT_NOT_READY);
+        expectCode(() -> monthlyComments.save(vpB, request), ApiCode.EVALUATION_EDIT_FORBIDDEN);
+    }
+
+    @Autowired
+    private com.carenest.service.observation.ClassRatingService ratings;
+
+    @Test
+    void classRatingsAreScoredByLeadersOfTheCampusAndReadByTheClassTeacher() {
+        var period = com.carenest.utils.enums.ClassRatingPeriod.SEMESTER_1;
+        var tot = com.carenest.utils.enums.ClassRatingLevel.TOT;
+        var kha = com.carenest.utils.enums.ClassRatingLevel.KHA;
+        var levels = new com.carenest.dto.observation.ClassRatingDtos.Levels(tot, tot, kha, tot, tot, tot, kha, tot);
+        var item = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingItem(classA, levels, " Lớp làm tốt ");
+        var request = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(period, List.of(item));
+
+        // PHT điểm trường B xem được lớp A (AUTH-20) nhưng không chấm được
+        assertThat(ratings.list(vpB, null, period, null).rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> assertThat(r.canEdit()).isFalse());
+        expectCode(() -> ratings.save(vpB, request), ApiCode.CLASS_RATING_FORBIDDEN);
+
+        var saved = ratings.save(vpA, request);
+        assertThat(saved.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.levels()).isEqualTo(levels);
+                    assertThat(r.note()).isEqualTo("Lớp làm tốt");
+                    assertThat(r.canEdit()).isTrue();
+                });
+        // Lưu lại cùng kỳ là cập nhật, không thêm dòng
+        ratings.save(principal, request);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM class_ratings", Integer.class))
+                .isEqualTo(1);
+
+        // GV chỉ thấy lớp mình, chỉ xem; kỳ khác chưa chấm
+        assertThat(ratings.list(teacherA, null, period, null).rows())
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.classId()).isEqualTo(classA);
+                    assertThat(r.levels().overall()).isEqualTo(tot);
+                    assertThat(r.canEdit()).isFalse();
+                });
+        // Tổ trưởng nhóm tuổi xem thêm các lớp cùng nhóm tuổi (lớp B), chỉ xem
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from) "
+                        + "SELECT ?, 'AGE_GROUP_TEAM_LEADER', age_group_id, school_year_id, '2026-01-01' FROM classrooms WHERE id = ?",
+                teacherA.userId(),
+                classA);
+        assertThat(ratings.list(teacherA, null, period, null).rows())
+                .extracting(r -> r.classId())
+                .containsExactlyInAnyOrder(classA, classB);
+        assertThat(ratings.list(teacherA, null, period, null).rows()).noneMatch(r -> r.canEdit());
+
+        // Cuối năm chỉ chấm từ tháng cuối năm học; đã chấm tiêu chí thì phải chọn xếp loại chung
+        var yearRequest = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(
+                com.carenest.utils.enums.ClassRatingPeriod.YEAR, List.of(item));
+        expectCode(() -> ratings.save(principal, yearRequest), ApiCode.CLASS_RATING_NOT_OPEN);
+        var noOverall = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingItem(
+                classA,
+                new com.carenest.dto.observation.ClassRatingDtos.Levels(tot, null, null, null, null, null, null, null),
+                null);
+        expectCode(
+                () -> ratings.save(
+                        principal,
+                        new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(
+                                period, List.of(noOverall))),
+                ApiCode.CLASS_RATING_OVERALL_REQUIRED);
+        assertThat(ratings.list(principal, null, com.carenest.utils.enums.ClassRatingPeriod.YEAR, null)
+                        .rows())
+                .allSatisfy(r -> assertThat(r.canEdit()).isFalse());
+        assertThat(ratings.list(teacherA, null, com.carenest.utils.enums.ClassRatingPeriod.YEAR, null)
+                        .rows()
+                        .getFirst()
+                        .levels()
+                        .overall())
+                .isNull();
+    }
+
+    @Test
+    void semesterDraftsFollowSemesterDatesOfSchoolYear() {
+        var semester = com.carenest.utils.enums.EvaluationPeriodType.SEMESTER;
+        // Chưa đặt ngày học kỳ ở Cấu hình thời gian ⇒ chưa có đánh giá học kỳ
+        attendance(child1, classA, LocalDate.of(2026, 9, 15));
+        assertThat(evaluations.list(teacherA, semester, null, classA, null)).isEmpty();
+
+        jdbc.update("UPDATE school_years SET semester1_start = start_date, semester1_end = '2026-09-30', "
+                + "semester2_start = '2026-10-01', semester2_end = end_date WHERE status = 'ACTIVE'");
+        var september = evaluations
+                .list(
+                        teacherA,
+                        com.carenest.utils.enums.EvaluationPeriodType.MONTH,
+                        null,
+                        classA,
+                        LocalDate.of(2026, 9, 1))
+                .getFirst();
+        evaluations.confirm(teacherA, september.id(), "Nhận xét tháng 9 đã được giáo viên kiểm tra đầy đủ dữ liệu.");
+        entityManager.clear();
+        var rows = evaluations.list(teacherA, semester, null, classA, null);
+        // Học kỳ II chưa kết thúc ⇒ chỉ có bản nháp học kỳ I, cho trẻ có đi học trong kỳ
+        assertThat(rows).singleElement().satisfies(r -> {
+            assertThat(r.childId()).isEqualTo(child1);
+            assertThat(r.periodType()).isEqualTo(semester);
+            assertThat(r.periodEnd()).isEqualTo(LocalDate.of(2026, 9, 30));
+        });
+        var detail = evaluations.get(teacherA, rows.getFirst().id());
+        assertThat(detail.evaluation().aiDraft().content()).contains("học kỳ vừa qua");
+        assertThat(detail.monthlyEvaluations())
+                .singleElement()
+                .satisfies(m -> assertThat(m.id()).isEqualTo(september.id()));
+        assertThat(detail.evaluation().aiDraft().content()).contains("1 đánh giá tháng");
+        evaluations.confirm(teacherA, rows.getFirst().id(), "Nhận xét học kỳ I đã được giáo viên kiểm tra đầy đủ.");
+        assertThat(evaluations.list(teacherA, semester, null, classA, null)).hasSize(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM child_evaluations WHERE period_type = 'SEMESTER'", Integer.class))
+                .isEqualTo(1);
+    }
+
     @Test
     void yearDraftSurvivesTransferAndProgramReportCountsCurrentRosterOnce() {
         var year = com.carenest.utils.enums.EvaluationPeriodType.YEAR;
@@ -710,6 +878,9 @@ class DailyAssessmentIntegrationTest {
                     assertThat(r.children()).isEqualTo(2);
                     assertThat(r.presentDays()).isEqualTo(2);
                     assertThat(r.avgPresent()).isEqualTo(1);
+                    // Trẻ ra lớp: An thôi học 19/09 trên sĩ số 2
+                    assertThat(r.leftChildren()).isEqualTo(1);
+                    assertThat(r.leftRate()).isEqualTo(50);
                 });
         assertThat(qualityReports
                         .getReport(vpA, null, java.time.YearMonth.of(2026, 9), campusA)

@@ -19,6 +19,7 @@ AUTH-01..03, AUTH-05, AUTH-15, AUTH-16, AUTH-23, CFG-YR-01..03, CFG-CP-01. ADR-0
 - Được dùng bởi: child, attendance, nutrition, health, learning-observation, education-plan (năm học, nhóm tuổi, phân công tổ trưởng), reporting, kiểm tra scope (`security/`).
 
 ## API & bảng
+- Ngày nghỉ năm học: `GET|PUT /school-years/{id}/holidays` (HT sửa, PHT xem), bảng `school_holidays` (V70); `SchoolYearService.isSchoolDay` là nguồn duy nhất "ngày học" cho điểm danh, đánh giá (SCH-05). `GET /school-years/{id}/semester-locks` (OBS-25).
 - Bảng: `attendance_cutoffs` (V17), `rooms` (V15), `campuses`, `school_years`, `classrooms`, `staff_assignments` (`V2__create_school_structure.sql`), `age_groups` + cột nhóm tuổi của lớp/phân công Tổ trưởng (`V10__create_age_groups.sql`); xem `docs/database/DATA_DICTIONARY.md`.
 - Entity hiện có: `Classroom`, `StaffAssignment`, `SchoolYear`, `AgeGroup` (+ `Campus` V14, `Room` V15); enum `StaffRole` ở `utils/enums/` (ADR-0014).
 - Service cho kiểm tra scope: `StaffAssignmentService` (`hasActivePrincipalAssignment`, `hasActiveCampusAssignment`, `hasActiveTeacherAssignment` — lọc theo ngày, tính cả hai đầu), `ClassroomService.findCampusId`. Không gọi ngược `security/authorization`.
@@ -34,6 +35,9 @@ AUTH-01..03, AUTH-05, AUTH-15, AUTH-16, AUTH-23, CFG-YR-01..03, CFG-CP-01. ADR-0
 P-18 (học kỳ, trông hè), P-19 (ngày nghỉ tự khóa điểm danh). Đã đóng: P-14 (2026-10-27 — AUTH-02, AUTH-20), P-06 (2026-10-28 — mỗi cơ sở một bếp, AUTH-05). Cấu hình HT cần cho nghiệp vụ: giờ chốt theo mùa (ATT-06), số bữa theo nhóm tuổi (NUT-17), giá suất theo nhóm tuổi (NUT-19).
 
 ## Known pitfalls
+
+- Changed year bounds must include stored holidays; school-day reads use authoritative DB data without shared volatile cache. See [holiday lifecycle](../knowledge/incidents/BUG-261103-school-holiday-lifecycle.md).
+
 - Không biến School thành tenant: không thêm `school_id` vào mọi bảng; chiều phân vùng là `campus_id`.
 - Assignment có hiệu lực theo thời gian: luôn lọc theo ngày khi resolve scope.
 - Kết thúc phân công bằng `valid_to`, không xóa dòng (giữ lịch sử ai từng có quyền).

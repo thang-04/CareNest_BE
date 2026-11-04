@@ -27,8 +27,9 @@ SELECT (:'a_id'::bigint <> :'b_id'::bigint
     DO $$ BEGIN RAISE EXCEPTION 'Invalid assessment-continuity fixture parameters'; END $$;
 \endif
 
-INSERT INTO children (full_name, date_of_birth)
-VALUES ('TEST Lịch sử ' || to_char(clock_timestamp(), 'YYYYMMDD-HH24MISS-MS'), '2023-01-01') RETURNING id \gset test_child_
+INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on)
+VALUES ('TEST' || substr(md5(random()::text), 1, 12), 'TEST Lịch sử ' || to_char(clock_timestamp(), 'YYYYMMDD-HH24MISS-MS'),
+        '2023-01-01', 'MALE', 'ACTIVE', '2026-10-01') RETURNING id \gset test_child_
 INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES
     (:'test_child_id', :'class_a', '2026-10-01', '2026-10-28'),
     (:'test_child_id', :'class_b', '2026-10-29', NULL);

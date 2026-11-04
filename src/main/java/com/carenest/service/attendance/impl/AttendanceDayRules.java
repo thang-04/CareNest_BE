@@ -11,11 +11,11 @@ import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.ClassroomAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.organization.AttendanceCutoffService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -23,6 +23,7 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -42,6 +43,7 @@ class AttendanceDayRules {
     private final ClassroomAccessPolicy classroomAccessPolicy;
     private final CampusAccessPolicy campusAccessPolicy;
     private final AccountService accountService;
+    private final SchoolYearService schoolYearService;
 
     LocalDate today() {
         return LocalDate.now(clock);
@@ -51,10 +53,9 @@ class AttendanceDayRules {
         return clock.instant();
     }
 
-    // Tạm thứ 2–6 (chưa có lịch nghỉ lễ của trường)
-    static boolean isSchoolDay(LocalDate date) {
-        DayOfWeek day = date.getDayOfWeek();
-        return day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
+    // Thứ 2–6 trừ ngày nghỉ của năm học (SCH-05)
+    boolean isSchoolDay(LocalDate date) {
+        return schoolYearService.isSchoolDay(date);
     }
 
     LocalTime cutoff(Long schoolYearId, LocalDate date) {
@@ -103,6 +104,13 @@ class AttendanceDayRules {
     // AUTH-20: xem điểm danh/sức khỏe là đường đọc ⇒ PHT xem mọi cơ sở; ghi vẫn qua canRecord/canUnlock
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
+    }
+
+    /** Nhóm tuổi người dùng đang làm tổ trưởng chuyên môn; rỗng nếu không phải tổ trưởng. */
+    Set<Long> teamLeaderAgeGroupIds(CurrentUser user) {
+        return user.hasRole(CareNestRole.TEACHER)
+                ? staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), LocalDate.now(clock))
+                : Set.of();
     }
 
     boolean canReadCampus(CurrentUser user, Long campusId) {

@@ -201,7 +201,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             }
             classroomService.lockForUpdate(classId);
             LocalDate date = request.date();
-            if (!AttendanceDayRules.isSchoolDay(date)) {
+            if (!rules.isSchoolDay(date)) {
                 throw GlobalException.of(ApiCode.NOT_SCHOOL_DAY);
             }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
@@ -301,13 +301,17 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|getSummary|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!currentUser.hasRole(CareNestRole.PRINCIPAL) && !currentUser.hasRole(CareNestRole.VICE_PRINCIPAL)) {
+            boolean leader =
+                    currentUser.hasRole(CareNestRole.PRINCIPAL) || currentUser.hasRole(CareNestRole.VICE_PRINCIPAL);
+            // Tổ trưởng chuyên môn xem tổng hợp các lớp nhóm tuổi mình (Cần chốt 04/11)
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_SUMMARY_ACCESS_DENIED);
             }
             checkRange(from, to);
             List<ClassSummary> parts = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
-                    .filter(c -> rules.canView(currentUser, c))
+                    .filter(c -> leader ? rules.canView(currentUser, c) : ledGroups.contains(c.ageGroupId()))
                     .map(c -> summarize(c, from, to))
                     .toList();
             if (campusId != null && parts.isEmpty() && !rules.canReadCampus(currentUser, campusId)) {
@@ -433,7 +437,7 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     private ClassroomInfoResponse viewableClass(CurrentUser user, Long classId) {
         ClassroomInfoResponse cls = findClass(classId);
-        if (!rules.canView(user, cls)) {
+        if (!rules.canView(user, cls) && !rules.teamLeaderAgeGroupIds(user).contains(cls.ageGroupId())) {
             throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
         }
         return cls;
@@ -459,9 +463,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
-    private static List<LocalDate> schoolDays(LocalDate from, LocalDate to) {
+    private List<LocalDate> schoolDays(LocalDate from, LocalDate to) {
         return Stream.iterate(from, d -> !d.isAfter(to), d -> d.plusDays(1))
-                .filter(AttendanceDayRules::isSchoolDay)
+                .filter(rules::isSchoolDay)
                 .toList();
     }
 

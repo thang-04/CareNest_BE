@@ -312,7 +312,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         if (date.isAfter(rules.today())) {
             throw GlobalException.of(ApiCode.ASSESSMENT_FUTURE_DATE);
         }
-        if (!ObservationDayRules.isSchoolDay(date)) {
+        if (!rules.isSchoolDay(date)) {
             throw GlobalException.of(ApiCode.ASSESSMENT_NOT_SCHOOL_DAY);
         }
         if (cls.yearStart() != null && date.isBefore(cls.yearStart())

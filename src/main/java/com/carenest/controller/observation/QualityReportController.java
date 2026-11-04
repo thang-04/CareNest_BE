@@ -25,7 +25,7 @@ public class QualityReportController {
     private final QualityReportService qualityReportService;
 
     @GetMapping("/assessment/quality-report")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<QualityReportResponse>> getReport(
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(required = false) @DateTimeFormat(pattern = "yyyy-MM") YearMonth month,

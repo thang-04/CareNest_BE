@@ -29,6 +29,10 @@ public record MealCountResponse(
         boolean canConfirm,
         boolean canAdjust) {
 
+    /**
+     * confirmedNormal / confirmedSubstitute: số đã chốt trước đó khi sổ đang chờ xác nhận lại (NUT-03, ADR-0005), để
+     * người duyệt so với số mới; null khi không có số chờ.
+     */
     public record Line(
             Long classId,
             String className,
@@ -37,7 +41,9 @@ public record MealCountResponse(
             int absent,
             int missing,
             int normal,
-            int substitute) {}
+            int substitute,
+            Integer confirmedNormal,
+            Integer confirmedSubstitute) {}
 
     public record Totals(int present, int absent, int missing, int normal, int substitute) {}
 

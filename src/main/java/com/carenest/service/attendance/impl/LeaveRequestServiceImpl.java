@@ -98,7 +98,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             List<LocalDate> skipped = new ArrayList<>();
             Map<LocalDate, ClassroomInfoResponse> classOf = new HashMap<>();
             for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
-                if (!AttendanceDayRules.isSchoolDay(d)) {
+                if (!rules.isSchoolDay(d)) {
                     continue;
                 }
                 ClassroomInfoResponse cls = activeClassOf(request.childId(), d);

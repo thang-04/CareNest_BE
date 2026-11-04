@@ -75,7 +75,7 @@ public class BehaviourTicketController {
     }
 
     @GetMapping("/assessment/behaviour-tickets/overview")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<TicketOverviewResponse>> getOverview(
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate month,

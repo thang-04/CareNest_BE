@@ -102,6 +102,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
         log.info("{}|START", logPrefix);
         try {
             // Gửi lặp cùng requestId ⇒ trả lại lần đã lưu, không tạo dòng mới
+            entryRepository.lockRequest(currentUser.userId(), request.requestId());
             var previous = entryRepository.findByRecordedByAndRequestId(currentUser.userId(), request.requestId());
             if (previous.isPresent()) {
                 DailyHealthEntryResponse same = toViews(List.of(previous.get())).getFirst();
@@ -263,7 +264,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             Overview overview = new Overview(
                     date,
                     campusId,
-                    AttendanceDayRules.isSchoolDay(date),
+                    rules.isSchoolDay(date),
                     options,
                     // Chưa có module thông báo phụ huynh ⇒ notified = 0
                     new Totals(totals[0], totals[1], totals[2], 0),

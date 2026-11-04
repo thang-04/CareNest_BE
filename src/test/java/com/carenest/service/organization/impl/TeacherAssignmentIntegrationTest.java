@@ -282,9 +282,11 @@ class TeacherAssignmentIntegrationTest {
                         .orElseThrow()
                         .campusId())
                 .isNotEqualTo(candidate.campusId());
+        // PHT cơ sở A không kéo được GV đang thuộc cơ sở B (HT thì được, xem principalMayMoveTeacherAcrossCampuses)
+        CurrentUser vpA = vicePrincipalOf("vpA", "CS-A");
         expectError(
                 () -> service.assignClassTeachers(
-                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacherB), teacher1)),
+                        vpA, classA1, new ClassTeachersRequest(List.of(teacher1, teacherB), teacher1)),
                 ApiCode.BAD_REQUEST);
     }
 
@@ -309,10 +311,11 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    void teacherOfOtherCampusIsRejected() {
+    void vicePrincipalCannotPullTeacherOfOtherCampus() {
+        CurrentUser vpA = vicePrincipalOf("vpA", "CS-A");
         expectError(
                 () -> service.assignClassTeachers(
-                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacherB), teacher1)),
+                        vpA, classA1, new ClassTeachersRequest(List.of(teacher1, teacherB), teacher1)),
                 ApiCode.BAD_REQUEST);
     }
 
@@ -427,6 +430,16 @@ class TeacherAssignmentIntegrationTest {
         ClassTeachersResponse a2 = service.assignClassTeachers(
                 principal, classA2, new ClassTeachersRequest(List.of(teacher3, teacher1), teacher3));
         assertThat(a2.teacherIds()).containsExactlyInAnyOrder(teacher3, teacher1);
+    }
+
+    @Test
+    @DisplayName("AUTH-16: HT xếp GV điểm trường khác vào lớp, chỉ còn chặn khi GV đang dạy chính lớp khác")
+    void principalMayMoveTeacherAcrossCampuses() {
+        // GV cơ sở B không bị chặn vì điểm trường; vẫn đang dạy chính lớp B1 nên bị chặn theo AUTH-24
+        expectCode(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacherB), teacher1)),
+                ApiCode.TEACHER_ALREADY_ASSIGNED);
     }
 
     @Test

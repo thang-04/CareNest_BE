@@ -552,6 +552,117 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
+  /api/assessment/class-monthly-comments:
+    get:
+      operationId: getComment
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: month
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
+    put:
+      operationId: saveComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
+  /api/assessment/class-monthly-comments/confirm:
+    post:
+      operationId: confirmComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
+  /api/assessment/class-ratings:
+    get:
+      operationId: listRatings
+      parameters:
+      - in: query
+        name: period
+        required: true
+        schema:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassRatingResponse"
+          description: OK
+      tags:
+      - class-rating-controller
+    put:
+      operationId: saveRatings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassRatingSaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassRatingResponse"
+          description: OK
+      tags:
+      - class-rating-controller
   /api/assessment/day-unlocks:
     get:
       operationId: getUnlocks_1
@@ -641,6 +752,7 @@ paths:
           type: string
           enum:
           - MONTH
+          - SEMESTER
           - YEAR
       - in: query
         name: schoolYearId
@@ -5989,6 +6101,49 @@ paths:
           description: OK
       tags:
       - attendance-cutoff-controller
+  /api/school-years/{schoolYearId}/holidays:
+    get:
+      operationId: getHolidays
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSchoolHolidayItem"
+          description: OK
+      tags:
+      - school-year-controller
+    put:
+      operationId: replaceHolidays
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchoolHolidaysRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSchoolHolidayItem"
+          description: OK
+      tags:
+      - school-year-controller
   /api/school-years/{schoolYearId}/placements:
     get:
       operationId: getPlacements
@@ -6097,6 +6252,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - school-year-controller
+  /api/school-years/{schoolYearId}/semester-locks:
+    get:
+      operationId: getSemesterLocks
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterLockResponse"
           description: OK
       tags:
       - school-year-controller
@@ -7126,6 +7300,9 @@ components:
         promoted:
           type: integer
           format: int32
+        undecided:
+          type: integer
+          format: int32
         unplaced:
           type: array
           items:
@@ -7592,6 +7769,8 @@ components:
           type: string
         placement:
           $ref: "#/components/schemas/Placement"
+        programCompleted:
+          type: boolean
     ChildProfileDetailResponse:
       type: object
       properties:
@@ -7925,6 +8104,47 @@ components:
             type: string
       required:
       - adjustments
+    ClassMonthlyCommentRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        month:
+          type: string
+          format: date
+      required:
+      - classId
+      - month
+    ClassMonthlyCommentResponse:
+      type: object
+      properties:
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedByName:
+          type: string
+        content:
+          type: string
+        draft:
+          type: string
+        month:
+          type: string
+          format: date
+        status:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
     ClassOption:
       type: object
       properties:
@@ -7939,6 +8159,88 @@ components:
           format: int64
         name:
           type: string
+    ClassRatingItem:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        levels:
+          $ref: "#/components/schemas/Levels"
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - classId
+      - levels
+    ClassRatingResponse:
+      type: object
+      properties:
+        campusIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        openFrom:
+          type: string
+          format: date
+        period:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassRatingRow"
+        schoolYearId:
+          type: integer
+          format: int64
+    ClassRatingRow:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        levels:
+          $ref: "#/components/schemas/Levels"
+        note:
+          type: string
+        ratedAt:
+          type: string
+          format: date-time
+        ratedByName:
+          type: string
+    ClassRatingSaveRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassRatingItem"
+          maxItems: 2147483647
+          minItems: 1
+        period:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+      required:
+      - items
+      - period
     ClassRef:
       type: object
       properties:
@@ -9391,6 +9693,7 @@ components:
           type: string
           enum:
           - MONTH
+          - SEMESTER
           - YEAR
         programApplicable:
           type: boolean
@@ -12036,6 +12339,65 @@ components:
         toDate:
           type: string
           format: date
+    Levels:
+      type: object
+      properties:
+        environment:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        health:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        overall:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        parents:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        program:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        records:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        routine:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        theme:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
     Line:
       type: object
       properties:
@@ -12050,6 +12412,12 @@ components:
           format: int64
         className:
           type: string
+        confirmedNormal:
+          type: integer
+          format: int32
+        confirmedSubstitute:
+          type: integer
+          format: int32
         missing:
           type: integer
           format: int32
@@ -13503,6 +13871,12 @@ components:
         goodRate:
           type: integer
           format: int32
+        leftChildren:
+          type: integer
+          format: int32
+        leftRate:
+          type: integer
+          format: int32
         level:
           type: string
         mealChildren:
@@ -13556,6 +13930,12 @@ components:
           type: integer
           format: int32
         goodRate:
+          type: integer
+          format: int32
+        leftChildren:
+          type: integer
+          format: int32
+        leftRate:
           type: integer
           format: int32
         level:
@@ -13970,6 +14350,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassAttendanceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassMonthlyCommentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassMonthlyCommentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassRatingResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassRatingResponse"
         desc:
           type: string
         errorCode:
@@ -14994,6 +15400,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListSchoolHolidayItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchoolHolidayItem"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListSchoolYearDetailResponse:
       type: object
       properties:
@@ -15522,6 +15943,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/SchoolYearDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonSemesterLockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SemesterLockResponse"
         desc:
           type: string
         errorCode:
@@ -16145,6 +16579,34 @@ components:
           minItems: 1
       required:
       - items
+    SchoolHolidayItem:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        name:
+          type: string
+          maxLength: 100
+          minLength: 0
+        startDate:
+          type: string
+          format: date
+      required:
+      - endDate
+      - name
+      - startDate
+    SchoolHolidaysRequest:
+      type: object
+      properties:
+        holidays:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchoolHolidayItem"
+          maxItems: 60
+          minItems: 0
+      required:
+      - holidays
     SchoolStructureResponse:
       type: object
       properties:
@@ -16265,6 +16727,13 @@ components:
         semester2Start:
           type: string
           format: date
+    SemesterLockResponse:
+      type: object
+      properties:
+        semester1Locked:
+          type: boolean
+        semester2Locked:
+          type: boolean
     SessionMenu:
       type: object
       properties:

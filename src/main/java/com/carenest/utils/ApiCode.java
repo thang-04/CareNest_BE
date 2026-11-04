@@ -133,6 +133,15 @@ public enum ApiCode {
     SEMESTER_START_AFTER_END(2024, HttpStatus.BAD_REQUEST, "{0}: ngày bắt đầu không được sau ngày kết thúc"),
     SEMESTER_OVERLAP(2025, HttpStatus.BAD_REQUEST, "Học kỳ II phải bắt đầu sau ngày kết thúc học kỳ I ({0})"),
     SEMESTER_DATE_REQUIRED(2026, HttpStatus.BAD_REQUEST, "Chọn {0}"),
+    SCHOOL_YEAR_START_LOCKED(2028, HttpStatus.CONFLICT, "Năm học đang hoạt động, không đổi được ngày bắt đầu"),
+    SCHOOL_YEAR_END_BEFORE_TODAY(
+            2029, HttpStatus.BAD_REQUEST, "Ngày kết thúc năm học đang hoạt động không được trước hôm nay"),
+    HOLIDAY_OUT_OF_YEAR(2030, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" phải nằm trong năm học ({1} – {2})"),
+    HOLIDAY_OVERLAP(2031, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" trùng ngày với đợt \"{1}\""),
+    HOLIDAY_RANGE_INVALID(2032, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\": ngày bắt đầu không được sau ngày kết thúc"),
+    HOLIDAY_TOO_LONG(2033, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" dài tối đa {1} ngày"),
+    HOLIDAY_HAS_ATTENDANCE(2034, HttpStatus.CONFLICT, "Ngày {0} đã có điểm danh, không đặt thành ngày nghỉ được"),
+    SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
     SCHOOL_CONFIG_ACCESS_DENIED(2101, HttpStatus.FORBIDDEN, "Bạn không có quyền xem cấu hình trường"),
@@ -376,6 +385,10 @@ public enum ApiCode {
             6009,
             HttpStatus.CONFLICT,
             "Còn lớp chưa điểm danh đủ trẻ: {0}. Mở lại điểm danh để giáo viên hoàn tất rồi xác nhận"),
+    MEAL_COUNT_PAST_DAY(
+            6073,
+            HttpStatus.CONFLICT,
+            "Sổ báo ăn ngày đã qua chỉ xem; chỉ xác nhận lại khi có thay đổi sau lúc mở lại điểm danh"),
     FOOD_NOT_FOUND(6010, HttpStatus.NOT_FOUND, "Không tìm thấy thực phẩm"),
     FOOD_CODE_DUPLICATED(6011, HttpStatus.CONFLICT, "Mã thực phẩm {0} đã tồn tại"),
     NUTRIENT_SOURCE_REQUIRED(6012, HttpStatus.BAD_REQUEST, "Cần ghi nguồn số liệu dinh dưỡng của thực phẩm"),
@@ -613,6 +626,10 @@ public enum ApiCode {
     REWARD_CHILD_NOT_IN_CLASS(7354, HttpStatus.BAD_REQUEST, "Có trẻ không thuộc lớp, tải lại trang"),
     REWARD_CHILD_DUPLICATE(7355, HttpStatus.BAD_REQUEST, "Một trẻ xuất hiện hai lần trong danh sách"),
     REWARD_TITLE_INVALID(7356, HttpStatus.BAD_REQUEST, "Danh hiệu \"{0}\" không có trong danh sách"),
+    REWARD_TITLE_CONFLICT(
+            7374,
+            HttpStatus.BAD_REQUEST,
+            "{0}: mỗi trẻ chọn một danh hiệu bé ngoan và tối đa một danh hiệu hoàn thành chương trình"),
     REWARD_PROGRAM_TITLE_INVALID(
             7357, HttpStatus.BAD_REQUEST, "{0} chưa được xác nhận hoàn thành chương trình ở đánh giá cuối năm"),
     REWARD_YEAR_END_REQUIRED(7358, HttpStatus.BAD_REQUEST, "{0} chưa có đánh giá cuối năm đã xác nhận"),
@@ -624,6 +641,11 @@ public enum ApiCode {
     REWARD_DECISION_INVALID(7361, HttpStatus.BAD_REQUEST, "Quyết định không hợp lệ"),
     REWARD_COMMENT_REQUIRED(7362, HttpStatus.BAD_REQUEST, "Nhập lý do trả lại"),
     REWARD_COMMENT_TOO_LONG(7363, HttpStatus.BAD_REQUEST, "Ý kiến tối đa {0} ký tự"),
+    CLASS_RATING_FORBIDDEN(7370, HttpStatus.FORBIDDEN, "Bạn không được xếp loại lớp {0}"),
+    CLASS_RATING_MIXED_YEARS(7371, HttpStatus.BAD_REQUEST, "Chỉ lưu xếp loại các lớp cùng một năm học"),
+    CLASS_RATING_NOT_OPEN(7372, HttpStatus.CONFLICT, "Kỳ xếp loại chưa bắt đầu, xếp loại được từ ngày {0}"),
+    CLASS_RATING_OVERALL_REQUIRED(7373, HttpStatus.BAD_REQUEST, "Lớp {0}: chọn xếp loại chung"),
+    CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,
             HttpStatus.FORBIDDEN,

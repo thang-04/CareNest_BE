@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Bản nháp đánh giá tháng / cuối năm viết theo mẫu từ số liệu đánh giá hằng ngày (chưa nối dịch vụ AI). Câu chữ chỉ mô tả
+ * Bản nháp đánh giá tháng / học kỳ / cuối năm viết theo mẫu từ số liệu đánh giá hằng ngày (chưa nối dịch vụ AI). Câu chữ chỉ mô tả
  * điều cô ghi nhận, không kết luận sức khỏe, không dùng từ chẩn đoán; mục tiêu chưa dạy không tính là cần hỗ trợ.
  */
 final class EvaluationDraftWriter {
@@ -65,12 +65,16 @@ final class EvaluationDraftWriter {
             StructuredSummary st,
             int confirmedMonths) {
         String name = givenName(childFullName);
-        boolean year = type == EvaluationPeriodType.YEAR;
-        String when = year ? "năm học vừa qua" : "tháng " + MONTH.format(start);
+        String when =
+                switch (type) {
+                    case YEAR -> "năm học vừa qua";
+                    case SEMESTER -> "học kỳ vừa qua";
+                    case MONTH -> "tháng " + MONTH.format(start);
+                };
         List<String> lines = new ArrayList<>();
         lines.add("Trong " + when + ", bé " + name + " đi học " + presentDays + " ngày, cô đánh giá hằng ngày "
                 + st.observedDays() + " ngày và bé nhận " + flagCount + " cờ bé ngoan.");
-        if (year && confirmedMonths > 0) {
+        if (type != EvaluationPeriodType.MONTH && confirmedMonths > 0) {
             lines.add("Bản nháp tổng hợp cùng " + confirmedMonths + " đánh giá tháng cô đã xác nhận.");
         }
         if (st.observedDays() == 0) {

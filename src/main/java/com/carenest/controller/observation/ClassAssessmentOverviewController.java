@@ -27,7 +27,7 @@ public class ClassAssessmentOverviewController {
     private final ClassAssessmentOverviewService classAssessmentOverviewService;
 
     @GetMapping("/assessment/overview")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ClassAssessmentOverviewResponse>> getOverview(
             @RequestParam(required = false) String period,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
@@ -45,7 +45,7 @@ public class ClassAssessmentOverviewController {
     }
 
     @GetMapping("/assessment/overview/classes/{classId}")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ClassAssessmentDetailResponse>> getClassDetail(
             @PathVariable Long classId,
             @RequestParam(required = false) String period,

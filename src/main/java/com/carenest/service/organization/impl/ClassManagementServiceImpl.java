@@ -284,11 +284,11 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             // Chỉ sao chép tên, nhóm tuổi, điểm trường, phòng, sĩ số — không bao giờ sao chép giáo viên hay trẻ
             for (Classroom c : sourceClasses) {
                 if (!campusRepository.existsByIdAndStatus(c.getCampusId(), CampusStatus.ACTIVE)) {
-                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Campus is inactive"));
+                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Điểm trường đã ngừng hoạt động"));
                     continue;
                 }
                 if (classroomRepository.existsName(target.getId(), c.getCampusId(), c.getName(), null)) {
-                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Campus already has this class name"));
+                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Điểm trường đã có lớp cùng tên"));
                     continue;
                 }
                 AgeGroup group = c.getAgeGroupId() == null ? null : ageGroups.get(c.getAgeGroupId());

@@ -10,6 +10,7 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.enums.*;
 import java.time.LocalDate;
 import java.util.List;
@@ -25,6 +26,7 @@ class EvaluationLockOrderTest {
         var service = new ChildEvaluationServiceImpl(
                 rules,
                 classes,
+                mock(SchoolYearService.class),
                 mock(AgeGroupService.class),
                 mock(EnrollmentService.class),
                 mock(AccountService.class),
