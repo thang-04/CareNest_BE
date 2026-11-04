@@ -274,7 +274,11 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                             ? existing
                             : DailyActivityResult.start(
                                     e.childId(), classId, cls.campusId(), date, a.key(), currentUser.userId(), at);
-                    r.record(lesson.classDocId(), a.participation(), met, effort, notMet);
+                    // OBS-15 (Cần chốt 04/11/2026): chỉ Đạt / Chưa đạt; client cũ gửi "Cần cố gắng" thì tính là Chưa
+                    // đạt
+                    List<Long> notMetAll = new java.util.ArrayList<>(notMet);
+                    notMetAll.addAll(effort);
+                    r.record(lesson.classDocId(), a.participation(), met, List.of(), notMetAll);
                     r.touch(currentUser.userId(), at);
                     resultRepository.save(r);
                     results.put(key, r);
