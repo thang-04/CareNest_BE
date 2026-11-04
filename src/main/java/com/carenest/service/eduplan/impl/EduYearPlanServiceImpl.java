@@ -351,6 +351,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             requireSession(currentUser, plan, edit, now);
             requireRevision(plan, edit);
             requireReadyForReview(plan);
+            requireThemeDates(plan);
 
             plan.issue(currentUser.userId(), now);
             plan.recordSave(null);
@@ -783,9 +784,73 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         row.getKind() == EduGoalRowKind.GOAL && row.getText().isBlank())) {
             throw GlobalException.of(ApiCode.GOAL_CONTENT_REQUIRED);
         }
-        boolean hasGoal = findRows(plan.getId()).stream().anyMatch(row -> row.getKind() == EduGoalRowKind.GOAL);
+        List<EduGoalRow> rows = findRows(plan.getId());
+        boolean hasGoal = rows.stream().anyMatch(row -> row.getKind() == EduGoalRowKind.GOAL);
         if (!hasGoal) {
             throw GlobalException.of(ApiCode.PLAN_GOAL_REQUIRED);
+        }
+        requireUniqueNames(rows);
+        requireAllOrNoSubDomains(rows);
+    }
+
+    // EDU-53: một lĩnh vực hoặc không có lĩnh vực con nào, hoặc mọi nhóm kết quả / mục tiêu đều thuộc một lĩnh vực con
+    private static void requireAllOrNoSubDomains(List<EduGoalRow> rows) {
+        Set<Long> domainsWithSub = rows.stream()
+                .filter(row -> row.getKind() == EduGoalRowKind.SUB)
+                .map(EduGoalRow::getDomainId)
+                .collect(Collectors.toSet());
+        rows.stream()
+                .filter(row -> row.getKind() != EduGoalRowKind.SUB
+                        && row.getSubDomainId() == null
+                        && domainsWithSub.contains(row.getDomainId()))
+                .findFirst()
+                .ifPresent(row -> {
+                    throw GlobalException.of(
+                            ApiCode.GOAL_SUB_DOMAIN_MIXED, row.getText().trim());
+                });
+    }
+
+    // EDU-51: không trùng tên lĩnh vực con trong một lĩnh vực; trong cùng lĩnh vực con không trùng nhóm kết quả
+    // mong đợi, không trùng mục tiêu; trong một mục tiêu không trùng nội dung (bỏ khoảng trắng thừa, không phân biệt
+    // hoa thường)
+    private void requireUniqueNames(List<EduGoalRow> rows) {
+        Set<Long> goalIds = rows.stream()
+                .filter(row -> row.getKind() == EduGoalRowKind.GOAL)
+                .map(EduGoalRow::getId)
+                .collect(Collectors.toSet());
+        Map<Long, List<EduGoalContent>> contentsByGoal = goalIds.isEmpty()
+                ? Map.of()
+                : goalContentRepository.findAllByGoalRowIdInOrderBySortOrderAsc(goalIds).stream()
+                        .collect(Collectors.groupingBy(EduGoalContent::getGoalRowId));
+        Set<String> names = new HashSet<>();
+        for (EduGoalRow row : rows) {
+            String scope = row.getKind() == EduGoalRowKind.SUB
+                    ? row.getKind() + "|" + row.getDomainId()
+                    : row.getKind() + "|" + row.getDomainId() + "|" + row.getSubDomainId();
+            if (!names.add(scope + "|" + nameKey(row.getText()))) {
+                throw GlobalException.of(
+                        ApiCode.GOAL_NAME_DUPLICATE, row.getText().trim());
+            }
+            Set<String> contents = new HashSet<>();
+            for (EduGoalContent content : contentsByGoal.getOrDefault(row.getId(), List.of())) {
+                if (!contents.add(nameKey(content.getText()))) {
+                    throw GlobalException.of(
+                            ApiCode.GOAL_NAME_DUPLICATE, content.getText().trim());
+                }
+            }
+        }
+    }
+
+    private static String nameKey(String text) {
+        return trimToEmpty(text).replaceAll("\\s+", " ").toLowerCase(Locale.ROOT);
+    }
+
+    // EDU-52: ban hành thì mọi chủ đề phải có đủ ngày bắt đầu, kết thúc (nháp và gửi duyệt chưa bắt buộc)
+    private void requireThemeDates(EduYearPlan plan) {
+        for (EduTheme theme : themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())) {
+            if (theme.getStartDate() == null || theme.getEndDate() == null) {
+                throw GlobalException.of(ApiCode.THEME_DATES_REQUIRED, theme.getAbbr());
+            }
         }
     }
 

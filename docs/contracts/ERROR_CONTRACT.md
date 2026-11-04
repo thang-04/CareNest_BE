@@ -1,5 +1,9 @@
 # Response & Error Contract
 
+EDU-53, 05/11/2026: `GOAL_SUB_DOMAIN_MIXED` 7038 (lĩnh vực có lĩnh vực con nhưng còn nhóm/mục tiêu không thuộc lĩnh vực con nào, kiểm khi gửi và ban hành), HTTP 400.
+
+EDU-51/52, 05/11/2026: `GOAL_NAME_DUPLICATE` 7036 (trùng tên lĩnh vực con / nhóm kết quả / mục tiêu / nội dung trong cùng phạm vi, kiểm khi gửi và ban hành) và `THEME_DATES_REQUIRED` 7037 (chủ đề chưa có ngày, chỉ kiểm khi ban hành), đều HTTP 400.
+
 EDU-47, 01/11/2026: preview chủ đề nhánh dùng `BRANCH_FILE_UNSUPPORTED` 7124 (file hỏng/không hỗ trợ/mã hóa), `BRANCH_FILE_NO_TABLE` 7125 (thiếu bảng Chủ đề/Chủ đề nhánh), `BRANCH_FILE_TOO_LARGE` 7126 (2 MB/2.000 dòng), đều HTTP 400. Giữ lỗi quyền/phân công, sai kế hoạch/phiên bản và tài liệu đã gửi theo contract hiện tại; preview không lưu. Chi tiết [contract feature008](../../specs/008-branch-plan-file-import/contracts/file-import.md).
 
 EDU-46, 01/11/2026: `GOAL_FILE_UNSUPPORTED` (7033, HTTP 400) giữ mã/status, đổi lời thành "Không đọc được file. Chỉ nhận Word (.doc, .docx), Excel (.xlsx) hoặc CSV; file không được đặt mật khẩu" khi bổ sung Word .doc nhị phân. .doc hỏng/mã hóa trả 7033, không có bảng mục tiêu 7034, vượt 2 MB/2.000 dòng 7035. Web dùng errorCode, không so chuỗi; mock và hướng dẫn nhập mục tiêu đã đồng bộ.
