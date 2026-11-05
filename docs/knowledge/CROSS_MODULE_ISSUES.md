@@ -25,3 +25,5 @@ Dùng làm checklist khi implement/review. Khi xảy ra thật ⇒ tạo inciden
 
 | BUG-261103-meal-campus-concurrent-pending | attendance → nutrition | Serialize shared campus/day pending updates before reads | [Incident](incidents/BUG-261103-meal-campus-concurrent-pending.md) |
 | FE-BUG-261103-attendance-leave-refresh | BE → FE attendance | Parent leave submit/cancel reconciles teacher drafts safely | [Incident](../../../CareNest_FE/docs/knowledge/incidents/FE-BUG-261103-attendance-leave-refresh.md) |
+
+| BUG-261105-health-pickup-context | BE → FE sức khỏe | Đồng bộ canRecord/giờ trả và liên hệ hồ sơ, giữ POST guard | [Incident](incidents/BUG-261105-health-pickup-context.md) |

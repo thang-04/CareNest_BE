@@ -44,3 +44,5 @@ Chưa có. Rủi ro dự kiến: `docs/knowledge/CROSS_MODULE_ISSUES.md` CMR-01.
 
 ## Đọc thêm khi
 Thay đổi ảnh hưởng số suất ⇒ card nutrition + ADR-0005 (L3).
+
+- ChildDay sức khỏe trả `canRecord=false` và `handedOverAt` sau lần trả thành công; liên hệ lấy từ ChildIntakeService sau kiểm scope, không lấy người đón đã chụp snapshot thay cho hồ sơ hiện tại. Xem BUG-261105-health-pickup-context.
