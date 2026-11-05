@@ -505,6 +505,13 @@ public enum ApiCode {
     GOAL_FILE_NO_TABLE(
             7034, HttpStatus.BAD_REQUEST, "Không tìm thấy bảng mục tiêu trong file (cần cột Mục tiêu và Nội dung)"),
     GOAL_FILE_TOO_LARGE(7035, HttpStatus.BAD_REQUEST, "File quá lớn: tối đa 2 MB và 2.000 dòng"),
+    GOAL_NAME_DUPLICATE(7036, HttpStatus.BAD_REQUEST, "Trùng tên trong cùng lĩnh vực con: {0}"),
+    THEME_DATES_REQUIRED(
+            7037, HttpStatus.BAD_REQUEST, "Chủ đề {0} cần chọn ngày bắt đầu và kết thúc trước khi ban hành"),
+    GOAL_SUB_DOMAIN_MIXED(
+            7038,
+            HttpStatus.BAD_REQUEST,
+            "Lĩnh vực đã có lĩnh vực con thì mọi mục tiêu phải thuộc một lĩnh vực con: {0}"),
 
     // ========== 71xx TÀI LIỆU LỚP (KẾ HOẠCH CHỦ ĐỀ, GIÁO ÁN) (module Tiền) ==========
     CLASS_DOC_NOT_FOUND(7101, HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"),
