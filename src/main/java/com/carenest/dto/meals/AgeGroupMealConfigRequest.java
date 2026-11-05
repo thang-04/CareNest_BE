@@ -10,6 +10,7 @@ import java.time.LocalDate;
 /**
  * Giá suất + chuẩn dinh dưỡng của một nhóm tuổi từ ngày hiệu lực; chuẩn để trống được khi trường chưa chốt. P:L:G là %
  * năng lượng, đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), {@code *KcalPct*} là % năng lượng của bữa so {@code dailyKcalNeed} = nhu cầu năng lượng cả ngày, kcal/trẻ (NUT-25).
+ * Vi chất (NUT-26) là tổng mỗi trẻ mỗi ngày trên các bữa trường phục vụ; max để trống = chỉ cần đạt mức tối thiểu.
  */
 public record AgeGroupMealConfigRequest(
         @NotNull Long ageGroupId,
@@ -42,5 +43,22 @@ public record AgeGroupMealConfigRequest(
 
         @DecimalMin(value = "0", inclusive = false) @DecimalMax("5000")
         BigDecimal dailyKcalNeed,
+
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal calciumMin,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal calciumMax,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal phosphorusMin,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal phosphorusMax,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal ironMin,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal ironMax,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminAMin,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminAMax,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminB1Min,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminB1Max,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminB2Min,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminB2Max,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminPpMin,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminPpMax,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminCMin,
+        @DecimalMin("0") @DecimalMax("100000") BigDecimal vitaminCMax,
 
         @Size(max = 300) String normBasis) {}

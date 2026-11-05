@@ -84,11 +84,11 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         String logPrefix = LOG_PREFIX + "|getDailySheet|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
-            LocalDate date = day == null ? rules.today() : day;
             ClassroomInfoResponse cls = rules.findClass(classId);
             if (!rules.canView(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
+            LocalDate date = day == null ? latestSchoolDay(cls) : day;
             checkDate(cls, date);
             List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, date);
             Map<Long, AttendanceStatus> statuses = statusesOf(children, date);
@@ -274,7 +274,11 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                             ? existing
                             : DailyActivityResult.start(
                                     e.childId(), classId, cls.campusId(), date, a.key(), currentUser.userId(), at);
-                    r.record(lesson.classDocId(), a.participation(), met, effort, notMet);
+                    // OBS-15 (Cần chốt 04/11/2026): chỉ Đạt / Chưa đạt; client cũ gửi "Cần cố gắng" thì tính là Chưa
+                    // đạt
+                    List<Long> notMetAll = new java.util.ArrayList<>(notMet);
+                    notMetAll.addAll(effort);
+                    r.record(lesson.classDocId(), a.participation(), met, List.of(), notMetAll);
                     r.touch(currentUser.userId(), at);
                     resultRepository.save(r);
                     results.put(key, r);
@@ -308,11 +312,24 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         }
     }
 
+    // Không chọn ngày: ngày học gần nhất tới hôm nay theo ngày nghỉ trong cấu hình năm học (lễ, Tết, cuối tuần)
+    private LocalDate latestSchoolDay(ClassroomInfoResponse cls) {
+        LocalDate today = rules.today();
+        LocalDate day = cls.yearEnd() != null && today.isAfter(cls.yearEnd()) ? cls.yearEnd() : today;
+        for (int i = 0; i < 60 && (cls.yearStart() == null || !day.isBefore(cls.yearStart())); i++) {
+            if (rules.isSchoolDay(day)) {
+                return day;
+            }
+            day = day.minusDays(1);
+        }
+        return today;
+    }
+
     private void checkDate(ClassroomInfoResponse cls, LocalDate date) {
         if (date.isAfter(rules.today())) {
             throw GlobalException.of(ApiCode.ASSESSMENT_FUTURE_DATE);
         }
-        if (!ObservationDayRules.isSchoolDay(date)) {
+        if (!rules.isSchoolDay(date)) {
             throw GlobalException.of(ApiCode.ASSESSMENT_NOT_SCHOOL_DAY);
         }
         if (cls.yearStart() != null && date.isBefore(cls.yearStart())
@@ -447,6 +464,12 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                 o == null ? null : o.getFlag(),
                 o == null ? "" : o.getComment(),
                 o != null || !results.isEmpty(),
+                // Nhận xét ở view KTKN cũng tạo bản ghi ngày; Hoạt động chung chỉ tính khi đã lưu ăn / ngủ / cảm xúc
+                o != null
+                        && (o.getNap() != null
+                                || o.getEmotion() != null
+                                || !mealsOf(o.getMeals()).isEmpty()),
+                !results.isEmpty(),
                 activities);
     }
 

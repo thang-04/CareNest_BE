@@ -82,6 +82,12 @@ class AttendanceCutoffIntegrationTest {
         service.saveCutoff(principal, year, new CutoffRequest(LocalTime.of(8, 30), LocalDate.of(2026, 9, 1), null));
         CutoffResponse response = service.saveCutoff(
                 principal, year, new CutoffRequest(LocalTime.of(8, 45), LocalDate.of(2026, 11, 1), "Đổi theo bếp"));
+        // Đổi giờ chốt lùi về trước hôm nay (22/10) bị chặn: đơn nghỉ đã tính theo giờ cũ
+        assertThatThrownBy(() -> service.saveCutoff(
+                        principal, year, new CutoffRequest(LocalTime.of(8, 0), LocalDate.of(2026, 10, 1), null)))
+                .isInstanceOf(com.carenest.exception.GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(com.carenest.utils.ApiCode.CUTOFF_DATE_PAST);
 
         assertThat(response.setting().time()).isEqualTo(LocalTime.of(8, 45));
         assertThat(response.setting().history().getFirst().previousTime()).isEqualTo(LocalTime.of(8, 30));

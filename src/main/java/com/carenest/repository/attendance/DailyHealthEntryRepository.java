@@ -6,8 +6,15 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 public interface DailyHealthEntryRepository extends JpaRepository<DailyHealthEntry, Long> {
+
+    @Query(
+            value =
+                    "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(concat('carenest:health:', CAST(:recordedBy AS text), ':', CAST(:requestId AS text)), 0))",
+            nativeQuery = true)
+    Integer lockRequest(Long recordedBy, String requestId);
 
     Optional<DailyHealthEntry> findByRecordedByAndRequestId(Long recordedBy, String requestId);
 

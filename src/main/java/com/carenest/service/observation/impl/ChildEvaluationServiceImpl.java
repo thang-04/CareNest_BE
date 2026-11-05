@@ -19,6 +19,7 @@ import com.carenest.dto.observation.EvaluationDtos.SummaryInfo;
 import com.carenest.dto.observation.EvaluationDtos.TicketRef;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.entity.observation.BehaviourTicket;
 import com.carenest.entity.observation.ChildEvaluation;
 import com.carenest.entity.observation.ChildEvaluationEvent;
@@ -32,8 +33,10 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.observation.ChildEvaluationService;
+import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationAction;
@@ -83,6 +86,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
 
     private final ObservationDayRules rules;
     private final ClassroomService classroomService;
+    private final SchoolYearService schoolYearService;
     private final AgeGroupService ageGroupService;
     private final EnrollmentService enrollmentService;
     private final AccountService accountService;
@@ -91,6 +95,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final ChildEvaluationEventRepository eventRepository;
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
+    private final YearEndSheetService yearEndSheetService;
 
     @Override
     @Transactional
@@ -106,8 +111,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             List<ClassroomInfoResponse> years = classroomService.findYearClassrooms(schoolYearId);
+            Set<Long> ledGroups =
+                    type == EvaluationPeriodType.YEAR ? rules.teamLeaderAgeGroupIds(currentUser) : Set.of();
             List<ClassroomInfoResponse> visible = years.stream()
-                    .filter(c -> teaches(currentUser, c) || rules.readsCampus(currentUser, c.campusId()))
+                    .filter(c -> teaches(currentUser, c)
+                            || rules.readsCampus(currentUser, c.campusId())
+                            || leads(ledGroups, c))
                     .filter(c -> classId == null || classId.equals(c.id()))
                     .toList();
             if (classId != null && visible.isEmpty()) {
@@ -119,8 +128,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             for (ClassroomInfoResponse cls : visible.stream()
                     .sorted(Comparator.comparing(ClassroomInfoResponse::id))
                     .toList()) {
-                if (cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)) {
-                    ensureDrafts(cls, type);
+                // GV lớp mở danh sách thì tạo bản nháp kỳ đã kết thúc; BGH chỉ tạo khi lọc một lớp (BGH chỉ thấy bản đã
+                // xác nhận) — không khóa mọi lớp của trường mỗi lần mở danh sách toàn trường
+                if (cls.yearStatus() == SchoolYearStatus.ACTIVE
+                        && (rules.canRecord(currentUser, cls)
+                                || (classId != null && rules.readsCampus(currentUser, cls.campusId())))) {
+                    ensureDrafts(currentUser, cls, type);
                 }
             }
             Map<Long, ClassroomInfoResponse> byId =
@@ -152,7 +165,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             if (!teacher
                     && !(ev.isConfirmed()
                             && (rules.readsCampus(currentUser, cls.campusId())
-                                    || canReadChildHistory(currentUser, ev.getChildId())))) {
+                                    || canReadChildHistory(currentUser, ev.getChildId())
+                                    || leadsYearEnd(currentUser, ev, cls)))) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
             boolean year = ev.getPeriodType() == EvaluationPeriodType.YEAR;
@@ -161,7 +175,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls, List.of(ev.getChildId()), ev.getPeriodStart(), to, !year)
                     .getOrDefault(ev.getChildId(), null);
             ClassChildResponse child = childOf(ev);
-            List<EvaluationRow> monthly = year
+            // Học kỳ, cuối năm: kèm các đánh giá tháng đã xác nhận trong kỳ để GV viết nhận xét chung
+            List<EvaluationRow> monthly = ev.getPeriodType() != EvaluationPeriodType.MONTH
                     ? toRows(
                             currentUser,
                             evaluationRepository
@@ -241,6 +256,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 throw GlobalException.of(ApiCode.EVALUATION_PROGRAM_REQUIRED);
             }
             Instant at = rules.now();
+            // Cuối năm: chốt phiếu đánh giá sự phát triển (OBS-28) trước khi đổi trạng thái
+            yearEndSheetService.freeze(ev);
             ev.confirm(text, currentUser.userId(), at);
             evaluationRepository.saveAndFlush(ev);
             eventRepository.save(
@@ -516,8 +533,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                     days,
                     cls.mealSessions(),
                     weeks(from, to, today, data),
+                    // Đánh giá tháng và học kỳ đã xác nhận; cuối năm tách riêng
                     rows.stream()
-                            .filter(r -> r.periodType() == EvaluationPeriodType.MONTH)
+                            .filter(r -> r.periodType() != EvaluationPeriodType.YEAR)
                             .toList(),
                     rows.stream()
                             .filter(r -> r.periodType() == EvaluationPeriodType.YEAR)
@@ -606,8 +624,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     // ---------- tạo bản nháp ----------
 
     // Tháng: mỗi tháng đã kết thúc của năm học, trẻ có đi học hoặc có đánh giá trong tháng.
+    // Học kỳ (OBS-06): mỗi học kỳ đã đặt ngày ở Cấu hình thời gian và đã kết thúc, như tháng.
     // Cuối năm: từ ngày 1 tháng cuối của năm học, mọi trẻ đang học lớp.
-    private void ensureDrafts(ClassroomInfoResponse cls, EvaluationPeriodType type) {
+    private void ensureDrafts(CurrentUser currentUser, ClassroomInfoResponse cls, EvaluationPeriodType type) {
         classroomService.lockForUpdate(cls.id());
         LocalDate today = rules.today();
         Set<String> existing = evaluationRepository.findByClassroomIdInAndPeriodType(List.of(cls.id()), type).stream()
@@ -622,6 +641,26 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                     break;
                 }
                 created.addAll(draftsFor(cls, type, start, end, existing, Map.of()));
+            }
+        } else if (type == EvaluationPeriodType.SEMESTER) {
+            SchoolYearDetailResponse year = schoolYearService.getSchoolYear(currentUser, cls.schoolYearId());
+            List<LocalDate[]> semesters = List.of(
+                    new LocalDate[] {year.semester1Start(), year.semester1End()},
+                    new LocalDate[] {year.semester2Start(), year.semester2End()});
+            for (LocalDate[] s : semesters) {
+                if (s[0] == null || s[1] == null) {
+                    continue;
+                }
+                LocalDate start = maxDate(s[0], cls.yearStart());
+                LocalDate end = minDate(s[1], cls.yearEnd());
+                // Học kỳ kết thúc trong tháng cuối năm học mở cùng lúc với cuối năm: năm cũ có thể bị đóng ngay khi
+                // kích hoạt năm mới, không chờ được tới sau ngày kết thúc
+                boolean lastMonth =
+                        yearEndOpen(cls) && !end.isBefore(cls.yearEnd().withDayOfMonth(1));
+                if (!end.isBefore(today) && !lastMonth) {
+                    continue;
+                }
+                created.addAll(draftsFor(cls, type, start, end, existing, confirmedMonthsBetween(cls, start, end)));
             }
         } else if (yearEndOpen(cls)) {
             Map<Long, Integer> months =
@@ -651,7 +690,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             Set<String> existing,
             Map<Long, Integer> confirmedMonths) {
         LocalDate today = rules.today();
-        List<ClassChildResponse> roster = type == EvaluationPeriodType.MONTH
+        List<ClassChildResponse> roster = type != EvaluationPeriodType.YEAR
                 ? enrollmentService.findChildrenInClassroomDuring(cls.id(), start, minDate(end, today))
                 : enrollmentService.findChildrenInClassroom(cls.id(), minDate(end, today));
         List<ClassChildResponse> children = roster.stream()
@@ -668,7 +707,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             EvaluationSources.ChildData d = data.get(child.id());
             boolean noData =
                     d == null || (d.presentDays() == 0 && d.structured().observedDays() == 0);
-            if (type == EvaluationPeriodType.MONTH && noData) {
+            if (type != EvaluationPeriodType.YEAR && noData) {
                 continue;
             }
             String content = d == null
@@ -705,16 +744,30 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                         type, childName, start, d.presentDays(), d.flagCount(), d.structured(), confirmedMonths);
     }
 
+    // Số đánh giá tháng đã xác nhận của từng trẻ trong lớp, tháng bắt đầu trong khoảng [start, end]
+    private Map<Long, Integer> confirmedMonthsBetween(ClassroomInfoResponse cls, LocalDate start, LocalDate end) {
+        return evaluationRepository
+                .findByClassroomIdInAndPeriodType(List.of(cls.id()), EvaluationPeriodType.MONTH)
+                .stream()
+                .filter(ChildEvaluation::isConfirmed)
+                .filter(e -> !e.getPeriodStart().isBefore(start)
+                        && !e.getPeriodStart().isAfter(end))
+                .collect(Collectors.toMap(ChildEvaluation::getChildId, e -> 1, Integer::sum));
+    }
+
+    // Chỉ đếm đánh giá tháng của chính lớp này, khớp danh sách ở trang chi tiết
     private int confirmedMonths(ChildEvaluation ev) {
-        return ev.getPeriodType() == EvaluationPeriodType.YEAR
-                ? evaluationRepository
+        return ev.getPeriodType() != EvaluationPeriodType.MONTH
+                ? (int) evaluationRepository
                         .findByChildIdAndPeriodTypeAndStatusAndPeriodStartBetweenOrderByPeriodStartAsc(
                                 ev.getChildId(),
                                 EvaluationPeriodType.MONTH,
                                 EvaluationStatus.CONFIRMED,
                                 ev.getPeriodStart(),
                                 ev.getPeriodEnd())
-                        .size()
+                        .stream()
+                        .filter(e -> e.getClassroomId().equals(ev.getClassroomId()))
+                        .count()
                 : 0;
     }
 
@@ -729,6 +782,15 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         return cls != null
                 && user.hasRole(CareNestRole.TEACHER)
                 && (rules.canRecord(user, cls) || rules.taughtClosedYear(user, cls));
+    }
+
+    // OBS-28 (Cần chốt 04/11/2026): tổ trưởng xem đánh giá cuối năm đã xác nhận của các lớp nhóm tuổi mình, không sửa
+    private static boolean leads(Set<Long> ledGroups, ClassroomInfoResponse cls) {
+        return cls.ageGroupId() != null && ledGroups.contains(cls.ageGroupId());
+    }
+
+    private boolean leadsYearEnd(CurrentUser user, ChildEvaluation ev, ClassroomInfoResponse cls) {
+        return ev.getPeriodType() == EvaluationPeriodType.YEAR && leads(rules.teamLeaderAgeGroupIds(user), cls);
     }
 
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {

@@ -95,13 +95,14 @@ class AttendanceControllerTest {
     }
 
     @Test
-    void teacherCannotReadMultiClassSummary() throws Exception {
-        authenticateAs(CareNestRole.TEACHER);
+    // GV vào được endpoint (tổ trưởng xem lớp nhóm tuổi mình, service kiểm); phụ huynh thì không
+    void parentCannotReadMultiClassSummary() throws Exception {
+        authenticateAs(CareNestRole.PARENT);
 
         mockMvc.perform(get("/api/attendance/summary")
                         .param("from", "2026-10-01")
                         .param("to", "2026-10-21")
-                        .with(token(CareNestRole.TEACHER)))
+                        .with(token(CareNestRole.PARENT)))
                 .andExpect(status().isForbidden());
         verify(attendanceService, never()).getSummary(any(), any(), any(), any(LocalDate.class), any(LocalDate.class));
     }

@@ -17,6 +17,7 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.TicketType;
 import java.time.LocalDate;
@@ -71,19 +72,30 @@ public class QualityReportServiceImpl implements QualityReportService {
                 LOG_PREFIX + "|getReport|userId=" + currentUser.userId() + "|month=" + month + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!rules.isLeader(currentUser)) {
+            boolean leader = rules.isLeader(currentUser);
+            if (!leader && !currentUser.hasRole(CareNestRole.TEACHER)) {
                 throw GlobalException.of(ApiCode.QUALITY_REPORT_FORBIDDEN);
             }
-            if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
+            if (leader && campusId != null && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             LocalDate today = rules.today();
-            // PHT chỉ lớp điểm trường mình, HT toàn trường (AUTH-01, AUTH-02)
+            // HT, PHT mọi điểm trường (AUTH-20); GV lớp mình dạy, tổ trưởng thêm các lớp nhóm tuổi mình (Cần chốt
+            // 03/11)
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
+                    .filter(c -> leader
+                            ? rules.readsCampus(currentUser, c.campusId())
+                            : rules.canRecord(currentUser, c)
+                                    || rules.taughtClosedYear(currentUser, c)
+                                    || ledGroups.contains(c.ageGroupId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();
+            // GV, tổ trưởng lọc điểm trường: chỉ điểm trường có lớp mình được xem (không cấp thêm lớp nào)
+            if (!leader && campusId != null && scoped.stream().noneMatch(c -> campusId.equals(c.campusId()))) {
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
+            }
             if (scoped.isEmpty()) {
                 YearMonth m = month != null ? month : YearMonth.from(today);
                 checkNotFuture(m, today);
@@ -96,7 +108,11 @@ public class QualityReportServiceImpl implements QualityReportService {
             LocalDate dataEnd = today.isBefore(yearEnd) ? today : yearEnd;
             YearMonth firstMonth = YearMonth.from(yearStart);
             YearMonth lastMonth = dataEnd.isBefore(yearStart) ? firstMonth : YearMonth.from(dataEnd);
-            YearMonth m = month != null ? month : lastMonth;
+            // Mặc định tháng đã kết thúc gần nhất (tháng đang dở còn thiếu số liệu); đầu năm học thì tháng đầu
+            boolean lastOpen = !dataEnd.isBefore(yearStart) && dataEnd.isBefore(lastMonth.atEndOfMonth());
+            YearMonth m = month != null
+                    ? month
+                    : lastOpen && lastMonth.isAfter(firstMonth) ? lastMonth.minusMonths(1) : lastMonth;
             checkNotFuture(m, today);
             if (m.isBefore(firstMonth) || m.isAfter(YearMonth.from(yearEnd))) {
                 throw GlobalException.of(
@@ -127,7 +143,7 @@ public class QualityReportServiceImpl implements QualityReportService {
                                     yearStart,
                                     dataEnd)
                             .stream()
-                            .filter(d -> ObservationDayRules.isSchoolDay(d.date()))
+                            .filter(d -> rules.isSchoolDay(d.date()))
                             .collect(Collectors.groupingBy(ClassChildDay::classroomId));
             Map<Long, List<BehaviourTicket>> ticketsByClass = visible.isEmpty()
                     ? Map.of()
@@ -161,7 +177,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                             .distinct()
                             .toList(),
                     rows,
-                    totalsOf(results, months));
+                    // Dòng tổng khối / toàn trường chỉ cho BGH
+                    leader ? totalsOf(results, months) : List.of());
             log.info("{}|classes={}|END", logPrefix, rows.size());
             return response;
         } catch (RuntimeException ex) {
@@ -180,12 +197,15 @@ public class QualityReportServiceImpl implements QualityReportService {
     private record ClassResult(
             QualityRow row,
             Set<Long> children,
+            Set<Long> left,
             Set<Long> meal,
             Set<Long> diligent,
             Set<Long> good,
             Set<Long> allRound) {}
 
-    // Ngày học của lớp = thứ 2–6 có điểm danh; trẻ ra lớp bình quân = tổng lượt có mặt / số ngày học (làm tròn).
+    // Ngày học = ngày học theo lịch năm học (thứ 2–6 trừ ngày nghỉ HT cấu hình), tới hôm nay; ngày GV quên điểm danh
+    // vẫn
+    // tính (Cần chốt 04/11/2026). Trẻ ra lớp bình quân = tổng lượt có mặt / số ngày học (làm tròn).
     // OBS-23: trẻ vào/nghỉ trong tháng vẫn thuộc danh sách tháng đó; ngày phải đi chỉ tính lúc trẻ thuộc lớp
     private ClassResult rowOf(
             ClassroomInfoResponse cls,
@@ -196,12 +216,17 @@ public class QualityReportServiceImpl implements QualityReportService {
             LocalDate today,
             Map<Long, Integer> ageFrom) {
         Map<YearMonth, Set<LocalDate>> schoolDays = new HashMap<>();
+        for (YearMonth ym : months) {
+            schoolDays.put(ym, calendarDays(cls, ym, today));
+        }
+        schoolDays.computeIfAbsent(month, ym -> calendarDays(cls, ym, today));
+        Set<LocalDate> recorded = new HashSet<>();
         Map<YearMonth, Integer> presentByMonth = new HashMap<>();
         Map<Long, Integer> childPresent = new HashMap<>();
         Set<Long> lunch = new HashSet<>();
         for (ClassChildDay d : classDays) {
             YearMonth ym = YearMonth.from(d.date());
-            schoolDays.computeIfAbsent(ym, k -> new TreeSet<>()).add(d.date());
+            recorded.add(d.date());
             if (d.status() != AttendanceStatus.PRESENT) {
                 continue;
             }
@@ -254,6 +279,7 @@ public class QualityReportServiceImpl implements QualityReportService {
                 .sum();
         int possibleDays =
                 children.stream().mapToInt(id -> expected.getOrDefault(id, 0)).sum();
+        Set<Long> left = leftDuring(cls, month, today);
         Set<Long> meal = children.stream().filter(lunch::contains).collect(Collectors.toSet());
         Set<Long> diligent = children.stream()
                 .filter(id -> expected.getOrDefault(id, 0) > 0
@@ -276,6 +302,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                 presentDays,
                 possibleDays,
                 percent(presentDays, possibleDays),
+                left.size(),
+                percent(left.size(), n),
                 meal.size(),
                 percent(meal.size(), n),
                 diligent.size(),
@@ -284,8 +312,53 @@ public class QualityReportServiceImpl implements QualityReportService {
                 percent(good.size(), n),
                 allRound.size(),
                 percent(allRound.size(), n),
-                avgByMonth);
-        return new ClassResult(row, children, meal, diligent, good, allRound);
+                avgByMonth,
+                // Chỉ nhắc ngày lớp có trẻ đang học mà chưa điểm danh
+                monthDays.stream()
+                        .filter(day -> day.isBefore(today)
+                                && !recorded.contains(day)
+                                && stays.stream().anyMatch(st -> st.covers(day)))
+                        .sorted()
+                        .toList());
+        return new ClassResult(row, children, left, meal, diligent, good, allRound);
+    }
+
+    // Ngày học của tháng theo lịch năm học của lớp (trừ cuối tuần, ngày nghỉ cấu hình), không quá hôm nay
+    private Set<LocalDate> calendarDays(ClassroomInfoResponse cls, YearMonth month, LocalDate today) {
+        LocalDate from = month.atDay(1).isBefore(cls.yearStart()) ? cls.yearStart() : month.atDay(1);
+        LocalDate to = month.atEndOfMonth();
+        if (to.isAfter(today)) {
+            to = today;
+        }
+        if (to.isAfter(cls.yearEnd())) {
+            to = cls.yearEnd();
+        }
+        Set<LocalDate> days = new TreeSet<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if (rules.isSchoolDay(d)) {
+                days.add(d);
+            }
+        }
+        return days;
+    }
+
+    // OBS-23: trẻ ra lớp = trẻ có ngày cuối ở lớp rơi vào tháng (thôi học hoặc chuyển lớp) và ngày đó đã qua; kết thúc
+    // vì hết năm học không tính, quay lại lớp ngay hôm sau cũng không tính
+    private Set<Long> leftDuring(ClassroomInfoResponse cls, YearMonth month, LocalDate today) {
+        LocalDate from = month.atDay(1).isBefore(cls.yearStart()) ? cls.yearStart() : month.atDay(1);
+        LocalDate dayAfter = month.atEndOfMonth().plusDays(1);
+        LocalDate to = dayAfter.isAfter(cls.yearEnd()) ? cls.yearEnd() : dayAfter;
+        if (to.isBefore(from)) {
+            return Set.of();
+        }
+        List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
+        return stays.stream()
+                .filter(st -> st.to().isBefore(to) && st.to().isBefore(today))
+                .filter(st -> stays.stream()
+                        .noneMatch(o -> o.childId().equals(st.childId())
+                                && o.from().equals(st.to().plusDays(1))))
+                .map(EnrollmentService.ClassStay::childId)
+                .collect(Collectors.toSet());
     }
 
     private static Set<Long> issuedTo(List<BehaviourTicket> tickets, TicketType type, Set<Long> children) {
@@ -315,6 +388,7 @@ public class QualityReportServiceImpl implements QualityReportService {
     private static QualityTotal totalOf(String level, List<ClassResult> results, List<YearMonth> months) {
         List<QualityRow> rows = results.stream().map(ClassResult::row).toList();
         int children = distinct(results, ClassResult::children);
+        int left = distinct(results, ClassResult::left);
         int meal = distinct(results, ClassResult::meal);
         int diligent = distinct(results, ClassResult::diligent);
         int good = distinct(results, ClassResult::good);
@@ -330,6 +404,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                 children,
                 sumOrNull(rows, QualityRow::avgPresent),
                 percent(sum(rows, QualityRow::presentDays), sum(rows, QualityRow::possibleDays)),
+                left,
+                percent(left, children),
                 meal,
                 percent(meal, children),
                 diligent,

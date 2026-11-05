@@ -30,10 +30,17 @@ class TeacherClassRules {
     private final RoomRepository roomRepository;
     private final TeacherDirectory teacherDirectory;
 
-    /** Năm còn mở, tài khoản còn hoạt động, GV thuộc điểm trường của lớp (GV chưa dạy lớp nào xếp được mọi nơi). */
-    void checkTeachers(Classroom classroom, SchoolYear year, Collection<Long> teacherIds, LocalDate today) {
+    /**
+     * Năm còn mở, tài khoản còn hoạt động, GV thuộc điểm trường của lớp (GV chưa dạy lớp nào xếp được mọi nơi).
+     * anyCampus: HT xếp GV vào lớp toàn trường, kể cả chuyển sang điểm trường khác (AUTH-16, user chốt 03/11/2026).
+     */
+    void checkTeachers(
+            Classroom classroom, SchoolYear year, Collection<Long> teacherIds, LocalDate today, boolean anyCampus) {
         SchoolYearRules.checkOpen(year);
         checkAccountsActive(teacherIds);
+        if (anyCampus) {
+            return;
+        }
         Set<Long> campusTeachers = teacherDirectory.findTeachers(today).stream()
                 .filter(t -> t.campusIds().isEmpty() || t.campusIds().contains(classroom.getCampusId()))
                 .map(TeacherCandidateResponse::id)
@@ -48,6 +55,18 @@ class TeacherClassRules {
                 && !staffAssignmentRepository.findInactiveUserIds(userIds).isEmpty()) {
             throw GlobalException.of(ApiCode.TEACHER_ACCOUNT_LOCKED);
         }
+    }
+
+    /**
+     * Khóa trước khi đọc phân công hiện có: lớp rồi từng GV theo thứ tự id (cùng thứ tự ở mọi đường phân công nên không
+     * kẹt chéo), để hai yêu cầu đồng thời không cùng vượt kiểm tra một lớp / một GV.
+     */
+    void lockForAssignment(Classroom classroom, Collection<Long> teacherIds) {
+        staffAssignmentRepository.lockClassTeachers(classroom.getId());
+        teacherIds.stream()
+                .distinct()
+                .sorted()
+                .forEach(id -> staffAssignmentRepository.lockTeacherYear(id, classroom.getSchoolYearId()));
     }
 
     /** AUTH-24: mỗi GV dạy chính một lớp trong năm học; phân công đánh dấu dạy thay ở lớp khác không tính. */

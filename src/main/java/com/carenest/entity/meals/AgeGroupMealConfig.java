@@ -16,7 +16,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * Giá suất và chuẩn dinh dưỡng của một nhóm tuổi từ ngày hiệu lực (NUT-17, NUT-19, NUT-24, NUT-25). Bản đã tới ngày hiệu lực chỉ đọc,
+ * Giá suất và chuẩn dinh dưỡng của một nhóm tuổi từ ngày hiệu lực (NUT-17, NUT-19, NUT-24, NUT-25, NUT-26). Bản đã tới ngày hiệu lực chỉ đọc,
  * đổi thì tạo bản mới. Bữa trong ngày nằm ở {@code age_groups.meal_sessions}.
  */
 @Getter
@@ -113,6 +113,55 @@ public class AgeGroupMealConfig {
     @Column(name = "daily_kcal_need")
     private BigDecimal dailyKcalNeed;
 
+    // NUT-26: định mức vi chất mỗi trẻ mỗi ngày trên các bữa trường phục vụ; max null = chỉ cần đạt tối thiểu
+    @Column(name = "calcium_min")
+    private BigDecimal calciumMin;
+
+    @Column(name = "calcium_max")
+    private BigDecimal calciumMax;
+
+    @Column(name = "phosphorus_min")
+    private BigDecimal phosphorusMin;
+
+    @Column(name = "phosphorus_max")
+    private BigDecimal phosphorusMax;
+
+    @Column(name = "iron_min")
+    private BigDecimal ironMin;
+
+    @Column(name = "iron_max")
+    private BigDecimal ironMax;
+
+    @Column(name = "vitamin_a_min")
+    private BigDecimal vitaminAMin;
+
+    @Column(name = "vitamin_a_max")
+    private BigDecimal vitaminAMax;
+
+    @Column(name = "vitamin_b1_min")
+    private BigDecimal vitaminB1Min;
+
+    @Column(name = "vitamin_b1_max")
+    private BigDecimal vitaminB1Max;
+
+    @Column(name = "vitamin_b2_min")
+    private BigDecimal vitaminB2Min;
+
+    @Column(name = "vitamin_b2_max")
+    private BigDecimal vitaminB2Max;
+
+    @Column(name = "vitamin_pp_min")
+    private BigDecimal vitaminPpMin;
+
+    @Column(name = "vitamin_pp_max")
+    private BigDecimal vitaminPpMax;
+
+    @Column(name = "vitamin_c_min")
+    private BigDecimal vitaminCMin;
+
+    @Column(name = "vitamin_c_max")
+    private BigDecimal vitaminCMax;
+
     @Column(name = "norm_basis", nullable = false, length = 300)
     private String normBasis = "";
 
@@ -167,13 +216,30 @@ public class AgeGroupMealConfig {
         this.afternoonKcalPctMin = norms.afternoonKcalPctMin();
         this.afternoonKcalPctMax = norms.afternoonKcalPctMax();
         this.dailyKcalNeed = norms.dailyKcalNeed();
+        this.calciumMin = norms.calciumMin();
+        this.calciumMax = norms.calciumMax();
+        this.phosphorusMin = norms.phosphorusMin();
+        this.phosphorusMax = norms.phosphorusMax();
+        this.ironMin = norms.ironMin();
+        this.ironMax = norms.ironMax();
+        this.vitaminAMin = norms.vitaminAMin();
+        this.vitaminAMax = norms.vitaminAMax();
+        this.vitaminB1Min = norms.vitaminB1Min();
+        this.vitaminB1Max = norms.vitaminB1Max();
+        this.vitaminB2Min = norms.vitaminB2Min();
+        this.vitaminB2Max = norms.vitaminB2Max();
+        this.vitaminPpMin = norms.vitaminPpMin();
+        this.vitaminPpMax = norms.vitaminPpMax();
+        this.vitaminCMin = norms.vitaminCMin();
+        this.vitaminCMax = norms.vitaminCMax();
         this.normBasis = normBasis;
         this.updatedBy = updatedBy;
     }
 
     /**
      * Khoảng chuẩn dinh dưỡng; null = trường chưa chốt chuẩn cho chỉ số đó. P:L:G là % năng lượng (cơ cấu áp dụng),
-     * đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), mỗi bữa là % nhu cầu năng lượng cả ngày {@code dailyKcalNeed} (NUT-25).
+     * đạm/béo ĐV-TV và bột đường là gam/trẻ/ngày (NUT-24), mỗi bữa là % nhu cầu năng lượng cả ngày {@code dailyKcalNeed} (NUT-25),
+     * vi chất là tổng mỗi trẻ mỗi ngày (NUT-26).
      */
     public record Norms(
             BigDecimal kcalMin,
@@ -200,5 +266,21 @@ public class AgeGroupMealConfig {
             BigDecimal lunchKcalPctMax,
             BigDecimal afternoonKcalPctMin,
             BigDecimal afternoonKcalPctMax,
-            BigDecimal dailyKcalNeed) {}
+            BigDecimal dailyKcalNeed,
+            BigDecimal calciumMin,
+            BigDecimal calciumMax,
+            BigDecimal phosphorusMin,
+            BigDecimal phosphorusMax,
+            BigDecimal ironMin,
+            BigDecimal ironMax,
+            BigDecimal vitaminAMin,
+            BigDecimal vitaminAMax,
+            BigDecimal vitaminB1Min,
+            BigDecimal vitaminB1Max,
+            BigDecimal vitaminB2Min,
+            BigDecimal vitaminB2Max,
+            BigDecimal vitaminPpMin,
+            BigDecimal vitaminPpMax,
+            BigDecimal vitaminCMin,
+            BigDecimal vitaminCMax) {}
 }

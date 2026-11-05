@@ -9,11 +9,13 @@ import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
+import com.carenest.utils.enums.Micronutrient;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
@@ -22,10 +24,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Kiểm tự động kế hoạch tuần (NUT-06, NUT-08, NUT-09, NUT-19, NUT-20, NUT-24, NUT-25): tính xác định, cùng công thức
+ * Kiểm tự động kế hoạch tuần (NUT-06, NUT-08, NUT-09, NUT-19, NUT-20, NUT-24, NUT-25, NUT-26): tính xác định, cùng công thức
  * {@code CareNest_FE:src/utils/menu-planning/menuCalculations.js} (làm tròn 0,1 theo món, bữa, ngày) để màn lập và
  * BE chặn công bố cho cùng kết quả.
  */
@@ -43,6 +46,8 @@ final class MealPlanEvaluator {
     private static final String NO_DISHES = "NO_DISHES";
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final BigDecimal TWO = BigDecimal.valueOf(2);
+    private static final Map<String, Micronutrient> MICRO_BY_KEY =
+            Arrays.stream(Micronutrient.values()).collect(Collectors.toMap(Micronutrient::key, Function.identity()));
     private static final Map<String, BigDecimal> ENERGY_FACTOR =
             Map.of("protein", BigDecimal.valueOf(4), "lipid", BigDecimal.valueOf(9), "glucid", BigDecimal.valueOf(4));
     private static final Map<String, String> ROW_LABELS = Map.of(
@@ -71,7 +76,24 @@ final class MealPlanEvaluator {
             BigDecimal unitPrice,
             BigDecimal purchaseUnitSize,
             BigDecimal wastePct,
-            List<String> allergens) {}
+            List<String> allergens,
+            Map<Micronutrient, BigDecimal> micro) {
+
+        /** Thực phẩm chưa có số liệu vi chất nào. */
+        FoodInfo(
+                Long id,
+                BigDecimal kcal,
+                BigDecimal protein,
+                BigDecimal lipid,
+                BigDecimal glucid,
+                FoodOrigin origin,
+                BigDecimal unitPrice,
+                BigDecimal purchaseUnitSize,
+                BigDecimal wastePct,
+                List<String> allergens) {
+            this(id, kcal, protein, lipid, glucid, origin, unitPrice, purchaseUnitSize, wastePct, allergens, Map.of());
+        }
+    }
 
     record Portion(FoodInfo food, BigDecimal grams) {}
 
@@ -89,7 +111,8 @@ final class MealPlanEvaluator {
 
     /**
      * Định mức hiệu lực của nhóm tuổi tại ngày (NUT-17): kcal; cơ cấu P:L:G theo % năng lượng; đạm, béo ĐV-TV và bột
-     * đường theo gam/trẻ/ngày (NUT-24); % năng lượng từng bữa so nhu cầu năng lượng cả ngày {@code dailyKcalNeed} (NUT-25).
+     * đường theo gam/trẻ/ngày (NUT-24); % năng lượng từng bữa so nhu cầu năng lượng cả ngày {@code dailyKcalNeed} (NUT-25); vi chất
+     * theo mg (vitamin A: µg)/trẻ/ngày, chỉ cần đặt min (NUT-26).
      */
     record Norm(
             BigDecimal mealPrice,
@@ -103,7 +126,39 @@ final class MealPlanEvaluator {
             Range plantLipidG,
             Range glucidG,
             Map<MealSession, Range> sessionKcalPct,
-            BigDecimal dailyKcalNeed) {}
+            BigDecimal dailyKcalNeed,
+            Map<Micronutrient, Range> micro) {
+
+        /** Chưa đặt định mức vi chất nào. */
+        Norm(
+                BigDecimal mealPrice,
+                Range kcal,
+                Range proteinPct,
+                Range lipidPct,
+                Range glucidPct,
+                Range animalProteinG,
+                Range plantProteinG,
+                Range animalLipidG,
+                Range plantLipidG,
+                Range glucidG,
+                Map<MealSession, Range> sessionKcalPct,
+                BigDecimal dailyKcalNeed) {
+            this(
+                    mealPrice,
+                    kcal,
+                    proteinPct,
+                    lipidPct,
+                    glucidPct,
+                    animalProteinG,
+                    plantProteinG,
+                    animalLipidG,
+                    plantLipidG,
+                    glucidG,
+                    sessionKcalPct,
+                    dailyKcalNeed,
+                    Map.of());
+        }
+    }
 
     record ItemPlan(MealSession session, MenuBlock block, Long dishId) {}
 
@@ -125,6 +180,14 @@ final class MealPlanEvaluator {
         BigDecimal plantProtein = BigDecimal.ZERO;
         BigDecimal animalLipid = BigDecimal.ZERO;
         BigDecimal plantLipid = BigDecimal.ZERO;
+        // NUT-26: null = có thực phẩm chưa có số liệu vi chất đó
+        final Map<Micronutrient, BigDecimal> micro = new EnumMap<>(Micronutrient.class);
+
+        Acc() {
+            for (Micronutrient nutrient : Micronutrient.values()) {
+                micro.put(nutrient, BigDecimal.ZERO);
+            }
+        }
 
         void add(Acc other) {
             kcal = kcal.add(other.kcal);
@@ -135,6 +198,11 @@ final class MealPlanEvaluator {
             plantProtein = plantProtein.add(other.plantProtein);
             animalLipid = animalLipid.add(other.animalLipid);
             plantLipid = plantLipid.add(other.plantLipid);
+            for (Micronutrient nutrient : Micronutrient.values()) {
+                BigDecimal mine = micro.get(nutrient);
+                BigDecimal theirs = other.micro.get(nutrient);
+                micro.put(nutrient, mine == null || theirs == null ? null : mine.add(theirs));
+            }
         }
 
         Acc rounded() {
@@ -147,12 +215,28 @@ final class MealPlanEvaluator {
             r.plantProtein = round1(plantProtein);
             r.animalLipid = round1(animalLipid);
             r.plantLipid = round1(plantLipid);
+            micro.forEach((nutrient, value) -> r.micro.put(nutrient, value == null ? null : round2(value)));
             return r;
         }
 
         NutritionTotals toTotals() {
             return new NutritionTotals(
-                    kcal, protein, lipid, glucid, animalProtein, plantProtein, animalLipid, plantLipid);
+                    kcal,
+                    protein,
+                    lipid,
+                    glucid,
+                    animalProtein,
+                    plantProtein,
+                    animalLipid,
+                    plantLipid,
+                    micro.get(Micronutrient.CALCIUM),
+                    micro.get(Micronutrient.PHOSPHORUS),
+                    micro.get(Micronutrient.IRON),
+                    micro.get(Micronutrient.VITAMIN_A),
+                    micro.get(Micronutrient.VITAMIN_B1),
+                    micro.get(Micronutrient.VITAMIN_B2),
+                    micro.get(Micronutrient.VITAMIN_PP),
+                    micro.get(Micronutrient.VITAMIN_C));
         }
     }
 
@@ -295,6 +379,14 @@ final class MealPlanEvaluator {
                 acc.plantProtein = acc.plantProtein.add(protein);
                 acc.plantLipid = acc.plantLipid.add(lipid);
             }
+            if (p.grams().signum() > 0) {
+                for (Micronutrient nutrient : Micronutrient.values()) {
+                    BigDecimal value = f.micro().get(nutrient);
+                    BigDecimal sum = acc.micro.get(nutrient);
+                    // Đã thiếu số liệu thì giữ null, không cộng tiếp
+                    acc.micro.put(nutrient, value == null || sum == null ? null : sum.add(value.multiply(ratio)));
+                }
+            }
         }
         Acc r = acc.rounded();
         r.protein = round1(r.animalProtein.add(r.plantProtein));
@@ -375,6 +467,13 @@ final class MealPlanEvaluator {
                 incomplete,
                 norm == null ? Range.NONE : norm.plantLipidG()));
         rows.add(gramRow("glucidG", totals.glucid, null, kcal, incomplete, norm == null ? Range.NONE : norm.glucidG()));
+        for (Micronutrient nutrient : Micronutrient.values()) {
+            rows.add(microRow(
+                    nutrient,
+                    totals.micro.get(nutrient),
+                    incomplete,
+                    norm == null ? Range.NONE : norm.micro().getOrDefault(nutrient, Range.NONE)));
+        }
         return rows;
     }
 
@@ -421,6 +520,29 @@ final class MealPlanEvaluator {
                 true);
     }
 
+    /**
+     * NUT-26: vi chất chỉ đánh giá khi đã nhập mức tối thiểu; max trống = chỉ cần đạt tối thiểu (mục tiêu = min, không
+     * có HIGH). Tổng null (thực phẩm thiếu số liệu) ⇒ INCOMPLETE.
+     */
+    private static NormRow microRow(Micronutrient nutrient, BigDecimal value, boolean incomplete, Range range) {
+        boolean configured = range.min() != null;
+        BigDecimal min = configured ? range.min() : null;
+        BigDecimal max = configured ? range.max() : null;
+        BigDecimal target = !configured ? null : max == null ? min : round2(mid(min, max));
+        Integer attainment = target == null || value == null || target.signum() == 0 ? null : percentInt(value, target);
+        String status;
+        if (!configured) {
+            status = NA;
+        } else if (incomplete || value == null) {
+            status = INCOMPLETE;
+        } else if (value.compareTo(min) < 0) {
+            status = LOW;
+        } else {
+            status = max != null && value.compareTo(max) > 0 ? HIGH : OK;
+        }
+        return new NormRow(nutrient.key(), value, null, min, max, target, attainment, status, true);
+    }
+
     // NUT-25: kcal bữa ÷ nhu cầu năng lượng cả ngày của nhóm tuổi (chưa đặt nhu cầu ⇒ NA); chỉ cảnh báo, không tính vào
     // trạng thái ngày
     private static List<SessionRow> compareSessions(
@@ -465,9 +587,13 @@ final class MealPlanEvaluator {
         return measured.compareTo(max) > 0 ? HIGH : OK;
     }
 
-    /** FE {@code overallNormStatus}: thiếu dữ liệu > chưa đặt định mức > thấp/cao > đạt; dòng tùy chọn NA bỏ qua. */
+    /**
+     * FE {@code overallNormStatus}: thiếu dữ liệu > chưa đặt định mức > thấp/cao > đạt; dòng tùy chọn NA bỏ qua. Vi chất
+     * (NUT-26) chỉ cảnh báo nên không tính vào trạng thái ngày.
+     */
     private static String overall(List<NormRow> rows) {
         List<NormRow> counted = rows.stream()
+                .filter(r -> !MICRO_BY_KEY.containsKey(r.key()))
                 .filter(r -> !(r.optional() && NA.equals(r.status())))
                 .toList();
         if (counted.stream().anyMatch(r -> INCOMPLETE.equals(r.status()))) {
@@ -501,6 +627,7 @@ final class MealPlanEvaluator {
                         null,
                         prefix
                                 + evaluation.rows().stream()
+                                        .filter(r -> !MICRO_BY_KEY.containsKey(r.key()))
                                         .filter(r -> LOW.equals(r.status()) || HIGH.equals(r.status()))
                                         .map(MealPlanEvaluator::describe)
                                         .collect(Collectors.joining("; "))));
@@ -518,6 +645,7 @@ final class MealPlanEvaluator {
                 // NO_DISHES đã báo theo bữa của khối; OK không có lỗi
             }
         }
+        microIssues(date, group, evaluation, prefix, issues);
         // NUT-19: vượt giá suất chỉ cảnh báo
         if (evaluation.mealPrice() != null && evaluation.cost().compareTo(evaluation.mealPrice()) > 0) {
             issues.add(new Issue(
@@ -550,8 +678,54 @@ final class MealPlanEvaluator {
         }
     }
 
+    // NUT-26: vi chất lệch định mức chỉ cảnh báo; thiếu số liệu chỉ báo thông tin, không đổi trạng thái ngày, không
+    // chặn công bố
+    private static void microIssues(
+            LocalDate date, AgeGroupInfo group, Evaluation evaluation, String prefix, List<Issue> issues) {
+        List<NormRow> micro = evaluation.rows().stream()
+                .filter(r -> MICRO_BY_KEY.containsKey(r.key()))
+                .toList();
+        List<String> off = micro.stream()
+                .filter(r -> LOW.equals(r.status()) || HIGH.equals(r.status()))
+                .map(MealPlanEvaluator::describe)
+                .toList();
+        if (!off.isEmpty()) {
+            issues.add(new Issue(
+                    WARNING,
+                    "MICRONUTRIENT_OFF",
+                    date,
+                    group.id(),
+                    group.block(),
+                    null,
+                    prefix + String.join("; ", off)));
+        }
+        // Thiếu định lượng món đã được báo bằng INCOMPLETE_DATA, không lặp lại ở đây
+        List<String> lacking = micro.stream()
+                .filter(r -> INCOMPLETE.equals(r.status()))
+                .map(r -> MICRO_BY_KEY.get(r.key()).label())
+                .toList();
+        if (!lacking.isEmpty() && !INCOMPLETE.equals(evaluation.status())) {
+            issues.add(new Issue(
+                    INFO,
+                    "MICRONUTRIENT_INCOMPLETE",
+                    date,
+                    group.id(),
+                    group.block(),
+                    null,
+                    prefix + "chưa đủ số liệu vi chất (" + String.join(", ", lacking)
+                            + ") ở thực phẩm trong thực đơn"));
+        }
+    }
+
     private static String describe(NormRow row) {
         String direction = LOW.equals(row.status()) ? "thấp hơn" : "cao hơn";
+        Micronutrient nutrient = MICRO_BY_KEY.get(row.key());
+        if (nutrient != null) {
+            String range =
+                    row.max() == null ? "tối thiểu " + plain(row.min()) : plain(row.min()) + "–" + plain(row.max());
+            return nutrient.label() + " " + direction + " định mức (" + plain(row.value()) + " " + nutrient.unit()
+                    + " so với " + range + " " + nutrient.unit() + ")";
+        }
         boolean energyShare = ENERGY_FACTOR.containsKey(row.key());
         BigDecimal measured = energyShare ? row.percent() : row.value();
         String unit = energyShare ? "%" : "kcal".equals(row.key()) ? " kcal" : " g";
@@ -636,6 +810,11 @@ final class MealPlanEvaluator {
 
     private static BigDecimal round1(BigDecimal value) {
         return value.setScale(1, RoundingMode.HALF_UP);
+    }
+
+    // Vi chất nhỏ (B1, B2 ~0,01–0,1 mg/100 g) nên làm tròn 0,01 thay vì 0,1
+    private static BigDecimal round2(BigDecimal value) {
+        return value.setScale(2, RoundingMode.HALF_UP);
     }
 
     private static String plain(BigDecimal value) {

@@ -71,7 +71,16 @@ class ClassCommentServiceTest {
     @BeforeEach
     void setUp() {
         Clock clock = Clock.fixed(NOW, ZoneId.of("Asia/Ho_Chi_Minh"));
-        var rules = new ObservationDayRules(clock, unlocks, classes, staff, classPolicy, campusPolicy, accounts);
+        // Lịch: thứ 2–6 là ngày học (không có ngày nghỉ)
+        var calendar = mock(com.carenest.service.organization.SchoolYearService.class);
+        org.mockito.Mockito.when(calendar.isSchoolDay(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> {
+                    java.time.DayOfWeek d =
+                            inv.<java.time.LocalDate>getArgument(0).getDayOfWeek();
+                    return d != java.time.DayOfWeek.SATURDAY && d != java.time.DayOfWeek.SUNDAY;
+                });
+        var rules =
+                new ObservationDayRules(clock, unlocks, classes, staff, classPolicy, campusPolicy, accounts, calendar);
         service = new DailyAssessmentServiceImpl(
                 rules,
                 observations,
@@ -88,7 +97,7 @@ class ClassCommentServiceTest {
                 .thenAnswer(i -> Optional.of(i.<Long>getArgument(0) == 10L ? classroom : other));
         when(classes.findYearClassrooms(any())).thenAnswer(i -> List.of(classroom, other));
         when(staff.hasActiveTeacherAssignment(eq(1L), eq(10L), eq(TODAY))).thenReturn(true);
-        when(classPolicy.canViewClassroom(teacher, 10L)).thenReturn(true);
+        when(classPolicy.canReadClassroom(teacher, 10L)).thenReturn(true);
         when(campusPolicy.canViewCampus(eq(principal), anyLong())).thenReturn(true);
         when(campusPolicy.canViewCampus(vp, 100L)).thenReturn(true);
         // AUTH-20: HT, PHT xem mọi điểm trường

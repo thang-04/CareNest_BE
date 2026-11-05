@@ -284,16 +284,16 @@ public class ClassManagementServiceImpl implements ClassManagementService {
             // Chỉ sao chép tên, nhóm tuổi, điểm trường, phòng, sĩ số — không bao giờ sao chép giáo viên hay trẻ
             for (Classroom c : sourceClasses) {
                 if (!campusRepository.existsByIdAndStatus(c.getCampusId(), CampusStatus.ACTIVE)) {
-                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Campus is inactive"));
+                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Điểm trường đã ngừng hoạt động"));
                     continue;
                 }
                 if (classroomRepository.existsName(target.getId(), c.getCampusId(), c.getName(), null)) {
-                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Campus already has this class name"));
+                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Điểm trường đã có lớp cùng tên"));
                     continue;
                 }
                 AgeGroup group = c.getAgeGroupId() == null ? null : ageGroups.get(c.getAgeGroupId());
                 if (group == null) {
-                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Age group no longer exists"));
+                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Nhóm tuổi không còn tồn tại"));
                     continue;
                 }
                 Room room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
@@ -490,7 +490,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     }
 
     private Map<Long, Long> plannedChildren(Collection<Long> classIds) {
-        return classroomRepository.countPlannedChildren(classIds).stream()
+        return classroomRepository.countPlannedChildren(classIds, schoolConfigAccess.today()).stream()
                 .collect(Collectors.toMap(
                         ClassroomRepository.ClassroomCount::getClassroomId,
                         ClassroomRepository.ClassroomCount::getTotal));

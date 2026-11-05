@@ -180,7 +180,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canView(currentUser, cls)) {
+            // Tổ trưởng chuyên môn xem tổng hợp phiếu các lớp nhóm tuổi mình (AUTH-23)
+            if (!rules.canView(currentUser, cls)
+                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
             checkMonth(month, cls.yearStart(), cls.yearEnd());
@@ -227,14 +229,18 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         String logPrefix = LOG_PREFIX + "|getOverview|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!rules.isLeader(currentUser)) {
+            boolean leader = rules.isLeader(currentUser);
+            // Tổ trưởng chuyên môn xem phiếu các lớp nhóm tuổi mình (Cần chốt 04/11)
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
-            if (campusId != null && !rules.readsCampus(currentUser, campusId)) {
+            if (campusId != null && leader && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.readsCampus(currentUser, c.campusId()))
+                    .filter(c ->
+                            leader ? rules.readsCampus(currentUser, c.campusId()) : ledGroups.contains(c.ageGroupId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();
@@ -427,6 +433,8 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                 .collect(Collectors.toMap(BehaviourTicket::getChildId, t -> t, (a, b) -> a));
     }
 
+    // Bằng chứng phiếu tuần đi theo trẻ (cả ngày ở lớp cũ khi chuyển lớp giữa tuần, test continuity); số cờ tổng hợp
+    // theo lớp thì ở flagCounts
     private WeekStats weekStats(Collection<Long> childIds, TicketPeriod period) {
         Set<String> present = attendanceService.findDayStatuses(childIds, period.start(), period.end()).stream()
                 .filter(s -> s.status() == AttendanceStatus.PRESENT)

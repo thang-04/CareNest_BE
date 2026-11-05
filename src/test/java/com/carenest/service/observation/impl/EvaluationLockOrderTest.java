@@ -8,8 +8,10 @@ import com.carenest.repository.observation.*;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.enums.*;
 import java.time.LocalDate;
 import java.util.List;
@@ -25,6 +27,7 @@ class EvaluationLockOrderTest {
         var service = new ChildEvaluationServiceImpl(
                 rules,
                 classes,
+                mock(SchoolYearService.class),
                 mock(AgeGroupService.class),
                 mock(EnrollmentService.class),
                 mock(AccountService.class),
@@ -32,7 +35,8 @@ class EvaluationLockOrderTest {
                 evaluations,
                 mock(ChildEvaluationEventRepository.class),
                 mock(DailyObservationRepository.class),
-                mock(BehaviourTicketRepository.class));
+                mock(BehaviourTicketRepository.class),
+                mock(YearEndSheetService.class));
         var user = new CurrentUser(1L, "demo", "demo", "Demo", null, Set.of(CareNestRole.TEACHER));
         when(classes.findYearClassrooms(null)).thenReturn(List.of(cls(20L, "A"), cls(10L, "Z")));
         when(rules.today()).thenReturn(LocalDate.of(2026, 10, 28));

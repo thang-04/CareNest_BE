@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.carenest.config.SecurityConfig;
@@ -17,6 +18,7 @@ import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.observation.ChildEvaluationService;
+import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.utils.enums.CareNestRole;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -44,6 +47,9 @@ class ChildDevelopmentControllerTest {
     @MockitoBean
     private ChildEvaluationService childEvaluationService;
 
+    @MockitoBean
+    private YearEndSheetService yearEndSheetService;
+
     @Test
     @DisplayName("Hồ sơ phát triển: GV có CHILD_PROFILE_VIEW mặc định ⇒ vào service (phạm vi lớp kiểm ở service)")
     void teacherWithDefaultPermissionReachesService() throws Exception {
@@ -62,6 +68,28 @@ class ChildDevelopmentControllerTest {
         mockMvc.perform(get(URL).with(token(CareNestRole.TEACHER))).andExpect(status().isForbidden());
 
         verifyNoInteractions(childEvaluationService);
+    }
+
+    @Test
+    @DisplayName("Phiếu cuối năm: GV lưu ⇒ vào service; HT không lưu được ⇒ 403")
+    void onlyTeacherSavesYearEndSheet() throws Exception {
+        String body = "{\"goals\":[{\"goalId\":5,\"met\":true}],\"forChild\":\"Rèn trẻ\"}";
+        CurrentUser teacher = authenticate(TestPermissions.userWithDefaults(4L, CareNestRole.TEACHER));
+        mockMvc.perform(put("/api/assessment/evaluations/7/year-sheet")
+                        .with(token(CareNestRole.TEACHER))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isOk());
+        verify(yearEndSheetService).save(eq(teacher), eq(7L), any());
+
+        authenticate(TestPermissions.userWithDefaults(2L, CareNestRole.PRINCIPAL));
+        mockMvc.perform(put("/api/assessment/evaluations/7/year-sheet")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/assessment/evaluations/7/year-sheet").with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isOk());
     }
 
     private CurrentUser authenticate(CurrentUser user) {

@@ -133,6 +133,15 @@ public enum ApiCode {
     SEMESTER_START_AFTER_END(2024, HttpStatus.BAD_REQUEST, "{0}: ngày bắt đầu không được sau ngày kết thúc"),
     SEMESTER_OVERLAP(2025, HttpStatus.BAD_REQUEST, "Học kỳ II phải bắt đầu sau ngày kết thúc học kỳ I ({0})"),
     SEMESTER_DATE_REQUIRED(2026, HttpStatus.BAD_REQUEST, "Chọn {0}"),
+    SCHOOL_YEAR_START_LOCKED(2028, HttpStatus.CONFLICT, "Năm học đang hoạt động, không đổi được ngày bắt đầu"),
+    SCHOOL_YEAR_END_BEFORE_TODAY(
+            2029, HttpStatus.BAD_REQUEST, "Ngày kết thúc năm học đang hoạt động không được trước hôm nay"),
+    HOLIDAY_OUT_OF_YEAR(2030, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" phải nằm trong năm học ({1} – {2})"),
+    HOLIDAY_OVERLAP(2031, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" trùng ngày với đợt \"{1}\""),
+    HOLIDAY_RANGE_INVALID(2032, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\": ngày bắt đầu không được sau ngày kết thúc"),
+    HOLIDAY_TOO_LONG(2033, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" dài tối đa {1} ngày"),
+    HOLIDAY_HAS_ATTENDANCE(2034, HttpStatus.CONFLICT, "Ngày {0} đã có điểm danh, không đặt thành ngày nghỉ được"),
+    SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
     SCHOOL_CONFIG_ACCESS_DENIED(2101, HttpStatus.FORBIDDEN, "Bạn không có quyền xem cấu hình trường"),
@@ -212,6 +221,11 @@ public enum ApiCode {
     VICE_PRINCIPAL_ACCOUNT_LOCKED(2323, HttpStatus.CONFLICT, "Tài khoản Phó hiệu trưởng đã bị khóa"),
     SUBSTITUTE_TEACHER_ONLY(2320, HttpStatus.BAD_REQUEST, "Chỉ phân công giáo viên mới chọn được dạy thay"),
     SUBSTITUTE_END_DATE_REQUIRED(2321, HttpStatus.BAD_REQUEST, "Phân công dạy thay phải có ngày kết thúc"),
+    TEACHER_END_VIA_CLASS(
+            2324,
+            HttpStatus.BAD_REQUEST,
+            "Thay hoặc gỡ giáo viên của lớp tại màn Phân công giáo viên (năm đang học lớp phải còn giáo viên)"),
+    ASSIGNMENT_END_IN_PAST(2325, HttpStatus.BAD_REQUEST, "Không kết thúc phân công lùi về trước hôm qua"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
@@ -252,6 +266,7 @@ public enum ApiCode {
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
     CUTOFF_UNCHANGED(4002, HttpStatus.BAD_REQUEST, "Giờ chốt và ngày áp dụng chưa thay đổi"),
+    CUTOFF_DATE_PAST(4029, HttpStatus.BAD_REQUEST, "Giờ chốt mới chỉ áp dụng từ hôm nay trở đi"),
     ATTENDANCE_SUMMARY_ACCESS_DENIED(4003, HttpStatus.FORBIDDEN, "Bạn không có quyền xem tổng hợp điểm danh"),
     ATTENDANCE_YEAR_NOT_ACTIVE(
             4004, HttpStatus.CONFLICT, "Lớp thuộc năm học đã kết thúc hoặc chưa bắt đầu, chỉ xem được"),
@@ -376,6 +391,16 @@ public enum ApiCode {
             6009,
             HttpStatus.CONFLICT,
             "Còn lớp chưa điểm danh đủ trẻ: {0}. Mở lại điểm danh để giáo viên hoàn tất rồi xác nhận"),
+    MEAL_COUNT_PAST_DAY(
+            6073,
+            HttpStatus.CONFLICT,
+            "Sổ báo ăn ngày đã qua chỉ xem; chỉ xác nhận lại khi có thay đổi sau lúc mở lại điểm danh"),
+    MEAL_COUNT_CHANGED_SINCE_VIEW(
+            6074,
+            HttpStatus.CONFLICT,
+            "Số suất vừa thay đổi (giáo viên sửa điểm danh hoặc có điều chỉnh). Tải lại để xem số mới rồi xác nhận"),
+    MEAL_SUBSTITUTE_EXCEEDS_EATING(
+            6075, HttpStatus.BAD_REQUEST, "Suất thay thế không được nhiều hơn số trẻ ăn bữa đó của lớp"),
     FOOD_NOT_FOUND(6010, HttpStatus.NOT_FOUND, "Không tìm thấy thực phẩm"),
     FOOD_CODE_DUPLICATED(6011, HttpStatus.CONFLICT, "Mã thực phẩm {0} đã tồn tại"),
     NUTRIENT_SOURCE_REQUIRED(6012, HttpStatus.BAD_REQUEST, "Cần ghi nguồn số liệu dinh dưỡng của thực phẩm"),
@@ -620,6 +645,10 @@ public enum ApiCode {
     REWARD_CHILD_NOT_IN_CLASS(7354, HttpStatus.BAD_REQUEST, "Có trẻ không thuộc lớp, tải lại trang"),
     REWARD_CHILD_DUPLICATE(7355, HttpStatus.BAD_REQUEST, "Một trẻ xuất hiện hai lần trong danh sách"),
     REWARD_TITLE_INVALID(7356, HttpStatus.BAD_REQUEST, "Danh hiệu \"{0}\" không có trong danh sách"),
+    REWARD_TITLE_CONFLICT(
+            7374,
+            HttpStatus.BAD_REQUEST,
+            "{0}: mỗi trẻ chọn một danh hiệu bé ngoan và tối đa một danh hiệu hoàn thành chương trình"),
     REWARD_PROGRAM_TITLE_INVALID(
             7357, HttpStatus.BAD_REQUEST, "{0} chưa được xác nhận hoàn thành chương trình ở đánh giá cuối năm"),
     REWARD_YEAR_END_REQUIRED(7358, HttpStatus.BAD_REQUEST, "{0} chưa có đánh giá cuối năm đã xác nhận"),
@@ -631,6 +660,20 @@ public enum ApiCode {
     REWARD_DECISION_INVALID(7361, HttpStatus.BAD_REQUEST, "Quyết định không hợp lệ"),
     REWARD_COMMENT_REQUIRED(7362, HttpStatus.BAD_REQUEST, "Nhập lý do trả lại"),
     REWARD_COMMENT_TOO_LONG(7363, HttpStatus.BAD_REQUEST, "Ý kiến tối đa {0} ký tự"),
+    CLASS_RATING_FORBIDDEN(7370, HttpStatus.FORBIDDEN, "Bạn không được xếp loại lớp {0}"),
+    CLASS_RATING_MIXED_YEARS(7371, HttpStatus.BAD_REQUEST, "Chỉ lưu xếp loại các lớp cùng một năm học"),
+    CLASS_RATING_NOT_OPEN(7372, HttpStatus.CONFLICT, "Kỳ xếp loại chưa bắt đầu, xếp loại được từ ngày {0}"),
+    CLASS_RATING_OVERALL_REQUIRED(7373, HttpStatus.BAD_REQUEST, "Lớp {0}: chọn xếp loại chung"),
+    THEME_EVALUATION_KINDERGARTEN_ONLY(7376, HttpStatus.BAD_REQUEST, "Đánh giá cuối chủ đề chỉ dành cho lớp mẫu giáo"),
+    THEME_EVALUATION_THEME_NOT_FOUND(
+            7377, HttpStatus.NOT_FOUND, "Không tìm thấy chủ đề trong kế hoạch năm học đã duyệt của lớp"),
+    THEME_EVALUATION_NOT_STARTED(7378, HttpStatus.CONFLICT, "Chủ đề chưa bắt đầu, chưa đánh giá được"),
+    THEME_EVALUATION_NOT_ENDED(7379, HttpStatus.CONFLICT, "Chủ đề chưa kết thúc, chưa xác nhận được"),
+    THEME_EVALUATION_CELL_INVALID(7380, HttpStatus.BAD_REQUEST, "Có ô không thuộc bảng đánh giá, tải lại trang"),
+    YEAR_SHEET_ONLY_YEAR_END(7381, HttpStatus.BAD_REQUEST, "Phiếu đánh giá sự phát triển chỉ có ở đánh giá cuối năm"),
+    YEAR_SHEET_GOAL_INVALID(7382, HttpStatus.BAD_REQUEST, "Có mục tiêu không thuộc phiếu đánh giá, tải lại trang"),
+    YEAR_SHEET_NOTE_TOO_LONG(7383, HttpStatus.BAD_REQUEST, "Mỗi lưu ý tối đa {0} ký tự"),
+    CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,
             HttpStatus.FORBIDDEN,

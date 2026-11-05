@@ -30,3 +30,5 @@ Thumbs.db
 # File test tạm (không push)
 *.tmp
 *.temp
+# Thư mục tạm khi soát/xuất tài liệu nghiệp vụ (ảnh render, script một lần): không commit
+.tmp_doc_*/

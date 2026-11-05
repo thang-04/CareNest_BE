@@ -12,18 +12,19 @@ import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.security.authorization.ClassroomAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
-import java.time.DayOfWeek;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,7 @@ class ObservationDayRules {
     private final ClassroomAccessPolicy classroomAccessPolicy;
     private final CampusAccessPolicy campusAccessPolicy;
     private final AccountService accountService;
+    private final SchoolYearService schoolYearService;
 
     /** Ngày theo giờ trường (Clock của ứng dụng đặt Asia/Ho_Chi_Minh). */
     void lockClassForUpdate(Long id) {
@@ -54,10 +56,9 @@ class ObservationDayRules {
         return clock.instant();
     }
 
-    // Tạm thứ 2–6 như điểm danh (chưa có lịch nghỉ lễ của trường)
-    static boolean isSchoolDay(LocalDate date) {
-        DayOfWeek day = date.getDayOfWeek();
-        return day != DayOfWeek.SATURDAY && day != DayOfWeek.SUNDAY;
+    // Thứ 2–6 trừ ngày nghỉ của năm học, như điểm danh (SCH-05)
+    boolean isSchoolDay(LocalDate date) {
+        return schoolYearService.isSchoolDay(date);
     }
 
     /** Ngày D khóa hết 23:59:59 ngày D: từ ngày sau trở đi là đã khóa. */
@@ -75,11 +76,19 @@ class ObservationDayRules {
                 .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
     }
 
+    // Chỉ dùng cho đường đọc: PHT xem mọi điểm trường (AUTH-20); ghi qua canRecord / leadsCampus
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
-        return classroomAccessPolicy.canViewClassroom(user, cls.id()) || taughtClosedYear(user, cls);
+        return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
     /** Giáo viên xem lại (chỉ xem) lớp mình từng dạy ở năm đã kết thúc. */
+    /** Nhóm tuổi người dùng đang làm tổ trưởng (AUTH-23); rỗng nếu không phải tổ trưởng. */
+    Set<Long> teamLeaderAgeGroupIds(CurrentUser user) {
+        return user.hasRole(CareNestRole.TEACHER)
+                ? staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), today())
+                : Set.of();
+    }
+
     boolean taughtClosedYear(CurrentUser user, ClassroomInfoResponse cls) {
         return cls.yearStatus() == SchoolYearStatus.CLOSED
                 && user.hasRole(CareNestRole.TEACHER)
