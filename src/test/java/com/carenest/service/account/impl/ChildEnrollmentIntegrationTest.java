@@ -111,6 +111,12 @@ class ChildEnrollmentIntegrationTest {
     @MockitoBean
     private SmsGateway smsGateway;
 
+    @MockitoBean
+    private com.carenest.integration.storage.ChildPhotoStorage childPhotoStorage;
+
+    @Autowired
+    private com.carenest.service.child.ChildPhotoService childPhotos;
+
     @Autowired
     private ChildEnrollmentService enrollmentService;
 
@@ -189,6 +195,88 @@ class ChildEnrollmentIntegrationTest {
                 user(vpBId, CareNestRole.VICE_PRINCIPAL, TestPermissions.defaultsOf(CareNestRole.VICE_PRINCIPAL));
 
         given(identityProviderClient.createUser(any())).willReturn("kc-new-1", "kc-new-2", "kc-new-3");
+    }
+
+    @Test
+    @DisplayName("CHD-02/PCK-02: lưu ảnh trẻ/phụ huynh chưa kích hoạt, đọc lại đúng scope")
+    void enrollsPhotosBeforeAccountActivation() throws Exception {
+        Set<Permission> permissions = new java.util.HashSet<>(principal.permissions());
+        permissions.remove(Permission.PARENT_ACCOUNT_MANAGE);
+        CurrentUser withoutAccounts = user(principal.userId(), CareNestRole.PRINCIPAL, permissions);
+        given(childPhotoStorage.store(any(), eq("image/png"))).willReturn("child-photo", "parent-photo");
+        given(childPhotoStorage.load("parent-photo")).willReturn(new byte[] {7, 8, 9});
+        var request = request("Trẻ ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000711", "999000000711"));
+        var result = enrollmentService.enrollWithPhotos(
+                withoutAccounts,
+                request,
+                Map.of(
+                        "childPhoto", List.of(portrait("childPhoto")),
+                        "guardianPhoto0", List.of(portrait("guardianPhoto0"))));
+        entityManager.flush();
+        entityManager.clear();
+        var view = intakeService.getChildView(result.child().id());
+        assertThat(view.photoUrl()).isEqualTo("/children/" + view.id() + "/photo");
+        assertThat(view.guardians().getFirst().photoUrl()).contains("/guardian-photos/");
+        assertThat(view.guardians().getFirst().accountStatus()).isEqualTo(GuardianAccountStatus.NOT_ACTIVATED);
+        Long guardianId =
+                jdbc.queryForObject("select id from child_guardians where child_id = ?", Long.class, view.id());
+        assertThat(childPhotos
+                        .getGuardianPhoto(principal, view.id(), guardianId)
+                        .content())
+                .containsExactly(7, 8, 9);
+        assertThat(childPhotos
+                        .getGuardianPhoto(vicePrincipalOfB, view.id(), guardianId)
+                        .content())
+                .containsExactly(7, 8, 9);
+        CurrentUser otherReader = user(teacher, CareNestRole.TEACHER, TestPermissions.defaultsOf(CareNestRole.TEACHER));
+        assertThatThrownBy(() -> childPhotos.getGuardianPhoto(otherReader, view.id(), guardianId))
+                .isInstanceOf(GlobalException.class);
+        verifyNoInteractions(identityProviderClient, smsGateway);
+    }
+
+    @Test
+    @DisplayName("CHD-02: ảnh không hợp lệ bị chặn trước tạo Keycloak/SMS/DB")
+    void invalidPhotoDoesNotCreateEnrollment() {
+        var request =
+                request("Trẻ ảnh lỗi giả", "2023-03-01", null, campusA, newGuardian("0900000712", "999000000712"));
+        var file = new org.springframework.mock.web.MockMultipartFile(
+                "childPhoto", "fake.png", "image/png", "fake".getBytes());
+        assertThatThrownBy(() ->
+                        enrollmentService.enrollWithPhotos(principal, request, Map.of("childPhoto", List.of(file))))
+                .isInstanceOf(GlobalException.class);
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from children where full_name = ?", Integer.class, "Trẻ ảnh lỗi giả"))
+                .isZero();
+        verifyNoInteractions(identityProviderClient, smsGateway, childPhotoStorage);
+    }
+
+    @Test
+    @DisplayName("CHD-02: S3 lỗi giữa chừng rollback hồ sơ, dọn object ảnh mới và bù trừ Keycloak")
+    void uploadFailureRollsBackEnrollment() throws Exception {
+        given(childPhotoStorage.store(any(), eq("image/png")))
+                .willReturn("new-object")
+                .willThrow(GlobalException.of(ApiCode.STORAGE_UNAVAILABLE));
+        var request =
+                request("Trẻ rollback ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000713", "999000000713"));
+        var files = Map.<String, List<org.springframework.web.multipart.MultipartFile>>of(
+                "childPhoto", List.of(portrait("childPhoto")), "guardianPhoto0", List.of(portrait("guardianPhoto0")));
+        assertThatThrownBy(() -> enrollmentService.enrollWithPhotos(principal, request, files))
+                .isInstanceOf(GlobalException.class);
+        org.springframework.test.context.transaction.TestTransaction.flagForRollback();
+        org.springframework.test.context.transaction.TestTransaction.end();
+        assertThat(jdbc.queryForObject(
+                        "select count(*) from children where full_name = ?", Integer.class, "Trẻ rollback ảnh giả"))
+                .isZero();
+        verify(childPhotoStorage).removeQuietly("new-object");
+        verify(identityProviderClient).deleteUser("kc-new-1");
+        verifyNoInteractions(smsGateway);
+    }
+
+    private static org.springframework.mock.web.MockMultipartFile portrait(String part) throws Exception {
+        var bytes = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(
+                new java.awt.image.BufferedImage(2, 2, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", bytes);
+        return new org.springframework.mock.web.MockMultipartFile(part, "fake.png", "image/png", bytes.toByteArray());
     }
 
     @Test

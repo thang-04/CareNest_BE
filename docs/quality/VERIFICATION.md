@@ -1,5 +1,13 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Ảnh tiếp nhận trẻ và phụ huynh — 05/11/2026
+
+- User duyệt plan 2026-11-05-child-enrollment-photos, Spec012. Migration V68; private S3 metadata trên trẻ và từng phụ huynh; JSON/multipart tiếp nhận tương thích; đọc ảnh/hồ sơ theo scope, metadata quản trị tài khoản được chiếu riêng; pickup dùng ảnh hồ sơ rồi fallback ảnh APP.
+- Targeted clean build 95/95 đạt với PostgreSQL Testcontainers, S3/Keycloak/SMS mock; thêm regressions review và OpenAPI snapshot đã đạt sau sửa. Full gate sau source/test cuối: VERIFY PASS full | tests 1073 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 516s | log target/verify.log. Không tuyên bố đã kiểm S3 thật hoặc browser nối BE thật.
+- FE full gate đạt 799 tests; actual Chromium mock 1440/375 chọn/bỏ/chọn lại/đổi người/chuyển bước/lưu/mở lại/reload đúng ảnh, 0 lỗi JS, không tràn ngang, 9/9 object URL được giải phóng mỗi viewport. Review độc lập và review lại không còn blocker; chi tiết Specs012 quickstart.
+- Trước commit theo yêu cầu user: đã sửa liên kết incident FE bị hỏng sang URL blob tại commit994002c (tệp được xác minh trong Git); check-ai-layer BE đạt 0 lỗi/12 cảnh báo. Không sửa mã giáo dục hoặc nội dung lỗi cũ.
+
+
 ## Báo cáo tổng hợp tăng trưởng theo tháng, mẫu 5.1 (HLT-20) — 2026-11-04
 
 - Nguồn user 2026-11-04: HT (mọi điểm trường), PHT (điểm trường được phân công) xem bảng 5.1 theo tháng; quy tắc đếm theo brief người điều phối cùng ngày. Plan `docs/plans/active/2026-11-04-health-growth-report.md`, bằng chứng chi tiết `specs/011-health-growth-report/quickstart.md`.

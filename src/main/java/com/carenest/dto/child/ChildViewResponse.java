@@ -29,4 +29,41 @@ public record ChildViewResponse(
         boolean hasDeclaration,
         ChildProfileDetailResponse profile,
         List<ChildGuardianResponse> guardians,
-        List<ChildHistoryResponse> history) {}
+        List<ChildHistoryResponse> history,
+        String photoUrl) {
+    public ChildViewResponse withoutGuardianAccounts() {
+        return new ChildViewResponse(
+                id,
+                code,
+                fullName,
+                dateOfBirth,
+                gender,
+                status,
+                campusId,
+                classId,
+                className,
+                ageGroupId,
+                schoolYearId,
+                enrolledAt,
+                leftAt,
+                leftReason,
+                readmittedAt,
+                allergies,
+                hasDeclaration,
+                profile,
+                guardians.stream()
+                        .map(g -> new ChildGuardianResponse(
+                                g.fullName(),
+                                g.relation(),
+                                g.phone(),
+                                g.idNumber(),
+                                g.email(),
+                                null,
+                                null,
+                                null,
+                                g.photoUrl()))
+                        .toList(),
+                history,
+                photoUrl);
+    }
+}

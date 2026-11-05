@@ -4,6 +4,7 @@ import com.carenest.dto.child.ChildEnrollmentResponse;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.EnrollChildRequest;
 import com.carenest.dto.child.EnrollmentDraft;
+import com.carenest.dto.child.EnrollmentPhotos;
 import com.carenest.dto.child.GuardianAccountResultResponse;
 import com.carenest.dto.child.GuardianCheckRequest;
 import com.carenest.dto.child.GuardianChildSummary;
@@ -20,6 +21,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.ChildEnrollmentService;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildPhotoService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.CitizenIds;
@@ -45,6 +47,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Tài khoản phụ huynh khi tiếp nhận trẻ. Thứ tự lưu form (AC-2): kiểm hết (không ghi) → tạo user Keycloak cho phụ huynh
@@ -63,6 +66,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
             "Số điện thoại này đã thuộc phụ huynh có số CCCD khác. Kiểm tra lại số điện thoại hoặc số CCCD.";
 
     private final ChildIntakeService childIntakeService;
+    private final ChildPhotoService childPhotoService;
     private final GuardianChildLinkService guardianChildLinkService;
     private final UserAccountRepository userAccountRepository;
     private final StaffAccessPolicy staffAccessPolicy;
@@ -163,7 +167,24 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
         String logPrefix = LOG_PREFIX + "|enroll|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
+            ChildEnrollmentResponse response = enrollWithPhotos(actor, request, Map.of());
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public ChildEnrollmentResponse enrollWithPhotos(
+            CurrentUser actor, EnrollChildRequest request, Map<String, List<MultipartFile>> files) {
+        String logPrefix = LOG_PREFIX + "|enrollWithPhotos|userId=" + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
             EnrollmentDraft draft = childIntakeService.prepareEnrollment(actor, request);
+            EnrollmentPhotos photos =
+                    childPhotoService.validatePhotos(draft.guardians().size(), files);
             // P-18 A: không có quyền quản lý tài khoản phụ huynh (ở điểm trường nhận trẻ — prepare đã kiểm phạm vi)
             // ⇒ vẫn lưu; phụ huynh chưa có tài khoản chờ kích hoạt, trùng tài khoản có sẵn thì vẫn liên kết
             boolean manageAccounts = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
@@ -211,6 +232,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                             created.add(parent);
                         }
                         Long childId = childIntakeService.createEnrolledChild(actor, resolved, accountIds);
+                        childPhotoService.attachToEnrollment(childId, photos);
                         return new Enrolled(childId, created, accountIds);
                     });
 

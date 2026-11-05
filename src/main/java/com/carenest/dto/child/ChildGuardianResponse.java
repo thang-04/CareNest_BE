@@ -14,4 +14,5 @@ public record ChildGuardianResponse(
         String email,
         GuardianAccountStatus accountStatus,
         SmsStatus smsStatus,
-        Instant smsAt) {}
+        Instant smsAt,
+        String photoUrl) {}

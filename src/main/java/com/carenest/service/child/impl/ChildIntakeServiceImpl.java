@@ -400,7 +400,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     declarationRepository.existsById(childId),
                     profile,
                     guardiansOf(childId),
-                    historyOf(childId));
+                    historyOf(childId),
+                    child.getPhotoKey() == null ? null : "/children/" + childId + "/photo");
             log.info("{}|END", logPrefix);
             return view;
         } catch (RuntimeException ex) {
@@ -609,9 +610,16 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                                     ? GuardianAccountStatus.NOT_ACTIVATED
                                     : GuardianAccountStatus.valueOf(accountStatus),
                             smsStatus == null ? null : SmsStatus.valueOf(smsStatus),
-                            smsAt == null ? null : Instant.ofEpochMilli(smsAt));
+                            smsAt == null ? null : Instant.ofEpochMilli(smsAt),
+                            guardianPhotoUrl(g));
                 })
                 .toList();
+    }
+
+    private static String guardianPhotoUrl(ChildGuardian guardian) {
+        return guardian.getPhotoKey() == null
+                ? null
+                : "/children/" + guardian.getChildId() + "/guardian-photos/" + guardian.getId();
     }
 
     private List<ChildHistoryResponse> historyOf(Long childId) {
@@ -654,7 +662,12 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             List<ChildGuardianContact> contacts =
                     childGuardianRepository.findAllByChildIdOrderByPositionAsc(childId).stream()
                             .map(g -> new ChildGuardianContact(
-                                    g.getPosition(), g.getFullName(), g.getRelationship(), g.getPhone(), g.getUserId()))
+                                    g.getPosition(),
+                                    g.getFullName(),
+                                    g.getRelationship(),
+                                    g.getPhone(),
+                                    g.getUserId(),
+                                    guardianPhotoUrl(g)))
                             .toList();
             log.info("{}|END", logPrefix);
             return contacts;

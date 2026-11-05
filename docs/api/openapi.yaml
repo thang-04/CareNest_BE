@@ -1595,14 +1595,20 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/EnrollChildRequest"
+          multipart/form-data:
+            encoding:
+              payload:
+                contentType: application/json
+            schema:
+              $ref: "#/components/schemas/EnrollmentPhotoRequest"
         required: true
       responses:
-        "200":
+        "201":
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonChildEnrollmentResponse"
-          description: OK
+          description: Created
       tags:
       - child-enrollment-controller
   /api/children/guardian-check:
@@ -1699,6 +1705,32 @@ paths:
           description: OK
       tags:
       - daily-health-controller
+  /api/children/{childId}/guardian-photos/{guardianId}:
+    get:
+      operationId: getGuardianPhoto_1
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: guardianId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+          description: OK
+      tags:
+      - child-photo-controller
   /api/children/{childId}/guardians:
     get:
       operationId: listGuardians
@@ -1893,6 +1925,45 @@ paths:
           description: OK
       tags:
       - health-measurement-controller
+  /api/children/{childId}/photo:
+    get:
+      operationId: getChildPhoto
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+          description: OK
+      tags:
+      - child-photo-controller
+  /api/children/{childId}/profile:
+    get:
+      operationId: getProfile
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildPhotoProfileResponse"
+          description: OK
+      tags:
+      - child-photo-controller
   /api/children/{childId}/readmit:
     post:
       operationId: readmit
@@ -7344,6 +7415,8 @@ components:
           format: date
         leftReason:
           type: string
+        photoUrl:
+          type: string
         profile:
           $ref: "#/components/schemas/ChildProfileDetailResponse"
         readmittedAt:
@@ -7374,6 +7447,8 @@ components:
         idNumber:
           type: string
         phone:
+          type: string
+        photoUrl:
           type: string
         relation:
           type: string
@@ -7431,6 +7506,11 @@ components:
         userId:
           type: integer
           format: int64
+    ChildPhotoProfileResponse:
+      type: object
+      properties:
+        child:
+          $ref: "#/components/schemas/ChildViewResponse"
     ChildPlacement:
       type: object
       properties:
@@ -7545,6 +7625,8 @@ components:
         id:
           type: integer
           format: int64
+        photoUrl:
+          type: string
     ChildTotal:
       type: object
       properties:
@@ -7612,6 +7694,8 @@ components:
           type: string
           format: date
         leftReason:
+          type: string
+        photoUrl:
           type: string
         profile:
           $ref: "#/components/schemas/ChildProfileDetailResponse"
@@ -9046,6 +9130,25 @@ components:
             $ref: "#/components/schemas/GuardianInput"
         profile:
           $ref: "#/components/schemas/ChildProfileInput"
+    EnrollmentPhotoRequest:
+      type: object
+      properties:
+        childPhoto:
+          type: string
+          format: binary
+        guardianPhoto0:
+          type: string
+          format: binary
+        guardianPhoto1:
+          type: string
+          format: binary
+        guardianPhoto2:
+          type: string
+          format: binary
+        payload:
+          $ref: "#/components/schemas/EnrollChildRequest"
+      required:
+      - payload
     Entry:
       type: object
       properties:
@@ -13535,6 +13638,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ChildHealthRecordResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonChildPhotoProfileResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildPhotoProfileResponse"
         desc:
           type: string
         errorCode:

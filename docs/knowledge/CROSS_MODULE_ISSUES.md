@@ -22,3 +22,7 @@ Dùng làm checklist khi implement/review. Khi xảy ra thật ⇒ tạo inciden
 | --- | --- | --- | --- |
 | BUG-261007-openapi-create-account-status | BE → FE/APP | OpenAPI tạo tài khoản mô tả 200, source trả 201 | [Incident](incidents/BUG-261007-openapi-create-account-status.md) |
 | GAP-261022-fe-auth-not-integrated | BE → FE | FE `dev` chưa ghép auth BE: gọi `/auth/me`, `/users`, `/me/profile` (BE không có), không CSRF/refresh; gateway FE chỉ ở nhánh G94-209 | [Report](../quality/reports/2026-10-22-auth-fe-integration-gap.md) |
+
+## 05/11/2026 — Hồ sơ có ảnh và metadata quản trị phụ huynh
+
+Đã xử lý trong feature012: đường đọc ảnh/hồ sơ dùng scope đọc AUTH-20, nhưng metadata tài khoản/SMS giữ scope quản trị riêng; pickup ưu tiên ảnh ChildGuardian rồi fallback ảnh tài khoản. Regression và nguyên nhân: [BUG-261105-enrollment-photo-projection](incidents/BUG-261105-enrollment-photo-projection.md).

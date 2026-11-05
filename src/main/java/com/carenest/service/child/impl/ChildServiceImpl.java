@@ -83,7 +83,8 @@ public class ChildServiceImpl implements ChildService {
                         child.getDateOfBirth(),
                         currentClassroom,
                         currentClassroom == null ? null : campusByClassroom.get(currentClassroom),
-                        guardianCounts.getOrDefault(child.getId(), 0L));
+                        guardianCounts.getOrDefault(child.getId(), 0L),
+                        child.getPhotoKey() == null ? null : "/children/" + child.getId() + "/photo");
             });
             log.info("{}|total={}|END", logPrefix, children.getTotalElements());
             return response;

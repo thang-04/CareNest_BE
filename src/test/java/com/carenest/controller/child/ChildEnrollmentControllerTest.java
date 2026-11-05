@@ -861,6 +861,36 @@ class ChildEnrollmentControllerTest {
         return view(null);
     }
 
+    @Test
+    @DisplayName("CHD-02: multipart tiếp nhận giữ JSON payload và ảnh theo từng phụ huynh")
+    void enrollMultipart() throws Exception {
+        CurrentUser actor = authenticate(CareNestRole.PRINCIPAL);
+        given(childEnrollmentService.enrollWithPhotos(eq(actor), any(), any()))
+                .willReturn(new ChildEnrollmentResponse(view(), List.of()));
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
+                                "/api/children/enrollments")
+                        .file(new org.springframework.mock.web.MockMultipartFile(
+                                "payload",
+                                "",
+                                "application/json",
+                                ENROLL_JSON.getBytes(java.nio.charset.StandardCharsets.UTF_8)))
+                        .file(new org.springframework.mock.web.MockMultipartFile(
+                                "childPhoto", "child.png", "image/png", new byte[] {1, 2, 3}))
+                        .file(new org.springframework.mock.web.MockMultipartFile(
+                                "guardianPhoto0", "parent.png", "image/png", new byte[] {4, 5, 6}))
+                        .with(token(CareNestRole.PRINCIPAL)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.id").value(301));
+        verify(childEnrollmentService)
+                .enrollWithPhotos(
+                        eq(actor),
+                        any(),
+                        org.mockito.ArgumentMatchers.argThat(files -> files.get("childPhoto")
+                                                .size()
+                                        == 1
+                                && files.get("guardianPhoto0").getFirst().getSize() == 3));
+    }
+
     private static ChildViewResponse view(Long classId) {
         return new ChildViewResponse(
                 301L,
@@ -882,7 +912,8 @@ class ChildEnrollmentControllerTest {
                 true,
                 null,
                 List.of(),
-                List.of());
+                List.of(),
+                null);
     }
 
     private CurrentUser authenticate(CareNestRole role) {
