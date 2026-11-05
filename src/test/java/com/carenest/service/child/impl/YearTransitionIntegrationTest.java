@@ -294,6 +294,33 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
+    void autoPlaceGraduatesOnlyChildrenWhoCompletedTheProgram() {
+        // Lớp cũ thuộc nhóm tuổi lớn nhất: trẻ 1 hoàn thành chương trình, trẻ 2 chưa có đánh giá cuối năm
+        long ag5 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-5'", Long.class);
+        jdbc.update("UPDATE classrooms SET age_group_id = ? WHERE id = ?", ag5, oldClass);
+        long campus = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass);
+        jdbc.update(
+                "INSERT INTO child_evaluations (child_id, classroom_id, campus_id, school_year_id, period_type, "
+                        + "period_start, period_end, status, final_content, program_completed, confirmed_by, "
+                        + "confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, 'YEAR', '2026-09-01', "
+                        + "'2027-05-31', 'CONFIRMED', 'Nhận xét cuối năm', TRUE, ?, now(), now(), now())",
+                child1,
+                oldClass,
+                campus,
+                oldYear,
+                principal.userId());
+
+        PlacementBoardResponse board = service.getPlacements(principal, newYear);
+        assertThat(board.classes().getFirst().children())
+                .extracting(PlacementBoardResponse.ChildPlacement::programCompleted)
+                .containsExactly(true, null);
+
+        AutoPlaceResponse auto = service.autoPlace(principal, newYear, new AutoPlaceRequest(null, null));
+        assertThat(auto.graduated()).isEqualTo(1);
+        assertThat(auto.undecided()).isEqualTo(1);
+    }
+
+    @Test
     void childOfClassWithoutAgeGroupCanOnlyLeave() {
         jdbc.update("UPDATE classrooms SET age_group_id = NULL WHERE id = ?", oldClass);
 

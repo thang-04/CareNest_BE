@@ -55,6 +55,17 @@ public class ChildGuardian {
     @Column(name = "user_id")
     private Long userId;
 
+    @Column(name = "account_recipient", nullable = false)
+    private boolean accountRecipient;
+
+    public void selectAccountRecipient(boolean selected) {
+        this.accountRecipient = selected;
+    }
+
+    public void linkAccount(Long accountId) {
+        this.userId = accountId;
+    }
+
     @Column(name = "photo_key", length = 36)
     private String photoKey;
 

@@ -1,5 +1,9 @@
 # Response & Error Contract
 
+EDU-53, 05/11/2026: `GOAL_SUB_DOMAIN_MIXED` 7038 (lĩnh vực có lĩnh vực con nhưng còn nhóm/mục tiêu không thuộc lĩnh vực con nào, kiểm khi gửi và ban hành), HTTP 400.
+
+EDU-51/52, 05/11/2026: `GOAL_NAME_DUPLICATE` 7036 (trùng tên lĩnh vực con / nhóm kết quả / mục tiêu / nội dung trong cùng phạm vi, kiểm khi gửi và ban hành) và `THEME_DATES_REQUIRED` 7037 (chủ đề chưa có ngày, chỉ kiểm khi ban hành), đều HTTP 400.
+
 EDU-47, 01/11/2026: preview chủ đề nhánh dùng `BRANCH_FILE_UNSUPPORTED` 7124 (file hỏng/không hỗ trợ/mã hóa), `BRANCH_FILE_NO_TABLE` 7125 (thiếu bảng Chủ đề/Chủ đề nhánh), `BRANCH_FILE_TOO_LARGE` 7126 (2 MB/2.000 dòng), đều HTTP 400. Giữ lỗi quyền/phân công, sai kế hoạch/phiên bản và tài liệu đã gửi theo contract hiện tại; preview không lưu. Chi tiết [contract feature008](../../specs/008-branch-plan-file-import/contracts/file-import.md).
 
 EDU-46, 01/11/2026: `GOAL_FILE_UNSUPPORTED` (7033, HTTP 400) giữ mã/status, đổi lời thành "Không đọc được file. Chỉ nhận Word (.doc, .docx), Excel (.xlsx) hoặc CSV; file không được đặt mật khẩu" khi bổ sung Word .doc nhị phân. .doc hỏng/mã hóa trả 7033, không có bảng mục tiêu 7034, vượt 2 MB/2.000 dòng 7035. Web dùng errorCode, không so chuỗi; mock và hướng dẫn nhập mục tiêu đã đồng bộ.
@@ -49,7 +53,7 @@ Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalExce
 | 70xx–72xx | Kế hoạch giáo dục (kế hoạch năm, tài liệu lớp, cấu hình) |
 | 73xx | Đánh giá trẻ (đánh giá hằng ngày, mở lại ngày, tổng quan lớp) |
 | 80xx | AI & tệp |
-| 90xx | Chung & hệ thống (validation 9001, sai định dạng 9002, không tìm thấy 9009, lỗi hệ thống 9010…) |
+| 90xx | Chung & hệ thống (validation 9001, sai định dạng 9002, không tìm thấy 9009, lỗi hệ thống 9010, ghi đồng thời bị người khác cập nhật trước 9012 → HTTP 409…) |
 
 Mã chung không có `errorCode` (`SUCCESSFUL 200`, `CREATED 201`, `BAD_REQUEST`, `UNAUTHORIZED`, `NOT_FOUND`, `CONFLICT`, `PRECONDITION_REQUIRED`, `PAYLOAD_TOO_LARGE`, `SERVICE_UNAVAILABLE`, `GATEWAY_TIMEOUT`) chỉ dùng cho response thành công hoặc chỗ chưa gắn mã nghiệp vụ.
 

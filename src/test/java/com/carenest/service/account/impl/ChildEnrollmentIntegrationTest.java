@@ -446,7 +446,7 @@ class ChildEnrollmentIntegrationTest {
 
         assertThat(response.guardianAccounts())
                 .extracting(g -> g.result())
-                .containsExactly(GuardianAccountResult.LINKED, GuardianAccountResult.NOT_ACTIVATED);
+                .containsExactly(GuardianAccountResult.LINKED);
         // C-2: phụ huynh có tài khoản ⇒ hồ sơ ghi theo tài khoản, không sửa tài khoản
         assertThat(response.child().guardians().getFirst()).satisfies(g -> {
             assertThat(g.fullName()).isEqualTo("Lê Thị Có Sẵn");
@@ -493,7 +493,7 @@ class ChildEnrollmentIntegrationTest {
         GuardianCheckRequest check = new GuardianCheckRequest(List.of(
                 new GuardianInput("Mẹ", "MOTHER", "0915000002", "001600000001", null),
                 new GuardianInput("Bố", "FATHER", "0901000001", "001600000002", null),
-                new GuardianInput("Bà", "GRANDMOTHER", "0915000009", "001600000003", null)));
+                new GuardianInput("Bà", "GRANDMOTHER", "0915000009", "001600000003", null, true)));
         expectFields(
                 () -> enrollmentService.checkGuardians(principal, check),
                 ApiCode.GUARDIAN_IDENTITY_CONFLICT,
@@ -513,8 +513,7 @@ class ChildEnrollmentIntegrationTest {
                 ApiCode.GUARDIAN_IDENTITY_CONFLICT,
                 Map.of(
                         "guardians.0.idNumber", ChildEnrollmentServiceImpl.CITIZEN_ID_TAKEN,
-                        "guardians.1.phone", ChildEnrollmentServiceImpl.PHONE_HAS_OTHER_ID,
-                        "guardians.2.phone", ApiCode.PHONE_OF_STAFF_ACCOUNT.getDefaultDesc()));
+                        "guardians.1.phone", ChildEnrollmentServiceImpl.PHONE_HAS_OTHER_ID));
         verify(identityProviderClient, never()).createUser(any());
 
         // Phụ huynh có sẵn theo CCCD (gõ SĐT khác) là chính người đó ⇒ không lệch
@@ -611,11 +610,12 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("AUTH-20: Keycloak lỗi ở phụ huynh thứ hai ⇒ xóa user đã tạo, không lưu hồ sơ")
+    @DisplayName("AUTH-20: gán role Keycloak lỗi ⇒ xóa user được chọn, không lưu hồ sơ")
     void identityFailureCompensatesCreatedUsers() {
-        given(identityProviderClient.createUser(any()))
-                .willReturn("kc-first")
-                .willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null));
+        given(identityProviderClient.createUser(any())).willReturn("kc-first");
+        willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null))
+                .given(identityProviderClient)
+                .assignRealmRole("kc-first", "PARENT");
         long before = count("SELECT count(*) FROM children");
 
         expectCode(
@@ -698,6 +698,205 @@ class ChildEnrollmentIntegrationTest {
 
     // ---------- dữ liệu ----------
 
+    @Autowired
+    private com.carenest.service.account.SelectedParentAccountService selectedAccounts;
+
+    @Autowired
+    private com.carenest.service.account.EnrollmentImportAccountService imports;
+
+    @Test
+    void onlyChosenGuardianReceivesAccountAndAllContactsRemain() {
+        long before = count("SELECT count(*) FROM user_accounts");
+        EnrollChildRequest base = request(
+                "Trẻ Chọn Bố",
+                "2023-04-04",
+                null,
+                campusA,
+                newGuardian("0918888001", "999900000571"),
+                new GuardianInput("Bố Chọn", "FATHER", "0918888002", "999900000572", null));
+        var gs = base.child().guardians();
+        EnrollChildRequest chosen = new EnrollChildRequest(
+                new EnrollmentChildInput(
+                        base.child().fullName(),
+                        base.child().dateOfBirth(),
+                        base.child().gender(),
+                        List.of(
+                                new GuardianInput(
+                                        gs.get(0).fullName(),
+                                        gs.get(0).relation(),
+                                        gs.get(0).phone(),
+                                        gs.get(0).idNumber(),
+                                        null,
+                                        false),
+                                new GuardianInput(
+                                        gs.get(1).fullName(),
+                                        gs.get(1).relation(),
+                                        gs.get(1).phone(),
+                                        gs.get(1).idNumber(),
+                                        null,
+                                        true)),
+                        base.child().profile()),
+                base.declaration(),
+                null,
+                campusA);
+        var saved = enrollmentService.enroll(principal, chosen);
+        assertThat(saved.child().guardians()).hasSize(2);
+        assertThat(saved.child().guardians())
+                .extracting(g -> g.accountRecipient())
+                .containsExactly(false, true);
+        assertThat(saved.guardianAccounts())
+                .singleElement()
+                .extracting(g -> g.phone())
+                .isEqualTo("0918888002");
+        assertThat(count("SELECT count(*) FROM user_accounts")).isEqualTo(before + 1);
+        assertThat(count(
+                        "SELECT count(*) FROM guardian_child_links WHERE child_id = ?",
+                        saved.child().id()))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM user_accounts WHERE username = '0918888001'"))
+                .isZero();
+    }
+
+    @Test
+    void importDefersActivationAndRejectsStaleRecipient() {
+        EnrollChildRequest row = request(
+                "Trẻ Nhập Chọn",
+                "2023-04-05",
+                null,
+                campusA,
+                newGuardian("0918888011", "999900000581"),
+                new GuardianInput("Bố Chọn", "FATHER", "0918888012", "999900000582", null));
+        long before = count("SELECT count(*) FROM user_accounts");
+        Long childId = imports.importRows(
+                        vicePrincipal,
+                        new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                                List.of(row), campusA))
+                .ids()
+                .getFirst();
+        entityManager.flush();
+        assertThat(count("SELECT count(*) FROM user_accounts")).isEqualTo(before);
+        assertThat(count("SELECT count(*) FROM guardian_child_links WHERE child_id = ?", childId))
+                .isZero();
+        var candidates = selectedAccounts.candidates(vicePrincipal, childId);
+        Long old = candidates.get(0).id();
+        Long next = candidates.get(1).id();
+        selectedAccounts.select(vicePrincipal, childId, next);
+        expectCode(() -> selectedAccounts.activate(vicePrincipal, childId, old), ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+        verifyNoInteractions(identityProviderClient);
+        var activated = selectedAccounts.activate(vicePrincipal, childId, next);
+        assertThat(activated).singleElement().satisfies(a -> {
+            assertThat(a.username()).isEqualTo("0918888012");
+            assertThat(a.newAccount()).isTrue();
+        });
+        assertThat(selectedAccounts.activate(vicePrincipal, childId, next))
+                .singleElement()
+                .satisfies(a -> assertThat(a.newAccount()).isFalse());
+        assertThat(count("SELECT count(*) FROM guardian_child_links WHERE child_id = ?", childId))
+                .isEqualTo(1);
+        expectCode(() -> selectedAccounts.select(vicePrincipal, childId, old), ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+    }
+
+    @Test
+    void selectedAccountOperationsDenyOtherCampusIncludingPendingChildren() {
+        var row = request("Trẻ Ngoài Phạm Vi", "2023-04-06", null, campusB, newGuardian("0918888021", "999900000591"));
+        Long childId = imports.importRows(
+                        principal,
+                        new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                                List.of(row), campusB))
+                .ids()
+                .getFirst();
+        expectCode(() -> selectedAccounts.candidates(vicePrincipal, childId), ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        var candidates = selectedAccounts.candidates(principal, childId);
+        expectCode(
+                () -> selectedAccounts.select(
+                        vicePrincipal, childId, candidates.getFirst().id()),
+                ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        expectCode(
+                () -> selectedAccounts.activate(
+                        vicePrincipal, childId, candidates.getFirst().id()),
+                ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        verifyNoInteractions(identityProviderClient);
+    }
+
+    @Autowired
+    private com.carenest.repository.account.UserAccountRepository accountRepository;
+
+    @Test
+    void citizenIdClaimDoesNotAcceptConcurrentDifferentIdentity() {
+        long accountId = staff("0918888991", "PARENT");
+        assertThat(accountRepository.claimCitizenId(accountId, "999900000991")).isEqualTo(1);
+        assertThat(accountRepository.claimCitizenId(accountId, "999900000991")).isEqualTo(1);
+        assertThat(accountRepository.claimCitizenId(accountId, "999900000992")).isZero();
+        assertThat(jdbc.queryForObject("SELECT citizen_id FROM user_accounts WHERE id = ?", String.class, accountId))
+                .isEqualTo("999900000991");
+    }
+
+    @Test
+    void importBatchAllowsDifferentFamiliesAndRejectsOverlappingGuardians() {
+        var first = request("Trẻ Trùng Tên", "2023-02-02", null, campusA, newGuardian("0918888911", "999900000911"));
+        var other = request("Trẻ Trùng Tên", "2023-02-02", null, campusA, newGuardian("0918888912", "999900000912"));
+        var result = imports.importRows(
+                principal,
+                new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                        List.of(first, other), campusA));
+        assertThat(result.created()).isEqualTo(2);
+        var one = request("Trẻ Trùng Gia Đình", "2023-02-03", null, campusA, newGuardian("0918888921", "999900000921"));
+        var two = request(
+                "Trẻ Trùng Gia Đình",
+                "2023-02-03",
+                null,
+                campusA,
+                newGuardian("0918888921", "999900000921"),
+                newGuardian("0918888922", "999900000922"));
+        long before = count("SELECT count(*) FROM children");
+        expectCode(
+                () -> imports.importRows(
+                        principal,
+                        new com.carenest.service.child.ChildEnrollmentImportService.ImportRequest(
+                                List.of(one, two), campusA)),
+                ApiCode.INVALID_REQUEST_DATA);
+        assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
+    }
+
+    @Autowired
+    private com.carenest.service.account.GuardianAccountService legacyAccounts;
+
+    @Test
+    void selectedAccountProjectionUsesStoredAccountIdRatherThanAmbiguousIdentity() {
+        var row = request(
+                "Trẻ Legacy Chiếu Tài Khoản", "2023-02-06", null, campusA, newGuardian("0918888981", "999900000981"));
+        var saved = enrollmentService.enroll(principal, row);
+        Long childId = saved.child().id();
+        Long selectedUser = selectedAccounts.selectedAccountId(principal, childId);
+        jdbc.update("UPDATE child_guardians SET phone = '0901000001' WHERE child_id = ?", childId);
+        jdbc.update(
+                "INSERT INTO guardian_child_links (child_id, user_id, relationship) VALUES (?, ?, 'FATHER')",
+                childId,
+                existingParent);
+        entityManager.clear();
+        assertThat(legacyAccounts.listGuardians(principal, childId))
+                .singleElement()
+                .satisfies(g -> assertThat(g.userId()).isEqualTo(selectedUser));
+        assertThat(count("SELECT count(*) FROM guardian_child_links WHERE child_id = ?", childId))
+                .isEqualTo(2);
+    }
+
+    @Test
+    void pendingScopeDoesNotGrantVicePrincipalAccessToLeavers() {
+        var row =
+                request("Trẻ Đã Nghỉ Phạm Vi", "2023-02-08", null, campusA, newGuardian("0918888971", "999900000971"));
+        var saved = enrollmentService.enroll(principal, row);
+        Long childId = saved.child().id();
+        Long accountId = selectedAccounts.selectedAccountId(principal, childId);
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = ?, left_reason = 'Đã nghỉ (giả)' WHERE id = ?",
+                TODAY,
+                childId);
+        entityManager.clear();
+        expectCode(() -> selectedAccounts.candidates(vicePrincipal, childId), ApiCode.CHILD_GUARDIAN_MANAGE_DENIED);
+        expectCode(() -> selectedAccounts.checkParentScope(vicePrincipal, accountId), ApiCode.ACCOUNT_MANAGE_DENIED);
+    }
+
     private static EnrollChildRequest request(
             String fullName, String dateOfBirth, Long classId, Long campusId, GuardianInput... guardians) {
         return new EnrollChildRequest(
@@ -705,7 +904,13 @@ class ChildEnrollmentIntegrationTest {
                         fullName,
                         dateOfBirth,
                         "FEMALE",
-                        List.of(guardians),
+                        java.util.stream.IntStream.range(0, guardians.length)
+                                .mapToObj(i -> {
+                                    GuardianInput g = guardians[i];
+                                    return new GuardianInput(
+                                            g.fullName(), g.relation(), g.phone(), g.idNumber(), g.email(), i == 0);
+                                })
+                                .toList(),
                         new ChildProfileInput(
                                 null,
                                 "NO",

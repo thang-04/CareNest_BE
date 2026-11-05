@@ -264,6 +264,82 @@ class ChildEnrollmentMigrationIntegrationTest {
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    void selectedRecipientIndexRejectsTwoRecipientsAndAllowsExplicitReplacement() {
+        long childId = child("HS26991", "ACTIVE", null);
+        guardian(childId, 0, "MOTHER", "0918888001", "999900000571");
+        guardian(childId, 1, "FATHER", "0918888002", "999900000572");
+        db.update("UPDATE child_guardians SET account_recipient = true WHERE child_id = ? AND position = 0", childId);
+        assertThatThrownBy(() -> db.update(
+                        "UPDATE child_guardians SET account_recipient = true WHERE child_id = ? AND position = 1",
+                        childId))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        db.update("UPDATE child_guardians SET account_recipient = false WHERE child_id = ?", childId);
+        db.update("UPDATE child_guardians SET account_recipient = true WHERE child_id = ? AND position = 1", childId);
+        assertThat(db.queryForObject(
+                        "SELECT count(*) FROM child_guardians WHERE child_id = ? AND account_recipient",
+                        Long.class,
+                        childId))
+                .isEqualTo(1);
+    }
+
+    @Test
+    void backfillUsesExistingLinksAndLeavesAmbiguousProfilesUnselected() {
+        DataSource ds = dataSource("recipient_legacy");
+        flyway(ds, "recipient_legacy", "68").migrate();
+        JdbcTemplate old = new JdbcTemplate(ds);
+        long first = id(
+                old,
+                "INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-recipient-a', '0918888101', 'Phụ huynh A') RETURNING id");
+        long second = id(
+                old,
+                "INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-recipient-b', '0918888102', 'Phụ huynh B') RETURNING id");
+        long[] children = new long[3];
+        for (int c = 0; c < 3; c++) {
+            children[c] = id(
+                    old,
+                    "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES (?, 'Trẻ', '2022-01-01', 'FEMALE', 'ACTIVE', '2026-09-01') RETURNING id",
+                    "HS2698" + c);
+            old.update(
+                    "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id) VALUES (?, 0, 'Mẹ', 'MOTHER', '0918888101', '999900000581', ?)",
+                    children[c],
+                    first);
+            if (c > 0)
+                old.update(
+                        "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id) VALUES (?, 1, 'Bố', 'FATHER', '0918888102', '999900000582', ?)",
+                        children[c],
+                        second);
+            if (c > 0)
+                old.update(
+                        "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'FATHER')",
+                        second,
+                        children[c]);
+            if (c == 2)
+                old.update(
+                        "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                        first,
+                        children[c]);
+        }
+        flyway(ds, "recipient_legacy", null).migrate();
+        assertThat(old.queryForObject(
+                        "SELECT position FROM child_guardians WHERE child_id = ? AND account_recipient",
+                        Integer.class,
+                        children[0]))
+                .isZero();
+        assertThat(old.queryForObject(
+                        "SELECT position FROM child_guardians WHERE child_id = ? AND account_recipient",
+                        Integer.class,
+                        children[1]))
+                .isEqualTo(1);
+        assertThat(old.queryForObject(
+                        "SELECT count(*) FROM child_guardians WHERE child_id = ? AND account_recipient",
+                        Long.class,
+                        children[2]))
+                .isZero();
+        assertThat(old.queryForObject("SELECT count(*) FROM guardian_child_links", Long.class))
+                .isEqualTo(3);
+    }
+
     private static long child(String code, String status, Long intakeCampusId) {
         return id(
                 db,

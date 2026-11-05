@@ -66,7 +66,7 @@ FE: `src/services/attendance/api/attendanceApi.js` + mock `attendanceMockReposit
 | `POST /meal-counts/adjustments` | `adjustMealDay` | Chỉ PHT điểm trường, chỉ suất thay thế (NUT-02). Body `{campusId, date, session?, classId, normal: null, substitute, note}`; `normal` khác số hiện tại ⇒ 409 `6008`; không đổi ⇒ 400 `6006` |
 | — | `correctMealAfterLock` (GV hủy suất sau giờ khóa) | Bỏ: sau giờ chốt GV chỉ xem (ATT-08) |
 | — | Bàn giao suất (`getMealHandovers`, `confirmHandover`...) | Chưa có: phụ thuộc trạng thái chuẩn bị bữa của bếp (NUT-14, NUT-15 PROPOSED) |
-| `GET /classes/{classId}/children/{childId}/daily-health?date` | `getDailyHealth` (khung Sức khỏe trong ngày) | `{classId, className, childId, childName, date, canRecord, entries[]}`; chưa có `contacts`, `healthSummary` (FE tự tính từ `entries`) |
+| `GET /classes/{classId}/children/{childId}/daily-health?date` | `getDailyHealth` (khung Sức khỏe trong ngày) | `{classId, className, childId, childName, date, canRecord, entries[], handedOverAt, contacts[]}`; `contacts` gồm họ tên/quan hệ/SĐT từ hồ sơ sau kiểm scope; `canRecord=false` khi đã trả; chưa có `healthSummary` (FE tự tính từ `entries`) |
 | `POST /daily-health-entries` | `addDailyHealth` | Như mock; trả 201; trẻ chưa lưu Có mặt hôm nay ⇒ 409 `Save the child as present today before recording health` |
 | — | `notifyDailyHealth` | Chưa có (chưa có module thông báo phụ huynh); `notificationStatus` luôn `PENDING` |
 | `GET /daily-health/overview?date&schoolYearId&campusId&ageGroupId&classId` | màn Tổng hợp sức khỏe | Trẻ cần chú ý: `{childId, childName, classId, className, campusId, latest, readings[]}` (FE tự trải `latest` và tính `actionsText`); `totals.notified` = 0 |

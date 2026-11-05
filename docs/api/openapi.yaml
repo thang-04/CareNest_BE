@@ -552,6 +552,117 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
+  /api/assessment/class-monthly-comments:
+    get:
+      operationId: getComment
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: month
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
+    put:
+      operationId: saveComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
+  /api/assessment/class-monthly-comments/confirm:
+    post:
+      operationId: confirmComment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
+          description: OK
+      tags:
+      - class-monthly-comment-controller
+  /api/assessment/class-ratings:
+    get:
+      operationId: listRatings
+      parameters:
+      - in: query
+        name: period
+        required: true
+        schema:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassRatingResponse"
+          description: OK
+      tags:
+      - class-rating-controller
+    put:
+      operationId: saveRatings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassRatingSaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassRatingResponse"
+          description: OK
+      tags:
+      - class-rating-controller
   /api/assessment/day-unlocks:
     get:
       operationId: getUnlocks_1
@@ -641,6 +752,7 @@ paths:
           type: string
           enum:
           - MONTH
+          - SEMESTER
           - YEAR
       - in: query
         name: schoolYearId
@@ -779,6 +891,49 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonEvaluationRow"
+          description: OK
+      tags:
+      - child-evaluation-controller
+  /api/assessment/evaluations/{id}/year-sheet:
+    get:
+      operationId: getYearSheet
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearEndSheetResponse"
+          description: OK
+      tags:
+      - child-evaluation-controller
+    put:
+      operationId: saveYearSheet
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearEndSheetRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearEndSheetResponse"
           description: OK
       tags:
       - child-evaluation-controller
@@ -1033,6 +1188,104 @@ paths:
           description: OK
       tags:
       - reward-list-controller
+  /api/assessment/theme-evaluations:
+    get:
+      operationId: getEvaluation
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: themeId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonThemeEvaluationResponse"
+          description: OK
+      tags:
+      - theme-evaluation-controller
+    put:
+      operationId: saveEvaluation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThemeEvaluationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonThemeEvaluationResponse"
+          description: OK
+      tags:
+      - theme-evaluation-controller
+  /api/assessment/theme-evaluations/classes:
+    get:
+      operationId: getClasses_1
+      parameters:
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListClassItem"
+          description: OK
+      tags:
+      - theme-evaluation-controller
+  /api/assessment/theme-evaluations/confirm:
+    post:
+      operationId: confirmEvaluation
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThemeEvaluationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonThemeEvaluationResponse"
+          description: OK
+      tags:
+      - theme-evaluation-controller
+  /api/assessment/theme-evaluations/themes:
+    get:
+      operationId: getThemes
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListThemeItem"
+          description: OK
+      tags:
+      - theme-evaluation-controller
   /api/attendance/classes:
     get:
       operationId: getClasses
@@ -1611,6 +1864,47 @@ paths:
           description: Created
       tags:
       - child-enrollment-controller
+  /api/children/enrollments/import:
+    post:
+      operationId: importRows
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonImportResult"
+          description: OK
+      tags:
+      - child-enrollment-import-controller
+  /api/children/enrollments/import/preview:
+    post:
+      operationId: preview
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPreview"
+          description: OK
+      tags:
+      - child-enrollment-import-controller
   /api/children/guardian-check:
     post:
       operationId: checkGuardians
@@ -1680,6 +1974,49 @@ paths:
           description: OK
       tags:
       - child-controller
+  /api/children/{childId}/account-recipient:
+    get:
+      operationId: candidates
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListChildGuardianResponse"
+          description: OK
+      tags:
+      - selected-parent-account-controller
+    put:
+      operationId: select
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipientRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - selected-parent-account-controller
   /api/children/{childId}/daily-health:
     get:
       operationId: getChildHistory
@@ -1774,6 +2111,31 @@ paths:
           description: Created
       tags:
       - guardian-controller
+  /api/children/{childId}/guardians/activate:
+    post:
+      operationId: activate
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipientRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListActivationResult"
+          description: OK
+      tags:
+      - selected-parent-account-controller
   /api/children/{childId}/guardians/lookup:
     post:
       operationId: findGuardianCandidate
@@ -1799,6 +2161,25 @@ paths:
           description: OK
       tags:
       - guardian-controller
+  /api/children/{childId}/guardians/pending:
+    get:
+      operationId: pending
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListChildGuardianResponse"
+          description: OK
+      tags:
+      - selected-parent-account-controller
   /api/children/{childId}/guardians/{userId}:
     delete:
       operationId: removeGuardian
@@ -3598,6 +3979,12 @@ paths:
         schema:
           type: string
           format: date
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
       responses:
         "200":
           content:
@@ -3928,6 +4315,18 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: seenServings
+        required: false
+        schema:
+          type: integer
+          format: int32
+      - in: query
+        name: seenSubstitute
+        required: false
+        schema:
+          type: integer
+          format: int32
       responses:
         "200":
           content:
@@ -5923,6 +6322,49 @@ paths:
           description: OK
       tags:
       - attendance-cutoff-controller
+  /api/school-years/{schoolYearId}/holidays:
+    get:
+      operationId: getHolidays
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSchoolHolidayItem"
+          description: OK
+      tags:
+      - school-year-controller
+    put:
+      operationId: replaceHolidays
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SchoolHolidaysRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListSchoolHolidayItem"
+          description: OK
+      tags:
+      - school-year-controller
   /api/school-years/{schoolYearId}/placements:
     get:
       operationId: getPlacements
@@ -6031,6 +6473,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - school-year-controller
+  /api/school-years/{schoolYearId}/semester-locks:
+    get:
+      operationId: getSemesterLocks
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterLockResponse"
           description: OK
       tags:
       - school-year-controller
@@ -6331,6 +6792,23 @@ components:
           minLength: 1
       required:
       - confirmName
+    ActivationResult:
+      type: object
+      properties:
+        fullName:
+          type: string
+        newAccount:
+          type: boolean
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
     Activity:
       type: object
       properties:
@@ -6535,6 +7013,14 @@ components:
           type: number
           maximum: 9999
           minimum: 0
+        calciumMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        calciumMin:
+          type: number
+          maximum: 100000
+          minimum: 0
         dailyKcalNeed:
           type: number
           exclusiveMinimum: 0
@@ -6557,6 +7043,14 @@ components:
         glucidPctMin:
           type: number
           maximum: 100
+          minimum: 0
+        ironMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        ironMin:
+          type: number
+          maximum: 100000
           minimum: 0
         kcalMax:
           type: number
@@ -6595,6 +7089,14 @@ components:
           type: string
           maxLength: 300
           minLength: 0
+        phosphorusMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        phosphorusMin:
+          type: number
+          maximum: 100000
+          minimum: 0
         plantLipidGMax:
           type: number
           maximum: 9999
@@ -6618,6 +7120,46 @@ components:
         proteinPctMin:
           type: number
           maximum: 100
+          minimum: 0
+        vitaminAMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminAMin:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminB1Max:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminB1Min:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminB2Max:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminB2Min:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminCMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminCMin:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminPpMax:
+          type: number
+          maximum: 100000
+          minimum: 0
+        vitaminPpMin:
+          type: number
+          maximum: 100000
           minimum: 0
       required:
       - ageGroupId
@@ -6641,6 +7183,10 @@ components:
           type: number
         animalProteinGMin:
           type: number
+        calciumMax:
+          type: number
+        calciumMin:
+          type: number
         dailyKcalNeed:
           type: number
         editable:
@@ -6659,6 +7205,10 @@ components:
         id:
           type: integer
           format: int64
+        ironMax:
+          type: number
+        ironMin:
+          type: number
         kcalMax:
           type: number
         kcalMin:
@@ -6679,6 +7229,10 @@ components:
           type: number
         normBasis:
           type: string
+        phosphorusMax:
+          type: number
+        phosphorusMin:
+          type: number
         plantLipidGMax:
           type: number
         plantLipidGMin:
@@ -6691,6 +7245,26 @@ components:
           type: number
         proteinPctMin:
           type: number
+        vitaminAMax:
+          type: number
+        vitaminAMin:
+          type: number
+        vitaminB1Max:
+          type: number
+        vitaminB1Min:
+          type: number
+        vitaminB2Max:
+          type: number
+        vitaminB2Min:
+          type: number
+        vitaminCMax:
+          type: number
+        vitaminCMin:
+          type: number
+        vitaminPpMax:
+          type: number
+        vitaminPpMin:
+          type: number
     AgeGroupNutrition:
       type: object
       properties:
@@ -6701,19 +7275,35 @@ components:
           type: number
         animalProtein:
           type: number
+        calcium:
+          type: number
         cost:
           type: number
         glucid:
           type: number
+        iron:
+          type: number
         kcal:
           type: number
         lipid:
+          type: number
+        phosphorus:
           type: number
         plantLipid:
           type: number
         plantProtein:
           type: number
         protein:
+          type: number
+        vitaminA:
+          type: number
+        vitaminB1:
+          type: number
+        vitaminB2:
+          type: number
+        vitaminC:
+          type: number
+        vitaminPp:
           type: number
     AgeGroupRequest:
       type: object
@@ -7060,6 +7650,9 @@ components:
         promoted:
           type: integer
           format: int32
+        undecided:
+          type: integer
+          format: int32
         unplaced:
           type: array
           items:
@@ -7290,6 +7883,32 @@ components:
           - INACTIVE
       required:
       - status
+    Cell:
+      type: object
+      properties:
+        auto:
+          type: boolean
+        goalId:
+          type: integer
+          format: int64
+        manual:
+          type: boolean
+        met:
+          type: boolean
+    CellInput:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        goalId:
+          type: integer
+          format: int64
+        met:
+          type: boolean
+      required:
+      - childId
+      - goalId
     ChangePassword:
       type: object
       properties:
@@ -7353,6 +7972,10 @@ components:
           format: int64
         className:
           type: string
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyHealthContact"
         date:
           type: string
           format: date
@@ -7360,6 +7983,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DailyHealthEntryResponse"
+        handedOverAt:
+          type: string
+          format: date-time
     ChildEnrollmentResponse:
       type: object
       properties:
@@ -7434,6 +8060,8 @@ components:
     ChildGuardianResponse:
       type: object
       properties:
+        accountRecipient:
+          type: boolean
         accountStatus:
           type: string
           enum:
@@ -7444,6 +8072,9 @@ components:
           type: string
         fullName:
           type: string
+        id:
+          type: integer
+          format: int64
         idNumber:
           type: string
         phone:
@@ -7528,6 +8159,8 @@ components:
           type: string
         placement:
           $ref: "#/components/schemas/Placement"
+        programCompleted:
+          type: boolean
     ChildProfileDetailResponse:
       type: object
       properties:
@@ -7597,14 +8230,29 @@ components:
     ChildRow:
       type: object
       properties:
-        child:
-          $ref: "#/components/schemas/ChildBrief"
-        health:
-          $ref: "#/components/schemas/HealthSummary"
-        leave:
-          $ref: "#/components/schemas/LeaveTag"
-        record:
-          $ref: "#/components/schemas/RecordView"
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/Cell"
+        childId:
+          type: integer
+          format: int64
+        dateOfBirth:
+          type: string
+          format: date
+        fullName:
+          type: string
+        met:
+          type: integer
+          format: int32
+        notMet:
+          type: integer
+          format: int32
+        passed:
+          type: boolean
+        rate:
+          type: integer
+          format: int32
     ChildSummaryResponse:
       type: object
       properties:
@@ -7865,6 +8513,63 @@ components:
             type: string
       required:
       - adjustments
+    ClassItem:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        teaches:
+          type: boolean
+    ClassMonthlyCommentRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        month:
+          type: string
+          format: date
+      required:
+      - classId
+      - month
+    ClassMonthlyCommentResponse:
+      type: object
+      properties:
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedByName:
+          type: string
+        content:
+          type: string
+        draft:
+          type: string
+        month:
+          type: string
+          format: date
+        status:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
     ClassOption:
       type: object
       properties:
@@ -7879,6 +8584,88 @@ components:
           format: int64
         name:
           type: string
+    ClassRatingItem:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        levels:
+          $ref: "#/components/schemas/Levels"
+        note:
+          type: string
+          maxLength: 500
+          minLength: 0
+      required:
+      - classId
+      - levels
+    ClassRatingResponse:
+      type: object
+      properties:
+        campusIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        openFrom:
+          type: string
+          format: date
+        period:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassRatingRow"
+        schoolYearId:
+          type: integer
+          format: int64
+    ClassRatingRow:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        levels:
+          $ref: "#/components/schemas/Levels"
+        note:
+          type: string
+        ratedAt:
+          type: string
+          format: date-time
+        ratedByName:
+          type: string
+    ClassRatingSaveRequest:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassRatingItem"
+          maxItems: 2147483647
+          minItems: 1
+        period:
+          type: string
+          enum:
+          - SEMESTER_1
+          - SEMESTER_2
+          - YEAR
+      required:
+      - items
+      - period
     ClassRef:
       type: object
       properties:
@@ -8429,6 +9216,23 @@ components:
           format: time-local
         year:
           $ref: "#/components/schemas/Year"
+    DailyHealthContact:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        relationship:
+          type: string
+          enum:
+          - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
+          - GUARDIAN
+          - OTHER
     DailyHealthEntryResponse:
       type: object
       properties:
@@ -8713,6 +9517,9 @@ components:
         present:
           type: integer
           format: int32
+        substitute:
+          type: integer
+          format: int32
         unexcused:
           type: integer
           format: int32
@@ -8793,6 +9600,8 @@ components:
           format: int64
         className:
           type: string
+        current:
+          type: boolean
         dateOfBirth:
           type: string
           format: date
@@ -9228,6 +10037,11 @@ components:
             - KHONG_TAP_TRUNG
             - RUT_RE
             - KHAC
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
         comment:
           type: string
         date:
@@ -9343,6 +10157,7 @@ components:
           type: string
           enum:
           - MONTH
+          - SEMESTER
           - YEAR
         programApplicable:
           type: boolean
@@ -9414,6 +10229,10 @@ components:
           items:
             type: integer
             format: int64
+        calcium:
+          type: number
+          maximum: 1000000
+          minimum: 0
         code:
           type: string
           maxLength: 20
@@ -9432,6 +10251,10 @@ components:
           - OTHER
         glucid:
           type: number
+          minimum: 0
+        iron:
+          type: number
+          maximum: 1000000
           minimum: 0
         kcal:
           type: number
@@ -9460,6 +10283,10 @@ components:
           enum:
           - ANIMAL
           - PLANT
+        phosphorus:
+          type: number
+          maximum: 1000000
+          minimum: 0
         protein:
           type: number
           minimum: 0
@@ -9482,6 +10309,26 @@ components:
           - ml
         unitPrice:
           type: number
+          minimum: 0
+        vitaminA:
+          type: number
+          maximum: 1000000
+          minimum: 0
+        vitaminB1:
+          type: number
+          maximum: 1000000
+          minimum: 0
+        vitaminB2:
+          type: number
+          maximum: 1000000
+          minimum: 0
+        vitaminC:
+          type: number
+          maximum: 1000000
+          minimum: 0
+        vitaminPp:
+          type: number
+          maximum: 1000000
           minimum: 0
         wastePct:
           type: number
@@ -9507,6 +10354,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AllergenResponse"
+        calcium:
+          type: number
         code:
           type: string
         foodGroup:
@@ -9526,6 +10375,8 @@ components:
         id:
           type: integer
           format: int64
+        iron:
+          type: number
         kcal:
           type: number
         lipid:
@@ -9543,6 +10394,8 @@ components:
           enum:
           - ANIMAL
           - PLANT
+        phosphorus:
+          type: number
         protein:
           type: number
         purchaseUnit:
@@ -9565,6 +10418,16 @@ components:
           - g
           - ml
         unitPrice:
+          type: number
+        vitaminA:
+          type: number
+        vitaminB1:
+          type: number
+        vitaminB2:
+          type: number
+        vitaminC:
+          type: number
+        vitaminPp:
           type: number
         wastePct:
           type: number
@@ -9950,6 +10813,26 @@ components:
           format: int64
         text:
           type: string
+    GoalColumn:
+      type: object
+      properties:
+        assessedChildren:
+          type: integer
+          format: int32
+        goalId:
+          type: integer
+          format: int64
+        goalNo:
+          type: integer
+          format: int32
+        metChildren:
+          type: integer
+          format: int32
+        rate:
+          type: integer
+          format: int32
+        text:
+          type: string
     GoalCount:
       type: object
       properties:
@@ -10111,6 +10994,8 @@ components:
     GuardianInput:
       type: object
       properties:
+        accountRecipient:
+          type: boolean
         email:
           type: string
         fullName:
@@ -11408,6 +12293,27 @@ components:
         move:
           type: integer
           format: int64
+    ImportRequest:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnrollChildRequest"
+    ImportResult:
+      type: object
+      properties:
+        created:
+          type: integer
+          format: int32
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
     Ingredient:
       type: object
       properties:
@@ -11755,20 +12661,65 @@ components:
         toDate:
           type: string
           format: date
-    LeaveTag:
+    Levels:
       type: object
       properties:
-        fromDate:
+        environment:
           type: string
-          format: date
-        reason:
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        health:
           type: string
-        requestId:
-          type: integer
-          format: int64
-        toDate:
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        overall:
           type: string
-          format: date
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        parents:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        program:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        records:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        routine:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
+        theme:
+          type: string
+          enum:
+          - TOT
+          - KHA
+          - DAT
+          - CHUA_DAT
     Line:
       type: object
       properties:
@@ -11783,6 +12734,12 @@ components:
           format: int64
         className:
           type: string
+        confirmedNormal:
+          type: integer
+          format: int32
+        confirmedSubstitute:
+          type: integer
+          format: int32
         missing:
           type: integer
           format: int32
@@ -12409,6 +13366,7 @@ components:
           type: string
           enum:
           - CHILD_PICKED_UP
+          - MEAL_COUNT_RECONFIRM
     NutritionTotals:
       type: object
       properties:
@@ -12416,17 +13374,33 @@ components:
           type: number
         animalProtein:
           type: number
+        calcium:
+          type: number
         glucid:
+          type: number
+        iron:
           type: number
         kcal:
           type: number
         lipid:
+          type: number
+        phosphorus:
           type: number
         plantLipid:
           type: number
         plantProtein:
           type: number
         protein:
+          type: number
+        vitaminA:
+          type: number
+        vitaminB1:
+          type: number
+        vitaminB2:
+          type: number
+        vitaminC:
+          type: number
+        vitaminPp:
           type: number
     Option:
       type: object
@@ -13099,6 +14073,39 @@ components:
         userId:
           type: integer
           format: int64
+    Preview:
+      type: object
+      properties:
+        fileName:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/PreviewRow"
+        supported:
+          type: boolean
+    PreviewRow:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            type: string
+        notes:
+          type: array
+          items:
+            type: string
+        payload:
+          $ref: "#/components/schemas/EnrollChildRequest"
+        raw:
+          type: object
+          additionalProperties:
+            type: string
+        rowNo:
+          type: integer
+          format: int32
+        selectionError:
+          type: string
     ProgramCompletionRequest:
       type: object
       properties:
@@ -13236,6 +14243,12 @@ components:
         goodRate:
           type: integer
           format: int32
+        leftChildren:
+          type: integer
+          format: int32
+        leftRate:
+          type: integer
+          format: int32
         level:
           type: string
         mealChildren:
@@ -13253,6 +14266,11 @@ components:
         schoolDays:
           type: integer
           format: int32
+        unrecordedDays:
+          type: array
+          items:
+            type: string
+            format: date
     QualityTotal:
       type: object
       properties:
@@ -13289,6 +14307,12 @@ components:
           type: integer
           format: int32
         goodRate:
+          type: integer
+          format: int32
+        leftChildren:
+          type: integer
+          format: int32
+        leftRate:
           type: integer
           format: int32
         level:
@@ -13348,6 +14372,14 @@ components:
       - lotNo
       - quantity
       - unitPrice
+    RecipientRequest:
+      type: object
+      properties:
+        guardianId:
+          type: integer
+          format: int64
+      required:
+      - guardianId
     RecordView:
       type: object
       properties:
@@ -13716,6 +14748,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassAttendanceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassMonthlyCommentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassMonthlyCommentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassRatingResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassRatingResponse"
         desc:
           type: string
         errorCode:
@@ -14163,6 +15221,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonImportResult:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ImportResult"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonKitchenDayResponse:
       type: object
       properties:
@@ -14197,6 +15268,21 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/LeaveRequestResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListActivationResult:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivationResult"
         desc:
           type: string
         errorCode:
@@ -14317,6 +15403,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CampusResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListClassItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassItem"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListChildGuardianResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildGuardianResponse"
         desc:
           type: string
         errorCode:
@@ -14727,6 +15843,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListSchoolHolidayItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchoolHolidayItem"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListSchoolYearDetailResponse:
       type: object
       properties:
@@ -14797,6 +15928,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SupplierResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListThemeItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThemeItem"
         desc:
           type: string
         errorCode:
@@ -15130,6 +16276,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonPreview:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/Preview"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonProgramCompletionResponse:
       type: object
       properties:
@@ -15260,6 +16419,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonSemesterLockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SemesterLockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonStaffAssignmentResponse:
       type: object
       properties:
@@ -15333,6 +16505,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/TeamLeaderResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonThemeEvaluationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ThemeEvaluationResponse"
         desc:
           type: string
         errorCode:
@@ -15423,6 +16608,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/YearCopyResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonYearEndSheetResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/YearEndSheetResponse"
         desc:
           type: string
         errorCode:
@@ -15562,6 +16760,11 @@ components:
           type: array
           items:
             type: string
+        unrecordedDays:
+          type: array
+          items:
+            type: string
+            format: date
         updatedBy:
           type: integer
           format: int64
@@ -15878,6 +17081,34 @@ components:
           minItems: 1
       required:
       - items
+    SchoolHolidayItem:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        name:
+          type: string
+          maxLength: 100
+          minLength: 0
+        startDate:
+          type: string
+          format: date
+      required:
+      - endDate
+      - name
+      - startDate
+    SchoolHolidaysRequest:
+      type: object
+      properties:
+        holidays:
+          type: array
+          items:
+            $ref: "#/components/schemas/SchoolHolidayItem"
+          maxItems: 60
+          minItems: 0
+      required:
+      - holidays
     SchoolStructureResponse:
       type: object
       properties:
@@ -15998,6 +17229,13 @@ components:
         semester2Start:
           type: string
           format: date
+    SemesterLockResponse:
+      type: object
+      properties:
+        semester1Locked:
+          type: boolean
+        semester2Locked:
+          type: boolean
     SessionMenu:
       type: object
       properties:
@@ -16072,6 +17310,68 @@ components:
           type: integer
           format: int64
         updatedByName:
+          type: string
+    SheetDomain:
+      type: object
+      properties:
+        domainId:
+          type: integer
+          format: int64
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SheetGoal"
+        name:
+          type: string
+    SheetGoal:
+      type: object
+      properties:
+        auto:
+          type: boolean
+        goalId:
+          type: integer
+          format: int64
+        goalNo:
+          type: integer
+          format: int32
+        manual:
+          type: boolean
+        met:
+          type: boolean
+        source:
+          type: string
+        text:
+          type: string
+    SheetGoalInput:
+      type: object
+      properties:
+        goalId:
+          type: integer
+          format: int64
+        met:
+          type: boolean
+      required:
+      - goalId
+    SheetMeasurement:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        heightCm:
+          type: number
+        weightKg:
+          type: number
+    SheetNotes:
+      type: object
+      properties:
+        forChild:
+          type: string
+        forParent:
+          type: string
+        forSchool:
+          type: string
+        forTeacher:
           type: string
     SignerNames:
       type: object
@@ -16670,6 +17970,117 @@ components:
           format: date
       required:
       - key
+    ThemeEvaluationRequest:
+      type: object
+      properties:
+        cells:
+          type: array
+          items:
+            $ref: "#/components/schemas/CellInput"
+          maxItems: 2000
+          minItems: 0
+        classId:
+          type: integer
+          format: int64
+        note:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        themeId:
+          type: integer
+          format: int64
+      required:
+      - classId
+      - themeId
+    ThemeEvaluationResponse:
+      type: object
+      properties:
+        assessedChildren:
+          type: integer
+          format: int32
+        canConfirm:
+          type: boolean
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedByName:
+          type: string
+        endDate:
+          type: string
+          format: date
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalColumn"
+        notPassedChildren:
+          type: integer
+          format: int32
+        note:
+          type: string
+        passPercent:
+          type: integer
+          format: int32
+        passedChildren:
+          type: integer
+          format: int32
+        period:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildRow"
+        signers:
+          $ref: "#/components/schemas/ThemeSigners"
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+        themeId:
+          type: integer
+          format: int64
+        themeName:
+          type: string
+    ThemeItem:
+      type: object
+      properties:
+        abbr:
+          type: string
+        endDate:
+          type: string
+          format: date
+        name:
+          type: string
+        period:
+          type: string
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+        themeId:
+          type: integer
+          format: int64
+    ThemeSigners:
+      type: object
+      properties:
+        teachers:
+          type: array
+          items:
+            type: string
+        teamLeaders:
+          type: array
+          items:
+            type: string
+        vicePrincipal:
+          type: string
     TicketBoardResponse:
       type: object
       properties:
@@ -16698,6 +18109,8 @@ components:
     TicketBoardRow:
       type: object
       properties:
+        canIssue:
+          type: boolean
         child:
           $ref: "#/components/schemas/TicketChild"
         eligible:
@@ -16705,6 +18118,8 @@ components:
         flagCount:
           type: integer
           format: int32
+        issuedElsewhere:
+          type: boolean
         presentDays:
           type: integer
           format: int32
@@ -17225,6 +18640,62 @@ components:
         id:
           type: integer
           format: int64
+    YearEndSheetRequest:
+      type: object
+      properties:
+        forChild:
+          type: string
+        forParent:
+          type: string
+        forSchool:
+          type: string
+        forTeacher:
+          type: string
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SheetGoalInput"
+          maxItems: 500
+          minItems: 0
+    YearEndSheetResponse:
+      type: object
+      properties:
+        ageGroupName:
+          type: string
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        confirmedAt:
+          type: string
+          format: date-time
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/SheetDomain"
+        evaluationId:
+          type: integer
+          format: int64
+        measurement:
+          $ref: "#/components/schemas/SheetMeasurement"
+        metCount:
+          type: integer
+          format: int32
+        notMetCount:
+          type: integer
+          format: int32
+        notes:
+          $ref: "#/components/schemas/SheetNotes"
+        status:
+          type: string
+          enum:
+          - AWAITING_REVIEW
+          - CONFIRMED
+        teachers:
+          type: array
+          items:
+            type: string
     YearPlanChangesResponse:
       type: object
       properties:

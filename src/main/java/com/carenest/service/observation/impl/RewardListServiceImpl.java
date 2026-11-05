@@ -67,13 +67,23 @@ import org.springframework.transaction.annotation.Transactional;
 public class RewardListServiceImpl implements RewardListService {
 
     private static final String LOG_PREFIX = "[RewardListServiceImpl]";
-    static final String DILIGENT = "Bé chăm";
+    // OBS-14 (user chốt 03/11/2026): danh hiệu cuối năm phổ biến của mầm non; mỗi trẻ một danh hiệu bé ngoan
     static final String GOOD = "Bé ngoan";
-    static final String ALL_ROUND = "Bé ngoan toàn diện";
-    static final String PROGRAM = "Hoàn thành chương trình GDMN";
-    /** Danh hiệu như FE REWARD_TITLES; 2 danh hiệu cuối GV tự chọn, không gợi ý. */
+    static final String DILIGENT_GOOD = "Bé chăm ngoan";
+    static final String HEALTHY_GOOD = "Bé khỏe, bé ngoan";
+    static final String EXCELLENT = "Bé chăm ngoan xuất sắc";
+    // Cần chốt 04/11: Cháu ngoan Bác Hồ cho mọi lớp, chọn thêm độc lập với danh hiệu bé ngoan; GV tự tích, không gợi ý
+    static final String UNCLE_HO = "Cháu ngoan Bác Hồ";
+    // Riêng lớp 5–6 tuổi đã hoàn thành chương trình (đánh giá cuối năm), tối đa một
+    static final String PROGRAM_EXCELLENT = "Hoàn thành xuất sắc chương trình giáo dục mầm non";
+    static final String PROGRAM_GOOD = "Hoàn thành tốt chương trình giáo dục mầm non";
+    static final List<String> GENERAL_TITLES = List.of(GOOD, DILIGENT_GOOD, HEALTHY_GOOD, EXCELLENT);
+    static final List<String> PROGRAM_TITLES = List.of(PROGRAM_EXCELLENT, PROGRAM_GOOD);
+    /** Danh hiệu lớp không phải 5–6 tuổi: bé ngoan + Cháu ngoan Bác Hồ. */
+    static final List<String> CLASS_TITLES = List.of(GOOD, DILIGENT_GOOD, HEALTHY_GOOD, EXCELLENT, UNCLE_HO);
+    /** Danh hiệu như FE REWARD_TITLES. */
     static final List<String> TITLES =
-            List.of(DILIGENT, GOOD, ALL_ROUND, PROGRAM, "Bé khỏe – Bé đẹp", "Bé có năng khiếu nghệ thuật");
+            List.of(GOOD, DILIGENT_GOOD, HEALTHY_GOOD, EXCELLENT, UNCLE_HO, PROGRAM_EXCELLENT, PROGRAM_GOOD);
     // Bé chăm: đi học từ 90% số ngày học của lớp (như báo cáo chất lượng tháng)
     static final int DILIGENT_PERCENT = 90;
     static final int NOTE_MAX = 300;
@@ -180,6 +190,8 @@ public class RewardListServiceImpl implements RewardListService {
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
             }
+            // Khóa lớp trước khi đọc: 2 lần lưu cùng lúc không tạo trùng danh sách của lớp
+            rules.lockClassForUpdate(cls.id());
             RewardList existing = listRepository.findByClassroomId(classId).orElse(null);
             if (existing != null && !existing.isEditable()) {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
@@ -272,7 +284,8 @@ public class RewardListServiceImpl implements RewardListService {
         try {
             RewardList list = find(listId);
             ClassroomInfoResponse cls = rules.findClass(list.getClassroomId());
-            if (!currentUser.hasRole(CareNestRole.PRINCIPAL)) {
+            // HT đang được phân công (AUTH-01), không chỉ dựa vào role trong token
+            if (!currentUser.hasRole(CareNestRole.PRINCIPAL) || !rules.leadsCampus(currentUser, cls.campusId())) {
                 throw GlobalException.of(ApiCode.REWARD_REVIEW_FORBIDDEN);
             }
             if (!canDecide(currentUser, list)) {
@@ -312,7 +325,7 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
-        return teaches(user, cls) || rules.leadsCampus(user, cls.campusId());
+        return teaches(user, cls) || rules.readsCampus(user, cls.campusId());
     }
 
     /** Bản nháp chỉ GV lớp thấy danh hiệu; PHT / HT thấy khi đã gửi. */
@@ -338,6 +351,7 @@ public class RewardListServiceImpl implements RewardListService {
     private boolean canDecide(CurrentUser user, RewardList list) {
         return list != null
                 && user.hasRole(CareNestRole.PRINCIPAL)
+                && rules.leadsCampus(user, list.getCampusId())
                 && (list.getStatus() == RewardStatus.PENDING_PRINCIPAL || list.getStatus() == RewardStatus.PENDING_VP);
     }
 
@@ -388,7 +402,11 @@ public class RewardListServiceImpl implements RewardListService {
             if (ye == null) {
                 throw GlobalException.of(ApiCode.REWARD_YEAR_END_REQUIRED, name);
             }
-            if (picked.contains(PROGRAM) && !Boolean.TRUE.equals(ye.getProgramCompleted())) {
+            if (picked.stream().filter(GENERAL_TITLES::contains).count() > 1
+                    || picked.stream().filter(PROGRAM_TITLES::contains).count() > 1) {
+                throw GlobalException.of(ApiCode.REWARD_TITLE_CONFLICT, name);
+            }
+            if (picked.stream().anyMatch(PROGRAM_TITLES::contains) && !Boolean.TRUE.equals(ye.getProgramCompleted())) {
                 throw GlobalException.of(ApiCode.REWARD_PROGRAM_TITLE_INVALID, name);
             }
             List<String> ordered = TITLES.stream().filter(picked::contains).toList();
@@ -441,30 +459,49 @@ public class RewardListServiceImpl implements RewardListService {
         List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(cls.id(), at(cls));
         List<Long> childIds = children.stream().map(ClassChildResponse::id).toList();
 
-        // Ngày học của lớp = thứ 2–6 có điểm danh (như báo cáo chất lượng tháng)
+        // Ngày học = lịch năm học (thứ 2–6 trừ ngày nghỉ HT cấu hình) tới hôm nay, kể cả ngày GV quên điểm danh (như
+        // báo cáo chất lượng tháng, Cần chốt 04/11/2026)
         Set<LocalDate> schoolDays = new HashSet<>();
+        Set<LocalDate> recorded = new HashSet<>();
+        for (LocalDate d = cls.yearStart(); !d.isAfter(to); d = d.plusDays(1)) {
+            if (rules.isSchoolDay(d)) {
+                schoolDays.add(d);
+            }
+        }
         Map<Long, Integer> present = new HashMap<>();
         if (!to.isBefore(cls.yearStart())) {
             for (ClassChildDay d : attendanceService.findClassDays(List.of(cls.id()), cls.yearStart(), to)) {
-                if (!ObservationDayRules.isSchoolDay(d.date())) {
+                if (!schoolDays.contains(d.date())) {
                     continue;
                 }
-                schoolDays.add(d.date());
+                recorded.add(d.date());
                 if (d.status() == AttendanceStatus.PRESENT) {
                     present.merge(d.childId(), 1, Integer::sum);
                 }
             }
         }
-        long weeks = schoolDays.stream()
-                .map(d -> d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
-                .distinct()
-                .count();
-        long months = schoolDays.stream().map(YearMonth::from).distinct().count();
+        // OBS-23: ngày phải đi của từng trẻ = ngày học của lớp trong thời gian trẻ thuộc lớp (trẻ vào giữa năm không
+        // bị tính các ngày trước khi vào); số tuần / tháng học cũng theo thời gian trẻ ở lớp
+        List<EnrollmentService.ClassStay> stays = to.isBefore(cls.yearStart())
+                ? List.of()
+                : enrollmentService.findStaysInClassroom(cls.id(), cls.yearStart(), to);
+        Map<Long, List<LocalDate>> expectedDays = new HashMap<>();
+        for (LocalDate day : schoolDays) {
+            stays.stream()
+                    .filter(st -> st.covers(day))
+                    .map(EnrollmentService.ClassStay::childId)
+                    .distinct()
+                    .forEach(id -> expectedDays
+                            .computeIfAbsent(id, k -> new ArrayList<>())
+                            .add(day));
+        }
+        // Phiếu bé ngoan phát ở chính lớp này
         Map<Long, List<BehaviourTicket>> tickets = childIds.isEmpty()
                 ? Map.of()
                 : ticketRepository
                         .findByChildIdInAndPeriodStartBetween(childIds, cls.yearStart(), cls.yearEnd())
                         .stream()
+                        .filter(t -> cls.id().equals(t.getClassroomId()))
                         .collect(Collectors.groupingBy(BehaviourTicket::getChildId));
         Map<Long, ChildEvaluation> yearEnds = confirmedYearEnds(cls);
         boolean programClass = isProgramClass(cls);
@@ -477,7 +514,13 @@ public class RewardListServiceImpl implements RewardListService {
         List<RewardChildRow> rows = children.stream()
                 .map(c -> {
                     int presentDays = present.getOrDefault(c.id(), 0);
-                    Integer rate = schoolDays.isEmpty() ? null : Math.round(presentDays * 100f / schoolDays.size());
+                    List<LocalDate> own = expectedDays.getOrDefault(c.id(), List.of());
+                    Integer rate = own.isEmpty() ? null : Math.round(presentDays * 100f / own.size());
+                    long weeks = own.stream()
+                            .map(d -> d.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)))
+                            .distinct()
+                            .count();
+                    long months = own.stream().map(YearMonth::from).distinct().count();
                     List<BehaviourTicket> ts = tickets.getOrDefault(c.id(), List.of());
                     int weekly = (int) ts.stream()
                             .filter(t -> t.getType() == TicketType.WEEKLY)
@@ -488,18 +531,20 @@ public class RewardListServiceImpl implements RewardListService {
                     ChildEvaluation ye = yearEnds.get(c.id());
                     List<String> suggested = new ArrayList<>();
                     if (ye != null) {
-                        if (rate != null && rate >= DILIGENT_PERCENT) {
-                            suggested.add(DILIGENT);
-                        }
-                        // Bé ngoan: phiếu tuần từ nửa số tuần học; BNTD: phiếu tháng từ nửa số tháng học
-                        if (weeks > 0 && weekly * 2L >= weeks) {
+                        // Chăm: đi học từ 90% ngày học; ngoan: phiếu tuần từ nửa số tuần học; ngoan toàn diện: phiếu
+                        // tháng từ nửa số tháng học. Gợi ý một danh hiệu cao nhất đạt được, GV quyết định
+                        boolean diligent = rate != null && rate >= DILIGENT_PERCENT;
+                        boolean good = weeks > 0 && weekly * 2L >= weeks;
+                        boolean allRound = months > 0 && monthly * 2L >= months;
+                        if (diligent && allRound) {
+                            suggested.add(EXCELLENT);
+                        } else if (diligent && good) {
+                            suggested.add(DILIGENT_GOOD);
+                        } else if (good) {
                             suggested.add(GOOD);
                         }
-                        if (months > 0 && monthly * 2L >= months) {
-                            suggested.add(ALL_ROUND);
-                        }
                         if (programClass && Boolean.TRUE.equals(ye.getProgramCompleted())) {
-                            suggested.add(PROGRAM);
+                            suggested.add(PROGRAM_GOOD);
                         }
                     }
                     RewardListItem item = items.get(c.id());
@@ -507,7 +552,7 @@ public class RewardListServiceImpl implements RewardListService {
                             c.id(),
                             c.fullName(),
                             c.dateOfBirth(),
-                            schoolDays.size(),
+                            own.size(),
                             presentDays,
                             rate,
                             weekly,
@@ -563,9 +608,7 @@ public class RewardListServiceImpl implements RewardListService {
                                 list.getDecisionAt(),
                                 list.getDecision(),
                                 list.getDecisionComment()),
-                programClass
-                        ? TITLES
-                        : TITLES.stream().filter(t -> !PROGRAM.equals(t)).toList(),
+                programClass ? TITLES : CLASS_TITLES,
                 rows,
                 events.stream()
                         .map(e -> new HistoryRow(
@@ -578,6 +621,12 @@ public class RewardListServiceImpl implements RewardListService {
                         .toList(),
                 canEdit(user, cls, list),
                 canReview(user, list),
-                canDecide(user, list));
+                canDecide(user, list),
+                schoolDays.stream()
+                        .filter(day -> day.isBefore(today)
+                                && !recorded.contains(day)
+                                && stays.stream().anyMatch(st -> st.covers(day)))
+                        .sorted()
+                        .toList());
     }
 }

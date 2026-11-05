@@ -164,7 +164,8 @@ final class EnrollmentFormValidator {
                     relationship,
                     phone.orElse(null),
                     citizenId.orElse(null),
-                    email == null ? null : email.toLowerCase(Locale.ROOT)));
+                    email == null ? null : email.toLowerCase(Locale.ROOT),
+                    guardians.size() == 1 || Boolean.TRUE.equals(g.accountRecipient())));
         }
         // Lỗi chung của danh sách: như BE giả, quá 3 người được báo trước, rồi trùng CCCD, rồi trùng SĐT
         if (guardians.isEmpty()) {
@@ -175,6 +176,9 @@ final class EnrollmentFormValidator {
             errors.put("guardians", "Hai phụ huynh không được dùng chung số CCCD");
         } else if (hasDuplicate(drafts.stream().map(GuardianDraft::phone).toList())) {
             errors.put("guardians", "Hai phụ huynh không được dùng chung số điện thoại");
+        }
+        if (drafts.stream().filter(GuardianDraft::accountRecipient).count() != 1) {
+            errors.put("accountRecipient", "Chọn đúng một phụ huynh nhận tài khoản");
         }
         return drafts;
     }

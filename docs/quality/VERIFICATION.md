@@ -1,5 +1,12 @@
 # Verification — bằng chứng trước khi báo xong
 
+## Chọn một phụ huynh nhận tài khoản — 05/11/2026
+
+- User đã duyệt Spec013/plan liên repo; triển khai flag recipient, V70/index/backfill, form chỉ tạo/liên kết người được chọn, import CSV/XLSX/XLS lưu hồ sơ trước, API recipient/pending/activation có scope và chặn raw bypass/stale selection. Giữ liên hệ/ảnh/người đón và mọi historical link cũ.
+- Sau clean và source/test cuối: VERIFY PASS full | tests1087 fail0 err0 skip0 | archunit ok | snapshot ok | spotless ok | 586s | log target/verify.log. Intentional OpenAPI snapshot + FE route cache đồng bộ; không thêm dependency. Test PostgreSQL gồm selected-only account, deferred import, idempotency, claim CCCD atomic, batch CHD-04, pending/left-campus scopes, projection theo userId, migration legacy và partial unique.
+- FE full808tests đạt; Chromium app/mock1440/375 đạt form/chọn người thứ2/ảnh/save/reload, CSV selection, import zero accounts và kích hoạt sau. 0 lỗi JS, 12/12 URL ảnh thu hồi mỗi viewport. Chưa kiểm browser nối BE, Keycloak/SMS/S3 thật; module source hiện có giữ nguyên.
+- Review độc lập và kiểm lại blocker cuối đã hoàn tất, không còn blocker trực tiếp. Incident CHECK NOT VALID được ghi và có regression. Check-ai-layer cuối 0 lỗi, các cảnh báo cũ không đổi. Không commit/push/deploy; kế hoạch và evidence tại Spec013 quickstart.
+
 ## Ảnh tiếp nhận trẻ và phụ huynh — 05/11/2026
 
 - User duyệt plan 2026-11-05-child-enrollment-photos, Spec012. Migration V68; private S3 metadata trên trẻ và từng phụ huynh; JSON/multipart tiếp nhận tương thích; đọc ảnh/hồ sơ theo scope, metadata quản trị tài khoản được chiếu riêng; pickup dùng ảnh hồ sơ rồi fallback ảnh APP.
@@ -129,3 +136,10 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 - `git diff --exit-code -- docs/api/openapi.yaml`: exit 0. `node scripts/check-ai-layer.mjs`: 0 lỗi, 0 cảnh báo; E6 bỏ qua theo output công cụ.
 - Lỗi migration deferred DDL có RED/GREEN tại BUG-261029-hierarchy-deferred-ddl. Chi tiết: [quickstart feature006](../../specs/006-year-plan-goal-hierarchy/quickstart.md).
 - Chưa kiểm chứng: migration trên DB dev/production đang dùng, browser E2E Web. Không chạy migration DB thật trong task; không commit/push/tạo nhánh.
+
+
+## ChildDay sức khỏe sau trả và liên hệ — 05/11/2026
+- RED `PickupIntegrationTest.teacherHandsOverPresentChildAndParentIsNotified`: canRecord true sau trả; GREEN 3/3, POST mới vẫn 5008, nguồn liên hệ hồ sơ và scope chéo lớp được kiểm trên PostgreSQL thật.
+- `node scripts/verify.mjs` → `VERIFY PASS full | tests 1039 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 672s | log target/verify.log`.
+- Snapshot diff chỉ thêm ChildDay.contacts/handedOverAt và DailyHealthContact; không đổi request/endpoint/API code. FE adapter/panel đã map; App chưa triển khai và không sửa.
+- FE full 840 tests fail/skip 0, browser export và chuẩn hóa nhập đạt; chưa browser E2E với runtime BE khởi động lại. User chọn chờ loại nhiệt kế nên giữ dải nhập hiện tại. Không migration, commit hoặc push.

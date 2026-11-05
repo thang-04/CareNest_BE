@@ -7,6 +7,7 @@ import java.util.Map;
 /**
  * Báo cáo chất lượng tháng theo Biểu sổ chỉ đạo chuyên môn PHT: mục 4.2 (từng lớp trong tháng) và 4.1 (trẻ ra lớp bình
  * quân từng tháng của năm học). month / months dạng yyyy-MM; tỷ lệ là % làm tròn, null khi không có mẫu số.
+ * leftChildren / leftRate = "trẻ ra lớp" của mục 4.2: trẻ thôi học hoặc chuyển ra khỏi lớp trong tháng, trên sĩ số tháng.
  */
 public record QualityReportResponse(
         String month,
@@ -30,6 +31,8 @@ public record QualityReportResponse(
             int presentDays,
             int possibleDays,
             Integer attendanceRate,
+            int leftChildren,
+            Integer leftRate,
             int mealChildren,
             Integer mealRate,
             int diligentChildren,
@@ -38,7 +41,9 @@ public record QualityReportResponse(
             Integer goodRate,
             int allRoundChildren,
             Integer allRoundRate,
-            Map<String, Integer> avgPresentByMonth) {}
+            Map<String, Integer> avgPresentByMonth,
+            // Ngày học (theo lịch năm học) đã qua mà lớp chưa điểm danh: vẫn tính là ngày học, nhắc GV bổ sung
+            List<LocalDate> unrecordedDays) {}
 
     /** level: NHA_TRE, MAU_GIAO hoặc TOAN_TRUONG. */
     public record QualityTotal(
@@ -47,6 +52,8 @@ public record QualityReportResponse(
             int children,
             Integer avgPresent,
             Integer attendanceRate,
+            int leftChildren,
+            Integer leftRate,
             int mealChildren,
             Integer mealRate,
             int diligentChildren,

@@ -149,6 +149,20 @@ class PickupIntegrationTest {
 
     @Test
     void teacherHandsOverPresentChildAndParentIsNotified() {
+        var beforeHealth = dailyHealth.getClassChildHealth(teacherA, classA, present, TODAY);
+        assertThat(beforeHealth.canRecord()).isTrue();
+        assertThat(beforeHealth.handedOverAt()).isNull();
+        assertThat(beforeHealth.contacts()).singleElement().satisfies(c -> {
+            assertThat(c.fullName()).isEqualTo("Mẹ An (giả)");
+            assertThat(c.relationship()).isEqualTo(GuardianRelationship.MOTHER);
+            assertThat(c.phone()).isEqualTo("0900000001");
+        });
+        assertThat(dailyHealth
+                        .getClassChildHealth(teacherA, classA, absent, TODAY)
+                        .contacts())
+                .isEmpty();
+        expectError(
+                () -> dailyHealth.getClassChildHealth(teacherB, classA, present, TODAY), ApiCode.CLASS_ACCESS_DENIED);
         PickupBoardResponse board = pickups.getBoard(teacherA, classA, null);
         assertThat(board.rows())
                 .extracting(r -> r.child().id(), PickupBoardResponse.PickupRow::status)
@@ -178,6 +192,10 @@ class PickupIntegrationTest {
         assertThat(declined.outcome()).isEqualTo(PickupOutcome.NOT_HANDED_OVER);
         assertThat(declined.notifiedParents()).isZero();
 
+        assertThat(dailyHealth
+                        .getClassChildHealth(teacherA, classA, present, TODAY)
+                        .canRecord())
+                .isTrue();
         expectError(
                 () -> pickups.recordResult(
                         teacherA, request(present, PickupVerification.PHOTO_MATCH, 5, LocalTime.of(15, 30), "")),
@@ -229,7 +247,11 @@ class PickupIntegrationTest {
         notifications.markRead(parent, inbox.items().getFirst().id());
         assertThat(notifications.listMyNotifications(parent, 50).unreadCount()).isZero();
 
-        // HLT-15: trẻ đã được trả thì không ghi thêm sức khỏe trong ngày
+        // HLT-15: trẻ đã được trả thì UI và API cùng khóa, lịch sử vẫn xem được
+        var afterHealth = dailyHealth.getClassChildHealth(teacherA, classA, present, TODAY);
+        assertThat(afterHealth.canRecord()).isFalse();
+        assertThat(afterHealth.handedOverAt()).isEqualTo(handed.handedOverAt());
+        assertThat(afterHealth.contacts()).isEqualTo(beforeHealth.contacts());
         expectError(
                 () -> dailyHealth.addEntry(
                         teacherA,

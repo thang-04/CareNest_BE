@@ -144,7 +144,8 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                                 null,
                                 PhoneNumbers.normalize(g.phone()).orElse(null),
                                 CitizenIds.normalize(g.idNumber()).orElse(null),
-                                null);
+                                null,
+                                inputs.size() == 1 || Boolean.TRUE.equals(g.accountRecipient()));
                     })
                     .toList();
             ParentAccounts accounts = loadAccounts(guardians);
@@ -199,6 +200,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
 
             List<GuardianDraft> newParents = manageAccounts
                     ? guardians.stream()
+                            .filter(GuardianDraft::accountRecipient)
                             .filter(g -> accounts.parentOf(g).isEmpty())
                             .toList()
                     : List.of();
@@ -215,11 +217,12 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                     accountLifecycle.createIdentities(logPrefix, identities, CareNestRole.PARENT, keycloakUserIds -> {
                         Map<Integer, Long> accountIds = new HashMap<>();
                         for (GuardianDraft g : guardians) {
+                            if (!g.accountRecipient()) continue;
                             accounts.parentOf(g).ifPresent(existing -> {
                                 // AUTH-18: tài khoản cũ chưa có CCCD được bổ sung (đọc lại trong giao dịch)
-                                userAccountRepository
-                                        .findById(existing.getId())
-                                        .ifPresent(a -> a.assignCitizenIdIfMissing(g.citizenId()));
+                                if (userAccountRepository.claimCitizenId(existing.getId(), g.citizenId()) != 1) {
+                                    throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+                                }
                                 accountIds.put(g.position(), existing.getId());
                             });
                         }
@@ -245,6 +248,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
             }
             ChildViewResponse view = childIntakeService.getChildView(enrolled.childId());
             List<GuardianAccountResultResponse> results = guardians.stream()
+                    .filter(GuardianDraft::accountRecipient)
                     .map(g -> new GuardianAccountResultResponse(
                             g.fullName(),
                             g.phone(),
@@ -293,9 +297,11 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
 
     private static List<GuardianDraft> withAccountInfo(List<GuardianDraft> guardians, ParentAccounts accounts) {
         return guardians.stream()
-                .map(g -> accounts.parentOf(g)
-                        .map(a -> g.withAccountInfo(a.getFullName(), a.getUsername(), a.getEmail()))
-                        .orElse(g))
+                .map(g -> !g.accountRecipient()
+                        ? g
+                        : accounts.parentOf(g)
+                                .map(a -> g.withAccountInfo(a.getFullName(), a.getUsername(), a.getEmail()))
+                                .orElse(g))
                 .toList();
     }
 
@@ -333,7 +339,10 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                             && r.citizenId() != null
                             && !g.citizenId().equals(r.citizenId()))) {
                 errors.add(new FieldErrorResponse(prefix + "phone", PHONE_HAS_OTHER_ID));
-            } else if (creatingAccounts && same == null && accounts.isStaffUsername(g.phone())) {
+            } else if (creatingAccounts
+                    && g.accountRecipient()
+                    && same == null
+                    && accounts.isStaffUsername(g.phone())) {
                 errors.add(new FieldErrorResponse(prefix + "phone", ApiCode.PHONE_OF_STAFF_ACCOUNT.getDefaultDesc()));
             }
         }

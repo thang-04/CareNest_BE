@@ -25,6 +25,13 @@ import java.util.Optional;
  * khoản phụ huynh đi qua {@code ChildEnrollmentService} của feature account (feature child không gọi account).
  */
 public interface ChildIntakeService {
+    Optional<Long> findRecipientAccountId(Long childId);
+
+    List<com.carenest.dto.child.ChildGuardianResponse> accountCandidates(Long childId);
+
+    void selectAccountRecipient(Long childId, Long guardianId, Long actorUserId);
+
+    void linkAccountRecipient(Long childId, Long guardianId, Long userId);
 
     /** CHD-04: trùng họ tên, ngày sinh và CCCD một phụ huynh; null = không trùng. Hồ sơ ngoài phạm vi chỉ báo loại. */
     DuplicateCheckResponse checkDuplicate(

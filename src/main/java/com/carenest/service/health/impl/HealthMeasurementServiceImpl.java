@@ -208,6 +208,26 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
         return child;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<LatestMeasurement> findLatestMeasurement(Long childId, LocalDate onOrBefore) {
+        String logPrefix = LOG_PREFIX + "|findLatestMeasurement|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<LatestMeasurement> latest =
+                    measurementRepository.findByChildIdOrderByDateDescIdDesc(childId).stream()
+                            .filter(m -> !m.getDate().isAfter(onOrBefore))
+                            .filter(m -> m.getWeightKg() != null || m.getHeightCm() != null)
+                            .findFirst()
+                            .map(m -> new LatestMeasurement(m.getDate(), m.getWeightKg(), m.getHeightCm()));
+            log.info("{}|END", logPrefix);
+            return latest;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private Optional<ClassroomInfoResponse> classOn(Long childId, LocalDate date) {
         return enrollmentService.findActiveClassroomIds(childId, date).stream()
                 .findFirst()

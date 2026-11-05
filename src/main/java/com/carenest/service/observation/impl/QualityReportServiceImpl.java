@@ -1,13 +1,13 @@
 package com.carenest.service.observation.impl;
 
-import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.observation.QualityReportResponse;
 import com.carenest.dto.observation.QualityReportResponse.QualityRow;
 import com.carenest.dto.observation.QualityReportResponse.QualityTotal;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.entity.observation.BehaviourTicket;
 import com.carenest.exception.GlobalException;
-import com.carenest.repository.observation.DailyObservationRepository;
+import com.carenest.repository.observation.BehaviourTicketRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.AttendanceService.ClassChildDay;
@@ -17,17 +17,18 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
-import java.time.DayOfWeek;
+import com.carenest.utils.enums.TicketType;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -52,13 +53,8 @@ public class QualityReportServiceImpl implements QualityReportService {
     private static final DateTimeFormatter MONTH_TEXT = DateTimeFormatter.ofPattern("MM/yyyy");
     // Nhóm tuổi bắt đầu dưới 36 tháng là Nhà trẻ, còn lại Mẫu giáo
     private static final int NURSERY_BELOW_MONTHS = 36;
-    // Bé chăm: đi học từ 90% số ngày học của lớp trong tháng (Cần chốt 30/10/2026)
+    // OBS-23: Bé chăm = đi học từ 90% số ngày phải đi của trẻ (ngày học của lớp trong thời gian trẻ thuộc lớp)
     private static final int DILIGENT_PERCENT = 90;
-    // Công thức phiếu đang có (TICKET_RULES của FE): tuần có ≥ 4 ngày có mặt và ≥ 3 cờ ⇒ phiếu Bé ngoan;
-    // tháng có ≥ 3 phiếu Bé ngoan ⇒ Bé ngoan toàn diện. Tuần thuộc tháng chứa thứ Hai của tuần.
-    private static final int WEEK_MIN_PRESENT_DAYS = 4;
-    private static final int WEEK_MIN_FLAGS = 3;
-    private static final int MONTH_MIN_WEEKLY_TICKETS = 3;
     private static final String NHA_TRE = "NHA_TRE";
     private static final String MAU_GIAO = "MAU_GIAO";
     private static final String TOAN_TRUONG = "TOAN_TRUONG";
@@ -68,7 +64,7 @@ public class QualityReportServiceImpl implements QualityReportService {
     private final EnrollmentService enrollmentService;
     private final AttendanceService attendanceService;
     private final AgeGroupService ageGroupService;
-    private final DailyObservationRepository observationRepository;
+    private final BehaviourTicketRepository ticketRepository;
 
     @Override
     public QualityReportResponse getReport(CurrentUser currentUser, Long schoolYearId, YearMonth month, Long campusId) {
@@ -76,19 +72,30 @@ public class QualityReportServiceImpl implements QualityReportService {
                 LOG_PREFIX + "|getReport|userId=" + currentUser.userId() + "|month=" + month + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!rules.isLeader(currentUser)) {
+            boolean leader = rules.isLeader(currentUser);
+            if (!leader && !currentUser.hasRole(CareNestRole.TEACHER)) {
                 throw GlobalException.of(ApiCode.QUALITY_REPORT_FORBIDDEN);
             }
-            if (campusId != null && !rules.leadsCampus(currentUser, campusId)) {
+            if (leader && campusId != null && !rules.readsCampus(currentUser, campusId)) {
                 throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
             }
             LocalDate today = rules.today();
-            // PHT chỉ lớp điểm trường mình, HT toàn trường (AUTH-01, AUTH-02)
+            // HT, PHT mọi điểm trường (AUTH-20); GV lớp mình dạy, tổ trưởng thêm các lớp nhóm tuổi mình (Cần chốt
+            // 03/11)
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.leadsCampus(currentUser, c.campusId()))
+                    .filter(c -> leader
+                            ? rules.readsCampus(currentUser, c.campusId())
+                            : rules.canRecord(currentUser, c)
+                                    || rules.taughtClosedYear(currentUser, c)
+                                    || ledGroups.contains(c.ageGroupId()))
                     .sorted(Comparator.comparing(ClassroomInfoResponse::campusId)
                             .thenComparing(ClassroomInfoResponse::name))
                     .toList();
+            // GV, tổ trưởng lọc điểm trường: chỉ điểm trường có lớp mình được xem (không cấp thêm lớp nào)
+            if (!leader && campusId != null && scoped.stream().noneMatch(c -> campusId.equals(c.campusId()))) {
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
+            }
             if (scoped.isEmpty()) {
                 YearMonth m = month != null ? month : YearMonth.from(today);
                 checkNotFuture(m, today);
@@ -101,7 +108,11 @@ public class QualityReportServiceImpl implements QualityReportService {
             LocalDate dataEnd = today.isBefore(yearEnd) ? today : yearEnd;
             YearMonth firstMonth = YearMonth.from(yearStart);
             YearMonth lastMonth = dataEnd.isBefore(yearStart) ? firstMonth : YearMonth.from(dataEnd);
-            YearMonth m = month != null ? month : lastMonth;
+            // Mặc định tháng đã kết thúc gần nhất (tháng đang dở còn thiếu số liệu); đầu năm học thì tháng đầu
+            boolean lastOpen = !dataEnd.isBefore(yearStart) && dataEnd.isBefore(lastMonth.atEndOfMonth());
+            YearMonth m = month != null
+                    ? month
+                    : lastOpen && lastMonth.isAfter(firstMonth) ? lastMonth.minusMonths(1) : lastMonth;
             checkNotFuture(m, today);
             if (m.isBefore(firstMonth) || m.isAfter(YearMonth.from(yearEnd))) {
                 throw GlobalException.of(
@@ -132,11 +143,30 @@ public class QualityReportServiceImpl implements QualityReportService {
                                     yearStart,
                                     dataEnd)
                             .stream()
-                            .filter(d -> ObservationDayRules.isSchoolDay(d.date()))
+                            .filter(d -> rules.isSchoolDay(d.date()))
                             .collect(Collectors.groupingBy(ClassChildDay::classroomId));
-            List<QualityRow> rows = visible.stream()
-                    .map(c -> rowOf(c, m, months, days.getOrDefault(c.id(), List.of()), today, ageFrom))
+            Map<Long, List<BehaviourTicket>> ticketsByClass = visible.isEmpty()
+                    ? Map.of()
+                    : ticketRepository
+                            .findByClassroomIdInAndPeriodStartBetween(
+                                    visible.stream()
+                                            .map(ClassroomInfoResponse::id)
+                                            .toList(),
+                                    m.atDay(1),
+                                    m.atEndOfMonth())
+                            .stream()
+                            .collect(Collectors.groupingBy(BehaviourTicket::getClassroomId));
+            List<ClassResult> results = visible.stream()
+                    .map(c -> rowOf(
+                            c,
+                            m,
+                            months,
+                            days.getOrDefault(c.id(), List.of()),
+                            ticketsByClass.getOrDefault(c.id(), List.of()),
+                            today,
+                            ageFrom))
                     .toList();
+            List<QualityRow> rows = results.stream().map(ClassResult::row).toList();
             QualityReportResponse response = new QualityReportResponse(
                     m.format(MONTH_KEY),
                     m.atDay(1),
@@ -147,7 +177,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                             .distinct()
                             .toList(),
                     rows,
-                    totalsOf(rows, months));
+                    // Dòng tổng khối / toàn trường chỉ cho BGH
+                    leader ? totalsOf(results, months) : List.of());
             log.info("{}|classes={}|END", logPrefix, rows.size());
             return response;
         } catch (RuntimeException ex) {
@@ -162,27 +193,44 @@ public class QualityReportServiceImpl implements QualityReportService {
         }
     }
 
-    // Ngày học của lớp = thứ 2–6 có điểm danh; trẻ ra lớp bình quân = tổng lượt có mặt / số ngày học (làm tròn)
-    private QualityRow rowOf(
+    /** Dòng của lớp kèm id trẻ theo từng chỉ số, để dòng tổng đếm mỗi trẻ một lần (trẻ chuyển lớp trong tháng). */
+    private record ClassResult(
+            QualityRow row,
+            Set<Long> children,
+            Set<Long> left,
+            Set<Long> meal,
+            Set<Long> diligent,
+            Set<Long> good,
+            Set<Long> allRound) {}
+
+    // Ngày học = ngày học theo lịch năm học (thứ 2–6 trừ ngày nghỉ HT cấu hình), tới hôm nay; ngày GV quên điểm danh
+    // vẫn
+    // tính (Cần chốt 04/11/2026). Trẻ ra lớp bình quân = tổng lượt có mặt / số ngày học (làm tròn).
+    // OBS-23: trẻ vào/nghỉ trong tháng vẫn thuộc danh sách tháng đó; ngày phải đi chỉ tính lúc trẻ thuộc lớp
+    private ClassResult rowOf(
             ClassroomInfoResponse cls,
             YearMonth month,
             List<YearMonth> months,
             List<ClassChildDay> classDays,
+            List<BehaviourTicket> tickets,
             LocalDate today,
             Map<Long, Integer> ageFrom) {
         Map<YearMonth, Set<LocalDate>> schoolDays = new HashMap<>();
+        for (YearMonth ym : months) {
+            schoolDays.put(ym, calendarDays(cls, ym, today));
+        }
+        schoolDays.computeIfAbsent(month, ym -> calendarDays(cls, ym, today));
+        Set<LocalDate> recorded = new HashSet<>();
         Map<YearMonth, Integer> presentByMonth = new HashMap<>();
-        Set<String> present = new HashSet<>();
         Map<Long, Integer> childPresent = new HashMap<>();
         Set<Long> lunch = new HashSet<>();
         for (ClassChildDay d : classDays) {
             YearMonth ym = YearMonth.from(d.date());
-            schoolDays.computeIfAbsent(ym, k -> new TreeSet<>()).add(d.date());
+            recorded.add(d.date());
             if (d.status() != AttendanceStatus.PRESENT) {
                 continue;
             }
             presentByMonth.merge(ym, 1, Integer::sum);
-            present.add(d.childId() + "|" + d.date());
             if (ym.equals(month)) {
                 childPresent.merge(d.childId(), 1, Integer::sum);
                 // Bán trú: có ăn bữa trưa ở trường ít nhất 1 ngày trong tháng
@@ -209,28 +257,40 @@ public class QualityReportServiceImpl implements QualityReportService {
         if (anchor.isAfter(cls.yearEnd())) {
             anchor = cls.yearEnd();
         }
-        List<ClassChildResponse> children = anchor.isBefore(rosterFrom)
+        List<EnrollmentService.ClassStay> stays = anchor.isBefore(rosterFrom)
                 ? List.of()
-                : enrollmentService.findChildrenInClassroomDuring(cls.id(), rosterFrom, anchor);
-        int sd = schoolDays.getOrDefault(month, Set.of()).size();
+                : enrollmentService.findStaysInClassroom(cls.id(), rosterFrom, anchor);
+        Set<Long> children = stays.stream()
+                .map(EnrollmentService.ClassStay::childId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<LocalDate> monthDays = schoolDays.getOrDefault(month, Set.of());
+        int sd = monthDays.size();
+        // Ngày phải đi của từng trẻ = ngày học của lớp trong tháng mà trẻ đang thuộc lớp
+        Map<Long, Integer> expected = new HashMap<>();
+        for (LocalDate day : monthDays) {
+            stays.stream()
+                    .filter(st -> st.covers(day))
+                    .map(EnrollmentService.ClassStay::childId)
+                    .distinct()
+                    .forEach(id -> expected.merge(id, 1, Integer::sum));
+        }
         int presentDays = children.stream()
-                .mapToInt(c -> childPresent.getOrDefault(c.id(), 0))
+                .mapToInt(id -> childPresent.getOrDefault(id, 0))
                 .sum();
-        int possibleDays = children.size() * sd;
-        int meal = (int) children.stream().filter(c -> lunch.contains(c.id())).count();
-        int diligent = sd == 0
-                ? 0
-                : (int) children.stream()
-                        .filter(c -> childPresent.getOrDefault(c.id(), 0) * 100 >= DILIGENT_PERCENT * sd)
-                        .count();
-        Map<Long, Integer> weeklyTickets = weeklyTickets(children, month, today, present);
-        int good = (int) weeklyTickets.values().stream().filter(n -> n >= 1).count();
-        int allRound = (int) weeklyTickets.values().stream()
-                .filter(n -> n >= MONTH_MIN_WEEKLY_TICKETS)
-                .count();
+        int possibleDays =
+                children.stream().mapToInt(id -> expected.getOrDefault(id, 0)).sum();
+        Set<Long> left = leftDuring(cls, month, today);
+        Set<Long> meal = children.stream().filter(lunch::contains).collect(Collectors.toSet());
+        Set<Long> diligent = children.stream()
+                .filter(id -> expected.getOrDefault(id, 0) > 0
+                        && childPresent.getOrDefault(id, 0) * 100 >= DILIGENT_PERCENT * expected.get(id))
+                .collect(Collectors.toSet());
+        // OBS-23: Bé ngoan = trẻ được GV phát phiếu tuần trong tháng; Bé ngoan toàn diện = trẻ được phát phiếu tháng
+        Set<Long> good = issuedTo(tickets, TicketType.WEEKLY, children);
+        Set<Long> allRound = issuedTo(tickets, TicketType.MONTHLY, children);
         Integer from = cls.ageGroupId() == null ? null : ageFrom.get(cls.ageGroupId());
         int n = children.size();
-        return new QualityRow(
+        QualityRow row = new QualityRow(
                 cls.id(),
                 cls.name(),
                 cls.campusId(),
@@ -242,81 +302,97 @@ public class QualityReportServiceImpl implements QualityReportService {
                 presentDays,
                 possibleDays,
                 percent(presentDays, possibleDays),
-                meal,
-                percent(meal, n),
-                diligent,
-                percent(diligent, n),
-                good,
-                percent(good, n),
-                allRound,
-                percent(allRound, n),
-                avgByMonth);
+                left.size(),
+                percent(left.size(), n),
+                meal.size(),
+                percent(meal.size(), n),
+                diligent.size(),
+                percent(diligent.size(), n),
+                good.size(),
+                percent(good.size(), n),
+                allRound.size(),
+                percent(allRound.size(), n),
+                avgByMonth,
+                // Chỉ nhắc ngày lớp có trẻ đang học mà chưa điểm danh
+                monthDays.stream()
+                        .filter(day -> day.isBefore(today)
+                                && !recorded.contains(day)
+                                && stays.stream().anyMatch(st -> st.covers(day)))
+                        .sorted()
+                        .toList());
+        return new ClassResult(row, children, left, meal, diligent, good, allRound);
     }
 
-    /** Số tuần đủ phiếu Bé ngoan của từng trẻ, các tuần có thứ Hai nằm trong tháng. */
-    private Map<Long, Integer> weeklyTickets(
-            List<ClassChildResponse> children, YearMonth month, LocalDate today, Set<String> present) {
-        Map<Long, Integer> result = new HashMap<>();
-        children.forEach(c -> result.put(c.id(), 0));
-        LocalDate firstMonday = month.atDay(1).with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
-        LocalDate monthEnd = month.atEndOfMonth();
-        if (children.isEmpty() || firstMonday.isAfter(monthEnd) || firstMonday.isAfter(today)) {
-            return result;
+    // Ngày học của tháng theo lịch năm học của lớp (trừ cuối tuần, ngày nghỉ cấu hình), không quá hôm nay
+    private Set<LocalDate> calendarDays(ClassroomInfoResponse cls, YearMonth month, LocalDate today) {
+        LocalDate from = month.atDay(1).isBefore(cls.yearStart()) ? cls.yearStart() : month.atDay(1);
+        LocalDate to = month.atEndOfMonth();
+        if (to.isAfter(today)) {
+            to = today;
         }
-        LocalDate lastFriday = monthEnd.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
-                .plusDays(4);
-        Set<String> flags = observationRepository
-                .findByChildIdInAndDateBetween(
-                        children.stream().map(ClassChildResponse::id).toList(), firstMonday, lastFriday)
-                .stream()
-                .filter(o -> Boolean.TRUE.equals(o.getFlag()))
-                .map(o -> o.getChildId() + "|" + o.getDate())
-                .collect(Collectors.toSet());
-        for (ClassChildResponse c : children) {
-            int tickets = 0;
-            for (LocalDate monday = firstMonday; !monday.isAfter(monthEnd); monday = monday.plusDays(7)) {
-                int p = 0;
-                int f = 0;
-                for (int i = 0; i < 5; i++) {
-                    String key = c.id() + "|" + monday.plusDays(i);
-                    if (present.contains(key)) {
-                        p++;
-                        if (flags.contains(key)) {
-                            f++;
-                        }
-                    }
-                }
-                if (p >= WEEK_MIN_PRESENT_DAYS && f >= WEEK_MIN_FLAGS) {
-                    tickets++;
-                }
+        if (to.isAfter(cls.yearEnd())) {
+            to = cls.yearEnd();
+        }
+        Set<LocalDate> days = new TreeSet<>();
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if (rules.isSchoolDay(d)) {
+                days.add(d);
             }
-            result.put(c.id(), tickets);
         }
-        return result;
+        return days;
     }
 
-    private static List<QualityTotal> totalsOf(List<QualityRow> rows, List<YearMonth> months) {
-        if (rows.isEmpty()) {
+    // OBS-23: trẻ ra lớp = trẻ có ngày cuối ở lớp rơi vào tháng (thôi học hoặc chuyển lớp) và ngày đó đã qua; kết thúc
+    // vì hết năm học không tính, quay lại lớp ngay hôm sau cũng không tính
+    private Set<Long> leftDuring(ClassroomInfoResponse cls, YearMonth month, LocalDate today) {
+        LocalDate from = month.atDay(1).isBefore(cls.yearStart()) ? cls.yearStart() : month.atDay(1);
+        LocalDate dayAfter = month.atEndOfMonth().plusDays(1);
+        LocalDate to = dayAfter.isAfter(cls.yearEnd()) ? cls.yearEnd() : dayAfter;
+        if (to.isBefore(from)) {
+            return Set.of();
+        }
+        List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
+        return stays.stream()
+                .filter(st -> st.to().isBefore(to) && st.to().isBefore(today))
+                .filter(st -> stays.stream()
+                        .noneMatch(o -> o.childId().equals(st.childId())
+                                && o.from().equals(st.to().plusDays(1))))
+                .map(EnrollmentService.ClassStay::childId)
+                .collect(Collectors.toSet());
+    }
+
+    private static Set<Long> issuedTo(List<BehaviourTicket> tickets, TicketType type, Set<Long> children) {
+        return tickets.stream()
+                .filter(t -> t.getType() == type && children.contains(t.getChildId()))
+                .map(BehaviourTicket::getChildId)
+                .collect(Collectors.toSet());
+    }
+
+    private static List<QualityTotal> totalsOf(List<ClassResult> results, List<YearMonth> months) {
+        if (results.isEmpty()) {
             return List.of();
         }
         List<QualityTotal> totals = new ArrayList<>();
         for (String level : List.of(NHA_TRE, MAU_GIAO)) {
-            List<QualityRow> group =
-                    rows.stream().filter(r -> level.equals(r.level())).toList();
+            List<ClassResult> group =
+                    results.stream().filter(r -> level.equals(r.row().level())).toList();
             if (!group.isEmpty()) {
                 totals.add(totalOf(level, group, months));
             }
         }
-        totals.add(totalOf(TOAN_TRUONG, rows, months));
+        totals.add(totalOf(TOAN_TRUONG, results, months));
         return totals;
     }
 
-    private static QualityTotal totalOf(String level, List<QualityRow> rows, List<YearMonth> months) {
-        int children = sum(rows, QualityRow::children);
-        int meal = sum(rows, QualityRow::mealChildren);
-        int diligent = sum(rows, QualityRow::diligentChildren);
-        int good = sum(rows, QualityRow::goodChildren);
-        int allRound = sum(rows, QualityRow::allRoundChildren);
+    // Số trẻ của dòng tổng đếm mỗi trẻ một lần dù trẻ chuyển lớp trong tháng; lượt có mặt vẫn cộng theo lớp
+    private static QualityTotal totalOf(String level, List<ClassResult> results, List<YearMonth> months) {
+        List<QualityRow> rows = results.stream().map(ClassResult::row).toList();
+        int children = distinct(results, ClassResult::children);
+        int left = distinct(results, ClassResult::left);
+        int meal = distinct(results, ClassResult::meal);
+        int diligent = distinct(results, ClassResult::diligent);
+        int good = distinct(results, ClassResult::good);
+        int allRound = distinct(results, ClassResult::allRound);
         Map<String, Integer> byMonth = new LinkedHashMap<>();
         for (YearMonth ym : months) {
             String key = ym.format(MONTH_KEY);
@@ -328,6 +404,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                 children,
                 sumOrNull(rows, QualityRow::avgPresent),
                 percent(sum(rows, QualityRow::presentDays), sum(rows, QualityRow::possibleDays)),
+                left,
+                percent(left, children),
                 meal,
                 percent(meal, children),
                 diligent,
@@ -337,6 +415,11 @@ public class QualityReportServiceImpl implements QualityReportService {
                 allRound,
                 percent(allRound, children),
                 byMonth);
+    }
+
+    private static int distinct(List<ClassResult> results, Function<ClassResult, Set<Long>> ids) {
+        return (int)
+                results.stream().flatMap(r -> ids.apply(r).stream()).distinct().count();
     }
 
     private static int sum(List<QualityRow> rows, ToIntFunction<QualityRow> value) {

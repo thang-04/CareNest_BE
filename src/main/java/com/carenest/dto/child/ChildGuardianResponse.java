@@ -15,4 +15,19 @@ public record ChildGuardianResponse(
         GuardianAccountStatus accountStatus,
         SmsStatus smsStatus,
         Instant smsAt,
-        String photoUrl) {}
+        String photoUrl,
+        Long id,
+        boolean accountRecipient) {
+    public ChildGuardianResponse(
+            String fullName,
+            GuardianRelationship relation,
+            String phone,
+            String idNumber,
+            String email,
+            GuardianAccountStatus accountStatus,
+            SmsStatus smsStatus,
+            Instant smsAt,
+            String photoUrl) {
+        this(fullName, relation, phone, idNumber, email, accountStatus, smsStatus, smsAt, photoUrl, null, false);
+    }
+}

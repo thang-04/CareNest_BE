@@ -331,7 +331,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             int linked = 0;
             for (GuardianDraft g : draft.guardians()) {
                 Long userId = accountIdByPosition.get(g.position());
-                childGuardianRepository.save(ChildGuardian.create(
+                ChildGuardian savedGuardian = ChildGuardian.create(
                         childId,
                         g.position(),
                         g.fullName(),
@@ -339,7 +339,9 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                         g.phone(),
                         g.citizenId(),
                         g.email(),
-                        userId));
+                        userId);
+                savedGuardian.selectAccountRecipient(g.accountRecipient());
+                childGuardianRepository.save(savedGuardian);
                 // Liên kết là nguồn scope của phụ huynh (AUTH-04)
                 if (userId != null) {
                     guardianChildLinkService.createLink(userId, childId, g.relationship());
@@ -589,6 +591,105 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                 .collect(Collectors.groupingBy(Enrollment::getClassroomId, Collectors.counting()));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<Long> findRecipientAccountId(Long childId) {
+        String logPrefix = LOG_PREFIX + "|findRecipientAccountId|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<Long> result = childGuardianRepository.findAllByChildIdOrderByPositionAsc(childId).stream()
+                    .filter(ChildGuardian::isAccountRecipient)
+                    .map(ChildGuardian::getUserId)
+                    .filter(java.util.Objects::nonNull)
+                    .findFirst();
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChildGuardianResponse> accountCandidates(Long childId) {
+        String logPrefix = LOG_PREFIX + "|accountCandidates|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildGuardianResponse> result = guardiansOf(childId);
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void selectAccountRecipient(Long childId, Long guardianId, Long actorUserId) {
+        String logPrefix = LOG_PREFIX + "|selectAccountRecipient|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildGuardian> rows = childGuardianRepository.lockByChildId(childId);
+            ChildGuardian chosen = rows.stream()
+                    .filter(g -> g.getId().equals(guardianId))
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.of(ApiCode.INVALID_REQUEST_DATA));
+            if (rows.stream()
+                    .anyMatch(g -> g.isAccountRecipient()
+                            && g.getUserId() != null
+                            && !g.getId().equals(guardianId))) {
+                throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+            }
+            ChildGuardian previous = rows.stream()
+                    .filter(ChildGuardian::isAccountRecipient)
+                    .findFirst()
+                    .orElse(null);
+            if (previous != null && previous.getId().equals(guardianId)) {
+                log.info("{}|END", logPrefix);
+                return;
+            }
+            rows.forEach(g -> g.selectAccountRecipient(false));
+            childGuardianRepository.flush();
+            chosen.selectAccountRecipient(true);
+            childHistoryRepository.save(ChildHistory.record(
+                    childId,
+                    ChildHistoryAction.UPDATED,
+                    actorUserId,
+                    "Chọn phụ huynh nhận tài khoản: " + chosen.getFullName(),
+                    clock.instant()));
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void linkAccountRecipient(Long childId, Long guardianId, Long userId) {
+        String logPrefix = LOG_PREFIX + "|linkAccountRecipient|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            ChildGuardian chosen = childGuardianRepository.lockByChildId(childId).stream()
+                    .filter(g -> g.isAccountRecipient() && g.getId().equals(guardianId))
+                    .findFirst()
+                    .orElseThrow(() -> GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT));
+            if (chosen.getUserId() != null && !chosen.getUserId().equals(userId)) {
+                throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+            }
+            if (!guardianChildLinkService.isGuardianOf(userId, childId)) {
+                guardianChildLinkService.createLink(userId, childId, chosen.getRelationship());
+            }
+            chosen.linkAccount(userId);
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private List<ChildGuardianResponse> guardiansOf(Long childId) {
         Map<Long, ChildGuardianRepository.GuardianAccountRow> accounts =
                 childGuardianRepository.findAccountRows(childId).stream()
@@ -611,7 +712,9 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                                     : GuardianAccountStatus.valueOf(accountStatus),
                             smsStatus == null ? null : SmsStatus.valueOf(smsStatus),
                             smsAt == null ? null : Instant.ofEpochMilli(smsAt),
-                            guardianPhotoUrl(g));
+                            guardianPhotoUrl(g),
+                            g.getId(),
+                            g.isAccountRecipient());
                 })
                 .toList();
     }

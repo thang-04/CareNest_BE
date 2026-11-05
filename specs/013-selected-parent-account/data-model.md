@@ -1,0 +1,4 @@
+# Data model — 013
+New child_guardians.account_recipient boolean default false/not null; partial unique(child_id) where true. Existing exactly-one guardian, or exactly one linked guardian, can be selected during migration. Ambiguous records remain unselected with old links intact. Application requires exactly one recipient in new enrollment; singleton legacy requests auto-select.
+
+Request guardians[].accountRecipient nullable boolean (absent supported for singleton). Persist stable guardian id; response includes id/flag. Recipient selection and child changes share transaction. Account operations lock child/recipient state so select and activate cannot race. Changing selection never moves photos or revokes global accounts. After account linkage, changing the recipient is a deliberate separate management action, not implicit activation.

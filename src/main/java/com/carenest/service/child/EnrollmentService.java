@@ -21,6 +21,22 @@ public interface EnrollmentService {
     /** Trẻ có lịch sử học lớp trong kỳ; caller đã kiểm quyền lớp. */
     List<ClassChildResponse> findChildrenInClassroomDuring(Long classroomId, LocalDate from, LocalDate to);
 
+    /** Một đoạn trẻ học lớp, đã cắt trong kỳ from..to (2 đầu tính cả). */
+    record ClassStay(Long childId, LocalDate from, LocalDate to) {
+        public boolean covers(LocalDate date) {
+            return !date.isBefore(from) && !date.isAfter(to);
+        }
+    }
+
+    /** Các đoạn học lớp trong kỳ của mọi trẻ (1 trẻ có thể nhiều đoạn); caller đã kiểm quyền lớp. */
+    List<ClassStay> findStaysInClassroom(Long classroomId, LocalDate from, LocalDate to);
+
+    /** Một đoạn học của trẻ ở một lớp, đã cắt trong kỳ from..to. */
+    record ChildClassStay(Long classroomId, LocalDate from, LocalDate to) {}
+
+    /** Các lớp trẻ đã học trong kỳ, sắp theo ngày vào lớp; caller đã kiểm quyền trẻ. */
+    List<ChildClassStay> findChildStays(Long childId, LocalDate from, LocalDate to);
+
     /** childId → lớp đang học tại date (bản ghi mới nhất nếu nhiều); trẻ không có lớp không có trong map. */
     Map<Long, Long> findActiveClassroomIdByChildIds(Collection<Long> childIds, LocalDate date);
 }

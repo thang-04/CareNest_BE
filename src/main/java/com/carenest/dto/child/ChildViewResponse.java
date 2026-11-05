@@ -61,7 +61,9 @@ public record ChildViewResponse(
                                 null,
                                 null,
                                 null,
-                                g.photoUrl()))
+                                g.photoUrl(),
+                                g.id(),
+                                g.accountRecipient()))
                         .toList(),
                 history,
                 photoUrl);
