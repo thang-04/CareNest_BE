@@ -7893,6 +7893,10 @@ components:
           format: int64
         className:
           type: string
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyHealthContact"
         date:
           type: string
           format: date
@@ -7900,6 +7904,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DailyHealthEntryResponse"
+        handedOverAt:
+          type: string
+          format: date-time
     ChildEnrollmentResponse:
       type: object
       properties:
@@ -9119,6 +9126,23 @@ components:
           format: time-local
         year:
           $ref: "#/components/schemas/Year"
+    DailyHealthContact:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        relationship:
+          type: string
+          enum:
+          - FATHER
+          - MOTHER
+          - GRANDFATHER
+          - GRANDMOTHER
+          - SIBLING
+          - GUARDIAN
+          - OTHER
     DailyHealthEntryResponse:
       type: object
       properties:
