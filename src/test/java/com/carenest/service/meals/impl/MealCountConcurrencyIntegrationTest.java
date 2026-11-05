@@ -74,8 +74,8 @@ class MealCountConcurrencyIntegrationTest {
         var tx = new TransactionTemplate(manager);
         long countId = tx.execute(s -> {
             var c = MealCount.aggregate(campus, year, date, MealSession.LUNCH, Instant.now());
-            c.addLine(a, 2, 0, 0, 2);
-            c.addLine(b, 2, 0, 0, 2);
+            c.addLine(a, 2, 0, 0, 2, 0);
+            c.addLine(b, 2, 0, 0, 2, 0);
             c.confirm(recorder, StaffRole.PRINCIPAL, Instant.now());
             em.persist(c);
             em.flush();

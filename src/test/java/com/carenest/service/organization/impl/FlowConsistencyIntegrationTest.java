@@ -136,6 +136,59 @@ class FlowConsistencyIntegrationTest {
                 .isEqualTo(LocalDate.of(2027, 5, 1));
     }
 
+    @Autowired
+    private com.carenest.service.organization.YearSetupService yearSetup;
+
+    @Test
+    void changingYearDatesMovesYearBoundAssignments() {
+        var year = nextYear();
+        long campus = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-R', 'R', TRUE) RETURNING id");
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long cls = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campus
+                + ", " + year + ", 'Lớp R', " + ag3 + ") RETURNING id");
+        long teacher = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-t-r', 't.r', 'GV R') RETURNING id");
+        long teacherRow = insertId(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from," + " valid_to) VALUES ("
+                        + teacher + ", 'TEACHER', " + cls + ", '2027-09-05', '2028-05-31') RETURNING id");
+        long leaderRow = insertId("INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id,"
+                + " valid_from, valid_to) VALUES (" + teacher + ", 'AGE_GROUP_TEAM_LEADER', " + ag3 + ", " + year
+                + ", '2027-09-05', '2028-05-31') RETURNING id");
+        // GV nghỉ giữa năm: không bị kéo dài theo ngày cuối năm mới
+        long leftRow = insertId(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from," + " valid_to) VALUES ("
+                        + teacher + ", 'TEACHER', " + cls + ", '2027-09-05', '2027-12-31') RETURNING id");
+
+        service.updateSchoolYear(
+                principal,
+                year,
+                new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 1), LocalDate.of(2028, 6, 15)));
+
+        for (long id : new long[] {teacherRow, leaderRow}) {
+            assertThat(jdbc.queryForObject(
+                            "SELECT valid_from || '..' || valid_to FROM staff_assignments WHERE id = ?",
+                            String.class,
+                            id))
+                    .isEqualTo("2027-09-01..2028-06-15");
+        }
+        assertThat(jdbc.queryForObject(
+                        "SELECT valid_from || '..' || valid_to FROM staff_assignments WHERE id = ?",
+                        String.class,
+                        leftRow))
+                .isEqualTo("2027-09-01..2027-12-31");
+    }
+
+    @Test
+    void stoppedCampusDoesNotNeedViceprincipalForNewYear() {
+        var year = nextYear();
+        long active = insertId("INSERT INTO campuses (code, name, short_name, is_main) VALUES ('CS-V', 'V', 'V', TRUE)"
+                + " RETURNING id");
+        insertId("INSERT INTO campuses (code, name, short_name, is_main, status) VALUES ('CS-X', 'X', 'X', FALSE,"
+                + " 'INACTIVE') RETURNING id");
+
+        assertThat(yearSetup.getYearSetup(year).campusesWithoutVicePrincipal()).containsExactly(active);
+    }
+
     private long nextYear() {
         return insertId(
                 "INSERT INTO school_years(name,start_date,end_date,status) VALUES ('2027-2028','2027-09-05','2028-05-31','PLANNED') RETURNING id");

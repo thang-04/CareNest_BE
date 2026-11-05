@@ -1,15 +1,18 @@
 package com.carenest.service.observation.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.carenest.dto.observation.ClassAssessmentDetailResponse;
 import com.carenest.dto.observation.TicketDtos.TicketSummaryRow;
 import com.carenest.dto.organization.ClassroomInfoResponse;
+import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.BehaviourTicketService;
 import com.carenest.service.observation.ChildEvaluationService;
 import com.carenest.service.observation.ClassAssessmentOverviewService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
 import java.time.Instant;
@@ -234,6 +237,9 @@ class AssessmentHistoryIntegrationTest {
 
     @Test
     void qualityReportScopeForTeacherAndTeamLeader() {
+        // Lớp B sang điểm trường khác để thử lọc điểm trường của GV / tổ trưởng
+        long campusB = insertId("INSERT INTO campuses (code, name) VALUES ('CS-B', 'B') RETURNING id");
+        jdbc.update("UPDATE classrooms SET campus_id = ? WHERE id = ?", campusB, classB);
         long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
         long classC = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES ("
                 + campusA + ", " + year + ", 'Lớp C', " + ag4 + ") RETURNING id");
@@ -251,6 +257,16 @@ class AssessmentHistoryIntegrationTest {
         var own = qualityReportService.getReport(teacher, null, oct, null);
         assertThat(own.rows()).extracting(r -> r.classId()).containsExactly(classA);
         assertThat(own.totals()).isEmpty();
+        assertThat(qualityReportService.getReport(teacher, null, oct, campusA).rows())
+                .extracting(r -> r.classId())
+                .containsExactly(classA);
+        assertThatThrownBy(() -> qualityReportService.getReport(teacher, null, oct, campusB))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CAMPUS_ACCESS_DENIED);
+        assertThat(qualityReportService.getReport(leader, null, oct, campusB).rows())
+                .extracting(r -> r.classId())
+                .containsExactly(classB);
         // Tổ trưởng nhóm tuổi của A, B: các lớp nhóm tuổi đó + lớp mình dạy
         assertThat(qualityReportService.getReport(leader, null, oct, null).rows())
                 .extracting(r -> r.classId())

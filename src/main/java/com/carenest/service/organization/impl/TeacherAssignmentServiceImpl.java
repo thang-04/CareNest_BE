@@ -104,6 +104,8 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             SchoolYear year = findYear(classroom.getSchoolYearId());
             SchoolYearRules.checkOpen(year);
             Set<Long> teacherIds = new HashSet<>(request.teacherIds());
+            // AUTH-24: tuần tự hóa với các phân công đồng thời khác của lớp / GV trước khi đọc hiện trạng
+            teacherClassRules.lockForAssignment(classroom, teacherIds);
             LocalDate start = effectiveStart(year);
             List<StaffAssignment> current =
                     staffAssignmentRepository.findCurrentTeachers(List.of(classId), schoolConfigAccess.today());
@@ -270,6 +272,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 + ageGroupId + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
+            schoolConfigAccess.checkCanViewSchool(currentUser);
             if (!ageGroupRepository.existsById(ageGroupId)) {
                 throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
             }
@@ -423,7 +426,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                         ClassroomRepository.ClassroomCount::getTotal));
         // Lớp năm sắp diễn ra chưa có trẻ đang học: hiện số trẻ đã xếp lớp (dự kiến)
         classroomRepository
-                .countPlannedChildren(ids)
+                .countPlannedChildren(ids, schoolConfigAccess.today())
                 .forEach(p -> children.merge(p.getClassroomId(), p.getTotal(), Long::sum));
         return classes.stream()
                 .map(c -> {

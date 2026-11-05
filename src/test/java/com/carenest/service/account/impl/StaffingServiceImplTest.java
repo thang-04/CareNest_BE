@@ -126,6 +126,30 @@ class StaffingServiceImplTest {
         verify(assignments).endAssignment(5L, TODAY);
     }
 
+    @Test
+    void classTeacherIsEndedOnlyThroughTeacherAssignmentScreen() {
+        given(assignments.findAssignment(6L))
+                .willReturn(Optional.of(
+                        new StaffAssignmentResponse(6L, 41L, StaffRole.TEACHER, null, 9L, TODAY, null, false)));
+        given(assignments.resolveCampusId(StaffRole.TEACHER, null, 9L)).willReturn(10L);
+
+        assertThatThrownBy(() -> service.endAssignment(VICE, 6L, TODAY))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.TEACHER_END_VIA_CLASS);
+    }
+
+    @Test
+    void assignmentCannotBeEndedBackIntoThePast() {
+        given(assignments.findAssignment(5L))
+                .willReturn(Optional.of(new StaffAssignmentResponse(
+                        5L, 40L, StaffRole.KITCHEN_STAFF, 10L, null, TODAY.minusYears(1), null, false)));
+        given(assignments.resolveCampusId(StaffRole.KITCHEN_STAFF, 10L, null)).willReturn(10L);
+
+        assertThatThrownBy(() -> service.endAssignment(VICE, 5L, TODAY.minusDays(10)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.ASSIGNMENT_END_IN_PAST);
+    }
+
     private void givenAccount(Long id, CareNestRole role) {
         UserAccount account = UserAccount.create("kc-" + id, "u" + id, null, "U", role);
         ReflectionTestUtils.setField(account, "id", id);

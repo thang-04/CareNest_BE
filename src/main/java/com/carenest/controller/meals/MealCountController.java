@@ -47,10 +47,14 @@ public class MealCountController {
     @PostMapping("/meal-counts/{mealCountId}/confirm")
     @PreAuthorize("@permissionGuard.has('MEAL_COUNT_CONFIRM')")
     public ResponseEntity<ResponseJson<MealCountResponse>> confirm(
-            @PathVariable Long mealCountId, CurrentUser currentUser) {
+            @PathVariable Long mealCountId,
+            // Tổng suất (thường + thay thế) các bữa của cơ sở–ngày người duyệt đang thấy; khác số hiện tại ⇒ 409
+            @RequestParam(required = false) Integer seenServings,
+            @RequestParam(required = false) Integer seenSubstitute,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|confirm|userId=" + currentUser.userId() + "|mealCountId=" + mealCountId;
         log.info("{}|START", logPrefix);
-        MealCountResponse count = mealCountService.confirm(currentUser, mealCountId);
+        MealCountResponse count = mealCountService.confirm(currentUser, mealCountId, seenServings, seenSubstitute);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Confirm meal count success", count);
     }

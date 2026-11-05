@@ -36,6 +36,8 @@ P-18 (học kỳ, trông hè), P-19 (ngày nghỉ tự khóa điểm danh). Đã
 
 ## Known pitfalls
 
+- AUTH-24: mọi đường phân công GV khóa lớp + GV-năm (advisory lock) trước khi kiểm tra một lớp chính — đã sửa, xem [phân công đồng thời](../knowledge/incidents/BUG-261104-concurrent-main-teacher-assignment.md).
+
 - Changed year bounds must include stored holidays; school-day reads use authoritative DB data without shared volatile cache. See [holiday lifecycle](../knowledge/incidents/BUG-261103-school-holiday-lifecycle.md).
 
 - Không biến School thành tenant: không thêm `school_id` vào mọi bảng; chiều phân vùng là `campus_id`.

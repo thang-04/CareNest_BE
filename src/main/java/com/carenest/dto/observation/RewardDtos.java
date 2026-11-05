@@ -69,7 +69,9 @@ public final class RewardDtos {
             List<HistoryRow> history,
             boolean canEdit,
             boolean canReview,
-            boolean canDecide) {}
+            boolean canDecide,
+            // Ngày học đã qua lớp chưa điểm danh (vẫn tính vào ngày phải đi khi xét Bé chăm)
+            List<LocalDate> unrecordedDays) {}
 
     public record RewardItemRequest(Long childId, List<String> titles, String note) {}
 

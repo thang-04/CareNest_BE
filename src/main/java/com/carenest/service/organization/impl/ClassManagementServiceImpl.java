@@ -293,7 +293,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
                 }
                 AgeGroup group = c.getAgeGroupId() == null ? null : ageGroups.get(c.getAgeGroupId());
                 if (group == null) {
-                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Age group no longer exists"));
+                    skipped.add(new CopyClassesResponse.Skipped(c.getName(), "Nhóm tuổi không còn tồn tại"));
                     continue;
                 }
                 Room room = c.getRoomId() == null ? null : rooms.get(c.getRoomId());
@@ -490,7 +490,7 @@ public class ClassManagementServiceImpl implements ClassManagementService {
     }
 
     private Map<Long, Long> plannedChildren(Collection<Long> classIds) {
-        return classroomRepository.countPlannedChildren(classIds).stream()
+        return classroomRepository.countPlannedChildren(classIds, schoolConfigAccess.today()).stream()
                 .collect(Collectors.toMap(
                         ClassroomRepository.ClassroomCount::getClassroomId,
                         ClassroomRepository.ClassroomCount::getTotal));

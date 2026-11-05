@@ -96,3 +96,10 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 - `git diff --exit-code -- docs/api/openapi.yaml`: exit 0. `node scripts/check-ai-layer.mjs`: 0 lỗi, 0 cảnh báo; E6 bỏ qua theo output công cụ.
 - Lỗi migration deferred DDL có RED/GREEN tại BUG-261029-hierarchy-deferred-ddl. Chi tiết: [quickstart feature006](../../specs/006-year-plan-goal-hierarchy/quickstart.md).
 - Chưa kiểm chứng: migration trên DB dev/production đang dùng, browser E2E Web. Không chạy migration DB thật trong task; không commit/push/tạo nhánh.
+
+
+## ChildDay sức khỏe sau trả và liên hệ — 05/11/2026
+- RED `PickupIntegrationTest.teacherHandsOverPresentChildAndParentIsNotified`: canRecord true sau trả; GREEN 3/3, POST mới vẫn 5008, nguồn liên hệ hồ sơ và scope chéo lớp được kiểm trên PostgreSQL thật.
+- `node scripts/verify.mjs` → `VERIFY PASS full | tests 1039 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 672s | log target/verify.log`.
+- Snapshot diff chỉ thêm ChildDay.contacts/handedOverAt và DailyHealthContact; không đổi request/endpoint/API code. FE adapter/panel đã map; App chưa triển khai và không sửa.
+- FE full 840 tests fail/skip 0, browser export và chuẩn hóa nhập đạt; chưa browser E2E với runtime BE khởi động lại. User chọn chờ loại nhiệt kế nên giữ dải nhập hiện tại. Không migration, commit hoặc push.

@@ -41,7 +41,9 @@ public record QualityReportResponse(
             Integer goodRate,
             int allRoundChildren,
             Integer allRoundRate,
-            Map<String, Integer> avgPresentByMonth) {}
+            Map<String, Integer> avgPresentByMonth,
+            // Ngày học (theo lịch năm học) đã qua mà lớp chưa điểm danh: vẫn tính là ngày học, nhắc GV bổ sung
+            List<LocalDate> unrecordedDays) {}
 
     /** level: NHA_TRE, MAU_GIAO hoặc TOAN_TRUONG. */
     public record QualityTotal(

@@ -85,6 +85,27 @@ class BranchFileImportTest {
     }
 
     @Test
+    @DisplayName("EDU-47: đọc đúng file xuất / file mẫu của hệ thống (Tháng, Chủ đề gộp dòng, dòng nghỉ, nhánh trống)")
+    void readsExportedBranchFile() {
+        String html = "<html><body><h1>DỰ KIẾN CÁC CHỦ ĐỀ NHÁNH</h1><table class=\"grid\">"
+                + "<thead><tr><th>Tháng</th><th>Chủ đề</th><th>Chủ đề nhánh</th><th>Số tuần</th><th>Ghi chú</th></tr></thead><tbody>"
+                + "<tr><td class=\"c\" rowspan=\"3\">12 - 1</td><td class=\"c\" rowspan=\"3\"><b>THẾ GIỚI THỰC VẬT</b></td>"
+                + "<td>- Nhánh 1: Cây xanh quanh bé</td><td>Tuần 15: 14/12/2026<br/>18/12/2026</td><td></td></tr>"
+                + "<tr><td colspan=\"3\"><i>Nghỉ Ôn tập, đánh giá cuối học kỳ I từ ngày 04/01/2027 đến hết ngày 08/01/2027</i></td></tr>"
+                + "<tr><td>- Nhánh 2: </td><td>Tuần 16: 11/01/2027<br/>15/01/2027</td><td></td></tr>"
+                + "<tr><td class=\"c\">1 - 2</td><td class=\"c\"><b>TẾT VÀ MÙA XUÂN</b></td>"
+                + "<td>- Nhánh 1: Mùa xuân của bé</td><td>Tuần 17: 18/01/2027<br/>22/01/2027</td><td></td></tr>"
+                + "</tbody></table><table class=\"plain\"><tr><td>Người duyệt kế hoạch</td></tr></table></body></html>";
+        var parsed = BranchFileTable.interpret(GoalFileGrid.read("Chồi 2.doc", html.getBytes(StandardCharsets.UTF_8)));
+        assertThat(parsed.entries())
+                .extracting(BranchFileTable.Entry::themeName, BranchFileTable.Entry::name)
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("THẾ GIỚI THỰC VẬT", "Cây xanh quanh bé"),
+                        org.assertj.core.groups.Tuple.tuple("TẾT VÀ MÙA XUÂN", "Mùa xuân của bé"));
+        assertThat(parsed.warnings()).isEmpty();
+    }
+
+    @Test
     @DisplayName("EDU-47: thiếu chủ đề báo dòng nguồn, bảng khác bị từ chối")
     void missingThemeAndWrongTable() {
         var parsed = csv("Chủ đề,Chủ đề nhánh\n,Nhánh 1: Tên lẻ\nBản thân,Nhánh 1: Bé là ai?\n");

@@ -204,7 +204,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     @Override
     @Transactional(readOnly = true)
     public List<LeaveRequestResponse> searchLeaveRequests(
-            CurrentUser currentUser, Long classId, Long campusId, LocalDate from, LocalDate to) {
+            CurrentUser currentUser, Long classId, Long campusId, LocalDate from, LocalDate to, Long schoolYearId) {
         String logPrefix = LOG_PREFIX + "|searchLeaveRequests|userId=" + currentUser.userId() + "|classId=" + classId
                 + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
@@ -214,13 +214,16 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             if (end.isBefore(start)) {
                 throw GlobalException.of(ApiCode.LEAVE_DATE_RANGE_INVALID);
             }
-            if (campusId != null && !campusAccessPolicy.canReadCampus(currentUser, campusId)) {
-                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
-            }
-            List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
+            List<ClassroomInfoResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> classId == null || c.id().equals(classId))
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
                     .toList();
+            // GV lọc điểm trường có lớp mình vẫn xem được; điểm trường không có lớp nào xem được thì chặn
+            if (campusId != null
+                    && !campusAccessPolicy.canReadCampus(currentUser, campusId)
+                    && classes.stream().noneMatch(c -> rules.canView(currentUser, c))) {
+                throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
+            }
             if (classId != null && (classes.isEmpty() || !rules.canView(currentUser, classes.getFirst()))) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
