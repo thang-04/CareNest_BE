@@ -23,6 +23,8 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 - `GET /classes/{classId}/daily-assessment?date=` (GV/PHT/HT), `PUT .../daily-assessment/general`, `PUT .../daily-assessment/skills` (GV lớp).
 - `GET|POST /assessment/day-unlocks`, `POST /assessment/day-unlocks/{id}/revoke` (PHT/HT).
 - `GET /assessment/overview?period=DAY|WEEK|MONTH`, `GET /assessment/overview/classes/{classId}` (PHT/HT).
+- `GET /assessment/theme-evaluations/classes?schoolYearId` (lớp mọi nhóm tuổi trong phạm vi xem, cờ `teaches`), `GET /assessment/theme-evaluations/themes?classId`, `GET|PUT /assessment/theme-evaluations`, `POST .../confirm` — đánh giá cuối chủ đề mọi nhóm tuổi (OBS-27), bảng `theme_evaluations` (V75, V76 khóa theo dòng gốc chủ đề); chủ đề/MT đọc từ kế hoạch năm học đã duyệt bằng truy vấn chỉ đọc trong `ThemeEvaluationRepository` (không gọi code module kế hoạch giáo dục ngoài `EduLessonQueryService.findGoalLineages`).
+- `GET|PUT /assessment/evaluations/{id}/year-sheet` — phiếu đánh giá sự phát triển cuối năm (OBS-28) gắn vào đánh giá cuối năm: MT kế hoạch năm theo lĩnh vực (`ThemeEvaluationRepository.findYearGoals`), kết quả tổng hợp từ cuối chủ đề (`ThemeEvaluationService.childThemeResults`), số đo từ `HealthMeasurementService.findLatestMeasurement`; cột `child_evaluations.goal_results`, `note_for_*` (V79); xác nhận đánh giá cuối năm gọi `YearEndSheetService.freeze`.
 - `GET|PUT /assessment/class-monthly-comments`, `POST .../confirm` — nhận xét chung cả lớp theo tháng, bảng `class_monthly_comments` (V72), OBS-26.
 - `GET /assessment/class-ratings?period=SEMESTER_1|SEMESTER_2|YEAR` (HT/PHT/GV), `PUT /assessment/class-ratings` (HT; PHT lớp điểm trường mình) — xếp loại nhóm lớp, bảng `class_ratings` (V69), OBS-24.
 - Đánh giá học kỳ `periodType=SEMESTER` (V68); `SemesterEvaluationUsageImpl` cài `organization.SemesterUsageCheck` để khóa ngày học kỳ đã có đánh giá (OBS-25).
@@ -34,6 +36,8 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng enum theo danh sách FE đã chốt với Cần, lệch OBS-02 cho tới khi có màn cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
 
 ## Known pitfalls
+
+- OBS-28: freeze chốt cả kết quả và metadata MT (số, câu, lĩnh vực) — đã sửa, xem [lỗi phiếu cuối năm](../knowledge/incidents/BUG-261104-confirmed-year-sheet-live-goals.md). Khi client lưu/tải lại phiếu, cần giữ hoặc khóa nháp trong lúc chờ để tránh mất nội dung.
 
 - Class-comment get/save/confirm must validate the month intersects the class year, including partial boundary months. See [month scope](../knowledge/incidents/BUG-261103-class-comment-month-scope.md).
 

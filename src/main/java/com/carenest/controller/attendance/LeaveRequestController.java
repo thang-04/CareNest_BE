@@ -72,12 +72,14 @@ public class LeaveRequestController {
             @RequestParam(required = false) Long campusId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            // Năm học chọn ở đầu trang (null = năm đang hoạt động): xem lại đơn của năm cũ
+            @RequestParam(required = false) Long schoolYearId,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|searchLeaveRequests|userId=" + currentUser.userId() + "|classId=" + classId
                 + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         List<LeaveRequestResponse> leaves =
-                leaveRequestService.searchLeaveRequests(currentUser, classId, campusId, from, to);
+                leaveRequestService.searchLeaveRequests(currentUser, classId, campusId, from, to, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Search leave requests success", leaves);
     }

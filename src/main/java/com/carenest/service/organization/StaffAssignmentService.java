@@ -52,6 +52,9 @@ public interface StaffAssignmentService {
     /** Campus mà phân công đang hiệu lực của role đó trỏ tới (GV: campus của lớp). */
     Set<Long> findActiveCampusIds(Long userId, StaffRole staffRole, LocalDate date);
 
+    /** PHT đang phân công tại campus; không có thì HT (người xác nhận thay, NUT-02). */
+    Set<Long> findCampusConfirmerIds(Long campusId, LocalDate date);
+
     /** Người có phân công PHT, GV hoặc bếp đang hiệu lực trong các campus. */
     Set<Long> findActiveStaffUserIds(Collection<Long> campusIds, LocalDate date);
 
@@ -69,4 +72,8 @@ public interface StaffAssignmentService {
     StaffAssignmentResponse createAssignment(NewStaffAssignment assignment);
 
     StaffAssignmentResponse endAssignment(Long assignmentId, LocalDate lastDay);
+
+    /** Đổi ngày năm học: phân công theo ngày đầu / cuối năm cũ chuyển theo ngày mới, phân công vượt năm mới bị cắt. */
+    void realignYearAssignments(
+            Long schoolYearId, LocalDate oldStart, LocalDate oldEnd, LocalDate newStart, LocalDate newEnd);
 }

@@ -237,7 +237,9 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                 int noted = 0;
                 for (Map.Entry<Long, List<DailyHealthEntryResponse>> e : byChild.entrySet()) {
                     DailyHealthEntryResponse latest = e.getValue().getFirst();
-                    if (latest.observation() != HealthObservation.NOTED) {
+                    // Sức khỏe đầu ngày chỉ đo khi trẻ có mặt (Cần chốt 04/11/2026): trẻ đổi sang vắng sau khi ghi thì
+                    // không tính vào "cần chú ý"
+                    if (latest.observation() != HealthObservation.NOTED || !present.contains(e.getKey())) {
                         continue;
                     }
                     noted++;

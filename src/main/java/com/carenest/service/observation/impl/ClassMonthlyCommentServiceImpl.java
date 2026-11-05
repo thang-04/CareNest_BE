@@ -64,8 +64,15 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
                     && ended(cls, first)
                     && rules.canRecord(currentUser, cls)
                     && cls.yearStatus() == SchoolYearStatus.ACTIVE) {
-                comment = commentRepository.saveAndFlush(ClassMonthlyComment.draft(
-                        cls.id(), cls.campusId(), cls.schoolYearId(), first, draftOf(cls, first), rules.now()));
+                // Tạo bản đầu tiên tuần tự theo lớp (GET/lưu/xác nhận cùng lúc không chèn trùng tháng)
+                rules.lockClassForUpdate(cls.id());
+                comment = commentRepository
+                        .findByClassroomIdAndMonth(classId, first)
+                        .orElse(null);
+                if (comment == null) {
+                    comment = commentRepository.saveAndFlush(ClassMonthlyComment.draft(
+                            cls.id(), cls.campusId(), cls.schoolYearId(), first, draftOf(cls, first), rules.now()));
+                }
             }
             ClassMonthlyCommentResponse response = toResponse(currentUser, cls, first, comment, teacher);
             log.info("{}|END", logPrefix);
@@ -127,6 +134,7 @@ public class ClassMonthlyCommentServiceImpl implements ClassMonthlyCommentServic
         if (!ended(cls, month)) {
             throw GlobalException.of(ApiCode.CLASS_MONTHLY_COMMENT_NOT_READY);
         }
+        rules.lockClassForUpdate(cls.id());
         ClassMonthlyComment comment =
                 commentRepository.findByClassroomIdAndMonth(cls.id(), month).orElse(null);
         if (comment == null) {

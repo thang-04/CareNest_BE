@@ -49,6 +49,9 @@ public record DailySheetResponse(
             Boolean flag,
             String comment,
             boolean recorded,
+            // Đã lưu phần Hoạt động chung (ăn, ngủ, cảm xúc) / đã chấm Kiến thức kỹ năng: hai view đếm riêng
+            boolean generalRecorded,
+            boolean skillsRecorded,
             List<ActivityResult> activities) {}
 
     /** signs đang hiện; prefillSigns theo sức khỏe trong ngày (không gồm thân nhiệt); overridden = cô đã chỉnh. */

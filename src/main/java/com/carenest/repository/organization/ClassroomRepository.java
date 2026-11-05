@@ -80,13 +80,18 @@ public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
     List<ClassroomCount> countActiveChildren(
             @Param("classroomIds") Collection<Long> classroomIds, @Param("date") LocalDate date);
 
-    // Trẻ dự kiến vào lớp năm PLANNED theo bản xếp lớp (bảng class_placements thuộc module child, chỉ đọc)
+    // Trẻ dự kiến vào lớp năm PLANNED theo bản xếp lớp (bảng class_placements thuộc module child, chỉ đọc). Bản xếp chỉ
+    // còn hiệu lực khi trẻ vẫn đang học đúng lớp nguồn (như màn Xếp lớp): trẻ đã chuyển lớp / nghỉ thì không đếm
     @Query(
             value = "select p.to_classroom_id as classroomId, count(*) as total from class_placements p"
                     + " where p.to_classroom_id in :classroomIds and p.action in ('PROMOTE', 'STAY')"
+                    + " and exists (select 1 from enrollments e where e.child_id = p.child_id"
+                    + " and e.classroom_id = p.from_classroom_id and e.valid_from <= :date"
+                    + " and (e.valid_to is null or e.valid_to >= :date))"
                     + " group by p.to_classroom_id",
             nativeQuery = true)
-    List<ClassroomCount> countPlannedChildren(@Param("classroomIds") Collection<Long> classroomIds);
+    List<ClassroomCount> countPlannedChildren(
+            @Param("classroomIds") Collection<Long> classroomIds, @Param("date") LocalDate date);
 
     @Query(value = "select count(*) from enrollments where classroom_id = :classroomId", nativeQuery = true)
     long countAllEnrollments(@Param("classroomId") Long classroomId);

@@ -178,8 +178,14 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                             DMY.format(request.endDate()));
                 }
             }
+            LocalDate oldStart = schoolYear.getStartDate();
+            LocalDate oldEnd = schoolYear.getEndDate();
             schoolYear.changeInfo(name, request.startDate(), request.endDate());
             schoolYearRepository.flush();
+            // Phân công GV / tổ trưởng / PHT lưu theo ngày năm học: đổi ngày năm thì đổi theo, không để GV mất quyền
+            // lớp
+            staffAssignmentService.realignYearAssignments(
+                    schoolYearId, oldStart, oldEnd, request.startDate(), request.endDate());
             log.info("{}|END", logPrefix);
             return schoolStructureMapper.toDetailResponse(schoolYear, classCount);
         } catch (RuntimeException ex) {

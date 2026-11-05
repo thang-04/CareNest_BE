@@ -57,6 +57,18 @@ class TeacherClassRules {
         }
     }
 
+    /**
+     * Khóa trước khi đọc phân công hiện có: lớp rồi từng GV theo thứ tự id (cùng thứ tự ở mọi đường phân công nên không
+     * kẹt chéo), để hai yêu cầu đồng thời không cùng vượt kiểm tra một lớp / một GV.
+     */
+    void lockForAssignment(Classroom classroom, Collection<Long> teacherIds) {
+        staffAssignmentRepository.lockClassTeachers(classroom.getId());
+        teacherIds.stream()
+                .distinct()
+                .sorted()
+                .forEach(id -> staffAssignmentRepository.lockTeacherYear(id, classroom.getSchoolYearId()));
+    }
+
     /** AUTH-24: mỗi GV dạy chính một lớp trong năm học; phân công đánh dấu dạy thay ở lớp khác không tính. */
     void checkOneMainClass(Classroom classroom, SchoolYear year, Collection<Long> teacherIds, LocalDate today) {
         if (teacherIds.isEmpty()) {

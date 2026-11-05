@@ -76,8 +76,9 @@ class ObservationDayRules {
                 .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
     }
 
+    // Chỉ dùng cho đường đọc: PHT xem mọi điểm trường (AUTH-20); ghi qua canRecord / leadsCampus
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
-        return classroomAccessPolicy.canViewClassroom(user, cls.id()) || taughtClosedYear(user, cls);
+        return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
     /** Giáo viên xem lại (chỉ xem) lớp mình từng dạy ở năm đã kết thúc. */

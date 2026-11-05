@@ -10,7 +10,10 @@ public final class AttendanceSummaryResponse {
 
     private AttendanceSummaryResponse() {}
 
-    /** missing = trẻ chưa được điểm danh; mealTotal = số trẻ có ăn ít nhất một bữa; meals = số trẻ ăn từng bữa. */
+    /**
+     * missing = trẻ chưa được điểm danh; mealTotal = số trẻ có ăn ít nhất một bữa (lượt trẻ ăn); substitute = trong đó
+     * trẻ ăn suất thay thế (có khai dị ứng trong hồ sơ); meals = số trẻ ăn từng bữa.
+     */
     public record DayRow(
             LocalDate date,
             int present,
@@ -18,6 +21,7 @@ public final class AttendanceSummaryResponse {
             int unexcused,
             int missing,
             int mealTotal,
+            int substitute,
             Map<MealSession, Integer> meals) {}
 
     public record ChildTotal(

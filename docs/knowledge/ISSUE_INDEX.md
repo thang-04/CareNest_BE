@@ -5,6 +5,8 @@ Search đầu tiên khi gặp bug, lỗi môi trường, case lạ. Grep chuỗi
 ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường/build/deploy), dạng `<loại>-YYMMDD-<slug>` (vd. `BUG-261004-meal-count-stale`). Status: `open` | `workaround` | `fixed`.
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261104-confirmed-year-sheet-live-goals](incidents/BUG-261104-confirmed-year-sheet-live-goals.md) | learning-observation / education-plan | Confirmed sheet goal list/text changes with newest plan | Only cell results frozen; metadata queried live — nay chốt cả metadata MT | fixed |
+| [BUG-261104-concurrent-main-teacher-assignment](incidents/BUG-261104-concurrent-main-teacher-assignment.md) | school-structure | Concurrent assignments bypass one-main-class check | Read/check/insert lacks common teacher-year lock — nay khóa lớp + GV-năm | fixed |
 | [BUG-261103-meal-campus-concurrent-pending](incidents/BUG-261103-meal-campus-concurrent-pending.md) | nutrition / attendance | Concurrent class changes collide in campus pending meal lines | Only classroom locks protect shared campus aggregate | fixed |
 | [BUG-261103-school-holiday-lifecycle](incidents/BUG-261103-school-holiday-lifecycle.md) | school-structure / attendance | Year bounds and deleted holiday cache disagree | Year mutation does not revalidate or invalidate holiday data | fixed |
 | [BUG-261103-class-comment-month-scope](incidents/BUG-261103-class-comment-month-scope.md) | observation | Monthly class comment accepts outside-year month | Only ended-month check; no class-year range validation | fixed |
