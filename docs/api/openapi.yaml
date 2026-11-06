@@ -9764,6 +9764,37 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    DishIngredientLine:
+      type: object
+      properties:
+        costPerChild:
+          type: number
+        dishId:
+          type: integer
+          format: int64
+        dishName:
+          type: string
+        foodId:
+          type: integer
+          format: int64
+        foodName:
+          type: string
+        gramsPerChild:
+          type: number
+        purchasePerChild:
+          type: number
+        purchaseUnit:
+          type: string
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        unitPrice:
+          type: number
+        wastePct:
+          type: number
     DishRequest:
       type: object
       properties:
@@ -13119,6 +13150,10 @@ components:
         date:
           type: string
           format: date
+        dishIngredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/DishIngredientLine"
         dishes:
           type: array
           items:
