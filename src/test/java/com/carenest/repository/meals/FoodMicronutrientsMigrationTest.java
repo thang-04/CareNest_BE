@@ -42,7 +42,8 @@ class FoodMicronutrientsMigrationTest {
                 Long.class,
                 ageGroup);
 
-        config.target("73").load().migrate();
+        // V74__add_food_micronutrients (đổi số từ V73 khi merge với V73__create_class_monthly_comments)
+        config.target("74").load().migrate();
 
         Map<String, Object> foodRow = jdbc.queryForMap("SELECT * FROM foods WHERE id = ?", food);
         assertThat(foodRow.get("calcium")).isNull();
