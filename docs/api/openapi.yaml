@@ -14380,30 +14380,6 @@ components:
           format: int64
       required:
       - guardianId
-    RecordView:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        meals:
-          type: object
-          additionalProperties:
-            type: boolean
-        recordedAt:
-          type: string
-          format: date-time
-        recordedBy:
-          type: integer
-          format: int64
-        recordedByName:
-          type: string
-        status:
-          type: string
-          enum:
-          - PRESENT
-          - EXCUSED
-          - UNEXCUSED
     Referral:
       type: object
       properties:
@@ -15408,21 +15384,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonListClassItem:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/ClassItem"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonListChildGuardianResponse:
       type: object
       properties:
@@ -15433,6 +15394,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ChildGuardianResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListClassItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassItem"
         desc:
           type: string
         errorCode:
