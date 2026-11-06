@@ -180,7 +180,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canView(currentUser, cls)) {
+            // Tổ trưởng chuyên môn xem tổng hợp phiếu các lớp nhóm tuổi mình (AUTH-23)
+            if (!rules.canView(currentUser, cls)
+                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
             checkMonth(month, cls.yearStart(), cls.yearEnd());
@@ -431,6 +433,8 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                 .collect(Collectors.toMap(BehaviourTicket::getChildId, t -> t, (a, b) -> a));
     }
 
+    // Bằng chứng phiếu tuần đi theo trẻ (cả ngày ở lớp cũ khi chuyển lớp giữa tuần, test continuity); số cờ tổng hợp
+    // theo lớp thì ở flagCounts
     private WeekStats weekStats(Collection<Long> childIds, TicketPeriod period) {
         Set<String> present = attendanceService.findDayStatuses(childIds, period.start(), period.end()).stream()
                 .filter(s -> s.status() == AttendanceStatus.PRESENT)

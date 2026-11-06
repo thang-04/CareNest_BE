@@ -14,6 +14,7 @@ import java.util.List;
 
 /**
  * Thực phẩm: dinh dưỡng trên 100 đơn vị; giá theo đơn vị mua ({@code purchaseUnitSize} đơn vị trong một đơn vị mua).
+ * Vi chất (NUT-26, trên 100 đơn vị ăn được) tùy chọn, để trống = chưa có số liệu.
  * Nguồn dinh dưỡng và nguồn gốc (NUT-24) kiểm ở service để trả mã lỗi riêng (NUT-05). Mã để trống ⇒ hệ thống tự sinh (TP001…).
  */
 public record FoodRequest(
@@ -28,6 +29,14 @@ public record FoodRequest(
         @NotNull @DecimalMin("0") BigDecimal protein,
         @NotNull @DecimalMin("0") BigDecimal lipid,
         @NotNull @DecimalMin("0") BigDecimal glucid,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal calcium,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal phosphorus,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal iron,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal vitaminA,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal vitaminB1,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal vitaminB2,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal vitaminPp,
+        @DecimalMin("0") @DecimalMax("1000000") BigDecimal vitaminC,
         @Size(max = 200) String nutrientSource,
         @Size(max = 50) String nutrientSourceVersion,
 

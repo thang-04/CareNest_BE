@@ -224,6 +224,14 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
         checkRange("năng lượng bữa sáng", request.morningKcalPctMin(), request.morningKcalPctMax());
         checkRange("năng lượng bữa trưa", request.lunchKcalPctMin(), request.lunchKcalPctMax());
         checkRange("năng lượng bữa chiều", request.afternoonKcalPctMin(), request.afternoonKcalPctMax());
+        checkRange("canxi", request.calciumMin(), request.calciumMax());
+        checkRange("photpho", request.phosphorusMin(), request.phosphorusMax());
+        checkRange("sắt", request.ironMin(), request.ironMax());
+        checkRange("vitamin A", request.vitaminAMin(), request.vitaminAMax());
+        checkRange("vitamin B1", request.vitaminB1Min(), request.vitaminB1Max());
+        checkRange("vitamin B2", request.vitaminB2Min(), request.vitaminB2Max());
+        checkRange("vitamin PP", request.vitaminPpMin(), request.vitaminPpMax());
+        checkRange("vitamin C", request.vitaminCMin(), request.vitaminCMax());
         checkSessionShares(request);
         config.changeInfo(
                 request.effectiveFrom(),
@@ -253,7 +261,23 @@ public class AgeGroupMealConfigServiceImpl implements AgeGroupMealConfigService 
                         request.lunchKcalPctMax(),
                         request.afternoonKcalPctMin(),
                         request.afternoonKcalPctMax(),
-                        request.dailyKcalNeed()),
+                        request.dailyKcalNeed(),
+                        request.calciumMin(),
+                        request.calciumMax(),
+                        request.phosphorusMin(),
+                        request.phosphorusMax(),
+                        request.ironMin(),
+                        request.ironMax(),
+                        request.vitaminAMin(),
+                        request.vitaminAMax(),
+                        request.vitaminB1Min(),
+                        request.vitaminB1Max(),
+                        request.vitaminB2Min(),
+                        request.vitaminB2Max(),
+                        request.vitaminPpMin(),
+                        request.vitaminPpMax(),
+                        request.vitaminCMin(),
+                        request.vitaminCMax()),
                 request.normBasis() == null ? "" : request.normBasis().trim(),
                 userId);
     }

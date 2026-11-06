@@ -11,6 +11,7 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.AttendanceCutoffService;
 import com.carenest.utils.ApiCode;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
     private final AttendanceCutoffRepository attendanceCutoffRepository;
     private final SchoolYearRepository schoolYearRepository;
     private final SchoolConfigAccess schoolConfigAccess;
+    private final Clock clock;
 
     @Override
     @Transactional(readOnly = true)
@@ -70,6 +72,11 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     && history.getFirst().getCutoffTime().equals(time)
                     && history.getFirst().getEffectiveFrom().equals(request.effectiveFrom())) {
                 throw GlobalException.of(ApiCode.CUTOFF_UNCHANGED);
+            }
+            // Đổi giờ chốt lùi ngày làm đổi lại đơn nghỉ đã tính theo giờ chốt cũ (ATT-04): lần đặt sau chỉ áp dụng từ
+            // hôm nay; lần đặt đầu tiên của năm học được tính từ đầu năm
+            if (!history.isEmpty() && request.effectiveFrom().isBefore(LocalDate.now(clock))) {
+                throw GlobalException.of(ApiCode.CUTOFF_DATE_PAST);
             }
             attendanceCutoffRepository.saveAndFlush(AttendanceCutoff.create(
                     schoolYearId,

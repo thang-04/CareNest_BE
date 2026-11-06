@@ -46,6 +46,7 @@ public record MealPlanResponse(
             List<NormRow> rows,
             List<SessionRow> sessions) {}
 
+    /** 8 vi chất (NUT-26) là null khi có thực phẩm trong thực đơn chưa có số liệu vi chất đó ⇒ chưa đủ dữ liệu. */
     public record NutritionTotals(
             BigDecimal kcal,
             BigDecimal protein,
@@ -54,13 +55,24 @@ public record MealPlanResponse(
             BigDecimal animalProtein,
             BigDecimal plantProtein,
             BigDecimal animalLipid,
-            BigDecimal plantLipid) {}
+            BigDecimal plantLipid,
+            BigDecimal calcium,
+            BigDecimal phosphorus,
+            BigDecimal iron,
+            BigDecimal vitaminA,
+            BigDecimal vitaminB1,
+            BigDecimal vitaminB2,
+            BigDecimal vitaminPp,
+            BigDecimal vitaminC) {}
 
     /**
      * Một chỉ số so định mức (NUT-24). {@code key}: kcal; protein, lipid, glucid (cơ cấu P:L:G — {@code value} gam,
      * {@code percent} % năng lượng, min/max %); animalProteinG, plantProteinG, animalLipidG, plantLipidG, glucidG
      * ({@code value} và min/max gam, {@code percent} % ĐV hoặc TV trên tổng đạm/béo). {@code attainment} % đạt =
-     * thực tế / giữa khoảng; {@code optional} = dòng gam, chưa đặt thì không tính vào trạng thái ngày.
+     * thực tế / giữa khoảng; {@code optional} = dòng gam, chưa đặt thì không tính vào trạng thái ngày. Vi chất (NUT-26):
+     * {@code key} = calcium, phosphorus, iron, vitaminA, vitaminB1, vitaminB2, vitaminPp, vitaminC; {@code value} và min/max
+     * theo mg (vitamin A: µg) mỗi trẻ mỗi ngày, {@code percent} null, max null = chỉ cần đạt tối thiểu (khi đó mục tiêu =
+     * min), {@code optional} = true, không tính vào trạng thái ngày (chỉ cảnh báo).
      */
     public record NormRow(
             String key,

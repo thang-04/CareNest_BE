@@ -1,5 +1,7 @@
 package com.carenest.dto.attendance;
 
+import com.carenest.utils.enums.GuardianRelationship;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -16,7 +18,11 @@ public final class DailyHealthResponse {
             String childName,
             LocalDate date,
             boolean canRecord,
-            List<DailyHealthEntryResponse> entries) {}
+            List<DailyHealthEntryResponse> entries,
+            Instant handedOverAt,
+            List<DailyHealthContact> contacts) {}
+
+    public record DailyHealthContact(String fullName, GuardianRelationship relationship, String phone) {}
 
     public record Overview(
             LocalDate date,

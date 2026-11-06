@@ -7,11 +7,15 @@ import com.carenest.dto.observation.EvaluationDtos.EvaluationDetailResponse;
 import com.carenest.dto.observation.EvaluationDtos.EvaluationRow;
 import com.carenest.dto.observation.EvaluationDtos.ProgramCompletionRequest;
 import com.carenest.dto.observation.EvaluationDtos.ProgramCompletionResponse;
+import com.carenest.dto.observation.YearEndSheetDtos.YearEndSheetRequest;
+import com.carenest.dto.observation.YearEndSheetDtos.YearEndSheetResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.ChildEvaluationService;
+import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import com.carenest.utils.enums.EvaluationPeriodType;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +39,7 @@ public class ChildEvaluationController {
     private static final String LOG_PREFIX = "[ChildEvaluationController]";
 
     private final ChildEvaluationService childEvaluationService;
+    private final YearEndSheetService yearEndSheetService;
 
     @GetMapping("/assessment/evaluations")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
@@ -102,6 +107,28 @@ public class ChildEvaluationController {
         EvaluationRow row = childEvaluationService.markProgram(currentUser, id, request.completed());
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Mark program completion success", row);
+    }
+
+    @GetMapping("/assessment/evaluations/{id}/year-sheet")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<YearEndSheetResponse>> getYearSheet(
+            @PathVariable Long id, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getYearSheet|userId=" + currentUser.userId() + "|id=" + id;
+        log.info("{}|START", logPrefix);
+        YearEndSheetResponse sheet = yearEndSheetService.get(currentUser, id);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year-end sheet success", sheet);
+    }
+
+    @PutMapping("/assessment/evaluations/{id}/year-sheet")
+    @PreAuthorize("hasRole('TEACHER')")
+    public ResponseEntity<ResponseJson<YearEndSheetResponse>> saveYearSheet(
+            @PathVariable Long id, @Valid @RequestBody YearEndSheetRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|saveYearSheet|userId=" + currentUser.userId() + "|id=" + id;
+        log.info("{}|START", logPrefix);
+        YearEndSheetResponse sheet = yearEndSheetService.save(currentUser, id, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save year-end sheet success", sheet);
     }
 
     @GetMapping("/assessment/program-completion")

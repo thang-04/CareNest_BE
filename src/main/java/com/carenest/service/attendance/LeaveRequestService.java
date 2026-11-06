@@ -16,5 +16,5 @@ public interface LeaveRequestService {
     LeaveRequestResponse cancelLeaveRequest(CurrentUser currentUser, Long leaveRequestId);
 
     List<LeaveRequestResponse> searchLeaveRequests(
-            CurrentUser currentUser, Long classId, Long campusId, LocalDate from, LocalDate to);
+            CurrentUser currentUser, Long classId, Long campusId, LocalDate from, LocalDate to, Long schoolYearId);
 }

@@ -635,11 +635,11 @@ Dùng chung hai điểm trường (SCH-06). Xóa = `status` `INACTIVE` (thực �
 | Bảng | Cột chính | Ràng buộc | Rule ID |
 | --- | --- | --- | --- |
 | allergens | code (UK), name, system_defined, sort_order | Seed 9 chất cố định | HLT-06 |
-| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price, kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), nutrient_source_version, waste_pct [0,100), storage `FRESH`/`DRY`, origin `ANIMAL`/`PLANT` (V55), note, status | CHECK nhóm, đơn vị, không âm | NUT-05, NUT-10, NUT-18, NUT-24 |
+| foods | code (UK), name, food_group, unit `g`/`ml`, purchase_unit, purchase_unit_size (>0), unit_price, kcal/protein/lipid/glucid trên 100 đơn vị, nutrient_source (bắt buộc), nutrient_source_version, waste_pct [0,100), storage `FRESH`/`DRY`, origin `ANIMAL`/`PLANT` (V55), vi chất trên 100 đơn vị ăn được calcium, phosphorus, iron (mg), vitamin_a (µg), vitamin_b1, vitamin_b2, vitamin_pp, vitamin_c (mg) (V73, NUMERIC(10,3), null = chưa có số liệu), note, status | CHECK nhóm, đơn vị, không âm (cả vi chất khi có giá trị) | NUT-05, NUT-10, NUT-18, NUT-24, NUT-26 |
 | food_allergens | food_id, allergen_id (PK đôi) | ON DELETE CASCADE theo food | HLT-06 |
 | dishes | code (UK), name, dish_type, description, reference (món tham khảo chỉ đọc), status | | NUT-18 |
 | dish_ingredients | dish_id, food_id, age_group_id, grams_per_child (>0) | UK (dish, food, age_group) | NUT-18 |
-| age_group_meal_configs | age_group_id, effective_from, meal_price, kcal min–max, protein/lipid/glucid_pct min–max (cơ cấu P:L:G, % năng lượng), animal/plant_protein_g, animal/plant_lipid_g, glucid_g min–max (V58, gam/trẻ/ngày), morning/lunch/afternoon_kcal_pct min–max (V58, % nhu cầu năng lượng cả ngày của bữa), daily_kcal_need (V62, kcal/trẻ/ngày, > 0) — null = chưa chốt, norm_basis. V58 đổi animal_protein_pct/animal_lipid_pct (V55) sang gam rồi bỏ | UK (age_group, effective_from); min ≤ max; daily_kcal_need > 0 | NUT-17, NUT-19, NUT-24, NUT-25 |
+| age_group_meal_configs | age_group_id, effective_from, meal_price, kcal min–max, protein/lipid/glucid_pct min–max (cơ cấu P:L:G, % năng lượng), animal/plant_protein_g, animal/plant_lipid_g, glucid_g min–max (V58, gam/trẻ/ngày), morning/lunch/afternoon_kcal_pct min–max (V58, % nhu cầu năng lượng cả ngày của bữa), daily_kcal_need (V62, kcal/trẻ/ngày, > 0), calcium/phosphorus/iron/vitamin_a/vitamin_b1/vitamin_b2/vitamin_pp/vitamin_c `_min`/`_max` (V73, mg hoặc µg/trẻ/ngày trên các bữa trường phục vụ, max null = chỉ cần đạt min) — null = chưa chốt, norm_basis. V58 đổi animal_protein_pct/animal_lipid_pct (V55) sang gam rồi bỏ | UK (age_group, effective_from); min ≤ max (cả vi chất); vi chất ≥ 0; daily_kcal_need > 0 | NUT-17, NUT-19, NUT-24, NUT-25, NUT-26 |
 | suppliers | name, phone, address, id_card (dữ liệu cá nhân), delivery_person, status | | NUT-12 |
 
 Bữa trong ngày theo nhóm tuổi vẫn ở `age_groups.meal_sessions` (V16), không lặp ở `age_group_meal_configs`.
@@ -770,3 +770,22 @@ Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm 
 | reason | VARCHAR(500) | không | Lý do bắt buộc | AUTH-14 |
 | changed_at | TIMESTAMPTZ | không | Thời điểm đổi | — |
 Index: `idx_permission_change_log_changed_at`, `idx_permission_change_log_target_role`, `idx_permission_change_log_target_user` (kèm `changed_at DESC`).
+
+### theme_evaluations
+
+Mục đích: đánh giá cuối chủ đề của lớp mọi nhóm tuổi (OBS-27). Migration: V75 (V76: theme_id = dòng gốc của chủ đề). Không khóa ngoại sang bảng kế hoạch giáo dục (lưu theme_id kèm tên, ngày).
+
+| Cột | Kiểu | Ghi chú |
+| --- | --- | --- |
+| classroom_id, campus_id, school_year_id | BIGINT | lớp, điểm trường, năm học |
+| theme_id, theme_name, start_date, end_date | BIGINT / VARCHAR / DATE | chủ đề (edu_themes) lúc mở bảng |
+| cells | TEXT (JSON) | ô sửa tay trước khi xác nhận; cả bảng khi đã xác nhận: [{c: trẻ, g: dòng gốc MT, m: đạt, x: sửa tay}] |
+| note | VARCHAR(1000) | Một số lưu ý |
+| confirmed_by, confirmed_at | BIGINT / TIMESTAMPTZ | xác nhận (cùng có hoặc cùng trống) |
+| updated_by, updated_at, version | | khóa lạc quan |
+
+Ràng buộc: UNIQUE (classroom_id, theme_id); end_date ≥ start_date.
+
+V79: child_evaluations thêm phiếu đánh giá sự phát triển cuối năm (OBS-28): `goal_results` TEXT (JSON ô GV sửa tay trước khi xác nhận; cả phiếu khi đã xác nhận: [{g: dòng gốc MT, m: đạt, x: sửa tay}]), `note_for_child`, `note_for_teacher`, `note_for_school`, `note_for_parent` VARCHAR(1000) (lưu ý điều chỉnh kế hoạch năm sau, null = để trống).
+
+V74: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "Cần cố gắng", OBS-15).

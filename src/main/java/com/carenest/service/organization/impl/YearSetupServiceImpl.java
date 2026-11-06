@@ -92,7 +92,9 @@ public class YearSetupServiceImpl implements YearSetupService {
                     campuses.stream()
                             .map(c -> new YearSetupResponse.CampusBrief(c.getId(), c.getShortName()))
                             .toList(),
+                    // Điểm trường đã ngừng hoạt động không cần PHT (ngừng thì đã phải gỡ PHT, CFG-CP-01)
                     campuses.stream()
+                            .filter(Campus::isActive)
                             .map(Campus::getId)
                             .filter(id -> !campusesWithVicePrincipal.contains(id))
                             .toList(),

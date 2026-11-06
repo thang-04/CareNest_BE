@@ -56,6 +56,7 @@ class ChildServiceImplTest {
     private final GuardianChildLinkService guardianChildLinkService = mock(GuardianChildLinkService.class);
     private final ChildServiceImpl childService = new ChildServiceImpl(
             childRepository,
+            mock(com.carenest.repository.child.ChildAllergyRepository.class),
             enrollmentService,
             childAccessPolicy,
             new ChildMapper(),

@@ -68,6 +68,22 @@ public class ChildEvaluation {
     @Column(name = "program_completed")
     private Boolean programCompleted;
 
+    /** Phiếu cuối năm (OBS-28): JSON ô MT GV sửa tay; đã xác nhận thì là cả phiếu. */
+    @Column(name = "goal_results")
+    private String goalResults;
+
+    @Column(name = "note_for_child", length = 1000)
+    private String noteForChild;
+
+    @Column(name = "note_for_teacher", length = 1000)
+    private String noteForTeacher;
+
+    @Column(name = "note_for_school", length = 1000)
+    private String noteForSchool;
+
+    @Column(name = "note_for_parent", length = 1000)
+    private String noteForParent;
+
     @Column(name = "confirmed_by")
     private Long confirmedBy;
 
@@ -123,6 +139,20 @@ public class ChildEvaluation {
     /** Trẻ lớp 5–6 tuổi: hoàn thành / chưa hoàn thành chương trình GDMN (đánh giá cuối năm). */
     public void markProgram(Boolean completed) {
         this.programCompleted = completed;
+    }
+
+    /** Phiếu cuối năm: ô sửa tay (hoặc cả phiếu khi xác nhận) và 4 lưu ý; null = để trống. */
+    public void saveSheet(String goalResults, String forChild, String forTeacher, String forSchool, String forParent) {
+        this.goalResults = goalResults;
+        this.noteForChild = forChild;
+        this.noteForTeacher = forTeacher;
+        this.noteForSchool = forSchool;
+        this.noteForParent = forParent;
+    }
+
+    /** Xác nhận: chốt cả phiếu, lưu ý giữ nguyên. */
+    public void freezeGoals(String goalResults) {
+        this.goalResults = goalResults;
     }
 
     public void edit(String content) {

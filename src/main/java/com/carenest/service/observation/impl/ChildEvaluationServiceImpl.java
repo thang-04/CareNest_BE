@@ -33,6 +33,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.observation.ChildEvaluationService;
+import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolYearService;
@@ -94,6 +95,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final ChildEvaluationEventRepository eventRepository;
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
+    private final YearEndSheetService yearEndSheetService;
 
     @Override
     @Transactional
@@ -109,8 +111,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             List<ClassroomInfoResponse> years = classroomService.findYearClassrooms(schoolYearId);
+            Set<Long> ledGroups =
+                    type == EvaluationPeriodType.YEAR ? rules.teamLeaderAgeGroupIds(currentUser) : Set.of();
             List<ClassroomInfoResponse> visible = years.stream()
-                    .filter(c -> teaches(currentUser, c) || rules.readsCampus(currentUser, c.campusId()))
+                    .filter(c -> teaches(currentUser, c)
+                            || rules.readsCampus(currentUser, c.campusId())
+                            || leads(ledGroups, c))
                     .filter(c -> classId == null || classId.equals(c.id()))
                     .toList();
             if (classId != null && visible.isEmpty()) {
@@ -122,9 +128,11 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             for (ClassroomInfoResponse cls : visible.stream()
                     .sorted(Comparator.comparing(ClassroomInfoResponse::id))
                     .toList()) {
-                // GV lớp hoặc BGH mở danh sách đều tạo bản nháp kỳ đã kết thúc (BGH chỉ thấy bản đã xác nhận)
+                // GV lớp mở danh sách thì tạo bản nháp kỳ đã kết thúc; BGH chỉ tạo khi lọc một lớp (BGH chỉ thấy bản đã
+                // xác nhận) — không khóa mọi lớp của trường mỗi lần mở danh sách toàn trường
                 if (cls.yearStatus() == SchoolYearStatus.ACTIVE
-                        && (rules.canRecord(currentUser, cls) || rules.readsCampus(currentUser, cls.campusId()))) {
+                        && (rules.canRecord(currentUser, cls)
+                                || (classId != null && rules.readsCampus(currentUser, cls.campusId())))) {
                     ensureDrafts(currentUser, cls, type);
                 }
             }
@@ -157,7 +165,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             if (!teacher
                     && !(ev.isConfirmed()
                             && (rules.readsCampus(currentUser, cls.campusId())
-                                    || canReadChildHistory(currentUser, ev.getChildId())))) {
+                                    || canReadChildHistory(currentUser, ev.getChildId())
+                                    || leadsYearEnd(currentUser, ev, cls)))) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
             boolean year = ev.getPeriodType() == EvaluationPeriodType.YEAR;
@@ -247,6 +256,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 throw GlobalException.of(ApiCode.EVALUATION_PROGRAM_REQUIRED);
             }
             Instant at = rules.now();
+            // Cuối năm: chốt phiếu đánh giá sự phát triển (OBS-28) trước khi đổi trạng thái
+            yearEndSheetService.freeze(ev);
             ev.confirm(text, currentUser.userId(), at);
             evaluationRepository.saveAndFlush(ev);
             eventRepository.save(
@@ -771,6 +782,15 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         return cls != null
                 && user.hasRole(CareNestRole.TEACHER)
                 && (rules.canRecord(user, cls) || rules.taughtClosedYear(user, cls));
+    }
+
+    // OBS-28 (Cần chốt 04/11/2026): tổ trưởng xem đánh giá cuối năm đã xác nhận của các lớp nhóm tuổi mình, không sửa
+    private static boolean leads(Set<Long> ledGroups, ClassroomInfoResponse cls) {
+        return cls.ageGroupId() != null && ledGroups.contains(cls.ageGroupId());
+    }
+
+    private boolean leadsYearEnd(CurrentUser user, ChildEvaluation ev, ClassroomInfoResponse cls) {
+        return ev.getPeriodType() == EvaluationPeriodType.YEAR && leads(rules.teamLeaderAgeGroupIds(user), cls);
     }
 
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {
