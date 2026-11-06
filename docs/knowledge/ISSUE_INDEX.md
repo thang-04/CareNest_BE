@@ -5,6 +5,7 @@ Search đầu tiên khi gặp bug, lỗi môi trường, case lạ. Grep chuỗi
 ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường/build/deploy), dạng `<loại>-YYMMDD-<slug>` (vd. `BUG-261004-meal-count-stale`). Status: `open` | `workaround` | `fixed`.
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261106-edu-legacy-approval-time](incidents/BUG-261106-edu-legacy-approval-time.md) | education-plan | `Cannot read stored approval history`; `DateTimeParseException` tại `Instant.parse` với `yyyy-MM-dd HH:mm` | Parser chỉ nhận ISO Instant, trong khi approvals cũ lưu giờ trường không kèm zone | fixed |
 | [BUG-261106-edu-media-contributor](incidents/BUG-261106-edu-media-contributor.md) | education-plan | Người gắn học liệu có thể không bị loại khỏi duyệt | Thay metadata học liệu chưa ghi sổ người soạn | fixed |
 | [BUG-261106-edu-draft-lease-reconciliation-n-plus-one](incidents/BUG-261106-edu-draft-lease-reconciliation-n-plus-one.md) | education-plan | Đổi policy tra cứu phân công lặp theo lease | Đối soát từng hồ sơ gọi riêng service thay vì gom người giữ lease | fixed |
 | [BUG-261106-edu-approval-json-fail-open](incidents/BUG-261106-edu-approval-json-fail-open.md) | education-plan | Lỗi JSON duyệt có thể thành danh sách rỗng | Catch exception trả `[]` thay vì rollback | fixed |

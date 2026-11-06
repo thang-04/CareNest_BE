@@ -641,3 +641,7 @@ Review convergence không còn gap7FR/4SC/8AC/US4..5.22/22task feature006 xong, 
 
 ### Kết quả D2 sau T023
 Visual review phát hiện closure subNo dùng số cuối vòng; đã appendT023, RED/GREEN/localbrowser/realBE1passed20.3s/cleanup0 và review lại đạt.23/23task hoàn tất, prefix lịch sử giữ nguyên; hash tasks cuối C597326B228F71D8EFF03365D62F16786FE8CFB423D53960BF92DEE5C5C7478D không đổi trong lượt sạch. Mốc22task/11D phía trên thuộc vòng trước, không thay kết quả cuối này. Cổng cuối sau hồ sơ đang chạy; không commit/push.
+
+
+### Progress log — 06/11/2026, delta011 chỉ lập plan
+User yêu cầu cấu hình người tạo/duyệt giáo dục, chỉ HT cấu hình; đã specify/clarify và trả lời bốn điểm hoãn trong bước plan. [Delta plan011](2026-11-06-education-workflow-policy.md) giữ draft có gate riêng, không kế thừa approval lịch sử của plan này. Artifacts/spec/contracts/data model/quickstart đã chuẩn bị và review thiết kế; chưa code/migration/FE/APP/deploy/commit. Cần user duyệt delta trước tasks/analyze/implement theo quy trình.

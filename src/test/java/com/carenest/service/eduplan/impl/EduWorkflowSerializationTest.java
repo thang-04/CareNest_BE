@@ -1,5 +1,6 @@
 package com.carenest.service.eduplan.impl;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -36,6 +37,20 @@ class EduWorkflowSerializationTest {
     void invalidStoredApprovalsCannotBeTreatedAsEmptyHistory() {
         when(objectMapper.readTree("invalid")).thenThrow(new IllegalStateException("invalid stored approvals"));
         assertThatThrownBy(() -> service.parseApprovals("invalid")).isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    void legacyLocalApprovalTimestampIsReadAsSchoolTime() throws Exception {
+        String stored = "[{\"userId\":1,\"name\":\"Ví dụ\",\"roleKey\":\"TEAM_LEADER\","
+                + "\"at\":\"2026-11-04 06:28\",\"note\":\"\"}]";
+        when(objectMapper.readTree(stored)).thenReturn(new ObjectMapper().readTree(stored));
+
+        var approvals = service.parseApprovals(stored);
+
+        assertThat(approvals)
+                .singleElement()
+                .extracting(EduWorkflowPolicy.Approval::at)
+                .isEqualTo(Instant.parse("2026-11-03T23:28:00Z"));
     }
 
     @Test

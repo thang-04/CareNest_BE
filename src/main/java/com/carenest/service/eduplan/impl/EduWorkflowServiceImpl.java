@@ -29,6 +29,10 @@ import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -53,6 +57,8 @@ import tools.jackson.databind.node.ObjectNode;
 public class EduWorkflowServiceImpl implements EduWorkflowService {
 
     private static final String LOG_PREFIX = "[EduWorkflowServiceImpl]";
+    private static final ZoneId SCHOOL_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final DateTimeFormatter LEGACY_APPROVAL_TIME = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm");
 
     private final EduSettingsRepository settingsRepository;
     private final EduYearPlanRepository yearPlanRepository;
@@ -857,7 +863,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                                     : "";
                     Role roleKey = Role.valueOf(roleKeyStr);
                     Instant at = item.has("at") && !item.get("at").isNull()
-                            ? Instant.parse(item.get("at").asText())
+                            ? parseApprovalTime(item.get("at").asText())
                             : null;
                     String note = item.has("note") && !item.get("note").isNull()
                             ? item.get("note").asText()
@@ -875,6 +881,16 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    private Instant parseApprovalTime(String value) {
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException ignored) {
+            return LocalDateTime.parse(value, LEGACY_APPROVAL_TIME)
+                    .atZone(SCHOOL_ZONE)
+                    .toInstant();
         }
     }
 

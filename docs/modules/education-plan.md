@@ -63,6 +63,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 
 - Thiết kế ba bảng cha–con (user, 29/10/2026): yêu cầu tách lĩnh vực con, nhóm kết quả mong đợi, mục tiêu thành ba bảng vật lý có FK; user chọn giữ cấp cha tùy chọn để bảo toàn dữ liệu đang có. Source dùng ba entity/repository và V35 chuyển dữ liệu từ `edu_goal_rows`; `EduGoalRow` chỉ là mapped superclass. Migration giữ ID/lineage, API giữ rows/kind. Xem phần bổ sung DB trong [plan mục tiêu năm](../plans/active/2026-10-22-muc-tieu-nam-hoc.md).
 - Status do BE quyết định. Không nhận status từ client.
+- Approval JSON legacy có thể chứa `at` dạng giờ trường `yyyy-MM-dd HH:mm`; giữ parser tương thích với `Instant` ISO mới và mốc giờ `Asia/Ho_Chi_Minh` cũ ([BUG-261106-edu-legacy-approval-time](../knowledge/incidents/BUG-261106-edu-legacy-approval-time.md)).
 - Khóa Đang sửa (EDU-10): mọi thao tác ghi đọc kế hoạch bằng `findForUpdateById` (khóa dòng) để hai người bấm sửa cùng lúc không cùng lấy được khóa; khóa quá hạn coi như trống ngay cả khi job (1 phút/lần) chưa chạy.
 - Tài liệu lớp: lịch tuần (`teachingWeeks`) phải tính giống Web (`yearWeeks` trong `CareNest_FE/src/models/education-plan/classPlan.js`): bỏ tuần trùng đợt nghỉ, chủ đề bắt đầu T7/CN thì từ Thứ Hai kế tiếp; lệch thì giáo án tuần bị từ chối hoặc gửi bị chặn.
 - Gửi / duyệt hồ sơ chủ đề đổi trạng thái cả kế hoạch chủ đề và giáo án các tuần nhánh trong cùng giao dịch (khóa dòng tài liệu chính).
