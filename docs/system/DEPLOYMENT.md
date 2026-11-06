@@ -90,6 +90,34 @@ Tắt gateway khẩn cấp: `.env` `CARENEST_AUTH_ENABLED=false` rồi `up -d --
 
 Ép build lại một image khi nội dung không đổi (vd. cập nhật base image): xoá tag tương ứng trên Docker Hub rồi Run workflow trên `main`.
 
+## Môi trường dev (nhánh `dev`)
+
+Luồng: PR vào `dev` (verify) ⇒ merge ⇒ job `deploy-dev` deploy lên `https://dev.carenest.edu.vn` ⇒ test ⇒ `release/*` ⇒ PR vào `main`. Image push từ `dev` đã verify nên release cùng nội dung vào `main` dùng lại tag, chỉ pull + restart.
+
+```
+dev.carenest.edu.vn       ├─ /api/* ─▶ 127.0.0.1:18311  api dev       (site Caddy của repo FE: carenest-dev.caddy)
+                          └─ /      ─▶ 127.0.0.1:18301  FE dev
+auth-dev.carenest.edu.vn  ───────────▶ 127.0.0.1:18322  Keycloak dev  (management 18323; deploy/caddy/carenest-auth-dev.caddy)
+dùng chung production:  Postgres 18330 (DB + role carenest_dev, keycloak_dev) · Mailpit 18340
+```
+
+- `compose.dev.yaml` (project `carenest-be-dev`) chỉ có `keycloak` + `api`; thư mục VPS `/data/thangnd/CAPSTONE/CareNest_BE-dev`, `.env` theo `deploy/dev.env.example` với secret riêng.
+- Keycloak riêng vì seed `db/dev` gắn cứng ID user Keycloak (`user_accounts.keycloak_user_id`) mà ID user phải duy nhất trên cả instance ⇒ realm thứ hai cùng Keycloak không import được 8 user demo.
+- Postgres là của stack production: production dừng thì dev cũng dừng; `deploy-dev` báo lỗi rõ khi không thấy container Postgres.
+- GitHub: environment `dev` (deployment branch `dev`); `VPS_*` là repository secret hoặc chép vào environment `dev`.
+
+**Cài một lần:** DNS A `auth-dev` trỏ IP VPS. Tạo role/DB trên Postgres production (script init chỉ chạy khi volume trống), thu hồi `CONNECT` của `PUBLIC` để role dev không vào DB production:
+
+```sql
+CREATE ROLE carenest_dev LOGIN PASSWORD '<secret>';  CREATE DATABASE carenest_dev OWNER carenest_dev;
+CREATE ROLE keycloak_dev LOGIN PASSWORD '<secret>';  CREATE DATABASE keycloak_dev OWNER keycloak_dev;
+REVOKE CONNECT ON DATABASE carenest, keycloak, carenest_dev, keycloak_dev FROM PUBLIC;
+```
+
+Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6 nhưng tunnel `ssh -L 18322:127.0.0.1:18322`, `KEYCLOAK_URL=http://localhost:18322` và secret trong `.env` dev; rồi `CARENEST_AUTH_ENABLED=true` trong `.env` dev và `docker compose -f compose.dev.yaml up -d --no-build api` (kèm `API_IMAGE`, `KEYCLOAK_IMAGE` đang chạy).
+
+**Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
+
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 
 Điều kiện: review bảo mật gateway ADR-0013 xong; backup Postgres theo lịch đã thử khôi phục; người quản lý server đồng ý; SMTP thật. Xoá volume là **mất toàn bộ dữ liệu** của DB `carenest` và `keycloak`:
