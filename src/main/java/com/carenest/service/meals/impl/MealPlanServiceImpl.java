@@ -248,6 +248,8 @@ public class MealPlanServiceImpl implements MealPlanService {
             Headcount headcount = headcountOf(request, group.id(), date);
             List<MenuStatisticsResponse.Ingredient> ingredients =
                     ingredientsOf(items, dishes, group.id(), headcount.count());
+            List<MenuStatisticsResponse.DishIngredientLine> dishIngredients =
+                    dishIngredientsOf(items, dishes, group.id());
             BigDecimal totalCost = ingredients.stream()
                     .map(MenuStatisticsResponse.Ingredient::cost)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -266,6 +268,7 @@ public class MealPlanServiceImpl implements MealPlanService {
                     headcount.source(),
                     dishViews,
                     ingredients,
+                    dishIngredients,
                     totalCost,
                     evaluation.cost(),
                     evaluation.mealPrice(),
@@ -352,6 +355,40 @@ public class MealPlanServiceImpl implements MealPlanService {
         });
         rows.sort(Comparator.comparing(MenuStatisticsResponse.Ingredient::foodName));
         return rows;
+    }
+
+    // Công thức từng món cho một trẻ: cùng công thức lượng mua và tiền với ingredientsOf nhưng không × N, không gộp
+    private static List<MenuStatisticsResponse.DishIngredientLine> dishIngredientsOf(
+            List<ItemPlan> items, Map<Long, Dish> dishes, Long ageGroupId) {
+        List<MenuStatisticsResponse.DishIngredientLine> lines = new ArrayList<>();
+        for (ItemPlan item : items) {
+            Dish dish = dishes.get(item.dishId());
+            for (DishIngredient ingredient : dish.getIngredients()) {
+                if (!ageGroupId.equals(ingredient.getAgeGroupId())) {
+                    continue;
+                }
+                Food food = ingredient.getFood();
+                BigDecimal purchase = MealDemandCalculator.purchased(ingredient.getGramsPerChild(), food.getWastePct());
+                BigDecimal size = food.getPurchaseUnitSize();
+                boolean priced = size != null && size.signum() > 0 && food.getUnitPrice() != null;
+                BigDecimal cost = priced
+                        ? purchase.multiply(food.getUnitPrice()).divide(size, 2, RoundingMode.HALF_UP)
+                        : BigDecimal.ZERO;
+                lines.add(new MenuStatisticsResponse.DishIngredientLine(
+                        item.session(),
+                        dish.getId(),
+                        dish.getName(),
+                        food.getId(),
+                        food.getName(),
+                        ingredient.getGramsPerChild(),
+                        food.getWastePct(),
+                        purchase.setScale(2, RoundingMode.HALF_UP),
+                        food.getPurchaseUnit(),
+                        food.getUnitPrice(),
+                        cost));
+            }
+        }
+        return lines;
     }
 
     private List<MealPlanDay> toDays(LocalDate weekStart, MealPlanRequest request) {
