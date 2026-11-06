@@ -37,7 +37,7 @@ public class EduClassDocController {
     private final EduClassDocService classDocService;
 
     @PostMapping(value = "/branch/file-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<BranchFilePreviewResponse>> previewBranchFile(
             @RequestParam Long classId,
             @RequestParam Long yearPlanId,
@@ -64,30 +64,38 @@ public class EduClassDocController {
     }
 
     @PutMapping("/{kind}/{docKey}")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ObjectNode>> saveClassDoc(
             @PathVariable String kind,
             @PathVariable String docKey,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Class-Doc-Version") Long expectedVersion,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Dossier-Version", required = false)
+                    Long expectedRootVersion,
             @RequestBody ObjectNode doc,
             CurrentUser currentUser) {
         String logPrefix =
                 LOG_PREFIX + "|saveClassDoc|userId=" + currentUser.userId() + "|kind=" + kind + "|docKey=" + docKey;
         log.info("{}|START", logPrefix);
-        ObjectNode saved = classDocService.saveClassDoc(currentUser, kind, docKey, doc);
+        ObjectNode saved =
+                classDocService.saveClassDoc(currentUser, kind, docKey, doc, expectedVersion, expectedRootVersion);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save class document success", saved);
     }
 
     // EDU-27: ô "Kế hoạch điều chỉnh và bổ sung" của kế hoạch ngày, ghi riêng để sửa được cả sau khi duyệt
     @PutMapping("/week/{docKey}/adjustments")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ObjectNode>> saveAdjustments(
             @PathVariable String docKey,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Class-Doc-Version") Long expectedVersion,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Dossier-Version", required = false)
+                    Long expectedRootVersion,
             @Valid @RequestBody ClassDocAdjustmentsRequest request,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveAdjustments|userId=" + currentUser.userId() + "|docKey=" + docKey;
         log.info("{}|START", logPrefix);
-        ObjectNode saved = classDocService.saveAdjustments(currentUser, docKey, request.adjustments());
+        ObjectNode saved = classDocService.saveAdjustments(
+                currentUser, docKey, request.adjustments(), expectedVersion, expectedRootVersion);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save lesson adjustments success", saved);
     }
@@ -97,12 +105,13 @@ public class EduClassDocController {
     public ResponseEntity<ResponseJson<ObjectNode>> actOnClassDoc(
             @PathVariable String kind,
             @PathVariable String docKey,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Class-Doc-Version") Long expectedVersion,
             @Valid @RequestBody ClassDocActionRequest request,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|actOnClassDoc|userId=" + currentUser.userId() + "|kind=" + kind + "|docKey="
                 + docKey + "|action=" + request.action();
         log.info("{}|START", logPrefix);
-        ObjectNode doc = classDocService.actOnClassDoc(currentUser, kind, docKey, request);
+        ObjectNode doc = classDocService.actOnClassDoc(currentUser, kind, docKey, request, expectedVersion);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update class document status success", doc);
     }

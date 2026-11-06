@@ -8,7 +8,6 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.eduplan.EduGoalFileService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.Constants.EduPermission;
 import java.io.IOException;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +26,8 @@ public class EduGoalFileServiceImpl implements EduGoalFileService {
 
     private final EduDomainRepository domainRepository;
     private final EduPlanAccessPolicy accessPolicy;
+    private final com.carenest.service.eduplan.EduWorkflowService workflow;
+    private final com.carenest.service.organization.SchoolStructureService schoolStructure;
 
     @Override
     @Transactional(readOnly = true)
@@ -34,8 +35,9 @@ public class EduGoalFileServiceImpl implements EduGoalFileService {
         String logPrefix = LOG_PREFIX + "|preview|userId=" + user.userId();
         log.info("{}|START", logPrefix);
         try {
-            // EDU-02/03: chỉ người lập/sửa được kế hoạch năm (Phó HT, Tổ trưởng) mới nhập file
-            if (!accessPolicy.hasPermission(user, EduPermission.GOALS_EDIT)) {
+            // Quyền xem trước file theo vai trò soạn kế hoạch năm hiện hành.
+            if (schoolStructure.findAgeGroups().stream()
+                    .noneMatch(age -> workflow.isAuthorEligible(user, "year", age.id(), null))) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
             }
             if (file == null || file.isEmpty()) {

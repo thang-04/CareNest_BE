@@ -8,8 +8,10 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
-/** Cấu hình kế hoạch giáo dục của trường (1 dòng, EDU-11): chuỗi người ký và dòng hoạt động tuần dạng JSON. */
+/** Cấu hình kế hoạch giáo dục của trường (1 dòng, EDU-11, EDU-54): chuỗi người ký, workflow policy và dòng hoạt động tuần dạng JSON. */
 @Getter
 @Entity
 @Table(name = "edu_settings")
@@ -22,6 +24,22 @@ public class EduSettings {
 
     @Column(nullable = false)
     private String signers;
+
+    @Column(name = "legacy_signers")
+    private String legacySigners;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "workflow_policy", nullable = false, columnDefinition = "jsonb")
+    private String workflowPolicy;
+
+    @Column(name = "workflow_revision", nullable = false)
+    private long workflowRevision = 1;
+
+    @Column(name = "workflow_updated_by")
+    private Long workflowUpdatedBy;
+
+    @Column(name = "workflow_updated_at")
+    private Instant workflowUpdatedAt;
 
     @Column(name = "week_rows", nullable = false)
     private String weekRows;
@@ -37,5 +55,12 @@ public class EduSettings {
         this.weekRows = weekRows;
         this.updatedBy = userId;
         this.updatedAt = now;
+    }
+
+    public void updateWorkflowPolicy(String workflowPolicy, Long userId, Instant now) {
+        this.workflowPolicy = workflowPolicy;
+        this.workflowRevision++;
+        this.workflowUpdatedBy = userId;
+        this.workflowUpdatedAt = now;
     }
 }

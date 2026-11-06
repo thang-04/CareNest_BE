@@ -37,6 +37,8 @@ EDU-01..28, EDU-39..43, EDU-46..47 (lịch chủ đề, lấy chủ đề, nhậ
 - PUT kế hoạch năm gửi cả cây: dòng/nội dung/chủ đề có id thì cập nhật, không id thì thêm, vắng thì xóa; nội dung tích chủ đề qua `themeKeys` trỏ `themes[].key` (chủ đề mới chưa có id).
 - Bảng `edu_*`: `docs/database/DATA_DICTIONARY.md`.
 
+- Đã xong: EDU-54 (06/11/2026): Cấu hình người tạo/duyệt theo loại hồ sơ cho giáo dục (`GET/PUT /education-plans/workflow-policy`), chỉ Hiệu trưởng cấu hình; tách soạn/duyệt theo loại; 3 trạng thái duy nhất `DRAFT` → `REVIEW` → `APPROVED`; `REVIEW` cấm sửa/cấm lease; duyệt bước cuối tự Ban hành và đóng băng `print_snapshot` (ô ký, vai trò, tên người); Flyway V80 expand và V81 contract siết trạng thái. Đã kiểm chứng toàn diện 1,104 test BE PASS, 199 test FE PASS, Spotless GREEN, 0 lỗi AI layer.
+
 ## PENDING
 
 - EDU-47 đã được user duyệt nghiệp vụ/plan; triển khai và kiểm chứng theo [feature008](../../specs/008-branch-plan-file-import/quickstart.md). Phần còn mở của module là các mục khác dưới đây, không phải câu hỏi nhập file.

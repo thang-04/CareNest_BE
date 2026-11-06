@@ -13,7 +13,11 @@ public record ClassDocsResponse(
         List<ObjectNode> classThemePlans,
         List<ObjectNode> weekPlans,
         List<ClassItem> classes,
-        List<StaffItem> staff) {
+        List<StaffItem> staff,
+        List<CreationCapability> creationCapabilities) {
+
+    public record CreationCapability(
+            Long classId, String kind, boolean canCreate, String requires, String reasonCode) {}
 
     /** id dạng chuỗi như id lớp trên đường dẫn của Web; ageGroupId = mã nhóm tuổi (vd. ag-3). */
     public record ClassItem(String id, String name, String ageGroupId, Long campusId, List<Long> teacherIds) {}

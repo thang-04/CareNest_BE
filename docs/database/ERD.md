@@ -92,9 +92,13 @@ erDiagram
     edu_curriculum_goals |o--o{ edu_plan_goals : source
     edu_goal_contents ||--o{ edu_content_theme_ticks : ticks
     edu_themes ||--o{ edu_content_theme_ticks : ticks
+    edu_year_plans |o--o{ edu_document_authors : "ledger"
+    edu_class_docs |o--o{ edu_document_authors : "ledger"
+    user_accounts ||--o{ edu_document_authors : "authored by"
 ```
 
 Ba bảng có ID từ sequence chung; FK cha ghép với year_plan_id/domain_id. FK goal→group kiểm sub_domain_key để sub của goal và group khớp kể cả NULL. Cấp cha tùy chọn theo user 29/10/2026; không đổi rows/kind API. Chi tiết: [ADR-0021](../decisions/ADR-0021-year-plan-goal-hierarchy.md).
+Sổ cái `edu_document_authors` (V80, V81) theo dõi người soạn thực tế qua XOR FK giữa `edu_year_plans` và `edu_class_docs` để ngăn tự duyệt (EDU-54).
 ## child — tiếp nhận trẻ, phụ huynh trên hồ sơ, khai báo sức khỏe (V63)
 
 ```mermaid

@@ -30,6 +30,7 @@ public record YearPlanDetailResponse(
         List<Break> breaks,
         List<History> history,
         String lastReturnNote,
+        EduReviewStateResponse review,
         Permissions permissions,
         long revision,
         Instant editExpiresAt,
@@ -77,6 +78,7 @@ public record YearPlanDetailResponse(
     public record Permissions(
             boolean canEdit,
             boolean canSubmit,
+            boolean canApprove,
             boolean canIssue,
             boolean canReturn,
             boolean canDelete,

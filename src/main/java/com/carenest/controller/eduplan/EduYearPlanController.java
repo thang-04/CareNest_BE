@@ -54,7 +54,7 @@ public class EduYearPlanController {
 
     /** EDU-46: đọc file bảng mục tiêu (Word/Excel/CSV) thành bản xem trước; không lưu. */
     @PostMapping(value = "/file-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<GoalFilePreviewResponse>> previewGoalFile(
             @RequestPart MultipartFile file, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|previewGoalFile|userId=" + currentUser.userId();
@@ -98,7 +98,7 @@ public class EduYearPlanController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     // Để OpenAPI ghi 201 khớp ApiCode.CREATED
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createYearPlan(
@@ -117,7 +117,7 @@ public class EduYearPlanController {
     }
 
     @PutMapping("/{planId}")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> updateYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody YearPlanRequest request,
@@ -134,7 +134,7 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/submit")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> submitYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody(required = false) PlanActionRequest.Note request,
@@ -154,12 +154,12 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/issue")
-    @PreAuthorize("hasRole('VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> issueYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody(required = false) PlanActionRequest.Note request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|issueYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -174,12 +174,12 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/return")
-    @PreAuthorize("hasRole('VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> returnYearPlan(
             @PathVariable Long planId,
             @Valid @RequestBody PlanActionRequest.RequiredNote request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|returnYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -191,7 +191,7 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/start-editing")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> startEditing(
             @PathVariable Long planId,
             CurrentUser currentUser,
@@ -207,7 +207,7 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/finish-editing")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> finishEditing(
             @PathVariable Long planId,
             CurrentUser currentUser,
@@ -223,7 +223,7 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/editing-heartbeat")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> heartbeat(
             @PathVariable Long planId,
             CurrentUser currentUser,
@@ -239,7 +239,7 @@ public class EduYearPlanController {
     }
 
     @PostMapping("/{planId}/versions")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createVersion(
             @PathVariable Long planId,
@@ -267,7 +267,7 @@ public class EduYearPlanController {
     }
 
     @DeleteMapping("/{planId}")
-    @PreAuthorize("hasAnyRole('VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<Void>> deleteYearPlan(
             @PathVariable Long planId,
             CurrentUser currentUser,

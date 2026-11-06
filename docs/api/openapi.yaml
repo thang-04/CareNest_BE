@@ -2768,6 +2768,18 @@ paths:
         required: true
         schema:
           type: string
+      - in: header
+        name: X-Class-Doc-Version
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Dossier-Version
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -2794,6 +2806,18 @@ paths:
         required: true
         schema:
           type: string
+      - in: header
+        name: X-Class-Doc-Version
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Dossier-Version
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json: {}
@@ -2818,6 +2842,12 @@ paths:
         required: true
         schema:
           type: string
+      - in: header
+        name: X-Class-Doc-Version
+        required: true
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -3223,7 +3253,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3265,7 +3295,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3412,6 +3442,35 @@ paths:
           description: Created
       tags:
       - edu-year-plan-controller
+  /api/education-plans/workflow-policy:
+    get:
+      operationId: getWorkflowPolicy
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduWorkflowPolicyResponse"
+          description: OK
+      tags:
+      - edu-workflow-controller
+    put:
+      operationId: updateWorkflowPolicy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EduWorkflowPolicyRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduWorkflowPolicyResponse"
+          description: OK
+      tags:
+      - edu-workflow-controller
   /api/health-checks:
     get:
       operationId: listHealthChecks
@@ -7306,6 +7365,24 @@ components:
             type: string
         state:
           type: string
+    ApprovalItem:
+      type: object
+      properties:
+        at:
+          type: string
+          format: date-time
+        name:
+          type: string
+        note:
+          type: string
+        roleKey:
+          type: string
+        round:
+          type: integer
+          format: int32
+        userId:
+          type: integer
+          format: int64
     ApprovedDayLessonResponse:
       type: object
       properties:
@@ -9773,6 +9850,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgeGroupResponse"
+        canConfigure:
+          type: boolean
         domains:
           type: array
           items:
@@ -9789,6 +9868,72 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WeekRow"
+        workflow:
+          $ref: "#/components/schemas/EduWorkflowPolicyResponse"
+        yearCreationScopes:
+          type: array
+          items:
+            type: integer
+            format: int64
+    EduReviewStateResponse:
+      type: object
+      properties:
+        approvals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalItem"
+        authorCoverage:
+          type: string
+        authorTrackingSince:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        completionMode:
+          type: string
+        completionPolicy: {}
+        policyRevision:
+          type: integer
+          format: int64
+        printSnapshot: {}
+        roles:
+          type: array
+          items:
+            type: string
+        round:
+          type: integer
+          format: int32
+        waitingRole:
+          type: string
+    EduWorkflowPolicyRequest:
+      type: object
+      properties:
+        policies:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PolicyEntry"
+        revision:
+          type: integer
+          format: int64
+      required:
+      - policies
+      - revision
+    EduWorkflowPolicyResponse:
+      type: object
+      properties:
+        canConfigure:
+          type: boolean
+        policies:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PolicyEntry"
+        revision:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
     EndStaffAssignmentRequest:
       type: object
       properties:
@@ -13844,6 +13989,8 @@ components:
     Permissions:
       type: object
       properties:
+        canApprove:
+          type: boolean
         canCreateVersion:
           type: boolean
         canDelete:
@@ -14136,6 +14283,17 @@ components:
         userId:
           type: integer
           format: int64
+    PolicyEntry:
+      type: object
+      properties:
+        creators:
+          type: array
+          items:
+            type: string
+        reviewers:
+          type: array
+          items:
+            type: string
     ProgramCompletionRequest:
       type: object
       properties:
@@ -14967,6 +15125,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EduConfigResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonEduWorkflowPolicyResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/EduWorkflowPolicyResponse"
         desc:
           type: string
         errorCode:
@@ -18400,9 +18571,7 @@ components:
           type: string
           enum:
           - DRAFT
-          - EDITING
-          - PENDING_VP
-          - REJECTED
+          - REVIEW
           - APPROVED
         versionNo:
           type: integer
@@ -18710,6 +18879,8 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         permissions:
           $ref: "#/components/schemas/Permissions"
+        review:
+          $ref: "#/components/schemas/EduReviewStateResponse"
         revision:
           type: integer
           format: int64
@@ -18727,9 +18898,7 @@ components:
           type: string
           enum:
           - DRAFT
-          - EDITING
-          - PENDING_VP
-          - REJECTED
+          - REVIEW
           - APPROVED
         themes:
           type: array
@@ -18808,6 +18977,10 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         owner:
           $ref: "#/components/schemas/PlanActorResponse"
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+        review:
+          $ref: "#/components/schemas/EduReviewStateResponse"
         revision:
           type: integer
           format: int64
@@ -18825,9 +18998,7 @@ components:
           type: string
           enum:
           - DRAFT
-          - EDITING
-          - PENDING_VP
-          - REJECTED
+          - REVIEW
           - APPROVED
         themeCount:
           type: integer

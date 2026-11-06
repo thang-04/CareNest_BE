@@ -22,4 +22,29 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from EduClassDoc d where d.docKey = :docKey")
     Optional<EduClassDoc> findForUpdateByDocKey(@Param("docKey") String docKey);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from EduClassDoc d where d.id = :id")
+    Optional<EduClassDoc> findForUpdateById(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from EduClassDoc d where d.id in :ids order by d.id asc")
+    List<EduClassDoc> findAllByIdInForUpdateOrderByIdAsc(@Param("ids") Collection<Long> ids);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from EduClassDoc d where d.status in :statuses order by d.id asc")
+    List<EduClassDoc> findAllByStatusInForUpdateOrderByIdAsc(
+            @Param("statuses") Collection<com.carenest.utils.enums.EduClassDocStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from EduClassDoc d where d.yearPlanId = :yearPlanId order by d.id asc")
+    List<EduClassDoc> findAllByYearPlanIdForUpdateOrderByIdAsc(@Param("yearPlanId") Long yearPlanId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+            "select d from EduClassDoc d where d.classroomId = :classroomId and d.yearPlanId = :yearPlanId and (d.themeId = :themeId or (:themeId is null and d.themeId is null)) order by d.id asc")
+    List<EduClassDoc> findAllByDossierForUpdateOrderByIdAsc(
+            @Param("classroomId") Long classroomId,
+            @Param("yearPlanId") Long yearPlanId,
+            @Param("themeId") Long themeId);
 }

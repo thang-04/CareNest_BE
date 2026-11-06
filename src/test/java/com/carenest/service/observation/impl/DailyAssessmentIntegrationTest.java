@@ -361,7 +361,7 @@ class DailyAssessmentIntegrationTest {
         assertThat(rowB.activities()).isEmpty();
 
         // Giáo án chưa duyệt không dùng để chấm
-        jdbc.update("UPDATE edu_class_docs SET status = 'PENDING_VP' WHERE id = ?", weekDoc);
+        jdbc.update("UPDATE edu_class_docs SET status = 'REVIEW' WHERE id = ?", weekDoc);
         entityManager.clear();
         attendance(child1, classA, TODAY);
         assertThat(service.getDailySheet(teacherA, classA, TODAY).lesson()).isNull();

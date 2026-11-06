@@ -1,16 +1,18 @@
 package com.carenest.utils.enums;
 
-/** Trạng thái tài liệu của lớp (EDU-18): chờ duyệt theo vai trò ký đang tới lượt. */
+/** Trạng thái tài liệu của lớp (EDU-54): Nháp, Đang duyệt, Đã ban hành. */
 public enum EduClassDocStatus {
     DRAFT,
-    PENDING_TL,
-    PENDING_VP,
-    PENDING_HT,
-    REJECTED,
+    REVIEW,
     APPROVED;
 
-    /** Còn sửa nội dung được (Nháp hoặc Bị trả lại). */
+    /** Còn sửa nội dung được (Nháp). */
     public boolean editable() {
-        return this == DRAFT || this == REJECTED;
+        return this == DRAFT;
+    }
+
+    /** 3 trạng thái chuẩn hoá ra API / giao diện: DRAFT, REVIEW, APPROVED. */
+    public EduClassDocStatus publicStatus() {
+        return this;
     }
 }

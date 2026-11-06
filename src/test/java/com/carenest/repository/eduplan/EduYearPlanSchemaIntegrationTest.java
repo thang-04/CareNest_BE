@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -218,9 +219,12 @@ class EduYearPlanSchemaIntegrationTest {
     @Test
     @DisplayName("EDU-10: phiên đang giữ quyền bắt buộc có trạng thái để trả về, không để CHECK lọt NULL")
     void activeSessionCannotHaveNullReturnStatus() {
-        EduYearPlan plan = yearPlanRepository.saveAndFlush(draft("NULL-GUARD", ageGroup3));
-        assertThatThrownBy(
-                        () -> jdbc.update("UPDATE edu_year_plans SET editing_from = NULL WHERE id = ?", plan.getId()))
+        long ageGroup5 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-5'", Long.class);
+        EduYearPlan plan = draft("NULL-GUARD-5", ageGroup5);
+        plan.acquireSession(owner, UUID.randomUUID(), NOW);
+        plan = yearPlanRepository.saveAndFlush(plan);
+        final Long planId = plan.getId();
+        assertThatThrownBy(() -> jdbc.update("UPDATE edu_year_plans SET editing_from = NULL WHERE id = ?", planId))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 

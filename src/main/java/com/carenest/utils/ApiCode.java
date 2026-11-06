@@ -553,10 +553,11 @@ public enum ApiCode {
     BRANCH_FILE_TOO_LARGE(7126, HttpStatus.BAD_REQUEST, "File chủ đề nhánh quá lớn: tối đa 2 MB và 2.000 dòng"),
 
     // ========== 72xx CẤU HÌNH KẾ HOẠCH GIÁO DỤC (module Tiền) ==========
-    EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng hoặc Phó Hiệu trưởng sửa được cấu hình"),
-    SIGNERS_INVALID(7202, HttpStatus.BAD_REQUEST, "Người ký phải là các vai trò hợp lệ, không trùng nhau"),
+    EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Bạn không có quyền sửa cấu hình phần này"),
+    SIGNERS_INVALID(7202, HttpStatus.BAD_REQUEST, "Vai trò người soạn hoặc người duyệt không hợp lệ"),
+    @Deprecated
     YEAR_PLAN_SIGNER_REQUIRED(7203, HttpStatus.BAD_REQUEST, "Kế hoạch năm học phải có Phó Hiệu trưởng ký"),
-    CLASS_DOC_APPROVER_REQUIRED(7204, HttpStatus.BAD_REQUEST, "Mỗi loại tài liệu lớp cần ít nhất một người duyệt"),
+    CLASS_DOC_APPROVER_REQUIRED(7204, HttpStatus.BAD_REQUEST, "Mỗi loại kế hoạch cần ít nhất một người duyệt"),
     WEEK_ROW_KEY_DUPLICATE(7205, HttpStatus.BAD_REQUEST, "Mã dòng của bảng tuần không được trùng"),
     LESSON_ROW_REQUIRED(7206, HttpStatus.BAD_REQUEST, "Không bỏ được dòng giờ học"),
     DOMAIN_NAME_EXISTS(7207, HttpStatus.CONFLICT, "Tên lĩnh vực {0} đã tồn tại"),

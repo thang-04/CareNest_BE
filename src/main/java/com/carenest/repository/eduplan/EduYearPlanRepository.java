@@ -27,13 +27,27 @@ public interface EduYearPlanRepository extends JpaRepository<EduYearPlan, Long> 
     // Spec 004: chuỗi phiên bản của một (năm học, nhóm tuổi)
     List<EduYearPlan> findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(Long schoolYearId, Long ageGroupId);
 
+    List<EduYearPlan> findAllBySchoolYearIdIn(Collection<Long> schoolYearIds);
+
     // Mọi thao tác ghi khóa dòng: hai người cùng bấm sửa thì người sau thấy khóa của người trước (EDU-10)
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from EduYearPlan p where p.id = :id")
     Optional<EduYearPlan> findForUpdateById(@Param("id") Long id);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<EduYearPlan> findAllByEditingAtLessThanEqual(Instant editingAt);
+    @Query("select p from EduYearPlan p where p.id in :ids order by p.id asc")
+    List<EduYearPlan> findAllByIdInForUpdateOrderByIdAsc(@Param("ids") Collection<Long> ids);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from EduYearPlan p where p.status in :statuses order by p.id asc")
+    List<EduYearPlan> findAllByStatusInForUpdateOrderByIdAsc(@Param("statuses") Collection<EduPlanStatus> statuses);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<EduYearPlan> findAllByEditingAtLessThanEqualOrderByIdAsc(Instant editingAt);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select p from EduYearPlan p where p.editingBy is not null order by p.id asc")
+    List<EduYearPlan> findAllByEditingByIsNotNull();
 
     // EDU-06: toàn trường theo trạng thái được xem, hoặc nhóm tuổi Tổ trưởng phụ trách, hoặc bản đã ban hành của GV
     @Query("""

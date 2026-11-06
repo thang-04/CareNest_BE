@@ -3,7 +3,6 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.dto.eduplan.BranchFilePreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
-import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.organization.AgeGroupResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
@@ -14,6 +13,7 @@ import com.carenest.entity.eduplan.EduYearPlan;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduBreakRepository;
 import com.carenest.repository.eduplan.EduClassDocRepository;
+import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.repository.eduplan.EduThemeRepository;
 import com.carenest.repository.eduplan.EduYearPlanRepository;
 import com.carenest.security.CurrentUser;
@@ -21,6 +21,7 @@ import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
+import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolStructureService;
@@ -32,6 +33,7 @@ import com.carenest.utils.enums.EduClassDocStatus;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Clock;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -40,7 +42,6 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -67,6 +68,17 @@ import tools.jackson.databind.node.ObjectNode;
 public class EduClassDocServiceImpl implements EduClassDocService {
     private static final String LOG_PREFIX = "[EduClassDocServiceImpl]";
 
+    private record ClassListContext(
+            Map<Long, ClassroomInfoResponse> classes,
+            Map<String, EduWorkflowPolicy.RolePolicy> policies,
+            long policyRevision,
+            EduPlanAccessPolicy.ClassScopeSnapshot scope,
+            Map<Long, Set<Long>> authors,
+            Map<Long, EduYearPlan> plans,
+            Set<Long> supersededPlanIds,
+            Map<Long, EduClassDoc> docsById,
+            Map<String, EduClassDoc> docsByKey) {}
+
     private static final String ACTION_SUBMIT = "submit";
     private static final String ACTION_APPROVE = "approve";
     private static final String ACTION_REJECT = "reject";
@@ -82,6 +94,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     // Trường do hệ thống quản lý: không lấy từ nội dung client gửi
     private static final Set<String> META_FIELDS = Set.of(
+            "version",
+            "dossierVersion",
+            "review",
+            "permissions",
+            "creationCapabilities",
             "id",
             "kind",
             "classId",
@@ -98,10 +115,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private static final int ADJUSTMENT_MAX_LENGTH = 4000;
     private static final String CHECK_GOAL = "goal:";
     private static final String CHECK_THEME = "theme:";
-    private static final Map<String, EduClassDocStatus> PENDING_OF = Map.of(
-            ROLE_TEAM_LEADER, EduClassDocStatus.PENDING_TL,
-            ROLE_VICE_PRINCIPAL, EduClassDocStatus.PENDING_VP,
-            ROLE_PRINCIPAL, EduClassDocStatus.PENDING_HT);
     private static final Map<String, String> SIGN_ROLE_LABELS = Map.of(
             ROLE_TEAM_LEADER, "Tổ trưởng",
             ROLE_VICE_PRINCIPAL, "Phó hiệu trưởng",
@@ -121,6 +134,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private final EduThemeRepository themeRepository;
     private final EduBreakRepository breakRepository;
     private final EduConfigService eduConfigService;
+    private final EduWorkflowService eduWorkflowService;
+    private final EduSettingsRepository settingsRepository;
     private final EduYearPlanService yearPlanService;
     private final EduPlanAccessPolicy accessPolicy;
     private final ClassroomService classroomService;
@@ -134,7 +149,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     record TeachingWeek(int no, LocalDate start, Long themeId) {}
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public BranchFilePreviewResponse previewBranchFile(
             CurrentUser currentUser, Long classId, Long yearPlanId, MultipartFile file) {
         String logPrefix = LOG_PREFIX + "|previewBranchFile|userId=" + currentUser.userId() + "|classId=" + classId
@@ -142,10 +157,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate today = LocalDate.now(clock);
-            if (!currentUser.hasRole(CareNestRole.TEACHER)
-                    || !staffAssignmentService
-                            .findCurrentTeacherClassroomIds(currentUser.userId(), today)
-                            .contains(classId)) {
+            ClassroomInfoResponse authorClass = requireClass(classId);
+            if (!eduWorkflowService.isAuthorEligible(currentUser, "branch", authorClass.ageGroupId(), classId)) {
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
             }
             ClassroomInfoResponse cls = requireClass(classId);
@@ -222,20 +235,23 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         log.info("{}|START", logPrefix);
         try {
             requireView(currentUser);
-            EduClassDoc doc = (write
-                            ? classDocRepository.findForUpdateByDocKey(docKey)
-                            : classDocRepository.findByDocKey(docKey))
+            EduClassDoc found = classDocRepository
+                    .findByDocKey(docKey)
                     .orElseThrow(() -> GlobalException.of(ApiCode.THEME_PLAN_NOT_FOUND));
+            if (write) {
+                settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+                yearPlanRepository.findForUpdateById(found.getYearPlanId()).orElseThrow();
+            }
+            EduClassDoc doc =
+                    write ? classDocRepository.findForUpdateById(found.getId()).orElseThrow() : found;
             if (!EduClassDoc.THEME.equals(doc.getKind())) throw GlobalException.of(ApiCode.RESOURCE_THEME_ONLY);
             ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
             LocalDate today = LocalDate.now(clock);
             if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             if (write) {
-                if (!currentUser.hasRole(CareNestRole.TEACHER)
-                        || !staffAssignmentService
-                                .findCurrentTeacherClassroomIds(currentUser.userId(), today)
-                                .contains(cls.id())) throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+                if (!eduWorkflowService.isAuthorEligible(currentUser, "theme", cls.ageGroupId(), cls.id()))
+                    throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
                 if (!doc.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 // EDU-26: học liệu của tài liệu trên phiên bản đã thay thế cũng chỉ xem
                 if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
@@ -249,7 +265,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId) {
         String logPrefix =
                 LOG_PREFIX + "|getClassDocs|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
@@ -298,30 +314,54 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
             List<EduClassDoc> docs =
                     classIds.isEmpty() ? List.of() : classDocRepository.findAllByClassroomIdInOrderByIdAsc(classIds);
-            // EDU-18: bước Tổ trưởng không còn người hợp lệ ⇒ hiện (và duyệt) ở bước kế; lưu khi có người thao tác
-            Map<Long, Boolean> leaderVacant = new HashMap<>();
-            classes.forEach(c -> leaderVacant.put(
-                    c.id(),
-                    leaderStepVacant(
-                            c.ageGroupId() == null ? Set.of() : leaders.getOrDefault(c.ageGroupId(), Set.of()),
-                            teachers.getOrDefault(c.id(), List.of()))));
-            EduConfigResponse.Signers signers = docs.stream().anyMatch(d -> waitingRole(d) != null)
-                    ? eduConfigService.getEduConfig().signers()
-                    : null;
-            Map<Long, EduClassDocStatus> shownStatus = new HashMap<>();
-            for (EduClassDoc d : docs) {
-                String waiting = waitingRole(d);
-                if (waiting != null && Boolean.TRUE.equals(leaderVacant.get(d.getClassroomId()))) {
-                    shownStatus.put(
-                            d.getId(), PENDING_OF.get(effectiveWaiting(signChainOf(d, signers), waiting, true)));
-                }
-            }
+            Map<Long, EduWorkflowPolicy.Evaluation> evaluations = eduWorkflowService.evaluateClassDocs(docs, today);
+            Map<Long, ClassroomInfoResponse> classInfoById =
+                    classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, c -> c, (a, b) -> a));
+            Map<String, EduWorkflowPolicy.RolePolicy> policies = eduWorkflowService.loadAllPolicies();
+            List<EduYearPlan> referencedPlans = yearPlanRepository.findAllById(docs.stream()
+                    .map(EduClassDoc::getYearPlanId)
+                    .filter(Objects::nonNull)
+                    .distinct()
+                    .toList());
+            Set<Long> planSchoolYears = referencedPlans.stream()
+                    .map(EduYearPlan::getSchoolYearId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Map<Long, EduYearPlan> plans = (planSchoolYears.isEmpty()
+                            ? referencedPlans
+                            : yearPlanRepository.findAllBySchoolYearIdIn(planSchoolYears))
+                    .stream().collect(Collectors.toMap(EduYearPlan::getId, p -> p));
+            Map<String, Integer> latestApprovedVersions = new LinkedHashMap<>();
+            plans.values().stream()
+                    .filter(p -> p.getStatus() == EduPlanStatus.APPROVED)
+                    .forEach(p -> latestApprovedVersions.merge(
+                            p.getSchoolYearId() + ":" + p.getAgeGroupId(), p.getVersionNo(), Math::max));
+            Set<Long> supersededPlanIds = plans.values().stream()
+                    .filter(p -> p.getVersionNo()
+                            < latestApprovedVersions.getOrDefault(
+                                    p.getSchoolYearId() + ":" + p.getAgeGroupId(), p.getVersionNo()))
+                    .map(EduYearPlan::getId)
+                    .collect(Collectors.toSet());
+            Map<Long, EduClassDoc> docsById = docs.stream().collect(Collectors.toMap(EduClassDoc::getId, d -> d));
+            Map<String, EduClassDoc> docsByKey =
+                    docs.stream().collect(Collectors.toMap(EduClassDoc::getDocKey, d -> d));
+            ClassListContext context = new ClassListContext(
+                    classInfoById,
+                    policies,
+                    eduWorkflowService.getPolicyRevision(),
+                    accessPolicy.classScopeSnapshot(currentUser),
+                    eduWorkflowService.getUnionAuthorUserIdsForDossiers(docs),
+                    plans,
+                    supersededPlanIds,
+                    docsById,
+                    docsByKey);
             ClassDocsResponse response = new ClassDocsResponse(
-                    toNodes(docs, EduClassDoc.BRANCH, shownStatus),
-                    toNodes(docs, EduClassDoc.THEME, shownStatus),
-                    toNodes(docs, EduClassDoc.WEEK, shownStatus),
+                    toNodes(currentUser, docs, EduClassDoc.BRANCH, evaluations, context),
+                    toNodes(currentUser, docs, EduClassDoc.THEME, evaluations, context),
+                    toNodes(currentUser, docs, EduClassDoc.WEEK, evaluations, context),
                     classItems,
-                    List.copyOf(staff.values()));
+                    List.copyOf(staff.values()),
+                    buildCreationCapabilities(classItems, codes, context));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -330,13 +370,59 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
     }
 
+    private List<ClassDocsResponse.CreationCapability> buildCreationCapabilities(
+            List<ClassDocsResponse.ClassItem> classItems, Map<Long, String> codes, ClassListContext context) {
+        List<ClassDocsResponse.CreationCapability> list = new ArrayList<>();
+        for (ClassDocsResponse.ClassItem cls : classItems) {
+            Long classId = Long.parseLong(cls.id());
+            Long ageGroupId = codes.entrySet().stream()
+                    .filter(e -> Objects.equals(e.getValue(), cls.ageGroupId()))
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse(null);
+            ClassroomInfoResponse classroom = context.classes().get(classId);
+            boolean canAuthorBranch = context.scope()
+                    .canAuthor(
+                            context.policies().get("branch"),
+                            ageGroupId,
+                            classroom == null ? null : classroom.campusId(),
+                            classId);
+            boolean canAuthorTheme = context.scope()
+                    .canAuthor(
+                            context.policies().get("theme"),
+                            ageGroupId,
+                            classroom == null ? null : classroom.campusId(),
+                            classId);
+            list.add(new ClassDocsResponse.CreationCapability(
+                    classId,
+                    "branch",
+                    canAuthorBranch,
+                    "ISSUED_YEAR_PLAN",
+                    canAuthorBranch ? null : "AUTHOR_FORBIDDEN"));
+            list.add(new ClassDocsResponse.CreationCapability(
+                    classId, "theme", canAuthorTheme, "APPROVED_BRANCH", canAuthorTheme ? null : "AUTHOR_FORBIDDEN"));
+            list.add(new ClassDocsResponse.CreationCapability(
+                    classId, "week", canAuthorTheme, "THEME_DOSSIER", canAuthorTheme ? null : "AUTHOR_FORBIDDEN"));
+        }
+        return list;
+    }
+
     @Override
     @Transactional
-    public ObjectNode saveClassDoc(CurrentUser currentUser, String kind, String docKey, ObjectNode doc) {
+    public ObjectNode saveClassDoc(
+            CurrentUser currentUser,
+            String kind,
+            String docKey,
+            ObjectNode doc,
+            Long expectedVersion,
+            Long expectedRootVersion) {
         String logPrefix =
                 LOG_PREFIX + "|saveClassDoc|userId=" + currentUser.userId() + "|kind=" + kind + "|docKey=" + docKey;
         log.info("{}|START", logPrefix);
         try {
+            settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+            if (expectedVersion == null)
+                throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "X-Class-Doc-Version");
             requireKind(kind);
             Long classId = requireLong(doc, "classId");
             Long yearPlanId = requireLong(doc, "yearPlanId");
@@ -345,10 +431,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
             ClassroomInfoResponse cls = requireClass(classId);
             LocalDate today = LocalDate.now(clock);
-            // EDU-12: chỉ giáo viên được phân công vào lớp soạn
-            if (!staffAssignmentService
-                    .findCurrentTeacherClassroomIds(currentUser.userId(), today)
-                    .contains(classId)) {
+            // EDU-12: author eligibility according to policy and reviewer precedence
+            if (!eduWorkflowService.isAuthorEligible(currentUser, kind, cls.ageGroupId(), classId)) {
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
             }
             EduYearPlan plan = requireIssuedPlan(yearPlanId, cls);
@@ -372,9 +456,21 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 throw GlobalException.of(ApiCode.WEEK_NOT_IN_THEME);
             }
 
+            yearPlanRepository.findForUpdateById(plan.getId()).orElseThrow();
+            EduClassDoc root = null;
+            if (EduClassDoc.WEEK.equals(kind)) {
+                if (expectedRootVersion == null)
+                    throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "X-Dossier-Version");
+                root = lockDossierRoot(classId, plan.getId(), themeId);
+                if (!expectedRootVersion.equals(root.getVersion())) throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
+                if (!root.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+            }
             Optional<EduClassDoc> current = classDocRepository.findForUpdateByDocKey(docKey);
             EduClassDoc entity;
             if (current.isEmpty()) {
+                if (expectedVersion != null && expectedVersion != -1L) {
+                    throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
+                }
                 requireCanCreate(kind, cls.id(), plan.getId(), themeId);
                 entity = EduClassDoc.create(
                         docKey, kind, classId, plan.getId(), themeId, weekStart, currentUser.userId());
@@ -385,14 +481,24 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 }
             } else {
                 entity = current.get();
+                if (expectedVersion != null && !expectedVersion.equals(entity.getVersion())) {
+                    throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
+                }
                 // EDU-18: chỉ sửa khi Nháp hoặc Bị trả lại
                 if (!entity.getStatus().editable()) {
-                    throw GlobalException.of(ApiCode.CLASS_DOC_SUBMITTED);
+                    throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 }
             }
             entity.changeContent(objectMapper.writeValueAsString(contentOf(doc)), currentUser.userId());
+            if (root != null) root.touchDossier(clock.instant());
             EduClassDoc saved = classDocRepository.saveAndFlush(entity);
-            ObjectNode response = toNode(saved);
+            eduWorkflowService.recordAuthor(
+                    null,
+                    saved.getId(),
+                    currentUser.userId(),
+                    current.isEmpty() ? "CREATOR" : "CONTENT_WRITE",
+                    clock.instant());
+            ObjectNode response = toNode(currentUser, saved);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -404,135 +510,129 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     @Override
     @Transactional
     public ObjectNode actOnClassDoc(
-            CurrentUser currentUser, String kind, String docKey, ClassDocActionRequest request) {
-        String logPrefix = LOG_PREFIX + "|actOnClassDoc|userId=" + currentUser.userId() + "|kind=" + kind + "|docKey="
-                + docKey + "|action=" + request.action();
+            CurrentUser currentUser, String kind, String docKey, ClassDocActionRequest request, Long expectedVersion) {
+        String logPrefix = LOG_PREFIX + "|actOnClassDoc|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
+            settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
             requireKind(kind);
-            // EDU-17: giáo án tuần đi cùng hồ sơ chủ đề, không gửi riêng
-            if (EduClassDoc.WEEK.equals(kind)) {
-                throw GlobalException.of(ApiCode.WEEKLY_LESSON_VIA_THEME);
-            }
-            EduClassDoc doc = classDocRepository
-                    .findForUpdateByDocKey(docKey)
+            if (EduClassDoc.WEEK.equals(kind)) throw GlobalException.of(ApiCode.WEEKLY_LESSON_VIA_THEME);
+            EduClassDoc found = classDocRepository
+                    .findByDocKey(docKey)
                     .filter(d -> d.getKind().equals(kind))
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
+            yearPlanRepository
+                    .findForUpdateById(found.getYearPlanId())
+                    .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
+            EduClassDoc doc =
+                    classDocRepository.findForUpdateById(found.getId()).orElseThrow();
+            if (expectedVersion == null)
+                throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "X-Class-Doc-Version");
+            if (!expectedVersion.equals(doc.getVersion())) throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
             ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
+            Instant at = clock.instant();
             LocalDate today = LocalDate.now(clock);
-            Set<Long> leaders = cls.ageGroupId() == null
-                    ? Set.of()
-                    : staffAssignmentService.findActiveTeamLeaderIds(cls.ageGroupId(), today);
-            List<Long> classTeachers = staffAssignmentService
-                    .findCurrentTeacherIds(List.of(cls.id()), today)
-                    .getOrDefault(cls.id(), List.of());
-            // EDU-18: bỏ bước Tổ trưởng khi nhóm tuổi không có Tổ trưởng hoặc Tổ trưởng dạy chính lớp đó
-            boolean skipLeader = leaderStepVacant(leaders, classTeachers);
-            EduConfigResponse.Signers signers = eduConfigService.getEduConfig().signers();
-            // Lúc gửi: chụp chuỗi theo cấu hình hiện tại; lúc duyệt/trả lại: theo chuỗi đã chụp
-            List<String> chain = ACTION_SUBMIT.equals(request.action())
-                    ? configuredChain(kind, signers).stream()
-                            .filter(r -> !ROLE_TEAM_LEADER.equals(r) || !skipLeader)
-                            .toList()
-                    : signChainOf(doc, signers);
-            String waiting = effectiveWaiting(chain, waitingRole(doc), skipLeader);
-
-            List<EduClassDoc> all = new ArrayList<>(List.of(doc));
+            var policy = eduWorkflowService.loadPolicy(kind);
+            var evaluation = eduWorkflowService.evaluateClassDoc(doc, cls.ageGroupId(), today);
+            var approvals = new ArrayList<>(eduWorkflowService.parseApprovals(doc.getApprovals()));
+            var all = new ArrayList<EduClassDoc>();
+            all.add(doc);
             if (EduClassDoc.THEME.equals(kind)) {
-                all.addAll(dossierWeekDocs(doc));
+                classDocRepository
+                        .findAllByDossierForUpdateOrderByIdAsc(cls.id(), doc.getYearPlanId(), doc.getThemeId())
+                        .stream()
+                        .filter(d -> !d.getId().equals(doc.getId()))
+                        .forEach(all::add);
             }
-            String note = request.note() == null || request.note().isBlank()
-                    ? null
-                    : request.note().trim();
-            String actorRole = actorRole(currentUser, leaders);
-            EduClassDocStatus next;
-            ObjectNode approval = null;
-            String action;
-            String tone;
-            switch (request.action()) {
-                case ACTION_SUBMIT -> {
-                    if (!classTeachers.contains(currentUser.userId())) {
-                        throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
-                    }
-                    if (!doc.getStatus().editable()) {
-                        throw GlobalException.of(ApiCode.CLASS_DOC_SUBMITTED);
-                    }
-                    if (isSuperseded(doc.getYearPlanId())) {
-                        throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
-                    }
-                    requireCanSubmit(doc);
-                    // EDU-26: bản chép từ phiên bản cũ còn ô đỏ thì chưa gửi được (kể cả gọi API trực tiếp)
-                    long unresolved = all.stream()
-                            .mapToLong(d -> unresolvedVersionFixes(d, today))
-                            .sum();
-                    if (unresolved > 0) {
-                        throw GlobalException.of(ApiCode.CLASS_DOC_VERSION_FIX_REQUIRED, unresolved);
-                    }
-                    next = chain.isEmpty() ? EduClassDocStatus.APPROVED : PENDING_OF.get(chain.getFirst());
-                    action = chain.isEmpty()
-                            ? "Gửi (không cần duyệt)"
-                            : "Gửi " + SIGN_ROLE_LABELS.get(chain.getFirst()) + " duyệt";
-                    tone = TONE_NONE;
-                    String snapshot = objectMapper.writeValueAsString(chain);
-                    all.forEach(d -> d.snapshotSignChain(snapshot));
+            String note = request.note() == null ? "" : request.note().trim();
+            int round = doc.getReviewRound();
+            EduWorkflowPolicy.Role actingRole = evaluation.waitingRole();
+            EduClassDocStatus next = EduClassDocStatus.REVIEW;
+            if (ACTION_SUBMIT.equals(request.action())) {
+                if (!eduWorkflowService.isAuthorEligible(currentUser, kind, cls.ageGroupId(), cls.id()))
+                    throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+                if (!doc.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
+                requireCanSubmit(doc);
+                long unresolved = all.stream()
+                        .mapToLong(d -> unresolvedVersionFixes(d, today))
+                        .sum();
+                if (unresolved > 0) throw GlobalException.of(ApiCode.CLASS_DOC_VERSION_FIX_REQUIRED, unresolved);
+                round++;
+                approvals.clear();
+                actingRole = null;
+            } else {
+                if (doc.getStatus() != EduClassDocStatus.REVIEW
+                        || actingRole == null
+                        || eduWorkflowService
+                                .getUnionAuthorUserIdsForDossier(doc)
+                                .contains(currentUser.userId())
+                        || !accessPolicy.canReviewClassDoc(currentUser, actingRole, cls.ageGroupId(), cls.id())) {
+                    throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, request.action());
                 }
-                case ACTION_APPROVE -> {
-                    requireWaitingFor(currentUser, waiting, leaders, "duyệt");
-                    String nextRole = nextStep(chain, chain.indexOf(waiting) + 1, skipLeader);
-                    next = nextRole == null ? EduClassDocStatus.APPROVED : PENDING_OF.get(nextRole);
-                    approval = objectMapper.createObjectNode();
-                    approval.put("userId", currentUser.userId());
-                    approval.put("name", currentUser.fullName());
-                    approval.put("role", ROLE_LABELS.get(actorRole));
-                    approval.put("roleKey", actorRole);
-                    approval.put("at", now());
-                    approval.put("note", note == null ? "" : note);
-                    action = nextRole == null
-                            ? SIGN_ROLE_LABELS.get(waiting) + " duyệt"
-                            : SIGN_ROLE_LABELS.get(waiting) + " duyệt, chuyển " + SIGN_ROLE_LABELS.get(nextRole);
-                    tone = TONE_OK;
-                }
-                case ACTION_REJECT -> {
-                    requireWaitingFor(currentUser, waiting, leaders, "trả lại");
-                    if (note == null) {
-                        throw GlobalException.of(ApiCode.RETURN_REASON_REQUIRED);
-                    }
-                    next = EduClassDocStatus.REJECTED;
-                    action = "Trả lại để sửa";
-                    tone = TONE_ERR;
-                }
-                default -> throw GlobalException.of(ApiCode.INVALID_VALUE, "hành động");
+                if (ACTION_APPROVE.equals(request.action())) {
+                    approvals.add(new EduWorkflowPolicy.Approval(
+                            currentUser.userId(), currentUser.fullName(), actingRole, at, note, round));
+                    var after = new EduWorkflowPolicy()
+                            .evaluate(
+                                    policy,
+                                    round,
+                                    approvals,
+                                    eduWorkflowService.getUnionAuthorUserIdsForDossier(doc),
+                                    eduWorkflowService.resolveActiveCandidates(
+                                            policy, cls.ageGroupId(), cls.id(), today));
+                    if (after.complete()) next = EduClassDocStatus.APPROVED;
+                } else if (ACTION_REJECT.equals(request.action())) {
+                    if (note.isBlank()) throw GlobalException.of(ApiCode.RETURN_REASON_REQUIRED);
+                    next = EduClassDocStatus.DRAFT;
+                } else throw GlobalException.of(ApiCode.INVALID_VALUE, "hành động");
             }
-
-            ObjectNode entry = objectMapper.createObjectNode();
-            entry.put("action", action);
-            entry.put("by", currentUser.fullName());
-            entry.put("role", ROLE_LABELS.get(actorRole));
-            entry.put("at", now());
-            entry.put("tone", tone);
-            if (note != null) {
-                entry.put("note", note);
-            }
-            for (int i = 0; i < all.size(); i++) {
-                EduClassDoc d = all.get(i);
-                ArrayNode approvals = approval == null ? objectMapper.createArrayNode() : readArray(d.getApprovals());
-                if (approval != null) {
-                    approvals.add(approval);
-                }
-                ArrayNode history = readArray(d.getHistory());
-                ObjectNode logged = entry.deepCopy();
-                if (i > 0) {
-                    logged.put("action", action + " (kế hoạch chủ đề)");
-                }
-                history.add(logged);
-                d.changeStatus(
+            long revision = eduWorkflowService.getPolicyRevision();
+            String approvalsJson = eduWorkflowService.serializeApprovals(approvals);
+            String completionPolicy = objectMapper.writeValueAsString(policy);
+            String snapshot = next == EduClassDocStatus.APPROVED
+                    ? eduWorkflowService.buildPrintSnapshot(
+                            kind,
+                            revision,
+                            approvals,
+                            policy,
+                            at,
+                            eduWorkflowService.getUnionAuthorUserIdsForDossier(doc))
+                    : null;
+            for (EduClassDoc member : all) {
+                ArrayNode history = readArray(member.getHistory());
+                ObjectNode event = objectMapper.createObjectNode();
+                event.put("action", request.action());
+                event.put("by", currentUser.fullName());
+                event.put("actorId", currentUser.userId());
+                event.put("round", round);
+                event.put("policyRevision", revision);
+                event.put("at", at.toString());
+                event.put("note", note);
+                event.put("roleKey", actingRole == null ? "" : actingRole.name());
+                event.put("role", actingRole == null ? "Người soạn" : SIGN_ROLE_LABELS.get(actingRole.name()));
+                event.put(
+                        "tone",
+                        ACTION_REJECT.equals(request.action())
+                                ? TONE_ERR
+                                : ACTION_APPROVE.equals(request.action()) ? TONE_OK : TONE_NONE);
+                history.add(event);
+                member.snapshotSignChain(objectMapper.writeValueAsString(policy.reviewers()));
+                member.updateWorkflowState(
                         next,
-                        objectMapper.writeValueAsString(approvals),
-                        objectMapper.writeValueAsString(history),
+                        round,
+                        approvalsJson,
+                        history.toString(),
+                        revision,
+                        next == EduClassDocStatus.APPROVED ? completionPolicy : null,
+                        snapshot,
+                        next == EduClassDocStatus.APPROVED ? "HUMAN_APPROVAL" : null,
+                        next == EduClassDocStatus.APPROVED ? at : null,
                         currentUser.userId());
+                member.touchDossier(at);
             }
             classDocRepository.saveAllAndFlush(all);
-            ObjectNode response = toNode(doc);
+            ObjectNode response = toNode(currentUser, doc);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -543,21 +643,32 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     @Override
     @Transactional
-    public ObjectNode saveAdjustments(CurrentUser currentUser, String docKey, Map<String, String> adjustments) {
+    public ObjectNode saveAdjustments(
+            CurrentUser currentUser,
+            String docKey,
+            Map<String, String> adjustments,
+            Long expectedVersion,
+            Long expectedRootVersion) {
         String logPrefix = LOG_PREFIX + "|saveAdjustments|userId=" + currentUser.userId() + "|docKey=" + docKey;
         log.info("{}|START", logPrefix);
         try {
-            EduClassDoc doc = classDocRepository
-                    .findForUpdateByDocKey(docKey)
+            settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+            EduClassDoc found = classDocRepository
+                    .findByDocKey(docKey)
                     .filter(d -> EduClassDoc.WEEK.equals(d.getKind()))
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_NOT_FOUND));
-            LocalDate today = LocalDate.now(clock);
-            // EDU-27: chỉ giáo viên của lớp; mọi trạng thái, kể cả đã duyệt hoặc phiên bản đã thay thế
-            if (!staffAssignmentService
-                    .findCurrentTeacherClassroomIds(currentUser.userId(), today)
-                    .contains(doc.getClassroomId())) {
+            if (expectedVersion == null || expectedRootVersion == null)
+                throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "X-Class-Doc-Version, X-Dossier-Version");
+            yearPlanRepository.findForUpdateById(found.getYearPlanId()).orElseThrow();
+            EduClassDoc root = lockDossierRoot(found.getClassroomId(), found.getYearPlanId(), found.getThemeId());
+            EduClassDoc doc =
+                    classDocRepository.findForUpdateById(found.getId()).orElseThrow();
+            if (!expectedVersion.equals(doc.getVersion()) || !expectedRootVersion.equals(root.getVersion()))
+                throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
+            ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
+            if (!eduWorkflowService.isAuthorEligible(currentUser, "theme", cls.ageGroupId(), cls.id()))
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
-            }
+            if (doc.getStatus() == EduClassDocStatus.REVIEW) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
             ObjectNode next = objectMapper.createObjectNode();
             new TreeMap<>(adjustments).forEach((day, text) -> {
                 LocalDate date;
@@ -589,15 +700,25 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         objectMapper.writeValueAsString(next),
                         objectMapper.writeValueAsString(history),
                         currentUser.userId());
+                root.touchDossier(clock.instant());
                 classDocRepository.saveAndFlush(doc);
+                eduWorkflowService.recordAuthor(
+                        null, doc.getId(), currentUser.userId(), "CONTENT_WRITE", clock.instant());
             }
-            ObjectNode response = toNode(doc);
+            ObjectNode response = toNode(currentUser, doc);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private EduClassDoc lockDossierRoot(Long classId, Long yearPlanId, Long themeId) {
+        return classDocRepository
+                .findForUpdateByDocKey("tp_" + classId + "_" + themeId)
+                .filter(d -> Objects.equals(d.getYearPlanId(), yearPlanId))
+                .orElseThrow(() -> GlobalException.of(ApiCode.THEME_PLAN_NOT_FOUND));
     }
 
     // Khóa Web: giáo án tuần phiên bản ≥2 thêm id kế hoạch để không trùng tuần của phiên bản cũ (spec 004 A4)
@@ -768,16 +889,22 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
     }
 
-    /** Phó HT, HT xem mọi lớp; giáo viên xem lớp mình dạy và các lớp thuộc nhóm tuổi mình làm tổ trưởng. */
+    // Phạm vi tác vụ theo campus, lớp và nhóm tuổi được phân công còn hiệu lực.
     private List<ClassroomInfoResponse> visibleClasses(CurrentUser user, Long schoolYearId, LocalDate today) {
         List<ClassroomInfoResponse> classes = classroomService.findYearClassrooms(schoolYearId);
-        if (accessPolicy.isVicePrincipal(user) || accessPolicy.isPrincipal(user)) {
+        if (accessPolicy.isPrincipal(user)) {
             return classes;
         }
+        Set<Long> campuses = user.hasRole(CareNestRole.VICE_PRINCIPAL)
+                ? staffAssignmentService.findActiveCampusIds(
+                        user.userId(), com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL, today)
+                : Set.of();
         Set<Long> taught = staffAssignmentService.findCurrentTeacherClassroomIds(user.userId(), today);
         Set<Long> led = staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), today);
         return classes.stream()
-                .filter(c -> taught.contains(c.id()) || (c.ageGroupId() != null && led.contains(c.ageGroupId())))
+                .filter(c -> campuses.contains(c.campusId())
+                        || taught.contains(c.id())
+                        || (c.ageGroupId() != null && led.contains(c.ageGroupId())))
                 .toList();
     }
 
@@ -873,99 +1000,6 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .toList();
     }
 
-    // EDU-18: không còn Tổ trưởng hợp lệ (nhóm tuổi không có Tổ trưởng hoặc Tổ trưởng dạy chính lớp này)
-    private static boolean leaderStepVacant(Set<Long> leaders, List<Long> classTeachers) {
-        return leaders.isEmpty() || leaders.stream().anyMatch(classTeachers::contains);
-    }
-
-    private static List<String> configuredChain(String kind, EduConfigResponse.Signers signers) {
-        return EduClassDoc.BRANCH.equals(kind) ? signers.branch() : signers.week();
-    }
-
-    private static String waitingRole(EduClassDoc doc) {
-        return PENDING_OF.entrySet().stream()
-                .filter(e -> e.getValue() == doc.getStatus())
-                .map(Map.Entry::getKey)
-                .findFirst()
-                .orElse(null);
-    }
-
-    /**
-     * Chuỗi duyệt của hồ sơ đang chờ: chuỗi chụp lúc gửi. Hồ sơ gửi trước khi có snapshot: chuỗi cấu hình; nếu cấu hình
-     * đã bỏ bước đang chờ thì không coi bước đó là bước cuối khi còn người chưa duyệt.
-     */
-    private List<String> signChainOf(EduClassDoc doc, EduConfigResponse.Signers signers) {
-        if (doc.getSignChain() != null) {
-            List<String> chain = new ArrayList<>();
-            readArray(doc.getSignChain()).forEach(n -> chain.add(n.asString("")));
-            return chain;
-        }
-        List<String> configured = configuredChain(doc.getKind(), signers);
-        String waiting = waitingRole(doc);
-        if (waiting == null || configured.contains(waiting)) {
-            return configured;
-        }
-        // Cấu hình đã bỏ bước đang chờ: giữ bước đó, các bước cấu hình chưa duyệt đi sau
-        List<String> chain = new ArrayList<>();
-        readArray(doc.getApprovals()).forEach(a -> {
-            String role = a.path("roleKey").asString("");
-            if (!role.isEmpty() && !chain.contains(role)) {
-                chain.add(role);
-            }
-        });
-        if (!chain.contains(waiting)) {
-            chain.add(waiting);
-        }
-        configured.stream().filter(r -> !chain.contains(r)).forEach(chain::add);
-        return chain;
-    }
-
-    /** Bước kế từ vị trí {@code from}: bỏ bước Tổ trưởng không còn người hợp lệ (EDU-18); null = hết chuỗi. */
-    private static String nextStep(List<String> chain, int from, boolean leaderVacant) {
-        for (int i = Math.max(from, 0); i < chain.size(); i++) {
-            if (!ROLE_TEAM_LEADER.equals(chain.get(i)) || !leaderVacant) {
-                return chain.get(i);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Bước đang chờ thực tế: đang chờ Tổ trưởng mà không còn Tổ trưởng hợp lệ ⇒ chuyển bước kế (EDU-18). Hết chuỗi thì
-     * vẫn chờ Tổ trưởng (HT phân công Tổ trưởng mới) — không tự duyệt.
-     */
-    private static String effectiveWaiting(List<String> chain, String waiting, boolean leaderVacant) {
-        if (waiting == null || !ROLE_TEAM_LEADER.equals(waiting) || !leaderVacant) {
-            return waiting;
-        }
-        String next = nextStep(chain, chain.indexOf(waiting) + 1, true);
-        return next == null ? waiting : next;
-    }
-
-    /** EDU-18: đúng lượt, đúng vai trò; Tổ trưởng chỉ duyệt lớp thuộc nhóm tuổi mình. */
-    private void requireWaitingFor(CurrentUser user, String waiting, Set<Long> leaders, String action) {
-        boolean allowed = waiting != null
-                && switch (waiting) {
-                    case ROLE_TEAM_LEADER -> leaders.contains(user.userId());
-                    case ROLE_VICE_PRINCIPAL -> accessPolicy.isVicePrincipal(user);
-                    case ROLE_PRINCIPAL -> accessPolicy.isPrincipal(user);
-                    default -> false;
-                };
-        if (!allowed) {
-            throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, action);
-        }
-    }
-
-    private String actorRole(CurrentUser user, Set<Long> leaders) {
-        if (accessPolicy.isVicePrincipal(user)) {
-            return ROLE_VICE_PRINCIPAL;
-        }
-        if (accessPolicy.isPrincipal(user)) {
-            return ROLE_PRINCIPAL;
-        }
-        return leaders.contains(user.userId()) ? ROLE_TEAM_LEADER : "TEACHER";
-    }
-
     private static void requireKind(String kind) {
         if (!Set.of(EduClassDoc.BRANCH, EduClassDoc.THEME, EduClassDoc.WEEK).contains(kind)) {
             throw GlobalException.of(ApiCode.INVALID_VALUE, "loại tài liệu");
@@ -998,22 +1032,36 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return LocalDateTime.now(clock.withZone(SCHOOL_ZONE)).format(HISTORY_TIME);
     }
 
-    private List<ObjectNode> toNodes(List<EduClassDoc> docs, String kind, Map<Long, EduClassDocStatus> shownStatus) {
+    private List<ObjectNode> toNodes(
+            CurrentUser currentUser,
+            List<EduClassDoc> docs,
+            String kind,
+            Map<Long, EduWorkflowPolicy.Evaluation> evaluations,
+            ClassListContext context) {
         return docs.stream()
                 .filter(d -> kind.equals(d.getKind()))
-                .map(d -> {
-                    ObjectNode node = toNode(d);
-                    EduClassDocStatus shown = shownStatus.get(d.getId());
-                    if (shown != null) {
-                        node.put("status", shown.name());
-                    }
-                    return node;
-                })
+                .map(d -> toNode(currentUser, d, evaluations.get(d.getId()), context))
                 .toList();
     }
 
     /** Dạng tài liệu của Web: nội dung soạn + id, lớp, kế hoạch năm, chủ đề, tuần, trạng thái, người duyệt, lịch sử. */
-    private ObjectNode toNode(EduClassDoc doc) {
+    private ObjectNode toNode(CurrentUser currentUser, EduClassDoc doc) {
+        var cls = requireClass(doc.getClassroomId());
+        var evaluation = doc.getStatus() == EduClassDocStatus.REVIEW
+                ? eduWorkflowService.evaluateClassDoc(doc, cls.ageGroupId(), LocalDate.now(clock))
+                : null;
+        return toNode(currentUser, doc, evaluation);
+    }
+
+    private ObjectNode toNode(CurrentUser currentUser, EduClassDoc doc, EduWorkflowPolicy.Evaluation evaluation) {
+        return toNode(currentUser, doc, evaluation, null);
+    }
+
+    private ObjectNode toNode(
+            CurrentUser currentUser,
+            EduClassDoc doc,
+            EduWorkflowPolicy.Evaluation evaluation,
+            ClassListContext context) {
         ObjectNode node = objectMapper.createObjectNode();
         node.put("id", doc.getDocKey());
         node.put("kind", doc.getKind());
@@ -1030,18 +1078,90 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 node.set(e.getKey(), e.getValue());
             }
         });
-        node.put("status", doc.getStatus().name());
+        node.put("status", doc.publicStatus().name());
+        node.put("version", doc.getVersion() != null ? doc.getVersion() : 0L);
         node.set("approvals", readArray(doc.getApprovals()));
         node.set("history", readArray(doc.getHistory()));
-        yearPlanRepository
-                .findById(doc.getYearPlanId())
-                .ifPresent(plan -> node.put("yearPlanVersion", plan.getVersionNo()));
-        node.put("superseded", isSuperseded(doc.getYearPlanId()));
-        if (doc.getSourceDocId() != null) {
-            classDocRepository
-                    .findById(doc.getSourceDocId())
-                    .ifPresent(source -> node.put("sourceDocKey", source.getDocKey()));
+        EduYearPlan cachedPlan = context == null ? null : context.plans().get(doc.getYearPlanId());
+        if (context == null) {
+            yearPlanRepository
+                    .findById(doc.getYearPlanId())
+                    .ifPresent(plan -> node.put("yearPlanVersion", plan.getVersionNo()));
+        } else if (cachedPlan != null) {
+            node.put("yearPlanVersion", cachedPlan.getVersionNo());
         }
+        node.put(
+                "superseded",
+                context == null
+                        ? isSuperseded(doc.getYearPlanId())
+                        : context.supersededPlanIds().contains(doc.getYearPlanId()));
+        if (doc.getSourceDocId() != null) {
+            EduClassDoc source = context == null
+                    ? classDocRepository.findById(doc.getSourceDocId()).orElse(null)
+                    : context.docsById().get(doc.getSourceDocId());
+            if (source != null) node.put("sourceDocKey", source.getDocKey());
+        }
+        String type = EduClassDoc.WEEK.equals(doc.getKind()) ? "theme" : doc.getKind();
+        ClassroomInfoResponse cls = context == null
+                ? requireClass(doc.getClassroomId())
+                : context.classes().get(doc.getClassroomId());
+        var policy = context == null
+                ? eduWorkflowService.loadPolicy(type)
+                : context.policies().get(type);
+        node.set(
+                "review",
+                objectMapper.valueToTree(eduWorkflowService.toReviewStateResponse(
+                        context == null ? eduWorkflowService.getPolicyRevision() : context.policyRevision(),
+                        doc.getReviewRound(),
+                        policy,
+                        evaluation,
+                        doc.getApprovals(),
+                        doc.getAuthorCoverage(),
+                        doc.getAuthorTrackingSince(),
+                        doc.getCompletionMode(),
+                        doc.getCompletedAt(),
+                        doc.getCompletionPolicy(),
+                        doc.getPrintSnapshot())));
+        EduClassDoc root = doc;
+        if (EduClassDoc.WEEK.equals(doc.getKind())) {
+            String rootKey = "tp_" + doc.getClassroomId() + "_" + doc.getThemeId();
+            root = context == null
+                    ? classDocRepository.findByDocKey(rootKey).orElse(doc)
+                    : context.docsByKey().getOrDefault(rootKey, doc);
+        }
+        node.put("dossierVersion", root.getVersion() == null ? 0L : root.getVersion());
+        boolean author = context == null
+                ? eduWorkflowService.isAuthorEligible(currentUser, type, cls.ageGroupId(), cls.id())
+                : context.scope().canAuthor(policy, cls.ageGroupId(), cls.campusId(), cls.id());
+        boolean activeVersion = context == null
+                ? !isSuperseded(doc.getYearPlanId())
+                : !context.supersededPlanIds().contains(doc.getYearPlanId());
+        boolean reviewable = evaluation != null
+                && evaluation.waitingRole() != null
+                && !(context == null
+                                ? eduWorkflowService.getUnionAuthorUserIdsForDossier(doc)
+                                : context.authors().getOrDefault(doc.getId(), Set.of()))
+                        .contains(currentUser.userId())
+                && (context == null
+                        ? accessPolicy.canReviewClassDoc(
+                                currentUser, evaluation.waitingRole(), cls.ageGroupId(), cls.id())
+                        : context.scope().canReview(evaluation.waitingRole(), cls.ageGroupId(), cls.campusId()));
+        ObjectNode permissions = node.putObject("permissions");
+        permissions.put(
+                "canEdit",
+                author
+                        && activeVersion
+                        && doc.getStatus().editable()
+                        && root.getStatus().editable());
+        permissions.put(
+                "canSubmit",
+                author && activeVersion && doc.getStatus().editable() && !EduClassDoc.WEEK.equals(doc.getKind()));
+        permissions.put("canApprove", reviewable && !EduClassDoc.WEEK.equals(doc.getKind()));
+        permissions.put("canReturn", reviewable && !EduClassDoc.WEEK.equals(doc.getKind()));
+        permissions.put("canReject", reviewable && !EduClassDoc.WEEK.equals(doc.getKind()));
+        boolean canAdjust = author && doc.getStatus() != EduClassDocStatus.REVIEW;
+        permissions.put("canAdjust", canAdjust);
+        permissions.put("canEditAdjustments", canAdjust);
         node.set("adjustments", readObject(doc.getAdjustments()));
         return node;
     }

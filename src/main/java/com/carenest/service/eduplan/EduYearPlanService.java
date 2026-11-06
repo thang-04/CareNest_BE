@@ -30,10 +30,10 @@ public interface EduYearPlanService {
 
     void deleteYearPlan(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
-    /** EDU-10: vào trang soạn ⇒ cấp quyền cho đúng phiên, giữ trạng thái Chờ duyệt khi Phó HT sửa. */
+    /** EDU-10: cấp khóa sửa theo phiên khi hồ sơ đang ở trạng thái nháp. */
     YearPlanDetailResponse startEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
-    /** EDU-10: thoát trang soạn ⇒ nhả khóa của chính người này, về Nháp / Bị trả lại. */
+    /** EDU-10: thoát trang soạn ⇒ nhả khóa của chính người này. */
     YearPlanDetailResponse finishEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
     YearPlanDetailResponse heartbeat(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);

@@ -85,15 +85,15 @@ class EduYearPlanControllerTest {
     }
 
     @Test
-    @DisplayName("EDU-46: Hiệu trưởng không nhập file mục tiêu (chỉ người soạn)")
-    void principalCannotPreviewGoalFile() throws Exception {
-        authenticateAs(CareNestRole.PRINCIPAL);
+    @DisplayName("EDU-46: nhân viên bếp không gọi preview mục tiêu")
+    void kitchenCannotPreviewGoalFile() throws Exception {
+        authenticateAs(CareNestRole.KITCHEN_STAFF);
 
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(
                                 GOALS + "/file-preview")
                         .file(new org.springframework.mock.web.MockMultipartFile(
                                 "file", "muc-tieu.csv", "text/csv", "a,b".getBytes()))
-                        .with(token(CareNestRole.PRINCIPAL)))
+                        .with(token(CareNestRole.KITCHEN_STAFF)))
                 .andExpect(status().isForbidden());
         verify(eduGoalFileService, never()).preview(any(), any());
     }
@@ -252,7 +252,7 @@ class EduYearPlanControllerTest {
     void submitWithoutBodyPassesNullNote() throws Exception {
         CurrentUser leader = authenticateAs(CareNestRole.TEACHER);
         given(eduYearPlanService.submitYearPlan(eq(leader), eq(5L), eq(null), any()))
-                .willReturn(detail(EduPlanStatus.PENDING_VP));
+                .willReturn(detail(EduPlanStatus.REVIEW));
 
         mockMvc.perform(post(GOALS + "/5/submit")
                         .with(token(CareNestRole.TEACHER))
@@ -260,7 +260,7 @@ class EduYearPlanControllerTest {
                         .header("X-Plan-Revision", "0")
                         .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.status").value("PENDING_VP"));
+                .andExpect(jsonPath("$.data.status").value("REVIEW"));
     }
 
     @Test
@@ -302,7 +302,8 @@ class EduYearPlanControllerTest {
                 List.of(),
                 List.of(),
                 null,
-                new YearPlanDetailResponse.Permissions(true, true, false, false, true, false),
+                null,
+                new YearPlanDetailResponse.Permissions(true, true, false, false, false, true, false),
                 0L,
                 null,
                 1,

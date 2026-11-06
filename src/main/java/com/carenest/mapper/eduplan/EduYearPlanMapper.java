@@ -29,7 +29,11 @@ public class EduYearPlanMapper {
             long themeCount,
             Map<Long, String> userNames,
             Instant editExpiresAt,
-            boolean current) {
+            boolean current,
+            com.carenest.dto.eduplan.EduReviewStateResponse review,
+            YearPlanDetailResponse.Permissions permissions) {
+        Long publisherId = plan.getPublishedBy() != null ? plan.getPublishedBy() : plan.getIssuedBy();
+        Instant publishedAt = plan.getCompletedAt() != null ? plan.getCompletedAt() : plan.getIssuedAt();
         return new YearPlanSummaryResponse(
                 plan.getId(),
                 plan.getCode(),
@@ -38,12 +42,12 @@ public class EduYearPlanMapper {
                 plan.getAgeGroupId(),
                 ageGroupName,
                 plan.getTitle(),
-                plan.getStatus(),
+                plan.publicStatus(),
                 goalCount,
                 themeCount,
                 toOwner(plan, userNames),
                 toActor(plan.getSentBy(), plan.getSentAt(), userNames),
-                toActor(plan.getIssuedBy(), plan.getIssuedAt(), userNames),
+                toActor(publisherId, publishedAt, userNames),
                 toActor(plan.getEditingBy(), plan.getEditingSince(), userNames),
                 plan.getCreatedAt(),
                 plan.getUpdatedAt(),
@@ -51,7 +55,9 @@ public class EduYearPlanMapper {
                 editExpiresAt,
                 plan.getVersionNo(),
                 plan.getSourcePlanId(),
-                current);
+                current,
+                review,
+                permissions);
     }
 
     public PlanActorResponse toOwner(EduYearPlan plan, Map<Long, String> userNames) {

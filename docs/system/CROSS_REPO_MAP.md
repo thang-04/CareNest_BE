@@ -2,6 +2,8 @@
 
 ## Ownership
 
+Yêu cầu EDU-54 ngày 06/11/2026 (CONFIRMED): [spec011](../../specs/011-plan-creator-reviewer/spec.md) cấu hình vai trò tạo/duyệt chỉ cho giáo dục, cả kế hoạch năm và hồ sơ lớp; chỉ Hiệu trưởng cấu hình, Phó HT không được cấu hình phần này. Tách soạn/duyệt theo loại, chuỗi đổi áp dụng ngay cho bản đang chờ, giữ các bước đã duyệt; mọi bước chuỗi mới đã duyệt thì hoàn tất theo kết quả cũ. Đã triển khai và kiểm chứng đầy đủ trên BE (`GET/PUT /education-plans/workflow-policy`, V80 expand, V81 contract siết 3 trạng thái, 1,104 test PASS) và FE (EduConfigPage, GoalListPage, GoalFormPage, GoalDetailPage, PlanReviewQueuePage, BranchPlanPage, ClassThemePlanPage, WeekPlanPage, 199 test PASS). Snapshot ô ký in từ `review.printSnapshot`.
+
 | Hạng mục | CareNest_BE | CareNest_FE | CareNest_APP |
 | --- | --- | --- | --- |
 | Business rule, domain model | **Owner** | Không | Không |
@@ -107,3 +109,8 @@ Nguồn: `CareNest_CODE/plans/reports/final-261101-1407-carenest-e2e-business-fl
 ## Nhập đầy đủ kế hoạch năm — feature009 (02/11/2026)
 BE preview additive cùng `POST /education-plans/goals/file-preview`: giữ domains/themeAbbrs/warnings, thêm metadata(title/year/khoảng tuổi), themes(name/abbr/festivals/start/end/note), breaks(name/start/end/note). Không đổi API lưu hoặc schema; xem [contract](../../specs/009-full-year-plan-file-import/contracts/full-year-plan-preview.md). Parser/preview BE đã có evidence cũ; quyết định hai chế độ thay nội dung Web mới được user duyệt02/11 và đã implement/verify FE phase2 và chờ review trước convergence; chưa gọi toàn feature hoàn tất.
 Consumer Web cần cập nhật: educationPlanApi.js → educationPlanService.js → ImportGoalFileModal.jsx → GoalFormPage.jsx/importGoalFile.mjs. Preview/merge Web giữ năm đích, dời ngày, chặn lệch nhóm tuổi/nhận nhóm khi trống theo quyền, ghép/remap chủ đề trước ticks theo hai chế độ: full xóa phần thiếu, present giữ phần thiếu, phần có thay nguyên phần. Giữ API/DB; chỉ sửa tài liệu BE trong delta này. File cũ metadata null/themes[]/breaks[] phải preview rõ phần sẽ xóa/giữ; không mặc định additive. Thiếu yearRange cấu hình thật khóa apply. Mobile chưa có consumer và không sửa APP. Màn phần1 user yêu cầu nhập dạng bảng như phần2/3; toàn bộ nút desktop cùng hàng/định dạng.
+
+
+Delta feature011 hoàn tất: chỉ ba trạng thái Nháp/Duyệt/Ban hành (DRAFT/REVIEW/APPROVED), người soạn không sửa khi REVIEW; role tới lượt là metadata. printSnapshot được đóng băng khi ban hành. Không sửa source module khác; giáo dục giữ APPROVED/issued_by compatibility projection, publisher thật field riêng. Helper AccountService.findActiveUserIds và StaffAssignmentService.findActiveEducationReviewerAssignments chỉ đọc + test phục vụ lọc ACTIVE và reviewer assignments. Migration expand V80 và contract V81 siết đúng 3 trạng thái, hoàn thành kiểm chứng full gate BE và FE.
+
+Feature011 — user xác nhận06/11 trong vòng implement/converge: App mobile chưa tích hợp kế hoạch giáo dục; Web được phép sửa riêng phần giáo dục. Không có thay đổi APP trong delivery này; contract mới là đầu vào khi tích hợp APP sau này.

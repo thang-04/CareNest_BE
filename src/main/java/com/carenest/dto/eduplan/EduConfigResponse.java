@@ -15,7 +15,20 @@ public record EduConfigResponse(
         List<AgeGroupResponse> ageGroups,
         Signers signers,
         List<WeekRow> weekRows,
-        SignerNames signerNames) {
+        SignerNames signerNames,
+        EduWorkflowPolicyResponse workflow,
+        boolean canConfigure,
+        List<Long> yearCreationScopes) {
+
+    public EduConfigResponse(
+            List<Domain> domains,
+            List<SchoolYearResponse> schoolYears,
+            List<AgeGroupResponse> ageGroups,
+            Signers signers,
+            List<WeekRow> weekRows,
+            SignerNames signerNames) {
+        this(domains, schoolYears, ageGroups, signers, weekRows, signerNames, null, false, List.of());
+    }
 
     public record Domain(
             Long id, String name, String displayLabel, String shortLabel, Short sortOrder, boolean standard) {}

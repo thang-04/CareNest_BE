@@ -9,7 +9,6 @@ import com.carenest.entity.eduplan.EduDomain;
 import com.carenest.repository.eduplan.EduDomainRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
-import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,12 +37,22 @@ class FullYearPlanFileImportTest {
     @Mock
     private EduPlanAccessPolicy access;
 
+    @Mock
+    private com.carenest.service.eduplan.EduWorkflowService workflow;
+
+    @Mock
+    private com.carenest.service.organization.SchoolStructureService schoolStructure;
+
     @InjectMocks
     private EduGoalFileServiceImpl service;
 
     @BeforeEach
     void allowed() {
-        given(access.hasPermission(any(), eq(EduPermission.GOALS_EDIT))).willReturn(true);
+        given(schoolStructure.findAgeGroups())
+                .willReturn(List.of(
+                        new com.carenest.dto.organization.AgeGroupResponse(1L, "ag-3", "Mẫu giáo", "MG", (short) 1)));
+        given(workflow.isAuthorEligible(any(), eq("year"), eq(1L), org.mockito.ArgumentMatchers.isNull()))
+                .willReturn(true);
         var domain = Mockito.mock(EduDomain.class);
         given(domain.isActive()).willReturn(true);
         given(domain.getName()).willReturn("Phát triển thể chất");

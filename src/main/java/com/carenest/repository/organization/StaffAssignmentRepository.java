@@ -13,6 +13,10 @@ import org.springframework.data.repository.query.Param;
 /** Mọi query lọc theo ngày: chỉ phân công có hiệu lực tại {@code date} mới tạo phạm vi. */
 public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment, Long> {
 
+    @Query("select a from StaffAssignment a where a.staffRole in :roles and a.validFrom <= :date"
+            + " and (a.validTo is null or a.validTo >= :date) order by a.userId, a.id")
+    List<StaffAssignment> findActiveByRoles(@Param("roles") Collection<StaffRole> roles, @Param("date") LocalDate date);
+
     // AUTH-24: khóa phân công GV của lớp / của GV trong năm học tới hết transaction (mọi đường phân công dùng chung)
     @Query(
             value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(concat('carenest:class-teachers:',"

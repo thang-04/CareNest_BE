@@ -20,11 +20,23 @@ public interface EduClassDocService {
     ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId);
 
     /** Lưu nội dung (tạo mới nếu chưa có); chỉ giáo viên của lớp, khi tài liệu còn Nháp / Bị trả lại. */
-    ObjectNode saveClassDoc(CurrentUser currentUser, String kind, String docKey, ObjectNode doc);
+    ObjectNode saveClassDoc(
+            CurrentUser currentUser,
+            String kind,
+            String docKey,
+            ObjectNode doc,
+            Long expectedVersion,
+            Long expectedRootVersion);
 
     /** Gửi / duyệt / trả lại chủ đề nhánh hoặc hồ sơ chủ đề theo chuỗi người ký đã cấu hình. */
-    ObjectNode actOnClassDoc(CurrentUser currentUser, String kind, String docKey, ClassDocActionRequest request);
+    ObjectNode actOnClassDoc(
+            CurrentUser currentUser, String kind, String docKey, ClassDocActionRequest request, Long expectedVersion);
 
     /** EDU-27: "Kế hoạch điều chỉnh và bổ sung" của giáo án tuần; giáo viên lớp sửa ở mọi trạng thái. */
-    ObjectNode saveAdjustments(CurrentUser currentUser, String docKey, Map<String, String> adjustments);
+    ObjectNode saveAdjustments(
+            CurrentUser currentUser,
+            String docKey,
+            Map<String, String> adjustments,
+            Long expectedVersion,
+            Long expectedRootVersion);
 }

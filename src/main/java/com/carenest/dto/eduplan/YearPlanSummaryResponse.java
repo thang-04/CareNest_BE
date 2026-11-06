@@ -25,4 +25,6 @@ public record YearPlanSummaryResponse(
         Instant editExpiresAt,
         int versionNo,
         Long sourcePlanId,
-        boolean current) {}
+        boolean current,
+        EduReviewStateResponse review,
+        YearPlanDetailResponse.Permissions permissions) {}

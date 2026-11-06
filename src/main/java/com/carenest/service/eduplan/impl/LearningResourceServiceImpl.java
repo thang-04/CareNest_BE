@@ -10,10 +10,8 @@ import com.carenest.service.eduplan.*;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.LearningResourcePolicy;
-import com.carenest.utils.enums.CareNestRole;
 import java.io.IOException;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.ObjectMapper;
 
@@ -37,6 +36,9 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     private final StorageService storage;
     private final ObjectMapper mapper;
     private final Clock clock;
+    private final EduWorkflowService workflow;
+    private final com.carenest.service.organization.ClassroomService classrooms;
+    private final org.springframework.transaction.PlatformTransactionManager transactionManager;
 
     @Override
     @Transactional(readOnly = true)
@@ -59,20 +61,24 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     }
 
     @Override
-    @Transactional
     public LearningResourceResponse upload(
             CurrentUser user, String docKey, MultipartFile file, LearningResourceBinding binding, UUID requestId) {
         String p = LOG_PREFIX + "|upload|userId=" + user.userId();
         log.info("{}|START", p);
         try {
-            EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
             if (requestId == null) throw GlobalException.of(ApiCode.UPLOAD_REQUEST_ID_REQUIRED);
-            var replay = resources.findByClassDocIdAndUploadRequestId(doc.getId(), requestId);
-            if (replay.isPresent()) {
+            TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+            LearningResourceResponse replay = transaction.execute(status -> {
+                EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
+                var existing = resources.findByClassDocIdAndUploadRequestId(doc.getId(), requestId);
+                if (existing.isPresent()) return response(doc, existing.get());
+                validateBinding(doc, binding);
+                return null;
+            });
+            if (replay != null) {
                 log.info("{}|END", p);
-                return response(doc, replay.get());
+                return replay;
             }
-            validateBinding(doc, binding);
             String name = LearningResourcePolicy.safeName(file.getOriginalFilename());
             String type;
             try (var input = file.getInputStream()) {
@@ -87,31 +93,56 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             } catch (IOException ex) {
                 throw GlobalException.of(ApiCode.FILE_UNREADABLE);
             }
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCompletion(int status) {
-                    if (status != STATUS_COMMITTED) storage.remove(key);
+            boolean[] cleanupRegistered = {false};
+            UploadCommit outcome;
+            try {
+                outcome = transaction.execute(status -> {
+                    EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
+                    var existing = resources.findByClassDocIdAndUploadRequestId(doc.getId(), requestId);
+                    if (existing.isPresent()) return new UploadCommit(response(doc, existing.get()), false);
+                    validateBinding(doc, binding);
+                    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                        @Override
+                        public void afterCompletion(int completionStatus) {
+                            if (completionStatus != STATUS_COMMITTED) storage.remove(key);
+                        }
+                    });
+                    cleanupRegistered[0] = true;
+                    EduLearningResource saved = resources.saveAndFlush(EduLearningResource.create(
+                            doc.getId(),
+                            binding.activityKey(),
+                            binding.activitySignature(),
+                            binding.activityLabel(),
+                            name,
+                            type,
+                            file.getSize(),
+                            key,
+                            requestId,
+                            user.userId(),
+                            clock.instant()));
+                    workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+                    return new UploadCommit(response(doc, saved), true);
+                });
+            } catch (RuntimeException ex) {
+                if (!cleanupRegistered[0]) {
+                    try {
+                        storage.remove(key);
+                    } catch (RuntimeException cleanupFailure) {
+                        ex.addSuppressed(cleanupFailure);
+                    }
                 }
-            });
-            EduLearningResource saved = resources.saveAndFlush(EduLearningResource.create(
-                    doc.getId(),
-                    binding.activityKey(),
-                    binding.activitySignature(),
-                    binding.activityLabel(),
-                    name,
-                    type,
-                    file.getSize(),
-                    key,
-                    requestId,
-                    user.userId(),
-                    clock.instant()));
+                throw ex;
+            }
+            if (!outcome.usedStoredFile()) storage.remove(key);
             log.info("{}|END", p);
-            return response(doc, saved);
+            return outcome.response();
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
             throw ex;
         }
     }
+
+    private record UploadCommit(LearningResourceResponse response, boolean usedStoredFile) {}
 
     @Override
     @Transactional
@@ -122,8 +153,12 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
             validateBinding(doc, binding);
             EduLearningResource r = requireResource(doc, id);
+            boolean changed = !java.util.Objects.equals(r.getActivityKey(), binding.activityKey())
+                    || !java.util.Objects.equals(r.getActivitySignature(), binding.activitySignature())
+                    || !java.util.Objects.equals(r.getActivityLabel(), binding.activityLabel());
             r.bind(binding.activityKey(), binding.activitySignature(), binding.activityLabel());
             resources.saveAndFlush(r);
+            if (changed) workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
             log.info("{}|END", p);
             return response(doc, r);
         } catch (RuntimeException ex) {
@@ -140,8 +175,10 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         try {
             EduClassDoc doc = classDocs.requireThemeAccess(user, docKey, true);
             EduLearningResource r = requireResource(doc, id);
+            boolean changed = r.getActivityKey() != null || r.getActivitySignature() != null;
             r.detach();
             resources.saveAndFlush(r);
+            if (changed) workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
             log.info("{}|END", p);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
@@ -168,11 +205,9 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     }
 
     private boolean isEditor(CurrentUser user, EduClassDoc doc) {
-        return user.hasRole(CareNestRole.TEACHER)
-                && doc.getStatus().editable()
-                && assignments
-                        .findCurrentTeacherClassroomIds(user.userId(), LocalDate.now(clock))
-                        .contains(doc.getClassroomId());
+        var classroom = classrooms.findClassroomInfo(doc.getClassroomId()).orElseThrow();
+        return doc.getStatus().editable()
+                && workflow.isAuthorEligible(user, "theme", classroom.ageGroupId(), doc.getClassroomId());
     }
 
     private EduLearningResource requireResource(EduClassDoc doc, Long id) {

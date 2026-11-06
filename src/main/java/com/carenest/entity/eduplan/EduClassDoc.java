@@ -102,6 +102,32 @@ public class EduClassDoc {
     @Version
     private Long version;
 
+    @Column(name = "review_round", nullable = false)
+    private int reviewRound = 0;
+
+    @Column(name = "applied_policy_revision")
+    private Long appliedPolicyRevision;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "completion_policy", columnDefinition = "jsonb")
+    private String completionPolicy;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "print_snapshot", columnDefinition = "jsonb")
+    private String printSnapshot;
+
+    @Column(name = "completion_mode", length = 50)
+    private String completionMode;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    @Column(name = "author_tracking_since", nullable = false)
+    private Instant authorTrackingSince;
+
+    @Column(name = "author_coverage", nullable = false, length = 50)
+    private String authorCoverage = "COMPLETE";
+
     public static EduClassDoc create(
             String docKey,
             String kind,
@@ -124,12 +150,58 @@ public class EduClassDoc {
         doc.adjustments = "{}";
         doc.createdBy = userId;
         doc.updatedBy = userId;
+        doc.reviewRound = 0;
+        doc.authorTrackingSince = Instant.now();
+        doc.authorCoverage = "COMPLETE";
         return doc;
+    }
+
+    public EduClassDocStatus publicStatus() {
+        return this.status != null ? this.status : EduClassDocStatus.DRAFT;
+    }
+
+    public void submit(int reviewRound) {
+        this.status = EduClassDocStatus.REVIEW;
+        this.reviewRound = reviewRound;
+        this.approvals = "[]";
+    }
+
+    public void advanceReview(String approvals, Instant now) {
+        this.status = EduClassDocStatus.REVIEW;
+        this.approvals = approvals != null ? approvals : "[]";
+        this.updatedAt = now;
+    }
+
+    public void publish(
+            Long userId,
+            String approvals,
+            Long appliedPolicyRevision,
+            String completionPolicy,
+            String printSnapshot,
+            Instant completedAt) {
+        this.status = EduClassDocStatus.APPROVED;
+        this.approvals = approvals != null ? approvals : "[]";
+        this.appliedPolicyRevision = appliedPolicyRevision;
+        this.completionPolicy = completionPolicy;
+        this.printSnapshot = printSnapshot;
+        this.completionMode = "MANUAL";
+        this.completedAt = completedAt;
+        this.updatedBy = userId;
+    }
+
+    public void returnToDraft(String history, Long userId) {
+        this.status = EduClassDocStatus.DRAFT;
+        this.history = history != null ? history : "[]";
+        this.updatedBy = userId;
     }
 
     public void changeContent(String content, Long userId) {
         this.content = content;
         this.updatedBy = userId;
+    }
+
+    public void touchDossier(Instant now) {
+        this.updatedAt = updatedAt == null || now.isAfter(updatedAt) ? now : updatedAt.plusNanos(1000);
     }
 
     public void changeStatus(EduClassDocStatus status, String approvals, String history, Long userId) {
@@ -150,6 +222,39 @@ public class EduClassDoc {
     public void changeAdjustments(String adjustments, String history, Long userId) {
         this.adjustments = adjustments;
         this.history = history;
+        this.updatedBy = userId;
+    }
+
+    public void updateWorkflowState(
+            EduClassDocStatus status,
+            int reviewRound,
+            String approvals,
+            String history,
+            Long appliedPolicyRevision,
+            String completionPolicy,
+            String printSnapshot,
+            String completionMode,
+            Instant completedAt,
+            Long userId) {
+        this.status = status;
+        this.reviewRound = reviewRound;
+        this.approvals = approvals != null ? approvals : "[]";
+        this.history = history != null ? history : "[]";
+        this.appliedPolicyRevision = appliedPolicyRevision;
+        this.completionPolicy = completionPolicy;
+        this.printSnapshot = printSnapshot;
+        this.completionMode = completionMode;
+        this.completedAt = completedAt;
+        this.updatedBy = userId;
+    }
+
+    public void backfillLegacySnapshot(String printSnapshot, String authorCoverage, Long userId) {
+        if (this.printSnapshot == null || this.printSnapshot.isBlank()) {
+            this.printSnapshot = printSnapshot;
+        }
+        if (this.authorCoverage == null) {
+            this.authorCoverage = authorCoverage;
+        }
         this.updatedBy = userId;
     }
 }

@@ -5,6 +5,9 @@ Search đầu tiên khi gặp bug, lỗi môi trường, case lạ. Grep chuỗi
 ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường/build/deploy), dạng `<loại>-YYMMDD-<slug>` (vd. `BUG-261004-meal-count-stale`). Status: `open` | `workaround` | `fixed`.
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261106-edu-media-contributor](incidents/BUG-261106-edu-media-contributor.md) | education-plan | Người gắn học liệu có thể không bị loại khỏi duyệt | Thay metadata học liệu chưa ghi sổ người soạn | fixed |
+| [BUG-261106-edu-draft-lease-reconciliation-n-plus-one](incidents/BUG-261106-edu-draft-lease-reconciliation-n-plus-one.md) | education-plan | Đổi policy tra cứu phân công lặp theo lease | Đối soát từng hồ sơ gọi riêng service thay vì gom người giữ lease | fixed |
+| [BUG-261106-edu-approval-json-fail-open](incidents/BUG-261106-edu-approval-json-fail-open.md) | education-plan | Lỗi JSON duyệt có thể thành danh sách rỗng | Catch exception trả `[]` thay vì rollback | fixed |
 | [BUG-261104-confirmed-year-sheet-live-goals](incidents/BUG-261104-confirmed-year-sheet-live-goals.md) | learning-observation / education-plan | Confirmed sheet goal list/text changes with newest plan | Only cell results frozen; metadata queried live — nay chốt cả metadata MT | fixed |
 | [BUG-261104-concurrent-main-teacher-assignment](incidents/BUG-261104-concurrent-main-teacher-assignment.md) | school-structure | Concurrent assignments bypass one-main-class check | Read/check/insert lacks common teacher-year lock — nay khóa lớp + GV-năm | fixed |
 | [BUG-261103-meal-campus-concurrent-pending](incidents/BUG-261103-meal-campus-concurrent-pending.md) | nutrition / attendance | Concurrent class changes collide in campus pending meal lines | Only classroom locks protect shared campus aggregate | fixed |
