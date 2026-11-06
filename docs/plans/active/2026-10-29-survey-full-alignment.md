@@ -218,3 +218,5 @@ Không còn câu nào chặn plan. Các câu còn treo được đưa vào Pendi
   - Không sửa plan, incident, design cũ của APP.
 - Còn ngoài phạm vi: khối "Quy tắc chung CareNest" trong `CareNest_APP/AGENTS.md` vẫn là bản cũ (Conventional Commits, `Refs: <KEY>`), khác BE/FE (`<mã-jira>: <mô tả>`). Đồng bộ là việc riêng.
 - Tiếp: cả 4 phase xong; chờ user review. Plan chuyển `completed` khi user chốt.
+
+Cập nhật tham chiếu P-28 ngày 05/11/2026: quyết định tiếp nhận mới một người nhận tài khoản, giữ liên kết cũ, đã triển khai theo [Spec013](../../../specs/013-selected-parent-account/domain-spec.md); các ghi nhận trước trong plan này là lịch sử.

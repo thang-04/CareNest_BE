@@ -55,6 +55,36 @@ public class ChildGuardian {
     @Column(name = "user_id")
     private Long userId;
 
+    @Column(name = "account_recipient", nullable = false)
+    private boolean accountRecipient;
+
+    public void selectAccountRecipient(boolean selected) {
+        this.accountRecipient = selected;
+    }
+
+    public void linkAccount(Long accountId) {
+        this.userId = accountId;
+    }
+
+    @Column(name = "photo_key", length = 36)
+    private String photoKey;
+
+    @Column(name = "photo_content_type", length = 30)
+    private String photoContentType;
+
+    @Column(name = "photo_size_bytes")
+    private Integer photoSizeBytes;
+
+    @Column(name = "photo_updated_at")
+    private Instant photoUpdatedAt;
+
+    public void assignEnrollmentPhoto(String key, String contentType, int size, Instant at) {
+        this.photoKey = key;
+        this.photoContentType = contentType;
+        this.photoSizeBytes = size;
+        this.photoUpdatedAt = at;
+    }
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

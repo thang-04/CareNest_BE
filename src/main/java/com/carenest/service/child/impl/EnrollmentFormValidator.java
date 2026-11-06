@@ -45,6 +45,8 @@ final class EnrollmentFormValidator {
 
     static final int MAX_GUARDIANS = 3;
     static final LocalDate EARLIEST_BIRTH_DATE = LocalDate.of(2018, 1, 1);
+    // Sinh trước 37 tuần là sinh non: "Sinh non" phải khớp tuần thai (G94-180/CHD-05, user chốt 2026-11-04)
+    private static final int FULL_TERM_WEEKS = 37;
 
     // Tài khoản phụ huynh dùng 6 loại quan hệ (D-5a B); OTHER chỉ còn ở dữ liệu cũ
     static final Set<GuardianRelationship> RELATIONSHIPS = EnumSet.of(
@@ -162,7 +164,8 @@ final class EnrollmentFormValidator {
                     relationship,
                     phone.orElse(null),
                     citizenId.orElse(null),
-                    email == null ? null : email.toLowerCase(Locale.ROOT)));
+                    email == null ? null : email.toLowerCase(Locale.ROOT),
+                    guardians.size() == 1 || Boolean.TRUE.equals(g.accountRecipient())));
         }
         // Lỗi chung của danh sách: như BE giả, quá 3 người được báo trước, rồi trùng CCCD, rồi trùng SĐT
         if (guardians.isEmpty()) {
@@ -173,6 +176,9 @@ final class EnrollmentFormValidator {
             errors.put("guardians", "Hai phụ huynh không được dùng chung số CCCD");
         } else if (hasDuplicate(drafts.stream().map(GuardianDraft::phone).toList())) {
             errors.put("guardians", "Hai phụ huynh không được dùng chung số điện thoại");
+        }
+        if (drafts.stream().filter(GuardianDraft::accountRecipient).count() != 1) {
+            errors.put("accountRecipient", "Chọn đúng một phụ huynh nhận tài khoản");
         }
         return drafts;
     }
@@ -193,13 +199,16 @@ final class EnrollmentFormValidator {
         if (premature == null) {
             errors.put("profile.premature", "Chọn trẻ có sinh non hay không");
         }
+        // Tuần thai bắt buộc với mọi trẻ (user chốt 2026-11-04); chỉ so với "Sinh non" khi cả hai đã hợp lệ
         Integer weeks = p.gestationWeeks();
         if (weeks == null) {
-            if (premature == YesNo.YES) {
-                errors.put("profile.gestationWeeks", "Nhập tuần thai khi sinh của trẻ sinh non");
-            }
+            errors.put("profile.gestationWeeks", "Nhập tuần thai khi sinh");
         } else if (weeks < 20 || weeks > 42) {
             errors.put("profile.gestationWeeks", "Nhập tuần thai từ 20 đến 42");
+        } else if (premature == YesNo.YES && weeks >= FULL_TERM_WEEKS) {
+            errors.put("profile.gestationWeeks", "Trẻ sinh non có tuần thai dưới 37");
+        } else if (premature == YesNo.NO && weeks < FULL_TERM_WEEKS) {
+            errors.put("profile.gestationWeeks", "Dưới 37 tuần là sinh non: chọn Sinh non là Có hoặc sửa tuần thai");
         }
         String ethnicity = required(p.ethnicity(), 100, "profile.ethnicity", "Nhập dân tộc", errors);
         String beneficiary = required(p.beneficiary(), 100, "profile.beneficiary", "Nhập đối tượng", errors);
@@ -211,8 +220,7 @@ final class EnrollmentFormValidator {
                 required(address.province(), 100, "profile.address.province", "Nhập tỉnh/thành nơi ở", errors);
         String ward = required(address.ward(), 100, "profile.address.ward", "Nhập phường/xã nơi ở", errors);
         String street = required(address.street(), 300, "profile.address.street", "Nhập số nhà/thôn/xóm nơi ở", errors);
-        // Tuần thai chỉ ghi cho trẻ sinh non (ô chỉ hiện khi chọn Có)
-        Short gestationWeeks = premature == YesNo.YES && weeks != null ? weeks.shortValue() : null;
+        Short gestationWeeks = weeks == null ? null : weeks.shortValue();
         return new ChildProfileDraft(
                 idNumber, premature, gestationWeeks, ethnicity, beneficiary, bloodType, province, ward, street);
     }

@@ -83,16 +83,14 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                         result == null ? null : result.getId(),
                         resultStatus(result));
             }
-            // Phiếu khám nháp chưa công bố, không vào sổ
+            // Phiếu khám nháp chưa công bố, không vào sổ; cảnh báo hiện tại theo bác sĩ và theo BMI (HLT-19)
             ChildHealthRecordResponse record = new ChildHealthRecordResponse(
                     childId,
-                    HealthRecords.headCircumferenceUntil(child.dateOfBirth()),
                     cls.map(c -> rules.canRecord(currentUser, c)).orElse(false),
                     openView,
-                    records.views(s, s.results(childId), child.dateOfBirth(), false),
-                    s.latestHealth(childId),
-                    s.brief(s.openFollowUp(childId)),
-                    records.externalResults(s, childId));
+                    records.views(s, s.results(childId), child.dateOfBirth(), child.gender(), false),
+                    s.latestExam(childId),
+                    s.latestBmi(childId, child.dateOfBirth(), child.gender()));
             log.info("{}|END", logPrefix);
             return record;
         } catch (RuntimeException ex) {
@@ -113,8 +111,11 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     .flatMap(campaignRepository::findById)
                     .filter(c -> c.getKind() == HealthCheckKind.MEASUREMENT)
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_ROUND_REQUIRED));
+            // Ngày đo hệ thống ghi, GV không chọn (HLT-01): ngày nhập, vì kỳ tự đóng sau ngày kết thúc (HLT-17); kẹp
+            // trong kỳ chỉ là chốt chặn khi job chưa chạy. Trẻ có lớp tại ngày đo nên ngày đo không trước ngày sinh
+            LocalDate date = rules.referenceDate(round);
             ClassroomInfoResponse cls =
-                    classOn(childId, request.date()).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_IN_CLASS));
+                    classOn(childId, date).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_IN_CLASS));
             if (!cls.campusId().equals(round.getCampusId())) {
                 throw GlobalException.of(ApiCode.HEALTH_ROUND_REQUIRED);
             }
@@ -122,23 +123,20 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_ACCESS_DENIED);
             }
             ChildBriefResponse child = brief(childId);
-            checkOpenAndDate(round, request.date(), child);
+            checkOpen(round);
             if (measurementRepository.existsByChildIdAndCampaignId(childId, round.getId())) {
                 throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_EXISTS);
             }
-            if (measurementRepository
-                    .findByChildIdAndDate(childId, request.date())
-                    .isPresent()) {
-                throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN);
+            if (measurementRepository.findByChildIdAndDate(childId, date).isPresent()) {
+                throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN, date);
             }
             HealthMeasurement saved = measurementRepository.save(HealthMeasurement.builder()
                     .childId(childId)
                     .campaignId(round.getId())
                     .classroomId(cls.id())
-                    .date(request.date())
+                    .date(date)
                     .heightCm(request.heightCm())
                     .weightKg(request.weightKg())
-                    .headCircumferenceCm(headOf(request, child))
                     .note(trimmed(request.note()))
                     .measuredBy(currentUser.userId())
                     .createdAt(rules.now())
@@ -176,20 +174,12 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     .findById(m.getCampaignId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_CHECK_NOT_FOUND));
             ChildBriefResponse child = brief(childId);
-            checkOpenAndDate(round, request.date(), child);
-            measurementRepository
-                    .findByChildIdAndDate(childId, request.date())
-                    .filter(other -> !other.getId().equals(m.getId()))
-                    .ifPresent(other -> {
-                        throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_TAKEN);
-                    });
-            BigDecimal head = headOf(request, child);
+            checkOpen(round);
+            // Sửa chỉ đổi chiều cao, cân nặng, ghi chú; giữ ngày đo, vòng đầu cũ (user chốt 2026-11-04)
             String note = trimmed(request.note());
             List<HealthMeasurementResponse.HealthMeasurementChange> changes = new ArrayList<>();
-            change(changes, "date", "Ngày đo", m.getDate(), request.date());
             change(changes, "heightCm", "Chiều cao (cm)", m.getHeightCm(), request.heightCm());
             change(changes, "weightKg", "Cân nặng (kg)", m.getWeightKg(), request.weightKg());
-            change(changes, "headCircumferenceCm", "Vòng đầu (cm)", m.getHeadCircumferenceCm(), head);
             change(changes, "note", "Ghi chú khám", m.getNote(), note);
             if (!changes.isEmpty()) {
                 // HLT-13: sửa số đo đã công bố phải ghi lý do, lưu lịch sử; lưu là công bố lại
@@ -199,7 +189,7 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 }
                 editRepository.save(HealthMeasurementEdit.of(
                         m.getId(), currentUser.userId(), reason, records.writeChanges(changes), rules.now()));
-                m.update(request.date(), request.heightCm(), request.weightKg(), head, note, rules.now());
+                m.update(request.heightCm(), request.weightKg(), note, rules.now());
             }
             HealthMeasurementResponse view = view(m, child);
             log.info("{}|END", logPrefix);
@@ -244,23 +234,11 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 .flatMap(classroomService::findClassroomInfo);
     }
 
-    // Kỳ đang diễn ra; ngày đo trong khoảng của kỳ, không ở tương lai, không trước ngày sinh
-    private void checkOpenAndDate(HealthCheckCampaign round, LocalDate date, ChildBriefResponse child) {
+    // Kỳ đã bắt đầu, chưa đóng, chưa hủy
+    private void checkOpen(HealthCheckCampaign round) {
         if (round.statusOn(rules.today()) != HealthCheckStatus.IN_PROGRESS) {
             throw GlobalException.of(ApiCode.HEALTH_ROUND_NOT_OPEN);
         }
-        if (date.isBefore(round.getStartDate())
-                || date.isAfter(round.getEndDate())
-                || date.isAfter(rules.today())
-                || date.isBefore(child.dateOfBirth())) {
-            throw GlobalException.of(ApiCode.HEALTH_MEASUREMENT_DATE_OUTSIDE);
-        }
-    }
-
-    // Vòng đầu chỉ lưu khi trẻ chưa quá 60 tháng tại ngày đo
-    private static BigDecimal headOf(HealthMeasurementRequest request, ChildBriefResponse child) {
-        boolean applies = !request.date().isAfter(HealthRecords.headCircumferenceUntil(child.dateOfBirth()));
-        return applies ? request.headCircumferenceCm() : null;
     }
 
     /** RECORDED với số đo của kỳ cân đo; DRAFT/CONCLUDED theo phiếu khám; null khi chưa có. */
@@ -273,7 +251,8 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
 
     private HealthMeasurementResponse view(HealthMeasurement m, ChildBriefResponse child) {
         HealthRecords.Snapshot s = records.load(List.of(child.id()));
-        return records.views(s, List.of(m), child.dateOfBirth(), false).getFirst();
+        return records.views(s, List.of(m), child.dateOfBirth(), child.gender(), false)
+                .getFirst();
     }
 
     private static void change(

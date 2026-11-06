@@ -7,7 +7,7 @@ import com.carenest.security.CurrentUser;
 
 /**
  * Phiếu khám Phụ lục II của trẻ trong đợt khám (HLT-08, HLT-09, HLT-11; user chốt 2026-10-31): GV lớp lưu nháp, kết
- * luận (công bố), sửa có lý do; kết luận ghi tiền sử về khai báo, mở/cập nhật phiếu theo dõi. BGH, GV xem trong phạm vi.
+ * luận (công bố), sửa có lý do; kết luận ghi tiền sử về khai báo, là cảnh báo ở sổ sức khỏe (HLT-19). BGH, GV xem trong phạm vi.
  */
 public interface HealthExamService {
 

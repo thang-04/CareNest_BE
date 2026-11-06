@@ -17,15 +17,19 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Tiếp nhận trẻ (CHD-01..CHD-04, CHD-10, AUTH-18, AUTH-20; plan 2026-10-28 Phase 2–3). Quyền ở đây là lớp 1; phạm vi
@@ -90,13 +94,45 @@ public class ChildEnrollmentController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "List placement classes success", classes);
     }
 
-    @PostMapping("/enrollments")
+    @PostMapping(value = "/enrollments", consumes = MediaType.APPLICATION_JSON_VALUE)
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
     @PreAuthorize("@permissionGuard.has('CHILD_ENROLL')")
     public ResponseEntity<ResponseJson<ChildEnrollmentResponse>> enroll(
             @RequestBody EnrollChildRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|enroll|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         ChildEnrollmentResponse enrolled = childEnrollmentService.enroll(currentUser, request);
+        log.info("{}|childId={}|END", logPrefix, enrolled.child().id());
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Enroll child success", enrolled);
+    }
+
+    @PostMapping(value = "/enrollments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    @io.swagger.v3.oas.annotations.Operation(
+            operationId = "enroll",
+            requestBody =
+                    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                            content =
+                                    @io.swagger.v3.oas.annotations.media.Content(
+                                            mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                                            schema =
+                                                    @io.swagger.v3.oas.annotations.media.Schema(
+                                                            implementation =
+                                                                    com.carenest.dto.child.EnrollmentPhotoRequest
+                                                                            .class),
+                                            encoding =
+                                                    @io.swagger.v3.oas.annotations.media.Encoding(
+                                                            name = "payload",
+                                                            contentType = MediaType.APPLICATION_JSON_VALUE))))
+    @PreAuthorize("@permissionGuard.has('CHILD_ENROLL')")
+    public ResponseEntity<ResponseJson<ChildEnrollmentResponse>> enrollWithPhotos(
+            @RequestPart("payload") EnrollChildRequest request,
+            @io.swagger.v3.oas.annotations.Parameter(hidden = true) @RequestParam
+                    MultiValueMap<String, MultipartFile> files,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|enrollWithPhotos|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        ChildEnrollmentResponse enrolled = childEnrollmentService.enrollWithPhotos(currentUser, request, files);
         log.info("{}|childId={}|END", logPrefix, enrolled.child().id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Enroll child success", enrolled);
     }

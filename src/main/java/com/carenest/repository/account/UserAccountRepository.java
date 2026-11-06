@@ -14,6 +14,11 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserAccountRepository extends JpaRepository<UserAccount, Long>, JpaSpecificationExecutor<UserAccount> {
 
+    @Modifying
+    @Query(
+            "update UserAccount u set u.citizenId = :citizenId where u.id = :userId and (u.citizenId is null or u.citizenId = :citizenId)")
+    int claimCitizenId(@Param("userId") Long userId, @Param("citizenId") String citizenId);
+
     Optional<UserAccount> findByKeycloakUserId(String keycloakUserId);
 
     boolean existsByUsername(String username);
