@@ -339,9 +339,10 @@ public enum ApiCode {
     HEALTH_ROUND_NOT_OPEN(
             5018, HttpStatus.CONFLICT, "Kỳ cân đo chưa bắt đầu, đã đóng hoặc đã hủy; không nhập hay sửa được số đo"),
     HEALTH_MEASUREMENT_EXISTS(5019, HttpStatus.CONFLICT, "Trẻ đã có số đo trong kỳ này. Sửa lần đo đã có"),
-    HEALTH_MEASUREMENT_DATE_TAKEN(5020, HttpStatus.CONFLICT, "Ngày này trẻ đã có kết quả đo"),
-    HEALTH_MEASUREMENT_DATE_OUTSIDE(
-            5021, HttpStatus.BAD_REQUEST, "Chọn ngày đo trong khoảng ngày của kỳ cân đo, không chọn ngày tương lai"),
+    // Ngày đo do hệ thống ghi, GV không chọn được ngày khác (HLT-01, 2026-11-04)
+    HEALTH_MEASUREMENT_DATE_TAKEN(
+            5020, HttpStatus.CONFLICT, "Ngày đo {0} trẻ đã có kết quả đo khác. Báo Hiệu trưởng hoặc Phó hiệu trưởng"),
+    // 5021 (ngày đo ngoài kỳ) đã bỏ 2026-11-04: ngày đo hệ thống ghi luôn trong kỳ; không dùng lại mã
     HEALTH_MEASUREMENT_NOT_FOUND(5022, HttpStatus.NOT_FOUND, "Không tìm thấy lần đo"),
     HEALTH_MEASUREMENT_ACCESS_DENIED(
             5023, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được nhập hoặc sửa số đo"),
@@ -360,20 +361,10 @@ public enum ApiCode {
     HEALTH_EXAM_CONCLUDED(
             5031, HttpStatus.CONFLICT, "Phiếu đã có kết luận. Lưu lại kết luận kèm lý do sửa thay vì lưu nháp"),
     HEALTH_EXAM_MODE_CHANGED(
-            5032,
-            HttpStatus.CONFLICT,
-            "Phiếu theo dõi của trẻ vừa thay đổi nên mẫu kết luận đã đổi. Tải lại phiếu khám rồi lưu lại"),
+            5032, HttpStatus.CONFLICT, "Mẫu kết luận của phiếu khám đã thay đổi. Tải lại phiếu khám rồi lưu lại"),
     HEALTH_EXAM_INCOMPLETE(5033, HttpStatus.BAD_REQUEST, "Phiếu chưa đủ thông tin. Kiểm tra các ô được đánh dấu"),
     HEALTH_MEASUREMENT_IS_EXAM(5034, HttpStatus.CONFLICT, "Kết quả này là phiếu khám. Sửa ở trang phiếu khám của đợt"),
-    HEALTH_FOLLOW_UP_NOT_FOUND(5035, HttpStatus.NOT_FOUND, "Không tìm thấy phiếu theo dõi"),
-    HEALTH_FOLLOW_UP_ACCESS_DENIED(
-            5036, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được cập nhật phiếu theo dõi"),
-    HEALTH_FOLLOW_UP_CLOSED(5037, HttpStatus.CONFLICT, "Phiếu theo dõi đã đóng"),
-    HEALTH_FOLLOW_UP_CONTACT_FIRST(
-            5038,
-            HttpStatus.CONFLICT,
-            "Ghi trao đổi với phụ huynh về kết quả khám mới nhất trước khi ghi kết quả khám bên ngoài"),
-    HEALTH_FOLLOW_UP_IMAGE_NOT_FOUND(5039, HttpStatus.NOT_FOUND, "Không tìm thấy ảnh kết quả khám"),
+    // 5035–5039 của phiếu theo dõi sức khỏe đã bỏ (HLT-16, 2026-11-04); không dùng lại mã
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),

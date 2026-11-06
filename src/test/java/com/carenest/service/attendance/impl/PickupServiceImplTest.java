@@ -129,6 +129,31 @@ class PickupServiceImplTest {
         when(childIntakeService.findGuardianContacts(CHILD_ID)).thenReturn(List.of());
     }
 
+    @Test
+    @org.junit.jupiter.api.DisplayName("PCK-02: ưu tiên ảnh tiếp nhận khi chưa có tài khoản, fallback ảnh tài khoản")
+    void pickupUsesEnrollmentPhotoWithoutAnAccount() {
+        when(childIntakeService.findGuardianContacts(CHILD_ID))
+                .thenReturn(List.of(
+                        new com.carenest.dto.child.ChildGuardianContact(
+                                0,
+                                "Mẹ giả",
+                                com.carenest.utils.enums.GuardianRelationship.MOTHER,
+                                "0900000001",
+                                null,
+                                "/children/1/guardian-photos/11"),
+                        new com.carenest.dto.child.ChildGuardianContact(
+                                1,
+                                "Bố giả",
+                                com.carenest.utils.enums.GuardianRelationship.FATHER,
+                                "0900000002",
+                                71L,
+                                null)));
+        when(parentPhotoService.findUserIdsWithPhoto(List.of(71L))).thenReturn(Set.of(71L));
+        var response = service.getChild(teacher, CHILD_ID);
+        assertThat(response.guardians().getFirst().photoUrl()).isEqualTo("/children/1/guardian-photos/11");
+        assertThat(response.guardians().get(1).photoUrl()).isEqualTo("/children/1/guardians/71/photo");
+    }
+
     @Test // A: trẻ điểm danh vắng ⇒ không trả được
     void absentChildCannotBeHandedOver() {
         when(attendanceRepository.findByChildIdInAndDate(List.of(CHILD_ID), TODAY))

@@ -33,7 +33,7 @@ Lỗi lộ khi nhập nhiều lượt hoặc xóa riêng goal rồi nhập lại
 
 ## Fix
 Đã sửa CareNest_FE/src/models/education-plan/importGoals.mjs, commit994002c (G94-178: Fix LVC). Dùng lại cha theo ID nguồn trong đúng lĩnh vực/sub; chỉ fallback so câu chuẩn hóa khoảng trắng khi cả hai cha thiếu ID nguồn (mock). Giữ tên đã sửa nếu cùng ID, không gộp hai ID khác nhau vì cùng tên. Chèn đúng đoạn cha và giữ guard normalize; mục tiêu tự gõ đi sau mục tiêu Bộ vẫn nằm trong nhóm đó. Không mutate dữ liệu cũ hoặc tự xóa các tiêu đề trùng đã tồn tại.
-Chi tiết [incident FE](../../../../CareNest_FE/docs/knowledge/incidents/FE-BUG-261102-curriculum-reimport-headings.md). User cho đồng bộ/commit/push hồ sơ BE trong lượt triển khai UI02/11; không đổi source backend.
+Chi tiết [incident FE tại commit sửa lỗi](https://github.com/thang-04/CareNest_FE/blob/994002c81307d54890ece98bfb788648cc5647b1/docs/knowledge/incidents/FE-BUG-261102-curriculum-reimport-headings.md). Dùng liên kết commit cố định vì tệp chưa có trong checkout FE của nhánh sức khỏe. User cho đồng bộ/commit/push hồ sơ BE trong lượt triển khai UI02/11; không đổi source backend.
 
 ## Regression test
 CareNest_FE/tests/education-plan/curriculum.test.mjs có6ca mới: xóa/nhập lại3chu kỳ sau normalize; nhóm mới/sub cũ; cha sửa tên/cùng tên khác ID; mock thiếu ID cha; nhóm không-sub; chép nguồn hỗn hợp. GREEN39/39 cùng import-goals/import-goal-file, full FE375/375; chưa xác nhận save/reopen BE thật.

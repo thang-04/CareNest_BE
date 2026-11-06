@@ -32,7 +32,6 @@ import com.carenest.service.health.impl.HealthExamCatalog.ChoiceItem;
 import com.carenest.service.health.impl.HealthExamCatalog.HistoryItem;
 import com.carenest.service.health.impl.HealthExamCatalog.VitalItem;
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -47,13 +46,10 @@ import java.util.stream.Stream;
  */
 final class HealthExamDiff {
 
-    /** Giá trị một lần lưu: số đo của lần đo cộng phiếu đã chuẩn hóa. */
-    record Snapshot(
-            LocalDate date,
-            BigDecimal heightCm,
-            BigDecimal weightKg,
-            BigDecimal headCircumferenceCm,
-            HealthExamForm exam) {}
+    /**
+     * Giá trị một lần lưu: số đo của lần đo cộng phiếu đã chuẩn hóa. Không có ngày khám: hệ thống ghi, không sửa (HLT-08).
+     */
+    record Snapshot(BigDecimal heightCm, BigDecimal weightKg, BigDecimal headCircumferenceCm, HealthExamForm exam) {}
 
     private record Entry(String field, String label, String value) {}
 
@@ -70,16 +66,12 @@ final class HealthExamDiff {
     }
 
     /**
-     * Giá trị hiển thị như BE giả: Có/Không, nhãn lựa chọn, CCCD che còn 3 số cuối, số kiểu vi-VN, ô trống ⇒ {@code ""}.
-     * Ngày khám giữ yyyy-MM-dd vì FE tự đổi sang dd/MM/yyyy cho ô {@code date}; ngày tiếp xúc lao dd/MM/yyyy.
+     * Giá trị hiển thị như BE giả: Có/Không, nhãn lựa chọn, CCCD che còn 3 số cuối, số kiểu vi-VN, ô trống ⇒ {@code ""};
+     * ngày tiếp xúc lao dd/MM/yyyy.
      */
     private static List<Entry> entries(Snapshot snapshot) {
         HealthExamForm e = snapshot.exam() == null ? HealthExamNormalizer.blank() : snapshot.exam();
         List<Entry> out = new ArrayList<>();
-        out.add(new Entry(
-                "date",
-                "Ngày khám",
-                snapshot.date() == null ? "" : snapshot.date().toString()));
         out.add(new Entry("heightCm", "Chiều cao/chiều dài (cm)", number(snapshot.heightCm())));
         out.add(new Entry("weightKg", "Cân nặng (kg)", number(snapshot.weightKg())));
         out.add(new Entry("headCircumferenceCm", "Vòng đầu (cm)", number(snapshot.headCircumferenceCm())));

@@ -65,11 +65,12 @@ public class ChildServiceImpl implements ChildService {
             Page<Child> children;
             if (classroomIds == null) {
                 children = childRepository.findByFullNameContainingIgnoreCase(text, pageable);
-            } else if (classroomIds.isEmpty()) {
-                children = Page.empty(pageable);
             } else {
-                children = childRepository.searchEnrolled(
-                        classroomIds, today, "%" + text.toLowerCase(Locale.ROOT) + "%", pageable);
+                Set<Long> campuses = classroomId != null
+                        ? Set.of()
+                        : campusId != null ? Set.of(campusId) : staffAccessPolicy.managedCampusIds(actor);
+                children = childRepository.searchForParentAccounts(
+                        classroomIds, campuses, today, "%" + text.toLowerCase(Locale.ROOT) + "%", pageable);
             }
 
             List<Long> childIds =
@@ -84,8 +85,9 @@ public class ChildServiceImpl implements ChildService {
                         child.getFullName(),
                         child.getDateOfBirth(),
                         currentClassroom,
-                        currentClassroom == null ? null : campusByClassroom.get(currentClassroom),
-                        guardianCounts.getOrDefault(child.getId(), 0L));
+                        currentClassroom == null ? child.getIntakeCampusId() : campusByClassroom.get(currentClassroom),
+                        guardianCounts.getOrDefault(child.getId(), 0L),
+                        child.getPhotoKey() == null ? null : "/children/" + child.getId() + "/photo");
             });
             log.info("{}|total={}|END", logPrefix, children.getTotalElements());
             return response;

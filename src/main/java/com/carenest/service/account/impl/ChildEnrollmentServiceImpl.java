@@ -4,6 +4,7 @@ import com.carenest.dto.child.ChildEnrollmentResponse;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.EnrollChildRequest;
 import com.carenest.dto.child.EnrollmentDraft;
+import com.carenest.dto.child.EnrollmentPhotos;
 import com.carenest.dto.child.GuardianAccountResultResponse;
 import com.carenest.dto.child.GuardianCheckRequest;
 import com.carenest.dto.child.GuardianChildSummary;
@@ -20,6 +21,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.ChildEnrollmentService;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildPhotoService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.CitizenIds;
@@ -45,6 +47,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Tài khoản phụ huynh khi tiếp nhận trẻ. Thứ tự lưu form (AC-2): kiểm hết (không ghi) → tạo user Keycloak cho phụ huynh
@@ -63,6 +66,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
             "Số điện thoại này đã thuộc phụ huynh có số CCCD khác. Kiểm tra lại số điện thoại hoặc số CCCD.";
 
     private final ChildIntakeService childIntakeService;
+    private final ChildPhotoService childPhotoService;
     private final GuardianChildLinkService guardianChildLinkService;
     private final UserAccountRepository userAccountRepository;
     private final StaffAccessPolicy staffAccessPolicy;
@@ -140,7 +144,8 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                                 null,
                                 PhoneNumbers.normalize(g.phone()).orElse(null),
                                 CitizenIds.normalize(g.idNumber()).orElse(null),
-                                null);
+                                null,
+                                inputs.size() == 1 || Boolean.TRUE.equals(g.accountRecipient()));
                     })
                     .toList();
             ParentAccounts accounts = loadAccounts(guardians);
@@ -163,7 +168,24 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
         String logPrefix = LOG_PREFIX + "|enroll|userId=" + actor.userId();
         log.info("{}|START", logPrefix);
         try {
+            ChildEnrollmentResponse response = enrollWithPhotos(actor, request, Map.of());
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public ChildEnrollmentResponse enrollWithPhotos(
+            CurrentUser actor, EnrollChildRequest request, Map<String, List<MultipartFile>> files) {
+        String logPrefix = LOG_PREFIX + "|enrollWithPhotos|userId=" + actor.userId();
+        log.info("{}|START", logPrefix);
+        try {
             EnrollmentDraft draft = childIntakeService.prepareEnrollment(actor, request);
+            EnrollmentPhotos photos =
+                    childPhotoService.validatePhotos(draft.guardians().size(), files);
             // P-18 A: không có quyền quản lý tài khoản phụ huynh (ở điểm trường nhận trẻ — prepare đã kiểm phạm vi)
             // ⇒ vẫn lưu; phụ huynh chưa có tài khoản chờ kích hoạt, trùng tài khoản có sẵn thì vẫn liên kết
             boolean manageAccounts = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
@@ -178,6 +200,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
 
             List<GuardianDraft> newParents = manageAccounts
                     ? guardians.stream()
+                            .filter(GuardianDraft::accountRecipient)
                             .filter(g -> accounts.parentOf(g).isEmpty())
                             .toList()
                     : List.of();
@@ -194,11 +217,12 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                     accountLifecycle.createIdentities(logPrefix, identities, CareNestRole.PARENT, keycloakUserIds -> {
                         Map<Integer, Long> accountIds = new HashMap<>();
                         for (GuardianDraft g : guardians) {
+                            if (!g.accountRecipient()) continue;
                             accounts.parentOf(g).ifPresent(existing -> {
                                 // AUTH-18: tài khoản cũ chưa có CCCD được bổ sung (đọc lại trong giao dịch)
-                                userAccountRepository
-                                        .findById(existing.getId())
-                                        .ifPresent(a -> a.assignCitizenIdIfMissing(g.citizenId()));
+                                if (userAccountRepository.claimCitizenId(existing.getId(), g.citizenId()) != 1) {
+                                    throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+                                }
                                 accountIds.put(g.position(), existing.getId());
                             });
                         }
@@ -211,6 +235,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                             created.add(parent);
                         }
                         Long childId = childIntakeService.createEnrolledChild(actor, resolved, accountIds);
+                        childPhotoService.attachToEnrollment(childId, photos);
                         return new Enrolled(childId, created, accountIds);
                     });
 
@@ -223,6 +248,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
             }
             ChildViewResponse view = childIntakeService.getChildView(enrolled.childId());
             List<GuardianAccountResultResponse> results = guardians.stream()
+                    .filter(GuardianDraft::accountRecipient)
                     .map(g -> new GuardianAccountResultResponse(
                             g.fullName(),
                             g.phone(),
@@ -271,9 +297,11 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
 
     private static List<GuardianDraft> withAccountInfo(List<GuardianDraft> guardians, ParentAccounts accounts) {
         return guardians.stream()
-                .map(g -> accounts.parentOf(g)
-                        .map(a -> g.withAccountInfo(a.getFullName(), a.getUsername(), a.getEmail()))
-                        .orElse(g))
+                .map(g -> !g.accountRecipient()
+                        ? g
+                        : accounts.parentOf(g)
+                                .map(a -> g.withAccountInfo(a.getFullName(), a.getUsername(), a.getEmail()))
+                                .orElse(g))
                 .toList();
     }
 
@@ -311,7 +339,10 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                             && r.citizenId() != null
                             && !g.citizenId().equals(r.citizenId()))) {
                 errors.add(new FieldErrorResponse(prefix + "phone", PHONE_HAS_OTHER_ID));
-            } else if (creatingAccounts && same == null && accounts.isStaffUsername(g.phone())) {
+            } else if (creatingAccounts
+                    && g.accountRecipient()
+                    && same == null
+                    && accounts.isStaffUsername(g.phone())) {
                 errors.add(new FieldErrorResponse(prefix + "phone", ApiCode.PHONE_OF_STAFF_ACCOUNT.getDefaultDesc()));
             }
         }

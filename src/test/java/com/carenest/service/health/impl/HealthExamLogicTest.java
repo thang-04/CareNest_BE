@@ -42,8 +42,6 @@ class HealthExamLogicTest {
     // 40 tháng tuổi: nhóm "trẻ 3–5 tuổi", còn đo vòng đầu, không hỏi tự kỷ
     private static final LocalDate EXAM_DATE = LocalDate.of(2026, 10, 20);
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 25);
-    private static final LocalDate CAMPAIGN_START = LocalDate.of(2026, 10, 1);
-    private static final LocalDate CAMPAIGN_END = LocalDate.of(2026, 10, 31);
     private static final HealthExamReference AT_40_MONTHS = HealthExamReview.reference(DOB, EXAM_DATE);
 
     // ---------- Kiểm khi lưu kết luận ----------
@@ -55,15 +53,13 @@ class HealthExamLogicTest {
     }
 
     @Test
-    @DisplayName("Ngày khám: trống, ở tương lai, ngoài khoảng ngày của đợt")
-    void examDateRules() {
+    @DisplayName("HLT-08: ngày khám do hệ thống ghi nên không kiểm như ô nhập (user chốt 2026-11-04)")
+    void examDateIsNotAFormField() {
         Case c = new Case();
-        c.date = null;
-        assertThat(c.errors()).containsExactly(entry("date", "Chọn ngày khám"));
         c.date = TODAY.plusDays(1);
-        assertThat(c.errors()).containsExactly(entry("date", "Ngày khám không được ở tương lai"));
+        assertThat(c.errors()).isEmpty();
         c.date = LocalDate.of(2026, 9, 30);
-        assertThat(c.errors()).containsExactly(entry("date", "Chọn ngày khám trong khoảng ngày khám của đợt"));
+        assertThat(c.errors()).isEmpty();
     }
 
     @Test
@@ -157,8 +153,8 @@ class HealthExamLogicTest {
     }
 
     @Test
-    @DisplayName("STANDARD: chỉ trẻ có vấn đề đã biết mới bắt buộc chọn vấn đề mới hay đã biết")
-    void issueKindRequiredOnlyWithKnownCondition() {
+    @DisplayName("HLT-10: không còn bắt chọn vấn đề mới hay đã biết, kể cả phiếu cũ đã có câu trả lời")
+    void issueKindIsNeverRequired() {
         Case c = new Case();
         c.draft.normal = false;
         c.draft.healthIssue = true;
@@ -167,9 +163,8 @@ class HealthExamLogicTest {
         c.draft.adviceText = "Đeo kính đúng độ";
         assertThat(c.errors()).isEmpty();
 
-        c.knownCondition = true;
-        assertThat(c.errors())
-                .containsExactly(entry("exam.conclusion.issueKind", "Chọn vấn đề mới hay vấn đề đã biết"));
+        c.keepsIssueKind = true;
+        assertThat(c.errors()).isEmpty();
         c.draft.issueKind = "KNOWN";
         assertThat(c.errors()).isEmpty();
     }
@@ -277,7 +272,6 @@ class HealthExamLogicTest {
     @DisplayName("Nhiều lỗi ⇒ khóa theo thứ tự kiểm của BE giả (FE mở bước của ô lỗi)")
     void errorKeysFollowMockOrder() {
         Case c = new Case();
-        c.date = null;
         c.draft.hasCompanion = null;
         c.draft.pulse = null;
         c.height = null;
@@ -286,7 +280,6 @@ class HealthExamLogicTest {
         c.draft.doctorName = " ";
         assertThat(c.errors().keySet())
                 .containsExactly(
-                        "date",
                         "exam.admin.hasCompanion",
                         "exam.vitals.pulse",
                         "heightCm",
@@ -335,7 +328,7 @@ class HealthExamLogicTest {
     }
 
     @Test
-    @DisplayName("Chuẩn hóa STANDARD: bỏ followUpFinding; loại vấn đề chỉ giữ khi hỏi mới hay đã biết")
+    @DisplayName("Chuẩn hóa STANDARD: bỏ followUpFinding; loại vấn đề chỉ giữ ở phiếu cũ đã trả lời")
     void standardNormalization() {
         Draft d = new Draft();
         d.normal = false;
@@ -652,7 +645,7 @@ class HealthExamLogicTest {
     }
 
     @Test
-    @DisplayName("Lịch sử sửa: ngày khám yyyy-MM-dd (FE tự đổi), ngày tiếp xúc dd/MM/yyyy, ô trống là \"\"")
+    @DisplayName("Lịch sử sửa: số kiểu vi-VN, ngày tiếp xúc dd/MM/yyyy, ô trống là \"\"; không có ô ngày khám (HLT-08)")
     void diffDisplayFormats() {
         Draft d = new Draft();
         HealthExamForm before = normalize(d, STANDARD, false);
@@ -661,14 +654,12 @@ class HealthExamLogicTest {
         HealthExamForm after = normalize(d, STANDARD, false);
 
         List<HealthMeasurementChange> changes = HealthExamDiff.changes(
-                new HealthExamDiff.Snapshot(EXAM_DATE, new BigDecimal("98.5"), new BigDecimal("15.2"), null, before),
-                new HealthExamDiff.Snapshot(
-                        EXAM_DATE.plusDays(1), new BigDecimal("99.0"), new BigDecimal("15.2"), null, after));
+                new HealthExamDiff.Snapshot(new BigDecimal("98.5"), new BigDecimal("15.2"), null, before),
+                new HealthExamDiff.Snapshot(new BigDecimal("99.0"), new BigDecimal("15.2"), null, after));
 
         assertThat(changes)
                 .extracting(HealthMeasurementChange::field, HealthMeasurementChange::from, HealthMeasurementChange::to)
                 .containsExactly(
-                        tuple("date", "2026-10-20", "2026-10-21"),
                         tuple("heightCm", "98,5", "99"),
                         tuple("exam.history.tbContact", "Không", "Có"),
                         tuple("exam.history.tbContactDate", "", "05/09/2026"));
@@ -676,13 +667,13 @@ class HealthExamLogicTest {
 
     // ---------- Dữ liệu giả ----------
 
-    private static HealthExamForm normalize(Draft draft, HealthConclusionMode mode, boolean knownCondition) {
-        return HealthExamNormalizer.normalize(draft.build(), mode, AT_40_MONTHS, knownCondition);
+    private static HealthExamForm normalize(Draft draft, HealthConclusionMode mode, boolean keepsIssueKind) {
+        return HealthExamNormalizer.normalize(draft.build(), mode, AT_40_MONTHS, keepsIssueKind);
     }
 
     private static HealthExamDiff.Snapshot snapshot(HealthExamForm exam) {
         return new HealthExamDiff.Snapshot(
-                EXAM_DATE, new BigDecimal("98.5"), new BigDecimal("15.2"), new BigDecimal("49.0"), exam);
+                new BigDecimal("98.5"), new BigDecimal("15.2"), new BigDecimal("49.0"), exam);
     }
 
     private static List<String> clinicalKeysWithNote() {
@@ -777,27 +768,13 @@ class HealthExamLogicTest {
         BigDecimal head = new BigDecimal("49.0");
         String reason = "";
         boolean alreadyConcluded;
-        boolean knownCondition;
+        boolean keepsIssueKind;
 
         Map<String, String> errors() {
             HealthExamReference reference = HealthExamReview.reference(dob, date == null ? EXAM_DATE : date);
-            HealthExamForm exam = HealthExamNormalizer.normalize(draft.build(), mode, reference, knownCondition);
+            HealthExamForm exam = HealthExamNormalizer.normalize(draft.build(), mode, reference, keepsIssueKind);
             List<FieldErrorResponse> errors = HealthExamValidator.validate(new HealthExamValidator.Input(
-                    exam,
-                    date,
-                    height,
-                    weight,
-                    head,
-                    reason,
-                    alreadyConcluded,
-                    mode,
-                    reference,
-                    TODAY,
-                    dob,
-                    CAMPAIGN_START,
-                    CAMPAIGN_END,
-                    2,
-                    knownCondition));
+                    exam, date, height, weight, head, reason, alreadyConcluded, mode, reference, TODAY, dob, 2));
             Map<String, String> byField = new LinkedHashMap<>();
             errors.forEach(e -> byField.put(e.field(), e.message()));
             assertThat(byField).hasSameSizeAs(errors);

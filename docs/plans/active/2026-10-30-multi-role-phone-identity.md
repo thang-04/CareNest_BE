@@ -163,3 +163,5 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 - L-9: thu hồi vai trò nhân sự cần còn con đang học (không chỉ còn liên kết). L-12: `toString` của `PhoneLookupRequest`/`AddGuardianRequest` không in SĐT/họ tên.
 - Không sửa: MEDIUM-5 (`carenest-dev` giữ mọi role ở profile `dev` trên VPS) — VPS đặt `CARENEST_DEV_CLIENT_ENABLED: "false"` (`compose.vps.yaml`) nên client bị tắt ở Keycloak, không xin được token; L-8 tra SĐT không giới hạn phạm vi (cần để báo SĐT đã dùng, họ tên đã che); L-11 token cũ còn role tới hết 5 phút (cùng loại reset mật khẩu); L-13 tài khoản cũ `primary_role` null chỉ Admin liên kết được.
 
+
+Cập nhật tham chiếu P-28 ngày 05/11/2026: quyết định tiếp nhận mới một người nhận tài khoản, giữ liên kết cũ, đã triển khai theo [Spec013](../../../specs/013-selected-parent-account/domain-spec.md); các ghi nhận trước trong plan này là lịch sử.

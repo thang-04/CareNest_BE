@@ -1,9 +1,9 @@
 package com.carenest.dto.health;
 
+import com.carenest.utils.enums.HealthBmiStatus;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthConclusionCategory;
 import com.carenest.utils.enums.HealthExamStatus;
-import com.carenest.utils.enums.HealthFollowUpEffect;
 import com.carenest.utils.enums.HealthFollowUpLevel;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,12 +13,13 @@ import java.util.List;
 /**
  * Một lần đo. {@code source} = {@code MEASUREMENT_ONLY} (số đo của kỳ cân đo, chưa có kết luận bác sĩ) hoặc {@code EXAM}
  * (phiếu khám Phụ lục II); {@code locked}: đợt/kỳ đã đóng hoặc hủy, không sửa được. Lưu là công bố; phiếu khám nháp chưa
- * công bố ({@code published} false). Mức theo dõi chỉ lấy từ kết luận bác sĩ (HLT-10, phân loại WHO hoãn).
+ * công bố ({@code published} false). Cảnh báo của lần đo (HLT-19): phiếu khám theo kết luận bác sĩ ({@code
+ * followUpLevel}, {@code conclusionCategory} — HLT-10); số đo của kỳ cân đo theo mức BMI ({@code bmiStatus} — HLT-18).
  *
  * @param headCircumferenceStatus vòng đầu theo bác sĩ ({@code NORMAL}, {@code LARGE}, {@code SMALL}), {@code
  *     NOT_MEASURED} khi trẻ quá 60 tháng; null với số đo của kỳ cân đo
- * @param followUpId phiếu theo dõi chứa lần khám này
- * @param parentContact trao đổi phụ huynh về kết luận "theo dõi sát" của lần khám
+ * @param bmiStatus mức BMI theo tuổi chuẩn WHO, chỉ có với số đo của kỳ cân đo (null khi trẻ ngoài 0–84 tháng)
+ * @param bmiZScore z-score BMI theo tuổi, làm tròn 2 chữ số, đi cùng {@code bmiStatus}
  * @param reviewPoints "Điểm cần bác sĩ xem lại", chỉ có ở API phiếu khám
  */
 public record HealthMeasurementResponse(
@@ -34,6 +35,8 @@ public record HealthMeasurementResponse(
         BigDecimal weightKg,
         BigDecimal headCircumferenceCm,
         BigDecimal bmi,
+        HealthBmiStatus bmiStatus,
+        BigDecimal bmiZScore,
         String note,
         String source,
         boolean published,
@@ -49,9 +52,6 @@ public record HealthMeasurementResponse(
         HealthFollowUpLevel followUpLevel,
         HealthConclusionCategory conclusionCategory,
         HealthConclusionBrief conclusion,
-        Long followUpId,
-        HealthFollowUpEffect followUpEffect,
-        HealthParentContact parentContact,
         HealthExamReviewPoints reviewPoints) {
 
     public static final String SOURCE_MEASUREMENT_ONLY = "MEASUREMENT_ONLY";
@@ -73,10 +73,4 @@ public record HealthMeasurementResponse(
             String specialty,
             String issueKind,
             String followUpFinding) {}
-
-    /**
-     * {@code atExam}: bác sĩ đã trao đổi với người đi cùng tại buổi khám ({@code opinion} = ý kiến phụ huynh); không thì
-     * lần trao đổi đầu tiên GV ghi sau lần khám.
-     */
-    public record HealthParentContact(boolean contacted, boolean atExam, LocalDate on, String opinion) {}
 }

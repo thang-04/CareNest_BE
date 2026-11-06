@@ -127,9 +127,11 @@ public class PickupServiceImpl implements PickupService {
                             g.fullName(),
                             g.relationship(),
                             g.phone(),
-                            withPhoto.contains(g.userId())
-                                    ? "/children/" + childId + "/guardians/" + g.userId() + "/photo"
-                                    : null))
+                            g.photoUrl() != null
+                                    ? g.photoUrl()
+                                    : g.userId() != null && withPhoto.contains(g.userId())
+                                            ? "/children/" + childId + "/guardians/" + g.userId() + "/photo"
+                                            : null))
                     .toList();
             log.info("{}|END", logPrefix);
             return new PickupChildResponse(row, today, cls.id(), cls.name(), guardians);

@@ -27,6 +27,20 @@ public interface ChildRepository extends JpaRepository<Child, Long> {
             @Param("pattern") String pattern,
             Pageable pageable);
 
+    @Query("""
+            select c from Child c where c.status <> com.carenest.utils.enums.ChildStatus.LEFT
+              and lower(c.fullName) like :pattern
+              and (exists (select 1 from Enrollment e where e.childId = c.id and e.classroomId in :classroomIds
+                    and e.validFrom <= :date and (e.validTo is null or e.validTo >= :date))
+                   or (c.status = com.carenest.utils.enums.ChildStatus.PENDING_PLACEMENT and c.intakeCampusId in :campusIds))
+            """)
+    Page<Child> searchForParentAccounts(
+            @Param("classroomIds") Collection<Long> classroomIds,
+            @Param("campusIds") Collection<Long> campusIds,
+            @Param("date") LocalDate date,
+            @Param("pattern") String pattern,
+            Pageable pageable);
+
     // Ứng viên trùng hồ sơ (CHD-04): cùng ngày sinh và có phụ huynh mang một trong các CCCD; họ tên so ở service
     @Query("""
             select c from Child c

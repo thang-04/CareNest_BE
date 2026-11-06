@@ -184,6 +184,7 @@ Mục đích: hồ sơ gốc của trẻ. Migration: `V3__create_children.sql`, 
 | enrolled_on | DATE | không | Ngày tiếp nhận | — |
 | left_on, left_reason | DATE, VARCHAR(300) | có | Ngày, lý do nghỉ học; có đúng khi `LEFT`, mở lại hồ sơ xóa cả hai; `left_on ≥ enrolled_on` | CHD-03 |
 | readmitted_on | DATE | có | Ngày mở lại hồ sơ gần nhất | CHD-03 |
+| photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(36), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung tùy chọn khi tiếp nhận; private S3, JPG/PNG/WEBP ≤2 MiB; CHECK metadata hoàn chỉnh, V68. Ảnh ChildGuardian tách ảnh tài khoản và đọc theo id ổn định. | CHD-02, PCK-02 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Ràng buộc: `ck_children_status`, `ck_children_gender`, `ck_children_left`, `ck_children_left_on`; `ck_children_complete` (có giới tính, chờ xếp lớp thì có điểm trường) là **NOT VALID**: áp cho mọi dòng thêm/sửa, không kiểm trẻ có trước V63 (chỉ dữ liệu demo — trẻ đó phải nhập đủ khi sửa hồ sơ). V63 sinh `code`, `status`, `enrolled_on`, `intake_campus_id` cho trẻ có sẵn (plan mục 3.9).
 FE đọc `campusId` của trẻ = điểm trường theo lớp nếu có lớp, không thì `intake_campus_id`.
@@ -408,7 +409,7 @@ Mục đích: đợt khám sức khỏe (`EXAM`, bác sĩ khám, thường 1 l�
 | examiner | VARCHAR(150) | không | Đơn vị khám/bác sĩ; kỳ cân đo luôn rỗng (CHECK) | HLT-08 |
 | note | VARCHAR(500) | không | Ghi chú | — |
 | created_by, created_at, updated_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | | — |
-| closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Đóng: khóa kết quả, trẻ chưa có phiếu thành vắng; `closed_by` null khi hệ thống tự đóng `EXAM`. Có người đóng thì phải có `closed_at` (V67) | HLT-17 |
+| closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Đóng: khóa kết quả, trẻ chưa có kết quả (phiếu khám, số đo) thành vắng; `closed_by` null khi hệ thống tự đóng (`EXAM`, `MEASUREMENT` — HLT-17). Có người đóng thì phải có `closed_at` (V67) | HLT-17 |
 | cancelled_at | TIMESTAMPTZ | có | Hủy (chỉ khi chưa có kết quả); không đồng thời đóng | — |
 Index: UNIQUE `uk_health_check_campaigns_campus_open` (`campus_id`) WHERE chưa đóng, chưa hủy — mỗi điểm trường một đợt/kỳ chưa đóng, tính chung hai loại; `(campus_id, start_date)`.
 
@@ -436,9 +437,9 @@ Mục đích: một lần đo của trẻ trong đợt/kỳ (HLT-13 lưu từng 
 | child_id | BIGINT FK children | không | | — |
 | campaign_id | BIGINT FK health_check_campaigns | không | Đợt/kỳ; UNIQUE `(child_id, campaign_id)` | HLT-01 |
 | classroom_id | BIGINT FK classrooms | không | Lớp của trẻ tại ngày đo (scope, báo cáo theo lớp) | HLT-09 |
-| date | DATE | không | Ngày đo, trong khoảng của kỳ, không ở tương lai; UNIQUE `(child_id, date)` | HLT-13 |
+| date | DATE | không | Ngày đo do hệ thống ghi, không sửa (user chốt 2026-11-04): lần nhập đầu = hôm nay kẹp trong khoảng của đợt/kỳ (đợt/kỳ tự đóng sau ngày kết thúc — HLT-17 — nên thực tế là ngày nhập); phiếu khám = ngày lưu lần đầu. Trong khoảng của đợt/kỳ, không ở tương lai; UNIQUE `(child_id, date)` | HLT-01, HLT-08, HLT-13 |
 | height_cm, weight_kg | NUMERIC(4,1) | có (chỉ phiếu khám nháp) | 40–150 cm, 3–60 kg (CHECK) | HLT-01 |
-| head_circumference_cm | NUMERIC(3,1) | có | 30–60 cm; chỉ lưu khi trẻ chưa quá 60 tháng tại ngày đo (tới trước ngày đủ 61 tháng) | HLT-01 |
+| head_circumference_cm | NUMERIC(3,1) | có | 30–60 cm; chỉ phiếu khám ghi, khi trẻ chưa quá 60 tháng tại ngày khám. Kỳ cân đo không ghi từ 2026-11-04 (null); số đo kỳ cân đo cũ có thể còn giá trị, sửa số đo giữ nguyên | HLT-01, HLT-08 |
 | note | VARCHAR(500) | không | Ghi chú, không ghi chẩn đoán | — |
 | measured_by | BIGINT FK user_accounts | không | GV nhập | HLT-09 |
 | published_at | TIMESTAMPTZ | có (chỉ phiếu khám nháp) | Lúc công bố (lưu, kết luận, sửa) | HLT-11 |
@@ -460,8 +461,9 @@ Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `(measurement_id, created_at)`.
 
-## health_follow_ups  (module: health, scope: CHILD)
-Mục đích: phiếu theo dõi sức khỏe, mở khi kết luận phiếu khám "theo dõi sát" (chuyển khám chuyên khoa, nguy cơ lao...). Trạng thái, vòng trao đổi, hạn tính khi đọc từ `health_follow_up_events`, không lưu. Migration: V65.
+## health_follow_ups  (module: health, scope: CHILD) — ngừng dùng từ 2026-11-04
+**Ngừng dùng** cùng bảng `health_follow_up_events`, `health_follow_up_images`: phiếu theo dõi đã bỏ (HLT-16 REMOVED, cảnh báo lưu ở sổ sức khỏe — HLT-19). Không còn entity/API ghi hay đọc; giữ dữ liệu cũ, xóa bảng bằng migration riêng khi team chốt. Ảnh cũ vẫn ở S3 dưới prefix `health/follow-up-results/`.
+Mục đích (cũ): phiếu theo dõi sức khỏe, mở khi kết luận phiếu khám "theo dõi sát" (chuyển khám chuyên khoa, nguy cơ lao...). Trạng thái, vòng trao đổi, hạn tính khi đọc từ `health_follow_up_events`, không lưu. Migration: V65.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | child_id | BIGINT FK children | không | Mỗi trẻ tối đa một phiếu mở (UNIQUE có điều kiện `closed_at IS NULL`) | HLT-16 |
@@ -474,8 +476,8 @@ Mục đích: phiếu theo dõi sức khỏe, mở khi kết luận phiếu khá
 | close_condition_text | VARCHAR(100) | có | Tên vấn đề đã biết; có khi và chỉ khi `KNOWN_CONDITION` | HLT-16 |
 Index: `uk_health_follow_ups_child_open`, `(child_id, opened_at)`.
 
-## health_follow_up_events  (module: health, scope: CHILD)
-Mục đích: dòng thời gian của phiếu theo dõi; thứ tự `id` là thứ tự thời gian. Migration: V65.
+## health_follow_up_events  (module: health, scope: CHILD) — ngừng dùng từ 2026-11-04
+Mục đích (cũ): dòng thời gian của phiếu theo dõi; thứ tự `id` là thứ tự thời gian. Migration: V65. Ngừng dùng: xem `health_follow_ups`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | follow_up_id | BIGINT FK health_follow_ups | không | | — |
@@ -493,8 +495,8 @@ Mục đích: dòng thời gian của phiếu theo dõi; thứ tự `id` là th�
 | auto_reason | VARCHAR(30) | có | `CHILD_LEFT_SCHOOL` khi hệ thống tự đóng | HLT-16 |
 Index: `(follow_up_id, id)`, `uk_health_follow_up_events_measurement`.
 
-## health_follow_up_images  (module: health, scope: CHILD)
-Mục đích: ảnh kết quả khám chuyên khoa (tối đa 3 ảnh/lần ghi), tệp private ở S3 theo `storage_key` (prefix `CARENEST_HEALTH_MEDIA_PREFIX`); chỉ đọc qua API có kiểm phạm vi. Migration: V65.
+## health_follow_up_images  (module: health, scope: CHILD) — ngừng dùng từ 2026-11-04
+Mục đích (cũ): ảnh kết quả khám chuyên khoa (tối đa 3 ảnh/lần ghi), tệp private ở S3 theo `storage_key` (prefix cũ `health/follow-up-results/`, biến `CARENEST_HEALTH_MEDIA_PREFIX` đã bỏ). Migration: V65. Ngừng dùng: xem `health_follow_ups`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | event_id | BIGINT FK health_follow_up_events | không | Sự kiện `EXTERNAL_RESULT` | HLT-16 |
@@ -542,7 +544,7 @@ Mục đích: hành chính của trẻ, 1–1 với `children`; phiếu khám s�
 | child_id | BIGINT PK, FK children | không | | — |
 | id_number | VARCHAR(20) | có | CCCD/mã định danh 12 số hoặc hộ chiếu 6–12 chữ và số (API kiểm định dạng) | CHD-05 |
 | premature | VARCHAR(3) | không | `YES` / `NO` — sinh non | CHD-05 |
-| gestation_weeks | SMALLINT | có | 20–42; bắt buộc khi `premature = YES` (CHECK) | CHD-05 |
+| gestation_weeks | SMALLINT | có | Tuần thai khi sinh 20–42 (CHECK). API tiếp nhận bắt buộc với mọi trẻ, khớp `premature` (YES ⇒ dưới 37, NO ⇒ từ 37) từ 2026-11-04; cột vẫn NULL được cho hồ sơ cũ, CHECK chỉ bắt khi `premature = YES` | CHD-05 |
 | ethnicity, beneficiary | VARCHAR(100) | không | Dân tộc, đối tượng | CHD-05 |
 | payment_source | VARCHAR(20) | không | Luôn `BHYT` (DEFAULT + CHECK), không nhập | CHD-05 |
 | blood_type | VARCHAR(100) | có | Nhóm máu | CHD-05 |
@@ -563,6 +565,7 @@ Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoả
 | citizen_id | VARCHAR(12) | có (xem dưới) | CCCD 12 chữ số, khóa nhận diện phụ huynh | AUTH-18 |
 | email | VARCHAR(255) | có | Email liên hệ, chữ thường | AUTH-18 |
 | user_id | BIGINT FK user_accounts | có | Tài khoản đã kích hoạt cho trẻ này; NULL = chưa kích hoạt | AUTH-20 |
+| photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(36), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung tùy chọn khi tiếp nhận; private S3, JPG/PNG/WEBP ≤2 MiB; CHECK metadata hoàn chỉnh, V68. Ảnh ChildGuardian tách ảnh tài khoản và đọc theo id ổn định. | CHD-02, PCK-02 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Ràng buộc: UNIQUE (`child_id`, `position`), (`child_id`, `phone`), (`child_id`, `citizen_id`) dạng DEFERRABLE INITIALLY DEFERRED (Sửa hồ sơ đổi thông tin giữa hai phụ huynh trong một lần lưu); UNIQUE (`child_id`, `user_id`). `ck_child_guardians_citizen_id_required` **NOT VALID**: dòng thêm/sửa phải có CCCD; dòng V63 chuyển từ liên kết cũ chưa có CCCD (nhập bổ sung). V63 chuyển mỗi liên kết có sẵn có tên đăng nhập là SĐT thành 1 dòng (tối đa 3 mỗi trẻ).
 `accountStatus` trả FE: `NOT_ACTIVATED` khi chưa có `guardian_child_links` với trẻ; có thì `user_accounts.status`.
