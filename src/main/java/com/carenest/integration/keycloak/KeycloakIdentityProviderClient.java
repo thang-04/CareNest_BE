@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -191,9 +192,25 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
 
     @Override
     public void setUserEnabled(String userId, boolean enabled) {
-        // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+        updateUser("setUserEnabled", userId, user -> user.put("enabled", enabled));
+    }
+
+    @Override
+    public void updateUserProfile(String userId, String fullName, String email) {
+        updateUser("updateUserProfile", userId, user -> {
+            // Họ tên đầy đủ ở firstName như lúc tạo
+            user.put("firstName", fullName);
+            if (email != null && !email.equalsIgnoreCase(String.valueOf(user.get("email")))) {
+                user.put("email", email);
+                user.put("emailVerified", false);
+            }
+        });
+    }
+
+    // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+    private void updateUser(String operation, String userId, Consumer<Map<String, Object>> change) {
         Map<String, Object> user = call(
-                "setUserEnabled",
+                operation,
                 () -> restClient
                         .get()
                         .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
@@ -204,9 +221,9 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
             throw new IdentityProviderException(
                     IdentityProviderErrorReason.UNAVAILABLE, "Keycloak returned empty user", null);
         }
-        user.put("enabled", enabled);
+        change.accept(user);
         call(
-                "setUserEnabled",
+                operation,
                 () -> restClient
                         .put()
                         .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)

@@ -100,6 +100,10 @@ public enum ApiCode {
     PHONE_OF_STAFF_ACCOUNT(1130, HttpStatus.CONFLICT, "Số điện thoại này là tên đăng nhập của tài khoản nhân sự"),
     ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP, tối đa 2 MB"),
     ACCOUNT_PHOTO_NOT_FOUND(1132, HttpStatus.NOT_FOUND, "Chưa có ảnh hoặc bạn không có quyền xem ảnh này"),
+    STAFF_ROLE_NOT_CHANGEABLE(
+            1133, HttpStatus.BAD_REQUEST, "Chỉ đổi vai trò giữa Phó hiệu trưởng, giáo viên và nhân viên bếp"),
+    STAFF_ROLE_UNCHANGED(1134, HttpStatus.BAD_REQUEST, "Tài khoản đang có vai trò này"),
+    ACCOUNT_PROFILE_NOT_EDITABLE(1135, HttpStatus.BAD_REQUEST, "Chỉ sửa hồ sơ tài khoản nhân sự tại đây"),
 
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
@@ -226,6 +230,7 @@ public enum ApiCode {
             HttpStatus.BAD_REQUEST,
             "Thay hoặc gỡ giáo viên của lớp tại màn Phân công giáo viên (năm đang học lớp phải còn giáo viên)"),
     ASSIGNMENT_END_IN_PAST(2325, HttpStatus.BAD_REQUEST, "Không kết thúc phân công lùi về trước hôm qua"),
+    STAFF_ACCOUNT_LOCKED(2326, HttpStatus.CONFLICT, "Tài khoản nhân sự đã bị khóa"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),

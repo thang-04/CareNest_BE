@@ -131,6 +131,70 @@ class AccountLifecycleOperations {
     }
 
     /**
+     * Đổi role nhân sự (AUTH-25): thêm role mới → gỡ role cũ → ghi DB. Bước nào lỗi thì trả Keycloak về như trước
+     * (không gọi HTTP trong transaction). Xong thì hủy mọi phiên để token cũ mang role cũ không dùng tiếp được.
+     */
+    <T> T replaceRealmRole(
+            String logPrefix, UserAccount account, CareNestRole oldRole, CareNestRole newRole, Supplier<T> persist) {
+        String keycloakUserId = account.getKeycloakUserId();
+        boolean granted;
+        try {
+            granted = !identityProviderClient.getRealmRoleNames(keycloakUserId).contains(newRole.name());
+            if (granted) identityProviderClient.assignRealmRole(keycloakUserId, newRole.name());
+        } catch (IdentityProviderException ex) {
+            throw toGlobalException(ex);
+        }
+        try {
+            identityProviderClient.removeRealmRole(keycloakUserId, oldRole.name());
+        } catch (IdentityProviderException ex) {
+            if (granted) removeRealmRoleQuietly(logPrefix, account, newRole);
+            throw toGlobalException(ex);
+        }
+        T result;
+        try {
+            result = transactionTemplate.execute(status -> persist.get());
+        } catch (RuntimeException ex) {
+            assignRealmRoleQuietly(logPrefix, account, oldRole);
+            if (granted) removeRealmRoleQuietly(logPrefix, account, newRole);
+            throw ex;
+        }
+        authState.revokeAccountAuth(account.getId());
+        try {
+            identityProviderClient.logoutUser(keycloakUserId);
+        } catch (IdentityProviderException ex) {
+            // Đã đổi xong: refresh token Keycloak cấp lại token theo role mới nên chỉ log
+            log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
+        }
+        return result;
+    }
+
+    /** Họ tên/email: Keycloak trước, DB lỗi ⇒ trả Keycloak về giá trị cũ (AUTH-25). */
+    void updateProfile(String logPrefix, UserAccount account, String fullName, String email, Runnable persist) {
+        String oldFullName = account.getFullName();
+        String oldEmail = account.getEmail();
+        try {
+            identityProviderClient.updateUserProfile(account.getKeycloakUserId(), fullName, email);
+        } catch (IdentityProviderException ex) {
+            throw toGlobalException(ex);
+        }
+        try {
+            transactionTemplate.executeWithoutResult(status -> persist.run());
+        } catch (RuntimeException ex) {
+            try {
+                identityProviderClient.updateUserProfile(account.getKeycloakUserId(), oldFullName, oldEmail);
+                log.warn("{}|userId={}|profileCompensated", logPrefix, account.getId());
+            } catch (IdentityProviderException compensationEx) {
+                log.error(
+                        "{}|userId={}|profileCompensationFailed|manualCleanupRequired",
+                        logPrefix,
+                        account.getId(),
+                        compensationEx);
+            }
+            throw ex;
+        }
+    }
+
+    /**
      * Khóa tài khoản do hệ thống tự làm (không có người chờ kết quả): DB INACTIVE + hủy phiên web trong một
      * transaction riêng, rồi mới gọi Keycloak ngoài transaction; Keycloak lỗi chỉ log vì CurrentUserService đã chặn
      * tài khoản INACTIVE ở mọi request.
@@ -178,6 +242,15 @@ class AccountLifecycleOperations {
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderLogoutFailed", logPrefix, ex);
             throw GlobalException.withCause(ApiCode.PASSWORD_RESET_SESSION_REVOKE_FAILED, ex);
+        }
+    }
+
+    private void assignRealmRoleQuietly(String logPrefix, UserAccount account, CareNestRole role) {
+        try {
+            identityProviderClient.assignRealmRole(account.getKeycloakUserId(), role.name());
+            log.warn("{}|userId={}|role={}|restored", logPrefix, account.getId(), role);
+        } catch (IdentityProviderException ex) {
+            log.error("{}|userId={}|role={}|restoreFailed|manualCleanupRequired", logPrefix, account.getId(), role, ex);
         }
     }
 

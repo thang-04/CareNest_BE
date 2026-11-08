@@ -2,10 +2,13 @@ package com.carenest.service.account.impl;
 
 import com.carenest.config.AuthProperties;
 import com.carenest.dto.account.AccountCandidateResponse;
+import com.carenest.dto.account.AccountDetailResponse;
 import com.carenest.dto.account.AccountResponse;
+import com.carenest.dto.account.ChangeStaffRoleRequest;
 import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.dto.account.StaffAssignmentScopeRequest;
+import com.carenest.dto.account.UpdateAccountProfileRequest;
 import com.carenest.dto.organization.NewStaffAssignment;
 import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.entity.account.UserAccount;
@@ -19,6 +22,7 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.AccountProvisioningService;
+import com.carenest.service.account.PermissionService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -54,6 +58,9 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
     // ADMIN chỉ tạo trực tiếp trên Keycloak (bootstrap); PARENT tạo qua luồng gắn trẻ (AUTH-18), không qua API này
     private static final Set<CareNestRole> PROVISIONABLE_ROLES = EnumSet.of(
             CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF);
+    // AUTH-25: lên/xuống Hiệu trưởng do Admin làm trên Keycloak, không qua API đổi vai trò
+    private static final Set<CareNestRole> CHANGEABLE_ROLES =
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF);
 
     private final UserAccountRepository userAccountRepository;
     private final IdentityProviderClient identityProviderClient;
@@ -66,6 +73,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
     private final AccountLifecycleOperations accountLifecycle;
     private final GuardianChildLinkService guardianChildLinkService;
     private final EnrollmentService enrollmentService;
+    private final PermissionService permissionService;
     private final Clock clock;
 
     @Override
@@ -101,8 +109,9 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                 throw GlobalException.of(ApiCode.ROLE_NOT_CREATABLE);
             }
             // AUTH-15: xác định phạm vi người được tạo và quyền người tạo trước khi đụng Keycloak
-            AssignmentScope scope = toAssignmentScope(request);
-            staffAccessPolicy.checkCanCreate(actor, request.role(), resolveCreatorCampusId(request, scope));
+            AssignmentScope scope = toAssignmentScope(request.role(), request.assignment());
+            staffAccessPolicy.checkCanCreate(
+                    actor, request.role(), resolveCreatorCampusId(request.role(), request.assignment(), scope));
 
             // Đăng nhập bằng SĐT (user chốt 2026-10-30); bếp dùng SĐT bếp của cơ sở
             String username = PhoneNumbers.normalize(request.phone())
@@ -220,9 +229,91 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             }
             accountLifecycle.revokeRealmRole(logPrefix, account, staffRole, () -> {
                 endOpenAssignments(userId, today);
+                // Ngoại lệ của vai trò cũ không được sống lại khi sau này được gán vai trò nhân sự khác
+                permissionService.clearPermissionOverrides(
+                        actor.userId(), userId, "Thu hồi vai trò nhân sự " + staffRole.name());
                 userAccountRepository.updatePrimaryRole(userId, CareNestRole.PARENT.name());
             });
             account.becomeParentOnly();
+            log.info("{}|END", logPrefix);
+            return accountMapper.toAccountResponse(account);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public AccountDetailResponse changeStaffRole(CurrentUser actor, Long userId, ChangeStaffRoleRequest request) {
+        String logPrefix = LOG_PREFIX + "|changeStaffRole|actorUserId=" + actor.userId() + "|userId=" + userId
+                + "|role=" + request.role();
+        log.info("{}|START", logPrefix);
+        try {
+            // AUTH-12: không ai tự đổi vai trò của mình
+            if (userId.equals(actor.userId())) {
+                throw GlobalException.of(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
+            }
+            CareNestRole newRole = request.role();
+            // AUTH-17: người đổi phải quản lý được tài khoản theo vai trò hiện tại
+            UserAccount account = managedAccountLoader.loadManageable(actor, userId);
+            CareNestRole oldRole = account.getPrimaryRole();
+            if (!CHANGEABLE_ROLES.contains(newRole) || !CHANGEABLE_ROLES.contains(oldRole)) {
+                throw GlobalException.of(ApiCode.STAFF_ROLE_NOT_CHANGEABLE);
+            }
+            if (oldRole == newRole) {
+                throw GlobalException.of(ApiCode.STAFF_ROLE_UNCHANGED);
+            }
+            if (!account.isActive()) {
+                throw GlobalException.of(ApiCode.STAFF_ACCOUNT_LOCKED);
+            }
+            // ... và tạo được người có vai trò mới: HT mọi vai trò nhân sự, PHT chỉ GV/bếp trong campus mình
+            AssignmentScope scope = toAssignmentScope(newRole, request.assignment());
+            staffAccessPolicy.checkCanCreate(
+                    actor, newRole, resolveCreatorCampusId(newRole, request.assignment(), scope));
+
+            LocalDate today = LocalDate.now(clock);
+            accountLifecycle.replaceRealmRole(logPrefix, account, oldRole, newRole, () -> {
+                endOpenAssignments(userId, today);
+                permissionService.clearPermissionOverrides(
+                        actor.userId(), userId, "Đổi vai trò từ " + oldRole.name() + " sang " + newRole.name());
+                userAccountRepository.updatePrimaryRole(userId, newRole.name());
+                return scope == null
+                        ? null
+                        : staffAssignmentService.createAssignment(scope.forUser(userId, actor.userId()));
+            });
+            account.becomeStaff(newRole);
+            AccountDetailResponse detail =
+                    accountMapper.toDetailResponse(account, staffAssignmentService.findAssignments(userId));
+            log.info("{}|END", logPrefix);
+            return detail;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public AccountResponse updateProfile(CurrentUser actor, Long userId, UpdateAccountProfileRequest request) {
+        String logPrefix = LOG_PREFIX + "|updateProfile|actorUserId=" + actor.userId() + "|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            if (userId.equals(actor.userId())) {
+                throw GlobalException.of(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
+            }
+            UserAccount account = managedAccountLoader.loadManageable(actor, userId);
+            if (!PROVISIONABLE_ROLES.contains(account.getPrimaryRole())) {
+                throw GlobalException.of(ApiCode.ACCOUNT_PROFILE_NOT_EDITABLE);
+            }
+            // Email dùng cho quên mật khẩu ⇒ đổi email ngang cấp lại mật khẩu (AUTH-19 với nhân sự kiêm phụ huynh)
+            checkCanManageLinkedParent(actor, account);
+            String fullName = request.fullName().trim();
+            String email = StringUtils.hasText(request.email())
+                    ? request.email().trim().toLowerCase(Locale.ROOT)
+                    : null;
+            accountLifecycle.updateProfile(logPrefix, account, fullName, email, () -> {
+                account.updateProfile(fullName, email);
+                userAccountRepository.saveAndFlush(account);
+            });
             log.info("{}|END", logPrefix);
             return accountMapper.toAccountResponse(account);
         } catch (RuntimeException ex) {
@@ -262,12 +353,20 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
             throw GlobalException.of(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
         }
         // AUTH-19: chỉ người quản lý được phụ huynh này (HT, hoặc PHT có con của họ ở campus mình) mới gộp được;
-        // gộp xong người tạo quản lý tài khoản ⇒ không để PHT chiếm tài khoản phụ huynh campus khác
-        staffAccessPolicy.checkCanManageParent(actor, account.getId());
+        // gộp xong người tạo quản lý tài khoản ⇒ không để PHT chiếm tài khoản phụ huynh campus khác.
+        // Admin chỉ tới được đây khi tạo Hiệu trưởng (AUTH-06, AUTH-15)
+        if (!actor.hasRole(CareNestRole.ADMIN)) {
+            staffAccessPolicy.checkCanManageParent(actor, account.getId());
+        }
         StaffAssignmentResponse assignment =
                 accountLifecycle.addRealmRole(LOG_PREFIX + "|addStaffRoleToParent", account, request.role(), () -> {
                     userAccountRepository.updatePrimaryRole(
                             account.getId(), request.role().name());
+                    // Ngoại lệ còn sót từ lần làm nhân sự trước không tự có hiệu lực lại
+                    permissionService.clearPermissionOverrides(
+                            actor.userId(),
+                            account.getId(),
+                            "Thêm vai trò nhân sự " + request.role().name());
                     return scope == null
                             ? null
                             : staffAssignmentService.createAssignment(scope.forUser(account.getId(), actor.userId()));
@@ -277,9 +376,10 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
     }
 
     // GV chưa có phân công nên campus gửi kèm chỉ dùng để kiểm PHT tạo trong campus mình (AUTH-15)
-    private Long resolveCreatorCampusId(CreateAccountRequest request, AssignmentScope scope) {
-        if (request.role() == CareNestRole.TEACHER) {
-            return request.assignment() == null ? null : request.assignment().campusId();
+    private Long resolveCreatorCampusId(
+            CareNestRole role, StaffAssignmentScopeRequest requested, AssignmentScope scope) {
+        if (role == CareNestRole.TEACHER) {
+            return requested == null ? null : requested.campusId();
         }
         return scope == null || scope.staffRole() == StaffRole.PRINCIPAL
                 ? null
@@ -288,10 +388,9 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
 
     // HT tự có phân công toàn trường; GV tạo không kèm lớp (user chốt 2026-11-01), phân công lớp làm sau;
     // phụ huynh không có phân công; PHT/bếp theo request (có thể trống)
-    private AssignmentScope toAssignmentScope(CreateAccountRequest request) {
-        StaffAssignmentScopeRequest requested = request.assignment();
+    private AssignmentScope toAssignmentScope(CareNestRole role, StaffAssignmentScopeRequest requested) {
         LocalDate today = LocalDate.now(clock);
-        return switch (request.role()) {
+        return switch (role) {
             case PRINCIPAL -> {
                 if (requested != null) {
                     throw GlobalException.of(ApiCode.PRINCIPAL_ASSIGNMENT_SCHOOL_WIDE);
@@ -303,7 +402,7 @@ public class AccountProvisioningServiceImpl implements AccountProvisioningServic
                 requested == null
                         ? null
                         : new AssignmentScope(
-                                StaffRole.valueOf(request.role().name()),
+                                StaffRole.valueOf(role.name()),
                                 requested.campusId(),
                                 requested.validFrom() == null ? today : requested.validFrom());
             default -> {
