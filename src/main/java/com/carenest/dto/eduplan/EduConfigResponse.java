@@ -18,7 +18,30 @@ public record EduConfigResponse(
         SignerNames signerNames,
         EduWorkflowPolicyResponse workflow,
         boolean canConfigure,
-        List<Long> yearCreationScopes) {
+        List<Long> yearCreationScopes,
+        List<Long> schoolYearCreationScopes) {
+    public EduConfigResponse(
+            List<Domain> domains,
+            List<SchoolYearResponse> schoolYears,
+            List<AgeGroupResponse> ageGroups,
+            Signers signers,
+            List<WeekRow> weekRows,
+            SignerNames signerNames,
+            EduWorkflowPolicyResponse workflow,
+            boolean canConfigure,
+            List<Long> yearCreationScopes) {
+        this(
+                domains,
+                schoolYears,
+                ageGroups,
+                signers,
+                weekRows,
+                signerNames,
+                workflow,
+                canConfigure,
+                yearCreationScopes,
+                List.of());
+    }
 
     public EduConfigResponse(
             List<Domain> domains,
@@ -30,6 +53,7 @@ public record EduConfigResponse(
         this(domains, schoolYears, ageGroups, signers, weekRows, signerNames, null, false, List.of());
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "EduConfigDomainResponse")
     public record Domain(
             Long id, String name, String displayLabel, String shortLabel, Short sortOrder, boolean standard) {}
 

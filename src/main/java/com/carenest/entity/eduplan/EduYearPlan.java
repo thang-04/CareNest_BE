@@ -1,5 +1,6 @@
 package com.carenest.entity.eduplan;
 
+import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -32,6 +33,35 @@ public class EduYearPlan {
 
     @Column(nullable = false, updatable = false, length = 30)
     private String code;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan_level", nullable = false, updatable = false, length = 20)
+    private EduPlanLevel planLevel = EduPlanLevel.TEAM;
+
+    @Column(name = "curriculum_source_plan_id", updatable = false)
+    private Long curriculumSourcePlanId;
+
+    @Column(name = "legacy_team_without_source", nullable = false, updatable = false)
+    private boolean legacyTeamWithoutSource;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "duration_policy_snapshot", nullable = false, updatable = false, columnDefinition = "jsonb")
+    private String durationPolicySnapshot = "{\"mode\":\"LEGACY_UNBOUNDED\"}";
+
+    public void initializePlanSource(EduPlanLevel level, Long sourceId, boolean legacy, String snapshot) {
+        this.planLevel = level;
+        this.curriculumSourcePlanId = sourceId;
+        this.legacyTeamWithoutSource = legacy;
+        this.durationPolicySnapshot = snapshot;
+    }
+
+    public String sourceMode() {
+        return planLevel == EduPlanLevel.SCHOOL_YEAR ? "ROOT" : curriculumSourcePlanId == null ? "LEGACY" : "INHERITED";
+    }
+
+    public String workflowKey() {
+        return planLevel.workflowKey();
+    }
 
     @Column(name = "school_year_id", nullable = false, updatable = false)
     private Long schoolYearId;
@@ -182,6 +212,11 @@ public class EduYearPlan {
                 now);
         plan.versionNo = source.versionNo + 1;
         plan.sourcePlanId = source.id;
+        plan.initializePlanSource(
+                source.planLevel,
+                source.curriculumSourcePlanId,
+                source.legacyTeamWithoutSource,
+                source.durationPolicySnapshot);
         return plan;
     }
 

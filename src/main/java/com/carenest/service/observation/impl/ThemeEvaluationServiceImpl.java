@@ -22,6 +22,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.eduplan.EduLessonQueryService;
+import com.carenest.service.eduplan.EduPlanCalendarQueryService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -62,6 +63,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private final DailyActivityResultRepository resultRepository;
     private final EnrollmentService enrollmentService;
     private final EduLessonQueryService lessonQueryService;
+    private final EduPlanCalendarQueryService calendarQueryService;
     private final ClassroomService classroomService;
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
@@ -117,17 +119,42 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             Map<Long, ThemeEvaluation> saved = evaluationRepository.findByClassroomId(classId).stream()
                     .collect(Collectors.toMap(ThemeEvaluation::getThemeId, Function.identity()));
             LocalDate today = rules.today();
-            List<ThemeItem> items =
-                    evaluationRepository.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId()).stream()
-                            .map(t -> new ThemeItem(
-                                    t.getId(),
-                                    t.getName(),
-                                    t.getAbbr(),
-                                    t.getStartDate(),
-                                    t.getEndDate(),
-                                    period(t.getStartDate(), t.getEndDate(), today),
-                                    status(saved.get(t.getLineage()))))
-                            .toList();
+            List<ThemeRow> themes = effectiveThemes(cls);
+            List<ThemeItem> items = themes.stream()
+                    .map(t -> new ThemeItem(
+                            t.getId(),
+                            t.getName(),
+                            t.getAbbr(),
+                            t.getStartDate(),
+                            t.getEndDate(),
+                            period(t.getStartDate(), t.getEndDate(), today),
+                            status(saved.get(t.getLineage()))))
+                    .toList();
+            Map<Long, ThemeItem> union = new LinkedHashMap<>();
+            items.forEach(item -> union.put(item.themeId(), item));
+            for (ThemeEvaluation evaluation : saved.values()) {
+                ThemeEvaluationResponse frozen = snapshot(evaluation);
+                if (evaluation.isConfirmed() && frozen != null) {
+                    Long displayId = themes.stream()
+                            .filter(t -> t.getLineage().equals(evaluation.getThemeId()))
+                            .map(ThemeRow::getId)
+                            .findFirst()
+                            .orElse(frozen.themeId());
+                    union.put(
+                            displayId,
+                            new ThemeItem(
+                                    displayId,
+                                    frozen.themeName(),
+                                    null,
+                                    frozen.startDate(),
+                                    frozen.endDate(),
+                                    period(frozen.startDate(), frozen.endDate(), today),
+                                    "CONFIRMED"));
+                }
+            }
+            items = union.values().stream()
+                    .sorted(Comparator.comparing(ThemeItem::startDate))
+                    .toList();
             log.info("{}|themes={}|END", logPrefix, items.size());
             return items;
         } catch (RuntimeException ex) {
@@ -143,6 +170,17 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = readableClass(currentUser, classId);
+            ThemeEvaluation frozen = evaluationRepository.findByClassroomId(classId).stream()
+                    .filter(e -> e.isConfirmed()
+                            && (e.getThemeId().equals(themeId)
+                                    || snapshot(e) != null
+                                            && snapshot(e).themeId().equals(themeId)))
+                    .findFirst()
+                    .orElse(null);
+            if (frozen != null && snapshot(frozen) != null) {
+                log.info("{}|END", logPrefix);
+                return snapshot(frozen);
+            }
             ThemeRow theme = findTheme(cls, themeId);
             ThemeEvaluation saved = evaluationRepository
                     .findByClassroomIdAndThemeId(classId, theme.getLineage())
@@ -197,8 +235,9 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             List<StoredCell> all = new ArrayList<>();
             finalMatrix.cells.forEach((k, v) -> all.add(new StoredCell(k.childId(), k.goal(), v.met(), v.manual())));
             evaluation.confirm(writeCells(all), note(request), currentUser.userId(), rules.now());
-            evaluationRepository.saveAndFlush(evaluation);
             ThemeEvaluationResponse response = view(currentUser, cls, theme, evaluation);
+            evaluation.setPresentationSnapshot(objectMapper.writeValueAsString(response));
+            evaluationRepository.saveAndFlush(evaluation);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -233,16 +272,37 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                     .forEach(classes::add);
             classes.add(cls);
             // Chủ đề theo ngày bắt đầu tăng dần: chủ đề sau ghi đè, nên mỗi MT giữ kết quả của chủ đề gần nhất
-            for (ThemeRow theme : evaluationRepository.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId())) {
-                if (today.isBefore(theme.getStartDate())) {
-                    continue;
-                }
-                for (ClassroomInfoResponse c : classes) {
-                    ThemeEvaluation saved = evaluationRepository
-                            .findByClassroomIdAndThemeId(c.id(), theme.getLineage())
-                            .orElse(null);
-                    Matrix matrix = matrixOf(c, theme, saved);
+            for (ClassroomInfoResponse c : classes) {
+                Map<Long, ThemeEvaluation> savedByTheme = evaluationRepository.findByClassroomId(c.id()).stream()
+                        .collect(Collectors.toMap(ThemeEvaluation::getThemeId, Function.identity()));
+                Map<Long, LocalDate> dates = new HashMap<>();
+                List<ThemeRow> themes = effectiveThemes(c);
+                themes.forEach(t -> dates.put(t.getLineage(), t.getStartDate()));
+                savedByTheme.values().stream()
+                        .filter(e -> snapshot(e) != null)
+                        .forEach(e -> dates.put(e.getThemeId(), e.getStartDate()));
+                for (Long lineage : dates.keySet().stream()
+                        .sorted(Comparator.comparing(dates::get))
+                        .toList()) {
+                    if (today.isBefore(dates.get(lineage))) continue;
+                    ThemeEvaluation saved = savedByTheme.get(lineage);
                     String className = c.id().equals(classId) ? null : c.name();
+                    ThemeEvaluationResponse frozen = snapshot(saved);
+                    if (frozen != null) {
+                        frozen.rows().stream()
+                                .filter(r -> r.childId().equals(childId))
+                                .forEach(row -> row.cells().stream()
+                                        .filter(cell -> cell.met() != null)
+                                        .forEach(cell -> results.put(
+                                                cell.goalId(),
+                                                new ThemeGoalResult(cell.met(), frozen.themeName(), className))));
+                        continue;
+                    }
+                    ThemeRow theme = themes.stream()
+                            .filter(t -> t.getLineage().equals(lineage))
+                            .findFirst()
+                            .orElseThrow();
+                    Matrix matrix = matrixOf(c, theme, saved);
                     for (GoalRow goal : matrix.goals()) {
                         Value v = matrix.cells().get(new Key(childId, goal.getLineage()));
                         if (v != null && v.met() != null) {
@@ -274,8 +334,86 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         return cls;
     }
 
+    private List<ThemeRow> effectiveThemes(ClassroomInfoResponse cls) {
+        Map<Long, ThemeRow> source =
+                evaluationRepository.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId()).stream()
+                        .collect(Collectors.toMap(ThemeRow::getId, Function.identity()));
+        List<ThemeRow> themes = new ArrayList<>(calendarQueryService.findApprovedThemes(cls.id()).stream()
+                .map(t -> (ThemeRow) new ThemeRow() {
+                    public Long getId() {
+                        return t.themeId();
+                    }
+
+                    public Long getLineage() {
+                        return t.lineageId();
+                    }
+
+                    public String getName() {
+                        return t.name();
+                    }
+
+                    public String getAbbr() {
+                        return source.containsKey(t.themeId())
+                                ? source.get(t.themeId()).getAbbr()
+                                : null;
+                    }
+
+                    public LocalDate getStartDate() {
+                        return t.startDate();
+                    }
+
+                    public LocalDate getEndDate() {
+                        return t.endDate();
+                    }
+                })
+                .toList());
+        for (ThemeEvaluation saved : evaluationRepository.findByClassroomId(cls.id())) {
+            if (!saved.isConfirmed() || snapshot(saved) != null) continue;
+            Long id = themes.stream()
+                    .filter(t -> t.getLineage().equals(saved.getThemeId()))
+                    .map(ThemeRow::getId)
+                    .findFirst()
+                    .orElse(saved.getThemeId());
+            themes.removeIf(t -> t.getLineage().equals(saved.getThemeId()));
+            themes.add(new ThemeRow() {
+                public Long getId() {
+                    return id;
+                }
+
+                public Long getLineage() {
+                    return saved.getThemeId();
+                }
+
+                public String getName() {
+                    return saved.getThemeName();
+                }
+
+                public String getAbbr() {
+                    return null;
+                }
+
+                public LocalDate getStartDate() {
+                    return saved.getStartDate();
+                }
+
+                public LocalDate getEndDate() {
+                    return saved.getEndDate();
+                }
+            });
+        }
+        return themes.stream()
+                .sorted(Comparator.comparing(ThemeRow::getStartDate))
+                .toList();
+    }
+
+    private ThemeEvaluationResponse snapshot(ThemeEvaluation saved) {
+        if (saved == null || !saved.isConfirmed() || saved.getPresentationSnapshot() == null) return null;
+        var node = objectMapper.readTree(saved.getPresentationSnapshot());
+        return node.has("themeId") ? objectMapper.treeToValue(node, ThemeEvaluationResponse.class) : null;
+    }
+
     private ThemeRow findTheme(ClassroomInfoResponse cls, Long themeId) {
-        return evaluationRepository.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId()).stream()
+        return effectiveThemes(cls).stream()
                 // Link cũ của bản kế hoạch trước vẫn mở được: khớp id hoặc dòng gốc
                 .filter(t -> t.getId().equals(themeId) || t.getLineage().equals(themeId))
                 .findFirst()
@@ -335,8 +473,39 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 : enrollmentService.findChildrenInClassroomDuring(cls.id(), theme.getStartDate(), to).stream()
                         .sorted(Comparator.comparing(ClassChildResponse::fullName))
                         .toList();
+        if (saved != null && saved.isConfirmed() && saved.getPresentationSnapshot() != null) {
+            var baseline = objectMapper.readTree(saved.getPresentationSnapshot());
+            if (baseline.has("origin")) {
+                children = objectMapper.convertValue(
+                        baseline.path("children"), new TypeReference<List<ClassChildResponse>>() {});
+                goals = new ArrayList<>();
+                for (var g : baseline.path("goals")) {
+                    goals.add(new GoalRow() {
+                        public Long getId() {
+                            return g.path("id").asLong();
+                        }
+
+                        public Long getLineage() {
+                            return g.path("lineage").asLong();
+                        }
+
+                        public Short getGoalNo() {
+                            return g.path("goalNo").isNull()
+                                    ? null
+                                    : (short) g.path("goalNo").asInt();
+                        }
+
+                        public String getText() {
+                            return g.path("text").asText();
+                        }
+                    });
+                }
+            }
+        }
         Set<Long> lineages = goals.stream().map(GoalRow::getLineage).collect(Collectors.toSet());
-        Map<Key, Boolean> auto = autoResults(cls, children, lineages, theme.getStartDate(), to);
+        Map<Key, Boolean> auto = saved != null && saved.isConfirmed()
+                ? Map.of()
+                : autoResults(cls, children, lineages, theme.getStartDate(), to);
         Matrix base = new Matrix(children, goals, Map.of(), auto);
         List<StoredCell> stored = saved == null ? List.of() : readCells(saved.getCells());
         if (saved != null && saved.isConfirmed()) {
@@ -427,6 +596,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
 
     private ThemeEvaluationResponse view(
             CurrentUser user, ClassroomInfoResponse cls, ThemeRow theme, ThemeEvaluation saved) {
+        ThemeEvaluationResponse frozen = snapshot(saved);
+        if (frozen != null) return frozen;
         Matrix matrix = matrixOf(cls, theme, saved);
         LocalDate today = rules.today();
         boolean confirmed = saved != null && saved.isConfirmed();

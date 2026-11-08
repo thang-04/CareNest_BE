@@ -91,6 +91,7 @@ class EduDocumentAuthorIntegrationTest {
     private CurrentUser teacher2;
     private CurrentUser vicePrincipal;
     private CurrentUser principal;
+    private Long annualPlanId;
 
     @BeforeEach
     void setUp() {
@@ -122,6 +123,41 @@ class EduDocumentAuthorIntegrationTest {
 
         principal = user("ht-auth", CareNestRole.PRINCIPAL);
         insertAssignment(principal.userId(), "PRINCIPAL", null, null, null);
+
+        long domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
+        var annualReq = new YearPlanRequest(
+                schoolYear,
+                ageGroup3,
+                "Annual Auth",
+                "",
+                List.of(new YearPlanRequest.Domain(
+                        domainPhysical,
+                        List.of(new YearPlanRequest.Row(
+                                null,
+                                "goal",
+                                "Mục tiêu 1",
+                                List.of(new YearPlanRequest.Content(null, "ND", List.of())))))),
+                List.of(new YearPlanRequest.Theme(
+                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                null,
+                List.of());
+        UUID vpSession = UUID.randomUUID();
+        var annualDraft = yearPlanService.createYearPlan(
+                vicePrincipal, annualReq, new YearPlanEditRequest(vpSession, 0L, UUID.randomUUID()));
+        var annualSub = yearPlanService.submitYearPlan(
+                vicePrincipal,
+                annualDraft.id(),
+                null,
+                new YearPlanEditRequest(vpSession, annualDraft.revision(), UUID.randomUUID()));
+        annualPlanId = yearPlanService
+                .issueYearPlan(
+                        principal,
+                        annualDraft.id(),
+                        "Approved",
+                        new YearPlanEditRequest(null, annualSub.revision(), UUID.randomUUID()))
+                .id();
     }
 
     private UUID session(CurrentUser user) {
@@ -131,16 +167,16 @@ class EduDocumentAuthorIntegrationTest {
     @Test
     @DisplayName("T041 [US3]: Content write của creator và co-author được ghi nhận vào ledger")
     void contentWriteRecordedInAuthorLedger() {
-        long domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
         YearPlanRequest req = new YearPlanRequest(
                 schoolYear,
                 ageGroup3,
                 "Kế hoạch khối MGB",
                 "",
-                List.of(new YearPlanRequest.Domain(
-                        domainPhysical, List.of(new YearPlanRequest.Row(null, "goal", "Mục tiêu 1", List.of())))),
-                List.of(new YearPlanRequest.Theme(
-                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
+                List.of(),
+                List.of(),
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.TEAM,
+                annualPlanId,
                 List.of());
 
         YearPlanDetailResponse plan = yearPlanService.createYearPlan(
@@ -156,11 +192,50 @@ class EduDocumentAuthorIntegrationTest {
         yearPlanService.finishEditing(
                 leaderA, plan.id(), new YearPlanEditRequest(session(leaderA), plan.revision(), UUID.randomUUID()));
 
-        // Co-author leaderB lấy khóa và sửa nội dung -> được ghi với origin CONTENT_WRITE
+        // Co-author leaderB lấy khóa và sửa nội dung -> được ghi với origin
+        // CONTENT_WRITE
         yearPlanService.startEditing(
                 leaderB, plan.id(), new YearPlanEditRequest(session(leaderB), plan.revision(), UUID.randomUUID()));
+        var updateReq = new YearPlanRequest(
+                schoolYear,
+                ageGroup3,
+                "Kế hoạch khối MGB sửa",
+                "",
+                plan.domains().stream()
+                        .map(d -> new YearPlanRequest.Domain(
+                                d.domainId(),
+                                d.rows().stream()
+                                        .map(r -> new YearPlanRequest.Row(
+                                                r.id(),
+                                                r.kind(),
+                                                r.text(),
+                                                r.contents().stream()
+                                                        .map(c -> new YearPlanRequest.Content(
+                                                                c.id(), c.text(), List.of("t-1")))
+                                                        .toList()))
+                                        .toList()))
+                        .toList(),
+                List.of(new YearPlanRequest.Theme(
+                        "t-1",
+                        plan.themes().getFirst().id(),
+                        plan.themes().getFirst().name(),
+                        plan.themes().getFirst().abbr(),
+                        plan.themes().getFirst().startDate(),
+                        plan.themes().getFirst().endDate(),
+                        plan.themes().getFirst().festivals(),
+                        "")),
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.TEAM,
+                annualPlanId,
+                plan.branchTemplates().stream()
+                        .map(t -> new YearPlanRequest.BranchTemplate(
+                                t.id().toString(), t.id(), "t-1", t.name(), t.startDate(), t.endDate()))
+                        .toList());
         yearPlanService.updateYearPlan(
-                leaderB, plan.id(), req, new YearPlanEditRequest(session(leaderB), plan.revision(), UUID.randomUUID()));
+                leaderB,
+                plan.id(),
+                updateReq,
+                new YearPlanEditRequest(session(leaderB), plan.revision(), UUID.randomUUID()));
 
         authors = authorRepository.findAllByYearPlanId(plan.id());
         assertThat(authors).hasSize(2);
@@ -177,16 +252,16 @@ class EduDocumentAuthorIntegrationTest {
     @Test
     @DisplayName("T041 [US3]: Contributor của kế hoạch năm bị cấm duyệt kế hoạch đó (chống tự duyệt)")
     void yearPlanContributorForbiddenFromApproving() {
-        long domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
         YearPlanRequest req = new YearPlanRequest(
                 schoolYear,
                 ageGroup3,
                 "Kế hoạch khối MGB",
                 "",
-                List.of(new YearPlanRequest.Domain(
-                        domainPhysical, List.of(new YearPlanRequest.Row(null, "goal", "Mục tiêu 1", List.of())))),
-                List.of(new YearPlanRequest.Theme(
-                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
+                List.of(),
+                List.of(),
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.TEAM,
+                annualPlanId,
                 List.of());
 
         // leaderA tạo và gửi duyệt kế hoạch năm
@@ -202,7 +277,8 @@ class EduDocumentAuthorIntegrationTest {
         // Sau đó, leaderA được bổ nhiệm thêm vai trò VICE_PRINCIPAL (reviewer)
         insertAssignment(leaderA.userId(), "VICE_PRINCIPAL", campus, null, null);
 
-        // leaderA lúc này có quyền reviewer, nhưng vì đã từng soạn kế hoạch này nên bị cấm duyệt
+        // leaderA lúc này có quyền reviewer, nhưng vì đã từng soạn kế hoạch này nên bị
+        // cấm duyệt
         assertThatThrownBy(() -> yearPlanService.issueYearPlan(
                         leaderA,
                         plan.id(),
@@ -226,7 +302,6 @@ class EduDocumentAuthorIntegrationTest {
             "T041 [US3]: Contributor của một tuần trong dossier chủ đề bị cấm duyệt dossier chủ đề đó (union authors)")
     void themeDossierWeekContributorForbiddenFromApproving() {
         // Ban hành 1 year plan trước
-        long domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
         YearPlanDetailResponse yearPlan = yearPlanService.createYearPlan(
                 leaderA,
                 new YearPlanRequest(
@@ -234,18 +309,11 @@ class EduDocumentAuthorIntegrationTest {
                         ageGroup3,
                         "Kế hoạch năm",
                         "",
-                        List.of(new YearPlanRequest.Domain(
-                                domainPhysical,
-                                List.of(new YearPlanRequest.Row(null, "goal", "Mục tiêu 1", List.of())))),
-                        List.of(new YearPlanRequest.Theme(
-                                "t-1",
-                                null,
-                                "Chủ đề 1",
-                                "CD1",
-                                LocalDate.of(2026, 9, 7),
-                                LocalDate.of(2026, 9, 25),
-                                "",
-                                "")),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        com.carenest.utils.enums.EduPlanLevel.TEAM,
+                        annualPlanId,
                         List.of()),
                 new YearPlanEditRequest(session(leaderA), 0L, UUID.randomUUID()));
         YearPlanDetailResponse submittedYear = yearPlanService.submitYearPlan(
@@ -300,7 +368,7 @@ class EduDocumentAuthorIntegrationTest {
         weekDoc1.put("themeId", themeId);
         weekDoc1.put("weekStart", "2026-09-07");
         weekDoc1.set("days", objectMapper.createArrayNode());
-        classDocService.saveClassDoc(teacher2, "week", weekKey1, weekDoc1, -1L, rootVersionOf("week", weekDoc1));
+        classDocService.saveClassDoc(teacher2, "week", weekKey1, weekDoc1, -1L, versionOf(themeKey));
 
         // teacher1 soạn tuần 2 và tuần 3 để đủ điều kiện gửi duyệt hồ sơ chủ đề
         String weekKey2 = "wp_" + classId + "_2026-09-14";
@@ -310,7 +378,7 @@ class EduDocumentAuthorIntegrationTest {
         weekDoc2.put("themeId", themeId);
         weekDoc2.put("weekStart", "2026-09-14");
         weekDoc2.set("days", objectMapper.createArrayNode());
-        classDocService.saveClassDoc(teacher1, "week", weekKey2, weekDoc2, -1L, rootVersionOf("week", weekDoc2));
+        classDocService.saveClassDoc(teacher1, "week", weekKey2, weekDoc2, -1L, versionOf(themeKey));
 
         String weekKey3 = "wp_" + classId + "_2026-09-21";
         ObjectNode weekDoc3 = objectMapper.createObjectNode();
@@ -319,13 +387,14 @@ class EduDocumentAuthorIntegrationTest {
         weekDoc3.put("themeId", themeId);
         weekDoc3.put("weekStart", "2026-09-21");
         weekDoc3.set("days", objectMapper.createArrayNode());
-        classDocService.saveClassDoc(teacher1, "week", weekKey3, weekDoc3, -1L, rootVersionOf("week", weekDoc3));
+        classDocService.saveClassDoc(teacher1, "week", weekKey3, weekDoc3, -1L, versionOf(themeKey));
 
         // teacher1 gửi duyệt hồ sơ chủ đề
         classDocService.actOnClassDoc(
                 teacher1, "theme", themeKey, new ClassDocActionRequest("submit", null), versionOf(themeKey));
 
-        // leaderA (Tổ trưởng không soạn bất kỳ phần nào của dossier) duyệt bước Tổ trưởng -> thành công
+        // leaderA (Tổ trưởng không soạn bất kỳ phần nào của dossier) duyệt bước Tổ
+        // trưởng -> thành công
         ObjectNode approvedByLeader = classDocService.actOnClassDoc(
                 leaderA,
                 "theme",
@@ -356,7 +425,8 @@ class EduDocumentAuthorIntegrationTest {
                 .satisfies(
                         ex -> assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.NOT_YOUR_REVIEW_STEP));
 
-        // vicePrincipal (Phó Hiệu trưởng không soạn bất kỳ phần nào) duyệt -> thành công ban hành
+        // vicePrincipal (Phó Hiệu trưởng không soạn bất kỳ phần nào) duyệt -> thành
+        // công ban hành
         ObjectNode approvedByVp = classDocService.actOnClassDoc(
                 vicePrincipal,
                 "theme",
@@ -415,18 +485,5 @@ class EduDocumentAuthorIntegrationTest {
     private Long versionOf(String key) {
         var versions = jdbc.queryForList("SELECT version FROM edu_class_docs WHERE doc_key=?", Long.class, key);
         return versions.isEmpty() ? -1L : versions.getFirst();
-    }
-
-    private Long rootVersionOf(String kind, ObjectNode content) {
-        if (!"week".equals(kind)) return null;
-        return versionOf("tp_" + content.path("classId").asText() + "_"
-                + content.path("themeId").asText());
-    }
-
-    private Long rootVersionOfWeek(String key) {
-        return jdbc.queryForObject(
-                "SELECT r.version FROM edu_class_docs w JOIN edu_class_docs r ON r.classroom_id=w.classroom_id AND r.year_plan_id=w.year_plan_id AND r.theme_id=w.theme_id AND r.kind='theme' WHERE w.doc_key=?",
-                Long.class,
-                key);
     }
 }

@@ -1,6 +1,8 @@
 package com.carenest.service.eduplan;
 
 import com.carenest.dto.eduplan.BranchFilePreviewResponse;
+import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
+import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.security.CurrentUser;
@@ -13,6 +15,8 @@ public interface EduClassDocService {
 
     BranchFilePreviewResponse previewBranchFile(
             CurrentUser currentUser, Long classId, Long yearPlanId, MultipartFile file);
+
+    ClassCalendarPreviewResponse previewClassCalendar(CurrentUser currentUser, ClassCalendarPreviewRequest request);
 
     com.carenest.entity.eduplan.EduClassDoc requireThemeAccess(CurrentUser currentUser, String docKey, boolean write);
 

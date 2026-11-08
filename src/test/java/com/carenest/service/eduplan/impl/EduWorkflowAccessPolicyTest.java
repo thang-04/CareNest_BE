@@ -125,4 +125,68 @@ class EduWorkflowAccessPolicyTest {
         assertThat(accessPolicy.canReviewYearPlan(vpUser, Role.VICE_PRINCIPAL, 1L))
                 .isFalse();
     }
+
+    @Test
+    @DisplayName("EDU-60: tổ trưởng xem annual ban hành đúng tuổi, thu hồi phân công mất scope")
+    void annualLeaderScopeUsesCurrentAssignment() {
+        var leader = user(50L, CareNestRole.TEACHER);
+        given(staffAssignmentService.hasActiveTeamLeaderAssignment(50L, TODAY)).willReturn(true);
+        given(staffAssignmentService.findActiveTeamLeaderAgeGroupIds(50L, TODAY))
+                .willReturn(Set.of(1L));
+        var annual = new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL));
+        var team = new RolePolicy(List.of(Role.TEAM_LEADER), List.of(Role.VICE_PRINCIPAL));
+        var scope = accessPolicy.annualViewScope(leader, annual, team, Set.of(1L, 2L));
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.APPROVED))
+                .isTrue();
+        assertThat(scope.allows(2L, com.carenest.utils.enums.EduPlanStatus.APPROVED))
+                .isFalse();
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.DRAFT))
+                .isFalse();
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.REVIEW))
+                .isFalse();
+        given(staffAssignmentService.hasActiveTeamLeaderAssignment(50L, TODAY)).willReturn(false);
+        assertThat(accessPolicy
+                        .annualViewScope(leader, annual, team, Set.of(1L, 2L))
+                        .approvedAgeGroupIds())
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("EDU-60: PHT chỉ tạo TEAM xem mọi tuổi đã ban hành, không bypass policy năm")
+    void managementTeamCreatorSeesAllApprovedAgesOnly() {
+        var vp = user(51L, CareNestRole.VICE_PRINCIPAL);
+        given(staffAssignmentService.findActiveCampusIds(51L, StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(1L));
+        var annual = new RolePolicy(List.of(Role.TEAM_LEADER), List.of(Role.PRINCIPAL));
+        var team = new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL));
+        var scope = accessPolicy.annualViewScope(vp, annual, team, Set.of(1L, 2L));
+        assertThat(scope.approvedAgeGroupIds()).containsExactlyInAnyOrder(1L, 2L);
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.DRAFT))
+                .isFalse();
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.REVIEW))
+                .isFalse();
+        var independent = new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL));
+        assertThat(accessPolicy
+                        .annualViewScope(vp, independent, team, Set.of(1L, 2L))
+                        .fullAgeGroupIds())
+                .containsExactlyInAnyOrder(1L, 2L);
+    }
+
+    @Test
+    @DisplayName("EDU-60: reviewer tổ trưởng đúng tuổi không nhận quyền DRAFT từ TEAM")
+    void annualReviewerHasStatusScopedVisibility() {
+        var leader = user(52L, CareNestRole.TEACHER);
+        given(staffAssignmentService.hasActiveTeamLeaderAssignment(52L, TODAY)).willReturn(true);
+        given(staffAssignmentService.findActiveTeamLeaderAgeGroupIds(52L, TODAY))
+                .willReturn(Set.of(1L));
+        var annual = new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.TEAM_LEADER));
+        var team = new RolePolicy(List.of(Role.TEAM_LEADER), List.of(Role.VICE_PRINCIPAL));
+        var scope = accessPolicy.annualViewScope(leader, annual, team, Set.of(1L, 2L));
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.REVIEW))
+                .isTrue();
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.DRAFT))
+                .isFalse();
+        assertThat(scope.allows(2L, com.carenest.utils.enums.EduPlanStatus.REVIEW))
+                .isFalse();
+    }
 }

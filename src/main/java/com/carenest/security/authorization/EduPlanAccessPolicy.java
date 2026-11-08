@@ -45,12 +45,19 @@ public class EduPlanAccessPolicy {
      * {@code fullAgeGroupIds} (mọi trạng thái) và {@code approvedAgeGroupIds} (chỉ đã ban hành).
      */
     public record ViewScope(
-            Set<EduPlanStatus> schoolWideStatuses, Set<Long> fullAgeGroupIds, Set<Long> approvedAgeGroupIds) {
+            Set<EduPlanStatus> schoolWideStatuses,
+            Set<Long> fullAgeGroupIds,
+            Set<Long> approvedAgeGroupIds,
+            Set<Long> reviewAgeGroupIds) {
+        public ViewScope(Set<EduPlanStatus> statuses, Set<Long> full, Set<Long> approved) {
+            this(statuses, full, approved, Set.of());
+        }
 
         public boolean allows(Long ageGroupId, EduPlanStatus status) {
             return schoolWideStatuses.contains(status)
                     || fullAgeGroupIds.contains(ageGroupId)
-                    || (status == EduPlanStatus.APPROVED && approvedAgeGroupIds.contains(ageGroupId));
+                    || (status == EduPlanStatus.APPROVED && approvedAgeGroupIds.contains(ageGroupId))
+                    || (status == EduPlanStatus.REVIEW && reviewAgeGroupIds.contains(ageGroupId));
         }
     }
 
@@ -108,6 +115,30 @@ public class EduPlanAccessPolicy {
             }
         }
         return new ViewScope(Set.copyOf(schoolWide), full, approved);
+    }
+
+    public ViewScope annualViewScope(
+            CurrentUser user,
+            EduWorkflowPolicy.RolePolicy annualPolicy,
+            EduWorkflowPolicy.RolePolicy teamPolicy,
+            Set<Long> ageGroupIds) {
+        if (!hasPermission(user, EduPermission.GOALS_VIEW)) return new ViewScope(Set.of(), Set.of(), Set.of());
+        Set<Long> full = new java.util.HashSet<>();
+        Set<Long> review = new java.util.HashSet<>();
+        Set<Long> approved = new java.util.HashSet<>();
+        for (Long age : ageGroupIds) {
+            if (canAuthorYearPlan(user, annualPolicy, age)) full.add(age);
+            boolean reviewer = annualPolicy.reviewers().stream().anyMatch(role -> canReviewYearPlan(user, role, age));
+            if (reviewer) {
+                review.add(age);
+                approved.add(age);
+                // PHT giữ quyền đọc bản nháp độc lập, không cấp quyền này từ tư cách lập tổ.
+                if (annualPolicy.reviewers().contains(EduWorkflowPolicy.Role.VICE_PRINCIPAL) && isVicePrincipal(user))
+                    full.add(age);
+            }
+            if (canAuthorYearPlan(user, teamPolicy, age)) approved.add(age);
+        }
+        return new ViewScope(Set.of(), Set.copyOf(full), Set.copyOf(approved), Set.copyOf(review));
     }
 
     /** Phó HT còn phân công có quyền duyệt; không giới hạn campus vì kế hoạch năm áp dụng toàn trường. */

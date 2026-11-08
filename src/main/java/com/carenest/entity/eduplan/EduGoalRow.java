@@ -44,6 +44,10 @@ public abstract class EduGoalRow {
         return null;
     }
 
+    public String getDisplayLabel() {
+        return null;
+    }
+
     /** Dòng danh mục của Bộ cùng tầng mà dòng này lấy từ đó (EDU-28); null nếu tự gõ. */
     public abstract Long getCurriculumId();
 
@@ -81,6 +85,9 @@ public abstract class EduGoalRow {
         row.lineageId = source.lineage();
         row.place(source.domainId, source.sortOrder, source.getKind(), source.text, source.getGoalNo());
         row.linkCurriculum(source.getCurriculumId());
+        if (row instanceof EduPlanGoal goal) {
+            goal.label(source.getDisplayLabel());
+        }
         return row;
     }
 }

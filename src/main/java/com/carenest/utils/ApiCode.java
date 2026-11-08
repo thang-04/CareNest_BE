@@ -553,6 +553,12 @@ public enum ApiCode {
     BRANCH_FILE_TOO_LARGE(7126, HttpStatus.BAD_REQUEST, "File chủ đề nhánh quá lớn: tối đa 2 MB và 2.000 dòng"),
 
     // ========== 72xx CẤU HÌNH KẾ HOẠCH GIÁO DỤC (module Tiền) ==========
+    DURATION_POLICY_INVALID(7210, HttpStatus.BAD_REQUEST, "Giới hạn tuần học không hợp lệ"),
+    DURATION_POLICY_STALE(7211, HttpStatus.CONFLICT, "Cấu hình thời lượng đã thay đổi, hãy tải lại"),
+    CURRICULUM_SOURCE_INVALID(7212, HttpStatus.BAD_REQUEST, "Nguồn kế hoạch năm học không hợp lệ"),
+    INHERITED_CURRICULUM_READ_ONLY(7213, HttpStatus.FORBIDDEN, "Nội dung kế thừa không được biên soạn lại"),
+    EDUCATION_CALENDAR_INVALID(7214, HttpStatus.BAD_REQUEST, "Lịch chủ đề không hợp lệ: {0}"),
+    CLASS_CALENDAR_VERSION_CONFLICT(7215, HttpStatus.CONFLICT, "Tải lại hồ sơ để giữ lịch nhiều tuần"),
     EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Bạn không có quyền sửa cấu hình phần này"),
     SIGNERS_INVALID(7202, HttpStatus.BAD_REQUEST, "Vai trò người soạn hoặc người duyệt không hợp lệ"),
     @Deprecated

@@ -100,6 +100,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             JsonNode root = loadSettingsPolicyNode();
             Map<String, RolePolicy> map = Map.of(
                     "year", parsePolicyNode(root, "year"),
+                    "schoolYear", parsePolicyNode(root, "schoolYear"),
                     "branch", parsePolicyNode(root, "branch"),
                     "theme", parsePolicyNode(root, "theme"));
             var result = map;
@@ -135,7 +136,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         String logPrefix = LOG_PREFIX + "|evaluateYearPlan";
         log.info("{}|START", logPrefix);
         try {
-            RolePolicy policy = loadPolicy("year");
+            RolePolicy policy = loadPolicy(plan.workflowKey());
             int round = plan.getReviewRound();
             List<Approval> approvals = parseApprovals(plan.getApprovals());
             Set<Long> excludedAuthors = getAuthorUserIdsForYearPlan(plan.getId());
@@ -391,7 +392,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
             var assignmentSnapshot = staffAssignmentService.findActiveEducationReviewerAssignments(today);
             var activeSnapshot = accountService.findActiveUserIds(assignmentSnapshot.keySet());
-            RolePolicy yearPolicy = loadPolicy("year");
+
             List<EduYearPlan> leasedDrafts = yearPlanRepository.findAllByEditingByIsNotNull();
             Set<Long> leaseHolders =
                     leasedDrafts.stream().map(EduYearPlan::getEditingBy).collect(java.util.stream.Collectors.toSet());
@@ -407,7 +408,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                         && !leaseHolderEligible(
                                 draft.getEditingBy(),
                                 draft.getAgeGroupId(),
-                                yearPolicy,
+                                loadPolicy(draft.workflowKey()),
                                 holderAssignments,
                                 activeHolders,
                                 classroomCache)) {
@@ -421,6 +422,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             List<EduYearPlan> pendingYears =
                     yearPlanRepository.findAllByStatusInForUpdateOrderByIdAsc(List.of(EduPlanStatus.REVIEW));
             for (EduYearPlan plan : pendingYears) {
+                RolePolicy yearPolicy = loadPolicy(plan.workflowKey());
                 Evaluation eval = evaluator.evaluate(
                         yearPolicy,
                         plan.getReviewRound(),
@@ -432,9 +434,14 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                 if (eval.complete()) {
                     publicationValidator.validateForPublication(plan);
                     List<Approval> approvals = parseApprovals(plan.getApprovals());
-                    RolePolicy policy = loadPolicy("year");
+                    RolePolicy policy = loadPolicy(plan.workflowKey());
                     String printSnap = buildPrintSnapshot(
-                            "year", revision, approvals, policy, now, getAuthorUserIdsForYearPlan(plan.getId()));
+                            plan.workflowKey(),
+                            revision,
+                            approvals,
+                            policy,
+                            now,
+                            getAuthorUserIdsForYearPlan(plan.getId()));
                     var vpApproval = approvals.stream()
                             .filter(a -> a.round() == plan.getReviewRound()
                                     && a.roleKey() == Role.VICE_PRINCIPAL
@@ -810,6 +817,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     }
 
     private RolePolicy parsePolicyNode(JsonNode root, String docType) {
+        if ("schoolYear".equals(docType) && root != null && !root.has(docType))
+            return new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.PRINCIPAL));
         if (root == null || !root.has(docType)) {
             throw new IllegalStateException("Missing document workflow policy");
         }
@@ -1023,7 +1032,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                 return result;
             }
             RolePolicy policy = loadPolicy(docType);
-            if ("year".equals(docType)) {
+            if (("year".equals(docType) || "schoolYear".equals(docType))) {
                 var result = accessPolicy.canAuthorYearPlan(user, policy, ageGroupId);
                 log.info("{}|END", logPrefix);
                 return result;
@@ -1121,7 +1130,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         }
     }
 
-    private static final Set<String> ALLOWED_DOC_TYPES = Set.of("year", "branch", "theme");
+    private static final Set<String> ALLOWED_DOC_TYPES = Set.of("year", "schoolYear", "branch", "theme");
     private static final Set<Role> ALLOWED_CREATOR_ROLES =
             Set.of(Role.TEACHER, Role.TEAM_LEADER, Role.VICE_PRINCIPAL, Role.PRINCIPAL);
     private static final Set<Role> ALLOWED_REVIEWER_ROLES =
@@ -1229,10 +1238,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         if (request == null || request.policies() == null) {
             throw GlobalException.of(ApiCode.SIGNERS_INVALID);
         }
-        if (!Objects.equals(request.policies().keySet(), ALLOWED_DOC_TYPES)) {
+        if (!Objects.equals(request.policies().keySet(), ALLOWED_DOC_TYPES)
+                && !Objects.equals(request.policies().keySet(), Set.of("year", "branch", "theme"))) {
             throw GlobalException.of(ApiCode.SIGNERS_INVALID);
         }
-        for (String type : ALLOWED_DOC_TYPES) {
+        for (String type : request.policies().keySet()) {
             EduWorkflowPolicyRequest.PolicyEntry entry = request.policies().get(type);
             if (entry == null || entry.creators() == null || entry.reviewers() == null) {
                 throw GlobalException.of(ApiCode.SIGNERS_INVALID);
@@ -1281,12 +1291,13 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
     private Map<String, RolePolicy> parseRequestPolicies(EduWorkflowPolicyRequest request) {
         Map<String, RolePolicy> result = new java.util.LinkedHashMap<>();
-        for (String type : ALLOWED_DOC_TYPES) {
+        for (String type : request.policies().keySet()) {
             EduWorkflowPolicyRequest.PolicyEntry entry = request.policies().get(type);
             List<Role> creators = entry.creators().stream().map(Role::valueOf).toList();
             List<Role> reviewers = entry.reviewers().stream().map(Role::valueOf).toList();
             result.put(type, new RolePolicy(creators, reviewers));
         }
+        result.putIfAbsent("schoolYear", loadPolicy("schoolYear"));
         return result;
     }
 

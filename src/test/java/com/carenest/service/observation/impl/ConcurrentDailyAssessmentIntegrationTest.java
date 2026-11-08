@@ -168,9 +168,10 @@ class ConcurrentDailyAssessmentIntegrationTest {
         teach(teacherB, classB);
 
         // Giáo án tuần 26–30/10 của lớp A đã duyệt: Hoạt động học thứ 3 có MT1, thứ 4 có MT1 + MT2
-        long plan = insertId("INSERT INTO edu_year_plans (code, school_year_id, age_group_id, title, status, owner_id) "
-                + "VALUES ('KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
-                + ") RETURNING id");
+        long plan = insertId(
+                "INSERT INTO edu_year_plans (legacy_team_without_source, code, school_year_id, age_group_id, title, status, owner_id) "
+                        + "VALUES (true, 'KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
+                        + ") RETURNING id");
         long domain = jdbc.queryForObject("SELECT id FROM edu_domains ORDER BY sort_order LIMIT 1", Long.class);
         goal1 = goal(plan, domain, 1, "Trẻ nhận biết màu");
         goal2 = goal(plan, domain, 2, "Trẻ đếm đến 5");

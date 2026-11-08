@@ -178,9 +178,10 @@ class DailyAssessmentIntegrationTest {
         teach(teacherB, classB);
 
         // Giáo án tuần 26–30/10 của lớp A đã duyệt: Hoạt động học thứ 3 có MT1, thứ 4 có MT1 + MT2
-        long plan = insertId("INSERT INTO edu_year_plans (code, school_year_id, age_group_id, title, status, owner_id) "
-                + "VALUES ('KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
-                + ") RETURNING id");
+        long plan = insertId(
+                "INSERT INTO edu_year_plans (legacy_team_without_source, code, school_year_id, age_group_id, title, status, owner_id) "
+                        + "VALUES (true, 'KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
+                        + ") RETURNING id");
         long domain = jdbc.queryForObject("SELECT id FROM edu_domains ORDER BY sort_order LIMIT 1", Long.class);
         goal1 = goal(plan, domain, 1, "Trẻ nhận biết màu");
         goal2 = goal(plan, domain, 2, "Trẻ đếm đến 5");
@@ -561,8 +562,8 @@ class DailyAssessmentIntegrationTest {
         service.saveSkills(
                 teacherA, classA, skills(TODAY, child1, null, activity("hoc", List.of(goal1), List.of(goal2))));
         long nextPlan = insertId("INSERT INTO edu_year_plans "
-                + "(code, school_year_id, age_group_id, title, status, owner_id, version_no, source_plan_id) "
-                + "SELECT 'KH-T-V2', school_year_id, age_group_id, title, status, owner_id, 2, id "
+                + "(code, school_year_id, age_group_id, title, status, owner_id, version_no, source_plan_id, legacy_team_without_source) "
+                + "SELECT 'KH-T-V2', school_year_id, age_group_id, title, status, owner_id, 2, id, legacy_team_without_source "
                 + "FROM edu_year_plans WHERE id = (SELECT year_plan_id FROM edu_class_docs WHERE id = "
                 + weekDoc + ") RETURNING id");
         long domain = jdbc.queryForObject("SELECT domain_id FROM edu_plan_goals WHERE id = ?", Long.class, goal1);

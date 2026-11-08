@@ -783,7 +783,7 @@ paths:
       - child-evaluation-controller
   /api/assessment/evaluations/{id}:
     get:
-      operationId: get
+      operationId: get_1
       parameters:
       - in: path
         name: id
@@ -1109,7 +1109,7 @@ paths:
       tags:
       - reward-list-controller
     put:
-      operationId: save
+      operationId: save_1
       parameters:
       - in: path
         name: classId
@@ -2583,6 +2583,24 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/branch/calendar-preview:
+    post:
+      operationId: previewClassCalendar
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassCalendarPreviewRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassCalendarPreviewResponse"
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/branch/file-preview:
     post:
       operationId: previewBranchFile
@@ -2939,6 +2957,35 @@ paths:
           description: OK
       tags:
       - edu-curriculum-controller
+  /api/education-plans/duration-policy:
+    get:
+      operationId: get
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduDurationPolicyResponse"
+          description: OK
+      tags:
+      - edu-duration-policy-controller
+    put:
+      operationId: save
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EduDurationPolicyRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduDurationPolicyResponse"
+          description: OK
+      tags:
+      - edu-duration-policy-controller
   /api/education-plans/goals:
     get:
       operationId: getYearPlans
@@ -2960,6 +3007,15 @@ paths:
         required: false
         schema:
           type: string
+      - in: query
+        name: planLevel
+        required: false
+        schema:
+          type: string
+          default: TEAM
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
       - in: query
         name: page
         required: false
@@ -3433,6 +3489,11 @@ paths:
         schema:
           type: string
           format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearPlanVersionRequest"
       responses:
         "201":
           content:
@@ -7687,22 +7748,29 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Warning"
-    Break:
+    BranchSchedule:
       type: object
       properties:
         endDate:
           type: string
           format: date
-        id:
+        key:
+          type: string
+        name:
+          type: string
+        sourceTemplateId:
           type: integer
           format: int64
-        label:
-          type: string
-          maxLength: 150
-          minLength: 0
         startDate:
           type: string
           format: date
+        themeId:
+          type: integer
+          format: int64
+        weekNotes:
+          type: object
+          additionalProperties:
+            type: string
     Brief:
       type: object
       properties:
@@ -7711,6 +7779,17 @@ components:
           format: int64
         name:
           type: string
+    CalendarDraft:
+      type: object
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/BranchSchedule"
+        themeSchedules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThemeSchedule"
     CampusBoard:
       type: object
       properties:
@@ -8453,6 +8532,37 @@ components:
           format: int64
         name:
           type: string
+    ClassCalendarPreviewRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        draftCalendar:
+          $ref: "#/components/schemas/CalendarDraft"
+        expectedBranchVersion:
+          type: integer
+          format: int64
+        orderedThemeIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        yearPlanId:
+          type: integer
+          format: int64
+    ClassCalendarPreviewResponse:
+      type: object
+      properties:
+        calendar:
+          $ref: "#/components/schemas/CalendarDraft"
+        calendarRevision:
+          type: integer
+          format: int64
+        countsAfter:
+          $ref: "#/components/schemas/Counts"
+        countsBefore:
+          $ref: "#/components/schemas/Counts"
     ClassCommentResponse:
       type: object
       properties:
@@ -8912,18 +9022,6 @@ components:
           format: int64
         name:
           type: string
-    Content:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        text:
-          type: string
-        themeKeys:
-          type: array
-          items:
-            type: string
     CopyClassesRequest:
       type: object
       properties:
@@ -8952,6 +9050,19 @@ components:
           type: array
           items:
             type: string
+    Counts:
+      type: object
+      properties:
+        branches:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        themes:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
     CreateAccountRequest:
       type: object
       properties:
@@ -9761,18 +9872,6 @@ components:
       - dishType
       - ingredients
       - name
-    Domain:
-      type: object
-      properties:
-        domainId:
-          type: integer
-          format: int64
-        rows:
-          type: array
-          items:
-            $ref: "#/components/schemas/Row"
-      required:
-      - domainId
     Draft:
       type: object
       properties:
@@ -9817,6 +9916,23 @@ components:
           format: date
         sameCampus:
           type: boolean
+    EduConfigDomainResponse:
+      type: object
+      properties:
+        displayLabel:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        shortLabel:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+        standard:
+          type: boolean
     EduConfigRequest:
       type: object
       properties:
@@ -9855,7 +9971,12 @@ components:
         domains:
           type: array
           items:
-            $ref: "#/components/schemas/Domain"
+            $ref: "#/components/schemas/EduConfigDomainResponse"
+        schoolYearCreationScopes:
+          type: array
+          items:
+            type: integer
+            format: int64
         schoolYears:
           type: array
           items:
@@ -9875,6 +9996,35 @@ components:
           items:
             type: integer
             format: int64
+    EduDurationPolicyRequest:
+      type: object
+      properties:
+        branch:
+          $ref: "#/components/schemas/Limits"
+        revision:
+          type: integer
+          format: int64
+        theme:
+          $ref: "#/components/schemas/Limits"
+      required:
+      - branch
+      - revision
+      - theme
+    EduDurationPolicyResponse:
+      type: object
+      properties:
+        branch:
+          $ref: "#/components/schemas/Limits"
+        canConfigure:
+          type: boolean
+        revision:
+          type: integer
+          format: int64
+        theme:
+          $ref: "#/components/schemas/Limits"
+        updatedAt:
+          type: string
+          format: date-time
     EduReviewStateResponse:
       type: object
       properties:
@@ -10792,39 +10942,6 @@ components:
         periodTo:
           type: string
           format: date
-    Goal:
-      type: object
-      properties:
-        change:
-          type: string
-          enum:
-          - UNCHANGED
-          - CHANGED
-          - REMOVED
-          - ADDED
-        fields:
-          type: array
-          items:
-            type: string
-        fromGoalNo:
-          type: integer
-          format: int32
-        fromId:
-          type: integer
-          format: int64
-        fromText:
-          type: string
-        goalNo:
-          type: integer
-          format: int32
-        id:
-          type: integer
-          format: int64
-        lineageId:
-          type: integer
-          format: int64
-        text:
-          type: string
     GoalColumn:
       type: object
       properties:
@@ -10870,6 +10987,24 @@ components:
         start:
           type: string
           format: date
+    GoalFileContentPreview:
+      type: object
+      properties:
+        text:
+          type: string
+        themes:
+          type: array
+          items:
+            type: string
+    GoalFileDomainPreview:
+      type: object
+      properties:
+        name:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFileRowPreview"
     GoalFileMetadata:
       type: object
       properties:
@@ -10893,7 +11028,7 @@ components:
         domains:
           type: array
           items:
-            $ref: "#/components/schemas/Domain"
+            $ref: "#/components/schemas/GoalFileDomainPreview"
         metadata:
           $ref: "#/components/schemas/GoalFileMetadata"
         themeAbbrs:
@@ -10908,6 +11043,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Warning"
+    GoalFileRowPreview:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFileContentPreview"
+        kind:
+          type: string
+        text:
+          type: string
     GoalFileTheme:
       type: object
       properties:
@@ -12928,6 +13074,17 @@ components:
           - KHA
           - DAT
           - CHUA_DAT
+    Limits:
+      type: object
+      properties:
+        maxWeeks:
+          type: integer
+          format: int32
+          exclusiveMinimum: 0
+        minWeeks:
+          type: integer
+          format: int32
+          exclusiveMinimum: 0
     Line:
       type: object
       properties:
@@ -14896,6 +15053,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonClassCalendarPreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassCalendarPreviewResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonClassMonthlyCommentResponse:
       type: object
       properties:
@@ -15125,6 +15295,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EduConfigResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonEduDurationPolicyResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/EduDurationPolicyResponse"
         desc:
           type: string
         errorCode:
@@ -18053,36 +18236,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Leader"
-    Theme:
-      type: object
-      properties:
-        abbr:
-          type: string
-          maxLength: 20
-          minLength: 0
-        endDate:
-          type: string
-          format: date
-        festivals:
-          type: string
-        id:
-          type: integer
-          format: int64
-        key:
-          type: string
-          maxLength: 60
-          minLength: 0
-        name:
-          type: string
-          maxLength: 150
-          minLength: 0
-        note:
-          type: string
-        startDate:
-          type: string
-          format: date
-      required:
-      - key
     ThemeEvaluationRequest:
       type: object
       properties:
@@ -18178,6 +18331,18 @@ components:
           format: date
         status:
           type: string
+        themeId:
+          type: integer
+          format: int64
+    ThemeSchedule:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        startDate:
+          type: string
+          format: date
         themeId:
           type: integer
           format: int64
@@ -18807,13 +18972,89 @@ components:
           type: array
           items:
             type: string
+    YearPlanBranchTemplateRequest:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+        startDate:
+          type: string
+          format: date
+        themeKey:
+          type: string
+          minLength: 1
+      required:
+      - themeKey
+    YearPlanBranchTemplateResponse:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        sourceTemplateId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
+        themeId:
+          type: integer
+          format: int64
+    YearPlanBreakRequest:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+          maxLength: 150
+          minLength: 0
+        startDate:
+          type: string
+          format: date
+    YearPlanBreakResponse:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+        startDate:
+          type: string
+          format: date
     YearPlanChangesResponse:
       type: object
       properties:
         contents:
           type: array
           items:
-            $ref: "#/components/schemas/Content"
+            $ref: "#/components/schemas/YearPlanContentChange"
         fromPlanId:
           type: integer
           format: int64
@@ -18823,17 +19064,45 @@ components:
         goals:
           type: array
           items:
-            $ref: "#/components/schemas/Goal"
+            $ref: "#/components/schemas/YearPlanGoalChange"
         planId:
           type: integer
           format: int64
         themes:
           type: array
           items:
-            $ref: "#/components/schemas/Theme"
+            $ref: "#/components/schemas/YearPlanThemeChange"
         versionNo:
           type: integer
           format: int32
+    YearPlanContentChange:
+      type: object
+      properties:
+        change:
+          type: string
+          enum:
+          - UNCHANGED
+          - CHANGED
+          - REMOVED
+          - ADDED
+        fields:
+          type: array
+          items:
+            type: string
+        fromId:
+          type: integer
+          format: int64
+        goalLineageId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        text:
+          type: string
     YearPlanDetailResponse:
       type: object
       properties:
@@ -18842,10 +19111,20 @@ components:
           format: int64
         ageGroupName:
           type: string
+        branchTemplates:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanBranchTemplateResponse"
         breaks:
           type: array
           items:
-            $ref: "#/components/schemas/Break"
+            $ref: "#/components/schemas/YearPlanBreakResponse"
+        canAssignContents:
+          type: boolean
+        canEditBranchTemplates:
+          type: boolean
+        canEditCurriculum:
+          type: boolean
         code:
           type: string
         createdAt:
@@ -18853,12 +19132,17 @@ components:
           format: date-time
         current:
           type: boolean
+        curriculumSourcePlanId:
+          type: integer
+          format: int64
         description:
           type: string
         domains:
           type: array
           items:
-            $ref: "#/components/schemas/Domain"
+            $ref: "#/components/schemas/YearPlanDomainResponse"
+        durationPolicySnapshot:
+          type: string
         editExpiresAt:
           type: string
           format: date-time
@@ -18879,6 +19163,15 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         permissions:
           $ref: "#/components/schemas/Permissions"
+        planLevel:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+        remapWarnings:
+          type: array
+          items:
+            type: string
         review:
           $ref: "#/components/schemas/EduReviewStateResponse"
         revision:
@@ -18891,6 +19184,8 @@ components:
           type: string
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
+        sourceMode:
+          type: string
         sourcePlanId:
           type: integer
           format: int64
@@ -18903,7 +19198,7 @@ components:
         themes:
           type: array
           items:
-            $ref: "#/components/schemas/Theme"
+            $ref: "#/components/schemas/YearPlanThemeResponse"
         title:
           type: string
         updatedAt:
@@ -18916,16 +19211,172 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VersionSummary"
+    YearPlanDomainRequest:
+      type: object
+      properties:
+        domainId:
+          type: integer
+          format: int64
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanGoalRowRequest"
+      required:
+      - domainId
+    YearPlanDomainResponse:
+      type: object
+      properties:
+        domainId:
+          type: integer
+          format: int64
+        label:
+          type: string
+        name:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanGoalRowResponse"
+    YearPlanGoalChange:
+      type: object
+      properties:
+        change:
+          type: string
+          enum:
+          - UNCHANGED
+          - CHANGED
+          - REMOVED
+          - ADDED
+        fields:
+          type: array
+          items:
+            type: string
+        fromGoalNo:
+          type: integer
+          format: int32
+        fromId:
+          type: integer
+          format: int64
+        fromText:
+          type: string
+        goalNo:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        text:
+          type: string
+    YearPlanGoalContentRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        text:
+          type: string
+        themeKeys:
+          type: array
+          items:
+            type: string
+    YearPlanGoalContentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        text:
+          type: string
+        themeIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+    YearPlanGoalRowRequest:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanGoalContentRequest"
+        curriculumExpectedResultId:
+          type: integer
+          format: int64
+        curriculumGoalId:
+          type: integer
+          format: int64
+        curriculumSubDomainId:
+          type: integer
+          format: int64
+        displayLabel:
+          type: string
+          maxLength: 100
+          minLength: 0
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          minLength: 1
+          pattern: sub|group|goal
+        text:
+          type: string
+      required:
+      - kind
+    YearPlanGoalRowResponse:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanGoalContentResponse"
+        curriculumExpectedResultId:
+          type: integer
+          format: int64
+        curriculumGoalId:
+          type: integer
+          format: int64
+        curriculumGoalText:
+          type: string
+        curriculumSectionRef:
+          type: string
+        curriculumSubDomainId:
+          type: integer
+          format: int64
+        curriculumText:
+          type: string
+        displayLabel:
+          type: string
+        goalNo:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        text:
+          type: string
     YearPlanRequest:
       type: object
       properties:
         ageGroupId:
           type: integer
           format: int64
+        branchTemplates:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanBranchTemplateRequest"
         breaks:
           type: array
           items:
-            $ref: "#/components/schemas/Break"
+            $ref: "#/components/schemas/YearPlanBreakRequest"
+        curriculumSourcePlanId:
+          type: integer
+          format: int64
         description:
           type: string
           maxLength: 500
@@ -18933,14 +19384,19 @@ components:
         domains:
           type: array
           items:
-            $ref: "#/components/schemas/Domain"
+            $ref: "#/components/schemas/YearPlanDomainRequest"
+        planLevel:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
         schoolYearId:
           type: integer
           format: int64
         themes:
           type: array
           items:
-            $ref: "#/components/schemas/Theme"
+            $ref: "#/components/schemas/YearPlanThemeRequest"
         title:
           type: string
           maxLength: 150
@@ -18962,6 +19418,11 @@ components:
           format: date-time
         current:
           type: boolean
+        curriculumSourcePlanId:
+          type: integer
+          format: int64
+        durationPolicySnapshot:
+          type: string
         editExpiresAt:
           type: string
           format: date-time
@@ -18979,6 +19440,11 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         permissions:
           $ref: "#/components/schemas/Permissions"
+        planLevel:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
         review:
           $ref: "#/components/schemas/EduReviewStateResponse"
         revision:
@@ -18991,6 +19457,8 @@ components:
           type: string
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
+        sourceMode:
+          type: string
         sourcePlanId:
           type: integer
           format: int64
@@ -19011,6 +19479,89 @@ components:
         versionNo:
           type: integer
           format: int32
+    YearPlanThemeChange:
+      type: object
+      properties:
+        change:
+          type: string
+          enum:
+          - UNCHANGED
+          - CHANGED
+          - REMOVED
+          - ADDED
+        fields:
+          type: array
+          items:
+            type: string
+        fromId:
+          type: integer
+          format: int64
+        fromName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        name:
+          type: string
+    YearPlanThemeRequest:
+      type: object
+      properties:
+        abbr:
+          type: string
+          maxLength: 20
+          minLength: 0
+        endDate:
+          type: string
+          format: date
+        festivals:
+          type: string
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+          maxLength: 60
+          minLength: 0
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+        note:
+          type: string
+        startDate:
+          type: string
+          format: date
+      required:
+      - key
+    YearPlanThemeResponse:
+      type: object
+      properties:
+        abbr:
+          type: string
+        endDate:
+          type: string
+          format: date
+        festivals:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        note:
+          type: string
+        startDate:
+          type: string
+          format: date
+    YearPlanVersionRequest:
+      type: object
+      properties:
+        curriculumSourcePlanId:
+          type: integer
+          format: int64
     YearReadinessResponse:
       type: object
       properties:

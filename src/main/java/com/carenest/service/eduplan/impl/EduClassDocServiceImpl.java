@@ -1,8 +1,11 @@
 package com.carenest.service.eduplan.impl;
 
 import com.carenest.dto.eduplan.BranchFilePreviewResponse;
+import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
+import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
+import com.carenest.dto.eduplan.EduDurationPolicyResponse;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.organization.AgeGroupResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
@@ -21,6 +24,7 @@ import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduConfigService;
+import com.carenest.service.eduplan.EduDurationPolicyService;
 import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.service.organization.ClassroomService;
@@ -51,6 +55,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -111,7 +116,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             "sourceDocKey",
             "adjustments",
             "yearPlanVersion",
-            "superseded");
+            "superseded",
+            "durationPolicySnapshot",
+            "calendarRevision",
+            "effectiveCalendar",
+            "orderedThemeIds");
     private static final int ADJUSTMENT_MAX_LENGTH = 4000;
     private static final String CHECK_GOAL = "goal:";
     private static final String CHECK_THEME = "theme:";
@@ -132,6 +141,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private final EduClassDocRepository classDocRepository;
     private final EduYearPlanRepository yearPlanRepository;
     private final EduThemeRepository themeRepository;
+    private final com.carenest.repository.eduplan.EduPlanBranchTemplateRepository templateRepository;
     private final EduBreakRepository breakRepository;
     private final EduConfigService eduConfigService;
     private final EduWorkflowService eduWorkflowService;
@@ -144,9 +154,179 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final EduDurationPolicyService durationPolicyService;
 
     /** Tuần học của kế hoạch năm: số thứ tự cả năm, thứ Hai đầu tuần, chủ đề. */
-    record TeachingWeek(int no, LocalDate start, Long themeId) {}
+    public record TeachingWeek(int no, LocalDate start, Long themeId) {}
+
+    @Override
+    @Transactional(readOnly = true)
+    public ClassCalendarPreviewResponse previewClassCalendar(
+            CurrentUser currentUser, ClassCalendarPreviewRequest request) {
+        String logPrefix =
+                LOG_PREFIX + "|previewClassCalendar|userId=" + currentUser.userId() + "|classId=" + request.classId();
+        log.info("{}|START", logPrefix);
+        try {
+            requireView(currentUser);
+            Long classId = request.classId();
+            ClassroomInfoResponse cls = requireClass(classId);
+            if (!eduWorkflowService.isAuthorEligible(currentUser, EduClassDoc.BRANCH, cls.ageGroupId(), classId))
+                throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+            EduYearPlan plan = requireIssuedPlan(request.yearPlanId(), cls);
+            if (isSuperseded(plan.getId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
+            var currentBranch =
+                    classDocRepository.findByDocKey(expectedKey(EduClassDoc.BRANCH, classId, plan, null, null));
+            long actualVersion = currentBranch.map(EduClassDoc::getVersion).orElse(-1L);
+            if (request.expectedBranchVersion() == null || request.expectedBranchVersion() != actualVersion)
+                throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
+            if (currentBranch.isPresent() && !currentBranch.get().getStatus().editable())
+                throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+            List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
+            List<EduBreak> breaks = breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
+            List<EduTeachingCalendar.BreakRange> breakRanges = breaks.stream()
+                    .map(b -> new EduTeachingCalendar.BreakRange(b.getStartDate(), b.getEndDate()))
+                    .toList();
+
+            String snapshot =
+                    currentBranch.map(EduClassDoc::getDurationPolicySnapshot).orElse(null);
+            EduTeachingCalendar.DurationLimits limits;
+            if (snapshot != null && !snapshot.isBlank()) {
+                limits = snapshotLimits(snapshot);
+            } else if (currentBranch.isPresent()) limits = null;
+            else
+                limits = parseDurationLimits(
+                        durationPolicyService.getEffectivePolicy(plan.getSchoolYearId(), cls.ageGroupId()));
+
+            ClassCalendarPreviewRequest.CalendarDraft baseDraft = request.draftCalendar();
+            if (baseDraft == null
+                    || baseDraft.themeSchedules() == null
+                    || baseDraft.themeSchedules().isEmpty()) {
+                List<ClassCalendarPreviewRequest.ThemeSchedule> themeSchedules = themes.stream()
+                        .map(t -> new ClassCalendarPreviewRequest.ThemeSchedule(
+                                t.getId(), t.getStartDate(), t.getEndDate()))
+                        .toList();
+                baseDraft = new ClassCalendarPreviewRequest.CalendarDraft(themeSchedules, List.of());
+            }
+
+            var sourceThemeIds = themes.stream().map(EduTheme::getId).collect(java.util.stream.Collectors.toSet());
+            if (baseDraft.themeSchedules().size() != sourceThemeIds.size()
+                    || !baseDraft.themeSchedules().stream()
+                            .map(ClassCalendarPreviewRequest.ThemeSchedule::themeId)
+                            .collect(java.util.stream.Collectors.toSet())
+                            .equals(sourceThemeIds)) throw GlobalException.of(ApiCode.THEME_NOT_IN_PLAN);
+            validateBranchIdentity(plan.getId(), baseDraft, currentBranch.orElse(null), cls);
+            List<Long> orderedThemeIds = request.orderedThemeIds();
+            if (orderedThemeIds == null || orderedThemeIds.isEmpty()) {
+                orderedThemeIds = baseDraft.themeSchedules().stream()
+                        .map(ClassCalendarPreviewRequest.ThemeSchedule::themeId)
+                        .toList();
+            }
+
+            EduTeachingCalendar.ReorderResult reorderResult =
+                    EduTeachingCalendar.reorderThemeBlocks(baseDraft, orderedThemeIds, breakRanges, limits);
+
+            log.info("{}|END", logPrefix);
+            return new ClassCalendarPreviewResponse(
+                    reorderResult.calendar(), reorderResult.countsBefore(), reorderResult.countsAfter(), actualVersion);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private ClassCalendarPreviewRequest.CalendarDraft calendarDraft(ObjectNode doc) {
+        return new ClassCalendarPreviewRequest.CalendarDraft(
+                objectMapper.convertValue(
+                        doc.path("themeSchedules"),
+                        new tools.jackson.core.type.TypeReference<
+                                List<ClassCalendarPreviewRequest.ThemeSchedule>>() {}),
+                objectMapper.convertValue(
+                        doc.path("branches"),
+                        new tools.jackson.core.type.TypeReference<
+                                List<ClassCalendarPreviewRequest.BranchSchedule>>() {}));
+    }
+
+    private void validateBranchIdentity(
+            Long planId,
+            ClassCalendarPreviewRequest.CalendarDraft draft,
+            EduClassDoc current,
+            ClassroomInfoResponse cls) {
+        var themeIds = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId).stream()
+                .map(EduTheme::getId)
+                .collect(Collectors.toSet());
+        if (draft.themeSchedules() == null
+                || draft.themeSchedules().size() != themeIds.size()
+                || !draft.themeSchedules().stream()
+                        .map(ClassCalendarPreviewRequest.ThemeSchedule::themeId)
+                        .collect(Collectors.toSet())
+                        .equals(themeIds)) throw GlobalException.of(ApiCode.THEME_NOT_IN_PLAN);
+        for (var theme : draft.themeSchedules()) {
+            if (theme.startDate() != null && theme.startDate().isBefore(cls.yearStart())
+                    || theme.endDate() != null && theme.endDate().isAfter(cls.yearEnd()))
+                throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "chủ đề phải nằm trong năm học");
+        }
+        var templates = templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId).stream()
+                .collect(Collectors.toMap(
+                        com.carenest.entity.eduplan.EduPlanBranchTemplate::getId, Function.identity()));
+        Map<String, JsonNode> previous = new java.util.HashMap<>();
+        if (current != null)
+            readObject(current.getContent())
+                    .path("branches")
+                    .forEach(b -> previous.put(b.path("key").asText(), b));
+        Set<String> keys = new HashSet<>();
+        for (var branch :
+                draft.branches() == null ? List.<ClassCalendarPreviewRequest.BranchSchedule>of() : draft.branches()) {
+            try {
+                if (!java.util.UUID.fromString(branch.key()).toString().equalsIgnoreCase(branch.key()))
+                    throw new IllegalArgumentException();
+            } catch (RuntimeException ex) {
+                throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "mã nhánh phải là UUID");
+            }
+            if (!keys.add(branch.key())
+                    || !themeIds.contains(branch.themeId())
+                    || branch.name() != null && branch.name().length() > 150)
+                throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "nhánh trùng mã hoặc sai chủ đề");
+            if (branch.sourceTemplateId() != null
+                    && (!templates.containsKey(branch.sourceTemplateId())
+                            || !templates
+                                    .get(branch.sourceTemplateId())
+                                    .getThemeId()
+                                    .equals(branch.themeId())))
+                throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
+            JsonNode old = previous.get(branch.key());
+            if (old != null
+                    && (old.path("themeId").asLong() != branch.themeId()
+                            || !java.util.Objects.equals(
+                                    old.hasNonNull("sourceTemplateId")
+                                            ? old.path("sourceTemplateId").asLong()
+                                            : null,
+                                    branch.sourceTemplateId())))
+                throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
+        }
+    }
+
+    private EduTeachingCalendar.DurationLimits snapshotLimits(String snapshot) {
+        if (snapshot == null || snapshot.isBlank()) return null;
+        JsonNode node = objectMapper.readTree(snapshot);
+        return "LEGACY_UNBOUNDED".equals(node.path("mode").asString(""))
+                ? null
+                : new EduTeachingCalendar.DurationLimits(
+                        node.path("theme").path("minWeeks").asInt(),
+                        node.path("theme").path("maxWeeks").asInt(),
+                        node.path("branch").path("minWeeks").asInt(),
+                        node.path("branch").path("maxWeeks").asInt());
+    }
+
+    private static EduTeachingCalendar.DurationLimits parseDurationLimits(EduDurationPolicyResponse policy) {
+        if (policy == null || policy.theme() == null || policy.branch() == null) {
+            return null;
+        }
+        return new EduTeachingCalendar.DurationLimits(
+                policy.theme().minWeeks(),
+                policy.theme().maxWeeks(),
+                policy.branch().minWeeks(),
+                policy.branch().maxWeeks());
+    }
 
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
@@ -187,9 +367,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
             Map<String, List<EduTheme>> byName =
                     themes.stream().collect(Collectors.groupingBy(t -> BranchFileTable.normalized(t.getName())));
-            Map<Long, List<TeachingWeek>> weeks =
-                    teachingWeeks(themes, breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())).stream()
-                            .collect(Collectors.groupingBy(TeachingWeek::themeId));
+            Map<Long, List<TeachingWeek>> weeks = teachingWeeks(classId, plan.getId(), true).stream()
+                    .collect(Collectors.groupingBy(TeachingWeek::themeId));
             Map<Long, Integer> positions = new java.util.HashMap<>();
             List<BranchFilePreviewResponse.Match> matches = new ArrayList<>();
             List<BranchFilePreviewResponse.Warning> warnings = new ArrayList<>(parsed.warnings());
@@ -443,7 +622,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (isSuperseded(plan.getId())) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
             }
-            List<TeachingWeek> weeks = teachingWeeks(plan.getId());
+            List<TeachingWeek> weeks = teachingWeeks(classId, plan.getId(), false);
             if (themeId != null
                     && themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
                             .noneMatch(t -> t.getId().equals(themeId))) {
@@ -487,6 +666,87 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 // EDU-18: chỉ sửa khi Nháp hoặc Bị trả lại
                 if (!entity.getStatus().editable()) {
                     throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                }
+            }
+            if (EduClassDoc.BRANCH.equals(kind)) {
+                if (current.isPresent()
+                        && readObject(entity.getContent()).path("schemaVersion").asInt() == 2
+                        && doc.path("schemaVersion").asInt() != 2) throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
+                if (entity.getDurationPolicySnapshot() == null) {
+                    entity.setDurationPolicySnapshot(
+                            current.isEmpty() ? durationPolicyService.snapshot() : "{\"mode\":\"LEGACY_UNBOUNDED\"}");
+                }
+                if (doc.path("schemaVersion").asInt() == 2) {
+                    var draft = calendarDraft(doc);
+                    validateBranchIdentity(plan.getId(), draft, current.orElse(null), cls);
+                    if (draft.themeSchedules().stream().allMatch(t -> t.startDate() != null && t.endDate() != null)
+                            && draft.branches().stream().allMatch(b -> b.startDate() != null && b.endDate() != null)) {
+                        var projected = projectBranch(plan.getId(), draft, null).calendar();
+                        if (doc.has("names") && !doc.path("names").equals(objectMapper.valueToTree(projected.names()))
+                                || doc.has("notes")
+                                        && !doc.path("notes").equals(objectMapper.valueToTree(projected.notes())))
+                            throw GlobalException.of(
+                                    ApiCode.EDUCATION_CALENDAR_INVALID, "dữ liệu tuần không khớp nhánh");
+                        doc.set("names", objectMapper.valueToTree(projected.names()));
+                        doc.set("notes", objectMapper.valueToTree(projected.notes()));
+                    }
+                }
+                if (doc.has("orderedThemeIds") && !doc.path("orderedThemeIds").isEmpty()) {
+                    List<Long> orderedThemeIds = new ArrayList<>();
+                    doc.path("orderedThemeIds").forEach(n -> orderedThemeIds.add(n.asLong()));
+
+                    List<ClassCalendarPreviewRequest.ThemeSchedule> themeSchedules = new ArrayList<>();
+                    doc.path("themeSchedules").forEach(ts -> {
+                        themeSchedules.add(new ClassCalendarPreviewRequest.ThemeSchedule(
+                                ts.path("themeId").asLong(),
+                                LocalDate.parse(ts.path("startDate").asText()),
+                                LocalDate.parse(ts.path("endDate").asText())));
+                    });
+
+                    List<ClassCalendarPreviewRequest.BranchSchedule> branchSchedules = new ArrayList<>();
+                    doc.path("branches").forEach(bs -> {
+                        Map<String, String> weekNotesMap = new LinkedHashMap<>();
+                        JsonNode notesNode = bs.path("weekNotes");
+                        if (notesNode != null && notesNode.isObject()) {
+                            notesNode
+                                    .properties()
+                                    .forEach(p -> weekNotesMap.put(
+                                            p.getKey(), p.getValue().asText()));
+                        }
+                        branchSchedules.add(new ClassCalendarPreviewRequest.BranchSchedule(
+                                bs.path("key").asText(),
+                                bs.path("themeId").asLong(),
+                                bs.has("sourceTemplateId")
+                                                && !bs.path("sourceTemplateId").isNull()
+                                        ? bs.path("sourceTemplateId").asLong()
+                                        : null,
+                                bs.path("name").asText(),
+                                LocalDate.parse(bs.path("startDate").asText()),
+                                LocalDate.parse(bs.path("endDate").asText()),
+                                weekNotesMap));
+                    });
+
+                    ClassCalendarPreviewRequest.CalendarDraft baseDraft =
+                            new ClassCalendarPreviewRequest.CalendarDraft(themeSchedules, branchSchedules);
+
+                    List<EduBreak> breaks = breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
+                    List<EduTeachingCalendar.BreakRange> breakRanges = breaks.stream()
+                            .map(b -> new EduTeachingCalendar.BreakRange(b.getStartDate(), b.getEndDate()))
+                            .toList();
+
+                    EduTeachingCalendar.DurationLimits limits = snapshotLimits(entity.getDurationPolicySnapshot());
+                    EduTeachingCalendar.ReorderResult result =
+                            EduTeachingCalendar.reorderThemeBlocks(baseDraft, orderedThemeIds, breakRanges, limits);
+
+                    doc.set(
+                            "themeSchedules",
+                            objectMapper.valueToTree(result.calendar().themeSchedules()));
+                    doc.set(
+                            "branches",
+                            objectMapper.valueToTree(result.calendar().branches()));
+                    doc.set("names", objectMapper.valueToTree(result.calendar().names()));
+                    doc.set("notes", objectMapper.valueToTree(result.calendar().notes()));
+                    doc.put("calendarRevision", System.currentTimeMillis());
                 }
             }
             entity.changeContent(objectMapper.writeValueAsString(contentOf(doc)), currentUser.userId());
@@ -782,7 +1042,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         content.path("versionChecks").forEach(c -> checks.add(c.asString("")));
 
         if (EduClassDoc.BRANCH.equals(doc.getKind())) {
-            List<TeachingWeek> weeks = teachingWeeks(doc.getYearPlanId());
+            List<TeachingWeek> weeks =
+                    teachingWeeks(doc.getClassroomId(), doc.getYearPlanId(), EduClassDoc.BRANCH.equals(doc.getKind()));
             Set<String> starts = weeks.stream().map(w -> w.start().toString()).collect(Collectors.toSet());
             long dangling = content.path("names").properties().stream()
                     .filter(e -> !e.getValue().asString("").isBlank() && !starts.contains(e.getKey()))
@@ -883,6 +1144,45 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(yearPlanId));
     }
 
+    private List<TeachingWeek> teachingWeeks(Long classId, Long planId, boolean includeDraft) {
+        var branch = classDocRepository.findAllByClassroomIdAndYearPlanId(classId, planId).stream()
+                .filter(d -> EduClassDoc.BRANCH.equals(d.getKind())
+                        && (includeDraft || d.getStatus() == EduClassDocStatus.APPROVED))
+                .findFirst();
+        if (branch.isEmpty()) return teachingWeeks(planId);
+        var schedules = readObject(branch.get().getContent()).path("themeSchedules");
+        if (!schedules.isArray() || schedules.isEmpty()) return teachingWeeks(planId);
+        List<TeachingWeek> weeks = new ArrayList<>();
+        List<JsonNode> themes = new ArrayList<>();
+        schedules.forEach(themes::add);
+        themes.sort(Comparator.comparing(t -> t.path("startDate").asText()));
+        var breaks = breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId).stream()
+                .map(b -> new EduTeachingCalendar.BreakRange(b.getStartDate(), b.getEndDate()))
+                .toList();
+        for (var theme : themes) {
+            if (!theme.hasNonNull("startDate") || !theme.hasNonNull("endDate")) continue;
+            for (LocalDate monday : EduTeachingCalendar.teachingMondays(
+                    LocalDate.parse(theme.path("startDate").asText()),
+                    LocalDate.parse(theme.path("endDate").asText()),
+                    breaks))
+                weeks.add(new TeachingWeek(
+                        weeks.size() + 1, monday, theme.path("themeId").asLong()));
+        }
+        return weeks;
+    }
+
+    private EduTeachingCalendar.ReorderResult projectBranch(
+            Long planId, ClassCalendarPreviewRequest.CalendarDraft draft, EduTeachingCalendar.DurationLimits limits) {
+        var breaks = breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId).stream()
+                .map(b -> new EduTeachingCalendar.BreakRange(b.getStartDate(), b.getEndDate()))
+                .toList();
+        var order = draft.themeSchedules().stream()
+                .sorted(Comparator.comparing(ClassCalendarPreviewRequest.ThemeSchedule::startDate))
+                .map(ClassCalendarPreviewRequest.ThemeSchedule::themeId)
+                .toList();
+        return EduTeachingCalendar.reorderThemeBlocks(draft, order, breaks, limits);
+    }
+
     private void requireView(CurrentUser user) {
         if (!accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW)) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_ACCESS_DENIED);
@@ -954,11 +1254,27 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     /** EDU-14, EDU-17: điều kiện gửi chủ đề nhánh / hồ sơ chủ đề. */
     private void requireCanSubmit(EduClassDoc doc) {
-        List<TeachingWeek> weeks = teachingWeeks(doc.getYearPlanId());
+        List<TeachingWeek> weeks =
+                teachingWeeks(doc.getClassroomId(), doc.getYearPlanId(), EduClassDoc.BRANCH.equals(doc.getKind()));
         if (EduClassDoc.BRANCH.equals(doc.getKind())) {
-            JsonNode names = readObject(doc.getContent()).path("names");
+            ObjectNode content = readObject(doc.getContent());
+            JsonNode names = content.path("names");
+            if (content.path("schemaVersion").asInt() == 2) {
+                var draft = calendarDraft(content);
+                validateBranchIdentity(doc.getYearPlanId(), draft, doc, requireClass(doc.getClassroomId()));
+                if (draft.branches().stream()
+                        .anyMatch(b -> b.name() == null || b.name().isBlank()))
+                    throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, 1);
+                var projected =
+                        projectBranch(doc.getYearPlanId(), draft, snapshotLimits(doc.getDurationPolicySnapshot()));
+                names = objectMapper.valueToTree(projected.calendar().names());
+            }
+            JsonNode projectedNames = names;
             long empty = weeks.stream()
-                    .filter(w -> names.path(w.start().toString()).asString("").isBlank())
+                    .filter(w -> projectedNames
+                            .path(w.start().toString())
+                            .asString("")
+                            .isBlank())
                     .count();
             if (empty > 0) {
                 throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, empty);
@@ -989,7 +1305,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     /** Giáo án các tuần nhánh của hồ sơ chủ đề (EDU-17), cùng lớp và kế hoạch năm. */
     private List<EduClassDoc> dossierWeekDocs(EduClassDoc themeDoc) {
-        Set<LocalDate> starts = teachingWeeks(themeDoc.getYearPlanId()).stream()
+        Set<LocalDate> starts = teachingWeeks(themeDoc.getClassroomId(), themeDoc.getYearPlanId(), false).stream()
                 .filter(w -> w.themeId().equals(themeDoc.getThemeId()))
                 .map(TeachingWeek::start)
                 .collect(Collectors.toSet());
@@ -1080,8 +1396,34 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         });
         node.put("status", doc.publicStatus().name());
         node.put("version", doc.getVersion() != null ? doc.getVersion() : 0L);
+        EduClassDoc calendarDoc = EduClassDoc.BRANCH.equals(doc.getKind())
+                ? doc
+                : (context == null
+                                ? classDocRepository
+                                        .findAllByClassroomIdAndYearPlanId(doc.getClassroomId(), doc.getYearPlanId())
+                                        .stream()
+                                : context.docsByKey().values().stream())
+                        .filter(d -> EduClassDoc.BRANCH.equals(d.getKind())
+                                && d.getClassroomId().equals(doc.getClassroomId())
+                                && d.getYearPlanId().equals(doc.getYearPlanId())
+                                && d.getStatus() == EduClassDocStatus.APPROVED)
+                        .findFirst()
+                        .orElse(null);
+        node.put("calendarRevision", calendarDoc == null ? -1L : calendarDoc.getVersion());
+        if (calendarDoc != null
+                && readObject(calendarDoc.getContent()).path("schemaVersion").asInt() == 2) {
+            ObjectNode calendar = readObject(calendarDoc.getContent());
+            node.set(
+                    "effectiveCalendar",
+                    objectMapper.createObjectNode().set("themeSchedules", calendar.path("themeSchedules")));
+            ((ObjectNode) node.path("effectiveCalendar")).set("branches", calendar.path("branches"));
+        }
         node.set("approvals", readArray(doc.getApprovals()));
         node.set("history", readArray(doc.getHistory()));
+        if (doc.getDurationPolicySnapshot() != null
+                && !doc.getDurationPolicySnapshot().isBlank()) {
+            node.set("durationPolicySnapshot", readObject(doc.getDurationPolicySnapshot()));
+        }
         EduYearPlan cachedPlan = context == null ? null : context.plans().get(doc.getYearPlanId());
         if (context == null) {
             yearPlanRepository

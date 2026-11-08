@@ -143,6 +143,68 @@ class EduClassDocServiceIntegrationTest {
         otherTeacher = user("other", CareNestRole.TEACHER);
         assignTeacher(otherTeacher, otherClassId);
 
+        principal = user("ht", CareNestRole.PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, valid_from) "
+                        + "VALUES (?, 'PRINCIPAL', '2026-09-01')",
+                principal.userId());
+        jdbc.update(
+                "UPDATE edu_settings SET duration_policy = '{\"theme\":{\"minWeeks\":1,\"maxWeeks\":4},\"branch\":{\"minWeeks\":1,\"maxWeeks\":2}}'::jsonb");
+
+        YearPlanRequest annualReq = new YearPlanRequest(
+                schoolYear,
+                ageGroup3,
+                "Kế hoạch năm học",
+                "",
+                List.of(new YearPlanRequest.Domain(
+                        domain,
+                        List.of(new YearPlanRequest.Row(
+                                null,
+                                "goal",
+                                "Trẻ thực hiện đủ động tác",
+                                List.of(new YearPlanRequest.Content(null, "Hô hấp", List.of())))))),
+                List.of(
+                        new YearPlanRequest.Theme(
+                                "t-1",
+                                null,
+                                "Trường mầm non",
+                                "TMN",
+                                LocalDate.of(2026, 9, 7),
+                                LocalDate.of(2026, 9, 25),
+                                "",
+                                ""),
+                        new YearPlanRequest.Theme(
+                                "t-2",
+                                null,
+                                "Gia đình",
+                                "GĐ",
+                                LocalDate.of(2026, 9, 28),
+                                LocalDate.of(2026, 10, 2),
+                                "",
+                                "")),
+                List.of(new YearPlanRequest.Break(null, "Nghỉ", LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 18))),
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                null,
+                List.of(new YearPlanRequest.BranchTemplate("tmpl-1", null, "t-1", "Dự án mẫu", null, null)));
+
+        java.util.UUID vpSession = java.util.UUID.randomUUID();
+        YearPlanDetailResponse annualDraft = yearPlanService.createYearPlan(
+                vicePrincipal,
+                annualReq,
+                new com.carenest.dto.eduplan.YearPlanEditRequest(vpSession, 0L, java.util.UUID.randomUUID()));
+        YearPlanDetailResponse annualSub = yearPlanService.submitYearPlan(
+                vicePrincipal,
+                annualDraft.id(),
+                null,
+                new com.carenest.dto.eduplan.YearPlanEditRequest(
+                        vpSession, annualDraft.revision(), java.util.UUID.randomUUID()));
+        YearPlanDetailResponse annualIssued = yearPlanService.issueYearPlan(
+                principal,
+                annualDraft.id(),
+                "Ban hành KH năm học",
+                new com.carenest.dto.eduplan.YearPlanEditRequest(
+                        null, annualSub.revision(), java.util.UUID.randomUUID()));
+
         // Chủ đề 1 có tuần nghỉ ở giữa (2 tuần học), chủ đề 2 bắt đầu Chủ nhật (1 tuần học)
         java.util.UUID editSession = java.util.UUID.randomUUID();
         YearPlanDetailResponse draft = yearPlanService.createYearPlan(
@@ -152,35 +214,25 @@ class EduClassDocServiceIntegrationTest {
                         ageGroup3,
                         "Kế hoạch MGB",
                         "",
-                        List.of(new YearPlanRequest.Domain(
-                                domain,
-                                List.of(new YearPlanRequest.Row(
-                                        null,
-                                        "goal",
-                                        "Trẻ thực hiện đủ động tác",
-                                        List.of(new YearPlanRequest.Content(null, "Hô hấp", List.of("t-1"))))))),
-                        List.of(
-                                new YearPlanRequest.Theme(
-                                        "t-1",
-                                        null,
-                                        "Trường mầm non",
-                                        "TMN",
-                                        LocalDate.of(2026, 9, 7),
-                                        LocalDate.of(2026, 9, 25),
-                                        "",
-                                        ""),
-                                new YearPlanRequest.Theme(
-                                        "t-2",
-                                        null,
-                                        "Gia đình",
-                                        "GĐ",
-                                        LocalDate.of(2026, 9, 28),
-                                        LocalDate.of(2026, 10, 2),
-                                        "",
-                                        "")),
-                        List.of(new YearPlanRequest.Break(
-                                null, "Nghỉ", LocalDate.of(2026, 9, 14), LocalDate.of(2026, 9, 18)))),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        com.carenest.utils.enums.EduPlanLevel.TEAM,
+                        annualIssued.id(),
+                        List.of()),
                 new com.carenest.dto.eduplan.YearPlanEditRequest(editSession, 0L, java.util.UUID.randomUUID()));
+        jdbc.update(
+                "UPDATE edu_year_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
+                draft.id());
+        entityManager.clear();
+        Long contentId = jdbc.queryForObject(
+                "SELECT id FROM edu_goal_contents WHERE goal_id IN (SELECT id FROM edu_plan_goals WHERE year_plan_id = ?) LIMIT 1",
+                Long.class,
+                draft.id());
+        Long themeId1 = jdbc.queryForObject(
+                "SELECT id FROM edu_themes WHERE year_plan_id = ? AND abbr = 'TMN'", Long.class, draft.id());
+        jdbc.update("INSERT INTO edu_content_theme_ticks (content_id, theme_id) VALUES (?, ?)", contentId, themeId1);
+
         YearPlanDetailResponse submitted = yearPlanService.submitYearPlan(
                 leader,
                 draft.id(),
@@ -193,6 +245,10 @@ class EduClassDocServiceIntegrationTest {
                 "Ban hành",
                 new com.carenest.dto.eduplan.YearPlanEditRequest(
                         null, submitted.revision(), java.util.UUID.randomUUID()));
+        jdbc.update(
+                "UPDATE edu_year_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
+                plan.id());
+        entityManager.clear();
         theme1 = String.valueOf(plan.themes().get(0).id());
         theme2 = String.valueOf(plan.themes().get(1).id());
     }
@@ -296,7 +352,7 @@ class EduClassDocServiceIntegrationTest {
                 () -> service.previewBranchFile(teacher, classId, plan.id(), file), ApiCode.YEAR_PLAN_NOT_ISSUED);
         jdbc.update("UPDATE edu_year_plans SET status = 'APPROVED' WHERE id = ?", plan.id());
         jdbc.update(
-                "INSERT INTO edu_year_plans (code, school_year_id, age_group_id, version_no, source_plan_id, title, description, status, owner_id, content_revision, created_at, updated_at) SELECT code || '-V2', school_year_id, age_group_id, 2, id, title, description, 'APPROVED', owner_id, 0, now(), now() FROM edu_year_plans WHERE id = ?",
+                "INSERT INTO edu_year_plans (code, school_year_id, age_group_id, version_no, source_plan_id, title, description, status, owner_id, content_revision, legacy_team_without_source, created_at, updated_at) SELECT code || '-V2', school_year_id, age_group_id, 2, id, title, description, 'APPROVED', owner_id, 0, true, now(), now() FROM edu_year_plans WHERE id = ?",
                 plan.id());
         entityManager.clear();
         assertApiError(

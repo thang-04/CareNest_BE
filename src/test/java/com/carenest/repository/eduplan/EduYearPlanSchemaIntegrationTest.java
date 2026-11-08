@@ -213,7 +213,7 @@ class EduYearPlanSchemaIntegrationTest {
     }
 
     private EduYearPlan draft(String code, long ageGroupId) {
-        return EduYearPlan.createDraft(code, schoolYear, ageGroupId, "Kế hoạch " + code, "", owner, null, NOW);
+        return legacyDraft(code, schoolYear, ageGroupId, "Kế hoạch " + code, "", owner, null, NOW);
     }
 
     @Test
@@ -230,5 +230,21 @@ class EduYearPlanSchemaIntegrationTest {
 
     private long insertId(String sql, Object... args) {
         return jdbc.queryForObject(sql, Long.class, args);
+    }
+
+    private static com.carenest.entity.eduplan.EduYearPlan legacyDraft(
+            String code,
+            Long yearId,
+            Long ageId,
+            String title,
+            String description,
+            Long ownerId,
+            String ownerTitle,
+            java.time.Instant now) {
+        var plan = com.carenest.entity.eduplan.EduYearPlan.createDraft(
+                code, yearId, ageId, title, description, ownerId, ownerTitle, now);
+        plan.initializePlanSource(
+                com.carenest.utils.enums.EduPlanLevel.TEAM, null, true, "{\"mode\":\"LEGACY_UNBOUNDED\"}");
+        return plan;
     }
 }

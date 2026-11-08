@@ -1,5 +1,17 @@
 # Module — education-plan
 
+User 08/11/2026 yêu cầu cảnh báo thời lượng chủ đề và nhánh ngay khi nhập lịch, trước khi gửi duyệt; dùng giới hạn snapshot và giữ lưu nháp. [Incident](../knowledge/incidents/BUG-261108-duration-feedback-late.md).
+
+Hiển thị trạng thái EDU-54 theo yêu cầu user 08/11/2026: hồ sơ đã gửi duyệt hiển thị “Chờ duyệt”; `REVIEW` và các mã chờ cũ được tính vào số chờ. Mã API và bước xử lý không đổi. [Incident](../knowledge/incidents/BUG-261108-education-review-label.md).
+
+Audit nguồn Bộ 08/11/2026: [BUG-261108-ministry-source-split](../knowledge/incidents/BUG-261108-ministry-source-split.md) open — catalog cũ tách sai một câu có khoảng “5 - 7” và bỏ33 dấu hai chấm; [delta migration draft](../../specs/014-curriculum-cascade-suggestions/source-correction-plan.md) chờ duyệt. Chưa sửa dữ liệu runtime.
+
+Thiết kế014 ngày08/11: [plan](../../specs/014-curriculum-cascade-suggestions/plan.md) draft dự kiến FE-only, BE catalog/provenance đủ dữ liệu, không migration/API/dependency;3increment modal→inline→E2E. Bug filter đã có bằng chứng lỗ hổng source Web (xem incident), chưa runtime/fixed. User đã cấp quyền sửa giáo dục FE014 ngày08/11/2026; user đã duyệt vòng implement→converge plan014; delta sửa catalog bằng migration có plan riêng chờ duyệt, không xin lại quyền FE.
+
+Delta đặc tả 08/11/2026 — EDU-61: lọc cả nguồn/đích theo lĩnh vực → lĩnh vực con → kết quả mong đợi → mục tiêu; bỏ lựa chọn sai, giữ dữ liệu đã thêm; bấm ô mở gợi ý rồi gõ lọc; nội dung theo nhóm lấy từ mục tiêu mục D. Xem [feature014](../../specs/014-curriculum-cascade-suggestions/spec.md). Known pitfall user báo: [mục tiêu đích còn sau đổi bộ lọc](../knowledge/incidents/BUG-261108-curriculum-target-filter.md), chưa tái hiện/fix. Chỉ đặc tả, chưa sửa source.
+
+Delta đặc tả08/11/2026 — EDU-60: năm chỉ xem từ quyền lập tổ khi đã ban hành; HT/PHT có phân công hiệu lực mọi nhóm tuổi, tổ trưởng/GV chỉ tuổi được giao (user làm rõ sau analyze). Giữ Q1=A về quyền soạn/duyệt năm độc lập, scope tuổi không mở trạng thái; source TEAM vẫn cùng năm/tuổi đích. Mục tiêu nguồn trong tổ hiển thị đủ, không cuộn riêng card; giữ nguồn readonly/tick. Xem [feature013](../../specs/013-published-year-plan-visibility/spec.md) và [plan013](../../specs/013-published-year-plan-visibility/plan.md). Đã triển khai source và nativeverify theo [quickstart013](../../specs/013-published-year-plan-visibility/quickstart.md); chưa restart/deploy API user hoặc live Keycloak E2E.
+
 Feature: `eduplan` (`docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đang code (mục tiêu năm học, cấu hình, tài liệu lớp xong BE, G94-226; AI chưa làm)
 
 ## Mục đích
@@ -41,6 +53,12 @@ EDU-01..28, EDU-39..43, EDU-46..47 (lịch chủ đề, lấy chủ đề, nhậ
 
 ## PENDING
 
+- Delta Q4=A/Q5=A đã cập nhật/review plan07/11: mẫu nhánh tùy chọn lấy/không lấy, rename local giữ source; pure calendar-preview và orderedThemeIds trên PUT chuyển cả khối giữ tuần, notes theo UUID/offset; import từ form không lấy mẫu tạo custom được. Không thêm schema/dependency cho delta; plan còn draft chờ duyệt, chưa code.
+
+- Feature012 đã lập [plan làn L draft](../plans/active/2026-11-07-school-year-team-plans.md), [data model](../../specs/012-school-year-team-plans/data-model.md) và [contract](../../specs/012-school-year-team-plans/contracts/education-plans.md) ngày 07/11/2026: đề xuất level trong cùng họ bảng, source FK riêng/clone curriculum immutable, year workflow key vẫn TEAM, schoolYear mới; lịch lớp v2 và templates, HT-only duration snapshot. Tác động observation chỉ tương thích TEAM source/lịch lớp/frozen presentation, có ADR0025 PROPOSED. Chưa code/duyệt plan; chi tiết legacy/rollout xem artifacts, không suy default source hiện tại đã đổi.
+
+- EDU-55/56, user đã chốt Q1–Q3 ngày 07/11/2026 cho [feature012](../../specs/012-school-year-team-plans/spec.md): năm theo nhóm tuổi → tổ kế thừa → GV dùng tổ đã ban hành; Delta mới 07/11 cho GV lấy/sửa tên bản nhánh PHT tại lớp; mẫu nguồn giữ nguyên. GV chỉnh lịch/thêm nhánh và đổi thứ tự dạy chủ đề lớn, không sửa tên/nội dung chủ đề lớn; Q4 đã chọn A, mẫu nhánh là tham khảo không cần lấy đủ; Q5 đã chọn A: chuyển cả khối kèm nhánh, giữ số tuần từng chủ đề/nhánh, dời ngày theo thứ tự mới; không còn câu nghiệp vụ mở của delta. Làm rõ câu 1 speckit-clarify 07/11: tổ trưởng chỉ phân bổ mục tiêu nguồn vào chủ đề, không thêm mới/sửa/xóa cây mục tiêu/nội dung kế thừa, kể cả nhập file. Câu 2 clarify và chỉ dẫn tiếp theo 07/11: giữ tick từng nội dung vào chủ đề, mục tiêu tương ứng đi theo, không tự tick cả mục tiêu; chỉ cố định cây nguồn, giữ logic cũ ngoài delta feature. Bốn cột trang năm có STT, bỏ tick/viết tắt; hai luồng duyệt là mặc định cấu hình được. Chỉ HT cấu hình cả hai loại thời lượng, mặc định nhánh 1–2/chủ đề lớn 2–4 tuần học, bỏ tuần nghỉ trọn, giữ Thứ Hai–Thứ Sáu; nhánh nằm trong cha, cấu hình mới chỉ áp dụng hồ sơ tạo mới. Kế hoạch cũ giữ ở tổ cùng dữ liệu/liên kết; chưa code, source hiện hành vẫn theo rule cũ. Mức nguồn PROPOSED vì chưa có xác nhận team/trường, Q1–Q3 cũ đã trả lời, nhưng delta mới đã chốt Q4=A, Q5 đã chốt A (chuyển khối kèm nhánh, giữ số tuần, dời ngày); phần khóa tên cũ đã bị thay. Không biến nhánh hai tuần thành hai nhánh để né thay đổi mô hình.
+
 - EDU-47 đã được user duyệt nghiệp vụ/plan; triển khai và kiểm chứng theo [feature008](../../specs/008-branch-plan-file-import/quickstart.md). Phần còn mở của module là các mục khác dưới đây, không phải câu hỏi nhập file.
 Lịch chủ đề EDU-39..41 đã chốt 30/10 (đóng P-29). Mục khảo sát mâu thuẫn code (EDU-31, EDU-32, EDU-35, EDU-38) đã chốt theo code 29/10. Còn lại: AI gợi ý (EDU-20), đọc giáo án đã duyệt cho đánh giá trẻ (EDU-19).
 
@@ -49,6 +67,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 
 ## Known pitfalls
 
+- Khoảng ngày chủ đề/nhánh phải wrap theo cột ở cả năm/tổ; không ép nowrap cho range hoặc trigger. Xem [lỗi tràn ngày](../knowledge/incidents/BUG-261108-theme-date-column-overflow.md).
 - EDU-48 (user chốt02/11): thao tác xóa lĩnh vực con ở Web phải bỏ toàn bộ nhánh sau xác nhận số lượng; không chỉ bỏ heading rồi normalize vì con có thể đổi cha. Contract PUT vẫn cho phép giữ/chuyển các dòng client cố ý gửi; xem delta feature006, chưa coi là đã implement khi plan mới draft.
 
 - Tên lĩnh vực trong .doc có thể dùng kĩ/kỹ, mĩ/mỹ; chuẩn hóa khóa so tên, không đổi nội dung người dùng. [Regression feature009](../knowledge/incidents/BUG-261102-year-plan-sample-incomplete-preview.md).
@@ -113,3 +132,18 @@ EDU-28: danh mục chỉ đọc nạp bằng V33/V34 (`edu_curriculum_*`) từ V
 
 EDU-46, spec `specs/007-year-plan-goal-file-import/`. Nhận Word .docx bảng mẫu Thái Dương (STT | Mục tiêu | Nội dung | cột chủ đề viết tắt), Word .doc do CareNest xuất (HTML), Excel .xlsx, CSV mẫu cũ; ≤ 2 MB, ≤ 2.000 dòng; mã lỗi 7033–7035. BE chỉ đọc (không lưu, không đổi DB, không thêm thư viện; XML chặn DOCTYPE, giới hạn giải nén). Đó là luồng lịch sử spec007/EDU-46 trước quyết định mới02/11; Web hiện chưa đổi code nhưng yêu cầu đích là hai chế độ thay nội dung ở spec009 bên trên, giữ lưu tay EDU-22. Nút lấy từ kế hoạch khác vẫn theo EDU-24, không bị đổi theo nhập file.
 Pitfall: Word .doc nhị phân đời cũ không đọc được (báo Lưu thành .docx); Word mở file mẫu .doc rồi lưu lại có thể giữ dạng HTML — vẫn đọc được.
+
+## Delta nhãn mục tiêu — 07/11/2026
+
+EDU-58 theo yêu cầu user đã duyệt: domains[].rows[].displayLabel cho goal, max100; null/omitted giữ nhãn, blank clear về MTn. Giữ goalNo/ID; V86 additive; clone/version/annual→TEAM giữ nhãn và server chặn đổi nhãn TEAM. Web annual nhập/kéo tăng số, tổ chỉ xem và tick nội dung; in/export giữ nhãn. Native BE64/64/FE248/248, runtime V86/healthUP; chi tiết VERIFICATION. Schema Domain/Row/Content OpenAPI dùng tên riêng, xem incident BUG-261107-year-plan-openapi-row-collision.
+
+EDU-59/FR021 (user07/11/2026): mẫu nhánh có khoảng ngày đầy đủ phải Thứ Hai–Thứ Sáu và không overlap inclusive sibling cùng themeId. Server kiểm chung submit/publication bằng EDUCATION_CALENDAR_INVALID; draft/name-only và bounds/duration giữ nguyên. Web luôn hai DatePickerCell compact dd/mm/yy - dd/mm/yy, taken/warnings, bỏ nhãn và thu gọn. BE71/71, FE254/254; xem VERIFICATION.
+
+
+## Đối chiếu luồng năm học → tổ — user 08/11/2026
+
+User tái nêu: kế hoạch năm học tạo mục tiêu/nội dung, kế hoạch tổ lấy nguồn đó để tick. Đây là tái xác nhận luồng EDU-55 đã chốt, không tự coi là quyết định mới đổi từ tick nội dung sang tick cả mục tiêu; quyết định làm rõ07/11 vẫn là tick từng nội dung, mục tiêu tương ứng đi theo.
+
+Đối chiếu source08/11: Web GoalFormPage dùng GoalTable chung, annual truyền themes=[] và cho biên soạn; TEAM chọn annual APPROVED cùng năm/tuổi, inheritAnnual giữ cây nguồn, bỏ tick khi lấy lần đầu; readOnly/fixedCells khóa cây nhưng canAssignContents bật tick từng nội dung. BE InheritedCurriculumGuard kiểm ID/kind/text/nhãn/liên kết nguồn và cây content, không cấm themeKeys thay đổi. Thiết kế dùng chung UI với hai chế độ là đúng luồng; đánh giá UI không đề xuất mở biên soạn tại TEAM hay tách hai giao diện chỉ vì các thao tác khóa. Nguồn user trực tiếp, giữ mức nguồn của EDU-55; không sửa code/contract trong lượt đối chiếu.
+
+Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status/assignment, riêng TEAM giữ hành vi cũ. UI readonly gồm header xám, phần3 nhánh+select Xem mục tiêu/nội dung từ tick, đầy đủ cây không inner scroll. Xem evidence/giới hạn ở [quickstart013](../../specs/013-published-year-plan-visibility/quickstart.md). Đổi schema name tài liệu để chống collision không đổi JSON; chưa restart/deploy API user hoặc chạy live Keycloak E2E.

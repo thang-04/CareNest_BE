@@ -1,5 +1,6 @@
 package com.carenest.service.eduplan.impl;
 
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -59,6 +60,9 @@ class EduWorkflowPublicationTest {
 
     private YearPlanPublicationValidator validator;
 
+    @Mock
+    private com.carenest.repository.eduplan.EduPlanBranchTemplateRepository templateRepository;
+
     @BeforeEach
     void setUp() {
         validator = new YearPlanPublicationValidator(
@@ -68,7 +72,52 @@ class EduWorkflowPublicationTest {
                 subDomainRepository,
                 expectedResultRepository,
                 goalRepository,
-                goalContentRepository);
+                goalContentRepository,
+                templateRepository,
+                new tools.jackson.databind.ObjectMapper());
+    }
+
+    private com.carenest.entity.eduplan.EduPlanBranchTemplate branch(long themeId, String start, String end) {
+        return com.carenest.entity.eduplan.EduPlanBranchTemplate.create(
+                1L,
+                themeId,
+                null,
+                null,
+                "Nhánh",
+                start == null ? null : LocalDate.parse(start),
+                end == null ? null : LocalDate.parse(end),
+                (short) 0);
+    }
+
+    @Test
+    @DisplayName("EDU-59: lịch nhánh phải bắt đầu Thứ Hai, kết thúc Thứ Sáu")
+    void rejectsMisalignedBranchDates() {
+        for (var branch : List.of(branch(1, "2026-09-08", "2026-09-11"), branch(1, "2026-09-07", "2026-09-12"))) {
+            given(templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(1L)).willReturn(List.of(branch));
+            assertThatThrownBy(() -> validator.validateBranchDates(1L))
+                    .isInstanceOf(GlobalException.class)
+                    .hasFieldOrPropertyWithValue("apiCode", ApiCode.EDUCATION_CALENDAR_INVALID);
+        }
+    }
+
+    @Test
+    @DisplayName("EDU-59: từ chối nhánh trùng lịch trong cùng cha")
+    void rejectsOverlappingSiblingBranches() {
+        given(templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(1L))
+                .willReturn(List.of(branch(1, "2026-09-07", "2026-09-18"), branch(1, "2026-09-14", "2026-09-25")));
+        assertThatThrownBy(() -> validator.validateBranchDates(1L))
+                .isInstanceOf(GlobalException.class)
+                .hasFieldOrPropertyWithValue("apiCode", ApiCode.EDUCATION_CALENDAR_INVALID);
+    }
+
+    @Test
+    @DisplayName("EDU-59: nhánh liền tuần, khác cha và mẫu chỉ tên vẫn hợp lệ")
+    void acceptsDisjointDifferentParentAndUndatedBranches() {
+        given(templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(1L))
+                .willReturn(List.of(
+                        branch(1, "2026-09-07", "2026-09-11"), branch(1, "2026-09-14", "2026-09-18"),
+                        branch(2, "2026-09-07", "2026-09-18"), branch(1, null, null)));
+        assertThatCode(() -> validator.validateBranchDates(1L)).doesNotThrowAnyException();
     }
 
     @Test

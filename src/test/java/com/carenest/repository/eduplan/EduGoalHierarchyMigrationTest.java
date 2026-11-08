@@ -136,7 +136,7 @@ class EduGoalHierarchyMigrationTest {
         long year = id("SELECT school_year_id FROM edu_year_plans WHERE id=?", plan);
         long age = id("SELECT id FROM age_groups WHERE code='ag-4'");
         long other = id(
-                "INSERT INTO edu_year_plans(code,school_year_id,age_group_id,title,status,owner_id) VALUES ('OTHER',?,?,'Demo','DRAFT',?) RETURNING id",
+                "INSERT INTO edu_year_plans(code,school_year_id,age_group_id,title,status,owner_id,legacy_team_without_source) VALUES ('OTHER',?,?,'Demo','DRAFT',?,true) RETURNING id",
                 year,
                 age,
                 owner);

@@ -1,6 +1,8 @@
 package com.carenest.controller.eduplan;
 
 import com.carenest.dto.eduplan.BranchFilePreviewResponse;
+import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
+import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocAdjustmentsRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
@@ -49,6 +51,18 @@ public class EduClassDocController {
         BranchFilePreviewResponse preview = classDocService.previewBranchFile(currentUser, classId, yearPlanId, file);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Preview branch file success", preview);
+    }
+
+    @PostMapping("/branch/calendar-preview")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<ClassCalendarPreviewResponse>> previewClassCalendar(
+            @RequestBody ClassCalendarPreviewRequest request, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|previewClassCalendar|userId=" + currentUser.userId() + "|classId=" + request.classId();
+        log.info("{}|START", logPrefix);
+        ClassCalendarPreviewResponse response = classDocService.previewClassCalendar(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Preview class calendar success", response);
     }
 
     @GetMapping

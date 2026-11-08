@@ -15,6 +15,17 @@ public interface EduYearPlanService {
     PageResponse<YearPlanSummaryResponse> getYearPlans(
             CurrentUser currentUser, Long schoolYearId, Long ageGroupId, String keyword, Pageable pageable);
 
+    PageResponse<YearPlanSummaryResponse> getYearPlans(
+            CurrentUser user,
+            Long yearId,
+            Long ageId,
+            String keyword,
+            Pageable pageable,
+            com.carenest.utils.enums.EduPlanLevel level);
+
+    YearPlanDetailResponse createVersion(
+            CurrentUser user, Long planId, YearPlanEditRequest edit, Long curriculumSourcePlanId);
+
     YearPlanDetailResponse getYearPlan(CurrentUser currentUser, Long planId);
 
     YearPlanDetailResponse createYearPlan(CurrentUser currentUser, YearPlanRequest request, YearPlanEditRequest edit);

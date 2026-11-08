@@ -57,7 +57,11 @@ public class EduYearPlanMapper {
                 plan.getSourcePlanId(),
                 current,
                 review,
-                permissions);
+                permissions,
+                plan.getPlanLevel(),
+                plan.getCurriculumSourcePlanId(),
+                plan.sourceMode(),
+                plan.getDurationPolicySnapshot());
     }
 
     public PlanActorResponse toOwner(EduYearPlan plan, Map<Long, String> userNames) {
@@ -84,7 +88,8 @@ public class EduYearPlanMapper {
                 goal && curriculum != null ? curriculum.sectionRef() : null,
                 kind == EduGoalRowKind.SUB ? id : null,
                 kind == EduGoalRowKind.GROUP ? id : null,
-                !goal && curriculum != null ? curriculum.text() : null);
+                !goal && curriculum != null ? curriculum.text() : null,
+                row.getDisplayLabel());
     }
 
     public YearPlanDetailResponse.Content toContent(EduGoalContent content, List<Long> themeIds) {

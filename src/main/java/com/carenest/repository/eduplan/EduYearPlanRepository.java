@@ -18,6 +18,12 @@ import org.springframework.data.repository.query.Param;
 /** Điều kiện phạm vi do service truyền vào từ EduPlanAccessPolicy.ViewScope. */
 public interface EduYearPlanRepository extends JpaRepository<EduYearPlan, Long> {
 
+    boolean existsByPlanLevelAndSchoolYearIdAndAgeGroupId(
+            com.carenest.utils.enums.EduPlanLevel level, Long yearId, Long ageId);
+
+    List<EduYearPlan> findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
+            com.carenest.utils.enums.EduPlanLevel level, Long yearId, Long ageId);
+
     boolean existsBySchoolYearIdAndAgeGroupId(Long schoolYearId, Long ageGroupId);
 
     Optional<EduYearPlan> findByOwnerIdAndCreatedRequestId(Long ownerId, UUID createdRequestId);
@@ -25,7 +31,10 @@ public interface EduYearPlanRepository extends JpaRepository<EduYearPlan, Long> 
     boolean existsByCode(String code);
 
     // Spec 004: chuỗi phiên bản của một (năm học, nhóm tuổi)
-    List<EduYearPlan> findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(Long schoolYearId, Long ageGroupId);
+    default List<EduYearPlan> findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(Long yearId, Long ageId) {
+        return findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
+                com.carenest.utils.enums.EduPlanLevel.TEAM, yearId, ageId);
+    }
 
     List<EduYearPlan> findAllBySchoolYearIdIn(Collection<Long> schoolYearIds);
 
@@ -50,22 +59,58 @@ public interface EduYearPlanRepository extends JpaRepository<EduYearPlan, Long> 
     List<EduYearPlan> findAllByEditingByIsNotNull();
 
     // EDU-06: toàn trường theo trạng thái được xem, hoặc nhóm tuổi Tổ trưởng phụ trách, hoặc bản đã ban hành của GV
+    default Page<EduYearPlan> search(
+            Long yearId,
+            Long ageId,
+            Collection<EduPlanStatus> schoolWide,
+            Collection<Long> fullAges,
+            Collection<Long> issuedAges,
+            String keyword,
+            Pageable pageable) {
+        return search(
+                com.carenest.utils.enums.EduPlanLevel.TEAM,
+                yearId,
+                ageId,
+                schoolWide,
+                fullAges,
+                issuedAges,
+                keyword,
+                pageable);
+    }
+
+    default Page<EduYearPlan> search(
+            com.carenest.utils.enums.EduPlanLevel level,
+            Long yearId,
+            Long ageId,
+            Collection<EduPlanStatus> statuses,
+            Collection<Long> full,
+            Collection<Long> approved,
+            String keyword,
+            Pageable pageable) {
+        return search(level, yearId, ageId, statuses, full, approved, List.of(), keyword, pageable);
+    }
+
     @Query("""
             select p from EduYearPlan p
-            where (:schoolYearId is null or p.schoolYearId = :schoolYearId)
+            where p.planLevel = :planLevel
+              and (:schoolYearId is null or p.schoolYearId = :schoolYearId)
               and (:ageGroupId is null or p.ageGroupId = :ageGroupId)
               and (p.status in :schoolWideStatuses
                    or p.ageGroupId in :fullAgeGroupIds
+                   or (p.status = com.carenest.utils.enums.EduPlanStatus.REVIEW
+                       and p.ageGroupId in :reviewAgeGroupIds)
                    or (p.status = com.carenest.utils.enums.EduPlanStatus.APPROVED
                        and p.ageGroupId in :approvedAgeGroupIds))
               and (:keyword is null or lower(p.title) like :keyword or lower(p.code) like :keyword)
             """)
     Page<EduYearPlan> search(
+            @Param("planLevel") com.carenest.utils.enums.EduPlanLevel planLevel,
             @Param("schoolYearId") Long schoolYearId,
             @Param("ageGroupId") Long ageGroupId,
             @Param("schoolWideStatuses") Collection<EduPlanStatus> schoolWideStatuses,
             @Param("fullAgeGroupIds") Collection<Long> fullAgeGroupIds,
             @Param("approvedAgeGroupIds") Collection<Long> approvedAgeGroupIds,
+            @Param("reviewAgeGroupIds") Collection<Long> reviewAgeGroupIds,
             @Param("keyword") String keyword,
             Pageable pageable);
 }

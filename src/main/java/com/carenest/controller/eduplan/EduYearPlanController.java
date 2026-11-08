@@ -71,6 +71,7 @@ public class EduYearPlanController {
             @RequestParam(required = false) Long schoolYearId,
             @RequestParam(required = false) Long ageGroupId,
             @RequestParam(required = false) String q,
+            @RequestParam(defaultValue = "TEAM") com.carenest.utils.enums.EduPlanLevel planLevel,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size,
             CurrentUser currentUser) {
@@ -81,7 +82,8 @@ public class EduYearPlanController {
                 schoolYearId,
                 ageGroupId,
                 q,
-                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")));
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")),
+                planLevel);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plans success", plans);
     }
@@ -243,6 +245,7 @@ public class EduYearPlanController {
     @ResponseStatus(HttpStatus.CREATED)
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createVersion(
             @PathVariable Long planId,
+            @RequestBody(required = false) com.carenest.dto.eduplan.YearPlanVersionRequest request,
             CurrentUser currentUser,
             @RequestHeader("X-Edit-Session") UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
@@ -250,7 +253,10 @@ public class EduYearPlanController {
         String logPrefix = LOG_PREFIX + "|createVersion|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         YearPlanDetailResponse plan = eduYearPlanService.createVersion(
-                currentUser, planId, new YearPlanEditRequest(sessionId, revision, requestId));
+                currentUser,
+                planId,
+                new YearPlanEditRequest(sessionId, revision, requestId),
+                request == null ? null : request.curriculumSourcePlanId());
         log.info("{}|newPlanId={}|END", logPrefix, plan.id());
         return ResponseJson.toJsonWithData(ApiCode.CREATED, "Create year plan version success", plan);
     }

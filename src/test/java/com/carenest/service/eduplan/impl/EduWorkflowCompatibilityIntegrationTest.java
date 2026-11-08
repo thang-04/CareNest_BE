@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,6 +82,46 @@ class EduWorkflowCompatibilityIntegrationTest {
     private CurrentUser leader3;
     private CurrentUser leader4;
     private CurrentUser leader5;
+    private final Map<Long, Long> annualPlanIds = new java.util.HashMap<>();
+
+    private void createAndIssueAnnualPlan(long ageGroupId) {
+        var req = new YearPlanRequest(
+                schoolYear,
+                ageGroupId,
+                "Kế hoạch năm học nguồn nhóm " + ageGroupId,
+                "Mô tả nguồn",
+                List.of(new YearPlanRequest.Domain(
+                        domainPhysical,
+                        List.of(new YearPlanRequest.Row(
+                                null,
+                                "goal",
+                                "Trẻ phát triển thể chất",
+                                List.of(new YearPlanRequest.Content(null, "Nội dung vận động", List.of("t-1"))))))),
+                List.of(new YearPlanRequest.Theme(
+                        "t-1",
+                        null,
+                        "Trường mầm non",
+                        "TMN",
+                        LocalDate.of(2026, 9, 7),
+                        LocalDate.of(2026, 9, 25),
+                        "",
+                        "")),
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                null,
+                List.of());
+        UUID vpSession = UUID.randomUUID();
+        var draft =
+                service.createYearPlan(vicePrincipal, req, new YearPlanEditRequest(vpSession, 0L, UUID.randomUUID()));
+        var sub = service.submitYearPlan(
+                vicePrincipal,
+                draft.id(),
+                null,
+                new YearPlanEditRequest(vpSession, draft.revision(), UUID.randomUUID()));
+        var app = service.issueYearPlan(
+                principal, draft.id(), "Ban hành", new YearPlanEditRequest(null, sub.revision(), UUID.randomUUID()));
+        annualPlanIds.put(ageGroupId, app.id());
+    }
 
     @BeforeEach
     void setUp() {
@@ -111,6 +152,10 @@ class EduWorkflowCompatibilityIntegrationTest {
 
         leader5 = user("leader5_compat", CareNestRole.TEACHER);
         insertLeader(leader5, ageGroup5);
+
+        createAndIssueAnnualPlan(ageGroup3);
+        createAndIssueAnnualPlan(ageGroup4);
+        createAndIssueAnnualPlan(ageGroup5);
     }
 
     @Test
@@ -236,22 +281,11 @@ class EduWorkflowCompatibilityIntegrationTest {
                 ageGroupId,
                 "Kế hoạch năm học nhóm " + ageGroupId,
                 "Mô tả",
-                List.of(new YearPlanRequest.Domain(
-                        domainPhysical,
-                        List.of(new YearPlanRequest.Row(
-                                null,
-                                "goal",
-                                "Trẻ phát triển thể chất",
-                                List.of(new YearPlanRequest.Content(null, "Nội dung vận động", List.of("t-1"))))))),
-                List.of(new YearPlanRequest.Theme(
-                        "t-1",
-                        null,
-                        "Trường mầm non",
-                        "TMN",
-                        LocalDate.of(2026, 9, 7),
-                        LocalDate.of(2026, 9, 25),
-                        "",
-                        "")),
+                List.of(),
+                List.of(),
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.TEAM,
+                annualPlanIds.get(ageGroupId),
                 List.of());
     }
 

@@ -1,5 +1,9 @@
 # Cross-Module Issues
 
+## Gợi ý nội dung và mục tiêu đích khác phạm vi — 08/11/2026
+
+[BUG-261108-curriculum-target-filter](incidents/BUG-261108-curriculum-target-filter.md) open: source Web lọc nguồn mà chưa lọc đích/checked khi confirm; nguồn BE đã có quan hệ mục D, mục C độc lập. [Thiết kế014](../../specs/014-curriculum-cascade-suggestions/plan.md) dự kiến không đổi transport/DB. Chưa RED runtime hoặc fix, không tự sửa client.
+
 Vấn đề phát sinh do tương tác giữa module hoặc giữa BE ↔ FE/APP. Đọc khi task chạm ≥2 module (L3).
 
 ## Rủi ro dự kiến (thiết kế) — CHƯA phải issue thực tế
@@ -25,3 +29,7 @@ Dùng làm checklist khi implement/review. Khi xảy ra thật ⇒ tạo inciden
 
 | BUG-261103-meal-campus-concurrent-pending | attendance → nutrition | Serialize shared campus/day pending updates before reads | [Incident](incidents/BUG-261103-meal-campus-concurrent-pending.md) |
 | FE-BUG-261103-attendance-leave-refresh | BE → FE attendance | Parent leave submit/cancel reconciles teacher drafts safely | [Incident](../../../CareNest_FE/docs/knowledge/incidents/FE-BUG-261103-attendance-leave-refresh.md) |
+
+## Feature012 FE-first compatibility — 07/11/2026
+
+[BUG-261107-edu-required-future-endpoint](incidents/BUG-261107-edu-required-future-endpoint.md): duration endpoint chưa có làm provider FE lỗi404 toàn module. Đã sửa fallback chỉ404/giữ contract legacy và không trộn mock vào dữ liệu API;409 regression tests pass. User xác nhận runtime còn pending.

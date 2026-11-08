@@ -119,6 +119,20 @@ public class EduClassDoc {
     @Column(name = "completion_mode", length = 50)
     private String completionMode;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "duration_policy_snapshot", columnDefinition = "jsonb")
+    private String durationPolicySnapshot;
+
+    public void assignDurationPolicySnapshot(String snapshot) {
+        if (this.durationPolicySnapshot == null) {
+            this.durationPolicySnapshot = snapshot;
+        }
+    }
+
+    public void setDurationPolicySnapshot(String snapshot) {
+        this.durationPolicySnapshot = snapshot;
+    }
+
     @Column(name = "completed_at")
     private Instant completedAt;
 

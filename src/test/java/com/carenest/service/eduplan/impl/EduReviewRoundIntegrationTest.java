@@ -33,9 +33,9 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
@@ -92,6 +92,7 @@ class EduReviewRoundIntegrationTest {
     private CurrentUser leader;
     private CurrentUser vicePrincipal;
     private CurrentUser principal;
+    private Long annualPlanId;
 
     @BeforeEach
     void setUp() {
@@ -115,6 +116,41 @@ class EduReviewRoundIntegrationTest {
         principal = user("ht-" + suffix, CareNestRole.PRINCIPAL);
         insertAssignment(principal.userId(), "PRINCIPAL", null, null, null);
 
+        long domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
+        var annualReq = new YearPlanRequest(
+                schoolYear,
+                ageGroup3,
+                "Annual Round " + suffix,
+                "",
+                List.of(new YearPlanRequest.Domain(
+                        domainPhysical,
+                        List.of(new YearPlanRequest.Row(
+                                null,
+                                "goal",
+                                "Mục tiêu thể chất",
+                                List.of(new YearPlanRequest.Content(null, "Nội dung", List.of())))))),
+                List.of(new YearPlanRequest.Theme(
+                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                null,
+                List.of(new YearPlanRequest.BranchTemplate("tmpl-1", null, "t-1", "Mẫu 1", null, null)));
+        UUID vpSession = UUID.randomUUID();
+        var annualDraft = yearPlanService.createYearPlan(
+                vicePrincipal, annualReq, new YearPlanEditRequest(vpSession, 0L, UUID.randomUUID()));
+        var annualSub = yearPlanService.submitYearPlan(
+                vicePrincipal,
+                annualDraft.id(),
+                null,
+                new YearPlanEditRequest(vpSession, annualDraft.revision(), UUID.randomUUID()));
+        annualPlanId = yearPlanService
+                .issueYearPlan(
+                        principal,
+                        annualDraft.id(),
+                        "Approved",
+                        new YearPlanEditRequest(null, annualSub.revision(), UUID.randomUUID()))
+                .id();
+
         // Thiết lập policy ban đầu cho year plan: creators=[TEAM_LEADER], reviewers=[VICE_PRINCIPAL, PRINCIPAL]
         EduWorkflowPolicyRequest initialPolicyReq = new EduWorkflowPolicyRequest(
                 workflowService.getPolicyRevision(),
@@ -136,17 +172,16 @@ class EduReviewRoundIntegrationTest {
     }
 
     private YearPlanRequest sampleRequest() {
-        long domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
         return new YearPlanRequest(
                 schoolYear,
                 ageGroup3,
                 "Kế hoạch khối 3 tuổi - Review Round",
                 "Mô tả",
-                List.of(new YearPlanRequest.Domain(
-                        domainPhysical,
-                        List.of(new YearPlanRequest.Row(null, "goal", "Mục tiêu thể chất", List.of())))),
-                List.of(new YearPlanRequest.Theme(
-                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
+                List.of(),
+                List.of(),
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.TEAM,
+                annualPlanId,
                 List.of());
     }
 
@@ -526,18 +561,42 @@ class EduReviewRoundIntegrationTest {
                 new YearPlanEditRequest(session(leader), returned.revision(), UUID.randomUUID()));
 
         // Tác giả sửa kế hoạch
-        long domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
+        var firstTheme = editingStarted.themes().getFirst();
+        String themeKey = "t-" + firstTheme.id();
+        List<YearPlanRequest.Theme> updateThemes = editingStarted.themes().stream()
+                .map(t -> new YearPlanRequest.Theme(
+                        "t-" + t.id(), t.id(), t.name(), t.abbr(), t.startDate(), t.endDate(), t.festivals(), t.note()))
+                .toList();
+
+        List<YearPlanRequest.Domain> updateDomains = editingStarted.domains().stream()
+                .map(d -> new YearPlanRequest.Domain(
+                        d.domainId(),
+                        d.rows().stream()
+                                .map(r -> new YearPlanRequest.Row(
+                                        r.id(),
+                                        r.kind(),
+                                        r.text(),
+                                        r.contents().stream()
+                                                .map(c -> new YearPlanRequest.Content(
+                                                        c.id(), c.text(), List.of(themeKey)))
+                                                .toList()))
+                                .toList()))
+                .toList();
+
         YearPlanRequest updateReq = new YearPlanRequest(
                 schoolYear,
                 ageGroup3,
                 "Kế hoạch khối 3 tuổi - Đã sửa sau trả lại",
                 "Đã bổ sung mục tiêu",
-                List.of(new YearPlanRequest.Domain(
-                        domainPhysical,
-                        List.of(new YearPlanRequest.Row(null, "goal", "Mục tiêu thể chất cập nhật", List.of())))),
-                List.of(new YearPlanRequest.Theme(
-                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
-                List.of());
+                updateDomains,
+                updateThemes,
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.TEAM,
+                annualPlanId,
+                editingStarted.branchTemplates().stream()
+                        .map(t -> new YearPlanRequest.BranchTemplate(
+                                t.id().toString(), t.id(), "t-" + t.themeId(), t.name(), t.startDate(), t.endDate()))
+                        .toList());
         YearPlanDetailResponse updated = yearPlanService.updateYearPlan(
                 leader,
                 submitted.id(),

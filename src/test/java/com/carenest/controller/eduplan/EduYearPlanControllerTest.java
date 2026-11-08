@@ -109,13 +109,14 @@ class EduYearPlanControllerTest {
                         .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
-        verify(eduYearPlanService, never()).getYearPlans(any(), any(), any(), any(), any());
+        verify(eduYearPlanService, never()).getYearPlans(any(), any(), any(), any(), any(), any());
     }
 
     @Test
     void listReturnsPageEnvelope() throws Exception {
         CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
-        given(eduYearPlanService.getYearPlans(eq(teacher), eq(1L), eq(null), eq(null), any()))
+        given(eduYearPlanService.getYearPlans(
+                        eq(teacher), eq(1L), eq(null), eq(null), any(), eq(com.carenest.utils.enums.EduPlanLevel.TEAM)))
                 .willReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
 
         mockMvc.perform(get(GOALS)

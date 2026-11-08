@@ -244,8 +244,7 @@ class EduConfigServiceIntegrationTest {
                 Long.class);
         long ageId = jdbc.queryForObject("SELECT id FROM age_groups WHERE code='ag-3'", Long.class);
 
-        EduYearPlan plan =
-                EduYearPlan.createDraft("P-REC", yearId, ageId, "Kế hoạch reconcile", "Mô tả", ownerId, "TL", now);
+        EduYearPlan plan = legacyDraft("P-REC", yearId, ageId, "Kế hoạch reconcile", "Mô tả", ownerId, "TL", now);
         plan.submit(ownerId, now);
         String approvalsJson = "[{\"userId\":" + approver1
                 + ",\"name\":\"Approver 1\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\"" + now
@@ -303,8 +302,7 @@ class EduConfigServiceIntegrationTest {
                                         List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
         workflowService.savePolicy(principal, step1Req);
 
-        EduYearPlan plan =
-                EduYearPlan.createDraft("P-AUTO", yearId, ageId, "Kế hoạch auto", "Mô tả", ownerId, "TL", now);
+        EduYearPlan plan = legacyDraft("P-AUTO", yearId, ageId, "Kế hoạch auto", "Mô tả", ownerId, "TL", now);
         plan.submit(ownerId, now);
         String approvalsJson =
                 "[{\"userId\":" + leaderId + ",\"name\":\"Leader PC\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\""
@@ -362,7 +360,7 @@ class EduConfigServiceIntegrationTest {
                                         List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
         workflowService.savePolicy(principal, step1Req);
 
-        EduYearPlan plan = EduYearPlan.createDraft("P-BAD", yearId, ageId, "Kế hoạch bad", "Mô tả", ownerId, "TL", now);
+        EduYearPlan plan = legacyDraft("P-BAD", yearId, ageId, "Kế hoạch bad", "Mô tả", ownerId, "TL", now);
         plan.submit(ownerId, now);
         String approvalsJson =
                 "[{\"userId\":" + leaderId + ",\"name\":\"Leader RB\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\""
@@ -468,5 +466,21 @@ class EduConfigServiceIntegrationTest {
                 username,
                 "Demo " + username);
         return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+    }
+
+    private static com.carenest.entity.eduplan.EduYearPlan legacyDraft(
+            String code,
+            Long yearId,
+            Long ageId,
+            String title,
+            String description,
+            Long ownerId,
+            String ownerTitle,
+            java.time.Instant now) {
+        var plan = com.carenest.entity.eduplan.EduYearPlan.createDraft(
+                code, yearId, ageId, title, description, ownerId, ownerTitle, now);
+        plan.initializePlanSource(
+                com.carenest.utils.enums.EduPlanLevel.TEAM, null, true, "{\"mode\":\"LEGACY_UNBOUNDED\"}");
+        return plan;
     }
 }

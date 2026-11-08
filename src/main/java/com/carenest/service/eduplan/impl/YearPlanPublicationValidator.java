@@ -4,6 +4,7 @@ import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.entity.eduplan.EduBreak;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
+import com.carenest.entity.eduplan.EduPlanBranchTemplate;
 import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.entity.eduplan.EduYearPlan;
 import com.carenest.exception.GlobalException;
@@ -46,6 +47,8 @@ public class YearPlanPublicationValidator {
     private final EduPlanExpectedResultRepository expectedResultRepository;
     private final EduPlanGoalRepository goalRepository;
     private final EduGoalContentRepository goalContentRepository;
+    private final com.carenest.repository.eduplan.EduPlanBranchTemplateRepository templateRepository;
+    private final tools.jackson.databind.ObjectMapper objectMapper;
 
     public void validateForPublication(EduYearPlan plan) {
         if (plan.getTitle() == null || plan.getTitle().isBlank()) {
@@ -90,6 +93,39 @@ public class YearPlanPublicationValidator {
 
         requireThemeWeeks(themes);
         requireDatesInSchoolYear(year, themes, breaks);
+        List<EduPlanBranchTemplate> templates = validateBranchDates(plan.getId());
+
+        var limits = objectMapper.readTree(plan.getDurationPolicySnapshot());
+        if ("BOUNDED".equals(limits.path("mode").asText())) {
+            List<EduTeachingCalendar.BreakRange> calendarBreaks = breaks.stream()
+                    .map(b -> new EduTeachingCalendar.BreakRange(b.getStartDate(), b.getEndDate()))
+                    .toList();
+            for (EduTheme theme : themes)
+                EduTeachingCalendar.validate(
+                        theme.getStartDate(),
+                        theme.getEndDate(),
+                        calendarBreaks,
+                        limits.path("theme").path("minWeeks").asInt(),
+                        limits.path("theme").path("maxWeeks").asInt());
+            for (var template : templates) {
+                if (template.getName().isBlank()) throw GlobalException.of(ApiCode.THEME_NAME_REQUIRED);
+                EduTheme parent = themes.stream()
+                        .filter(t -> t.getId().equals(template.getThemeId()))
+                        .findFirst()
+                        .orElseThrow(() -> GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID));
+                if (template.getStartDate() != null || template.getEndDate() != null) {
+                    EduTeachingCalendar.validate(
+                            template.getStartDate(),
+                            template.getEndDate(),
+                            calendarBreaks,
+                            limits.path("branch").path("minWeeks").asInt(),
+                            limits.path("branch").path("maxWeeks").asInt());
+                    if (template.getStartDate().isBefore(parent.getStartDate())
+                            || template.getEndDate().isAfter(parent.getEndDate()))
+                        throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
+                }
+            }
+        }
 
         List<EduGoalRow> rows = findRows(plan.getId());
         boolean hasGoal = rows.stream().anyMatch(row -> row.getKind() == EduGoalRowKind.GOAL);
@@ -182,6 +218,36 @@ public class YearPlanPublicationValidator {
                 }
             }
         }
+    }
+
+    List<EduPlanBranchTemplate> validateBranchDates(Long planId) {
+        List<EduPlanBranchTemplate> templates = templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId);
+        for (int i = 0; i < templates.size(); i++) {
+            EduPlanBranchTemplate branch = templates.get(i);
+            LocalDate start = branch.getStartDate();
+            LocalDate end = branch.getEndDate();
+            if (start == null || end == null) continue;
+            if (end.isBefore(start)
+                    || start.getDayOfWeek() != DayOfWeek.MONDAY
+                    || end.getDayOfWeek() != DayOfWeek.FRIDAY) {
+                throw GlobalException.of(
+                        ApiCode.EDUCATION_CALENDAR_INVALID,
+                        "Nhánh \"" + branch.getName() + "\" phải bắt đầu Thứ 2 và kết thúc Thứ 6");
+            }
+            for (int j = i + 1; j < templates.size(); j++) {
+                EduPlanBranchTemplate other = templates.get(j);
+                if (Objects.equals(branch.getThemeId(), other.getThemeId())
+                        && other.getStartDate() != null
+                        && other.getEndDate() != null
+                        && !start.isAfter(other.getEndDate())
+                        && !other.getStartDate().isAfter(end)) {
+                    throw GlobalException.of(
+                            ApiCode.EDUCATION_CALENDAR_INVALID,
+                            "Nhánh \"" + branch.getName() + "\" trùng lịch với \"" + other.getName() + "\"");
+                }
+            }
+        }
+        return templates;
     }
 
     private List<EduGoalRow> findRows(Long planId) {

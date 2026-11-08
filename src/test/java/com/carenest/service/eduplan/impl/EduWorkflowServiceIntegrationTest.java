@@ -60,8 +60,7 @@ class EduWorkflowServiceIntegrationTest {
                 Long.class);
         long ageId = jdbc.queryForObject("SELECT id FROM age_groups WHERE code='ag-3'", Long.class);
 
-        EduYearPlan yearPlan =
-                EduYearPlan.createDraft("WF-P1", yearId, ageId, "Kế hoạch năm thử", "Mô tả", ownerId, "TL", now);
+        EduYearPlan yearPlan = legacyDraft("WF-P1", yearId, ageId, "Kế hoạch năm thử", "Mô tả", ownerId, "TL", now);
         yearPlanRepository.saveAndFlush(yearPlan);
 
         workflowService.recordAuthor(yearPlan.getId(), null, coauthorId, "CONTENT_WRITE", now);
@@ -135,8 +134,8 @@ class EduWorkflowServiceIntegrationTest {
                 yearId,
                 ageId);
 
-        EduYearPlan yearPlan = EduYearPlan.createDraft(
-                "WF-P2", yearId, ageId, "Kế hoạch năm thử V", "Mô tả", ownerId, "TL", Instant.now());
+        EduYearPlan yearPlan =
+                legacyDraft("WF-P2", yearId, ageId, "Kế hoạch năm thử V", "Mô tả", ownerId, "TL", Instant.now());
         yearPlanRepository.saveAndFlush(yearPlan);
 
         EduClassDoc doc = EduClassDoc.create("doc-v-01", "branch", classroom, yearPlan.getId(), null, null, ownerId);
@@ -162,5 +161,21 @@ class EduWorkflowServiceIntegrationTest {
                 username,
                 "Người thử",
                 "ACTIVE");
+    }
+
+    private static com.carenest.entity.eduplan.EduYearPlan legacyDraft(
+            String code,
+            Long yearId,
+            Long ageId,
+            String title,
+            String description,
+            Long ownerId,
+            String ownerTitle,
+            java.time.Instant now) {
+        var plan = com.carenest.entity.eduplan.EduYearPlan.createDraft(
+                code, yearId, ageId, title, description, ownerId, ownerTitle, now);
+        plan.initializePlanSource(
+                com.carenest.utils.enums.EduPlanLevel.TEAM, null, true, "{\"mode\":\"LEGACY_UNBOUNDED\"}");
+        return plan;
     }
 }

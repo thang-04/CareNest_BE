@@ -537,7 +537,7 @@ class EduWorkflowConcurrencyIntegrationTest {
 
     private long draft(long year, long age, long owner, String code) {
         return id(
-                "INSERT INTO edu_year_plans(code,school_year_id,age_group_id,title,description,status,owner_id) VALUES (?,?,?,'Synthetic','','DRAFT',?) RETURNING id",
+                "INSERT INTO edu_year_plans(legacy_team_without_source, code,school_year_id,age_group_id,title,description,status,owner_id) VALUES (true, ?,?,?,'Synthetic','','DRAFT',?) RETURNING id",
                 code,
                 year,
                 age,

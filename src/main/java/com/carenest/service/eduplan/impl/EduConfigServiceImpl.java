@@ -163,7 +163,14 @@ public class EduConfigServiceImpl implements EduConfigService {
                 signerNames(),
                 workflow,
                 canConfigure,
-                yearCreationScopes);
+                yearCreationScopes,
+                currentUser == null
+                        ? List.of()
+                        : schoolStructureService.findAgeGroups().stream()
+                                .filter(age -> accessPolicy.canAuthorYearPlan(
+                                        currentUser, workflowService.loadPolicy("schoolYear"), age.id()))
+                                .map(AgeGroupResponse::id)
+                                .toList());
     }
 
     // EDU-21: họ tên in dưới chỗ ký; Tổ trưởng của từng nhóm tuổi theo năm học (hôm nay nếu thuộc năm đó, không thì đầu

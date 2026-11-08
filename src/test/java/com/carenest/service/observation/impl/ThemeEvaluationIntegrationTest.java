@@ -128,15 +128,15 @@ class ThemeEvaluationIntegrationTest {
                 "INSERT INTO edu_domains (id, name, sort_order) OVERRIDING SYSTEM VALUE VALUES (9100, 'TEST lĩnh vực chủ đề', 99)");
         long owner = teacher.userId();
         jdbc.update(
-                "INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id, version_no)"
-                        + " OVERRIDING SYSTEM VALUE VALUES (9001, 'KH-T1', ?, ?, 'KH 3-4 tuổi', 'APPROVED', ?, 1)",
+                "INSERT INTO edu_year_plans (legacy_team_without_source, id, code, school_year_id, age_group_id, title, status, owner_id, version_no)"
+                        + " OVERRIDING SYSTEM VALUE VALUES (true, 9001, 'KH-T1', ?, ?, 'KH 3-4 tuổi', 'APPROVED', ?, 1)",
                 year,
                 ag3,
                 owner);
         jdbc.update(
-                "INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id, version_no,"
+                "INSERT INTO edu_year_plans (legacy_team_without_source, id, code, school_year_id, age_group_id, title, status, owner_id, version_no,"
                         + " source_plan_id)"
-                        + " OVERRIDING SYSTEM VALUE VALUES (9002, 'KH-T2', ?, ?, 'KH 3-4 tuổi', 'APPROVED', ?, 2, 9001)",
+                        + " OVERRIDING SYSTEM VALUE VALUES (true, 9002, 'KH-T2', ?, ?, 'KH 3-4 tuổi', 'APPROVED', ?, 2, 9001)",
                 year,
                 ag3,
                 owner);
@@ -337,9 +337,10 @@ class ThemeEvaluationIntegrationTest {
         assertThat(old.canEdit()).isFalse();
         assertThat(old.domains().getFirst().goals().getFirst().met()).isTrue();
         // Kế hoạch năm có bản mới (đổi câu MT, thêm MT): phiếu đã xác nhận giữ nguyên danh sách và câu MT đã chốt
-        jdbc.update("INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
-                + " version_no, source_plan_id) OVERRIDING SYSTEM VALUE SELECT 9004, 'KH-T4', school_year_id,"
-                + " age_group_id, title, 'APPROVED', owner_id, 4, 9002 FROM edu_year_plans WHERE id = 9002");
+        jdbc.update(
+                "INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
+                        + " version_no, source_plan_id, legacy_team_without_source) OVERRIDING SYSTEM VALUE SELECT 9004, 'KH-T4', school_year_id,"
+                        + " age_group_id, title, 'APPROVED', owner_id, 4, 9002, legacy_team_without_source FROM edu_year_plans WHERE id = 9002");
         jdbc.update("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no, lineage_id)"
                 + " VALUES (9004, 9100, 1, 'Câu MT đã sửa', 1, " + oldGoal1 + ")");
         jdbc.update("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no)"
@@ -408,9 +409,10 @@ class ThemeEvaluationIntegrationTest {
                 new ThemeEvaluationRequest(classA, 9201L, "Lưu ý", List.of(new CellInput(kid1, oldGoal1, true))));
         service.confirm(teacher, new ThemeEvaluationRequest(classA, 9201L, "Lưu ý", List.of()));
         // PHT ban hành bản 3: chủ đề được chép với id mới, giữ dòng gốc
-        jdbc.update("INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
-                + " version_no, source_plan_id) OVERRIDING SYSTEM VALUE SELECT 9003, 'KH-T3', school_year_id,"
-                + " age_group_id, title, 'APPROVED', owner_id, 3, 9002 FROM edu_year_plans WHERE id = 9002");
+        jdbc.update(
+                "INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
+                        + " version_no, source_plan_id, legacy_team_without_source) OVERRIDING SYSTEM VALUE SELECT 9003, 'KH-T3', school_year_id,"
+                        + " age_group_id, title, 'APPROVED', owner_id, 3, 9002, legacy_team_without_source FROM edu_year_plans WHERE id = 9002");
         jdbc.update("INSERT INTO edu_themes (id, year_plan_id, sort_order, name, start_date, end_date, lineage_id)"
                 + " OVERRIDING SYSTEM VALUE VALUES (9211, 9003, 1, 'Trường mầm non thân yêu', '2026-09-07',"
                 + " '2026-10-02', 9201)");
@@ -429,6 +431,37 @@ class ThemeEvaluationIntegrationTest {
         expectCode(
                 () -> service.save(teacher, new ThemeEvaluationRequest(classA, 9211L, null, List.of())),
                 ApiCode.EVALUATION_ALREADY_CONFIRMED);
+    }
+
+    @Test
+    void frozenPresentationSurvivesRemovedThemeAndChangedRosterAndGoals() {
+        ThemeEvaluationResponse frozen = service.confirm(
+                teacher,
+                new ThemeEvaluationRequest(classA, 9201L, "Lịch sử", List.of(new CellInput(kid1, oldGoal1, true))));
+        jdbc.update("UPDATE edu_year_plans SET status = 'DRAFT' WHERE id = 9002");
+        jdbc.update("UPDATE edu_plan_goals SET text = 'Đã thay đổi' WHERE id = ?", goal1);
+        assertThat(service.get(teacher, classA, 9201L)).isEqualTo(frozen);
+        assertThat(service.listThemes(teacher, classA))
+                .anyMatch(t -> t.themeId().equals(9201L)
+                        && t.name().equals(frozen.themeName())
+                        && t.status().equals("CONFIRMED"));
+        assertThat(service.childThemeResults(classA, kid1).get(oldGoal1).themeName())
+                .isEqualTo(frozen.themeName());
+    }
+
+    @Test
+    void approvedClassCalendarControlsEvaluationDatesWithoutChangingOtherClass() {
+        jdbc.update(
+                "UPDATE edu_class_docs SET year_plan_id = 9002, status = 'APPROVED', content = ?::jsonb WHERE id = ?",
+                "{\"schemaVersion\":2,\"themeSchedules\":[{\"themeId\":9201,\"startDate\":\"2026-10-26\",\"endDate\":\"2026-11-06\"}]}",
+                doc);
+        assertThat(service.listThemes(teacher, classA).getFirst().startDate())
+                .isEqualTo(java.time.LocalDate.of(2026, 10, 26));
+        assertThat(service.listThemes(principal, classB).getFirst().startDate())
+                .isEqualTo(java.time.LocalDate.of(2026, 9, 7));
+        expectCode(
+                () -> service.save(teacher, new ThemeEvaluationRequest(classA, 9201L, null, List.of())),
+                ApiCode.THEME_EVALUATION_NOT_STARTED);
     }
 
     @Test

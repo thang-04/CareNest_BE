@@ -41,6 +41,20 @@ public class EduSettings {
     @Column(name = "workflow_updated_at")
     private Instant workflowUpdatedAt;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "duration_policy", nullable = false, columnDefinition = "jsonb")
+    private String durationPolicy;
+
+    @Column(name = "duration_revision", nullable = false)
+    private long durationRevision = 1;
+
+    public void updateDurationPolicy(String policy, Long userId, Instant now) {
+        this.durationPolicy = policy;
+        this.durationRevision++;
+        this.updatedBy = userId;
+        this.updatedAt = now;
+    }
+
     @Column(name = "week_rows", nullable = false)
     private String weekRows;
 
