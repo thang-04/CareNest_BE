@@ -162,6 +162,32 @@ class FreshGoodsIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "NUT-12: đơn vị mua đếm được ⇒ lượng đặt từng ngày làm tròn lên nguyên đơn vị; đơn vị cân đo giữ số lẻ")
+    void forecastRoundsCountablePurchaseUnitUpPerDay() {
+        jdbc.update("UPDATE foods SET purchase_unit = 'hộp 100 g', purchase_unit_size = 100 WHERE id = ?", pork);
+
+        FreshForecastResponse preview = freshService.previewForecast(principal, request(MONDAY, FRIDAY, null));
+
+        // Thịt 2 × 40 g = 80 g/ngày ⇒ đặt 1 hộp 100 g mỗi ngày; rau (kg) giữ 125 g/ngày
+        assertThat(preview.lines())
+                .filteredOn(l -> "THIT".equals(l.food().code()))
+                .singleElement()
+                .satisfies(l -> {
+                    assertThat(l.byDate())
+                            .allSatisfy(d -> assertThat(d.quantity()).isEqualByComparingTo("100"));
+                    assertThat(l.totalQty())
+                            .isEqualByComparingTo(
+                                    BigDecimal.valueOf(100L * l.byDate().size()));
+                });
+        assertThat(preview.lines())
+                .filteredOn(l -> "RAU".equals(l.food().code()))
+                .singleElement()
+                .satisfies(l -> assertThat(l.byDate())
+                        .allSatisfy(d -> assertThat(d.quantity()).isEqualByComparingTo("125")));
+    }
+
+    @Test
     @DisplayName("NUT-07: tuần nháp vẫn tính, tuần chưa có thực đơn không có dòng; thứ Bảy, Chủ nhật là ngày nghỉ")
     void draftWeekCountsAndMissingMenuHasNoLines() {
         FreshForecastResponse draft =
@@ -398,6 +424,23 @@ class FreshGoodsIntegrationTest {
         // Lần 2 không gắn bản dự trù và không ảnh hưởng lần 1
         assertThat(recorded.rounds().get(1).forecastId()).isNull();
         assertThat(recorded.rounds().getFirst().recorded()).isFalse();
+    }
+
+    @Test
+    @DisplayName("NUT-12: lần 2 với đơn vị mua đếm được ⇒ lượng cần nhận làm tròn lên nguyên đơn vị")
+    void roundTwoRoundsCountablePurchaseUnitUp() {
+        jdbc.update("UPDATE foods SET purchase_unit = 'hộp 150 g', purchase_unit_size = 150 WHERE id = ?", pork);
+        long count = insertCount("PENDING_CONFIRMATION");
+        addLine(count, 10);
+        jdbc.update("UPDATE meal_counts SET status = 'CONFIRMED', confirmed_at = now() WHERE id = ?", count);
+
+        FreshCheckResponse.FreshCheckRound ready =
+                freshService.getChecks(principal, campus, MONDAY).rounds().get(1);
+
+        // Thịt 10 × 40 g = 400 g ⇒ 3 hộp 150 g = 450 g; rau (kg) giữ 625 g
+        assertThat(ready.lines())
+                .extracting(l -> l.food().code(), l -> l.expectedQty().intValue())
+                .containsExactlyInAnyOrder(tuple("THIT", 450), tuple("RAU", 625));
     }
 
     @Test
