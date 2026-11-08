@@ -194,6 +194,27 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Map<Long, Long> findHomeroomTeacherIds(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findHomeroomTeacherIds|classCount=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> homeroom = classroomIds.isEmpty()
+                    ? Map.of()
+                    : staffAssignmentRepository.findCurrentTeachers(classroomIds, date).stream()
+                            .filter(StaffAssignment::isHomeroom)
+                            .collect(Collectors.toMap(
+                                    StaffAssignment::getClassroomId,
+                                    StaffAssignment::getUserId,
+                                    (first, second) -> first));
+            log.info("{}|END", logPrefix);
+            return homeroom;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderIds|ageGroupId=" + ageGroupId;
         log.info("{}|START", logPrefix);
@@ -201,6 +222,24 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             Set<Long> userIds = Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderIds(ageGroupId, date));
             log.info("{}|END", logPrefix);
             return userIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findCampusConfirmerIds(Long campusId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findCampusConfirmerIds|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<Long> ids = staffAssignmentRepository.findActiveLeaderIds(StaffRole.VICE_PRINCIPAL, campusId, date);
+            if (ids.isEmpty()) {
+                ids = staffAssignmentRepository.findActiveLeaderIds(StaffRole.PRINCIPAL, null, date);
+            }
+            Set<Long> result = Set.copyOf(ids);
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -357,6 +396,25 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
 
     @Override
     @Transactional
+    public void realignYearAssignments(
+            Long schoolYearId, LocalDate oldStart, LocalDate oldEnd, LocalDate newStart, LocalDate newEnd) {
+        String logPrefix = LOG_PREFIX + "|realignYearAssignments|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            int ends =
+                    oldEnd.equals(newEnd) ? 0 : staffAssignmentRepository.realignYearEnd(schoolYearId, oldEnd, newEnd);
+            int starts = oldStart.equals(newStart)
+                    ? 0
+                    : staffAssignmentRepository.realignYearStart(schoolYearId, oldStart, newStart);
+            log.info("{}|ends={}|starts={}|END", logPrefix, ends, starts);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
     public StaffAssignmentResponse endAssignment(Long assignmentId, LocalDate lastDay) {
         String logPrefix = LOG_PREFIX + "|endAssignment|assignmentId=" + assignmentId;
         log.info("{}|START", logPrefix);
@@ -394,7 +452,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                 .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
         LocalDate today = LocalDate.now(clock);
         Set<Long> teacher = Set.of(assignment.userId());
-        teacherClassRules.checkTeachers(classroom, year, teacher, today);
+        teacherClassRules.lockForAssignment(classroom, teacher);
+        // Dạy thay / phân công lẻ: GV trong điểm trường của lớp
+        teacherClassRules.checkTeachers(classroom, year, teacher, today, false);
         if (!assignment.substitute()) {
             teacherClassRules.checkOneMainClass(classroom, year, teacher, today);
         }

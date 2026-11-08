@@ -7,8 +7,10 @@ import com.carenest.dto.attendance.DayInfoResponse;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceResponse;
 import com.carenest.security.CurrentUser;
+import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.MealSession;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -27,12 +29,17 @@ public interface AttendanceService {
             int present,
             int absent,
             int missing,
-            Map<MealSession, Integer> meals) {}
+            Map<MealSession, Integer> meals,
+            // Trẻ có mặt có khai dị ứng trong hồ sơ: suất thay thế (nằm trong meals, Cần chốt 04/11/2026)
+            Map<MealSession, Integer> substitutes) {}
 
     /** schoolYearId = năm chọn ở header; null = năm đang hoạt động. */
     List<AttendanceClassResponse> getClasses(CurrentUser currentUser, Long schoolYearId);
 
     DayInfoResponse getDayInfo(CurrentUser currentUser, LocalDate date, Long classId);
+
+    /** Ngày học / giờ chốt của năm đang hoạt động cho tác vụ hệ thống (không có người dùng). */
+    DayInfoResponse getActiveYearDayInfo(LocalDate date);
 
     ClassAttendanceResponse getClassAttendance(CurrentUser currentUser, Long classId, LocalDate date);
 
@@ -46,4 +53,17 @@ public interface AttendanceService {
 
     /** Lớp của năm học tại một điểm trường (chỉ dùng nội bộ: module suất ăn tự kiểm quyền). */
     List<ClassMealTally> tallyMeals(LocalDate date, Long campusId, Long schoolYearId);
+
+    /** Trạng thái điểm danh của một trẻ trong một ngày (chỉ dùng nội bộ, module gọi tự kiểm quyền). */
+    record ChildDayStatus(Long childId, LocalDate date, AttendanceStatus status) {}
+
+    /** Điểm danh của các trẻ trong khoảng ngày; ngày chưa điểm danh thì không có dòng (đánh giá trẻ đọc, EDU-19). */
+    List<ChildDayStatus> findDayStatuses(Collection<Long> childIds, LocalDate from, LocalDate to);
+
+    /** Một dòng điểm danh của lớp: trạng thái và các bữa trẻ ăn (chỉ dùng nội bộ, module gọi tự kiểm quyền). */
+    record ClassChildDay(
+            Long classroomId, Long childId, LocalDate date, AttendanceStatus status, List<MealSession> meals) {}
+
+    /** Điểm danh của các lớp trong khoảng ngày (báo cáo chất lượng tháng đọc); ngày chưa điểm danh thì không có dòng. */
+    List<ClassChildDay> findClassDays(Collection<Long> classroomIds, LocalDate from, LocalDate to);
 }

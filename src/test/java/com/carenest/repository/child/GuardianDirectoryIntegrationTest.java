@@ -65,10 +65,10 @@ class GuardianDirectoryIntegrationTest {
                 "INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (?, ?, 'A2') RETURNING id",
                 campus,
                 year);
-        childAn = insert(
-                "INSERT INTO children (full_name, date_of_birth) VALUES ('Nguyễn An', '2022-01-01') RETURNING id");
-        childBinh = insert(
-                "INSERT INTO children (full_name, date_of_birth) VALUES ('Trần Bình', '2022-02-02') RETURNING id");
+        childAn = insert("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) "
+                + "VALUES ('HS26001', 'Nguyễn An', '2022-01-01', 'MALE', 'ACTIVE', '2026-09-01') RETURNING id");
+        childBinh = insert("INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) "
+                + "VALUES ('HS26002', 'Trần Bình', '2022-02-02', 'FEMALE', 'ACTIVE', '2026-09-01') RETURNING id");
         jdbc.update(
                 "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
                 childAn,

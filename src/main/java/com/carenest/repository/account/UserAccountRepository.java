@@ -3,6 +3,8 @@ package com.carenest.repository.account;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -11,6 +13,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface UserAccountRepository extends JpaRepository<UserAccount, Long>, JpaSpecificationExecutor<UserAccount> {
+
+    @Modifying
+    @Query(
+            "update UserAccount u set u.citizenId = :citizenId where u.id = :userId and (u.citizenId is null or u.citizenId = :citizenId)")
+    int claimCitizenId(@Param("userId") Long userId, @Param("citizenId") String citizenId);
 
     Optional<UserAccount> findByKeycloakUserId(String keycloakUserId);
 
@@ -26,6 +33,12 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
 
     java.util.List<UserAccount> findByEmailIgnoreCase(String email);
 
-    java.util.List<UserAccount> findAllByPrimaryRoleAndStatusOrderByFullNameAsc(
-            CareNestRole primaryRole, UserStatus status);
+    // CCCD phụ huynh là khóa nhận diện (AUTH-18, UNIQUE ở V63)
+    Optional<UserAccount> findByCitizenId(String citizenId);
+
+    List<UserAccount> findAllByCitizenIdIn(Collection<String> citizenIds);
+
+    List<UserAccount> findAllByUsernameIn(Collection<String> usernames);
+
+    List<UserAccount> findAllByPrimaryRoleAndStatusOrderByFullNameAsc(CareNestRole primaryRole, UserStatus status);
 }

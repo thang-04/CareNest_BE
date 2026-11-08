@@ -54,6 +54,11 @@ public class ResponseContractTestController {
         throw GlobalException.of(ApiCode.MEAL_COUNT_ALREADY_CONFIRMED);
     }
 
+    @GetMapping("/stale")
+    ResponseEntity<ResponseJson<Void>> throwStale() {
+        throw new org.springframework.orm.ObjectOptimisticLockingFailureException("RewardList", 1L);
+    }
+
     @GetMapping("/unexpected")
     ResponseEntity<ResponseJson<Void>> throwUnexpected() {
         throw new IllegalStateException("secret internal detail");

@@ -22,3 +22,8 @@ Dùng làm checklist khi implement/review. Khi xảy ra thật ⇒ tạo inciden
 | --- | --- | --- | --- |
 | BUG-261007-openapi-create-account-status | BE → FE/APP | OpenAPI tạo tài khoản mô tả 200, source trả 201 | [Incident](incidents/BUG-261007-openapi-create-account-status.md) |
 | GAP-261022-fe-auth-not-integrated | BE → FE | FE `dev` chưa ghép auth BE: gọi `/auth/me`, `/users`, `/me/profile` (BE không có), không CSRF/refresh; gateway FE chỉ ở nhánh G94-209 | [Report](../quality/reports/2026-10-22-auth-fe-integration-gap.md) |
+
+| BUG-261103-meal-campus-concurrent-pending | attendance → nutrition | Serialize shared campus/day pending updates before reads | [Incident](incidents/BUG-261103-meal-campus-concurrent-pending.md) |
+| FE-BUG-261103-attendance-leave-refresh | BE → FE attendance | Parent leave submit/cancel reconciles teacher drafts safely | [Incident](../../../CareNest_FE/docs/knowledge/incidents/FE-BUG-261103-attendance-leave-refresh.md) |
+
+| BUG-261105-health-pickup-context | BE → FE sức khỏe | Đồng bộ canRecord/giờ trả và liên hệ hồ sơ, giữ POST guard | [Incident](incidents/BUG-261105-health-pickup-context.md) |

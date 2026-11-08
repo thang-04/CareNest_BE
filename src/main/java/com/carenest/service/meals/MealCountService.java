@@ -15,8 +15,20 @@ public interface MealCountService {
 
     MealCountResponse confirm(CurrentUser currentUser, Long mealCountId);
 
+    /**
+     * seenServings / seenSubstitute: tổng suất và suất thay thế cơ sở–ngày người duyệt đang thấy (null = không kiểm);
+     * số đã đổi ⇒ không xác nhận.
+     */
+    MealCountResponse confirm(CurrentUser currentUser, Long mealCountId, Integer seenServings, Integer seenSubstitute);
+
+    /** Lập sổ báo ăn của hôm nay cho mọi cơ sở nếu chưa ai mở sổ sau giờ chốt (NUT-01): tác vụ cuối ngày. */
+    void aggregateLockedDay();
+
     List<MealCountResponse> adjust(CurrentUser currentUser, MealAdjustRequest request);
 
     /** Điểm danh của lớp đổi sau khi đã tổng hợp ⇒ số đã xác nhận chuyển chờ xác nhận lại (ATT-07, ADR-0005). */
     void markAttendanceChanged(LocalDate date, Long campusId, Long classroomId);
+
+    /** Số suất của điểm trường–ngày vừa chuyển sang đã chốt (xác nhận hoặc xác nhận lại); phát sau commit (ADR-0004). */
+    record MealCountConfirmedEvent(Long campusId, LocalDate date) {}
 }

@@ -6,11 +6,25 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 /** Mọi query lọc theo ngày: chỉ phân công có hiệu lực tại {@code date} mới tạo phạm vi. */
 public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment, Long> {
+
+    // AUTH-24: khóa phân công GV của lớp / của GV trong năm học tới hết transaction (mọi đường phân công dùng chung)
+    @Query(
+            value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(concat('carenest:class-teachers:',"
+                    + " CAST(:classId AS text)), 0))",
+            nativeQuery = true)
+    Integer lockClassTeachers(@Param("classId") Long classId);
+
+    @Query(
+            value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(concat('carenest:teacher-year:',"
+                    + " CAST(:teacherId AS text), ':', CAST(:yearId AS text)), 0))",
+            nativeQuery = true)
+    Integer lockTeacherYear(@Param("teacherId") Long teacherId, @Param("yearId") Long yearId);
 
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
@@ -99,6 +113,13 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " and a.ageGroupId = :ageGroupId and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
     List<Long> findActiveTeamLeaderIds(@Param("ageGroupId") Long ageGroupId, @Param("date") LocalDate date);
 
+    // Người đang giữ một vai trò quản lý: PHT của campus (campusId) hoặc HT (campusId null)
+    @Query("select distinct a.userId from StaffAssignment a where a.staffRole = :role"
+            + " and (:campusId is null or a.campusId = :campusId)"
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findActiveLeaderIds(
+            @Param("role") StaffRole role, @Param("campusId") Long campusId, @Param("date") LocalDate date);
+
     // GV hiện tại của lớp: phân công chưa kết thúc tính tới ngày :date (gồm phân công bắt đầu sau, cho năm sắp tới)
     @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
             + " and a.classroomId in :classroomIds and (a.validTo is null or a.validTo >= :date) order by a.id")
@@ -144,9 +165,37 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("yearStart") LocalDate yearStart,
             @Param("yearEnd") LocalDate yearEnd);
 
+    // Ứng viên PHT: người từng có phân công PHT (vai trò nằm ở Keycloak, chưa có API tài khoản để đọc)
+    @Query(
+            value = "select distinct u.id as userId, u.full_name as fullName, u.email as email, u.status as status"
+                    + " from staff_assignments a join user_accounts u on u.id = a.user_id"
+                    + " where a.staff_role = 'VICE_PRINCIPAL' order by u.full_name, u.id",
+            nativeQuery = true)
+    List<VicePrincipalRow> findVicePrincipalRows();
+
+    // Phân công PHT giao với khoảng [from, to]; mới nhất trước
+    @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL"
+            + " and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)"
+            + " order by a.validFrom desc, a.id desc")
+    List<StaffAssignment> findVicePrincipalAssignments(@Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL"
+            + " and a.userId = :userId and (a.validTo is null or a.validTo >= :from) order by a.validFrom, a.id")
+    List<StaffAssignment> findOpenVicePrincipalAssignments(@Param("userId") Long userId, @Param("from") LocalDate from);
+
     // Tài khoản bị khóa / ngừng (đọc bảng user_accounts của module tài khoản, chỉ đọc)
     @Query(value = "select u.id from user_accounts u where u.id in :ids and u.status <> 'ACTIVE'", nativeQuery = true)
     List<Long> findInactiveUserIds(@Param("ids") Collection<Long> ids);
+
+    interface VicePrincipalRow {
+        Long getUserId();
+
+        String getFullName();
+
+        String getEmail();
+
+        String getStatus();
+    }
 
     interface TeacherRow {
         Long getUserId();
@@ -197,4 +246,26 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("campusId") Long campusId,
             @Param("classroomId") Long classroomId,
             @Param("validFrom") LocalDate validFrom);
+
+    // Phân công gắn với năm học (lớp của năm, tổ trưởng / PHT ghi school_year_id) theo ngày năm học khi đổi ngày năm
+    @Modifying
+    @Query(
+            value = "UPDATE staff_assignments a SET valid_to = :newEnd, updated_at = now()"
+                    + " WHERE (a.school_year_id = :yearId OR a.classroom_id IN"
+                    + " (SELECT c.id FROM classrooms c WHERE c.school_year_id = :yearId))"
+                    + " AND (a.valid_to = :oldEnd OR a.valid_to > :newEnd) AND a.valid_from <= :newEnd",
+            nativeQuery = true)
+    int realignYearEnd(
+            @Param("yearId") Long yearId, @Param("oldEnd") LocalDate oldEnd, @Param("newEnd") LocalDate newEnd);
+
+    @Modifying
+    @Query(
+            value = "UPDATE staff_assignments a SET valid_from = :newStart, updated_at = now()"
+                    + " WHERE (a.school_year_id = :yearId OR a.classroom_id IN"
+                    + " (SELECT c.id FROM classrooms c WHERE c.school_year_id = :yearId))"
+                    + " AND (a.valid_from = :oldStart OR a.valid_from < :newStart)"
+                    + " AND (a.valid_to IS NULL OR a.valid_to >= :newStart)",
+            nativeQuery = true)
+    int realignYearStart(
+            @Param("yearId") Long yearId, @Param("oldStart") LocalDate oldStart, @Param("newStart") LocalDate newStart);
 }

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.verify;
 import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
+import com.carenest.dto.organization.SchoolYearSemesterRequest;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
@@ -19,6 +20,7 @@ import com.carenest.repository.organization.AttendanceCutoffRepository;
 import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.organization.SemesterUsageCheck;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -48,6 +50,11 @@ class SchoolYearServiceImplTest {
     private final SchoolYearRepository schoolYearRepository = mock(SchoolYearRepository.class);
     private final ClassroomRepository classroomRepository = mock(ClassroomRepository.class);
     private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
+    private final SemesterUsageCheck semesterUsage = mock(SemesterUsageCheck.class);
+    private final com.carenest.service.organization.SchoolDayUsageCheck dayUsage =
+            mock(com.carenest.service.organization.SchoolDayUsageCheck.class);
+    private final com.carenest.repository.organization.SchoolHolidayRepository holidayRepository =
+            mock(com.carenest.repository.organization.SchoolHolidayRepository.class);
     private final SchoolYearServiceImpl service = new SchoolYearServiceImpl(
             schoolYearRepository,
             classroomRepository,
@@ -55,7 +62,10 @@ class SchoolYearServiceImplTest {
             staffAssignmentService,
             new SchoolStructureMapper(),
             FIXED_CLOCK,
-            new DevActivationProperties(false, false, false));
+            new DevActivationProperties(false, false, false),
+            List.of(semesterUsage),
+            holidayRepository,
+            List.of(dayUsage));
 
     @BeforeEach
     void principalHasActiveAssignment() {
@@ -157,6 +167,152 @@ class SchoolYearServiceImplTest {
 
         assertThat(updated.startDate()).isEqualTo(LocalDate.of(2027, 9, 6));
         verify(schoolYearRepository).findOverlapping(LocalDate.of(2027, 9, 6), LocalDate.of(2028, 5, 31), 5L);
+    }
+
+    @Test
+    void activeYearKeepsItsStartAndCannotEndInThePast() {
+        var active = year(4L, "2026-2027", SchoolYearStatus.ACTIVE, "2026-09-01");
+        given(schoolYearRepository.findById(4L)).willReturn(Optional.of(active));
+
+        assertThatThrownBy(() -> service.updateSchoolYear(
+                        PRINCIPAL,
+                        4L,
+                        new SchoolYearRequest("2026-2027", LocalDate.of(2026, 9, 7), LocalDate.of(2027, 5, 31))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_START_LOCKED);
+        assertThatThrownBy(() -> service.updateSchoolYear(
+                        PRINCIPAL,
+                        4L,
+                        new SchoolYearRequest("2026-2027", LocalDate.of(2026, 9, 1), LocalDate.of(2026, 10, 1))))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_END_BEFORE_TODAY);
+    }
+
+    @Test
+    void holidayRangesAreValidatedAndSkippedAsSchoolDays() {
+        given(schoolYearRepository.findById(5L))
+                .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
+        expectCode(
+                holidays(holiday("2027-09-02", "2027-09-03", "Quốc khánh"), holiday("2028-05-30", "2028-06-02", "Hè")),
+                ApiCode.HOLIDAY_OUT_OF_YEAR);
+        expectCode(holidays(holiday("2027-09-03", "2027-09-02", "Ngược")), ApiCode.HOLIDAY_RANGE_INVALID);
+        expectCode(holidays(holiday("2028-01-20", "2028-02-25", "Tết quá dài")), ApiCode.HOLIDAY_TOO_LONG);
+        expectCode(
+                holidays(holiday("2028-02-01", "2028-02-10", "Tết"), holiday("2028-02-09", "2028-02-12", "Bù")),
+                ApiCode.HOLIDAY_OVERLAP);
+        given(dayUsage.firstUsedDay(LocalDate.of(2027, 9, 2), LocalDate.of(2027, 9, 3)))
+                .willReturn(Optional.of(LocalDate.of(2027, 9, 3)));
+        expectCode(holidays(holiday("2027-09-02", "2027-09-03", "Quốc khánh")), ApiCode.HOLIDAY_HAS_ATTENDANCE);
+
+        var holidayDate = LocalDate.of(2028, 2, 9);
+        given(holidayRepository.existsByStartDateLessThanEqualAndEndDateGreaterThanEqual(holidayDate, holidayDate))
+                .willReturn(true, false);
+        assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 9))).isFalse(); // thứ 4 trong đợt Tết
+        assertThat(service.isSchoolDay(holidayDate)).isTrue(); // danh sách nghỉ đã thay đổi
+        assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 14))).isTrue();
+        assertThat(service.isSchoolDay(LocalDate.of(2028, 2, 12))).isFalse(); // thứ 7
+    }
+
+    private static com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem holiday(
+            String from, String to, String name) {
+        return new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem(
+                LocalDate.parse(from), LocalDate.parse(to), name);
+    }
+
+    private ThrowingCallable holidays(com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem... items) {
+        return () -> service.replaceHolidays(
+                PRINCIPAL,
+                5L,
+                new com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest(List.of(items)));
+    }
+
+    private static void expectCode(ThrowingCallable call, ApiCode apiCode) {
+        assertThatThrownBy(call)
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(apiCode);
+    }
+
+    @Test
+    void principalSetsBothSemesters() {
+        given(schoolYearRepository.findById(5L))
+                .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
+
+        SchoolYearDetailResponse updated = service.updateSemester(
+                PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-17", "2028-05-31"));
+
+        assertThat(updated.semester1Start()).isEqualTo(LocalDate.of(2027, 9, 1));
+        assertThat(updated.semester2End()).isEqualTo(LocalDate.of(2028, 5, 31));
+    }
+
+    @Test
+    void semesterWithSemesterEvaluationsKeepsItsDates() {
+        var year = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01");
+        year.changeSemesters(
+                LocalDate.of(2027, 9, 1),
+                LocalDate.of(2028, 1, 14),
+                LocalDate.of(2028, 1, 17),
+                LocalDate.of(2028, 5, 31));
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(year));
+        given(semesterUsage.usedBySemester(5L, LocalDate.of(2027, 9, 1), LocalDate.of(2028, 1, 14)))
+                .willReturn(true);
+
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-10", "2028-01-17", "2028-05-31")),
+                ApiCode.SEMESTER_DATES_LOCKED);
+        assertThat(service.getSemesterLocks(PRINCIPAL, 5L))
+                .isEqualTo(new com.carenest.dto.organization.SemesterLockResponse(true, false));
+        // Học kỳ II chưa có đánh giá học kỳ: vẫn đổi được
+        SchoolYearDetailResponse updated = service.updateSemester(
+                PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-18", "2028-05-31"));
+        assertThat(updated.semester2Start()).isEqualTo(LocalDate.of(2028, 1, 18));
+    }
+
+    @Test
+    void semesterDatesAreValidated() {
+        given(schoolYearRepository.findById(5L))
+                .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
+
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, new SchoolYearSemesterRequest(LocalDate.of(2027, 9, 1), null, null, null)),
+                ApiCode.SEMESTER_DATE_REQUIRED);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-08-31", "2028-01-14", "2028-01-17", "2028-05-31")),
+                ApiCode.SEMESTER_OUT_OF_YEAR);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-17", "2028-06-01")),
+                ApiCode.SEMESTER_OUT_OF_YEAR);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-12-01", "2027-11-30", "2028-01-17", "2028-05-31")),
+                ApiCode.SEMESTER_START_AFTER_END);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-05-31", "2028-05-30")),
+                ApiCode.SEMESTER_START_AFTER_END);
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-14", "2028-05-31")),
+                ApiCode.SEMESTER_OVERLAP);
+    }
+
+    @Test
+    void yearDatesCannotCutSetSemesters() {
+        SchoolYear planned = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01");
+        planned.changeSemesters(
+                LocalDate.of(2027, 9, 1),
+                LocalDate.of(2028, 1, 14),
+                LocalDate.of(2028, 1, 17),
+                LocalDate.of(2028, 5, 31));
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(planned));
+
+        expectError(
+                () -> service.updateSchoolYear(PRINCIPAL, 5L, request("2027-2028", "2027-09-06")),
+                ApiCode.SEMESTER_OUT_OF_YEAR);
     }
 
     @Test
@@ -287,6 +443,11 @@ class SchoolYearServiceImplTest {
         given(schoolYearRepository.findById(anyLong())).willReturn(Optional.empty());
 
         expectError(() -> service.getSchoolYear(VICE_PRINCIPAL, 404L), ApiCode.NOT_FOUND);
+    }
+
+    private static SchoolYearSemesterRequest semesters(String s1Start, String s1End, String s2Start, String s2End) {
+        return new SchoolYearSemesterRequest(
+                LocalDate.parse(s1Start), LocalDate.parse(s1End), LocalDate.parse(s2Start), LocalDate.parse(s2End));
     }
 
     private static SchoolYearRequest request(String name, String startDate) {

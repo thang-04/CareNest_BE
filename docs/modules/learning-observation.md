@@ -6,13 +6,13 @@ Feature: `observation` (trong `controller/`, `service/`, `repository/`, ... — 
 Hồ sơ phát triển liên tục của trẻ: đánh giá hằng ngày có cấu trúc, đánh giá hằng ngày theo MT của giáo án đã duyệt, nhận xét định kỳ, khen thưởng; nhận xét chung về lớp mỗi ngày cho báo cáo BGH (RPT-02).
 
 ## Owns
-ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ (tuần/tháng/học kỳ/năm, DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
+ObservationCriteria/Option (cấu hình — P-11), đánh giá ngày (mọi trẻ có mặt, 7 mặt, 3 mức, khóa hết ngày — OBS-01, OBS-02, OBS-12), đánh giá hằng ngày theo MT (EDU-19, OBS-07), nhận xét định kỳ (tháng/học kỳ/năm — `EvaluationPeriodType` MONTH/SEMESTER/YEAR; học kỳ lấy ngày học kỳ của năm học; DRAFT → GV xác nhận — OBS-05, OBS-06), cờ ngày + phiếu bé ngoan (OBS-10), khen cuối năm (OBS-14), nhận xét lớp hằng ngày (RPT-02), DevelopmentProfile (read model — OBS-03).
 
 ## KHÔNG owns
 Kế hoạch giáo dục, giáo án và hoạt động, MT của chúng (module education-plan, ADR-0020 — chỉ đọc bản đã duyệt, OBS-07); dữ liệu sức khỏe/điểm danh/bữa ăn (chỉ đọc).
 
 ## Rules
-OBS-01..14 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/business/flows/child-observation.md`.
+OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/business/flows/child-observation.md`.
 
 ## Phụ thuộc
 - Dùng: service `child`, service `attendance`, service `meals`, service `health`, service `eduplan` (giáo án đã duyệt) — chỉ query; `AiClient` (`integration/`).
@@ -20,15 +20,30 @@ OBS-01..14 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 - Module downstream nhất trong child record — không module domain nào được import learning.
 
 ## API & bảng
-Chưa có. Nhập đánh giá ngày theo batch cả lớp.
+- `GET /classes/{classId}/daily-assessment?date=` (GV/PHT/HT), `PUT .../daily-assessment/general`, `PUT .../daily-assessment/skills` (GV lớp).
+- `GET|POST /assessment/day-unlocks`, `POST /assessment/day-unlocks/{id}/revoke` (PHT/HT).
+- `GET /assessment/overview?period=DAY|WEEK|MONTH`, `GET /assessment/overview/classes/{classId}` (PHT/HT).
+- `GET /assessment/theme-evaluations/classes?schoolYearId` (lớp mọi nhóm tuổi trong phạm vi xem, cờ `teaches`), `GET /assessment/theme-evaluations/themes?classId`, `GET|PUT /assessment/theme-evaluations`, `POST .../confirm` — đánh giá cuối chủ đề mọi nhóm tuổi (OBS-27), bảng `theme_evaluations` (V75, V76 khóa theo dòng gốc chủ đề); chủ đề/MT đọc từ kế hoạch năm học đã duyệt bằng truy vấn chỉ đọc trong `ThemeEvaluationRepository` (không gọi code module kế hoạch giáo dục ngoài `EduLessonQueryService.findGoalLineages`).
+- `GET|PUT /assessment/evaluations/{id}/year-sheet` — phiếu đánh giá sự phát triển cuối năm (OBS-28) gắn vào đánh giá cuối năm: MT kế hoạch năm theo lĩnh vực (`ThemeEvaluationRepository.findYearGoals`), kết quả tổng hợp từ cuối chủ đề (`ThemeEvaluationService.childThemeResults`), số đo từ `HealthMeasurementService.findLatestMeasurement`; cột `child_evaluations.goal_results`, `note_for_*` (V79); xác nhận đánh giá cuối năm gọi `YearEndSheetService.freeze`.
+- `GET|PUT /assessment/class-monthly-comments`, `POST .../confirm` — nhận xét chung cả lớp theo tháng, bảng `class_monthly_comments` (V72), OBS-26.
+- `GET /assessment/class-ratings?period=SEMESTER_1|SEMESTER_2|YEAR` (HT/PHT/GV), `PUT /assessment/class-ratings` (HT; PHT lớp điểm trường mình) — xếp loại nhóm lớp, bảng `class_ratings` (V69), OBS-24.
+- Đánh giá học kỳ `periodType=SEMESTER` (V68); `SemesterEvaluationUsageImpl` cài `organization.SemesterUsageCheck` để khóa ngày học kỳ đã có đánh giá (OBS-25).
+- Bảng: `daily_observations`, `daily_activity_results`, `assessment_day_unlocks` (V41). Mã lỗi 73xx.
+- Nhận xét chung lớp: `class_daily_comments` (V42), PUT General thêm `classComment` optional (thiếu/null giữ, rỗng xóa); cho phép entries rỗng khi chỉ lưu nhận xét. GET sheet có `classComment`, overview/detail có `classComments` theo đúng lớp/ngày; kèm người ghi/thời gian, không tính vào số trẻ đã đánh giá (OBS-19).
+- Đọc giáo án đã duyệt qua `EduLessonQueryService` (education-plan); điểm danh / sức khỏe qua `AttendanceService.findDayStatuses`, `DailyHealthService.findLatestDaySigns`.
 
 ## PENDING
-P-11 (tiêu chí cố định theo Bộ hay trường cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
+P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng enum theo danh sách FE đã chốt với Cần, lệch OBS-02 cho tới khi có màn cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
 
 ## Known pitfalls
+
+- OBS-28: freeze chốt cả kết quả và metadata MT (số, câu, lĩnh vực) — đã sửa, xem [lỗi phiếu cuối năm](../knowledge/incidents/BUG-261104-confirmed-year-sheet-live-goals.md). Khi client lưu/tải lại phiếu, cần giữ hoặc khóa nháp trong lúc chờ để tránh mất nội dung.
+
+- Class-comment get/save/confirm must validate the month intersects the class year, including partial boundary months. See [month scope](../knowledge/incidents/BUG-261103-class-comment-month-scope.md).
+
 - Không enum cứng tiêu chí đánh giá khi P-11 chưa chốt (OBS-02).
 - Trẻ vắng không có đánh giá ngày; trẻ có mặt mặc định "bình thường", GV chỉ sửa trẻ khác thường (OBS-01).
-- Đánh giá ngày khóa sau hết ngày (OBS-12); không mở API sửa ngày cũ.
+- Đánh giá ngày khóa sau hết ngày (OBS-12); không mở API sửa ngày cũ, ngoại lệ là lần mở lại còn hiệu lực do PHT/HT cấp (OBS-18, OBS-19).
 - Nhận xét định kỳ không có bước BGH duyệt; GV xác nhận là xong (OBS-05).
 - Hệ thống không gợi ý trẻ nhận phiếu bé ngoan; GV tự chọn (OBS-10).
 - Không có mục theo dõi/can thiệp riêng trong hồ sơ phát triển (OBS-03).

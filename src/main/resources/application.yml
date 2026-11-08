@@ -29,6 +29,9 @@ carenest:
     endpoint: ${CARENEST_EDUCATION_MEDIA_ENDPOINT:}
     path-style: ${CARENEST_EDUCATION_MEDIA_PATH_STYLE:false}
     prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
+  # Ảnh chân dung phụ huynh (đối chiếu người đón khi trả trẻ): cùng bucket, prefix riêng
+  account-media:
+    prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}

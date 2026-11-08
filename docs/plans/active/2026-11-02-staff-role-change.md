@@ -51,7 +51,7 @@ Không còn.
 - **AC-5** (`AUTH-25`): thu hồi vai trò nhân sự và thêm vai trò nhân sự vào tài khoản phụ huynh đều xóa ngoại lệ cũ, có log.
 - **AC-6** (`AUTH-17`): `GET /accounts` của HT chỉ trả PHT/GV/bếp; Admin trả mọi tài khoản.
 - **AC-7** (`AUTH-15`): Admin tạo HT bằng SĐT đã là phụ huynh (đã xác nhận) ⇒ thêm vai trò PRINCIPAL thành công.
-- **AC-8** (`AUTH-16`): `POST /staff-assignments` cho PHT/bếp đang khóa ⇒ 409 `2322`.
+- **AC-8** (`AUTH-16`): `POST /staff-assignments` cho PHT/bếp đang khóa ⇒ 409 `2326`.
 
 ## Key decisions
 | Quyết định | Chọn | Phương án khác | Vì sao |

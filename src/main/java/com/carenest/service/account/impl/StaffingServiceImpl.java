@@ -95,6 +95,17 @@ public class StaffingServiceImpl implements StaffingService {
                     : staffAssignmentService.resolveCampusId(
                             assignment.staffRole(), assignment.campusId(), assignment.classroomId());
             staffAccessPolicy.checkCanAssign(actor, assignment.staffRole(), campusId);
+            // GV chính của lớp đi qua màn Phân công giáo viên (luật năm đã đóng, lớp phải còn GV); dạy thay được kết
+            // thúc ở đây
+            if (assignment.staffRole() == StaffRole.TEACHER
+                    && assignment.classroomId() != null
+                    && !assignment.substitute()) {
+                throw GlobalException.of(ApiCode.TEACHER_END_VIA_CLASS);
+            }
+            // Không viết lại lịch sử ai phụ trách khi nào (quyền xem lại theo phân công cũ)
+            if (lastDay.isBefore(LocalDate.now(clock).minusDays(1))) {
+                throw GlobalException.of(ApiCode.ASSIGNMENT_END_IN_PAST);
+            }
 
             StaffAssignmentResponse ended = staffAssignmentService.endAssignment(assignmentId, lastDay);
             log.info("{}|END", logPrefix);

@@ -22,7 +22,7 @@ keywords:
   "dị ứng|allergy|childallergy": [child, nutrition]
   "trẻ|child|hồ sơ trẻ|ghi danh|enrollment|chuyển lớp|phụ huynh liên kết|guardian|guardianchildlink": [child]
   "sức khỏe|health|healthrecord|healthinterpretation|chiều cao|cân nặng|measurement|tăng trưởng|trend": [health]
-  "sức khỏe trong ngày|tai nạn|xử trí|khám bác sĩ|who|suy dinh dưỡng|thừa cân|công bố cân đo": [health]
+  "sức khỏe trong ngày|tai nạn|xử trí|khám bác sĩ|who|suy dinh dưỡng|thừa cân|công bố cân đo|bmi|gầy còm|béo phì|cảnh báo sức khỏe|sổ sức khỏe|thấp còi|nhẹ cân|mẫu 5.1|báo cáo tăng trưởng": [health]
   "quan sát|observation|tiêu chí|criteria|nhận xét|summary|đánh giá|assessment|follow-up|phát triển|development profile|developmentprofile|bé ngoan|cắm cờ|khen thưởng|khen cuối năm|reward|nhận xét định kỳ": [learning-observation]
   "hoạt động|activity|activitycontext|gokids|đánh giá theo mt": [learning-observation, education-plan]   # OBS-07, ADR-0006
   "giáo án|kế hoạch giáo dục|mục tiêu năm|mục tiêu năm học|mục tiêu học|year plan|yearplan|eduplan|chủ đề|chủ đề nhánh|chủ đề tuần|kế hoạch tuần|kế hoạch ngày|hồ sơ chủ đề|người ký|đợt nghỉ|lĩnh vực|kết quả mong đợi|tổ trưởng duyệt|học liệu": [education-plan]   # ADR-0020

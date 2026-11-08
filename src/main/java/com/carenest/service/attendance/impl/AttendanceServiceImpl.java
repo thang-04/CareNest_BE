@@ -9,31 +9,42 @@ import com.carenest.dto.attendance.AttendanceSummaryResponse.MultiSummary;
 import com.carenest.dto.attendance.ClassAttendanceResponse;
 import com.carenest.dto.attendance.ClassAttendanceResponse.ChildBrief;
 import com.carenest.dto.attendance.ClassAttendanceResponse.ChildRow;
+import com.carenest.dto.attendance.ClassAttendanceResponse.HealthSummary;
 import com.carenest.dto.attendance.ClassAttendanceResponse.RecordView;
 import com.carenest.dto.attendance.DayInfoResponse;
+import com.carenest.dto.attendance.LeaveRequestDtos.LeaveTag;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceResponse;
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
+import com.carenest.entity.attendance.DailyHealthEntry;
+import com.carenest.entity.attendance.LeaveRequest;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordHistoryRepository;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
+import com.carenest.repository.attendance.DailyHealthEntryRepository;
+import com.carenest.repository.attendance.LeaveRequestRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
+import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.SchoolYearStatus;
+import com.carenest.utils.enums.TemperatureLevel;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -55,16 +66,20 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class AttendanceServiceImpl implements AttendanceService {
+
     private static final String LOG_PREFIX = "[AttendanceServiceImpl]";
     private static final long MAX_SUMMARY_DAYS = 366;
 
     private final AttendanceRecordRepository recordRepository;
     private final AttendanceRecordHistoryRepository historyRepository;
+    private final DailyHealthEntryRepository healthEntryRepository;
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
+    private final ChildService childService;
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
+    private final LeaveRequestRepository leaveRequestRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -121,6 +136,26 @@ public class AttendanceServiceImpl implements AttendanceService {
 
     @Override
     @Transactional(readOnly = true)
+    public DayInfoResponse getActiveYearDayInfo(LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|getActiveYearDayInfo";
+        log.info("{}|START", logPrefix);
+        try {
+            DayInfoResponse info = rules.dayInfo(
+                    date,
+                    null,
+                    classroomService.findActiveYearClassrooms().stream()
+                            .findFirst()
+                            .orElse(null));
+            log.info("{}|END", logPrefix);
+            return info;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ClassAttendanceResponse getClassAttendance(CurrentUser currentUser, Long classId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|getClassAttendance|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
@@ -140,8 +175,20 @@ public class AttendanceServiceImpl implements AttendanceService {
             Map<Long, String> names = accountService.findFullNames(records.values().stream()
                     .map(AttendanceRecord::getRecordedBy)
                     .collect(Collectors.toSet()));
+            // Nhãn sức khỏe ở dòng trẻ theo lần ghi nhận mới nhất của lớp trong ngày
+            Map<Long, List<DailyHealthEntry>> health =
+                    healthEntryRepository
+                            .findByClassroomIdInAndDateOrderByRecordedAtDescIdDesc(List.of(classId), day)
+                            .stream()
+                            .collect(Collectors.groupingBy(DailyHealthEntry::getChildId));
+            Map<Long, LeaveTag> leaves =
+                    leaveTags(children.stream().map(ClassChildResponse::id).collect(Collectors.toSet()), day, cls);
             List<ChildRow> rows = children.stream()
-                    .map(ch -> new ChildRow(toBrief(ch), toView(records.get(ch.id()), cls.mealSessions(), names)))
+                    .map(ch -> new ChildRow(
+                            toBrief(ch),
+                            toView(records.get(ch.id()), cls.mealSessions(), names),
+                            toHealth(health.getOrDefault(ch.id(), List.of())),
+                            leaves.get(ch.id())))
                     .toList();
             ClassAttendanceResponse sheet = new ClassAttendanceResponse(
                     rules.dayInfo(day, cls, null),
@@ -174,8 +221,9 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_YEAR_NOT_ACTIVE);
             }
+            classroomService.lockForUpdate(classId);
             LocalDate date = request.date();
-            if (!AttendanceDayRules.isSchoolDay(date)) {
+            if (!rules.isSchoolDay(date)) {
                 throw GlobalException.of(ApiCode.NOT_SCHOOL_DAY);
             }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
@@ -194,6 +242,9 @@ public class AttendanceServiceImpl implements AttendanceService {
                 if (!classChildIds.contains(entry.childId()) || !seen.add(entry.childId())) {
                     throw GlobalException.of(ApiCode.CHILD_LIST_MISMATCH);
                 }
+            }
+            if (!leaveTags(seen, date, cls).isEmpty()) {
+                throw GlobalException.of(ApiCode.LEAVE_ATTENDANCE_LOCKED);
             }
             Map<Long, AttendanceRecord> existing = recordRepository.findByChildIdInAndDate(seen, date).stream()
                     .collect(Collectors.toMap(AttendanceRecord::getChildId, Function.identity()));
@@ -254,7 +305,12 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|getClassSummary|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
-            ClassroomInfoResponse cls = viewableClass(currentUser, classId);
+            ClassroomInfoResponse cls = findClass(classId);
+            // Tổ trưởng chuyên môn xem tổng hợp (không xem phiếu điểm danh/sức khỏe từng ngày) các lớp nhóm tuổi mình
+            if (!rules.canView(currentUser, cls)
+                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            }
             checkRange(from, to);
             ClassSummary summary = summarize(cls, from, to);
             log.info("{}|END", logPrefix);
@@ -272,13 +328,17 @@ public class AttendanceServiceImpl implements AttendanceService {
         String logPrefix = LOG_PREFIX + "|getSummary|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!currentUser.hasRole(CareNestRole.PRINCIPAL) && !currentUser.hasRole(CareNestRole.VICE_PRINCIPAL)) {
+            boolean leader =
+                    currentUser.hasRole(CareNestRole.PRINCIPAL) || currentUser.hasRole(CareNestRole.VICE_PRINCIPAL);
+            // Tổ trưởng chuyên môn xem tổng hợp các lớp nhóm tuổi mình (Cần chốt 04/11)
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.ATTENDANCE_SUMMARY_ACCESS_DENIED);
             }
             checkRange(from, to);
             List<ClassSummary> parts = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> campusId == null || c.campusId().equals(campusId))
-                    .filter(c -> rules.canView(currentUser, c))
+                    .filter(c -> leader ? rules.canView(currentUser, c) : ledGroups.contains(c.ageGroupId()))
                     .map(c -> summarize(c, from, to))
                     .toList();
             if (campusId != null && parts.isEmpty() && !rules.canReadCampus(currentUser, campusId)) {
@@ -297,6 +357,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                                 sum(rows, DayRow::unexcused),
                                 sum(rows, DayRow::missing),
                                 sum(rows, DayRow::mealTotal),
+                                sum(rows, DayRow::substitute),
                                 Map.of());
                     })
                     .toList();
@@ -315,7 +376,12 @@ public class AttendanceServiceImpl implements AttendanceService {
                     campusId,
                     from,
                     to,
-                    parts.stream().mapToInt(ClassSummary::size).sum(),
+                    // OBS-23 (Z1): trẻ chuyển lớp trong khoảng chỉ đếm một lần ở sĩ số chung
+                    (int) parts.stream()
+                            .flatMap(p -> p.children().stream())
+                            .map(c -> c.child().id())
+                            .distinct()
+                            .count(),
                     days,
                     classes);
             log.info("{}|END", logPrefix);
@@ -355,14 +421,26 @@ public class AttendanceServiceImpl implements AttendanceService {
         int present = 0;
         int absent = 0;
         Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
-        cls.mealSessions().forEach(s -> meals.put(s, 0));
+        Map<MealSession, Integer> substitutes = new EnumMap<>(MealSession.class);
+        cls.mealSessions().forEach(s -> {
+            meals.put(s, 0);
+            substitutes.put(s, 0);
+        });
+        // Trẻ có dị ứng trong hồ sơ ăn suất thay thế (Cần chốt 04/11/2026: map theo hồ sơ, cô chỉ điểm danh)
+        Set<Long> allergic = childService.findChildIdsWithAllergies(records.keySet());
         for (AttendanceRecord r : records.values()) {
             if (r.getStatus().isAbsent()) {
                 absent++;
                 continue;
             }
             present++;
-            cls.mealSessions().forEach(s -> meals.merge(s, 1, Integer::sum));
+            boolean substitute = allergic.contains(r.getChildId());
+            cls.mealSessions().forEach(s -> {
+                meals.merge(s, 1, Integer::sum);
+                if (substitute) {
+                    substitutes.merge(s, 1, Integer::sum);
+                }
+            });
         }
         return new ClassMealTally(
                 cls.id(),
@@ -372,7 +450,24 @@ public class AttendanceServiceImpl implements AttendanceService {
                 present,
                 absent,
                 childIds.size() - present - absent,
-                meals);
+                meals,
+                substitutes);
+    }
+
+    // ATT-04: đơn nghỉ còn hiệu lực của trẻ trong ngày (đơn đã hủy từ ngày này trở đi thì không tính);
+    // ATT-05b: ngày đã khóa lúc tạo đơn bị bỏ qua nên không khóa điểm danh của GV ngày đó
+    private Map<Long, LeaveTag> leaveTags(Set<Long> childIds, LocalDate date, ClassroomInfoResponse cls) {
+        if (childIds.isEmpty()) {
+            return Map.of();
+        }
+        LocalTime cutoff = rules.cutoff(cls.schoolYearId(), date);
+        return leaveRequestRepository.findOverlapping(childIds, date, date).stream()
+                .filter(r -> r.coversDate(date))
+                .filter(r -> !rules.isLockedAt(date, cutoff, r.getCreatedAt()))
+                .collect(Collectors.toMap(
+                        LeaveRequest::getChildId,
+                        r -> new LeaveTag(r.getId(), r.getFromDate(), r.effectiveTo(), r.getReason()),
+                        (a, b) -> a));
     }
 
     private ClassroomInfoResponse findClass(Long classId) {
@@ -409,15 +504,16 @@ public class AttendanceServiceImpl implements AttendanceService {
         }
     }
 
-    private static List<LocalDate> schoolDays(LocalDate from, LocalDate to) {
+    private List<LocalDate> schoolDays(LocalDate from, LocalDate to) {
         return Stream.iterate(from, d -> !d.isAfter(to), d -> d.plusDays(1))
-                .filter(AttendanceDayRules::isSchoolDay)
+                .filter(rules::isSchoolDay)
                 .toList();
     }
 
-    // Trẻ của lớp tại ngày cuối khoảng; ngày chưa có bản ghi tính "chưa điểm danh"
+    // Mọi trẻ từng học lớp trong khoảng; mỗi ngày chỉ tính trẻ thuộc lớp ngày đó (OBS-23)
     private ClassSummary summarize(ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
-        List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(cls.id(), to);
+        List<EnrollmentService.ClassStay> stays = enrollmentService.findStaysInClassroom(cls.id(), from, to);
+        List<ClassChildResponse> children = enrollmentService.findChildrenInClassroomDuring(cls.id(), from, to);
         List<Long> childIds = children.stream().map(ClassChildResponse::id).toList();
         Map<String, AttendanceRecord> records =
                 recordRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
@@ -425,16 +521,20 @@ public class AttendanceServiceImpl implements AttendanceService {
                         .collect(Collectors.toMap(r -> r.getChildId() + ":" + r.getDate(), Function.identity()));
         Map<Long, int[]> perChild = new LinkedHashMap<>();
         children.forEach(ch -> perChild.put(ch.id(), new int[4]));
+        // Trẻ có khai dị ứng trong hồ sơ ăn suất thay thế (giống Sổ báo ăn, Cần chốt 04/11/2026)
+        Set<Long> allergic = childService.findChildIdsWithAllergies(childIds);
         List<DayRow> days = new ArrayList<>();
         for (LocalDate date : schoolDays(from, to)) {
-            int[] counts = new int[5]; // present, excused, unexcused, missing, mealTotal
+            int[] counts = new int[6]; // present, excused, unexcused, missing, mealTotal, substitute
             Map<MealSession, Integer> meals = new EnumMap<>(MealSession.class);
             cls.mealSessions().forEach(s -> meals.put(s, 0));
             for (ClassChildResponse ch : children) {
                 AttendanceRecord r = records.get(ch.id() + ":" + date);
                 int[] child = perChild.get(ch.id());
                 if (r == null) {
-                    counts[3]++;
+                    if (inClass(stays, ch.id(), date)) {
+                        counts[3]++;
+                    }
                     continue;
                 }
                 int slot = r.getStatus() == AttendanceStatus.PRESENT
@@ -445,11 +545,14 @@ public class AttendanceServiceImpl implements AttendanceService {
                 List<MealSession> eaten = mealsFor(r.getStatus(), cls.mealSessions());
                 if (!eaten.isEmpty()) {
                     counts[4]++;
+                    if (allergic.contains(ch.id())) {
+                        counts[5]++;
+                    }
                     child[3]++;
                     eaten.forEach(s -> meals.merge(s, 1, Integer::sum));
                 }
             }
-            days.add(new DayRow(date, counts[0], counts[1], counts[2], counts[3], counts[4], meals));
+            days.add(new DayRow(date, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], meals));
         }
         List<ChildTotal> childTotals = children.stream()
                 .map(ch -> {
@@ -459,6 +562,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .toList();
         return new ClassSummary(
                 cls.id(), cls.name(), cls.campusId(), cls.mealSessions(), from, to, children.size(), days, childTotals);
+    }
+
+    private static boolean inClass(List<EnrollmentService.ClassStay> stays, Long childId, LocalDate date) {
+        return stays.stream().anyMatch(s -> s.childId().equals(childId) && s.covers(date));
     }
 
     private static int sum(List<DayRow> rows, ToIntFunction<DayRow> field) {
@@ -477,5 +584,64 @@ public class AttendanceServiceImpl implements AttendanceService {
         sessions.forEach(s -> meals.put(s, !r.getStatus().isAbsent()));
         return new RecordView(
                 r.getId(), r.getStatus(), meals, r.getRecordedBy(), names.get(r.getRecordedBy()), r.getRecordedAt());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChildDayStatus> findDayStatuses(Collection<Long> childIds, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findDayStatuses|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildDayStatus> result = childIds.isEmpty()
+                    ? List.of()
+                    : recordRepository.findByChildIdInAndDateBetween(childIds, from, to).stream()
+                            .map(r -> new ChildDayStatus(r.getChildId(), r.getDate(), r.getStatus()))
+                            .toList();
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ClassChildDay> findClassDays(Collection<Long> classroomIds, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findClassDays|classes=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            List<ClassChildDay> result = classroomIds.isEmpty()
+                    ? List.of()
+                    : recordRepository.findByClassroomIdInAndDateBetween(classroomIds, from, to).stream()
+                            .map(r -> new ClassChildDay(
+                                    r.getClassroomId(),
+                                    r.getChildId(),
+                                    r.getDate(),
+                                    r.getStatus(),
+                                    r.getMeals() == null ? List.of() : List.copyOf(r.getMeals())))
+                            .toList();
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private static HealthSummary toHealth(List<DailyHealthEntry> entries) {
+        if (entries.isEmpty()) {
+            return new HealthSummary(false, 0, null, null, null, List.of(), "", null);
+        }
+        DailyHealthEntry latest = entries.getFirst();
+        return new HealthSummary(
+                true,
+                entries.size(),
+                latest.getObservation(),
+                latest.getTemperature(),
+                TemperatureLevel.of(latest.getTemperature()),
+                latest.getObservation() == HealthObservation.NOTED ? latest.getSymptoms() : List.of(),
+                latest.getNote(),
+                latest.getRecordedAt());
     }
 }

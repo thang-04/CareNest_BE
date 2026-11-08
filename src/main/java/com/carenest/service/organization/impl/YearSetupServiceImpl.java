@@ -71,11 +71,12 @@ public class YearSetupServiceImpl implements YearSetupService {
                     .map(schoolStructureMapper::toDetailResponse)
                     .toList();
             List<Campus> campuses = campusRepository.findAllByOrderByMainDescCodeAsc();
-            Set<Long> campusesWithVicePrincipal = campusRepository.findActiveCampusStaff(today).stream()
+            LocalDate leaderFrom = today.isAfter(year.getStartDate()) ? today : year.getStartDate();
+            // Năm sắp tới: PHT phụ trách tính tại ngày bắt đầu năm học (phân công cho năm mới bắt đầu từ ngày đó)
+            Set<Long> campusesWithVicePrincipal = campusRepository.findActiveCampusStaff(leaderFrom).stream()
                     .filter(s -> StaffRole.VICE_PRINCIPAL.name().equals(s.getStaffRole()))
                     .map(CampusRepository.CampusStaff::getCampusId)
                     .collect(Collectors.toSet());
-            LocalDate leaderFrom = today.isAfter(year.getStartDate()) ? today : year.getStartDate();
             Set<Long> ageGroupsWithLeader =
                     staffAssignmentRepository
                             .findCurrentTeamLeaders(year.getId(), year.getEndDate(), leaderFrom)
@@ -91,7 +92,9 @@ public class YearSetupServiceImpl implements YearSetupService {
                     campuses.stream()
                             .map(c -> new YearSetupResponse.CampusBrief(c.getId(), c.getShortName()))
                             .toList(),
+                    // Điểm trường đã ngừng hoạt động không cần PHT (ngừng thì đã phải gỡ PHT, CFG-CP-01)
                     campuses.stream()
+                            .filter(Campus::isActive)
                             .map(Campus::getId)
                             .filter(id -> !campusesWithVicePrincipal.contains(id))
                             .toList(),

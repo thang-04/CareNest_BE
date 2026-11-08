@@ -1,9 +1,16 @@
 package com.carenest.controller.organization;
 
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidayItem;
+import com.carenest.dto.organization.SchoolHolidayDtos.SchoolHolidaysRequest;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
+import com.carenest.dto.organization.SchoolYearSemesterRequest;
+import com.carenest.dto.organization.SemesterLockResponse;
+import com.carenest.dto.organization.YearCopyRequest;
+import com.carenest.dto.organization.YearCopyResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.SchoolYearService;
+import com.carenest.service.organization.YearCopyService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -36,6 +43,7 @@ public class SchoolYearController {
     private static final String LOG_PREFIX = "[SchoolYearController]";
 
     private final SchoolYearService schoolYearService;
+    private final YearCopyService yearCopyService;
 
     // GV cần danh sách năm cho bộ chọn năm học; thao tác ghi kiểm tra Hiệu trưởng ở service (lớp 2)
     @GetMapping
@@ -85,6 +93,69 @@ public class SchoolYearController {
         SchoolYearDetailResponse schoolYear = schoolYearService.updateSchoolYear(currentUser, schoolYearId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update school year success", schoolYear);
+    }
+
+    @GetMapping("/{schoolYearId}/holidays")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<SchoolHolidayItem>>> getHolidays(
+            @PathVariable Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getHolidays|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        List<SchoolHolidayItem> holidays = schoolYearService.getHolidays(currentUser, schoolYearId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get holidays success", holidays);
+    }
+
+    @PutMapping("/{schoolYearId}/holidays")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<List<SchoolHolidayItem>>> replaceHolidays(
+            @PathVariable Long schoolYearId,
+            @Valid @RequestBody SchoolHolidaysRequest request,
+            CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|replaceHolidays|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        List<SchoolHolidayItem> holidays = schoolYearService.replaceHolidays(currentUser, schoolYearId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Replace holidays success", holidays);
+    }
+
+    @GetMapping("/{schoolYearId}/semester-locks")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<SemesterLockResponse>> getSemesterLocks(
+            @PathVariable Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getSemesterLocks|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        SemesterLockResponse locks = schoolYearService.getSemesterLocks(currentUser, schoolYearId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get semester locks success", locks);
+    }
+
+    @PutMapping("/{schoolYearId}/semester")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<SchoolYearDetailResponse>> updateSemester(
+            @PathVariable Long schoolYearId,
+            @Valid @RequestBody SchoolYearSemesterRequest request,
+            CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|updateSemester|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        SchoolYearDetailResponse schoolYear = schoolYearService.updateSemester(currentUser, schoolYearId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update semester success", schoolYear);
+    }
+
+    // Thiết lập năm học: chép lớp, GV, tổ trưởng, giờ chốt, học kỳ từ năm học khác sang năm chưa bắt đầu
+    @PostMapping("/{schoolYearId}/copy")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<YearCopyResponse>> copyYear(
+            @PathVariable Long schoolYearId, @Valid @RequestBody YearCopyRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|copyYear|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        YearCopyResponse result = yearCopyService.copyYear(currentUser, schoolYearId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Copy school year success", result);
     }
 
     @DeleteMapping("/{schoolYearId}")

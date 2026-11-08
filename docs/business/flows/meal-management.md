@@ -1,6 +1,6 @@
 # Flow — Thực đơn, dinh dưỡng, định lượng, kho, bếp
 
-Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất). Rule: NUT-*, AI-*. ADR: 0005, 0007, 0008, 0009, 0018. Đối chiếu sơ đồ `Business process for day-boarding.drawio` của team (trang 1.–5.5), user chốt 2026-11-01.
+Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất). Rule: NUT-*, AI-*. ADR: 0005, 0007, 0008, 0009, 0018. Đối chiếu sơ đồ `Business process for day-boarding.drawio` của team (trang 1.–5.5), user chốt 2026-11-01; user chốt 2026-11-02: công bố thực đơn cả tuần (thay công bố theo ngày). Ma trận quyền, màn hình: `meal-management-permissions.md`.
 
 ## Thiết lập (NUT-05, NUT-17, NUT-18)
 
@@ -9,6 +9,8 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
     giá suất, ngày hiệu lực                                                           (NUT-17, NUT-19)
 [S] Danh mục thực phẩm: đơn vị, giá, dinh dưỡng có nguồn, chất dị ứng, Fresh/Stored,
     hệ số thải bỏ; nhập hàng loạt được                                                (NUT-05, NUT-10, NUT-18)
+[S] Thực phẩm có nguồn gốc động vật / thực vật; món, bữa, ngày tính 6 chỉ số
+    (đạm ĐV, đạm TV, béo ĐV, béo TV, glucid, kcal), % cơ cấu và % đạt định mức      (NUT-24)
 [S] Món = nguyên liệu + gam/trẻ theo nhóm tuổi; sao chép món, dùng món tham khảo,
     sao chép định lượng giữa nhóm tuổi                                                (NUT-18)
 ```
@@ -20,22 +22,20 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
       ↓
 [S] Kế hoạch tuần (DRAFT): lập tay | sao chép một tuần của bộ mẫu (xoay vòng) | AI gợi ý (AI-07)
       ↓
-[S] Thực đơn dự kiến ngày: kiểm tra xác định
-    cân đối theo nhu cầu của Bộ — chưa đạt ⇒ sẽ chặn công bố                          (NUT-08, NUT-18)
+[S] Kiểm tra xác định từng ngày trong tuần
+    cân đối theo nhu cầu của Bộ — chưa đạt ⇒ chặn công bố                             (NUT-08, NUT-18)
     giá vượt giá suất/ngày ⇒ cảnh báo                                                 (NUT-19)
     món lặp trong tuần ⇒ cảnh báo                                                     (NUT-20)
     dị ứng                                                                            (NUT-09)
-    kho khô không đủ ⇒ cảnh báo, chưa trừ                                             (NUT-11)
+    kho khô không đủ theo sĩ số dự kiến ⇒ cảnh báo, chưa trừ                          (NUT-11, P-38)
 [S] Món có chất dị ứng mức nặng: PHT chọn món thay thế theo chất × món,
     dùng chung cho mọi trẻ dị ứng chất đó; hệ thống gợi ý                             (NUT-23)
-      ↓ số suất ngày của cả hai cơ sở đã xác nhận (flow attendance.md, NUT-02)
-[S] PHT công bố thực đơn chuẩn của ngày, một lần cho cả trường — công bố là duyệt     (NUT-08)
-      ├─ chưa đạt cân đối, hoặc cơ sở nào thiếu kho khô ⇒ chặn, hiện phần thiếu;
-      │  PHT nhập phiếu bổ sung rồi công bố lại                                       (NUT-08, NUT-11)
-      ├─ trừ kho khô từng cơ sở = định lượng × số suất đã xác nhận, lô hết hạn trước  (NUT-07, NUT-11)
-      └─ bếp nhận thực đơn; phụ huynh xem thực đơn ngày đã công bố                    (PAR-01)
-[S] Phụ huynh xem thực đơn tuần = kế hoạch tuần, có thể đổi tới khi công bố từng ngày (PAR-01)
-[S] Đã công bố thì không sửa                                                          (NUT-08)
+      ↓
+[S] PHT công bố thực đơn CẢ TUẦN, một lần cho cả trường — công bố là duyệt;
+    không chờ chốt suất, không công bố theo ngày                                      (NUT-08, chốt 02/11)
+      └─ bếp và phụ huynh xem thực đơn tuần đã công bố                                (PAR-01)
+[S] Đã công bố thì không sửa; ngoại lệ bất khả kháng: quyền riêng, lý do, báo bếp + PH (NUT-08, P-39)
+[S] Đến ngày: thực đơn không đổi, chỉ thêm ảnh bữa thực tế                           (NUT-16)
 ```
 
 ## Hằng ngày
@@ -45,8 +45,11 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
     chọn kỳ và thực đơn dự kiến; lưu, in danh sách đặt hàng                           (NUT-07, NUT-12)
 [B] PHT gửi NCC; sau giờ chốt báo NCC tăng/giảm hàng tươi                             (NUT-12)
 [B] Bếp kiểm hàng tươi, báo PHT qua Zalo/điện thoại
-[S] PHT ghi đủ/thiếu/thừa: lần 1 so thực đơn dự kiến (bản dự trù),
-    lần 2 so thực đơn chuẩn đã công bố                                                (NUT-12)
+[S] Số suất ngày của cơ sở được xác nhận (flow attendance.md, NUT-02)
+      └─ trừ kho khô cơ sở = định lượng thực đơn tuần đã công bố × suất đã xác nhận,
+         lô hết hạn trước; thiếu ⇒ không chặn xác nhận, ghi phần thiếu, báo PHT      (NUT-07, NUT-11, P-38)
+[S] PHT ghi đủ/thiếu/thừa: lần 1 so bản dự trù (sĩ số dự kiến),
+    lần 2 so nhu cầu theo thực đơn tuần đã công bố × suất đã xác nhận                 (NUT-12)
 [S] Bếp (App) xem thực đơn, số suất theo lớp từng bữa, định lượng,
     số suất dị ứng/thay thế theo lớp — không có tên trẻ                               (AUTH-05, NUT-17, NUT-23)
 [B] Bếp nấu, chia suất theo danh sách lớp
@@ -55,7 +58,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 [B] Thiếu nguyên liệu, thiếu/thừa suất: báo PHT qua Zalo, điện thoại                  (NUT-22)
 ```
 
-## Số suất đổi sau khi công bố (ATT-07, NUT-03, NUT-11)
+## Số suất xác nhận lại (ATT-07, NUT-03, NUT-11)
 
 ```text
 [S] Số suất được xác nhận lại → ghi một lần điều chỉnh kho theo chênh lệch, báo bếp; thực đơn giữ nguyên
@@ -68,7 +71,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 ```text
 [S] PHT quản lý danh mục NCC dùng chung hai cơ sở                                     (NUT-12)
 [S] PHT nhập phiếu nhận trên Web: cơ sở, NCC, lô, hạn dùng, giá; xác nhận ⇒ tạo lô    (NUT-11)
-[S] Trừ một lần khi công bố thực đơn chuẩn ngày; điều chỉnh khi xác nhận lại suất     (NUT-11)
+[S] Trừ theo ngày khi suất cơ sở được xác nhận; điều chỉnh khi xác nhận lại suất     (NUT-11, P-38)
 [S] Xem tồn theo cơ sở, theo lô, lịch sử nhập/trừ. Không chuyển liên cơ sở, không kiểm kê; bếp không dùng Web
 ```
 

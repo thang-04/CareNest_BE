@@ -103,7 +103,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/attendance/summary")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<AttendanceSummaryResponse.MultiSummary>> getSummary(
             @RequestParam(required = false) Long campusId,
             @RequestParam(required = false) Long schoolYearId,

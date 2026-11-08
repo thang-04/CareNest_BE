@@ -10,6 +10,7 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.SchoolYearStatus;
+import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,20 @@ public class ClassroomServiceImpl implements ClassroomService {
     private final ClassroomRepository classroomRepository;
     private final SchoolYearRepository schoolYearRepository;
     private final AgeGroupRepository ageGroupRepository;
+
+    @Override
+    @Transactional
+    public void lockForUpdate(Long classroomId) {
+        String logPrefix = LOG_PREFIX + "|lockForUpdate|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            classroomRepository.findForUpdate(classroomId);
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     public Optional<Long> findCampusId(Long classroomId) {
@@ -141,6 +156,25 @@ public class ClassroomServiceImpl implements ClassroomService {
         }
     }
 
+    @Override
+    public Map<Long, Long> countActiveChildren(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|countActiveChildren|classrooms=" + classroomIds.size() + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> counts = classroomIds.isEmpty()
+                    ? Map.of()
+                    : classroomRepository.countActiveChildren(classroomIds, date).stream()
+                            .collect(Collectors.toMap(
+                                    ClassroomRepository.ClassroomCount::getClassroomId,
+                                    ClassroomRepository.ClassroomCount::getTotal));
+            log.info("{}|END", logPrefix);
+            return counts;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private Map<Long, AgeGroup> ageGroups() {
         return ageGroupRepository.findAll().stream().collect(Collectors.toMap(AgeGroup::getId, Function.identity()));
     }
@@ -157,6 +191,8 @@ public class ClassroomServiceImpl implements ClassroomService {
                 year.getStartDate(),
                 year.getEndDate(),
                 c.getAgeGroupId(),
-                sessions);
+                sessions,
+                c.getCapacity() == null ? null : c.getCapacity().intValue(),
+                c.getStatus());
     }
 }

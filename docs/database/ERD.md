@@ -50,8 +50,11 @@ erDiagram
     }
     children {
         BIGINT id PK
+        VARCHAR code UK "V63"
         VARCHAR full_name
         DATE date_of_birth
+        VARCHAR status "V63: ACTIVE|PENDING_PLACEMENT|LEFT"
+        BIGINT intake_campus_id FK "V63: khi chưa có lớp"
     }
     enrollments {
         BIGINT id PK
@@ -92,6 +95,64 @@ erDiagram
 ```
 
 Ba bảng có ID từ sequence chung; FK cha ghép với year_plan_id/domain_id. FK goal→group kiểm sub_domain_key để sub của goal và group khớp kể cả NULL. Cấp cha tùy chọn theo user 29/10/2026; không đổi rows/kind API. Chi tiết: [ADR-0021](../decisions/ADR-0021-year-plan-goal-hierarchy.md).
+## child — tiếp nhận trẻ, phụ huynh trên hồ sơ, khai báo sức khỏe (V63)
+
+```mermaid
+erDiagram
+    campuses |o--o{ children : "tiếp nhận (chưa có lớp)"
+    children ||--o| child_profiles : "hành chính"
+    children ||--o{ child_guardians : "phụ huynh trên hồ sơ (≤3)"
+    user_accounts |o--o{ child_guardians : "đã kích hoạt"
+    children ||--o| child_health_declarations : "khai báo sức khỏe"
+    child_health_declarations ||--o{ child_allergies : "dị ứng"
+    children ||--o{ child_health_declaration_history : "lịch sử khai báo"
+    children ||--o{ child_history : "lịch sử hồ sơ"
+    user_accounts ||--o{ parent_sms_logs : "SMS tài khoản"
+
+    child_profiles {
+        BIGINT child_id PK "FK children"
+        VARCHAR premature "YES|NO"
+        VARCHAR payment_source "BHYT"
+    }
+    child_guardians {
+        BIGINT id PK
+        BIGINT child_id FK
+        SMALLINT position "0-2"
+        VARCHAR phone "UK cùng child_id"
+        VARCHAR citizen_id "UK cùng child_id"
+        BIGINT user_id FK "NULL = chưa kích hoạt"
+    }
+    child_health_declarations {
+        BIGINT child_id PK "FK children"
+        VARCHAR allergies_state
+        VARCHAR tb_contact_state "REPORTED|NONE_REPORTED"
+    }
+    child_allergies {
+        BIGINT id PK
+        BIGINT child_id FK
+        VARCHAR name
+    }
+    child_health_declaration_history {
+        BIGINT id PK
+        BIGINT child_id FK
+        VARCHAR action
+        JSONB allergy_change
+        JSONB history_change
+    }
+    child_history {
+        BIGINT id PK
+        BIGINT child_id FK
+        VARCHAR action
+        JSONB changes
+    }
+    parent_sms_logs {
+        BIGINT id PK
+        BIGINT user_id FK
+        VARCHAR purpose
+        VARCHAR status "SENT|FAILED"
+    }
+```
+`child_code_sequences` (số thứ tự mã trẻ theo năm) không có quan hệ.
 
 ## identity-access — phân quyền (V7, ADR-0017)
 

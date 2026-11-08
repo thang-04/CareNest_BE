@@ -56,6 +56,7 @@ class ChildServiceImplTest {
     private final GuardianChildLinkService guardianChildLinkService = mock(GuardianChildLinkService.class);
     private final ChildServiceImpl childService = new ChildServiceImpl(
             childRepository,
+            mock(com.carenest.repository.child.ChildAllergyRepository.class),
             enrollmentService,
             childAccessPolicy,
             new ChildMapper(),
@@ -108,7 +109,8 @@ class ChildServiceImplTest {
     void vicePrincipalSearchIsLimitedToManagedCampusClassrooms() {
         given(staffAccessPolicy.managedCampusIds(VICE)).willReturn(Set.of(10L));
         given(classroomService.findClassroomIdsOfCampuses(Set.of(10L))).willReturn(List.of(11L, 12L));
-        given(childRepository.searchEnrolled(eq(List.of(11L, 12L)), eq(TODAY), eq("%an%"), any(Pageable.class)))
+        given(childRepository.searchForParentAccounts(
+                        eq(List.of(11L, 12L)), eq(Set.of(10L)), eq(TODAY), eq("%an%"), any(Pageable.class)))
                 .willReturn(new PageImpl<>(List.of(child(101L))));
         given(enrollmentService.findActiveClassroomIdByChildIds(List.of(101L), TODAY))
                 .willReturn(Map.of(101L, 11L));

@@ -125,8 +125,10 @@ class MealCountIntegrationTest {
                 year);
         classA = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id) VALUES (" + campusA
                 + ", " + year + ", 'Lớp A', " + ag3 + ") RETURNING id");
-        child1 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('An', '2023-01-01') RETURNING id");
-        child2 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('Bình', '2023-02-01') RETURNING id");
+        child1 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'An', '2023-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
+        child2 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Bình', '2023-02-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
         enroll(child1);
         enroll(child2);
 
@@ -260,7 +262,17 @@ class MealCountIntegrationTest {
         assertThat(review.status()).isEqualTo("PENDING_CONFIRMATION");
         assertThat(review.needsReconfirmation()).isTrue();
         assertThat(review.totals().normal()).isEqualTo(2);
+        // Người duyệt thấy số đã chốt cũ cạnh số mới của lớp thay đổi (NUT-03)
+        assertThat(review.classes())
+                .filteredOn(l -> l.classId().equals(classA))
+                .singleElement()
+                .satisfies(l -> {
+                    assertThat(l.normal()).isEqualTo(2);
+                    assertThat(l.confirmedNormal()).isEqualTo(1);
+                });
         MealCountResponse kitchen = lunch(service.getMealCounts(kitchenA, TODAY, null));
+        assertThat(kitchen.classes())
+                .allSatisfy(l -> assertThat(l.confirmedNormal()).isNull());
         assertThat(kitchen.status()).isEqualTo("CONFIRMED");
         assertThat(kitchen.needsReconfirmation()).isFalse();
         assertThat(kitchen.totals().normal()).isEqualTo(1);
@@ -315,7 +327,8 @@ class MealCountIntegrationTest {
         List<MealCountResponse> adjusted = service.adjust(vpA, adjust);
         assertThat(adjusted).singleElement().satisfies(c -> {
             assertThat(c.needsReconfirmation()).isTrue();
-            assertThat(c.totals().normal()).isEqualTo(2);
+            // Suất thay thế nằm trong số trẻ ăn: 2 trẻ = 1 thường + 1 thay thế (Cần chốt 04/11/2026)
+            assertThat(c.totals().normal()).isEqualTo(1);
             assertThat(c.totals().substitute()).isEqualTo(1);
             assertThat(c.adjustments())
                     .singleElement()
@@ -327,20 +340,26 @@ class MealCountIntegrationTest {
         });
         // normal bằng số hiện tại = giữ nguyên (client cũ gửi lại số đang thấy)
         expectError(
-                () -> service.adjust(vpA, new MealAdjustRequest(campusA, TODAY, MealSession.LUNCH, classA, 2, 1, "x")),
+                () -> service.adjust(vpA, new MealAdjustRequest(campusA, TODAY, MealSession.LUNCH, classA, 1, 1, "x")),
                 ApiCode.BAD_REQUEST);
         assertThat(lunch(service.getMealCounts(kitchenA, TODAY, null)).totals().substitute())
                 .isZero();
 
-        // Cả ngày (không chọn bữa): áp cho mọi bữa của lớp
+        // Cả ngày (không chọn bữa): áp cho mọi bữa của lớp; tổng suất vẫn bằng số trẻ ăn
         service.adjust(vpA, new MealAdjustRequest(campusA, TODAY, null, classA, null, 2, "Thêm trẻ dị ứng"));
-        assertThat(service.getMealCounts(vpA, TODAY, null).counts())
-                .allSatisfy(c -> assertThat(c.totals().substitute()).isEqualTo(2));
+        assertThat(service.getMealCounts(vpA, TODAY, null).counts()).allSatisfy(c -> {
+            assertThat(c.totals().substitute()).isEqualTo(2);
+            assertThat(c.totals().normal()).isZero();
+        });
+        // Không nhập suất thay thế nhiều hơn số trẻ ăn
+        expectCode(
+                () -> service.adjust(vpA, new MealAdjustRequest(campusA, TODAY, null, classA, null, 3, "Quá số trẻ")),
+                ApiCode.MEAL_SUBSTITUTE_EXCEEDS_EATING);
     }
 
     @Test
-    @DisplayName("NUT-02: đổi điểm danh sau khi điều chỉnh không xóa suất thay thế, lịch sử ghi đủ")
-    void attendanceChangeKeepsAdjustedSubstitute() {
+    @DisplayName("Đổi điểm danh sau khi điều chỉnh: suất thay thế tính lại theo dị ứng trong hồ sơ, lịch sử ghi đủ")
+    void attendanceChangeRecomputesSubstituteFromProfile() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         clock.now = AFTER_CUTOFF;
         long lunchId = lunch(service.getMealCounts(vpA, TODAY, null)).id();
@@ -354,14 +373,111 @@ class MealCountIntegrationTest {
 
         MealCountResponse review = lunch(service.getMealCounts(vpA, TODAY, null));
         assertThat(review.needsReconfirmation()).isTrue();
+        // Hồ sơ không có trẻ dị ứng: 2 trẻ ăn = 2 suất thường (điều chỉnh tay trước đó không giữ khi điểm danh đổi)
         assertThat(review.totals())
                 .extracting(MealCountResponse.Totals::normal, MealCountResponse.Totals::substitute)
-                .containsExactly(2, 1);
+                .containsExactly(2, 0);
         assertThat(jdbc.queryForList(
                         "SELECT action FROM meal_count_history WHERE meal_count_id = ? ORDER BY id",
                         String.class,
                         lunchId))
                 .containsExactly("AGGREGATED", "ADJUSTED", "CONFIRMED", "ATTENDANCE_CHANGED");
+        // NUT-03: PHT điểm trường nhận thông báo cần xác nhận lại (một lần)
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'MEAL_COUNT_RECONFIRM'", Long.class))
+                .containsExactly(vpA.userId());
+    }
+
+    @Test
+    void pastDayReconfirmationIsIdempotentAcrossSessions() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        var counts = service.getMealCounts(vpA, TODAY, null).counts();
+        service.confirm(vpA, counts.getFirst().id());
+        service.adjust(vpA, new MealAdjustRequest(campusA, TODAY, null, classA, null, 1, "Test substitute"));
+        clock.now = AFTER_CUTOFF.plus(Duration.ofDays(1));
+        for (var count : counts) {
+            assertThat(service.confirm(vpA, count.id()).needsReconfirmation()).isFalse();
+        }
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM meal_count_history WHERE action='CONFIRMED'", Integer.class))
+                .isEqualTo(4);
+    }
+
+    @Test
+    void pastDayInitialConfirmationRemainsBlocked() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        var count = service.getMealCounts(vpA, TODAY, null).counts().getFirst();
+        clock.now = AFTER_CUTOFF.plus(Duration.ofDays(1));
+        expectCode(() -> service.confirm(vpA, count.id()), ApiCode.MEAL_COUNT_PAST_DAY);
+    }
+
+    @Test
+    void allergicChildrenInProfileGetSubstituteServingsAutomatically() {
+        jdbc.update(
+                "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
+                        + " self_history_state, family_history_state, tb_contact_state, declared_by)"
+                        + " VALUES (?, 'REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED',"
+                        + " 'NONE_REPORTED', ?)",
+                child1,
+                vpA.userId());
+        jdbc.update("INSERT INTO child_allergies (child_id, name) VALUES (?, 'Sữa bò')", child1);
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        // Trước giờ chốt (tạm tính) và sau giờ chốt (sổ) đều tính 2 suất = 1 thường + 1 thay thế
+        assertThat(lunch(service.getMealCounts(vpA, TODAY, null)).totals())
+                .extracting(MealCountResponse.Totals::normal, MealCountResponse.Totals::substitute)
+                .containsExactly(1, 1);
+        clock.now = AFTER_CUTOFF;
+        assertThat(lunch(service.getMealCounts(vpA, TODAY, null)).totals())
+                .extracting(MealCountResponse.Totals::normal, MealCountResponse.Totals::substitute)
+                .containsExactly(1, 1);
+    }
+
+    @Test
+    void confirmRejectsFiguresTheReviewerHasNotSeen() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        var counts = service.getMealCounts(vpA, TODAY, null).counts();
+        int seen = servings(counts);
+        int seenSubstitute = substitutes(counts);
+        // Có điều chỉnh suất thay thế sau lúc PHT mở sổ: số đang thấy đã cũ
+        service.adjust(vpA, new MealAdjustRequest(campusA, TODAY, null, classA, null, 1, "Trẻ dị ứng"));
+        expectCode(
+                () -> service.confirm(vpA, counts.getFirst().id(), seen, seenSubstitute),
+                ApiCode.MEAL_COUNT_CHANGED_SINCE_VIEW);
+        var fresh = service.getMealCounts(vpA, TODAY, null).counts();
+        assertThat(service.confirm(vpA, counts.getFirst().id(), servings(fresh), substitutes(fresh))
+                        .status())
+                .isEqualTo("CONFIRMED");
+    }
+
+    private static int servings(List<MealCountResponse> counts) {
+        return counts.stream()
+                .mapToInt(c -> c.totals().normal() + c.totals().substitute())
+                .sum();
+    }
+
+    private static int substitutes(List<MealCountResponse> counts) {
+        return counts.stream().mapToInt(c -> c.totals().substitute()).sum();
+    }
+
+    @Test
+    void endOfDayJobRecordsLedgerNobodyOpened() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        service.aggregateLockedDay();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM meal_counts WHERE campus_id = ? AND date = ?",
+                        Integer.class,
+                        campusA,
+                        TODAY))
+                .isPositive();
+        // Chạy lại không tạo trùng
+        int before = jdbc.queryForObject("SELECT count(*) FROM meal_counts", Integer.class);
+        service.aggregateLockedDay();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_counts", Integer.class))
+                .isEqualTo(before);
     }
 
     private static MealCountResponse lunch(MealCountDayResponse day) {

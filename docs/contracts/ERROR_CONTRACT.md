@@ -1,5 +1,13 @@
 # Response & Error Contract
 
+EDU-53, 05/11/2026: `GOAL_SUB_DOMAIN_MIXED` 7038 (lĩnh vực có lĩnh vực con nhưng còn nhóm/mục tiêu không thuộc lĩnh vực con nào, kiểm khi gửi và ban hành), HTTP 400.
+
+EDU-51/52, 05/11/2026: `GOAL_NAME_DUPLICATE` 7036 (trùng tên lĩnh vực con / nhóm kết quả / mục tiêu / nội dung trong cùng phạm vi, kiểm khi gửi và ban hành) và `THEME_DATES_REQUIRED` 7037 (chủ đề chưa có ngày, chỉ kiểm khi ban hành), đều HTTP 400.
+
+EDU-47, 01/11/2026: preview chủ đề nhánh dùng `BRANCH_FILE_UNSUPPORTED` 7124 (file hỏng/không hỗ trợ/mã hóa), `BRANCH_FILE_NO_TABLE` 7125 (thiếu bảng Chủ đề/Chủ đề nhánh), `BRANCH_FILE_TOO_LARGE` 7126 (2 MB/2.000 dòng), đều HTTP 400. Giữ lỗi quyền/phân công, sai kế hoạch/phiên bản và tài liệu đã gửi theo contract hiện tại; preview không lưu. Chi tiết [contract feature008](../../specs/008-branch-plan-file-import/contracts/file-import.md).
+
+EDU-46, 01/11/2026: `GOAL_FILE_UNSUPPORTED` (7033, HTTP 400) giữ mã/status, đổi lời thành "Không đọc được file. Chỉ nhận Word (.doc, .docx), Excel (.xlsx) hoặc CSV; file không được đặt mật khẩu" khi bổ sung Word .doc nhị phân. .doc hỏng/mã hóa trả 7033, không có bảng mục tiêu 7034, vượt 2 MB/2.000 dòng 7035. Web dùng errorCode, không so chuỗi; mock và hướng dẫn nhập mục tiêu đã đồng bộ.
+
 > Status: **ACCEPTED, đã implement.** Bổ sung 27/10/2026 (Cần): mã lỗi nghiệp vụ tập trung trong `ApiCode` + trường `errorCode`. Nguồn chuẩn: `src/main/java/com/carenest/utils/ApiCode.java`, `ResponseJson.java`, `exception/GlobalException.java`, `exception/GlobalExceptionHandler.java`; test `src/test/java/com/carenest/exception/ResponseContractTest.java`, `src/test/java/com/carenest/utils/ApiCodeTest.java`; quy tắc: `docs/backend-coding-guide.md` mục 8, 11. File này chỉ tóm tắt cho FE/APP và agent.
 
 Mọi response (thành công hay lỗi):
@@ -19,6 +27,16 @@ Mọi response (thành công hay lỗi):
 
 Mỗi lỗi là một dòng trong `ApiCode`: mã 4 số + HTTP status + câu tiếng Việt. Service ném `GlobalException.of(ApiCode.X, args...)` (bọc lỗi: `GlobalException.withCause(ApiCode.X, ex, args...)`), không tự viết câu lỗi. Lỗi mới thêm vào cuối dải của phân hệ; mã đã dùng không đổi số, không dùng lại. Danh sách đầy đủ: `ApiCode.java` (bản Word "CareNest_Danh_sach_ma_loi" của Cần).
 
+Bổ sung 29/10/2026 (G94-180, khi gộp G94-236): tài khoản & phân quyền 1112–1127, phân công nhân sự 2308–2320, liên kết phụ huynh – trẻ 3004–3006 (thay các câu lỗi tiếng Anh cũ; bảng theo tình huống: `docs/contracts/AUTH_CONTRACT.md`); tiếp nhận trẻ 3008–3010 (bảng dưới; trước khi gộp `dev` 31/10 là 3007–3009 — 3007 nay là `GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED` của G94-60), SĐT tài khoản nhân sự ở form tiếp nhận 1130 `PHONE_OF_STAFF_ACCOUNT`. Số 11xx/23xx/30xx theo bảng của `dev` (G94-60 đánh lại). Cần thêm các mã này vào bản Word của Cần.
+
+Bổ sung 31/10/2026 (G94-180, đợt khám và kỳ cân đo): sức khỏe 5009–5026 — đợt/kỳ không tìm thấy 5009, không quản lý được 5010, điểm trường đang có đợt/kỳ chưa đóng 5011, đã đóng/hủy 5012, có kết quả không hủy được 5013, đóng/mở lại sai trạng thái 5014–5015, đổi ngày làm kết quả ra ngoài 5016, số đo ngoài kỳ cân đo 5017–5018, trùng số đo 5019–5020 (5020 đổi câu 04/11/2026: "Ngày đo {0} trẻ đã có kết quả đo khác. Báo Hiệu trưởng hoặc Phó hiệu trưởng"), ~~ngày đo ngoài kỳ 5021~~ (bỏ 04/11/2026: ngày đo hệ thống ghi luôn trong kỳ; không dùng lại mã), lần đo không tìm thấy 5022, không phải GV lớp 5023, thiếu lý do sửa 5024, không xem được sổ sức khỏe 5025, ngày kết thúc trước ngày bắt đầu 5026. Cần thêm vào bản Word của Cần.
+
+Bổ sung 31/10/2026 (G94-180, phiếu khám Phụ lục II và phiếu theo dõi): 5027–5039 — phiếu khám không tìm thấy hoặc ngoài phạm vi 5027, kỳ cân đo không dùng phiếu khám 5028, không phải GV lớp của trẻ 5029, đợt khám không còn diễn ra 5030, lưu nháp phiếu đã kết luận 5031, mẫu kết luận của phiếu đã đổi 5032, phiếu chưa đủ thông tin 5033 (400 kèm `data: [{ field, message }]`, khóa ô theo phiếu: `exam.vitals.temperatureC`...; từ 04/11/2026 ô `date` chỉ còn là trùng ngày khám với kết quả đo khác, có thể là lỗi duy nhất kể cả khi lưu nháp — client không có ô ngày nên hiện như lỗi chung), sửa phiếu khám qua API số đo 5034. Cần thêm vào bản Word của Cần. Bỏ 04/11/2026 (phiếu theo dõi HLT-16 đã bỏ): 5035–5039 (phiếu theo dõi không tìm thấy, không phải GV lớp, phiếu đã đóng, chưa trao đổi phụ huynh, ảnh không tìm thấy) — không dùng lại mã.
+
+Bổ sung 31/10/2026 (G94-180, đón trẻ, ảnh phụ huynh, thông báo): ảnh chân dung sai loại/quá 2 MB 1131, chưa có ảnh hoặc ngoài phạm vi 1132; thông báo không tìm thấy (hoặc của người khác) 1201; đón trẻ 4101–4107 — trẻ không tìm thấy hoặc ngoài phạm vi 4101, không phải GV lớp 4102, lớp không thuộc năm học đang hoạt động 4103, ngày ngoài khoảng 4104, trẻ chưa điểm danh có mặt 4105, trẻ vắng 4106, đã trả hôm nay 4107. Lỗi theo ô của form trả trẻ, đăng ký thiết bị dùng 9001 `INVALID_REQUEST_DATA` (`verification`, `guardianPosition`, `handoverTime`, `note`, `token`, `platform`). Cần thêm vào bản Word của Cần.
+
+Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
+
 | Dải | Phân hệ |
 | --- | --- |
 | 10xx | Xác thực |
@@ -33,8 +51,9 @@ Mỗi lỗi là một dòng trong `ApiCode`: mã 4 số + HTTP status + câu ti�
 | 50xx | Sức khỏe |
 | 60xx | Dinh dưỡng (báo ăn & sổ báo ăn) |
 | 70xx–72xx | Kế hoạch giáo dục (kế hoạch năm, tài liệu lớp, cấu hình) |
+| 73xx | Đánh giá trẻ (đánh giá hằng ngày, mở lại ngày, tổng quan lớp) |
 | 80xx | AI & tệp |
-| 90xx | Chung & hệ thống (validation 9001, sai định dạng 9002, không tìm thấy 9009, lỗi hệ thống 9010…) |
+| 90xx | Chung & hệ thống (validation 9001, sai định dạng 9002, không tìm thấy 9009, lỗi hệ thống 9010, ghi đồng thời bị người khác cập nhật trước 9012 → HTTP 409…) |
 
 Mã chung không có `errorCode` (`SUCCESSFUL 200`, `CREATED 201`, `BAD_REQUEST`, `UNAUTHORIZED`, `NOT_FOUND`, `CONFLICT`, `PRECONDITION_REQUIRED`, `PAYLOAD_TOO_LARGE`, `SERVICE_UNAVAILABLE`, `GATEWAY_TIMEOUT`) chỉ dùng cho response thành công hoặc chỗ chưa gắn mã nghiệp vụ.
 
@@ -42,12 +61,34 @@ ADR-0013: `PASSWORD_CHANGE_REQUIRED` (1010, HTTP 428) cho Web gateway: mật kh�
 
 ## Dùng theo tình huống nghiệp vụ
 
+Học kỳ năm học (Cấu hình thời gian, 30/10/2026; đổi thành 4 ngày cùng ngày): `PUT /school-years/{id}/semester` nhận `semester1Start`, `semester1End`, `semester2Start`, `semester2End`, do Hiệu trưởng chọn. Thiếu ngày nào trả `SEMESTER_DATE_REQUIRED` 2026; ngày nằm ngoài năm học trả `SEMESTER_OUT_OF_YEAR` 2021 (thay `SEMESTER1_END_OUT_OF_RANGE`); học kỳ có ngày bắt đầu sau ngày kết thúc trả `SEMESTER_START_AFTER_END` 2024; HK II bắt đầu không sau ngày kết thúc HK I trả `SEMESTER_OVERLAP` 2025. Tất cả HTTP 400, kiểm tra theo đúng thứ tự trên. Đổi ngày năm học làm học kỳ đã đặt nằm ngoài năm cũng trả 2021. Năm đã kết thúc trả `SCHOOL_YEAR_CLOSED` 2003. FE gắn 2021/2026 vào ô ngày được nêu trong thông báo, 2024 vào ngày bắt đầu của học kỳ đó, 2025 vào `semester2Start`.
+
+Thiết lập năm học (30/10/2026): `POST /school-years/{id}/copy {sourceYearId, parts}` chép lớp / GV / tổ trưởng / giờ chốt / học kỳ từ năm khác. `parts` rỗng trả `YEAR_COPY_PARTS_REQUIRED` 2023, HTTP 400; năm đích không ở trạng thái chưa bắt đầu trả `YEAR_COPY_TARGET_NOT_PLANNED` 2022, HTTP 409; năm nguồn trùng năm đích trả `COPY_SOURCE_YEAR_INVALID` 2215; thiếu `sourceYearId` trả 400 validation. Lỗi từng dòng (GV đã khóa, không còn ở điểm trường, phòng không dùng được, năm nguồn chưa có giờ chốt/học kỳ...) KHÔNG làm hỏng cả yêu cầu: dòng đó nằm trong `data.skipped[{part, name, reason}]`, FE hiện đỏ ở bước tương ứng. Dữ liệu năm đích đã có (lớp trùng tên, lớp đã có GV, nhóm tuổi đã có tổ trưởng, giờ chốt, học kỳ) giữ nguyên.
+
+Báo cáo chất lượng tháng (sổ chỉ đạo chuyên môn 4.1 + 4.2, 30/10/2026): `GET /assessment/quality-report` trả `QUALITY_REPORT_FORBIDDEN` 7324 (403) khi không phải HT/PHT, `QUALITY_REPORT_MONTH_OUT_OF_YEAR` 7325 (400) khi tháng ngoài năm học, `QUALITY_REPORT_FUTURE_MONTH` 7326 (400) khi tháng sau tháng hiện tại; campus ngoài phạm vi trả `CAMPUS_ACCESS_DENIED` 2102; `month` sai dạng yyyy-MM trả lỗi định dạng 9002. FE gắn 7325/7326 vào ô `month`.
+
+Đơn nghỉ phụ huynh (31/10/2026, ATT-04/05/05b): `/leave-requests` trả `LEAVE_NOT_GUARDIAN` 4018 (403) khi không phải phụ huynh đang liên kết với trẻ, `LEAVE_DATE_RANGE_INVALID` 4019 (400), `LEAVE_DATE_IN_PAST` 4020 (400), `LEAVE_NO_SCHOOL_DAY` 4021 (400) khi không còn ngày học trước giờ chốt, `LEAVE_OVERLAP` 4022 (409) khi trùng đơn còn hiệu lực, `LEAVE_NOT_FOUND` 4023 (404), `LEAVE_CANNOT_CANCEL` 4024 (409) khi mọi ngày còn lại đã qua giờ chốt, `LEAVE_CHILD_NO_CLASS` 4025 (400) khi trẻ chưa có lớp năm đang hoạt động. GV/PHT/HT xem ngoài phạm vi: `CLASS_ACCESS_DENIED` / `CAMPUS_ACCESS_DENIED` (403).
+
+Phiếu bé ngoan (30/10/2026): `/assessment/behaviour-tickets` trả `TICKET_FORBIDDEN` 7327 (403) khi phát phiếu cho lớp không phải lớp mình dạy, `TICKET_VIEW_FORBIDDEN` 7328 (403) khi xem lớp/điểm trường ngoài phạm vi, `TICKET_PERIOD_INVALID` 7329 (400) khi kỳ không phải thứ Hai đầu tuần / ngày 1 đầu tháng hoặc ngoài năm học, `TICKET_PERIOD_NOT_ENDED` 7330 (400) khi kỳ chưa kết thúc, `TICKET_NO_CHILDREN` 7331 (400) khi không chọn trẻ, `TICKET_TOO_MANY_CHILDREN` 7332 (400) khi chọn quá 100 trẻ hoặc trùng trẻ, `TICKET_CHILD_NOT_IN_CLASS` 7333 (400) khi trẻ không thuộc lớp trong kỳ, `TICKET_ALREADY_ISSUED` 7334 (409) khi trẻ đã có phiếu kỳ đó, `TICKET_NOT_ELIGIBLE` 7335 (400) khi trẻ chưa đủ điều kiện (phiếu tuần: ≥ 4 ngày có mặt và ≥ 3 Cờ; phiếu tháng: ≥ 3 phiếu tuần có thứ Hai trong tháng). Năm học chưa kích hoạt trả `ASSESSMENT_YEAR_NOT_ACTIVE` 7304. FE hiện các lỗi này ở thông báo trên bảng (không gắn ô nhập).
+
+Đánh giá tháng / cuối năm (30/10/2026): `/assessment/evaluations` trả `EVALUATION_NOT_FOUND` 7336 (404), `EVALUATION_VIEW_FORBIDDEN` 7337 (403) khi xem lớp ngoài phạm vi hoặc PHT/HT mở đánh giá chưa xác nhận, `EVALUATION_EDIT_FORBIDDEN` 7338 (403) khi sửa / xác nhận / tạo lại bản nháp mà không phải GV đang phụ trách lớp, `EVALUATION_ALREADY_CONFIRMED` 7339 (409), `EVALUATION_CONTENT_REQUIRED` 7340, `EVALUATION_CONTENT_TOO_SHORT` 7341 (dưới 30 ký tự), `EVALUATION_CONTENT_TOO_LONG` 7342 (trên 3000 ký tự), `EVALUATION_DIAGNOSTIC_TERM` 7343 (từ chẩn đoán, cùng danh sách với đánh giá hằng ngày), `EVALUATION_MONTH_INVALID` 7344 khi `month` không phải ngày 1 hoặc ngoài năm học / sau tháng hiện tại; đều HTTP 400. Năm học không hoạt động trả `ASSESSMENT_YEAR_NOT_ACTIVE` 7304. FE gắn 7340–7343 vào ô `content`. Trẻ 5 tuổi hoàn thành chương trình: `PUT /assessment/evaluations/{id}/program-completion` trả `EVALUATION_PROGRAM_NOT_APPLICABLE` 7345 (400) khi không phải đánh giá cuối năm của lớp nhóm tuổi từ 60 tháng, `EVALUATION_PROGRAM_REQUIRED` 7346 (400) khi `completed` null hoặc xác nhận đánh giá cuối năm lớp 5–6 tuổi chưa chọn Hoàn thành / Chưa hoàn thành; `GET /assessment/program-completion` trả `PROGRAM_REPORT_FORBIDDEN` 7347 (403) khi không phải HT/PHT, campus ngoài phạm vi trả 2102. FE gắn 7345/7346 vào ô `programCompleted`.
+
+Hồ sơ / tiến độ phát triển (30/10/2026): `GET /assessment/children` trả `CLASS_ACCESS_DENIED` 2201 (403) khi `classId` ngoài phạm vi. `GET /assessment/children/{childId}/development` trả `INVALID_DATE_RANGE` 9005 (400) khi thiếu `start` / `end`, `start` sau `end` hoặc `start` sau hôm nay; `DATE_RANGE_TOO_LONG` 9006 (400) khi khoảng quá 400 ngày; `DEVELOPMENT_CHILD_NO_CLASS` 7348 (404) khi trẻ không thuộc lớp nào ở đầu / cuối khoảng; `CHILD_ACCESS_DENIED` 3001 (403) khi không phải GV lớp của trẻ hoặc PHT/HT điểm trường của lớp.
+
+Đề xuất khen thưởng theo danh sách lớp (30/10/2026), `/assessment/reward-lists`: `REWARD_LIST_NOT_FOUND` 7349 (404), `REWARD_VIEW_FORBIDDEN` 7350 (403) khi lớp ngoài phạm vi, `REWARD_EDIT_FORBIDDEN` 7351 (403) khi không phải GV đang phụ trách lớp, `REWARD_STATUS_CHANGED` 7352 (409) khi danh sách đã gửi / đã chuyển bước, `REWARD_LIST_EMPTY` 7353 khi gửi mà chưa trẻ nào có danh hiệu, `REWARD_CHILD_NOT_IN_CLASS` 7354, `REWARD_CHILD_DUPLICATE` 7355, `REWARD_TITLE_INVALID` 7356 (danh hiệu ngoài danh sách), `REWARD_PROGRAM_TITLE_INVALID` 7357 (danh hiệu Hoàn thành chương trình khi đánh giá cuối năm chưa đánh dấu hoàn thành), `REWARD_YEAR_END_REQUIRED` 7358 (trẻ chưa có đánh giá cuối năm đã xác nhận), `REWARD_NOTE_TOO_LONG` 7359 (trên 300 ký tự), `REWARD_NOTE_DIAGNOSTIC` 7360, `REWARD_DECISION_INVALID` 7361, `REWARD_COMMENT_REQUIRED` 7362 (trả lại không nêu lý do), `REWARD_COMMENT_TOO_LONG` 7363 (trên 500 ký tự); các lỗi nhập là HTTP 400. `REWARD_REVIEW_FORBIDDEN` 7364 (403) khi không phải PHT điểm trường / HT. Năm học không hoạt động trả 7304. Lỗi 7354–7360 kèm tên trẻ trong thông báo, FE hiện đỏ ngay trên bảng.
+
+Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và `CLASS_COMMENT_DIAGNOSTIC_TERM` 7323, HTTP 400, FE gắn lỗi vào `classComment`. Các lỗi ngày/khóa/quyền của đánh giá ngày tiếp tục dùng dải 7301–7321. PUT General cho phép `entries: []` khi gửi `classComment`; thiếu/null giữ nội dung cũ, chuỗi rỗng xóa nội dung.
+
 | Tình huống | ApiCode (errorCode) | Rule |
 | --- | --- | --- |
 | Ngoài phạm vi campus/lớp/trẻ | `CAMPUS_ACCESS_DENIED` / `CLASS_ACCESS_DENIED` / `CHILD_ACCESS_DENIED` (403) | AUTH-07 |
 | Năm học đã kết thúc | `SCHOOL_YEAR_CLOSED` (409) | CFG-YR-01 |
 | Điểm danh sau giờ chốt | `ATTENDANCE_LOCKED` (409) | ATT-08 |
 | Sổ báo ăn đã xác nhận | `MEAL_COUNT_ALREADY_CONFIRMED` (409) | NUT-03 |
+| Tiếp nhận: form sai, lớp/điểm trường không nhận được (`classId`, `campusId`) | `INVALID_REQUEST_DATA` (9001) + ô | CHD-02, CHD-10 |
+| Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3008, 409, không có ô) | CHD-04 |
+| CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
+| Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
 | AI không khả dụng / quá thời gian | `AI_SERVICE_UNAVAILABLE` (503) / `AI_TIMEOUT` (504) | AI-03 |
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
 | Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |

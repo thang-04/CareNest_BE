@@ -197,7 +197,7 @@ class ClassStructureIntegrationTest {
         RoomResponse room = createRoom(campusA, "P.101", 25);
         ClassResponse created = classService.createClass(principal, classRequest("Lớp Mầm 1", campusA, room.id(), 25));
         long child = insertId(
-                "INSERT INTO children (full_name, date_of_birth) VALUES ('Trẻ IT', '2022-01-01') RETURNING id");
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ IT', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
         jdbc.update(
                 "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
                 child,
@@ -217,16 +217,26 @@ class ClassStructureIntegrationTest {
     void classWithPlacedChildrenKeepsAgeGroupSizeAndCannotBeDeleted() {
         RoomResponse room = createRoom(campusA, "P.102", 25);
         ClassResponse created = classService.createClass(principal, classRequest("Lớp Mầm 2", campusA, room.id(), 25));
+        ClassResponse source = classService.createClass(
+                principal,
+                classRequest(
+                        "Lớp nguồn 2", campusA, createRoom(campusA, "P.202", 25).id(), 25));
         for (String name : List.of("Trẻ xếp 1", "Trẻ xếp 2")) {
-            long child = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('" + name
-                    + "', '2022-01-01') RETURNING id");
+            long child = insertId(
+                    "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), '"
+                            + name + "', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
             jdbc.update(
                     "INSERT INTO class_placements (school_year_id, child_id, from_classroom_id, action, to_classroom_id) "
                             + "VALUES (?, ?, ?, 'STAY', ?)",
                     year,
                     child,
-                    created.id(),
+                    source.id(),
                     created.id());
+            // Bản xếp chỉ đếm khi trẻ vẫn đang học lớp nguồn
+            jdbc.update(
+                    "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
+                    child,
+                    source.id());
         }
         long ageGroup4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
 
@@ -243,6 +253,36 @@ class ClassStructureIntegrationTest {
         assertThatThrownBy(() -> classService.deleteClass(principal, created.id()))
                 .isInstanceOf(GlobalException.class)
                 .hasMessage(ApiCode.CLASS_HAS_PLACED_CHILDREN.getDefaultDesc());
+    }
+
+    @Test
+    void placementOfChildWhoLeftSourceClassIsNotCounted() {
+        RoomResponse room = createRoom(campusA, "P.103", 25);
+        ClassResponse created = classService.createClass(principal, classRequest("Lớp Mầm 3", campusA, room.id(), 25));
+        ClassResponse source = classService.createClass(
+                principal,
+                classRequest(
+                        "Lớp nguồn 3", campusA, createRoom(campusA, "P.203", 25).id(), 25));
+        long child = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ đã chuyển', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
+        jdbc.update(
+                "INSERT INTO class_placements (school_year_id, child_id, from_classroom_id, action, to_classroom_id) "
+                        + "VALUES (?, ?, ?, 'STAY', ?)",
+                year,
+                child,
+                source.id(),
+                created.id());
+        // Trẻ đã rời lớp nguồn trước hôm nay (chuyển lớp / nghỉ): bản xếp cũ không giữ lớp năm sau
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from, valid_to) VALUES (?, ?, '2026-09-01',"
+                        + " '2026-10-01')",
+                child,
+                source.id());
+
+        assertThat(classService.getSchoolStructure(principal, year, null).classes())
+                .filteredOn(c -> c.id().equals(created.id()))
+                .singleElement()
+                .satisfies(c -> assertThat(c.plannedCount()).isIn(null, 0L));
     }
 
     @Test

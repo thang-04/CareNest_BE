@@ -25,6 +25,7 @@ import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.TemperatureLevel;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -139,10 +140,12 @@ class AttendanceIntegrationTest {
         classA = classroom(campusA, year, "Lớp A", ag3);
         classB = classroom(campusB, year, "Lớp B", ag3);
         oldClass = classroom(campusA, closedYear, "Lớp cũ", ag3);
-        child1 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('An', '2023-01-01') RETURNING id");
-        child2 = insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('Bình', '2023-02-01') RETURNING id");
-        long child3 =
-                insertId("INSERT INTO children (full_name, date_of_birth) VALUES ('Chi', '2023-03-01') RETURNING id");
+        child1 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'An', '2023-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
+        child2 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Bình', '2023-02-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
+        long child3 = insertId(
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Chi', '2023-03-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
         enroll(child1, classA);
         enroll(child2, classA);
         enroll(child3, classB);
@@ -393,6 +396,15 @@ class AttendanceIntegrationTest {
 
     @Test
     void summaryCountsDaysChildrenAndMeals() {
+        // Trẻ có khai dị ứng: lượt ăn tính là suất thay thế (giống Sổ báo ăn)
+        jdbc.update(
+                "INSERT INTO child_health_declarations (child_id, allergies_state, diet_state, other_notes_state,"
+                        + " self_history_state, family_history_state, tb_contact_state, declared_by)"
+                        + " VALUES (?, 'REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED', 'NONE_REPORTED',"
+                        + " 'NONE_REPORTED', ?)",
+                child1,
+                principal.userId());
+        jdbc.update("INSERT INTO child_allergies (child_id, name) VALUES (?, 'Tôm')", child1);
         service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), absent(child2)));
 
         AttendanceSummaryResponse.ClassSummary summary =
@@ -402,6 +414,7 @@ class AttendanceIntegrationTest {
         assertThat(today.present()).isEqualTo(1);
         assertThat(today.unexcused()).isEqualTo(1);
         assertThat(today.mealTotal()).isEqualTo(1);
+        assertThat(today.substitute()).isEqualTo(1);
         assertThat(today.meals()).containsEntry(MealSession.LUNCH, 1);
         assertThat(summary.days().getFirst().missing()).isEqualTo(2);
 
@@ -492,6 +505,17 @@ class AttendanceIntegrationTest {
                         .getClassChildHealth(teacherA, classA, child2, TODAY)
                         .canRecord())
                 .isFalse();
+        assertThat(healthService
+                        .getOverview(vpA, TODAY, null, null, null, classA)
+                        .attention())
+                .extracting(DailyHealthResponse.Attention::childId)
+                .containsExactly(child1);
+        // Sức khỏe chỉ đo khi có mặt: đổi sang vắng thì không còn trong danh sách cần chú ý
+        service.saveClassAttendance(teacherA, classA, request(TODAY, absent(child1), absent(child2)));
+        assertThat(healthService
+                        .getOverview(vpA, TODAY, null, null, null, classA)
+                        .attention())
+                .isEmpty();
     }
 
     @Test
@@ -549,6 +573,84 @@ class AttendanceIntegrationTest {
 
         assertThat(healthService.getChildHistory(vpA, child2, TODAY).entries()).hasSize(1);
         assertThat(healthService.getChildHistory(vpB, child2, TODAY).entries()).hasSize(1);
+    }
+
+    @Test
+    void attendanceSheetShowsLatestHealthCheckPerChild() {
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1), absent(child2)));
+        ClassAttendanceResponse before = service.getClassAttendance(teacherA, classA, TODAY);
+        assertThat(before.children()).allSatisfy(row -> {
+            assertThat(row.health().checked()).isFalse();
+            assertThat(row.health().temperatureLevel()).isNull();
+        });
+
+        healthService.addEntry(
+                teacherA,
+                new DailyHealthRequest(
+                        "r-fever",
+                        classA,
+                        child1,
+                        TODAY,
+                        new BigDecimal("39.0"),
+                        HealthObservation.NOTED,
+                        List.of(HealthSymptom.FEVER),
+                        "",
+                        List.of(HealthAction.MONITOR),
+                        null));
+        ClassAttendanceResponse.HealthSummary fever = service.getClassAttendance(teacherA, classA, TODAY)
+                .children()
+                .getFirst()
+                .health();
+        assertThat(fever.checked()).isTrue();
+        assertThat(fever.observation()).isEqualTo(HealthObservation.NOTED);
+        assertThat(fever.temperature()).isEqualByComparingTo("39.0");
+        assertThat(fever.temperatureLevel()).isEqualTo(TemperatureLevel.HIGH);
+        assertThat(fever.symptoms()).containsExactly(HealthSymptom.FEVER);
+
+        // Khám lại trong ngày: nhãn theo lần mới nhất
+        clock.now = clock.now.plus(Duration.ofMinutes(30));
+        healthService.addEntry(teacherA, health("r-ok", child1, HealthObservation.NO_CONCERN));
+        ClassAttendanceResponse.HealthSummary latest = service.getClassAttendance(teacherA, classA, TODAY)
+                .children()
+                .getFirst()
+                .health();
+        assertThat(latest.entryCount()).isEqualTo(2);
+        assertThat(latest.observation()).isEqualTo(HealthObservation.NO_CONCERN);
+        assertThat(latest.temperatureLevel()).isEqualTo(TemperatureLevel.NORMAL);
+        assertThat(latest.symptoms()).isEmpty();
+    }
+
+    @Test
+    void healthCheckJustAfterMidnightSchoolTimeCountsForThatDay() {
+        // 00:30 giờ trường ngày 21/10 = 17:30 UTC ngày 20/10
+        clock.now = Instant.parse("2026-10-20T17:30:00Z");
+        service.saveClassAttendance(teacherA, classA, request(TODAY, present(child1)));
+        healthService.addEntry(teacherA, health("r-midnight", child1, HealthObservation.NO_CONCERN));
+        ClassAttendanceResponse.HealthSummary health = service.getClassAttendance(teacherA, classA, TODAY)
+                .children()
+                .getFirst()
+                .health();
+        assertThat(health.checked()).isTrue();
+        assertThat(health.temperatureLevel()).isEqualTo(TemperatureLevel.NORMAL);
+        assertThat(service.getClassAttendance(teacherA, classA, TODAY.minusDays(1))
+                        .children())
+                .allSatisfy(row -> assertThat(row.health().checked()).isFalse());
+    }
+
+    @Test
+    void temperatureLevelsFollowAgreedThresholds() {
+        // Bộ Y tế: sốt khi nách ≥ 37,5 °C; nhẹ / vừa / cao / rất cao tách ở 38 / 39 / 40 °C
+        assertThat(TemperatureLevel.of(null)).isNull();
+        assertThat(TemperatureLevel.of(new BigDecimal("35.4"))).isEqualTo(TemperatureLevel.LOW);
+        assertThat(TemperatureLevel.of(new BigDecimal("35.5"))).isEqualTo(TemperatureLevel.NORMAL);
+        assertThat(TemperatureLevel.of(new BigDecimal("37.4"))).isEqualTo(TemperatureLevel.NORMAL);
+        assertThat(TemperatureLevel.of(new BigDecimal("37.5"))).isEqualTo(TemperatureLevel.MILD);
+        assertThat(TemperatureLevel.of(new BigDecimal("37.9"))).isEqualTo(TemperatureLevel.MILD);
+        assertThat(TemperatureLevel.of(new BigDecimal("38.0"))).isEqualTo(TemperatureLevel.MODERATE);
+        assertThat(TemperatureLevel.of(new BigDecimal("38.9"))).isEqualTo(TemperatureLevel.MODERATE);
+        assertThat(TemperatureLevel.of(new BigDecimal("39.0"))).isEqualTo(TemperatureLevel.HIGH);
+        assertThat(TemperatureLevel.of(new BigDecimal("39.9"))).isEqualTo(TemperatureLevel.HIGH);
+        assertThat(TemperatureLevel.of(new BigDecimal("40.0"))).isEqualTo(TemperatureLevel.VERY_HIGH);
     }
 
     private DailyHealthRequest health(String requestId, long childId, HealthObservation observation) {

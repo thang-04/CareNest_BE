@@ -28,7 +28,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | school-structure | StaffAssignment (userId, staffRole, campusId hoặc classroomId, validFrom, validTo) | — | Nguồn scope nhân sự; vai trò quyết định cột scope (PRINCIPAL: toàn trường, VP/bếp: campus, GV: lớp) |
 | child | Child, Enrollment (childId, classroomId, from, to) | CLASS | Campus suy từ classroom |
 | child | GuardianChildLink (childId, userId, relation) | CHILD | Nguồn scope phụ huynh |
-| child | ChildAllergy (childId, allergen, mức nhẹ/nặng) / basic info | CHILD | PH khai khi nhập học, nhà trường ghi (HLT-06); danh mục chất cố định + PHT thêm |
+| child | ChildAllergy (childId, allergen, mức nhẹ/nặng) / basic info | CHILD | PH khai khi nhập học, nhà trường ghi (HLT-06); danh mục chất cố định + PHT thêm. Luồng tiếp nhận G94-180: người tiếp nhận khai báo, chốt; campus của trẻ chưa có lớp = điểm trường tiếp nhận (G94-180/CHD-06, G94-180/CHD-02) |
 | attendance | LeaveRequest (childId, from, to, reason, status) | CHILD | Phụ huynh gửi, không duyệt: SUBMITTED → CANCELLED (ATT-05) |
 | attendance | AttendanceRecord (childId, date, status Có mặt/Vắng, excused, handedOver) | CLASS | 1 bản ghi/trẻ/ngày; vắng có phép theo đơn (ATT-09); xác nhận trả trẻ (ATT-10). Không có MealParticipation riêng (ATT-02) |
 | attendance | AttendanceReopen (classroom, date, reason, by) | CLASS | PHT mở lại sau giờ chốt (ATT-08) |
@@ -36,15 +36,15 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | health / attendance | Kiểm tra đầu ngày (childId, date, temperature, symptoms) | CLASS | Nhập cùng màn điểm danh (HLT-07); module lưu chờ thiết kế bảng |
 | nutrition | Food, NutrientValue (source, sourceVersion) | SCHOOL | Không do AI tạo; nguồn Viện Dinh dưỡng (NUT-18) |
 | nutrition | Dish, Recipe (gam/trẻ theo nhóm tuổi), ingredient type Fresh/Stored | SCHOOL | NUT-18 |
-| nutrition | MealPlan (tuần trong bộ 4 tuần, ageGroup nhà trẻ/mẫu giáo, status, source) | SCHOOL | Chung hai cơ sở (NUT-13); DRAFT → PUBLISHED, công bố là duyệt (NUT-08) |
+| nutrition | MealPlan (tuần trong bộ 4 tuần, ageGroup nhà trẻ/mẫu giáo, status, source) | SCHOOL | Chung hai cơ sở (NUT-13); DRAFT → PUBLISHED, công bố cả tuần, công bố là duyệt (NUT-08) |
 | nutrition | MealCount (campus, date, meal, classroom lines, status, confirmedBy) | CAMPUS | chờ xác nhận → CONFIRMED (không sửa ngầm; đổi ⇒ xác nhận lại) |
 | nutrition | MealConfirmation (lịch sử xác nhận/thay đổi số suất) | CAMPUS | NUT-02..04 |
 | nutrition | FoodQuantityPlan (date, campus, lines) | CAMPUS | Dẫn xuất; sĩ số dự kiến (bản dự trù) hoặc suất đã xác nhận (thực đơn chuẩn ngày) (NUT-07) |
 | nutrition | Bản dự trù (kỳ, campus, thực đơn dự kiến, sĩ số dự kiến theo nhóm tuổi) | CAMPUS | Lưu; sĩ số điền sẵn, PHT sửa; dùng đặt hàng tươi, kiểm nhận lần 1 (NUT-07, NUT-12) |
 | nutrition | Supplier (name, phone, address, idCard, deliveryPerson) | SCHOOL | Dùng chung hai cơ sở (NUT-12) |
-| nutrition | Kho khô: phiếu nhận theo lô, bút toán trừ khi công bố thực đơn chuẩn ngày + điều chỉnh khi xác nhận lại suất | CAMPUS | ADR-0009, NUT-11 |
+| nutrition | Kho khô: phiếu nhận theo lô, bút toán trừ theo ngày khi suất cơ sở được xác nhận (NUT-11) + điều chỉnh khi xác nhận lại suất, phần thiếu chờ phiếu bổ sung | CAMPUS | ADR-0009, NUT-11 |
 | nutrition | Kiểm nhận hàng tươi (2 lần), FoodSample (lưu/hủy, PHT duyệt), ảnh mẫu bữa theo cơ sở | CAMPUS | NUT-12, NUT-16, NUT-21 |
-| health | HealthRecord (childId, date, height, weight, status, note, classification, classificationReason, published) | CHILD | Mọi lần đo, sửa có lý do + lịch sử (HLT-13); phân loại WHO, GV chỉnh kèm lý do (HLT-10); công bố (HLT-11) |
+| health | HealthRecord (childId, campaignId, date, height, weight, headCircumference, note, exam, published) | CHILD | Mọi lần đo, sửa có lý do + lịch sử (HLT-13); mức BMI theo tuổi WHO của kỳ cân đo tính khi đọc, không lưu (HLT-18; GV chỉnh tay còn mở — P-40); cảnh báo ở sổ sức khỏe (HLT-19); công bố (HLT-11) |
 | health | Đợt khám bác sĩ | CHILD | 2 lần/năm (HLT-08); nội dung ghi: chưa có rule |
 | health | Ghi nhận sức khỏe trong ngày (childId, time, symptom, handling, note) | CHILD | Báo phụ huynh ngay (HLT-14) |
 | health | HealthInterpretation (childId, period, text, source, status) | CHILD | AI DRAFT → APPROVED |

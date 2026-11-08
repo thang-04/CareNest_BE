@@ -83,7 +83,7 @@ class CampusServiceIntegrationTest {
         long classroom = insertId("INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (" + campusA + ", "
                 + year + ", 'Lớp A1') RETURNING id");
         long child = insertId(
-                "INSERT INTO children (full_name, date_of_birth) VALUES ('Trẻ IT', '2022-01-01') RETURNING id");
+                "INSERT INTO children (code, full_name, date_of_birth, gender, status, enrolled_on) VALUES ('IT' || substr(md5(random()::text), 1, 12), 'Trẻ IT', '2022-01-01', 'MALE', 'ACTIVE', CURRENT_DATE) RETURNING id");
         jdbc.update(
                 "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
                 child,

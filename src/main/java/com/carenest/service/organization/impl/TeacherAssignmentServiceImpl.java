@@ -20,10 +20,12 @@ import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.SchoolYearStatus;
+import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -51,6 +53,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final TeacherDirectory teacherDirectory;
     private final YearSnapshotReader yearSnapshotReader;
     private final SchoolConfigAccess schoolConfigAccess;
+    private final StaffAccessPolicy staffAccessPolicy;
     private final SchoolStructureMapper schoolStructureMapper;
     private final TeacherClassRules teacherClassRules;
 
@@ -93,13 +96,16 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         String logPrefix = LOG_PREFIX + "|assignClassTeachers|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.checkPrincipal(currentUser);
             Classroom classroom = classroomRepository
                     .findById(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
+            // AUTH-16: HT mọi lớp, PHT chỉ lớp thuộc điểm trường mình phụ trách
+            staffAccessPolicy.checkCanAssign(currentUser, StaffRole.TEACHER, classroom.getCampusId());
             SchoolYear year = findYear(classroom.getSchoolYearId());
             SchoolYearRules.checkOpen(year);
             Set<Long> teacherIds = new HashSet<>(request.teacherIds());
+            // AUTH-24: tuần tự hóa với các phân công đồng thời khác của lớp / GV trước khi đọc hiện trạng
+            teacherClassRules.lockForAssignment(classroom, teacherIds);
             LocalDate start = effectiveStart(year);
             List<StaffAssignment> current =
                     staffAssignmentRepository.findCurrentTeachers(List.of(classId), schoolConfigAccess.today());
@@ -119,8 +125,13 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (teacherIds.size() != request.teacherIds().size()) {
                 throw GlobalException.of(ApiCode.TEACHERS_MUST_DIFFER);
             }
-            // AUTH-24: năm mở, tài khoản hoạt động, GV thuộc điểm trường của lớp (luật chung với /staff-assignments)
-            teacherClassRules.checkTeachers(classroom, year, teacherIds, schoolConfigAccess.today());
+            // AUTH-24: năm mở, tài khoản hoạt động; PHT chỉ xếp GV thuộc điểm trường của lớp, HT mọi điểm trường
+            teacherClassRules.checkTeachers(
+                    classroom,
+                    year,
+                    teacherIds,
+                    schoolConfigAccess.today(),
+                    schoolConfigAccess.isPrincipal(currentUser));
             // Lớp còn 1 giáo viên mà không chọn chủ nhiệm (vd. vừa gỡ chủ nhiệm) ⇒ người còn lại làm chủ nhiệm
             Long homeroomId = request.homeroomTeacherId() == null && teacherIds.size() == 1
                     ? teacherIds.iterator().next()
@@ -261,6 +272,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 + ageGroupId + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
+            schoolConfigAccess.checkCanViewSchool(currentUser);
             if (!ageGroupRepository.existsById(ageGroupId)) {
                 throw GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND);
             }
@@ -414,7 +426,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                         ClassroomRepository.ClassroomCount::getTotal));
         // Lớp năm sắp diễn ra chưa có trẻ đang học: hiện số trẻ đã xếp lớp (dự kiến)
         classroomRepository
-                .countPlannedChildren(ids)
+                .countPlannedChildren(ids, schoolConfigAccess.today())
                 .forEach(p -> children.merge(p.getClassroomId(), p.getTotal(), Long::sum));
         return classes.stream()
                 .map(c -> {

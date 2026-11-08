@@ -1,11 +1,13 @@
 package com.carenest.service.child.impl;
 
+import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.child.ChildProfileResponse;
 import com.carenest.dto.child.ChildSummaryResponse;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.child.ChildMapper;
+import com.carenest.repository.child.ChildAllergyRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -37,6 +40,7 @@ public class ChildServiceImpl implements ChildService {
     private static final String LOG_PREFIX = "[ChildServiceImpl]";
 
     private final ChildRepository childRepository;
+    private final ChildAllergyRepository allergyRepository;
     private final EnrollmentService enrollmentService;
     private final ChildAccessPolicy childAccessPolicy;
     private final ChildMapper childMapper;
@@ -61,11 +65,12 @@ public class ChildServiceImpl implements ChildService {
             Page<Child> children;
             if (classroomIds == null) {
                 children = childRepository.findByFullNameContainingIgnoreCase(text, pageable);
-            } else if (classroomIds.isEmpty()) {
-                children = Page.empty(pageable);
             } else {
-                children = childRepository.searchEnrolled(
-                        classroomIds, today, "%" + text.toLowerCase(Locale.ROOT) + "%", pageable);
+                Set<Long> campuses = classroomId != null
+                        ? Set.of()
+                        : campusId != null ? Set.of(campusId) : staffAccessPolicy.managedCampusIds(actor);
+                children = childRepository.searchForParentAccounts(
+                        classroomIds, campuses, today, "%" + text.toLowerCase(Locale.ROOT) + "%", pageable);
             }
 
             List<Long> childIds =
@@ -80,8 +85,9 @@ public class ChildServiceImpl implements ChildService {
                         child.getFullName(),
                         child.getDateOfBirth(),
                         currentClassroom,
-                        currentClassroom == null ? null : campusByClassroom.get(currentClassroom),
-                        guardianCounts.getOrDefault(child.getId(), 0L));
+                        currentClassroom == null ? child.getIntakeCampusId() : campusByClassroom.get(currentClassroom),
+                        guardianCounts.getOrDefault(child.getId(), 0L),
+                        child.getPhotoKey() == null ? null : "/children/" + child.getId() + "/photo");
             });
             log.info("{}|total={}|END", logPrefix, children.getTotalElements());
             return response;
@@ -100,6 +106,41 @@ public class ChildServiceImpl implements ChildService {
             boolean exists = childRepository.existsById(childId);
             log.info("{}|END", logPrefix);
             return exists;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, ChildBriefResponse> findChildBriefs(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findChildBriefs|count=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, ChildBriefResponse> briefs = childRepository.findAllById(childIds).stream()
+                    .collect(Collectors.toMap(
+                            Child::getId,
+                            c -> new ChildBriefResponse(
+                                    c.getId(), c.getCode(), c.getFullName(), c.getDateOfBirth(), c.getGender())));
+            log.info("{}|END", logPrefix);
+            return briefs;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> findChildIdsWithAllergies(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findChildIdsWithAllergies|count=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> result =
+                    childIds.isEmpty() ? Set.of() : Set.copyOf(allergyRepository.findChildIdsWithAllergy(childIds));
+            log.info("{}|allergic={}|END", logPrefix, result.size());
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

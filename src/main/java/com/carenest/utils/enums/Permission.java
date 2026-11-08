@@ -20,6 +20,22 @@ public enum Permission {
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.PARENT),
             // Bếp không xem hồ sơ trẻ (AUTH-05)
             EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER)),
+    // CHD-01: HT cố định toàn trường; PHT mặc định bật, chỉ trẻ campus mình (CHD-02, AUTH-02)
+    CHILD_ENROLL(
+            "child",
+            "Tiếp nhận trẻ, nhập Excel, mở lại hồ sơ trẻ đã nghỉ",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    CHILD_PROFILE_EDIT(
+            "child",
+            "Sửa hồ sơ trẻ, khai báo sức khỏe",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    CHILD_PLACEMENT(
+            "child",
+            "Xếp lớp, chuyển lớp, cho trẻ nghỉ học",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
     // AUTH-06: HT cấp tài khoản nghiệp vụ; PHT chỉ khi HT bật, và chỉ GV/bếp trong campus mình (StaffAccessPolicy)
     ACCOUNT_MANAGE(
             "account",
@@ -48,6 +64,38 @@ public enum Permission {
             "meals",
             "Xác nhận, điều chỉnh số suất",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    // AUTH-20: danh mục bán trú dùng chung cả trường (SCH-06); PHT mặc định tắt, HT cấp cho PHT dinh dưỡng
+    NUTRITION_MANAGE(
+            "meals",
+            "Quản lý danh mục bán trú: thực phẩm, món, cấu hình nhóm tuổi, nhà cung cấp",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // NUT-08 + AUTH-20: lập và công bố thực đơn tuần cả trường (công bố là duyệt); PHT mặc định tắt
+    MENU_MANAGE(
+            "meals",
+            "Lập và công bố thực đơn tuần",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    // NUT-11 + AUTH-20: phiếu nhập kho khô theo điểm trường; HT cấp cho PHT, có thể nâng lên cả trường
+    STOCK_MANAGE(
+            "meals",
+            "Nhập kho khô theo điểm trường",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    // AUTH-21, AUTH-22: tài khoản bếp chung mỗi điểm trường ghi lưu mẫu, hủy mẫu, ảnh bữa; HT tắt được
+    KITCHEN_RECORD(
+            "meals",
+            "Ghi lưu mẫu, hủy mẫu, đăng ảnh bữa ăn",
+            EnumSet.of(CareNestRole.KITCHEN_STAFF),
+            EnumSet.of(CareNestRole.KITCHEN_STAFF)),
+    // NUT-21 + AUTH-20: duyệt lưu mẫu, hủy mẫu theo điểm trường; PHT mặc định tắt, HT cấp và có thể nâng lên cả trường
+    FOOD_SAFETY_APPROVE(
+            "meals",
+            "Duyệt lưu mẫu thức ăn, duyệt hủy mẫu",
+            EnumSet.of(CareNestRole.PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL),
             true),
     // Không giao được cho ai: nếu giao, người được giao tự cấp thêm quyền cho mình (AUTH-11)
