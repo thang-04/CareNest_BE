@@ -118,6 +118,23 @@ class MenuStatisticsIntegrationTest {
     }
 
     @Test
+    @DisplayName("NUT-12: mua theo ĐVT đếm được làm tròn lên nguyên hộp; tiền ăn vẫn theo lượng thực dùng")
+    void countablePurchaseQtyRoundsUp() {
+        jdbc.update("UPDATE foods SET purchase_unit = 'hộp 110 ml', purchase_unit_size = 110 WHERE code = 'SUA'");
+
+        MenuStatisticsResponse stats = mealPlanService.getMenuStatistics(
+                principal,
+                new MenuStatisticsRequest(
+                        ag3, DAY, null, 80, List.of(new MenuStatisticsRequest.Item(MealSession.AFTERNOON, sua))));
+
+        // 80 × 180 ml = 14.400 ml ÷ 110 = 130,9 ⇒ 131 hộp; tiền = 14.400 × 8.000 ÷ 110
+        assertThat(stats.ingredients()).singleElement().satisfies(milk -> {
+            assertThat(milk.purchaseQty()).isEqualByComparingTo("131");
+            assertThat(milk.cost()).isEqualByComparingTo("1047273");
+        });
+    }
+
+    @Test
     @DisplayName("Không nhập số trẻ, không có sổ suất ⇒ lấy sĩ số đang học (chưa có lớp = 0)")
     void defaultsToEnrolledChildren() {
         MenuStatisticsResponse stats = mealPlanService.getMenuStatistics(
