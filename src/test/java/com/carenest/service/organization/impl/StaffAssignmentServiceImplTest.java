@@ -79,6 +79,20 @@ class StaffAssignmentServiceImplTest {
     }
 
     @Test
+    void campusWithAnotherVicePrincipalIsConflict() {
+        // AUTH-26: tạo tài khoản/đổi vai trò kèm phân công PHT cũng áp mỗi điểm trường tối đa một PHT
+        given(campuses.existsById(10L)).willReturn(true);
+        given(repository.existsOtherVicePrincipalAtCampusOpenEnded(10L, 41L, START, null))
+                .willReturn(true);
+
+        assertThatThrownBy(() -> service.createAssignment(
+                        new NewStaffAssignment(41L, StaffRole.VICE_PRINCIPAL, 10L, null, START, null, 1L, false)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
+        verify(repository, never()).saveAndFlush(any());
+    }
+
+    @Test
     void endDateBeforeStartIsRejectedAndEndedAssignmentCannotBeExtended() {
         StaffAssignment assignment =
                 StaffAssignment.create(40L, StaffRole.TEACHER, null, 11L, START, START.plusDays(5));

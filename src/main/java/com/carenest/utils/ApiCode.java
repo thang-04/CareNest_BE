@@ -231,6 +231,10 @@ public enum ApiCode {
             "Thay hoặc gỡ giáo viên của lớp tại màn Phân công giáo viên (năm đang học lớp phải còn giáo viên)"),
     ASSIGNMENT_END_IN_PAST(2325, HttpStatus.BAD_REQUEST, "Không kết thúc phân công lùi về trước hôm qua"),
     STAFF_ACCOUNT_LOCKED(2326, HttpStatus.CONFLICT, "Tài khoản nhân sự đã bị khóa"),
+    VICE_PRINCIPAL_CAMPUS_TAKEN(
+            2327,
+            HttpStatus.CONFLICT,
+            "Điểm trường này đã có Phó hiệu trưởng phụ trách. Đổi người đó sang điểm trường khác trước"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
