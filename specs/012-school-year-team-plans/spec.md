@@ -1,5 +1,7 @@
 # Feature Specification: Tách Kế hoạch năm học và Kế hoạch tổ
 
+> Mốc nghiệp vụ mới ghi nhận09/11/2026: [12 câu trả lời được giáo viên phía trường xác nhận theo user](../../docs/business/education-plan-confirmation-2026-11-09.md). Ưu tiên quyết định này khi nội dung/plan/tasks cũ khác phạm vi: tổ dùng chung hai điểm trường theo tuổi, một chuỗi/năm/tuổi; không ai xóa tổ kể cả nháp; TT duyệt năm/tổ theo cấu hình đúng tuổi và không tự duyệt; năm mới ban hành tự chuyển nguồn nháp/chờ và tạo cập nhật cho tổ ban hành, giữ bản cũ cho lớp; đỏ phần đổi/xóa/liên kết ảnh hưởng, mục mới riêng, chủ đề kết thúc không đỏ; phủ đủ tuần học bằng nhánh có tên. Đây là xác nhận yêu cầu, không phải delivery hoặc phê duyệt chạy migration; plan/tasks cần đối chiếu mốc này khi triển khai tiếp.
+
 **Feature Branch**: `feature/G94-326-BE-FEAT-09-school-year-goals-backup` (nhánh hiện tại, không tạo/chuyển nhánh)
 
 **Created**: 2026-11-07
@@ -103,7 +105,7 @@ Giáo viên điều chỉnh lịch phù hợp lớp; trường quản lý giới
 - **FR-016**: Tổ trưởng MUST phân bổ bằng cách tick/bỏ tick từng nội dung giáo dục vào chủ đề như giao diện và logic cũ; mục tiêu tương ứng đi theo nội dung đã tick, không tự chọn toàn bộ nội dung của mục tiêu. Cây mục tiêu/nội dung kế thừa là cố định: không được thêm mới, sửa hoặc xóa mục tiêu/nội dung nguồn trong bản tổ. Hệ thống MUST giữ bảo vệ này khi ghi và khi nhập file, không chỉ khóa ô trên màn hình. Giữ logic cũ về liên kết, lưu/mở lại, kiểm tra nội dung trống và phiên bản ngoài các thay đổi đã nêu ở feature này.
 - **FR-017**: Giáo viên MUST được đổi thứ tự dạy các chủ đề lớn trong lịch của lớp; không sửa tên/nội dung chủ đề lớn hoặc bản nguồn. Liên kết mục tiêu/nội dung/nhánh đi theo đúng chủ đề, không gán lại bằng tên/ô hiển thị. Khi đổi thứ tự MUST chuyển cả khối chủ đề kèm các nhánh đã lập/chọn của lớp, giữ số tuần học của từng chủ đề và nhánh, dời ngày theo thứ tự mới; không hoán đổi vào khoảng ngày cố định làm thay thời lượng. Lịch mới vẫn theo cấu hình, trọn tuần học, nhánh trong cha, không trùng và trong năm học. Chỉ thao tác trên hồ sơ được phép soạn, không dời/sửa trực tiếp hồ sơ đã ban hành.
 
-- **FR-018**: PHT MUST NOT xóa kế hoạch tổ, kể cả kế hoạch nháp và khi được cấu hình là người soạn. Chặn ở UI/capability và server; các quyền khác, kế hoạch năm học và chức năng khác giữ nguyên. Nguồn: user 07/11/2026 xác nhận “kế hoạch tổ, còn lại giữ nguyên”.
+- **FR-018**: Hệ thống MUST chặn mọi người dùng xóa kế hoạch tổ, kể cả bản nháp và người tạo/HT/PHT/Tổ trưởng; chỉ điều chỉnh và giữ lịch sử. Quyết định09/11 thay giới hạn cũ chỉ cấm PHT. Chặn ở UI/capability và server; các quyền khác, kế hoạch năm học và chức năng khác giữ nguyên. Nguồn: user 07/11/2026 xác nhận “kế hoạch tổ, còn lại giữ nguyên”.
 - **FR-019**: Giữ UI bảng chủ đề nhánh ban đầu, không thêm bảng nhập nhánh trùng. Trong kế hoạch năm học/kế hoạch tổ/chủ đề nhánh, ô và cột cố định MUST màu xám và không sửa; ô được nhập/chọn MUST màu trắng. Cột nhánh/dự án annual là ô nhập trắng; TEAM giữ cột map mục tiêu. Nguồn: user duyệt FE và bổ sung ngày 07/11/2026.
 
 ### Key Entities *(include if feature involves data)*

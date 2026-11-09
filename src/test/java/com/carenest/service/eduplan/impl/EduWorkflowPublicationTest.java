@@ -9,7 +9,7 @@ import com.carenest.dto.organization.SchoolYearResponse;
 import com.carenest.entity.eduplan.EduPlanGoal;
 import com.carenest.entity.eduplan.EduPlanSubDomain;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduBreakRepository;
 import com.carenest.repository.eduplan.EduGoalContentRepository;
@@ -123,7 +123,7 @@ class EduWorkflowPublicationTest {
     @Test
     @DisplayName("EDU-52: chủ đề thiếu ngày bắt đầu hoặc kết thúc thì từ chối ban hành (mã 7037)")
     void rejectsMissingThemeDates() {
-        EduYearPlan plan = EduYearPlan.createDraft("P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
+        EduPlan plan = EduPlan.createDraft(com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, "P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
         given(schoolStructureService.findSchoolYear(1L))
                 .willReturn(Optional.of(
                         new SchoolYearResponse(1L, "2026-2027", LocalDate.of(2026, 8, 1), LocalDate.of(2027, 5, 31))));
@@ -146,7 +146,7 @@ class EduWorkflowPublicationTest {
     @DisplayName(
             "EDU-53: lĩnh vực có lĩnh vực con nhưng có mục tiêu nằm ngoài lĩnh vực con thì từ chối ban hành (mã 7038)")
     void rejectsMixedSubDomainGoals() {
-        EduYearPlan plan = EduYearPlan.createDraft("P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
+        EduPlan plan = EduPlan.createDraft(com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, "P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
         given(schoolStructureService.findSchoolYear(1L))
                 .willReturn(Optional.of(
                         new SchoolYearResponse(1L, "2026-2027", LocalDate.of(2026, 8, 1), LocalDate.of(2027, 5, 31))));
@@ -191,7 +191,7 @@ class EduWorkflowPublicationTest {
     @Test
     @DisplayName("EDU-51: trùng tên mục tiêu trong cùng phạm vi thì từ chối ban hành (mã 7036)")
     void rejectsDuplicateGoalNames() {
-        EduYearPlan plan = EduYearPlan.createDraft("P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
+        EduPlan plan = EduPlan.createDraft(com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, "P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
         given(schoolStructureService.findSchoolYear(1L))
                 .willReturn(Optional.of(
                         new SchoolYearResponse(1L, "2026-2027", LocalDate.of(2026, 8, 1), LocalDate.of(2027, 5, 31))));

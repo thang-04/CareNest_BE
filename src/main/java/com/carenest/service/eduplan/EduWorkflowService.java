@@ -1,7 +1,7 @@
 package com.carenest.service.eduplan;
 
 import com.carenest.entity.eduplan.EduClassDoc;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.service.eduplan.impl.EduWorkflowPolicy;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -20,7 +20,7 @@ public interface EduWorkflowService {
 
     long getPolicyRevision();
 
-    EduWorkflowPolicy.Evaluation evaluateYearPlan(EduYearPlan plan, LocalDate date);
+    EduWorkflowPolicy.Evaluation evaluateYearPlan(EduPlan plan, LocalDate date);
 
     EduWorkflowPolicy.Evaluation evaluateClassDoc(EduClassDoc doc, Long ageGroupId, LocalDate date);
 

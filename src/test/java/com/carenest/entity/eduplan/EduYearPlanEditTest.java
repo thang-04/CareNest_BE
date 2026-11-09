@@ -13,7 +13,7 @@ class EduYearPlanEditTest {
     @Test
     @DisplayName("EDU-54: kế hoạch duyệt giữ nguyên trạng thái REVIEW")
     void planInReviewHasReviewStatus() {
-        EduYearPlan plan = EduYearPlan.createDraft("TEST", 1L, 1L, "", "", 1L, "", now);
+        EduPlan plan = EduPlan.createDraft("TEST", 1L, 1L, "", "", 1L, "", now);
         plan.submit(1L, now);
 
         assertThat(plan.getStatus()).isEqualTo(EduPlanStatus.REVIEW);

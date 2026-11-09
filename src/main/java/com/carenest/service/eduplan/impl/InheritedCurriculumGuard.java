@@ -3,7 +3,7 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.EduGoalRowKind;
@@ -18,7 +18,7 @@ final class InheritedCurriculumGuard {
     private InheritedCurriculumGuard() {}
 
     static void validateInheritedTree(
-            EduYearPlan plan,
+            EduPlan plan,
             YearPlanRequest request,
             List<EduGoalRow> existingRows,
             Map<Long, List<EduGoalContent>> existingContentsByRowId) {

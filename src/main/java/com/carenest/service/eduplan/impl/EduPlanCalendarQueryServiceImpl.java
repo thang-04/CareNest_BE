@@ -3,10 +3,10 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.repository.eduplan.EduClassDocRepository;
 import com.carenest.repository.eduplan.EduThemeRepository;
-import com.carenest.repository.eduplan.EduYearPlanRepository;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.service.eduplan.EduPlanCalendarQueryService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.enums.EduClassDocStatus;
@@ -35,7 +35,7 @@ public class EduPlanCalendarQueryServiceImpl implements EduPlanCalendarQueryServ
     private static final String LOG_PREFIX = "[EduPlanCalendarQueryServiceImpl]";
 
     private final ClassroomService classroomService;
-    private final EduYearPlanRepository yearPlanRepository;
+    private final EduPlanRepository yearPlanRepository;
     private final EduClassDocRepository classDocRepository;
     private final EduThemeRepository themeRepository;
     private final ObjectMapper objectMapper;
@@ -53,7 +53,7 @@ public class EduPlanCalendarQueryServiceImpl implements EduPlanCalendarQueryServ
             }
             ClassroomInfoResponse cls = clsOpt.get();
 
-            Optional<EduYearPlan> currentTeamPlan = yearPlanRepository
+            Optional<EduPlan> currentTeamPlan = yearPlanRepository
                     .findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                             EduPlanLevel.TEAM, cls.schoolYearId(), cls.ageGroupId())
                     .stream()
@@ -65,7 +65,7 @@ public class EduPlanCalendarQueryServiceImpl implements EduPlanCalendarQueryServ
                 return List.of();
             }
 
-            EduYearPlan teamPlan = currentTeamPlan.get();
+            EduPlan teamPlan = currentTeamPlan.get();
             List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(teamPlan.getId());
             Map<Long, EduTheme> themesById =
                     themes.stream().collect(Collectors.toMap(EduTheme::getId, Function.identity(), (a, b) -> a));

@@ -12,13 +12,13 @@ import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.eduplan.EduBreak;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduBreakRepository;
 import com.carenest.repository.eduplan.EduClassDocRepository;
 import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.repository.eduplan.EduThemeRepository;
-import com.carenest.repository.eduplan.EduYearPlanRepository;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.account.AccountService;
@@ -34,6 +34,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduClassDocStatus;
+import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -79,7 +80,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             long policyRevision,
             EduPlanAccessPolicy.ClassScopeSnapshot scope,
             Map<Long, Set<Long>> authors,
-            Map<Long, EduYearPlan> plans,
+            Map<Long, EduPlan> plans,
             Set<Long> supersededPlanIds,
             Map<Long, EduClassDoc> docsById,
             Map<String, EduClassDoc> docsByKey) {}
@@ -139,7 +140,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             "Giáo viên");
 
     private final EduClassDocRepository classDocRepository;
-    private final EduYearPlanRepository yearPlanRepository;
+    private final EduPlanRepository yearPlanRepository;
     private final EduThemeRepository themeRepository;
     private final com.carenest.repository.eduplan.EduPlanBranchTemplateRepository templateRepository;
     private final EduBreakRepository breakRepository;
@@ -172,7 +173,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             ClassroomInfoResponse cls = requireClass(classId);
             if (!eduWorkflowService.isAuthorEligible(currentUser, EduClassDoc.BRANCH, cls.ageGroupId(), classId))
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
-            EduYearPlan plan = requireIssuedPlan(request.yearPlanId(), cls);
+            EduPlan plan = requireIssuedPlan(request.yearPlanId(), cls);
             if (isSuperseded(plan.getId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
             var currentBranch =
                     classDocRepository.findByDocKey(expectedKey(EduClassDoc.BRANCH, classId, plan, null, null));
@@ -342,7 +343,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
             }
             ClassroomInfoResponse cls = requireClass(classId);
-            EduYearPlan plan = requireIssuedPlan(yearPlanId, cls);
+            EduPlan plan = requireIssuedPlan(yearPlanId, cls);
             if (isSuperseded(plan.getId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
             classDocRepository
                     .findByDocKey(expectedKey(EduClassDoc.BRANCH, classId, plan, null, null))
@@ -497,19 +498,21 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Map<Long, ClassroomInfoResponse> classInfoById =
                     classes.stream().collect(Collectors.toMap(ClassroomInfoResponse::id, c -> c, (a, b) -> a));
             Map<String, EduWorkflowPolicy.RolePolicy> policies = eduWorkflowService.loadAllPolicies();
-            List<EduYearPlan> referencedPlans = yearPlanRepository.findAllById(docs.stream()
+            List<EduPlan> referencedPlans = yearPlanRepository.findAllById(docs.stream()
                     .map(EduClassDoc::getYearPlanId)
                     .filter(Objects::nonNull)
                     .distinct()
                     .toList());
             Set<Long> planSchoolYears = referencedPlans.stream()
-                    .map(EduYearPlan::getSchoolYearId)
+                    .map(EduPlan::getSchoolYearId)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toSet());
-            Map<Long, EduYearPlan> plans = (planSchoolYears.isEmpty()
+            Map<Long, EduPlan> plans = (planSchoolYears.isEmpty()
                             ? referencedPlans
                             : yearPlanRepository.findAllBySchoolYearIdIn(planSchoolYears))
-                    .stream().collect(Collectors.toMap(EduYearPlan::getId, p -> p));
+                    .stream()
+                    .filter(p -> p.getPlanLevel() == EduPlanLevel.TEAM)
+                    .collect(Collectors.toMap(EduPlan::getId, p -> p));
             Map<String, Integer> latestApprovedVersions = new LinkedHashMap<>();
             plans.values().stream()
                     .filter(p -> p.getStatus() == EduPlanStatus.APPROVED)
@@ -519,7 +522,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     .filter(p -> p.getVersionNo()
                             < latestApprovedVersions.getOrDefault(
                                     p.getSchoolYearId() + ":" + p.getAgeGroupId(), p.getVersionNo()))
-                    .map(EduYearPlan::getId)
+                    .map(EduPlan::getId)
                     .collect(Collectors.toSet());
             Map<Long, EduClassDoc> docsById = docs.stream().collect(Collectors.toMap(EduClassDoc::getId, d -> d));
             Map<String, EduClassDoc> docsByKey =
@@ -614,7 +617,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (!eduWorkflowService.isAuthorEligible(currentUser, kind, cls.ageGroupId(), classId)) {
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
             }
-            EduYearPlan plan = requireIssuedPlan(yearPlanId, cls);
+            EduPlan plan = requireIssuedPlan(yearPlanId, cls);
             if (!expectedKey(kind, classId, plan, themeId, weekStart).equals(docKey)) {
                 throw GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH);
             }
@@ -982,7 +985,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     // Khóa Web: giáo án tuần phiên bản ≥2 thêm id kế hoạch để không trùng tuần của phiên bản cũ (spec 004 A4)
-    private static String expectedKey(String kind, Long classId, EduYearPlan plan, Long themeId, LocalDate weekStart) {
+    private static String expectedKey(String kind, Long classId, EduPlan plan, Long themeId, LocalDate weekStart) {
         return switch (kind) {
             case EduClassDoc.BRANCH -> "bp_" + classId + "_" + plan.getId();
             case EduClassDoc.THEME -> "tp_" + classId + "_" + themeId;
@@ -990,16 +993,18 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         };
     }
 
-    /** Tài liệu nguồn của bản chép: cùng lớp, cùng loại, phiên bản thấp hơn của cùng chuỗi kế hoạch năm. */
-    private EduClassDoc requireCopySource(String sourceKey, String kind, Long classId, EduYearPlan plan) {
+    /** Tài liệu nguồn của bản chép: cùng lớp, cùng loại, bản cũ hơn của cùng chuỗi kế hoạch tổ. */
+    private EduClassDoc requireCopySource(String sourceKey, String kind, Long classId, EduPlan plan) {
         EduClassDoc source = classDocRepository
                 .findByDocKey(sourceKey)
                 .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH));
-        EduYearPlan sourcePlan = yearPlanRepository
+        EduPlan sourcePlan = yearPlanRepository
                 .findById(source.getYearPlanId())
                 .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH));
         if (!source.getKind().equals(kind)
                 || !source.getClassroomId().equals(classId)
+                || sourcePlan.getPlanLevel() != EduPlanLevel.TEAM
+                || plan.getPlanLevel() != EduPlanLevel.TEAM
                 || !sourcePlan.getSchoolYearId().equals(plan.getSchoolYearId())
                 || !sourcePlan.getAgeGroupId().equals(plan.getAgeGroupId())
                 || sourcePlan.getVersionNo() >= plan.getVersionNo()) {
@@ -1071,14 +1076,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .count();
     }
 
-    // EDU-26: có phiên bản ban hành số lớn hơn trong cùng chuỗi (năm học, nhóm tuổi)
+    // EDU-26/62: chỉ tổ ban hành mới thay nguồn lớp; năm ban hành hoặc tổ nháp không khóa hồ sơ cũ.
     private boolean isSuperseded(Long yearPlanId) {
         return yearPlanRepository
                 .findById(yearPlanId)
+                .filter(plan -> plan.getPlanLevel() == EduPlanLevel.TEAM)
                 .map(plan -> yearPlanRepository
-                        .findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
-                                plan.getSchoolYearId(), plan.getAgeGroupId())
+                        .findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
+                                EduPlanLevel.TEAM, plan.getSchoolYearId(), plan.getAgeGroupId())
                         .stream()
+                        .filter(p -> p.getPlanLevel() == EduPlanLevel.TEAM)
                         .anyMatch(
                                 p -> p.getStatus() == EduPlanStatus.APPROVED && p.getVersionNo() > plan.getVersionNo()))
                 .orElse(false);
@@ -1219,12 +1226,13 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
     }
 
-    /** EDU-12: tài liệu lớp dựa trên kế hoạch năm đã ban hành của đúng nhóm tuổi, năm học của lớp. */
-    private EduYearPlan requireIssuedPlan(Long yearPlanId, ClassroomInfoResponse cls) {
-        EduYearPlan plan = yearPlanRepository
+    /** EDU-12: tài liệu lớp chỉ nhận tổ đã ban hành đúng nhóm tuổi, năm học của lớp. */
+    private EduPlan requireIssuedPlan(Long yearPlanId, ClassroomInfoResponse cls) {
+        EduPlan plan = yearPlanRepository
                 .findById(yearPlanId)
                 .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
-        if (!plan.getSchoolYearId().equals(cls.schoolYearId())
+        if (plan.getPlanLevel() != EduPlanLevel.TEAM
+                || !plan.getSchoolYearId().equals(cls.schoolYearId())
                 || !plan.getAgeGroupId().equals(cls.ageGroupId())) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_CLASS_MISMATCH);
         }
@@ -1424,7 +1432,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 && !doc.getDurationPolicySnapshot().isBlank()) {
             node.set("durationPolicySnapshot", readObject(doc.getDurationPolicySnapshot()));
         }
-        EduYearPlan cachedPlan = context == null ? null : context.plans().get(doc.getYearPlanId());
+        EduPlan cachedPlan = context == null ? null : context.plans().get(doc.getYearPlanId());
         if (context == null) {
             yearPlanRepository
                     .findById(doc.getYearPlanId())

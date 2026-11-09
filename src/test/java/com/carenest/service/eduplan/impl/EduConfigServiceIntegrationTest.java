@@ -7,9 +7,9 @@ import com.carenest.dto.eduplan.EduConfigRequest;
 import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.dto.eduplan.EduWorkflowPolicyRequest;
 import com.carenest.dto.eduplan.EduWorkflowPolicyResponse;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
-import com.carenest.repository.eduplan.EduYearPlanRepository;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduConfigService;
 import com.carenest.service.eduplan.EduWorkflowService;
@@ -51,7 +51,7 @@ class EduConfigServiceIntegrationTest {
     private EduWorkflowService workflowService;
 
     @Autowired
-    private EduYearPlanRepository yearPlanRepository;
+    private EduPlanRepository yearPlanRepository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -244,7 +244,7 @@ class EduConfigServiceIntegrationTest {
                 Long.class);
         long ageId = jdbc.queryForObject("SELECT id FROM age_groups WHERE code='ag-3'", Long.class);
 
-        EduYearPlan plan = legacyDraft("P-REC", yearId, ageId, "Kế hoạch reconcile", "Mô tả", ownerId, "TL", now);
+        EduPlan plan = legacyDraft("P-REC", yearId, ageId, "Kế hoạch reconcile", "Mô tả", ownerId, "TL", now);
         plan.submit(ownerId, now);
         String approvalsJson = "[{\"userId\":" + approver1
                 + ",\"name\":\"Approver 1\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\"" + now
@@ -268,7 +268,7 @@ class EduConfigServiceIntegrationTest {
 
         workflowService.savePolicy(principal, req);
 
-        EduYearPlan reloaded = yearPlanRepository.findById(plan.getId()).orElseThrow();
+        EduPlan reloaded = yearPlanRepository.findById(plan.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(EduPlanStatus.REVIEW);
         assertThat(reloaded.getApprovals()).contains("TEAM_LEADER");
         EduWorkflowPolicy.Evaluation eval =
@@ -302,7 +302,7 @@ class EduConfigServiceIntegrationTest {
                                         List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
         workflowService.savePolicy(principal, step1Req);
 
-        EduYearPlan plan = legacyDraft("P-AUTO", yearId, ageId, "Kế hoạch auto", "Mô tả", ownerId, "TL", now);
+        EduPlan plan = legacyDraft("P-AUTO", yearId, ageId, "Kế hoạch auto", "Mô tả", ownerId, "TL", now);
         plan.submit(ownerId, now);
         String approvalsJson =
                 "[{\"userId\":" + leaderId + ",\"name\":\"Leader PC\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\""
@@ -311,7 +311,7 @@ class EduConfigServiceIntegrationTest {
         yearPlanRepository.saveAndFlush(plan);
         // Thêm mục tiêu để thỏa mãn điều kiện sẵn sàng ban hành (PLAN_GOAL_REQUIRED)
         jdbc.update(
-                "INSERT INTO edu_plan_goals (id, year_plan_id, domain_id, sort_order, text, goal_no) VALUES (nextval('edu_plan_rows_seq'), ?, 1, 1, 'Mục tiêu kiểm thử', 1)",
+                "INSERT INTO edu_plan_goals (id, team_plan_id, domain_id, sort_order, text, goal_no) VALUES (nextval('edu_plan_rows_seq'), ?, 1, 1, 'Mục tiêu kiểm thử', 1)",
                 plan.getId());
 
         // Bước 2: đổi policy year thành chỉ cần TEAM_LEADER ký (revision 2 -> 3)
@@ -329,7 +329,7 @@ class EduConfigServiceIntegrationTest {
 
         workflowService.savePolicy(principal, step2Req);
 
-        EduYearPlan reloaded = yearPlanRepository.findById(plan.getId()).orElseThrow();
+        EduPlan reloaded = yearPlanRepository.findById(plan.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(EduPlanStatus.APPROVED);
         assertThat(reloaded.getCompletionMode()).isEqualTo("POLICY_CHANGE");
     }
@@ -360,7 +360,7 @@ class EduConfigServiceIntegrationTest {
                                         List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
         workflowService.savePolicy(principal, step1Req);
 
-        EduYearPlan plan = legacyDraft("P-BAD", yearId, ageId, "Kế hoạch bad", "Mô tả", ownerId, "TL", now);
+        EduPlan plan = legacyDraft("P-BAD", yearId, ageId, "Kế hoạch bad", "Mô tả", ownerId, "TL", now);
         plan.submit(ownerId, now);
         String approvalsJson =
                 "[{\"userId\":" + leaderId + ",\"name\":\"Leader RB\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\""
@@ -468,7 +468,7 @@ class EduConfigServiceIntegrationTest {
         return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
     }
 
-    private static com.carenest.entity.eduplan.EduYearPlan legacyDraft(
+    private static com.carenest.entity.eduplan.EduPlan legacyDraft(
             String code,
             Long yearId,
             Long ageId,
@@ -477,7 +477,7 @@ class EduConfigServiceIntegrationTest {
             Long ownerId,
             String ownerTitle,
             java.time.Instant now) {
-        var plan = com.carenest.entity.eduplan.EduYearPlan.createDraft(
+        var plan = com.carenest.entity.eduplan.EduPlan.createDraft(
                 code, yearId, ageId, title, description, ownerId, ownerTitle, now);
         plan.initializePlanSource(
                 com.carenest.utils.enums.EduPlanLevel.TEAM, null, true, "{\"mode\":\"LEGACY_UNBOUNDED\"}");

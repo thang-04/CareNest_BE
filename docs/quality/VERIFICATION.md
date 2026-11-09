@@ -467,6 +467,13 @@ Kết quả convergence: T059–T078 đã được đối chiếu và hoàn thà
 
 Auth React Phase2 (2026-10-12): `VERIFY PASS full | tests 196 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok`. Extension38 tests/0 skip; real-container provider E2E26/26. Phạm vi, RED/GREEN, review và các phần chưa kiểm chứng: báo cáo Phase2 (chưa có trong repo).
 
+## Đặc tả tách năm/tổ — 09/11/2026
+
+- Feature015 chỉ sửa tài liệu/metadata Spec Kit: domain14 mục, spec, checklist, giải thích DB, EDU-62 và incident nhãn đang open. Chỉ đạo cuối mở trang lập tổ trực tiếp, không modal/tự lập tổ, chọn năm nguồn đã ban hành và tách bảng năm/tổ.
+- Kiểm trực tiếp sau ghi: đối chiếu heading, số marker/câu hỏi, JSON feature pointer, link nội bộ và `git diff --check`; kiểm nội dung đạt 14 mục domain/14 FR/2 câu hỏi mở, JSON trỏ đúng feature015 và 13 link nội bộ tồn tại. Lượt diff đầu phát hiện một dòng trống cuối CROSS_REPO_MAP, đã bỏ trước khi kiểm lại. Không chạy test ứng dụng vì chưa sửa code, không chạy hook/harness theo AGENTS chỉ đạo07/11.
+- Constitution2.0.0 đã thống nhất kiểm trực tiếp, nhưng các đoạn Iron Law/bảng lệnh bên dưới và feature-spec-loop vẫn còn yêu cầu harness cũ; áp dụng chỉ đạo mới hơn. Không đổi constitution trong lượt specify.
+- Chưa kiểm runtime lỗi nhãn, chưa sửa DB/API/FE/APP, chưa chạy migration/E2E. User sau đó trả lời Q1/Q2 ngày09/11: chuyển nguồn mới nhất giữ phần nhập, bản chờ về nháp; chủ đề đã kết thúc không đỏ. Đã cập nhật FR013/014 và US3.6/7, domain, EDU62, module card và checklist; spec hết câu hỏi mở, sẵn sàng plan làn L, chưa phê duyệt triển khai. Kiểm trực tiếp Python đạt: 14 mục domain, 14 FR, checklist16/16, 0 marker mở, ca nghiệm thu Q1/Q2 và link hợp lệ; `git diff --check` tài liệu đổi exit0 (chỉ cảnh báo CRLF/LF). Không chạy test ứng dụng vì chỉ sửa tài liệu.
+
 ## Iron Law
 
 ### Cảnh báo thời lượng ngay khi nhập — 08/11/2026
@@ -585,3 +592,29 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 - Theo yêu cầu user: khôi phục field note trong DTO/entity/mapper/lưu/guard/clone/import và các constructor/test; FE khôi phục cột, API mapper, import/export/history/backup và test. Giữ các thay đổi UI trước yêu cầu bỏ ghi chú. Xóa source và bản build V87 chưa áp dụng; không sửa DB runtime.
 - Native `./mvnw.cmd -q -DskipTests test-compile`: exit 0 (log `%TEMP%/carenest-restore-note-compile.log`); chưa chạy BE integration tests. FE `node --import ./scripts/register-auth-test-loader.mjs --test tests/education-plan/*.test.mjs`: 256/256 đạt, fail/skip 0 (log `%TEMP%/carenest-restore-note-fe.log`). Kiểm diff ghi nhận các file trước đó sạch như EduTheme, GoalFilePreviewResponse, YearPlanFileTable, importThemes, planHistory, yearPlanAutosave đã hết diff nội dung.
 - Không harness, browser, migration runtime hoặc commit/push. Lint/build FE được kiểm sau bước khôi phục.
+
+
+## Đồng bộ context/business rules giáo dục — ghi nhận09/11/2026
+
+- Nguồn: user trả lời 12 câu hỏi và xác nhận đã được giáo viên phía trường xác nhận; chưa có tên/ngày xác nhận trực tiếp. Biên bản: [education-plan-confirmation-2026-11-09](../business/education-plan-confirmation-2026-11-09.md).
+- Đồng bộ BUSINESS_RULES, flow, PROJECT_CONTEXT, module card, CROSS_REPO_MAP và ghi chú ưu tiên spec012/015; EDU-57 chặn mọi người xóa tổ, chuỗi/phạm vi/policy/cập nhật nguồn/rà soát/tuần học/nhập file theo đúng câu trả lời. Giữ mức nguồn riêng ngoài bộ câu hỏi và giữ gap code tách delivery.
+- Native kiểm tài liệu bằng Python assert trực tiếp: 8 file UTF-8/fence, liên kết biên bản tồn tại, 59 EDU-ID duy nhất, đủ 12 câu trả lời, các dòng CONFIRMED đúng phạm vi, không ai xóa TEAM. Output: DOC CHECK PASS, exit0.
+- Kiểm whitespace: git diff --check trong BE; kết quả sau cập nhật cuối ghi ở chat. Không chạy wrapper/harness theo AGENTS07/11.
+- Không đổi source/API/migration, không chạy Maven/FE/browser/DB ở lượt docs; 299/299 test FE là evidence lượt đối chiếu trước, không báo chạy lại. Không commit/push/deploy. Plan/tasks012/015 cần đối chiếu mốc mới khi triển khai, chưa tái sinh hoặc thực thi tasks.
+
+
+## Spec015 — remediation artifact và kiểm coverage, 09/11/2026
+
+- User yêu cầu đối chiếu context/business rules và “fix” bộ artifact trước kiểm coverage lại. Sửa spec/domain/plan/research/model/contract/tasks/quickstart/database-context/checklist; báo cáo [analysis015](../../specs/015-separate-year-team-plans/analysis.md). Không đổi nghiệp vụ nguồn hoặc constitution.
+- Bổ sung FR-016/017, regression cây nguồn API/import, task FE riêng, shared header sequence và transaction cập nhật nguồn đồng bộ là thiết kế đề xuất chờ duyệt; sửa thứ tự rehearsal trước cutover. Đối chiếu V35/V80/V83/V84: unique INDEX, authors class_doc_id không ép owner header, giữ FK ghép cây/theme/templates; không sửa migration local.
+- Native Python assert trực tiếp qua PowerShell stdin: `DOC CHECK PASS: 11 Markdown files, 17 FR + 6 SC, 47 unique tasks, 23/23 mapped requirements, links/fences/whitespace valid.` Đã kiểm ID liên tục/refs/coverage table, UTF-8/fences/local links, 9 owner/ngoại lệ authors, NULL legacy/partial index, shared sequence/transaction, query không dùng bảng/cột đã drop.
+- `git diff --check` exit0; Git có cảnh báo CRLF→LF trên các file đã thay đổi trước đó, không lỗi whitespace. Artifact spec015 đang untracked nên kiểm riêng trailing whitespace bằng Python, không dựa riêng git diff.
+- Coverage 23/23 là coverage tài liệu yêu cầu→task/check, không implementation/test coverage. T001–T037 giữ ID và trạng thái chưa hoàn thành; thêm T038–T047. Chưa chạy Maven/FE/browser/SQL/Flyway; SQL quickstart cần rehearsal thật ở T030. Không commit/push/deploy, không sửa FE/APP. Gate plan/API/DDL/quyền client và APP impact còn phải có bằng chứng trước thực thi theo scope.
+
+
+## Spec015 — fix G1/U1/U2 sau analyze tiếp theo, 09/11/2026
+
+- User “ok fix”: chỉ sửa artifact, giữ T001–T047/trạng thái, thêm T048–T050. Đồng bộ spec/domain/plan/research/data-model/contract/quickstart/analysis và coverage table; không tái sinh tasks hoặc chạy speckit-tasks.
+- T048 chuyển consumer hồ sơ lớp/requireIssuedPlan/isSuperseded/context/copy/lock sang TEAM và rà nguồn lesson-query/observation; T049 legacy NULL nằm ngoài cập nhật tự động bằng FK, không đoán/gán năm/baseline; T050 chuyển nguồn tăng revision/vô hiệu lease/session nguyên tử, form cũ conflict, giữ input, replay/rollback không mất dữ liệu.
+- Native Python assert trực tiếp: 11 Markdown files, FR17+SC6, T001–T050 duy nhất/đủ/unchecked, 23/23 yêu cầu mapped; T048–T050 có implementation/check/dependency trước T035/T009; local links/fences/UTF-8/trailing whitespace đạt. git diff --check phạm vi spec015 exit0; artifact untracked được kiểm riêng bằng Python.
+- Coverage tài liệu không phải test/code coverage; chưa chạy Maven/FE/browser/SQL/Flyway hoặc sửa source/client/migration. Không commit/push/deploy; phê duyệt plan/API/DDL/quyền client theo scope vẫn cần trước thực thi.

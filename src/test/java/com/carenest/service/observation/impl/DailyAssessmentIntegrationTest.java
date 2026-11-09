@@ -179,20 +179,20 @@ class DailyAssessmentIntegrationTest {
 
         // Giáo án tuần 26–30/10 của lớp A đã duyệt: Hoạt động học thứ 3 có MT1, thứ 4 có MT1 + MT2
         long plan = insertId(
-                "INSERT INTO edu_year_plans (legacy_team_without_source, code, school_year_id, age_group_id, title, status, owner_id) "
+                "INSERT INTO edu_team_plans (legacy_team_without_source, code, school_year_id, age_group_id, title, status, owner_id) "
                         + "VALUES (true, 'KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
                         + ") RETURNING id");
         long domain = jdbc.queryForObject("SELECT id FROM edu_domains ORDER BY sort_order LIMIT 1", Long.class);
         goal1 = goal(plan, domain, 1, "Trẻ nhận biết màu");
         goal2 = goal(plan, domain, 2, "Trẻ đếm đến 5");
         goal3 = goal(plan, domain, 3, "Trẻ nhảy bật");
-        long theme = insertId("INSERT INTO edu_themes (year_plan_id, sort_order, name, abbr) VALUES (" + plan
+        long theme = insertId("INSERT INTO edu_themes (team_plan_id, sort_order, name, abbr) VALUES (" + plan
                 + ", 1, 'Bản thân', 'BT') RETURNING id");
         String content = "{\"grid\":{\"hoc\":{\"days\":[\"\",\"Toán\",\"Tạo hình\",\"\",\"\"]}},\"picks\":{"
                 + "\"hoc.1\":[{\"id\":\"p1\",\"goalId\":\"" + goal1 + "\"}],"
                 + "\"hoc.2\":[{\"id\":\"p2\",\"goalId\":\"" + goal1 + "\"},{\"id\":\"p3\",\"goalId\":\"" + goal2
                 + "\"}]}}";
-        weekDoc = insertId("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, year_plan_id, theme_id, "
+        weekDoc = insertId("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, "
                 + "week_start, status, content, created_by, updated_by) VALUES ('w-a', 'week', " + classA + ", "
                 + plan + ", " + theme + ", '2026-10-26', 'APPROVED', '" + content + "'::jsonb, "
                 + principal.userId() + ", " + principal.userId() + ") RETURNING id");
@@ -561,23 +561,23 @@ class DailyAssessmentIntegrationTest {
         attendance(child1, classA, TODAY);
         service.saveSkills(
                 teacherA, classA, skills(TODAY, child1, null, activity("hoc", List.of(goal1), List.of(goal2))));
-        long nextPlan = insertId("INSERT INTO edu_year_plans "
+        long nextPlan = insertId("INSERT INTO edu_team_plans "
                 + "(code, school_year_id, age_group_id, title, status, owner_id, version_no, source_plan_id, legacy_team_without_source) "
                 + "SELECT 'KH-T-V2', school_year_id, age_group_id, title, status, owner_id, 2, id, legacy_team_without_source "
-                + "FROM edu_year_plans WHERE id = (SELECT year_plan_id FROM edu_class_docs WHERE id = "
+                + "FROM edu_team_plans WHERE id = (SELECT team_plan_id FROM edu_class_docs WHERE id = "
                 + weekDoc + ") RETURNING id");
         long domain = jdbc.queryForObject("SELECT domain_id FROM edu_plan_goals WHERE id = ?", Long.class, goal1);
         long copiedGoal = goal(nextPlan, domain, 1, "Trẻ nhận biết màu");
         long addedGoal = goal(nextPlan, domain, 2, "Trẻ nhảy bật");
         jdbc.update("UPDATE edu_plan_goals SET lineage_id = ? WHERE id = ?", goal1, copiedGoal);
         jdbc.update("UPDATE edu_plan_goals SET lineage_id = ? WHERE id = ?", goal3, addedGoal);
-        long nextTheme = insertId("INSERT INTO edu_themes (year_plan_id, sort_order, name, abbr, lineage_id) "
+        long nextTheme = insertId("INSERT INTO edu_themes (team_plan_id, sort_order, name, abbr, lineage_id) "
                 + "SELECT " + nextPlan + ", 1, name, abbr, id FROM edu_themes "
                 + "WHERE id = (SELECT theme_id FROM edu_class_docs WHERE id = " + weekDoc + ") RETURNING id");
         String content =
                 "{\"picks\":{\"hoc.2\":[{\"goalId\":\"" + copiedGoal + "\"},{\"goalId\":\"" + addedGoal + "\"}]}}";
         long nextDoc = insertId("INSERT INTO edu_class_docs "
-                + "(doc_key, kind, classroom_id, year_plan_id, theme_id, week_start, status, content, created_by, updated_by, source_doc_id) "
+                + "(doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, created_by, updated_by, source_doc_id) "
                 + "SELECT 'w-a-v2', kind, classroom_id, " + nextPlan + ", " + nextTheme
                 + ", week_start, status, '" + content + "'::jsonb, created_by, updated_by, id "
                 + "FROM edu_class_docs WHERE id = " + weekDoc + " RETURNING id");
@@ -958,7 +958,7 @@ class DailyAssessmentIntegrationTest {
     }
 
     private long goal(long plan, long domain, int no, String text) {
-        return insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no) VALUES ("
+        return insertId("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no) VALUES ("
                 + plan + ", " + domain + ", " + no + ", '" + text + "', " + no + ") RETURNING id");
     }
 

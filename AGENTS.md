@@ -2,6 +2,13 @@
 
 Repo này là **source of truth** của CareNest: business rule, domain, kiến trúc, API contract, database và engineering memory. Web (`CareNest_FE`) và Mobile (`CareNest_APP`) là client.
 
+## Quy trình thực thi — chỉ đạo user ngày 07/11/2026
+
+- Áp dụng cho toàn bộ quy trình làm việc trong repo: agent tự điều phối các bước cần thiết, ưu tiên nhanh và đúng phạm vi; không tự chạy harness/orchestrator, hook mở rộng Spec Kit hoặc các script setup/check/verify của dự án. Không lặp thêm workflow/skill chỉ để thỏa cổng của harness cũ. Skill user gọi vẫn được dùng cho nội dung công việc, đọc artifact trực tiếp thay cho script điều phối.
+- Kiểm chứng trực tiếp theo thay đổi: chạy test/build/lint cần thiết bằng công cụ gốc (Maven, Node, SQL...), tái sử dụng test hiện có; ghi lệnh, kết quả và phần chưa kiểm chứng. Không mặc định chạy toàn bộ suite cho thay đổi tài liệu. Không vô hiệu hóa hoặc sửa test/hook để che lỗi.
+- Chỉ đạo này thay thế các yêu cầu dùng harness/script điều phối, gồm `scripts/verify.mjs`, `scripts/check-ai-layer.mjs` và wrapper tương tự ở các mục bên dưới. Giữ nguyên nghiệp vụ đã chốt, bảo mật, giới hạn phạm vi repo và quyền Git/API/dependency/migration; không coi yêu cầu tăng tốc là phê duyệt triển khai.
+- Nếu artifact hoặc constitution còn yêu cầu harness cũ, nêu rõ chỗ lệch và đề xuất đồng bộ ở bước chỉnh tài liệu được phép; không tự sửa artifact trong lệnh chỉ đọc như `speckit-analyze`, không tự sửa constitution trong lượt phân tích.
+
 ## Bắt đầu mọi task — chọn làn
 
 - **Mọi feature mới:** bắt buộc theo [quy trình Domain spec → Spec Kit → implement/converge](.ai/workflows/feature-spec-loop.md) do user cung cấp và xác nhận 01/11/2026; dùng [mẫu Domain spec 14 mục](docs/business/DOMAIN_SPEC_TEMPLATE.md). Chọn làn vẫn quyết định phạm vi review/verify; làn S không bỏ vòng lặp này khi là feature mới.
@@ -21,6 +28,7 @@ Repo này là **source of truth** của CareNest: business rule, domain, kiến 
 ## Nguyên tắc bất biến
 
 1. **Không tự chế business rule.** Rule có ID trong `docs/business/BUSINESS_RULES.md`. Nghiệp vụ chưa rõ / `PENDING` / `OPEN` / lệch tài liệu ⇒ hỏi user tới khi rõ; làm cấu hình được chỉ khi user nói chưa chốt.
+   - **Bắt buộc đối chiếu context kế hoạch giáo dục** (user yêu cầu 09/11/2026): mọi phân tích, đặc tả, plan, task, sửa code và review liên quan kế hoạch giáo dục phải đọc phần hiện hành trong `docs/context/PROJECT_CONTEXT.md`, `docs/modules/education-plan.md`, `docs/business/flows/education-plan.md`, các rule EDU liên quan trong `docs/business/BUSINESS_RULES.md` và nguồn quyết định mà chúng dẫn tới (hiện có `docs/business/education-plan-confirmation-2026-11-09.md`). Đối chiếu yêu cầu/AC → rule ID, trạng thái, nguồn/ngày → plan/task/check; không chỉ kiểm spec/plan/tasks với nhau. Ưu tiên quyết định mới nhất có nguồn trong đúng phạm vi; tách nghiệp vụ đích khỏi tình trạng triển khai, không lấy code cũ làm chuẩn thay quyết định đã chốt hoặc suy CONFIRMED là đã hoàn tất/được phép triển khai. Nguồn mâu thuẫn chưa giải quyết phải báo rõ trước khi sửa; với `speckit-analyze`, chỉ báo gap, không tự sửa artifact.
 2. Ưu tiên khi mâu thuẫn — nghiệp vụ: quyết định mới nhất có nguồn (team chốt, chỉ đạo giảng viên đã nhận) > khảo sát/Report 1 > đề xuất; code: source > guide > ADR ACCEPTED (chi tiết `PROJECT_CONTEXT.md`). Code ≠ docs ⇒ báo xung đột, xác minh trước khi sửa.
 3. **1 trường, 2 điểm trường** — không multi-school/multi-tenant. Mọi truy vấn dữ liệu trẻ/lớp kiểm tra quyền theo campus/class/child ở server.
 4. **AI chỉ hỗ trợ:** AI tạo bản nháp, con người duyệt; nghiệp vụ chạy được khi AI tắt; AI không tạo dữ liệu dinh dưỡng nền, không chẩn đoán. Gọi AI chỉ qua `integration/`.

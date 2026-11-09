@@ -44,8 +44,8 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
     @Query(
             value =
                     "SELECT t.id AS id, COALESCE(t.lineage_id, t.id) AS lineage, t.name AS name, t.abbr AS abbr, t.start_date AS startDate, t.end_date AS endDate"
-                            + " FROM edu_themes t WHERE t.year_plan_id = (SELECT p.id FROM edu_year_plans p"
-                            + " WHERE p.plan_level = 'TEAM' AND p.school_year_id = :schoolYearId AND p.age_group_id = :ageGroupId AND p.status = 'APPROVED'"
+                            + " FROM edu_themes t WHERE t.team_plan_id = (SELECT p.id FROM edu_team_plans p"
+                            + " WHERE p.school_year_id = :schoolYearId AND p.age_group_id = :ageGroupId AND p.status = 'APPROVED'"
                             + " ORDER BY p.version_no DESC, p.id DESC LIMIT 1)"
                             + " AND t.start_date IS NOT NULL AND t.end_date IS NOT NULL ORDER BY t.start_date, t.sort_order, t.id",
             nativeQuery = true)
@@ -54,7 +54,7 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
     // PHT chuyên môn ban hành kế hoạch năm của nhóm tuổi (EDU-30): người ký "Phó hiệu trưởng" trên bản in
     @Query(
             value =
-                    "SELECT p.issued_by FROM edu_year_plans p WHERE p.plan_level = 'TEAM' AND p.school_year_id = :schoolYearId"
+                    "SELECT p.issued_by FROM edu_team_plans p WHERE p.school_year_id = :schoolYearId"
                             + " AND p.age_group_id = :ageGroupId AND p.status = 'APPROVED' ORDER BY p.version_no DESC, p.id DESC LIMIT 1",
             nativeQuery = true)
     Long findApprovedPlanIssuer(@Param("schoolYearId") Long schoolYearId, @Param("ageGroupId") Long ageGroupId);
@@ -84,7 +84,7 @@ public interface ThemeEvaluationRepository extends JpaRepository<ThemeEvaluation
             value = "SELECT COALESCE(g.lineage_id, g.id) AS lineage, g.goal_no AS goalNo, g.text AS text,"
                     + " d.id AS domainId, d.name AS domainName FROM edu_plan_goals g"
                     + " LEFT JOIN edu_domains d ON d.id = g.domain_id"
-                    + " WHERE g.year_plan_id = (SELECT p.id FROM edu_year_plans p WHERE p.plan_level = 'TEAM' AND p.school_year_id = :schoolYearId"
+                    + " WHERE g.team_plan_id = (SELECT p.id FROM edu_team_plans p WHERE p.school_year_id = :schoolYearId"
                     + " AND p.age_group_id = :ageGroupId AND p.status = 'APPROVED' ORDER BY p.version_no DESC, p.id DESC LIMIT 1)"
                     + " ORDER BY d.sort_order NULLS LAST, d.id NULLS LAST, g.goal_no, g.sort_order, g.id",
             nativeQuery = true)

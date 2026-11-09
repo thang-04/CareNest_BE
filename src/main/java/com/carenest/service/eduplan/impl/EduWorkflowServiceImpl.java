@@ -7,12 +7,12 @@ import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduDocumentAuthor;
 import com.carenest.entity.eduplan.EduSettings;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduClassDocRepository;
 import com.carenest.repository.eduplan.EduDocumentAuthorRepository;
 import com.carenest.repository.eduplan.EduSettingsRepository;
-import com.carenest.repository.eduplan.EduYearPlanRepository;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.account.AccountService;
@@ -61,7 +61,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     private static final DateTimeFormatter LEGACY_APPROVAL_TIME = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm");
 
     private final EduSettingsRepository settingsRepository;
-    private final EduYearPlanRepository yearPlanRepository;
+    private final EduPlanRepository yearPlanRepository;
+    private final EduTeamUpdateGenerator teamUpdates;
     private final EduClassDocRepository classDocRepository;
     private final EduDocumentAuthorRepository authorRepository;
     private final StaffAssignmentService staffAssignmentService;
@@ -132,7 +133,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
 
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
-    public Evaluation evaluateYearPlan(EduYearPlan plan, LocalDate date) {
+    public Evaluation evaluateYearPlan(EduPlan plan, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|evaluateYearPlan";
         log.info("{}|START", logPrefix);
         try {
@@ -221,7 +222,9 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                     existing.get().touch(now);
                     authorRepository.save(existing.get());
                 } else {
-                    authorRepository.save(EduDocumentAuthor.forYearPlan(yearPlanId, userId, origin, now));
+                    var author=EduDocumentAuthor.forYearPlan(yearPlanId,userId,origin,now);
+                    author.initializeOwner(yearPlanRepository.findById(yearPlanId).orElseThrow());
+                    authorRepository.save(author);
                 }
             } else if (classDocId != null) {
                 Optional<EduDocumentAuthor> existing = authorRepository.findByClassDocIdAndUserId(classDocId, userId);
@@ -393,9 +396,9 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             var assignmentSnapshot = staffAssignmentService.findActiveEducationReviewerAssignments(today);
             var activeSnapshot = accountService.findActiveUserIds(assignmentSnapshot.keySet());
 
-            List<EduYearPlan> leasedDrafts = yearPlanRepository.findAllByEditingByIsNotNull();
+            List<EduPlan> leasedDrafts = yearPlanRepository.findAllByEditingByIsNotNull();
             Set<Long> leaseHolders =
-                    leasedDrafts.stream().map(EduYearPlan::getEditingBy).collect(java.util.stream.Collectors.toSet());
+                    leasedDrafts.stream().map(EduPlan::getEditingBy).collect(java.util.stream.Collectors.toSet());
             var holderAssignments = leaseHolders.isEmpty()
                     ? Map.<Long, List<StaffAssignmentSummaryResponse>>of()
                     : staffAssignmentService.findActiveAssignmentsByUserIds(leaseHolders, today);
@@ -403,7 +406,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                     leaseHolders.isEmpty() ? Set.<Long>of() : accountService.findActiveUserIds(leaseHolders);
             Map<Long, Optional<com.carenest.dto.organization.ClassroomInfoResponse>> classroomCache =
                     new java.util.HashMap<>();
-            for (EduYearPlan draft : leasedDrafts) {
+            for (EduPlan draft : leasedDrafts) {
                 if (draft.getStatus() == EduPlanStatus.DRAFT
                         && !leaseHolderEligible(
                                 draft.getEditingBy(),
@@ -419,9 +422,9 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             }
 
             // 2. Year plans lock in ascending ID order
-            List<EduYearPlan> pendingYears =
+            List<EduPlan> pendingYears =
                     yearPlanRepository.findAllByStatusInForUpdateOrderByIdAsc(List.of(EduPlanStatus.REVIEW));
-            for (EduYearPlan plan : pendingYears) {
+            for (EduPlan plan : pendingYears) {
                 RolePolicy yearPolicy = loadPolicy(plan.workflowKey());
                 Evaluation eval = evaluator.evaluate(
                         yearPolicy,
@@ -487,7 +490,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                 plan.finishEditing();
                 plan.recordSave(null);
                 String action = eval.complete() ? "COMPLETED_BY_POLICY" : "POLICY_RECONCILED";
-                eventRepository.save(com.carenest.entity.eduplan.EduPlanEvent.of(
+                var event = com.carenest.entity.eduplan.EduPlanEvent.of(
                         plan.getId(),
                         action,
                         action,
@@ -496,8 +499,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                         null,
                         "",
                         policyAudit(plan.getReviewRound(), revision).toString(),
-                        now));
+                        now);
+                event.initializeOwner(plan);
+                eventRepository.save(event);
                 yearPlanRepository.save(plan);
+                if(eval.complete()) teamUpdates.updateAfterPublication(plan,now);
             }
 
             // 3. Class docs lock in ascending ID order
@@ -688,9 +694,9 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             reconcilePending(null, now);
 
             // 2. Backfill approved year plans without print snapshot (idempotent)
-            List<EduYearPlan> approvedYears =
+            List<EduPlan> approvedYears =
                     yearPlanRepository.findAllByStatusInForUpdateOrderByIdAsc(List.of(EduPlanStatus.APPROVED));
-            for (EduYearPlan plan : approvedYears) {
+            for (EduPlan plan : approvedYears) {
                 boolean modified = false;
                 if (plan.getPrintSnapshot() == null || plan.getPrintSnapshot().isBlank()) {
                     String snapshot = legacySnapshot(
@@ -740,7 +746,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         }
     }
 
-    private List<Approval> legacyYearApprovals(EduYearPlan plan) {
+    private List<Approval> legacyYearApprovals(EduPlan plan) {
         var approvals = new ArrayList<>(parseApprovals(plan.getApprovals()));
         if (plan.getIssuedBy() != null && approvals.stream().noneMatch(a -> a.roleKey() == Role.VICE_PRINCIPAL)) {
             String name =

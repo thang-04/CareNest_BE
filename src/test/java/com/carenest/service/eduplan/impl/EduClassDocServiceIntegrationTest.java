@@ -7,7 +7,9 @@ import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanRequest;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.EduYearPlanService;
@@ -63,6 +65,9 @@ class EduClassDocServiceIntegrationTest {
     private EduYearPlanService yearPlanService;
 
     @Autowired
+    private EduPlanRepository planRepository;
+
+    @Autowired
     private com.carenest.service.eduplan.EduWorkflowService workflow;
 
     @Autowired
@@ -81,6 +86,7 @@ class EduClassDocServiceIntegrationTest {
     private long ageGroup3;
     private long classId;
     private long otherClassId;
+    private long annualPlanId;
     private CurrentUser vicePrincipal;
     private CurrentUser principal;
     private CurrentUser leader;
@@ -204,6 +210,7 @@ class EduClassDocServiceIntegrationTest {
                 "Ban hành KH năm học",
                 new com.carenest.dto.eduplan.YearPlanEditRequest(
                         null, annualSub.revision(), java.util.UUID.randomUUID()));
+        annualPlanId = annualIssued.id();
 
         // Chủ đề 1 có tuần nghỉ ở giữa (2 tuần học), chủ đề 2 bắt đầu Chủ nhật (1 tuần học)
         java.util.UUID editSession = java.util.UUID.randomUUID();
@@ -222,15 +229,15 @@ class EduClassDocServiceIntegrationTest {
                         List.of()),
                 new com.carenest.dto.eduplan.YearPlanEditRequest(editSession, 0L, java.util.UUID.randomUUID()));
         jdbc.update(
-                "UPDATE edu_year_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
+                "UPDATE edu_team_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
                 draft.id());
         entityManager.clear();
         Long contentId = jdbc.queryForObject(
-                "SELECT id FROM edu_goal_contents WHERE goal_id IN (SELECT id FROM edu_plan_goals WHERE year_plan_id = ?) LIMIT 1",
+                "SELECT id FROM edu_goal_contents WHERE goal_id IN (SELECT id FROM edu_plan_goals WHERE team_plan_id = ?) LIMIT 1",
                 Long.class,
                 draft.id());
         Long themeId1 = jdbc.queryForObject(
-                "SELECT id FROM edu_themes WHERE year_plan_id = ? AND abbr = 'TMN'", Long.class, draft.id());
+                "SELECT id FROM edu_themes WHERE team_plan_id = ? AND abbr = 'TMN'", Long.class, draft.id());
         jdbc.update("INSERT INTO edu_content_theme_ticks (content_id, theme_id) VALUES (?, ?)", contentId, themeId1);
 
         YearPlanDetailResponse submitted = yearPlanService.submitYearPlan(
@@ -246,7 +253,7 @@ class EduClassDocServiceIntegrationTest {
                 new com.carenest.dto.eduplan.YearPlanEditRequest(
                         null, submitted.revision(), java.util.UUID.randomUUID()));
         jdbc.update(
-                "UPDATE edu_year_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
+                "UPDATE edu_team_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
                 plan.id());
         entityManager.clear();
         theme1 = String.valueOf(plan.themes().get(0).id());
@@ -339,6 +346,8 @@ class EduClassDocServiceIntegrationTest {
     @DisplayName("EDU-12/26/47: kế hoạch sai nhóm tuổi, chưa ban hành hoặc có phiên bản mới bị chặn")
     void previewBranchesRequiresCurrentIssuedPlanForClass() {
         var file = branchFile("Chủ đề,Chủ đề nhánh\nTrường mầm non,Tên\n");
+        assertApiError(
+                () -> service.previewBranchFile(teacher, classId, annualPlanId, file), ApiCode.YEAR_PLAN_CLASS_MISMATCH);
         Long otherAgeGroup = jdbc.queryForObject(
                 "SELECT id FROM age_groups WHERE id <> ? ORDER BY id LIMIT 1", Long.class, ageGroup3);
         jdbc.update("UPDATE classrooms SET age_group_id = ? WHERE id = ?", otherAgeGroup, classId);
@@ -346,17 +355,59 @@ class EduClassDocServiceIntegrationTest {
         assertApiError(
                 () -> service.previewBranchFile(teacher, classId, plan.id(), file), ApiCode.YEAR_PLAN_CLASS_MISMATCH);
         jdbc.update("UPDATE classrooms SET age_group_id = ? WHERE id = ?", ageGroup3, classId);
-        jdbc.update("UPDATE edu_year_plans SET status = 'DRAFT' WHERE id = ?", plan.id());
+        jdbc.update("UPDATE edu_team_plans SET status = 'DRAFT' WHERE id = ?", plan.id());
         entityManager.clear();
         assertApiError(
                 () -> service.previewBranchFile(teacher, classId, plan.id(), file), ApiCode.YEAR_PLAN_NOT_ISSUED);
-        jdbc.update("UPDATE edu_year_plans SET status = 'APPROVED' WHERE id = ?", plan.id());
+        jdbc.update("UPDATE edu_team_plans SET status = 'APPROVED' WHERE id = ?", plan.id());
         jdbc.update(
-                "INSERT INTO edu_year_plans (code, school_year_id, age_group_id, version_no, source_plan_id, title, description, status, owner_id, content_revision, legacy_team_without_source, created_at, updated_at) SELECT code || '-V2', school_year_id, age_group_id, 2, id, title, description, 'APPROVED', owner_id, 0, true, now(), now() FROM edu_year_plans WHERE id = ?",
+                "INSERT INTO edu_team_plans (code, school_year_id, age_group_id, version_no, source_plan_id, title, description, status, owner_id, content_revision, legacy_team_without_source, created_at, updated_at) SELECT code || '-V2', school_year_id, age_group_id, 2, id, title, description, 'APPROVED', owner_id, 0, true, now(), now() FROM edu_team_plans WHERE id = ?",
                 plan.id());
         entityManager.clear();
         assertApiError(
                 () -> service.previewBranchFile(teacher, classId, plan.id(), file), ApiCode.YEAR_PLAN_SUPERSEDED);
+    }
+
+    @Test
+    @DisplayName("EDU-26/62: năm có phiên bản cao hơn không khóa hồ sơ của tổ đang ban hành")
+    void annualVersionDoesNotSupersedeTeamClassDocs() {
+        String key = "bp_" + classId + "_" + plan.id();
+        ObjectNode content = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        service.saveClassDoc(teacher, "branch", key, content, versionOf(key), rootVersionOf("branch", content));
+        jdbc.update("UPDATE edu_year_plans SET version_no=2 WHERE id=?", annualPlanId);
+        entityManager.clear();
+
+        assertThat(service.getClassDocs(teacher, schoolYear).branchPlans())
+                .filteredOn(d -> d.path("id").asString().equals(key))
+                .singleElement()
+                .satisfies(d -> {
+                    assertThat(d.path("superseded").asBoolean()).isFalse();
+                    assertThat(d.path("permissions").path("canEdit").asBoolean()).isTrue();
+                });
+        assertThat(service.previewBranchFile(
+                        teacher, classId, plan.id(), branchFile("Chủ đề,Chủ đề nhánh\nTrường mầm non,Tên\n"))
+                .matches()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("EDU-26: tổ mới ban hành khóa soạn bản cũ nhưng người duyệt vẫn xử lý hồ sơ đang chờ")
+    void reviewersCanFinishPendingClassDocsOfSupersededTeam() {
+        String key = "bp_" + classId + "_" + plan.id();
+        ObjectNode content = branch(names("2026-09-07", "2026-09-21", "2026-09-28"));
+        service.saveClassDoc(teacher, "branch", key, content, versionOf(key), rootVersionOf("branch", content));
+        service.actOnClassDoc(teacher, "branch", key, submit(), versionOf(key));
+        jdbc.update(
+                "INSERT INTO edu_team_plans (code, school_year_id, age_group_id, version_no, source_plan_id, title, description, status, owner_id, content_revision, legacy_team_without_source, created_at, updated_at) SELECT code || '-V2', school_year_id, age_group_id, 2, id, title, description, 'APPROVED', owner_id, 0, true, now(), now() FROM edu_team_plans WHERE id = ?",
+                plan.id());
+        entityManager.clear();
+
+        assertThat(service.actOnClassDoc(leader, "branch", key, approve(), versionOf(key))
+                .path("status").asString()).isEqualTo("REVIEW");
+        ObjectNode approved = service.actOnClassDoc(vicePrincipal, "branch", key, approve(), versionOf(key));
+        assertThat(approved.path("status").asString()).isEqualTo("APPROVED");
+        assertThat(approved.path("superseded").asBoolean()).isTrue();
+        assertThat(approved.path("permissions").path("canEdit").asBoolean()).isFalse();
+        assertThat(approved.path("approvals")).hasSize(2);
     }
 
     @Test
@@ -699,7 +750,7 @@ class EduClassDocServiceIntegrationTest {
         approveBranch();
         String key = "tp_" + classId + "_" + theme1;
         String goal = String.valueOf(
-                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE team_plan_id=?", Long.class, plan.id()));
         ObjectNode doc = theme(theme1);
         ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "- HĐ học:\n+ Vận động A\n+ Vận động B");
         service.saveClassDoc(teacher, "theme", key, doc, versionOf(key), rootVersionOf("theme", doc));
@@ -834,7 +885,7 @@ class EduClassDocServiceIntegrationTest {
         approveBranch();
         String key = "tp_" + classId + "_" + theme1;
         String goal = String.valueOf(
-                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE team_plan_id=?", Long.class, plan.id()));
         ObjectNode doc = theme(theme1);
         ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "A");
         service.saveClassDoc(teacher, "theme", key, doc, versionOf(key), rootVersionOf("theme", doc));
@@ -910,19 +961,15 @@ class EduClassDocServiceIntegrationTest {
         approveBranch();
         String oldTheme2Key = "tp_" + classId + "_" + theme2;
         String goal = String.valueOf(
-                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE year_plan_id=?", Long.class, plan.id()));
+                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE team_plan_id=?", Long.class, plan.id()));
         ObjectNode oldTheme = theme(theme2);
         ((ObjectNode) oldTheme.path("rows")).putObject(goal).put("activities", "Trò chuyện: Gia đình");
         service.saveClassDoc(
                 teacher, "theme", oldTheme2Key, oldTheme, versionOf(oldTheme2Key), rootVersionOf("theme", oldTheme));
 
-        // Tổ trưởng tạo v2, đổi câu MT và ngày chủ đề 2, gửi duyệt và PHT ban hành
+        // Fixture lịch sử nội bộ tổ; API phiên bản công khai chỉ dành cho năm (EDU-62).
         java.util.UUID session = java.util.UUID.randomUUID();
-        YearPlanDetailResponse v2 = yearPlanService.createVersion(
-                leader,
-                plan.id(),
-                new com.carenest.dto.eduplan.YearPlanEditRequest(
-                        session, plan.revision(), java.util.UUID.randomUUID()));
+        YearPlanDetailResponse v2 = internalTeamUpdate(session);
         assertThat(v2.versionNo()).isEqualTo(2);
         assertThat(v2.sourcePlanId()).isEqualTo(plan.id());
         assertThat(v2.code()).isEqualTo(plan.code() + "-V2");
@@ -968,7 +1015,7 @@ class EduClassDocServiceIntegrationTest {
                         .text())
                 .isEqualTo("Trẻ thực hiện đủ động tác");
 
-        var changes = yearPlanService.getChanges(teacher, v2.id(), null);
+        var changes = yearPlanService.compareVersions(plan.id(), v2.id());
         assertThat(changes.goals()).singleElement().satisfies(g -> {
             assertThat(g.change()).isEqualTo(com.carenest.dto.eduplan.YearPlanChangesResponse.Change.CHANGED);
             assertThat(g.fromId()).isEqualTo(Long.valueOf(goal));
@@ -1066,6 +1113,20 @@ class EduClassDocServiceIntegrationTest {
                     assertThat(d.path("superseded").asBoolean()).isTrue();
                     assertThat(d.path("yearPlanVersion").asInt()).isEqualTo(1);
                 });
+    }
+
+    private YearPlanDetailResponse internalTeamUpdate(java.util.UUID session) {
+        EduPlan source = planRepository.findById(plan.id()).orElseThrow();
+        Instant now = Instant.parse("2026-10-22T03:00:00Z");
+        EduPlan update = EduPlan.createVersion(source, source.getCode() + "-V2", leader.userId(), "Tổ trưởng", now);
+        update.acquireSession(leader.userId(), session, now);
+        update.initializeSave(java.util.UUID.randomUUID());
+        update = planRepository.saveAndFlush(update);
+        workflow.recordAuthor(update.getId(), null, leader.userId(), "CREATOR", now);
+        org.springframework.test.util.ReflectionTestUtils.invokeMethod(
+                org.springframework.test.util.AopTestUtils.getTargetObject(yearPlanService),
+                "copyContent", source.getId(), update.getId());
+        return yearPlanService.getYearPlan(leader, update.getId());
     }
 
     private YearPlanRequest requestOf(YearPlanDetailResponse detail, String goalText, LocalDate start, LocalDate end) {
@@ -1419,7 +1480,7 @@ class EduClassDocServiceIntegrationTest {
 
     private Long rootVersionOfWeek(String key) {
         return jdbc.queryForObject(
-                "SELECT r.version FROM edu_class_docs w JOIN edu_class_docs r ON r.classroom_id=w.classroom_id AND r.year_plan_id=w.year_plan_id AND r.theme_id=w.theme_id AND r.kind='theme' WHERE w.doc_key=?",
+                "SELECT r.version FROM edu_class_docs w JOIN edu_class_docs r ON r.classroom_id=w.classroom_id AND r.team_plan_id=w.team_plan_id AND r.theme_id=w.theme_id AND r.kind='theme' WHERE w.doc_key=?",
                 Long.class,
                 key);
     }

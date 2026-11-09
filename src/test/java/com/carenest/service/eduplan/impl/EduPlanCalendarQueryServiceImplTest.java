@@ -6,10 +6,10 @@ import static org.mockito.Mockito.when;
 
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.repository.eduplan.EduClassDocRepository;
 import com.carenest.repository.eduplan.EduThemeRepository;
-import com.carenest.repository.eduplan.EduYearPlanRepository;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.service.eduplan.EduPlanCalendarQueryService.EffectiveTheme;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.enums.EduPlanLevel;
@@ -25,7 +25,7 @@ import tools.jackson.databind.ObjectMapper;
 class EduPlanCalendarQueryServiceImplTest {
 
     private ClassroomService classroomService;
-    private EduYearPlanRepository yearPlanRepository;
+    private EduPlanRepository yearPlanRepository;
     private EduClassDocRepository classDocRepository;
     private EduThemeRepository themeRepository;
     private ObjectMapper objectMapper;
@@ -34,7 +34,7 @@ class EduPlanCalendarQueryServiceImplTest {
     @BeforeEach
     void setUp() {
         classroomService = mock(ClassroomService.class);
-        yearPlanRepository = mock(EduYearPlanRepository.class);
+        yearPlanRepository = mock(EduPlanRepository.class);
         classDocRepository = mock(EduClassDocRepository.class);
         themeRepository = mock(EduThemeRepository.class);
         objectMapper = new ObjectMapper();
@@ -73,7 +73,7 @@ class EduPlanCalendarQueryServiceImplTest {
         when(cls.ageGroupId()).thenReturn(30L);
         when(classroomService.findClassroomInfo(1L)).thenReturn(Optional.of(cls));
 
-        EduYearPlan plan = mock(EduYearPlan.class);
+        EduPlan plan = mock(EduPlan.class);
         when(plan.getId()).thenReturn(50L);
         when(plan.getStatus()).thenReturn(EduPlanStatus.APPROVED);
 

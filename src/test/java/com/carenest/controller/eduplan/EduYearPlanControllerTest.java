@@ -237,16 +237,18 @@ class EduYearPlanControllerTest {
     }
 
     @Test
-    void teacherCannotCallIssue() throws Exception {
-        authenticateAs(CareNestRole.TEACHER);
+    void teacherIssueIsDelegatedToPolicy() throws Exception {
+        CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
+        given(eduYearPlanService.issueYearPlan(eq(teacher), eq(5L), eq(null), any()))
+                .willReturn(detail(EduPlanStatus.APPROVED));
 
         mockMvc.perform(post(GOALS + "/5/issue")
                         .with(token(CareNestRole.TEACHER))
                         .header("X-Edit-Session", "00000000-0000-0000-0000-000000000001")
                         .header("X-Plan-Revision", "0")
                         .header("Idempotency-Key", "00000000-0000-0000-0000-000000000002"))
-                .andExpect(status().isForbidden());
-        verify(eduYearPlanService, never()).issueYearPlan(any(), any(), any(), any());
+                .andExpect(status().isOk());
+        verify(eduYearPlanService).issueYearPlan(eq(teacher), eq(5L), eq(null), any());
     }
 
     @Test

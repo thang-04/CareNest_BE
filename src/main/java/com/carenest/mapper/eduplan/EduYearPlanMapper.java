@@ -11,7 +11,7 @@ import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduPlanEvent;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.utils.enums.EduGoalRowKind;
 import java.time.Instant;
 import java.util.List;
@@ -22,7 +22,7 @@ import org.springframework.stereotype.Component;
 public class EduYearPlanMapper {
 
     public YearPlanSummaryResponse toSummaryResponse(
-            EduYearPlan plan,
+            EduPlan plan,
             String schoolYearName,
             String ageGroupName,
             long goalCount,
@@ -64,7 +64,7 @@ public class EduYearPlanMapper {
                 plan.getDurationPolicySnapshot());
     }
 
-    public PlanActorResponse toOwner(EduYearPlan plan, Map<Long, String> userNames) {
+    public PlanActorResponse toOwner(EduPlan plan, Map<Long, String> userNames) {
         return new PlanActorResponse(plan.getOwnerId(), userNames.get(plan.getOwnerId()), plan.getOwnerTitle(), null);
     }
 

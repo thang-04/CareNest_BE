@@ -32,6 +32,18 @@ public record YearPlanSummaryResponse(
         Long curriculumSourcePlanId,
         String sourceMode,
         @com.fasterxml.jackson.annotation.JsonRawValue String durationPolicySnapshot) {
+
+    @com.fasterxml.jackson.annotation.JsonProperty
+    public com.carenest.utils.enums.EduPlanLevel planType() { return planLevel; }
+
+    @com.fasterxml.jackson.annotation.JsonProperty
+    public String planTypeLabel() {
+        return planLevel == com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR ? "Kế hoạch năm học" : "Kế hoạch tổ";
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty
+    public Instant sentAt() { return sentBy == null ? null : sentBy.at(); }
+
     public YearPlanSummaryResponse(
             Long id,
             String code,

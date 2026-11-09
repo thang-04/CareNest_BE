@@ -22,7 +22,7 @@ import com.carenest.entity.eduplan.EduPlanGoal;
 import com.carenest.entity.eduplan.EduPlanSubDomain;
 import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.eduplan.EduYearPlanMapper;
 import com.carenest.repository.eduplan.EduBreakRepository;
@@ -35,7 +35,7 @@ import com.carenest.repository.eduplan.EduPlanExpectedResultRepository;
 import com.carenest.repository.eduplan.EduPlanGoalRepository;
 import com.carenest.repository.eduplan.EduPlanSubDomainRepository;
 import com.carenest.repository.eduplan.EduThemeRepository;
-import com.carenest.repository.eduplan.EduYearPlanRepository;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.account.AccountService;
@@ -96,7 +96,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private static final String TONE_OK = "ok";
     private static final String TONE_ERR = "err";
 
-    private final EduYearPlanRepository yearPlanRepository;
+    private final EduPlanRepository yearPlanRepository;
     private final EduPlanSubDomainRepository subDomainRepository;
     private final EduPlanExpectedResultRepository expectedResultRepository;
     private final EduPlanGoalRepository goalRepository;
@@ -119,6 +119,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private final EduDurationPolicyService durationPolicyService;
     private final EduPlanBranchTemplateRepository templateRepository;
     private final YearPlanPublicationValidator publicationValidator;
+    private final com.carenest.service.eduplan.EduTeamPlanService teamService;
+    private final EduTeamUpdateGenerator teamUpdates;
 
     @Override
     @Transactional(readOnly = true)
@@ -144,7 +146,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             String pattern = keyword == null || keyword.isBlank()
                     ? null
                     : "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
-            Page<EduYearPlan> page = yearPlanRepository.search(
+            Page<EduPlan> page = yearPlanRepository.search(
                     level,
                     schoolYearId,
                     ageGroupId,
@@ -156,7 +158,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     pageable);
 
             List<Long> planIds =
-                    page.getContent().stream().map(EduYearPlan::getId).toList();
+                    page.getContent().stream().map(EduPlan::getId).toList();
             Map<Long, Long> goalCounts =
                     planIds.isEmpty() ? Map.of() : toCountMap(goalRepository.countGoalsByPlan(planIds));
             Map<Long, Long> themeCounts =
@@ -176,7 +178,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                             yearPlanRepository.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                                     level, key.get(0), key.get(1))))
                     .flatMap(Optional::stream)
-                    .map(EduYearPlan::getId)
+                    .map(EduPlan::getId)
                     .collect(Collectors.toSet());
 
             PageResponse<YearPlanSummaryResponse> response = PageResponse.from(
@@ -208,7 +210,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|getYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadViewablePlan(currentUser, planId);
+            EduPlan plan = loadViewablePlan(currentUser, planId);
             YearPlanDetailResponse response = toDetail(currentUser, plan);
             log.info("{}|END", logPrefix);
             return response;
@@ -226,7 +228,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 LOG_PREFIX + "|createYearPlan|userId=" + currentUser.userId() + "|ageGroupId=" + request.ageGroupId();
         log.info("{}|START", logPrefix);
         try {
-            settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+            settingsRepository.findForUpdate().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
             if (request.schoolYearId() == null || request.ageGroupId() == null) {
                 throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "năm học, nhóm tuổi");
             }
@@ -242,10 +244,10 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_CREATE_FORBIDDEN);
             }
             requireEditContext(edit);
-            Optional<EduYearPlan> retried =
+            Optional<EduPlan> retried =
                     yearPlanRepository.findByOwnerIdAndCreatedRequestId(currentUser.userId(), edit.requestId());
             if (retried.isPresent()) {
-                EduYearPlan previous = retried.get();
+                EduPlan previous = retried.get();
                 if (!previous.getSchoolYearId().equals(request.schoolYearId())
                         || !previous.getAgeGroupId().equals(request.ageGroupId())) {
                     throw GlobalException.of(ApiCode.YEAR_PLAN_REQUEST_REUSED);
@@ -261,7 +263,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             }
 
             Instant now = clock.instant();
-            EduYearPlan plan = EduYearPlan.createDraft(
+            EduPlan plan = EduPlan.createDraft(
+                    request.planLevel(),
                     (request.planLevel() == EduPlanLevel.SCHOOL_YEAR ? "KHN-" : "") + planCode(schoolYear, ageGroup),
                     schoolYear.id(),
                     ageGroup.id(),
@@ -270,7 +273,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     currentUser.userId(),
                     actorTitle(currentUser),
                     now);
-            EduYearPlan curriculumSource = null;
+            EduPlan curriculumSource = null;
             if (request.planLevel() == EduPlanLevel.TEAM)
                 curriculumSource = requireCurriculumSource(
                         currentUser, request.curriculumSourcePlanId(), schoolYear.id(), ageGroup.id());
@@ -310,7 +313,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|updateYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
             requireEditable(currentUser, plan, now);
             requireSession(currentUser, plan, edit, now);
@@ -325,6 +328,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
             plan.updateInfo(request.title().trim(), trimToEmpty(request.description()), now);
             saveContent(plan, request);
+            teamService.validateMappings(plan, false);
             if (plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR) saveTemplates(plan, request);
             eduWorkflowService.recordAuthor(plan.getId(), null, currentUser.userId(), "CONTENT_WRITE", now);
             plan.recordSave(edit.requestId());
@@ -341,12 +345,28 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     @Override
     @Transactional
+    public YearPlanDetailResponse resolveReview(CurrentUser user, Long planId, Long itemId,
+            Long expectedSourcePlanId, YearPlanEditRequest edit) {
+        String prefix=LOG_PREFIX+"|resolveReview|planId="+planId;log.info("{}|START",prefix);
+        try {
+            EduPlan plan=loadPlanForUpdate(user,planId);Instant now=clock.instant();
+            requireEditable(user,plan,now);requireSession(user,plan,edit,now);requireRevision(plan,edit);
+            if(plan.getPlanLevel()!=EduPlanLevel.TEAM||!Objects.equals(expectedSourcePlanId,plan.getCurriculumSourcePlanId()))
+                throw GlobalException.of(ApiCode.YEAR_PLAN_REVISION_STALE);
+            teamService.resolve(plan,itemId,user.userId());
+            if(!Objects.equals(plan.getLastSaveRequestId(),edit.requestId()))plan.recordSave(edit.requestId());
+            log.info("{}|END",prefix);return toDetail(user,plan);
+        }catch(RuntimeException ex){log.warn("{}|ERROR|type={}",prefix,ex.getClass().getSimpleName());throw ex;}
+    }
+
+    @Override
+    @Transactional
     public YearPlanDetailResponse submitYearPlan(
             CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit) {
         String logPrefix = LOG_PREFIX + "|submitYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
             if (!eduWorkflowService.isAuthorEligible(currentUser, plan.workflowKey(), plan.getAgeGroupId(), null)) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_SUBMIT_FORBIDDEN);
@@ -387,7 +407,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|issueYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             if (edit != null && edit.requestId() != null && edit.requestId().equals(plan.getLastSaveRequestId())) {
                 log.info("{}|END", logPrefix);
                 return toDetail(currentUser, plan);
@@ -475,6 +495,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         snapshotJson,
                         now);
                 yearPlanRepository.save(plan);
+                teamUpdates.updateAfterPublication(plan, now);
                 recordEvent(plan, ACTION_ISSUE, "Ban hành", currentUser, roleLabel(currentUser), TONE_OK, note, now);
             } else {
                 plan.advanceReview(updatedApprovalsJson, now);
@@ -507,7 +528,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|returnYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             if (edit != null && edit.requestId() != null && edit.requestId().equals(plan.getLastSaveRequestId())) {
                 log.info("{}|END", logPrefix);
                 return toDetail(currentUser, plan);
@@ -548,7 +569,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|deleteYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             // EDU-07: chỉ Phó HT xóa, và chỉ khi Nháp (kể cả đang do chính mình sửa)
             if (plan.getPlanLevel() == EduPlanLevel.TEAM || !canDeleteAsVicePrincipal(currentUser)) {
                 throw GlobalException.of(ApiCode.VICE_PRINCIPAL_ONLY, "xóa");
@@ -583,7 +604,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|startEditing|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
             requireEditable(currentUser, plan, now);
             requireEditContext(edit);
@@ -607,7 +628,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|finishEditing|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             // Không giữ khóa thì bỏ qua: trang soạn gọi khi thoát, kể cả lúc khóa đã hết
             // hạn
             requireEditContext(edit);
@@ -629,11 +650,11 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|releaseExpiredEditLocks";
         log.info("{}|START", logPrefix);
         try {
-            settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+            settingsRepository.findForUpdate().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
             Instant now = clock.instant();
-            List<EduYearPlan> expired =
+            List<EduPlan> expired =
                     yearPlanRepository.findAllByEditingAtLessThanEqualOrderByIdAsc(now.minus(properties.editLockTtl()));
-            expired.forEach(EduYearPlan::finishEditing);
+            expired.forEach(EduPlan::finishEditing);
             log.info("{}|count={}|END", logPrefix, expired.size());
             return expired.size();
         } catch (RuntimeException ex) {
@@ -648,7 +669,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|heartbeat|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadPlanForUpdate(currentUser, planId);
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
             Instant now = clock.instant();
             requireEditable(currentUser, plan, now);
             requireSession(currentUser, plan, edit, now);
@@ -674,13 +695,14 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         String logPrefix = LOG_PREFIX + "|createVersion|userId=" + currentUser.userId() + "|planId=" + planId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan source = loadPlanForUpdate(currentUser, planId);
+            EduPlan source = loadPlanForUpdate(currentUser, planId);
+            if (source.getPlanLevel() == EduPlanLevel.TEAM) throw GlobalException.of(ApiCode.YEAR_PLAN_VERSION_COMPARE_INVALID);
             // EDU-25: người được sửa kế hoạch (PHT, TT nhóm tuổi) tạo phiên bản
             if (!eduWorkflowService.isAuthorEligible(currentUser, source.workflowKey(), source.getAgeGroupId(), null)) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_CREATE_FORBIDDEN);
             }
             requireEditContext(edit);
-            Optional<EduYearPlan> retried =
+            Optional<EduPlan> retried =
                     yearPlanRepository.findByOwnerIdAndCreatedRequestId(currentUser.userId(), edit.requestId());
             if (retried.isPresent()) {
                 if (!planId.equals(retried.get().getSourcePlanId())) {
@@ -689,10 +711,10 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 log.info("{}|END", logPrefix);
                 return toDetail(currentUser, retried.get());
             }
-            List<EduYearPlan> chain =
+            List<EduPlan> chain =
                     yearPlanRepository.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                             source.getPlanLevel(), source.getSchoolYearId(), source.getAgeGroupId());
-            Optional<EduYearPlan> open = chain.stream()
+            Optional<EduPlan> open = chain.stream()
                     .filter(p -> p.getStatus() != EduPlanStatus.APPROVED)
                     .findFirst();
             if (open.isPresent()) {
@@ -707,13 +729,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
             Instant now = clock.instant();
             int versionNo = source.getVersionNo() + 1;
-            EduYearPlan plan = EduYearPlan.createVersion(
+            EduPlan plan = EduPlan.createVersion(
                     source,
                     chain.getFirst().getCode() + "-V" + versionNo,
                     currentUser.userId(),
                     actorTitle(currentUser),
                     now);
-            EduYearPlan nextCurriculum = curriculumSourcePlanId == null
+            EduPlan nextCurriculum = curriculumSourcePlanId == null
                     ? null
                     : requireCurriculumSource(
                             currentUser, curriculumSourcePlanId, source.getSchoolYearId(), source.getAgeGroupId());
@@ -760,7 +782,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 + "|fromPlanId=" + fromPlanId;
         log.info("{}|START", logPrefix);
         try {
-            EduYearPlan plan = loadViewablePlan(currentUser, planId);
+            EduPlan plan = loadViewablePlan(currentUser, planId);
+            if (plan.getPlanLevel() == EduPlanLevel.TEAM) throw GlobalException.of(ApiCode.YEAR_PLAN_VERSION_COMPARE_INVALID);
             Long fromId = fromPlanId != null ? fromPlanId : plan.getSourcePlanId();
             if (fromId == null) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_VERSION_COMPARE_INVALID);
@@ -789,9 +812,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
     }
 
-    private EduYearPlan requireCurriculumSource(CurrentUser user, Long sourceId, Long yearId, Long ageId) {
+    private EduPlan requireCurriculumSource(CurrentUser user, Long sourceId, Long yearId, Long ageId) {
         if (sourceId == null) throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
-        EduYearPlan source = loadPlanForUpdate(user, sourceId);
+        EduPlan source = loadPlanForUpdate(user, sourceId);
         if (source.getPlanLevel() != EduPlanLevel.SCHOOL_YEAR
                 || source.publicStatus() != EduPlanStatus.APPROVED
                 || !source.getSchoolYearId().equals(yearId)
@@ -803,7 +826,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         return source;
     }
 
-    private void saveTemplates(EduYearPlan plan, YearPlanRequest request) {
+    private void saveTemplates(EduPlan plan, YearPlanRequest request) {
         Map<Long, EduPlanBranchTemplate> existing =
                 templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
                         .collect(Collectors.toMap(EduPlanBranchTemplate::getId, Function.identity()));
@@ -842,6 +865,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                             plan.getId(), themeId, null, null, trimToEmpty(t.name()), t.startDate(), t.endDate(), order)
                     : existing.get(t.id());
             template.update(themeId, trimToEmpty(t.name()), t.startDate(), t.endDate(), order++);
+            template.initializeOwner(plan);
             kept.add(templateRepository.save(template).getId());
         }
         templateRepository.deleteAllInBatch(existing.values().stream()
@@ -849,7 +873,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 .toList());
     }
 
-    private EduYearPlan requirePlan(Long planId) {
+    private EduPlan requirePlan(Long planId) {
         return yearPlanRepository.findById(planId).orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
     }
 
@@ -863,7 +887,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
     }
 
-    private void requireSession(CurrentUser user, EduYearPlan plan, YearPlanEditRequest edit, Instant now) {
+    private void requireSession(CurrentUser user, EduPlan plan, YearPlanEditRequest edit, Instant now) {
         requireEditContext(edit);
         if (!plan.isEditingBy(user.userId())
                 || !edit.sessionId().equals(plan.getEditSessionId())
@@ -872,7 +896,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
     }
 
-    private void requireRevision(EduYearPlan plan, YearPlanEditRequest edit) {
+    private void requireRevision(EduPlan plan, YearPlanEditRequest edit) {
         if (edit.revision() != plan.getContentRevision()) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_REVISION_STALE);
         }
@@ -885,9 +909,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     // EDU-06: không tồn tại ⇒ 404; ngoài phạm vi xem ⇒ 403
-    private EduYearPlan loadViewablePlan(CurrentUser user, Long planId) {
+    private EduPlan loadViewablePlan(CurrentUser user, Long planId) {
         requirePermission(user, EduPermission.GOALS_VIEW);
-        EduYearPlan plan =
+        EduPlan plan =
                 yearPlanRepository.findById(planId).orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
         if (!(plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                                 ? workflowViewScope(user, plan.getPlanLevel())
@@ -911,10 +935,10 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         return plan;
     }
 
-    private EduYearPlan loadPlanForUpdate(CurrentUser user, Long planId) {
-        settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+    private EduPlan loadPlanForUpdate(CurrentUser user, Long planId) {
+        settingsRepository.findForUpdate().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
         requirePermission(user, EduPermission.GOALS_VIEW);
-        EduYearPlan plan = yearPlanRepository
+        EduPlan plan = yearPlanRepository
                 .findForUpdateById(planId)
                 .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
         if (!(plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
@@ -958,7 +982,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 base.schoolWideStatuses(), Set.copyOf(full), base.approvedAgeGroupIds());
     }
 
-    private void requireEditable(CurrentUser user, EduYearPlan plan, Instant now) {
+    private void requireEditable(CurrentUser user, EduPlan plan, Instant now) {
         if (plan.publicStatus() != EduPlanStatus.DRAFT) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_INVALID_STATUS, "chỉnh sửa");
         }
@@ -968,7 +992,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         requireNotLockedByOther(user, plan, now);
     }
 
-    private void requireNotLockedByOther(CurrentUser user, EduYearPlan plan, Instant now) {
+    private void requireNotLockedByOther(CurrentUser user, EduPlan plan, Instant now) {
         if (isLockedByOther(user, plan, now)) {
             String editor = accountService
                     .findFullNames(List.of(plan.getEditingBy()))
@@ -978,7 +1002,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     // EDU-10: khóa của người khác còn hạn thì người này chỉ xem
-    private boolean isLockedByOther(CurrentUser user, EduYearPlan plan, Instant now) {
+    private boolean isLockedByOther(CurrentUser user, EduPlan plan, Instant now) {
         return plan.getEditingBy() != null
                 && !plan.isEditingBy(user.userId())
                 && !plan.isEditLockExpired(now, properties.editLockTtl());
@@ -988,16 +1012,16 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         return accessPolicy.isVicePrincipal(user) && accessPolicy.hasPermission(user, EduPermission.GOALS_EDIT);
     }
 
-    private boolean isOwner(CurrentUser user, EduYearPlan plan) {
+    private boolean isOwner(CurrentUser user, EduPlan plan) {
         return plan.getOwnerId().equals(user.userId());
     }
 
     // Nháp / bị trả lại, kể cả khi đang có người sửa
-    private static boolean isDraftLike(EduYearPlan plan) {
+    private static boolean isDraftLike(EduPlan plan) {
         return plan.publicStatus() == EduPlanStatus.DRAFT;
     }
 
-    private boolean canEdit(CurrentUser user, EduYearPlan plan, Instant now) {
+    private boolean canEdit(CurrentUser user, EduPlan plan, Instant now) {
         if (plan.publicStatus() != EduPlanStatus.DRAFT) {
             return false;
         }
@@ -1007,7 +1031,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     // Điều kiện của bước "Chủ đề và sự kiện" + "Mục tiêu" trên UI, kiểm khi gửi /
     // ban hành (EDU-04, EDU-05)
-    private void requireReadyForReview(EduYearPlan plan) {
+    private void requireReadyForReview(EduPlan plan) {
+        teamService.validateMappings(plan, true);
         if (plan.getTitle().isBlank()) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_TITLE_REQUIRED);
         }
@@ -1128,7 +1153,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     // EDU-52: ban hành thì mọi chủ đề phải có đủ ngày bắt đầu, kết thúc (nháp và
     // gửi duyệt chưa bắt buộc)
-    private void requireThemeDates(EduYearPlan plan) {
+    private void requireThemeDates(EduPlan plan) {
         for (EduTheme theme : themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())) {
             if (theme.getStartDate() == null || theme.getEndDate() == null) {
                 throw GlobalException.of(ApiCode.THEME_DATES_REQUIRED, theme.getAbbr());
@@ -1178,7 +1203,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     // EDU-28: lĩnh vực con, nhóm, mục tiêu lấy từ danh mục của Bộ phải đúng nhóm
     // tuổi của kế hoạch
     private Map<EduGoalRowKind, Set<Long>> requireCurriculum(
-            EduYearPlan plan, List<YearPlanRequest.Domain> requestDomains) {
+            EduPlan plan, List<YearPlanRequest.Domain> requestDomains) {
         Map<EduGoalRowKind, Set<Long>> valid = new EnumMap<>(EduGoalRowKind.class);
         for (EduGoalRowKind kind : EduGoalRowKind.values()) {
             Set<Long> ids = requestDomains.stream()
@@ -1199,7 +1224,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         return valid;
     }
 
-    private void validateFixedSnapshot(EduYearPlan plan, Long sourceId, YearPlanRequest request, boolean creating) {
+    private void validateFixedSnapshot(EduPlan plan, Long sourceId, YearPlanRequest request, boolean creating) {
         if (!creating || request.domains() != null && !request.domains().isEmpty()) {
             var rows = findRows(sourceId);
             var contents = rows.isEmpty()
@@ -1258,7 +1283,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         }
     }
 
-    private void saveContent(EduYearPlan plan, YearPlanRequest request) {
+    private void saveContent(EduPlan plan, YearPlanRequest request) {
         Long planId = plan.getId();
         List<EduGoalRow> existingRowList = findRows(planId);
         if (plan.getCurriculumSourcePlanId() != null) validateFixedSnapshot(plan, planId, request, false);
@@ -1429,6 +1454,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     private EduGoalRow saveRow(EduGoalRow row) {
+        row.initializeOwner(requirePlan(row.getYearPlanId()));
         return switch (row.getKind()) {
             case SUB -> subDomainRepository.save((EduPlanSubDomain) row);
             case GROUP -> expectedResultRepository.save((EduPlanExpectedResult) row);
@@ -1463,6 +1489,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     requestTheme.endDate(),
                     trimToEmpty(requestTheme.festivals()),
                     trimToEmpty(requestTheme.note()));
+            theme.initializeOwner(requirePlan(planId));
             theme = themeRepository.save(theme);
             kept.add(theme.getId());
             idByKey.put(requestTheme.key(), theme.getId());
@@ -1486,6 +1513,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     Optional.ofNullable(requestBreak.id()).map(existing::get).orElseGet(() -> EduBreak.create(planId));
             item.update(
                     sortOrder++, trimToEmpty(requestBreak.label()), requestBreak.startDate(), requestBreak.endDate());
+            item.initializeOwner(requirePlan(planId));
             item = breakRepository.save(item);
             kept.add(item.getId());
         }
@@ -1496,7 +1524,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     // UI ghi 1 dòng "Phó hiệu trưởng chỉnh sửa" mỗi lượt sửa; lưu nhiều lần nên
     // không ghi lặp khi dòng cuối đã là nó
-    private void recordVicePrincipalEdit(CurrentUser user, EduYearPlan plan, Instant now) {
+    private void recordVicePrincipalEdit(CurrentUser user, EduPlan plan, Instant now) {
         boolean lastIsEdit = eventRepository
                 .findFirstByYearPlanIdOrderByOccurredAtDescIdDesc(plan.getId())
                 .map(event -> ACTION_VP_EDIT.equals(event.getAction()))
@@ -1515,7 +1543,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     private void recordEvent(
-            EduYearPlan plan,
+            EduPlan plan,
             String action,
             String label,
             CurrentUser actor,
@@ -1524,65 +1552,26 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             String note,
             Instant now) {
         String cleanNote = note == null || note.isBlank() ? null : note.trim();
-        eventRepository.save(EduPlanEvent.of(
-                plan.getId(), action, label, actor.userId(), actor.fullName(), actorRoleLabel, tone, cleanNote, now));
+        EduPlanEvent event = EduPlanEvent.of(
+                plan.getId(), action, label, actor.userId(), actor.fullName(), actorRoleLabel, tone, cleanNote, now);
+        event.initializeOwner(plan);
+        eventRepository.save(event);
     }
 
     // Hiện hành = phiên bản đã ban hành có số lớn nhất của chuỗi (spec 004 FR-013)
-    private static Optional<EduYearPlan> currentVersion(List<EduYearPlan> chain) {
+    private static Optional<EduPlan> currentVersion(List<EduPlan> chain) {
         return chain.stream()
                 .filter(p -> p.publicStatus() == EduPlanStatus.APPROVED)
-                .max(Comparator.comparingInt(EduYearPlan::getVersionNo));
+                .max(Comparator.comparingInt(EduPlan::getVersionNo));
     }
 
     // Chép cả cây sang phiên bản mới, giữ lineage; dấu tích ánh xạ theo id mới của
     // nội dung và chủ đề
     private void copyContent(Long sourceId, Long targetId) {
-        Map<Long, Long> themeIds = new HashMap<>();
-        for (EduTheme theme : themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(sourceId)) {
-            themeIds.put(
-                    theme.getId(),
-                    themeRepository.save(EduTheme.copyFor(targetId, theme)).getId());
-        }
-        breakRepository.saveAll(breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(sourceId).stream()
-                .map(b -> EduBreak.copyFor(targetId, b))
-                .toList());
-        Map<Long, Long> rowIds = new HashMap<>();
-        for (EduGoalRow row : findRows(sourceId)) {
-            EduGoalRow copy = EduGoalRow.copyFor(targetId, row);
-            copy.attachParents(rowIds.get(row.getSubDomainId()), rowIds.get(row.getExpectedResultId()));
-            rowIds.put(row.getId(), saveRow(copy).getId());
-        }
-        Map<Long, Long> contentIds = new HashMap<>();
-        if (!rowIds.isEmpty()) {
-            for (EduGoalContent content :
-                    goalContentRepository.findAllByGoalRowIdInOrderBySortOrderAsc(rowIds.keySet())) {
-                EduGoalContent copy = EduGoalContent.copyFor(rowIds.get(content.getGoalRowId()), content);
-                contentIds.put(content.getId(), goalContentRepository.save(copy).getId());
-            }
-        }
-        goalContentRepository.flush();
-        if (!themeIds.isEmpty()) {
-            tickRepository.saveAll(tickRepository.findAllByThemeIdIn(themeIds.keySet()).stream()
-                    .filter(t -> contentIds.containsKey(t.getContentId()))
-                    .map(t -> EduContentThemeTick.of(contentIds.get(t.getContentId()), themeIds.get(t.getThemeId())))
-                    .toList());
-        }
-        EduYearPlan target = requirePlan(targetId);
-        for (EduPlanBranchTemplate t : templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(sourceId)) {
-            templateRepository.save(EduPlanBranchTemplate.create(
-                    targetId,
-                    themeIds.get(t.getThemeId()),
-                    Objects.equals(target.getCurriculumSourcePlanId(), sourceId) ? t.getId() : t.getSourceTemplateId(),
-                    t.lineage(),
-                    t.getName(),
-                    t.getStartDate(),
-                    t.getEndDate(),
-                    t.getSortOrder()));
-        }
+        teamUpdates.copyContent(sourceId, targetId);
     }
 
-    private YearPlanChangesResponse compare(EduYearPlan from, EduYearPlan plan) {
+    private YearPlanChangesResponse compare(EduPlan from, EduPlan plan) {
         if (from.getPlanLevel() != plan.getPlanLevel()
                 || !from.getSchoolYearId().equals(plan.getSchoolYearId())
                 || !from.getAgeGroupId().equals(plan.getAgeGroupId())
@@ -1592,7 +1581,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         return YearPlanVersionDiff.compare(snapshot(from), snapshot(plan));
     }
 
-    private YearPlanVersionDiff.Snapshot snapshot(EduYearPlan plan) {
+    private YearPlanVersionDiff.Snapshot snapshot(EduPlan plan) {
         List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
         Map<Long, Long> themeLineage = themes.stream().collect(Collectors.toMap(EduTheme::getId, EduTheme::lineage));
         List<EduGoalRow> goals = findRows(plan.getId()).stream()
@@ -1629,7 +1618,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         .toList());
     }
 
-    private YearPlanDetailResponse toDetail(CurrentUser user, EduYearPlan plan) {
+    private YearPlanDetailResponse toDetail(CurrentUser user, EduPlan plan) {
         Long planId = plan.getId();
         List<EduGoalRow> rows = findRows(planId);
         List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId);
@@ -1686,13 +1675,13 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                                 .toList()))
                 .toList();
 
-        List<EduYearPlan> chain = yearPlanRepository.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
+        List<EduPlan> chain = yearPlanRepository.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                 plan.getPlanLevel(), plan.getSchoolYearId(), plan.getAgeGroupId());
-        Long currentId = currentVersion(chain).map(EduYearPlan::getId).orElse(null);
+        Long currentId = currentVersion(chain).map(EduPlan::getId).orElse(null);
         EduPlanAccessPolicy.ViewScope scope = plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                 ? workflowViewScope(user, plan.getPlanLevel())
                 : accessPolicy.viewScope(user);
-        List<EduYearPlan> visibleChain = chain.stream()
+        List<EduPlan> visibleChain = chain.stream()
                 .filter(p -> scope.allows(p.getAgeGroupId(), p.publicStatus()))
                 .toList();
         List<EduPlanEvent> events = eventRepository.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(planId);
@@ -1753,7 +1742,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 plan.getVersionNo(),
                 plan.getSourcePlanId(),
                 plan.getId().equals(currentId),
-                visibleChain.stream()
+                (plan.getPlanLevel() == EduPlanLevel.TEAM ? List.<EduPlan>of() : visibleChain).stream()
                         .map(p -> new YearPlanDetailResponse.VersionSummary(
                                 p.getId(),
                                 p.getVersionNo(),
@@ -1782,11 +1771,14 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 canEdit(user, plan, clock.instant()) && plan.getCurriculumSourcePlanId() == null,
                 canEdit(user, plan, clock.instant()) && plan.getPlanLevel() == EduPlanLevel.TEAM,
                 canEdit(user, plan, clock.instant()) && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR,
-                List.of());
+                List.of(),
+                plan instanceof com.carenest.entity.eduplan.EduTeamPlan team ? team.getPreviousSourcePlanId() : null,
+                plan.getPlanLevel() == EduPlanLevel.TEAM ? teamService.reviewItems(plan) : List.of(),
+                plan.getPlanLevel() == EduPlanLevel.TEAM ? teamService.newItems(plan) : List.of());
     }
 
     private YearPlanDetailResponse.Permissions permissionsOf(
-            CurrentUser user, EduYearPlan plan, List<EduYearPlan> chain, Long currentId) {
+            CurrentUser user, EduPlan plan, List<EduPlan> chain, Long currentId) {
         Instant now = clock.instant();
         boolean free = !isLockedByOther(user, plan, now);
         boolean isDraft = plan.publicStatus() == EduPlanStatus.DRAFT;
@@ -1806,7 +1798,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         && isDraft
                         && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                         && accessPolicy.isVicePrincipal(user),
-                plan.getId().equals(currentId)
+                plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
+                        && plan.getId().equals(currentId)
                         && chain.stream().allMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED)
                         && author);
     }
@@ -1835,17 +1828,17 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         return "Tổ trưởng nhóm tuổi";
     }
 
-    private boolean isUserWaitingRole(CurrentUser user, EduYearPlan plan) {
+    private boolean isUserWaitingRole(CurrentUser user, EduPlan plan) {
         LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
         EduWorkflowPolicy.Evaluation eval = eduWorkflowService.evaluateYearPlan(plan, today);
         return eval.waitingRole() != null && isRoleMatch(user, eval.waitingRole(), plan.getAgeGroupId());
     }
 
-    private boolean isUserReviewer(CurrentUser user, EduYearPlan plan) {
+    private boolean isUserReviewer(CurrentUser user, EduPlan plan) {
         return eduWorkflowService.hasReviewerPrecedence(user, plan.workflowKey(), plan.getAgeGroupId(), null);
     }
 
-    private com.carenest.dto.eduplan.EduReviewStateResponse buildReviewState(EduYearPlan plan) {
+    private com.carenest.dto.eduplan.EduReviewStateResponse buildReviewState(EduPlan plan) {
         EduWorkflowPolicy.RolePolicy policy = eduWorkflowService.loadPolicy(plan.workflowKey());
         LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
         EduWorkflowPolicy.Evaluation eval =

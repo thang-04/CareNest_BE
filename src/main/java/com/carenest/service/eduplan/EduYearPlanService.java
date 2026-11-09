@@ -41,6 +41,9 @@ public interface EduYearPlanService {
 
     void deleteYearPlan(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
+    YearPlanDetailResponse resolveReview(CurrentUser user, Long planId, Long reviewItemId,
+            Long expectedSourcePlanId, YearPlanEditRequest edit);
+
     /** EDU-10: cấp khóa sửa theo phiên khi hồ sơ đang ở trạng thái nháp. */
     YearPlanDetailResponse startEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 

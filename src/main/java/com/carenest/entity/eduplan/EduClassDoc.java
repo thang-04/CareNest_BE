@@ -46,7 +46,7 @@ public class EduClassDoc {
     @Column(name = "classroom_id", nullable = false)
     private Long classroomId;
 
-    @Column(name = "year_plan_id", nullable = false)
+    @Column(name = "team_plan_id", nullable = false)
     private Long yearPlanId;
 
     @Column(name = "theme_id")

@@ -6,7 +6,7 @@ import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduPlanBranchTemplate;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduBreakRepository;
 import com.carenest.repository.eduplan.EduGoalContentRepository;
@@ -50,7 +50,7 @@ public class YearPlanPublicationValidator {
     private final com.carenest.repository.eduplan.EduPlanBranchTemplateRepository templateRepository;
     private final tools.jackson.databind.ObjectMapper objectMapper;
 
-    public void validateForPublication(EduYearPlan plan) {
+    public void validateForPublication(EduPlan plan) {
         if (plan.getTitle() == null || plan.getTitle().isBlank()) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_TITLE_REQUIRED);
         }

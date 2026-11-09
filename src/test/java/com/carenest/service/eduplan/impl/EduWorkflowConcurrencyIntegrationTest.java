@@ -123,13 +123,13 @@ class EduWorkflowConcurrencyIntegrationTest {
             Future<?> reader = pool.submit(() -> snapshot.execute(status -> {
                 long before = workflow.getPolicy(principal).revision();
                 Long holder =
-                        jdbc.queryForObject("SELECT editing_by FROM edu_year_plans WHERE id=?", Long.class, first);
+                        jdbc.queryForObject("SELECT editing_by FROM edu_team_plans WHERE id=?", Long.class, first);
                 assertThat(holder).isEqualTo(author.userId());
                 read.countDown();
                 await(committed);
                 entityManager.clear();
                 assertThat(workflow.getPolicy(principal).revision()).isEqualTo(before);
-                assertThat(jdbc.queryForObject("SELECT editing_by FROM edu_year_plans WHERE id=?", Long.class, first))
+                assertThat(jdbc.queryForObject("SELECT editing_by FROM edu_team_plans WHERE id=?", Long.class, first))
                         .isEqualTo(holder);
                 return null;
             }));
@@ -141,13 +141,13 @@ class EduWorkflowConcurrencyIntegrationTest {
             workflow.savePolicy(principal, new EduWorkflowPolicyRequest(restored.revision(), changed));
             committed.countDown();
             reader.get(10, TimeUnit.SECONDS);
-            assertThat(jdbc.queryForObject("SELECT editing_by FROM edu_year_plans WHERE id=?", Long.class, first))
+            assertThat(jdbc.queryForObject("SELECT editing_by FROM edu_team_plans WHERE id=?", Long.class, first))
                     .isNull();
             workflow.savePolicy(principal, originalPolicy(principal));
         } finally {
             release.countDown();
             pool.shutdownNow();
-            jdbc.update("DELETE FROM edu_year_plans WHERE id IN (?,?)", first, second);
+            jdbc.update("DELETE FROM edu_team_plans WHERE id IN (?,?)", first, second);
         }
     }
 
@@ -174,13 +174,13 @@ class EduWorkflowConcurrencyIntegrationTest {
                 author.userId(),
                 classroom);
         long plan = draft(year, age, author.userId(), suffix);
-        jdbc.update("UPDATE edu_year_plans SET status='APPROVED' WHERE id=?", plan);
+        jdbc.update("UPDATE edu_team_plans SET status='APPROVED' WHERE id=?", plan);
         long theme = id(
-                "INSERT INTO edu_themes(year_plan_id,sort_order,name,abbr,festivals,note) VALUES (?,1,'Synthetic','S','','') RETURNING id",
+                "INSERT INTO edu_themes(team_plan_id,sort_order,name,abbr,festivals,note) VALUES (?,1,'Synthetic','S','','') RETURNING id",
                 plan);
         String key = "tp_" + classroom + "_" + theme;
         jdbc.update(
-                "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,year_plan_id,theme_id,status,created_by,updated_by,content) VALUES (?,'theme',?,?,?,'DRAFT',?,?,'{\"rows\":{\"123\":{\"activities\":\"HĐ học: Vận động mới\"}}}'::jsonb)",
+                "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,team_plan_id,theme_id,status,created_by,updated_by,content) VALUES (?,'theme',?,?,?,'DRAFT',?,?,'{\"rows\":{\"123\":{\"activities\":\"HĐ học: Vận động mới\"}}}'::jsonb)",
                 key,
                 classroom,
                 plan,
@@ -251,7 +251,7 @@ class EduWorkflowConcurrencyIntegrationTest {
             jdbc.update(
                     "DELETE FROM edu_learning_resources WHERE class_doc_id=(SELECT id FROM edu_class_docs WHERE doc_key=?)",
                     key);
-            jdbc.update("DELETE FROM edu_year_plans WHERE id=?", plan);
+            jdbc.update("DELETE FROM edu_team_plans WHERE id=?", plan);
             workflow.savePolicy(principal, originalPolicy(principal));
         }
     }
@@ -284,14 +284,14 @@ class EduWorkflowConcurrencyIntegrationTest {
                 author.userId(),
                 classroom);
         long plan = draft(year, age, author.userId(), suffix);
-        jdbc.update("UPDATE edu_year_plans SET status='APPROVED' WHERE id=?", plan);
+        jdbc.update("UPDATE edu_team_plans SET status='APPROVED' WHERE id=?", plan);
         long theme = id(
-                "INSERT INTO edu_themes(year_plan_id,sort_order,name,abbr,start_date,end_date,festivals,note) VALUES (?,1,'Synthetic','S','2026-09-07','2026-09-11','','') RETURNING id",
+                "INSERT INTO edu_themes(team_plan_id,sort_order,name,abbr,start_date,end_date,festivals,note) VALUES (?,1,'Synthetic','S','2026-09-07','2026-09-11','','') RETURNING id",
                 plan);
         String rootKey = "tp_" + classroom + "_" + theme;
         String weekKey = "wp_" + classroom + "_2026-09-07";
         jdbc.update(
-                "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,year_plan_id,theme_id,status,created_by,updated_by,review_round) VALUES (?,'theme',?,?,?,'REVIEW',?,?,1)",
+                "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,team_plan_id,theme_id,status,created_by,updated_by,review_round) VALUES (?,'theme',?,?,?,'REVIEW',?,?,1)",
                 rootKey,
                 classroom,
                 plan,
@@ -299,7 +299,7 @@ class EduWorkflowConcurrencyIntegrationTest {
                 author.userId(),
                 author.userId());
         jdbc.update(
-                "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,year_plan_id,theme_id,week_start,status,created_by,updated_by,review_round) VALUES (?,'week',?,?,?,'2026-09-07','REVIEW',?,?,1)",
+                "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,team_plan_id,theme_id,week_start,status,created_by,updated_by,review_round) VALUES (?,'week',?,?,?,'2026-09-07','REVIEW',?,?,1)",
                 weekKey,
                 classroom,
                 plan,
@@ -346,7 +346,7 @@ class EduWorkflowConcurrencyIntegrationTest {
         } finally {
             release.countDown();
             pool.shutdownNow();
-            jdbc.update("DELETE FROM edu_year_plans WHERE id=?", plan);
+            jdbc.update("DELETE FROM edu_team_plans WHERE id=?", plan);
         }
     }
 
@@ -368,7 +368,7 @@ class EduWorkflowConcurrencyIntegrationTest {
                 suffix);
         long plan = draft(year, age, author.userId(), suffix);
         jdbc.update(
-                "UPDATE edu_year_plans SET editing_by=?, edit_session_id=?, editing_since='2020-01-01', editing_at='2020-01-01', editing_from='DRAFT' WHERE id=?",
+                "UPDATE edu_team_plans SET editing_by=?, edit_session_id=?, editing_since='2020-01-01', editing_at='2020-01-01', editing_from='DRAFT' WHERE id=?",
                 author.userId(),
                 UUID.randomUUID(),
                 plan);
@@ -394,12 +394,12 @@ class EduWorkflowConcurrencyIntegrationTest {
             policy.get(10, TimeUnit.SECONDS);
             assertThat(years.releaseExpiredEditLocks()).isGreaterThanOrEqualTo(1);
             assertThat(jdbc.queryForObject(
-                            "SELECT editing_by IS NULL FROM edu_year_plans WHERE id=?", Boolean.class, plan))
+                            "SELECT editing_by IS NULL FROM edu_team_plans WHERE id=?", Boolean.class, plan))
                     .isTrue();
         } finally {
             release.countDown();
             pool.shutdownNow();
-            jdbc.update("DELETE FROM edu_year_plans WHERE id=?", plan);
+            jdbc.update("DELETE FROM edu_team_plans WHERE id=?", plan);
             workflow.savePolicy(principal, originalPolicy(principal));
         }
     }
@@ -426,7 +426,7 @@ class EduWorkflowConcurrencyIntegrationTest {
         long second = draft(year, ages.get(1), author.userId(), "B" + suffix);
         for (long plan : List.of(first, second)) {
             jdbc.update(
-                    "UPDATE edu_year_plans SET editing_by=?, edit_session_id=?, editing_since=now(), editing_at=now(), editing_from='DRAFT' WHERE id=?",
+                    "UPDATE edu_team_plans SET editing_by=?, edit_session_id=?, editing_since=now(), editing_at=now(), editing_from='DRAFT' WHERE id=?",
                     author.userId(),
                     UUID.randomUUID(),
                     plan);
@@ -438,14 +438,14 @@ class EduWorkflowConcurrencyIntegrationTest {
             verify(assignments, times(1)).findActiveAssignmentsByUserIds(any(), any());
             verify(assignments, never()).findActiveAssignments(eq(author.userId()), any());
             assertThat(jdbc.queryForObject(
-                            "SELECT count(*) FROM edu_year_plans WHERE id IN (?,?) AND editing_by=?",
+                            "SELECT count(*) FROM edu_team_plans WHERE id IN (?,?) AND editing_by=?",
                             Long.class,
                             first,
                             second,
                             author.userId()))
                     .isEqualTo(2);
         } finally {
-            jdbc.update("DELETE FROM edu_year_plans WHERE id IN (?,?)", first, second);
+            jdbc.update("DELETE FROM edu_team_plans WHERE id IN (?,?)", first, second);
             workflow.savePolicy(principal, originalPolicy(principal));
         }
     }
@@ -472,7 +472,7 @@ class EduWorkflowConcurrencyIntegrationTest {
                     age,
                     "L" + i);
             jdbc.update(
-                    "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,year_plan_id,status,created_by,updated_by,version) VALUES (?,'branch',?,?,'REVIEW',?,?,0)",
+                    "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,team_plan_id,status,created_by,updated_by,version) VALUES (?,'branch',?,?,'REVIEW',?,?,0)",
                     suffix + i,
                     classroom,
                     plan,
@@ -505,14 +505,14 @@ class EduWorkflowConcurrencyIntegrationTest {
         verify(assignments, times(1)).findActiveEducationReviewerAssignments(any());
         verify(accounts, times(1)).findActiveUserIds(any());
         assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM edu_class_docs WHERE year_plan_id=? AND applied_policy_revision IS NOT NULL",
+                        "SELECT count(*) FROM edu_class_docs WHERE team_plan_id=? AND applied_policy_revision IS NOT NULL",
                         Long.class,
                         plan))
                 .isEqualTo(24L);
         System.out.println("EDU_RECONCILE_MEASURE documents=24 assignmentBatches=1 activeAccountBatches=1 statements="
                 + statistics.getPrepareStatementCount() + " elapsedMs=" + elapsed);
         assertThat(statistics.getPrepareStatementCount()).isLessThan(24 * 3L);
-        jdbc.update("DELETE FROM edu_year_plans WHERE id=?", plan);
+        jdbc.update("DELETE FROM edu_team_plans WHERE id=?", plan);
         workflow.savePolicy(principal, originalPolicy(principal));
     }
 
@@ -537,7 +537,7 @@ class EduWorkflowConcurrencyIntegrationTest {
 
     private long draft(long year, long age, long owner, String code) {
         return id(
-                "INSERT INTO edu_year_plans(legacy_team_without_source, code,school_year_id,age_group_id,title,description,status,owner_id) VALUES (true, ?,?,?,'Synthetic','','DRAFT',?) RETURNING id",
+                "INSERT INTO edu_team_plans(legacy_team_without_source, code,school_year_id,age_group_id,title,description,status,owner_id) VALUES (true, ?,?,?,'Synthetic','','DRAFT',?) RETURNING id",
                 code,
                 year,
                 age,

@@ -5,6 +5,7 @@ Search đầu tiên khi gặp bug, lỗi môi trường, case lạ. Grep chuỗi
 ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường/build/deploy), dạng `<loại>-YYMMDD-<slug>` (vd. `BUG-261004-meal-count-stale`). Status: `open` | `workaround` | `fixed`.
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261109-year-team-approval-identity](incidents/BUG-261109-year-team-approval-identity.md) | education-plan / Web | Năm gửi HT chờ duyệt hiện loại/tên kế hoạch tổ; phiên bản tổ gây nhầm | ? — user báo, chưa tái hiện; đặc tả đích EDU-62/feature015 | open |
 | [BUG-261108-returned-status-draft](incidents/BUG-261108-returned-status-draft.md) | education-plan / Web | Hồ sơ trả lại hiện Nháp | Backend lưu DRAFT, FE suy nhãn từ lịch sử trả lại | fixed |
 | [BUG-261108-duration-feedback-late](incidents/BUG-261108-duration-feedback-late.md) | education-plan / Web | Lịch quá ngắn/dài chỉ báo lúc ban hành | Thiếu cảnh báo thời lượng theo snapshot trong form | fixed |
 | [BUG-261108-education-review-label](incidents/BUG-261108-education-review-label.md) | education-plan / Web | REVIEW hiện Đang duyệt; số chờ duyệt thiếu REVIEW | Nhãn và phép đếm chưa thống nhất giữa REVIEW và PENDING cũ | fixed |

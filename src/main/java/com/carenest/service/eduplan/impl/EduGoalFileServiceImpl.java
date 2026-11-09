@@ -37,7 +37,7 @@ public class EduGoalFileServiceImpl implements EduGoalFileService {
         try {
             // Quyền xem trước file theo vai trò soạn kế hoạch năm hiện hành.
             if (schoolStructure.findAgeGroups().stream()
-                    .noneMatch(age -> workflow.isAuthorEligible(user, "year", age.id(), null))) {
+                    .noneMatch(age -> workflow.isAuthorEligible(user, "schoolYear", age.id(), null))) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_EDIT_FORBIDDEN);
             }
             if (file == null || file.isEmpty()) {

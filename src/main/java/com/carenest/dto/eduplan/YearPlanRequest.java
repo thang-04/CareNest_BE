@@ -24,7 +24,8 @@ public record YearPlanRequest(
         @Valid List<Break> breaks,
         com.carenest.utils.enums.EduPlanLevel planLevel,
         Long curriculumSourcePlanId,
-        @Valid List<BranchTemplate> branchTemplates) {
+        @Valid List<BranchTemplate> branchTemplates,
+        com.carenest.utils.enums.EduPlanLevel planType) {
     public YearPlanRequest(
             Long schoolYearId,
             Long ageGroupId,
@@ -46,8 +47,22 @@ public record YearPlanRequest(
                 List.of());
     }
 
+    public YearPlanRequest(
+            Long schoolYearId, Long ageGroupId, String title, String description,
+            List<Domain> domains, List<Theme> themes, List<Break> breaks,
+            com.carenest.utils.enums.EduPlanLevel planLevel, Long curriculumSourcePlanId,
+            List<BranchTemplate> branchTemplates) {
+        this(schoolYearId, ageGroupId, title, description, domains, themes, breaks,
+                planLevel, curriculumSourcePlanId, branchTemplates, null);
+    }
+
     public YearPlanRequest {
-        planLevel = planLevel == null ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel;
+        if (planType != null && planLevel != null && planType != planLevel) {
+            throw new IllegalArgumentException("planType and planLevel must agree");
+        }
+        planLevel = planType != null ? planType : planLevel == null
+                ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel;
+        planType = planLevel;
         branchTemplates = branchTemplates == null ? List.of() : List.copyOf(branchTemplates);
     }
 

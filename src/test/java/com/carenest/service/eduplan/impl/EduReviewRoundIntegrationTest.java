@@ -6,9 +6,9 @@ import com.carenest.dto.eduplan.EduWorkflowPolicyRequest;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
-import com.carenest.entity.eduplan.EduYearPlan;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.repository.eduplan.EduSettingsRepository;
-import com.carenest.repository.eduplan.EduYearPlanRepository;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.eduplan.EduYearPlanService;
@@ -70,7 +70,7 @@ class EduReviewRoundIntegrationTest {
     private EduWorkflowService workflowService;
 
     @Autowired
-    private EduYearPlanRepository yearPlanRepository;
+    private EduPlanRepository yearPlanRepository;
 
     @Autowired
     private EduSettingsRepository settingsRepository;
@@ -352,7 +352,7 @@ class EduReviewRoundIntegrationTest {
         var retried = yearPlanService.returnYearPlan(vicePrincipal, submitted.id(), "Sửa", request);
         assertThat(retried.revision()).isEqualTo(returned.revision());
         assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM edu_plan_events WHERE year_plan_id=? AND action='RETURN'",
+                        "SELECT count(*) FROM edu_plan_events WHERE team_plan_id=? AND action='RETURN'",
                         Long.class,
                         submitted.id()))
                 .isEqualTo(1);
@@ -520,7 +520,7 @@ class EduReviewRoundIntegrationTest {
         workflowService.savePolicy(principal, newPolicyReq);
 
         // Nạp lại kế hoạch năm từ DB sau khi reconcilePending kích hoạt
-        EduYearPlan reloaded = yearPlanRepository.findById(submitted.id()).orElseThrow();
+        EduPlan reloaded = yearPlanRepository.findById(submitted.id()).orElseThrow();
         assertThat(reloaded.publicStatus()).isEqualTo(EduPlanStatus.REVIEW);
         assertThat(reloaded.getReviewRound()).isEqualTo(1);
 
@@ -620,7 +620,7 @@ class EduReviewRoundIntegrationTest {
     @DisplayName(
             "T042 [US3]: Tạo phiên bản mới (createVersion) khởi tạo document mới với reviewRound = 0 và approvals rỗng")
     void createVersionResetsRoundToZero() {
-        YearPlanDetailResponse submitted = createAndSubmitSamplePlan();
+        YearPlanDetailResponse submitted = createAndSubmitAnnualPlan();
 
         // Duyệt bước 1: Phó HT
         YearPlanDetailResponse approvedByVp = yearPlanService.issueYearPlan(
@@ -650,9 +650,33 @@ class EduReviewRoundIntegrationTest {
         assertThat(v2.review().round()).isEqualTo(0);
         assertThat(v2.review().approvals()).isEmpty();
 
-        EduYearPlan v2Entity = yearPlanRepository.findById(v2.id()).orElseThrow();
+        EduPlan v2Entity = yearPlanRepository.findById(v2.id()).orElseThrow();
         assertThat(v2Entity.getReviewRound()).isEqualTo(0);
         assertThat(v2Entity.getApprovals()).isEqualTo("[]");
+    }
+
+    private YearPlanDetailResponse createAndSubmitAnnualPlan() {
+        var entries = new java.util.HashMap<String, EduWorkflowPolicyRequest.PolicyEntry>();
+        workflowService.getPolicy(principal).policies().forEach((key, policy) -> entries.put(
+                key, new EduWorkflowPolicyRequest.PolicyEntry(policy.creators(), policy.reviewers())));
+        entries.put("school_year", new EduWorkflowPolicyRequest.PolicyEntry(
+                List.of("TEAM_LEADER"), List.of("VICE_PRINCIPAL", "PRINCIPAL")));
+        workflowService.savePolicy(principal, new EduWorkflowPolicyRequest(workflowService.getPolicyRevision(), entries));
+        long versionYear = insertId(
+                "INSERT INTO school_years(name,start_date,end_date) VALUES (?, '2026-09-01','2027-05-31') RETURNING id",
+                "Version-" + UUID.randomUUID());
+        long domain = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order=1", Long.class);
+        var request = new YearPlanRequest(
+                versionYear, ageGroup3, "Kế hoạch năm kiểm tra vòng duyệt", "",
+                List.of(new YearPlanRequest.Domain(domain, List.of(new YearPlanRequest.Row(
+                        null, "goal", "Mục tiêu thể chất", List.of(new YearPlanRequest.Content(null, "Nội dung", List.of())))))),
+                List.of(new YearPlanRequest.Theme(
+                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
+                List.of(), com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, null, List.of());
+        var created = yearPlanService.createYearPlan(
+                leader, request, new YearPlanEditRequest(session(leader), 0L, UUID.randomUUID()));
+        return yearPlanService.submitYearPlan(leader, created.id(), "Gửi duyệt vòng 1",
+                new YearPlanEditRequest(session(leader), created.revision(), UUID.randomUUID()));
     }
 
     @Test
@@ -685,14 +709,14 @@ class EduReviewRoundIntegrationTest {
         workflowService.savePolicy(principal, streamlinedPolicyReq);
 
         // ReconcilePending đã chạy tự động trong updatePolicy
-        EduYearPlan reloaded = yearPlanRepository.findById(submitted.id()).orElseThrow();
+        EduPlan reloaded = yearPlanRepository.findById(submitted.id()).orElseThrow();
         assertThat(reloaded.publicStatus()).isEqualTo(EduPlanStatus.APPROVED);
         assertThat(reloaded.getCompletionMode()).isEqualTo("POLICY_CHANGE");
         assertThat(reloaded.getCompletedAt()).isNotNull();
         assertThat(reloaded.getPublishedBy()).isEqualTo(vicePrincipal.userId());
         assertThat(reloaded.getContentRevision()).isGreaterThan(approvedByVp.revision());
         assertThat(jdbc.queryForObject(
-                        "SELECT actor_id FROM edu_plan_events WHERE year_plan_id=? AND action='COMPLETED_BY_POLICY'",
+                        "SELECT actor_id FROM edu_plan_events WHERE team_plan_id=? AND action='COMPLETED_BY_POLICY'",
                         Long.class,
                         submitted.id()))
                 .isEqualTo(principal.userId());

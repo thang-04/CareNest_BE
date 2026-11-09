@@ -37,6 +37,14 @@ CareNest tạo **hồ sơ có cấu trúc, lấy trẻ làm trung tâm, có lị
 
 **Định vị (review 24/09, CONFIRMED):** CareNest **bao phủ, cải tiến và mở rộng** các chức năng của PMS/GoKids mà workflow của trường cần, để trường không phải dùng song song nhiều app rời rạc. Ví dụ: thực đơn phải nối liền chọn món → tính dinh dưỡng → định lượng/mua (PMS đang làm nhưng không tách theo điểm trường); quan sát/đánh giá cần ngữ cảnh hoạt động. Không viết "CareNest không trùng/không thay thế PMS/GoKids". Vẫn **không** thay hệ thống ngành/quốc gia và không thay Zalo cho chat. Kế hoạch giáo dục (mục tiêu năm học, chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày) soạn và duyệt trong CareNest theo mẫu MN Thái Dương, nối với đánh giá trẻ theo MT; ngữ cảnh hoạt động lấy từ giáo án đã duyệt (Tiền chốt 22/10; khảo sát team 27/10, user chốt 2026-10-29; rule EDU, OBS-07, module education-plan, ADR-0020, ADR-0006).
 
+## Context kế hoạch giáo dục — xác nhận ghi nhận09/11/2026
+
+User xác nhận [bộ 12 quyết định](../business/education-plan-confirmation-2026-11-09.md) đã được giáo viên phía trường xác nhận; chưa có tên/ngày xác nhận trực tiếp. Đây là nghiệp vụ đích, delivery theo [module card](../modules/education-plan.md).
+
+Năm học biên soạn cây mục tiêu/nội dung và dự kiến chủ đề. Tổ theo nhóm tuổi dùng chung hai điểm trường, lấy đúng một năm APPROVED hiện hành cùng năm/tuổi, giữ cây nguồn và tick từng nội dung. Mỗi loại/năm/tuổi một chuỗi, tối đa một bản nháp/chờ. GV triển khai lớp từ tổ đã ban hành; nhánh có thể nhiều tuần, trước gửi phải phủ đủ tuần học bằng nhánh có tên.
+
+Mặc định năm PHT→HT, tổ TT→PHT, lớp GV→TT→PHT; HT cấu hình riêng, TT được duyệt năm/tổ khi được cấu hình đúng tuổi và không tự duyệt. REVIEW khóa sửa. Không ai xóa tổ; giữ lịch sử, chỉ năm hiện phiên bản. Năm mới ban hành tự chuyển nguồn tổ nháp/chờ và mở cập nhật tổ đã ban hành, giữ bản cũ cho lớp tới khi cập nhật duyệt; đỏ phần đổi/xóa/liên kết ảnh hưởng, mục mới riêng để phân bổ, chủ đề kết thúc không đỏ. Năm nhập file hai chế độ thay toàn bộ/thay phần có, preview/xác nhận/lưu tay; tổ không nhập file sửa cây. Các gap code không làm đổi yêu cầu này.
+
 ## Actor (CONFIRMED)
 
 Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kitchen Staff, System Admin. **System Admin ≠ Principal**: Admin giữ phần kỹ thuật (tạo tài khoản Hiệu trưởng, khóa/mở, xử lý sự cố), không phân quyền nghiệp vụ (AUTH-06); BGH là người dùng nghiệp vụ. Tổ trưởng chuyên môn là phân công trên tài khoản GV, không phải actor đăng nhập riêng (AUTH-23). Client: Web cho Admin/BGH/GV; App cho phụ huynh, GV, bếp (AUTH-21). Chi tiết: `docs/business/USER_ROLES.md`.
@@ -52,7 +60,7 @@ Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kit
 | — | ~~Chuẩn bị bếp + bàn giao suất cho lớp~~ — thay bằng ảnh mẫu bữa + sổ lưu mẫu trên App (NUT-16, NUT-21) | REMOVED (NUT-14, NUT-15) | nutrition | meal-management |
 | — | Kho khô rút gọn (nhập, trừ theo ngày theo suất đã xác nhận (P-38), xem tồn), bản dự trù + kiểm nhận hàng tươi do PHT ghi, danh mục NCC | CONFIRMED (ADR-0009, user chốt 28/10, sửa 01/11) | nutrition | meal-management |
 | FE-03 | Cân đo định kỳ (mặc định 3 lần/năm, cấu hình được), phân loại WHO, công bố cho phụ huynh, khám bác sĩ 2 lần/năm, trend, AI giải thích có duyệt; sức khỏe trong ngày báo phụ huynh ngay | CONFIRMED (HLT-01..14; khảo sát team 27/10) | health | health-check |
-| FE-04 | Kế hoạch giáo dục: mục tiêu năm học theo nhóm tuổi → chủ đề nhánh → kế hoạch chủ đề → giáo án tuần/ngày, duyệt trong hệ thống, in ký tay | CONFIRMED (Tiền 22/10; khảo sát team 27/10 — EDU-29..38; mục mâu thuẫn code đã chốt theo code 29/10) | education-plan | education-plan |
+| FE-04 | Kế hoạch giáo dục: năm học → tổ theo nhóm tuổi dùng chung hai điểm trường → nhánh lớp → kế hoạch chủ đề → giáo án tuần/ngày; duyệt theo cấu hình, in ký tay | CONFIRMED (Tiền 22/10; khảo sát team 27/10 — EDU-29..38; mục mâu thuẫn code đã chốt theo code 29/10) | education-plan | education-plan |
 | — | Đánh giá trẻ hằng ngày theo MT của giáo án đã duyệt (ngữ cảnh hoạt động) | CONFIRMED (Tiền 20/10, ADR-0006) | learning-observation, education-plan | child-observation |
 | FE-05 | Đánh giá hằng ngày có cấu trúc: 7 mặt, 3 mức, mặc định "bình thường" | CONFIRMED (OBS-01, OBS-02); tiêu chí P-11 | learning-observation | child-observation |
 | FE-06 | Hồ sơ phát triển (không có mục theo dõi riêng) | CONFIRMED (OBS-03) | learning-observation | child-observation |
@@ -119,3 +127,4 @@ Dùng mã này ở cột Nguồn của rule. Bản gốc nằm ngoài repo (thư
 | Team 02/10 | Quyết định trưởng nhóm (đơn nghỉ, kho) | 02/10/2026 | CONFIRMED (team chốt) |
 | Mẫu MN Thái Dương | File kế hoạch giáo dục năm học, chủ đề, tuần, ngày của trường MN Thái Dương | 10/2026 | Mẫu nghiệp vụ và mẫu in của kế hoạch giáo dục |
 | Tiền 14–23/10 | Quyết định nghiệp vụ kế hoạch giáo dục (MT liên tục, chuỗi duyệt, bỏ ký ảnh 16/10, UI CareNest_FE là chuẩn 20/10, đưa vào V1 22/10, khóa Đang sửa 23/10) | 14–23/10/2026 | CONFIRMED; tài liệu ở `huong_dan_nghiep_vu/` |
+| Xác nhận nghiệp vụ giáo dục09/11 | User trả lời 12 câu hỏi và xác nhận đã được giáo viên phía trường xác nhận; chưa cung cấp tên/ngày xác nhận trực tiếp | Ghi nhận09/11/2026 | CONFIRMED trong phạm vi bộ câu hỏi; docs/business/education-plan-confirmation-2026-11-09.md; không xác nhận delivery |

@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
-import com.carenest.entity.eduplan.EduYearPlan;
-import com.carenest.repository.eduplan.EduYearPlanRepository;
+import com.carenest.entity.eduplan.EduPlan;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduYearPlanService;
 import com.carenest.utils.enums.CareNestRole;
@@ -64,7 +64,7 @@ class EduWorkflowCompatibilityIntegrationTest {
     private EduYearPlanService service;
 
     @Autowired
-    private EduYearPlanRepository repository;
+    private EduPlanRepository repository;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -181,7 +181,7 @@ class EduWorkflowCompatibilityIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        EduYearPlan entity = repository.findById(draft.id()).orElseThrow();
+        EduPlan entity = repository.findById(draft.id()).orElseThrow();
         assertThat(entity.getStatus()).isEqualTo(EduPlanStatus.APPROVED);
         assertThat(entity.getPublishedBy()).isEqualTo(vicePrincipal.userId());
         assertThat(entity.getIssuedBy()).isEqualTo(vicePrincipal.userId());
@@ -218,7 +218,7 @@ class EduWorkflowCompatibilityIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        EduYearPlan entity = repository.findById(draft.id()).orElseThrow();
+        EduPlan entity = repository.findById(draft.id()).orElseThrow();
         assertThat(entity.getStatus()).isEqualTo(EduPlanStatus.APPROVED);
         assertThat(entity.getPublishedBy()).isEqualTo(principal.userId());
         // Vì không có Phó HT duyệt trong chuỗi, issued_by legacy phải là null
@@ -266,7 +266,7 @@ class EduWorkflowCompatibilityIntegrationTest {
         entityManager.flush();
         entityManager.clear();
 
-        EduYearPlan entity = repository.findById(draft.id()).orElseThrow();
+        EduPlan entity = repository.findById(draft.id()).orElseThrow();
         assertThat(entity.getStatus()).isEqualTo(EduPlanStatus.APPROVED);
         // published_by là actual publisher (HT)
         assertThat(entity.getPublishedBy()).isEqualTo(principal.userId());

@@ -272,7 +272,7 @@ class EduYearPlanServiceIntegrationTest {
 
     private Long createApprovedAnnualPlan(long ageGroupId) {
         List<Long> existing = jdbc.query(
-                "SELECT id FROM edu_year_plans WHERE school_year_id = ? AND age_group_id = ? AND plan_level = 'SCHOOL_YEAR' AND status = 'APPROVED'",
+                "SELECT id FROM edu_year_plans WHERE school_year_id = ? AND age_group_id = ? AND status = 'APPROVED'",
                 (rs, rowNum) -> rs.getLong(1),
                 schoolYear,
                 ageGroupId);
@@ -1218,7 +1218,7 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT expected_result_id FROM edu_plan_goals WHERE id=?", Long.class, goal1))
                 .isEqualTo(groupA2);
         assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM edu_plan_sub_domains WHERE year_plan_id=?", Long.class, created.id()))
+                        "SELECT count(*) FROM edu_plan_sub_domains WHERE school_year_plan_id=?", Long.class, created.id()))
                 .isEqualTo(1L);
         assertThat(domain(updated, domainPhysical).rows().get(2).contents())
                 .singleElement()

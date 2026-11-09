@@ -1,5 +1,33 @@
 # Module — education-plan
 
+## Mốc nghiệp vụ hiện hành — ghi nhận09/11/2026
+
+[12 câu trả lời đã chốt](../business/education-plan-confirmation-2026-11-09.md): user xác nhận đã được giáo viên phía trường xác nhận; chưa cung cấp tên/ngày xác nhận trực tiếp. Tài liệu mô tả nghiệp vụ đích, không dùng mức CONFIRMED để suy delivery. Ưu tiên phần này và [flow hiện hành](../business/flows/education-plan.md) khi đọc các delta/lịch sử cũ bên dưới.
+
+- Năm → tổ → nhánh lớp → kế hoạch chủ đề → tuần/ngày → đánh giá. Tổ theo nhóm tuổi, dùng chung hai điểm trường; mỗi loại/năm/tuổi một chuỗi, tối đa một bản nháp/chờ.
+- Năm biên soạn cây; tổ chọn một annual APPROVED hiện hành cùng năm/tuổi, giữ cây nguồn và tick từng nội dung. Lập tổ vào form trực tiếp, nhập tên riêng; không tự lập tổ lần đầu.
+- Mặc định năm PHT→HT, tổ TT→PHT, hồ sơ lớp GV→TT→PHT. HT cấu hình; TT có thể duyệt năm/tổ đúng tuổi và không tự duyệt. REVIEW cấm sửa/lease, cuối chuỗi tự ban hành.
+- Năm mới ban hành tự chuyển nguồn tổ nháp/chờ (giữ phần nhập, chờ về nháp); tổ đã ban hành có bản cập nhật nháp, giữ bản ban hành cũ cho lớp tới khi cập nhật duyệt. Đỏ phần đổi/xóa/liên kết ảnh hưởng; mục mới riêng để phân bổ, chủ đề kết thúc không đỏ; baseline là nguồn tổ dùng trước chuyển.
+- Không ai xóa tổ kể cả nháp; chỉ điều chỉnh và giữ lịch sử. Chỉ năm hiện phiên bản, tổ giữ lịch sử nội bộ.
+- Mẫu nhánh tùy chọn nhưng gửi phải phủ mọi tuần học bằng nhánh có tên; nhánh nhiều tuần có đủ giáo án từng tuần. Năm nhập file hai chế độ thay toàn bộ/thay phần có, preview/xác nhận nháp/lưu tay; tổ không nhập file sửa cây.
+
+## Trạng thái triển khai tách khỏi mức xác nhận
+
+| Phần | Source hiện thấy | Phần chưa kiểm chứng/còn thiếu |
+|---|---|---|
+| Hai cấp SCHOOL_YEAR/TEAM, kế thừa readonly/tick, policy ba trạng thái, lease/revision | Có BE/FE | Không suy toàn feature012 đã nghiệm thu; còn gap nguồn lớp/quyền preview/cổng duyệt |
+| Mẫu nhánh, duration snapshot, lịch lớp v2 | Có source | Chi tiết nghiệm thu xem quickstart012, không dùng mô tả “chưa code” lịch sử để phủ nhận source |
+| Giáo án duyệt → đánh giá trẻ/lineage | Có EduLessonQueryService và consumer observation | Chưa smoke runtime trong lượt tài liệu |
+| Nhãn chờ duyệt đúng loại/tên và ẩn phiên bản tổ | Còn gap FE | Theo EDU-62/spec015 |
+| Tự chuyển nguồn/tạo bản cập nhật/rà soát tổ | Chưa đủ luồng | Theo EDU-62/spec015, giữ bản cũ cho lớp |
+| Hai bảng vật lý năm/tổ | Entity còn chung edu_year_plans, V89 local chuẩn bị | Chưa cutover/V90; không chạy migration lượt này |
+| TT duyệt năm/tổ; nguồn hồ sơ lớp TEAM; preview annual; bất biến JSON nội dung lớp | Có gap tĩnh ở controller/service | Cần sửa/test BE theo biên bản, không đổi rule theo code |
+| AI backend | Chưa hoàn tất | Mock/proposed không phải tích hợp thật |
+
+## Delta và chi tiết kỹ thuật theo thời điểm
+
+Lịch sử đặc tả trước bộ xác nhận09/11 — EDU-62, [feature015](../../specs/015-separate-year-team-plans/spec.md): chờ duyệt phải đúng tên/loại năm và tổ; chỉ năm hiện phiên bản, tổ giữ lịch sử nội bộ. Năm mới ban hành mới rà soát tổ, giữ bản tổ cũ cho lớp tới khi cập nhật được duyệt. Chỉ đạo cuối giữ nút lập tổ, vào trang soạn trực tiếp không modal, chọn một nguồn năm đã ban hành hiện hành cùng năm/tuổi và nhập tên riêng; list có tên tổ/nhóm tuổi/ngày gửi/người soạn/trạng thái. User yêu cầu tách bảng nghiệp vụ năm/tổ; source hiện vẫn chung `edu_year_plans`, xem [DB hiện tại/đích](../../specs/015-separate-year-team-plans/database-context.md). Đây là delta chưa hoàn tất source/cutover; V89 local chuẩn bị không là bằng chứng đã migrate; user09/11 đã chốt hai ca: tổ đang làm chuyển nguồn mới nhất giữ phần nhập, bản chờ về nháp/gửi lại; chủ đề đã kết thúc không đỏ. Spec sẵn sàng plan làn L, chưa có plan được duyệt. Không dùng phương án modal hoặc tự lập tổ đã bị user thay thế. Lỗi nhãn user báo được ghi [incident](../knowledge/incidents/BUG-261109-year-team-approval-identity.md), chưa xác minh nguyên nhân.
+
 User 08/11/2026 yêu cầu cảnh báo thời lượng chủ đề và nhánh ngay khi nhập lịch, trước khi gửi duyệt; dùng giới hạn snapshot và giữ lưu nháp. [Incident](../knowledge/incidents/BUG-261108-duration-feedback-late.md).
 
 Hiển thị trạng thái EDU-54 theo yêu cầu user 08/11/2026: hồ sơ đã gửi duyệt hiển thị “Chờ duyệt”; `REVIEW` và các mã chờ cũ được tính vào số chờ. Mã API và bước xử lý không đổi. [Incident](../knowledge/incidents/BUG-261108-education-review-label.md).
@@ -15,11 +43,7 @@ Delta đặc tả08/11/2026 — EDU-60: năm chỉ xem từ quyền lập tổ k
 Feature: `eduplan` (`docs/architecture/PACKAGE_STRUCTURE.md`) · Status: đang code (mục tiêu năm học, cấu hình, tài liệu lớp xong BE, G94-226; AI chưa làm)
 
 ## Mục đích
-Soạn và duyệt kế hoạch giáo dục theo mẫu MN Thái Dương, nối bằng số MT tới đánh giá trẻ:
-- **Kế hoạch năm học** theo nhóm tuổi, áp dụng toàn trường: lĩnh vực > lĩnh vực con > nhóm kết quả mong đợi > MT n > nội dung; chủ đề, đợt nghỉ; tích nội dung vào chủ đề. Tổ trưởng và Phó HT cùng soạn (khóa Đang sửa), Tổ trưởng gửi, Phó HT ban hành.
-- **Cấu hình**: tên lĩnh vực, chuỗi người ký, dòng hoạt động của kế hoạch tuần.
-- **Tài liệu của lớp**: chủ đề nhánh (cả năm), kế hoạch chủ đề, giáo án tuần (kế hoạch tuần + 5 kế hoạch ngày); hồ sơ chủ đề gửi, duyệt một lần theo chuỗi.
-- Luồng đầy đủ: `docs/business/flows/education-plan.md`.
+Soạn/duyệt kế hoạch giáo dục theo chuỗi năm→tổ→lớp và nối nguồn giáo án đã duyệt với đánh giá trẻ. Năm biên soạn mục tiêu/nội dung và dự kiến chủ đề; tổ phân bổ từng nội dung bằng tick trên cây kế thừa; lớp triển khai lịch, hoạt động, tuần/ngày. Policy và trạng thái theo mốc hiện hành ở đầu card, không dùng luồng TT/PHT đồng soạn cũ.
 
 ## Owns
 - Kế hoạch năm: `EduYearPlan` (kèm khóa Đang sửa), `EduPlanSubDomain`, `EduPlanExpectedResult`, `EduPlanGoal`, `EduGoalContent`, `EduTheme`, `EduBreak`, `EduContentThemeTick`, lịch sử `EduPlanEvent`.
@@ -30,7 +54,7 @@ Soạn và duyệt kế hoạch giáo dục theo mẫu MN Thái Dương, nối b
 Năm học, nhóm tuổi, lớp, phân công (school-structure); tài khoản/role (identity-access); kết quả đánh giá trẻ theo MT (learning-observation — chỉ đọc giáo án đã duyệt của module này).
 
 ## Rules (ID)
-EDU-01..28, EDU-39..43, EDU-46..47 (lịch chủ đề, lấy chủ đề, nhập file mục tiêu/nhánh; `docs/business/BUSINESS_RULES.md`); EDU-29..38 (khảo sát team 27/10 từ `dev`, đổi số khi merge; EDU-31/32/35/38 SUPERSEDED theo code — xem flow); OBS-07, PAR-01 (EDU-37), AI-07, AUTH-03, AUTH-23. ADR-0020 (số cũ ADR-0017), ADR-0021, ADR-0018, ADR-0006, ADR-0003; phân quyền động: ADR-0017. ADR-0019 của `dev` (làm lại trên `dev`) lệch với việc đã merge nhánh này — chờ user chốt.
+EDU-01..28, EDU-39..43, EDU-46..62 (các ID có trong BUSINESS_RULES; lịch chủ đề, lấy chủ đề, nhập file mục tiêu/nhánh; `docs/business/BUSINESS_RULES.md`); EDU-29..38 (khảo sát team 27/10 từ `dev`, đổi số khi merge; EDU-31/32/35/38 SUPERSEDED theo code — xem flow); OBS-07, PAR-01 (EDU-37), AI-07, AUTH-03, AUTH-23. ADR-0020 (số cũ ADR-0017), ADR-0021, ADR-0018, ADR-0006, ADR-0003; phân quyền động: ADR-0017. ADR-0019 của `dev` (làm lại trên `dev`) lệch với việc đã merge nhánh này — chờ user chốt.
 
 ## Flows
 `docs/business/flows/education-plan.md`. Sequence mục tiêu năm học SD-01..SD-10: `huong_dan_nghiep_vu/sequence/muc_tieu_nam_hoc_sequence.drawio` (ngoài repo).
@@ -51,16 +75,12 @@ EDU-01..28, EDU-39..43, EDU-46..47 (lịch chủ đề, lấy chủ đề, nhậ
 
 - Đã xong: EDU-54 (06/11/2026): Cấu hình người tạo/duyệt theo loại hồ sơ cho giáo dục (`GET/PUT /education-plans/workflow-policy`), chỉ Hiệu trưởng cấu hình; tách soạn/duyệt theo loại; 3 trạng thái duy nhất `DRAFT` → `REVIEW` → `APPROVED`; `REVIEW` cấm sửa/cấm lease; duyệt bước cuối tự Ban hành và đóng băng `print_snapshot` (ô ký, vai trò, tên người); Flyway V80 expand và V81 contract siết trạng thái. Đã kiểm chứng toàn diện 1,104 test BE PASS, 199 test FE PASS, Spotless GREEN, 0 lỗi AI layer.
 
-## PENDING
+## PENDING — triển khai, không phải câu hỏi nghiệp vụ đã trả lời
 
-- Delta Q4=A/Q5=A đã cập nhật/review plan07/11: mẫu nhánh tùy chọn lấy/không lấy, rename local giữ source; pure calendar-preview và orderedThemeIds trên PUT chuyển cả khối giữ tuần, notes theo UUID/offset; import từ form không lấy mẫu tạo custom được. Không thêm schema/dependency cho delta; plan còn draft chờ duyệt, chưa code.
-
-- Feature012 đã lập [plan làn L draft](../plans/active/2026-11-07-school-year-team-plans.md), [data model](../../specs/012-school-year-team-plans/data-model.md) và [contract](../../specs/012-school-year-team-plans/contracts/education-plans.md) ngày 07/11/2026: đề xuất level trong cùng họ bảng, source FK riêng/clone curriculum immutable, year workflow key vẫn TEAM, schoolYear mới; lịch lớp v2 và templates, HT-only duration snapshot. Tác động observation chỉ tương thích TEAM source/lịch lớp/frozen presentation, có ADR0025 PROPOSED. Chưa code/duyệt plan; chi tiết legacy/rollout xem artifacts, không suy default source hiện tại đã đổi.
-
-- EDU-55/56, user đã chốt Q1–Q3 ngày 07/11/2026 cho [feature012](../../specs/012-school-year-team-plans/spec.md): năm theo nhóm tuổi → tổ kế thừa → GV dùng tổ đã ban hành; Delta mới 07/11 cho GV lấy/sửa tên bản nhánh PHT tại lớp; mẫu nguồn giữ nguyên. GV chỉnh lịch/thêm nhánh và đổi thứ tự dạy chủ đề lớn, không sửa tên/nội dung chủ đề lớn; Q4 đã chọn A, mẫu nhánh là tham khảo không cần lấy đủ; Q5 đã chọn A: chuyển cả khối kèm nhánh, giữ số tuần từng chủ đề/nhánh, dời ngày theo thứ tự mới; không còn câu nghiệp vụ mở của delta. Làm rõ câu 1 speckit-clarify 07/11: tổ trưởng chỉ phân bổ mục tiêu nguồn vào chủ đề, không thêm mới/sửa/xóa cây mục tiêu/nội dung kế thừa, kể cả nhập file. Câu 2 clarify và chỉ dẫn tiếp theo 07/11: giữ tick từng nội dung vào chủ đề, mục tiêu tương ứng đi theo, không tự tick cả mục tiêu; chỉ cố định cây nguồn, giữ logic cũ ngoài delta feature. Bốn cột trang năm có STT, bỏ tick/viết tắt; hai luồng duyệt là mặc định cấu hình được. Chỉ HT cấu hình cả hai loại thời lượng, mặc định nhánh 1–2/chủ đề lớn 2–4 tuần học, bỏ tuần nghỉ trọn, giữ Thứ Hai–Thứ Sáu; nhánh nằm trong cha, cấu hình mới chỉ áp dụng hồ sơ tạo mới. Kế hoạch cũ giữ ở tổ cùng dữ liệu/liên kết; chưa code, source hiện hành vẫn theo rule cũ. Mức nguồn PROPOSED vì chưa có xác nhận team/trường, Q1–Q3 cũ đã trả lời, nhưng delta mới đã chốt Q4=A, Q5 đã chốt A (chuyển khối kèm nhánh, giữ số tuần, dời ngày); phần khóa tên cũ đã bị thay. Không biến nhánh hai tuần thành hai nhánh để né thay đổi mô hình.
-
-- EDU-47 đã được user duyệt nghiệp vụ/plan; triển khai và kiểm chứng theo [feature008](../../specs/008-branch-plan-file-import/quickstart.md). Phần còn mở của module là các mục khác dưới đây, không phải câu hỏi nhập file.
-Lịch chủ đề EDU-39..41 đã chốt 30/10 (đóng P-29). Mục khảo sát mâu thuẫn code (EDU-31, EDU-32, EDU-35, EDU-38) đã chốt theo code 29/10. Còn lại: AI gợi ý (EDU-20), đọc giáo án đã duyệt cho đánh giá trẻ (EDU-19).
+- EDU-62/spec015: nhãn loại/tên, ẩn phiên bản tổ; tự cập nhật nguồn/rà soát theo quyết định09/11, tách bảng vật lý và bảo toàn liên kết lớp chưa hoàn tất.
+- Các gap controller/service trong bảng trạng thái đầu card cần regression trực tiếp. EDU-19 đã có source đọc giáo án duyệt, không còn ghi pending “chỉ mock”. AI BE EDU-20 vẫn chưa hoàn tất.
+- Các ghi nhận feature012 draft07/11 là lịch sử thiết kế; source đã có hai cấp, guard, duration, templates và lịch v2. Chỉ phần chưa đáp ứng/kiểm chứng mới ghi pending; xem quickstart012 và biên bản09/11. Không suy CONFIRMED là đã deploy.
+- Nhập nhánh EDU-47 đã có source/evidence feature008; không hỏi lại các lựa chọn đã chốt.
 
 ## Nhập đầy đủ kế hoạch năm — mở rộng EDU-46 (02/11/2026)
 User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.md). Quyết định mới nhất02/11 thay luồng chỉ bổ sung bằng hai chế độ Web: thay toàn bộ (phần thiếu trống) hoặc chỉ thay nguyên phần file có (phần thiếu giữ). Giữ năm/khoảng ngày hệ thống, field cố định, tuổi, quyền/lease và manual save; remap tick khi chủ đề thay. Backend preview/parser/API/DB không đổi trong delta này; hai chế độ FE đã implement/verify phase2 sau user duyệt tài liệu, đang chờ review trước convergence; E2E BE thật chưa chạy do thiếu credential kiểm thử. Parser YearPlanFileTable phối hợp metadata ngoài bảng với GoalFileTable.
@@ -68,7 +88,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 ## Known pitfalls
 
 - Khoảng ngày chủ đề/nhánh phải wrap theo cột ở cả năm/tổ; không ép nowrap cho range hoặc trigger. Xem [lỗi tràn ngày](../knowledge/incidents/BUG-261108-theme-date-column-overflow.md).
-- EDU-48 (user chốt02/11): thao tác xóa lĩnh vực con ở Web phải bỏ toàn bộ nhánh sau xác nhận số lượng; không chỉ bỏ heading rồi normalize vì con có thể đổi cha. Contract PUT vẫn cho phép giữ/chuyển các dòng client cố ý gửi; xem delta feature006, chưa coi là đã implement khi plan mới draft.
+- Lịch sử EDU-48 trước cập nhật05/11 (không dùng làm mặc định hiện hành): thao tác xóa lĩnh vực con ở Web phải bỏ toàn bộ nhánh sau xác nhận số lượng; không chỉ bỏ heading rồi normalize vì con có thể đổi cha. Contract PUT vẫn cho phép giữ/chuyển các dòng client cố ý gửi; xem delta feature006, chưa coi là đã implement khi plan mới draft.
 
 - Tên lĩnh vực trong .doc có thể dùng kĩ/kỹ, mĩ/mỹ; chuẩn hóa khóa so tên, không đổi nội dung người dùng. [Regression feature009](../knowledge/incidents/BUG-261102-year-plan-sample-incomplete-preview.md).
 
@@ -91,7 +111,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 - So sánh phiên bản dùng lineage hiệu dụng `COALESCE(lineage_id, id)`; MT đánh lại số không phải là đổi. Tra "hiện hành" bằng truy vấn chuỗi, không lưu cờ.
 - Thứ tự chủ đề, đợt nghỉ = thứ tự mảng trong PUT (`sort_order`); dấu tích lưu theo chênh lệch, không xóa JPQL rồi ghi lại ([BUG-261023-edu-theme-tick-lost-on-resave](../knowledge/incidents/BUG-261023-edu-theme-tick-lost-on-resave.md)).
 - Kế hoạch chủ đề lưu luôn MT, nội dung lấy từ kế hoạch năm để bản đã duyệt không đổi theo (EDU-15).
-- EDU-18 (01/11): chuỗi duyệt hồ sơ lớp chụp lúc gửi vào `edu_class_docs.sign_chain` (V41); duyệt/trả lại đi theo chuỗi đã chụp, đổi cấu hình giữa chừng không làm hồ sơ tự APPROVED. Hồ sơ cũ `sign_chain` NULL: dùng cấu hình; cấu hình đã bỏ bước đang chờ thì giữ bước đó + các bước cấu hình chưa duyệt. Đang chờ Tổ trưởng mà nhóm tuổi hết Tổ trưởng (hoặc Tổ trưởng dạy chính lớp) ⇒ `getClassDocs` hiện và `actOnClassDoc` duyệt ở bước kế (DB chỉ đổi khi có người thao tác); chuỗi chỉ còn bước Tổ trưởng thì vẫn chờ tới khi HT phân công Tổ trưởng mới.
+- Lịch sử EDU-18 trước EDU-54 (không áp dụng như policy hiện hành): chuỗi duyệt hồ sơ lớp chụp lúc gửi vào `edu_class_docs.sign_chain` (V41); duyệt/trả lại đi theo chuỗi đã chụp, đổi cấu hình giữa chừng không làm hồ sơ tự APPROVED. Hồ sơ cũ `sign_chain` NULL: dùng cấu hình; cấu hình đã bỏ bước đang chờ thì giữ bước đó + các bước cấu hình chưa duyệt. Đang chờ Tổ trưởng mà nhóm tuổi hết Tổ trưởng (hoặc Tổ trưởng dạy chính lớp) ⇒ `getClassDocs` hiện và `actOnClassDoc` duyệt ở bước kế (DB chỉ đổi khi có người thao tác); chuỗi chỉ còn bước Tổ trưởng thì vẫn chờ tới khi HT phân công Tổ trưởng mới.
 - Hai chỗ comment FE lệch code, làm BE theo code: mock ghi chủ đề nhánh "Phó HT duyệt" nhưng chuỗi mặc định là Tổ trưởng → Phó HT; gợi ý người ký `week` ghi "mỗi tuần duyệt riêng" nhưng code duyệt cả hồ sơ chủ đề một lần (EDU-17).
 - Mã YCCĐ (TC1.1…) trong `educationPlanConstants.js` của FE chỉ còn để đọc dữ liệu cũ; không dùng cho dữ liệu mới (EDU-09).
 
@@ -108,7 +128,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 
 ## Lưu mục tiêu năm (Tiền duyệt 27/10/2026)
 
-EDU-10/22/23: phiên sửa riêng từng tab, TTL 90s và heartbeat 20s; cùng tài khoản gọi start-editing bằng phiên mới thì nhận quyền ngay (`EduYearPlan.acquireSession`), phiên cũ nhận 409 ở heartbeat/lưu, người khác vẫn 409 tới khi hết hạn; FE chỉ ghi khi bấm Lưu/Ctrl+S hoặc gửi/ban hành (bỏ tự lưu 2s/15s, Tiền chốt 27/10), kiểm revision và request ID chống lưu trùng. PENDING_VP giữ trạng thái khi khóa; draft giữ nội dung chưa hoàn chỉnh, gửi/ban hành mới kiểm tra đầy đủ. V30 bổ sung phiên/revision; contract ghi cần X-Edit-Session, X-Plan-Revision, X-Request-Id. Bản phục hồi Web riêng theo user/kế hoạch/slot; không trộn hay ghi đè khi xung đột. Chi tiết: [đặc tả](../../specs/001-year-plan-autosave/spec.md).
+EDU-10/22/23: phiên sửa riêng từng tab, TTL 90s và heartbeat 20s; cùng tài khoản gọi start-editing bằng phiên mới thì nhận quyền ngay (`EduYearPlan.acquireSession`), phiên cũ nhận 409 ở heartbeat/lưu, người khác vẫn 409 tới khi hết hạn; FE chỉ ghi khi bấm Lưu/Ctrl+S hoặc gửi/ban hành (bỏ tự lưu 2s/15s, Tiền chốt 27/10), kiểm revision và request ID chống lưu trùng. DRAFT giữ trạng thái khi giữ lease; REVIEW cấm lease/sửa theo EDU-54; draft giữ nội dung chưa hoàn chỉnh, gửi/ban hành mới kiểm tra đầy đủ. V30 bổ sung phiên/revision; contract hiện hành cần X-Edit-Session, X-Plan-Revision, Idempotency-Key. Bản phục hồi Web riêng theo user/kế hoạch/slot; không trộn hay ghi đè khi xung đột. Chi tiết: [đặc tả](../../specs/001-year-plan-autosave/spec.md).
 
 ## Học liệu hoạt động (Tiền yêu cầu, 27/10/2026)
 Mọi binary ảnh/video/slide/tệp lưu S3 private, metadata riêng trong edu_learning_resources; backend scope check, không public bucket/URL. Không đổi MT/chuỗi duyệt EDU-12..18. Sửa hoạt động làm fingerprint không khớp thì cần gắn lại. Chi tiết [feature002](../../specs/002-class-plan-teaching-media/spec.md), [S3](../system/EDUCATION_MEDIA_S3.md), ADR-0018. Tích hợp S3 thật cần cấu hình và smoke riêng.
@@ -122,7 +142,7 @@ EDU-25/26/27: mỗi phiên bản là một dòng `edu_year_plans` (`version_no`,
 
 ## Lấy mục tiêu từ kế hoạch có sẵn (user chốt 28/10/2026)
 
-EDU-24: giữ quyền nguồn EDU-06; chỉ Phó HT lấy khác nhóm tuổi, Tổ trưởng chỉ nhóm tuổi mình (có thể khác năm). Tích từng mục tiêu hoặc tất cả trong một nguồn; chỉ chép mục tiêu/nội dung, không chép chủ đề, đợt nghỉ, lịch hoặc dấu tích. Giữ dữ liệu đích, bản nguồn và luồng sửa ba bước. Source Web đã triển khai, 13/13 E2E thật đạt và T019/T021 hoàn tất: [feature003](../../specs/003-import-year-plan-goals/spec.md).
+EDU-24: quyền lấy mục tiêu theo EDU-06/24 hiện hành; TT được lấy bản đã ban hành khác tuổi theo delta30/10, không suy quyền này cho nguồn tạo TEAM (bắt buộc cùng năm/tuổi). Tích từng mục tiêu hoặc tất cả trong một nguồn; chỉ chép mục tiêu/nội dung, không chép chủ đề, đợt nghỉ, lịch hoặc dấu tích. Giữ dữ liệu đích, bản nguồn và luồng sửa ba bước. Source Web đã triển khai, 13/13 E2E thật đạt và T019/T021 hoàn tất: [feature003](../../specs/003-import-year-plan-goals/spec.md).
 
 ## Lấy mục tiêu từ Chương trình của Bộ (Tiền chốt 28/10/2026)
 
@@ -130,8 +150,8 @@ EDU-28: danh mục chỉ đọc nạp bằng V33/V34 (`edu_curriculum_*`) từ V
 
 ## Nhập file bảng mục tiêu (Tiền duyệt 01/11/2026)
 
-EDU-46, spec `specs/007-year-plan-goal-file-import/`. Nhận Word .docx bảng mẫu Thái Dương (STT | Mục tiêu | Nội dung | cột chủ đề viết tắt), Word .doc do CareNest xuất (HTML), Excel .xlsx, CSV mẫu cũ; ≤ 2 MB, ≤ 2.000 dòng; mã lỗi 7033–7035. BE chỉ đọc (không lưu, không đổi DB, không thêm thư viện; XML chặn DOCTYPE, giới hạn giải nén). Đó là luồng lịch sử spec007/EDU-46 trước quyết định mới02/11; Web hiện chưa đổi code nhưng yêu cầu đích là hai chế độ thay nội dung ở spec009 bên trên, giữ lưu tay EDU-22. Nút lấy từ kế hoạch khác vẫn theo EDU-24, không bị đổi theo nhập file.
-Pitfall: Word .doc nhị phân đời cũ không đọc được (báo Lưu thành .docx); Word mở file mẫu .doc rồi lưu lại có thể giữ dạng HTML — vẫn đọc được.
+EDU-46, spec `specs/007-year-plan-goal-file-import/`. Nhận Word .docx bảng mẫu Thái Dương (STT | Mục tiêu | Nội dung | cột chủ đề viết tắt), Word .doc do CareNest xuất (HTML), Excel .xlsx, CSV mẫu cũ; ≤ 2 MB, ≤ 2.000 dòng; mã lỗi 7033–7035. BE chỉ đọc (không lưu, không đổi DB, không thêm thư viện; XML chặn DOCTYPE, giới hạn giải nén). Đó là luồng lịch sử spec007/EDU-46 trước quyết định mới02/11; Web đã có hai chế độ thay nội dung spec009 ở source; trạng thái review/nghiệm thu xem bằng chứng bên trên, giữ lưu tay EDU-22. Nút lấy từ kế hoạch khác vẫn theo EDU-24, không bị đổi theo nhập file.
+Lịch sử parser cũ: .doc nhị phân chưa đọc được; source hiện đã dùng POI HWPF cho .doc theo phần API bên trên, giữ kiểm giới hạn/tệp hỏng; Word mở file mẫu .doc rồi lưu lại có thể giữ dạng HTML — vẫn đọc được.
 
 ## Delta nhãn mục tiêu — 07/11/2026
 

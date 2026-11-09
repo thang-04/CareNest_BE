@@ -1,5 +1,17 @@
 # Cross-Repo Map
 
+## Mốc nghiệp vụ giáo dục ghi nhận09/11/2026 — contract hiện hành và đích
+
+Nguồn: [12 câu trả lời](../business/education-plan-confirmation-2026-11-09.md), user xác nhận giáo viên phía trường đã xác nhận. Không đổi endpoint/DTO hoặc ghi đã triển khai từ việc chốt nghiệp vụ.
+
+- Web năm→tổ→lớp theo nhóm tuổi dùng chung hai điểm trường; mỗi loại/năm/tuổi một chuỗi, tối đa một bản nháp/chờ. Tên riêng không tạo chuỗi mới.
+- Người soạn annual cần preview file theo policy annual, giữ hai chế độ thay toàn bộ/thay phần có và lưu tay. TEAM chỉ kế thừa/tick, không nhập file sửa cây.
+- Server phải hỗ trợ TT duyệt năm/tổ khi được HT cấu hình và đúng tuổi/không tự duyệt; nguồn hồ sơ lớp chỉ TEAM APPROVED hiện hành. Controller issue/return và requireIssuedPlan hiện còn gap, không coi UI là enforcement.
+- Không ai xóa TEAM, kể cả nháp. Chỉ năm hiện bảng/thao tác phiên bản; TEAM giữ lịch sử nội bộ. Khi năm mới ban hành, tự chuyển nguồn tổ đang soạn/chờ, chờ về nháp; tổ ban hành có bản cập nhật, lớp giữ bản ban hành cũ tới khi cập nhật duyệt. Rà soát phần đổi/xóa/liên kết ảnh hưởng; mục mới riêng để phân bổ, chủ đề kết thúc không đỏ.
+- Nghiệp vụ spec015 chưa có luồng đầy đủ; API hiện còn planLevel và entity chung edu_year_plans, V89 local là chuẩn bị. Không dùng tài liệu đích planType/tách bảng như contract đã deploy. FE bị tác động list/form/detail/queue/source/version; App cần đánh giá theo consumer thực tế khi sửa API, chưa đổi App trong lượt này.
+
+Các delta cũ phía dưới được đọc theo mốc trên và rule hiện hành; phần chưa tương thích ghi là gap triển khai.
+
 ## Điều chỉnh dữ liệu nguồn Bộ — delta014 draft, 08/11/2026
 
 - Audit PDF chính thức: 33 mục tiêu thiếu dấu hai chấm, một câu “5 - 7” tách sai; xem [plan delta](../../specs/014-curriculum-cascade-suggestions/source-correction-plan.md). Đề xuất migration mới và mock FE, giữ endpoint/DTO và dữ liệu kế hoạch đã chép; các client API có thể thấy nội dung sửa, APP chưa khảo sát.
@@ -145,3 +157,7 @@ Delta feature011 hoàn tất: chỉ ba trạng thái Nháp/Duyệt/Ban hành (DR
 Feature011 — user xác nhận06/11 trong vòng implement/converge: App mobile chưa tích hợp kế hoạch giáo dục; Web được phép sửa riêng phần giáo dục. Không có thay đổi APP trong delivery này; contract mới là đầu vào khi tích hợp APP sau này.
 
 Feature013 delivery08/11/2026: Web GoalTables/CSS đổi nền header nguồn/readonly, giữ nhánh và thêm select xem mục tiêu theo tick; mock annual list/detail/source/diff cùng scope, usePlanChanges truyền actor. BE scope áp riêngSCHOOL_YEAR, TEAM giữ base. OpenAPI metadata nested schema eduplan có tên riêng chống collision, không đổi JSON/endpoint; consumer JSON không đổi, codegen cần snapshot cập nhật. Browser fixture và HTTP integration(testJWT/realDB) không thay live Keycloak E2E. Quyền FE do user cấp; không sửa APP/deploy.
+
+## Delta giáo dục 09/11/2026 — feature015
+
+EDU-62: [spec](../../specs/015-separate-year-team-plans/spec.md), [hiện trạng/đích DB](../../specs/015-separate-year-team-plans/database-context.md). Web ảnh hưởng list/form/detail kế hoạch (GoalListPage, GoalFormPage, GoalDetailPage), danh sách chờ duyệt/dashboard, service/mapper năm-tổ và rà soát thay đổi. Đích: trang lập tổ trực tiếp không modal, tên riêng, chọn nguồn năm đã ban hành, năm cột danh sách, phiên bản chỉ hiện ở năm. Chỉ đạo tách bảng còn ảnh hưởng server mapping/FK và consumers tài liệu lớp/đánh giá trẻ; chưa xác định contract mới. Mobile phải kiểm consumer trong bước plan nếu contract đổi, chưa khẳng định không ảnh hưởng. Lượt này chỉ đọc source Web có liên quan; không sửa FE/APP hoặc triển khai DB/API.
