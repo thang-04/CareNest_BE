@@ -377,6 +377,13 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                     assignment.validFrom())) {
                 throw GlobalException.of(ApiCode.ASSIGNMENT_OVERLAP);
             }
+            // AUTH-26: mỗi điểm trường tối đa một PHT (mọi đường tạo phân công PHT áp cùng luật)
+            if (assignment.staffRole() == StaffRole.VICE_PRINCIPAL
+                    && assignment.campusId() != null
+                    && staffAssignmentRepository.existsOtherVicePrincipalAtCampusOpenEnded(
+                            assignment.campusId(), assignment.userId(), assignment.validFrom(), validTo)) {
+                throw GlobalException.of(ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
+            }
             StaffAssignment saved = staffAssignmentRepository.saveAndFlush(StaffAssignment.create(
                     assignment.userId(),
                     assignment.staffRole(),
