@@ -364,3 +364,52 @@ T097–99 xong, BE71/71/FE254/254, lint/format/build đạt, review độc lập
 
 - User yêu cầu fix fullSpotless/test/liveE2E và ảnh ngày tràn cột. Spotlessapply format11file, fullcheck+94nativeBE đạt; FE278tests/Vitebuild đạt lại. Browser dategeometry RED→GREEN1440/698/390 cho chủ đề/nhánh năm/tổ; sửaCSSwrap, không đổi dữ liệu/API/dependency.
 - Live Keycloak/server-save E2E mới2/2đạt: draft/review403→publish200, loginbrowser→tick→Lưuserver→GETAPI→reload giữ liên kết; readonlyselect/branches/gray. DB riêng trên containertest và BE8089 riêng đã dọn/xóaDBtạm/dừng đúngprocess, giữ BE8080. Evidence mới thay giới hạn fullSpotless/liveE2E ở snapshottrước; chưa whole-systemE2E/Maven hoặc deploy/Git.
+
+## Delta khôi phục snapshot thời lượng — 09/11/2026 (draft, chờ user duyệt)
+
+### Context và phạm vi
+
+User báo cấu hình chủ đề tối đa4 tuần nhưng chủ đề5 tuần vẫn gửi duyệt thành công. DB local xác nhận annual345 REVIEW, theme658 07/09–09/10/2026 (5 tuần, không có đợt nghỉ), cấu hình revision1 theme2–4. V90 dòng106 bỏ duration_policy_snapshot của annual; EduPlan dòng44–45 dùng @Transient/default LEGACY_UNBOUNDED; EduYearPlan chưa map thuộc tính. Snapshot khi tạo không tồn tại qua reload. SubmitYearPlan gọi requireReadyForReview (dòng379) nhưng giới hạn thời lượng chỉ nằm ở validateForPublication của YearPlanPublicationValidator. Xem incident BUG-261108-duration-feedback-late được tái mở.
+
+### Hành vi cần giữ
+
+- Lưu nháp được phép chưa đạt thời lượng; hồ sơ có snapshot BOUNDED vượt giới hạn phải bị chặn gửi duyệt và ban hành, kể cả gọi API trực tiếp.
+- Snapshot được lưu bền khi tạo và reload; phiên bản điều chỉnh chụp cấu hình hiện tại lúc tạo theo EDU-68 PROPOSED, các phiên bản trước giữ snapshot của mình. Không tự gán cấu hình mới cho mọi legacy hoặc tự đổi trạng thái REVIEW của annual345.
+- EDU-22 CONFIRMED giữ lưu tay. Chi tiết duration theo EDU-56 PROPOSED và quyết định trực tiếp user07/11, yêu cầu cảnh báo/chặn gửi user08/11 được ghi trong incident; không tự nâng trạng thái xác nhận team/trường.
+
+### Thay đổi đề xuất để review
+
+1. Migration Flyway mới (số tiếp theo chưa dùng): thêm lại snapshot JSONB cho edu_year_plans, mặc định legacy cho dữ liệu cũ; không sửa V90 đã chạy, không xóa dữ liệu. Map EduYearPlan.getDurationPolicySnapshot tương tự EduTeamPlan.
+2. Tách phần kiểm giới hạn hiện có từ YearPlanPublicationValidator thành method dùng chung với requireReadyForReview. Giữ cách tính tuần nghỉ trọn/tuần học, kiểm snapshot, tái dùng ApiCode hiện có; submit không ép các trường chỉ bắt buộc khi ban hành.
+3. FE kiểm response sau reload vẫn nhận BOUNDED qua mapper sẵn có; chỉ sửa FE nếu test phát hiện consumer làm mất snapshot. Không đổi endpoint/DTO/dependency hay quyền.
+4. Test DB thật: tạo→save→clear persistence context→reload vẫn có snapshot; quá4 tuần bị từ chối submit, đủ4 được gửi; lưu nháp5 được giữ; phiên bản/cấu hình mới không đổi snapshot; legacy không tự áp giới hạn mới. Kiểm trừ nghỉ trọn tuần và nhánh theo policy.
+
+### Dữ liệu annual345 đã mất snapshot
+
+Không thể suy snapshot lịch sử bất kỳ từ cấu hình hiện tại. Với local345, cấu hình còn revision1 nên có thể đề xuất khôi phục snapshot2–4/1–2 sau backup và xác nhận phạm vi. Chưa ghi DB hoặc tự đưa REVIEW về nháp. Sửa code/migration không mặc nhiên phục hồi snapshot đã mất; phần khôi phục riêng cần user duyệt.
+
+### Verify và rollback
+
+Chạy Maven test nhắm tới entity persistence/submit/publication và test FE duration hiện có, kiểm migration trên DB thử với backup trước/sau; không dùng harness theo AGENTS07/11. Chỉ áp migration DB đang chạy sau khi user duyệt delta và có backup. Rollback code giữ cột bổ sung, tránh mất snapshot; không drop cột để rollback. Tác động một module education-plan; không đổi schema API, auth, tài khoản hay dữ liệu trẻ.
+
+### Progress
+
+09/11: đã chẩn đoán source và DB local chỉ đọc, ghi incident; chưa code, chưa chạy migration. Status của riêng delta: draft; approval của các delta cũ không cấp quyền triển khai delta này.
+
+## Delta 016 kiểm gửi năm/tổ — 09/11/2026 (draft, chờ duyệt)
+
+Phạm vi đầy đủ, quyết định, thứ tự, kiểm chứng và rollback: [plan016](../../../specs/016-education-submit-validation/plan.md), [domain](../../../specs/016-education-submit-validation/domain-spec.md), [contract](../../../specs/016-education-submit-validation/contracts/submit-validation.md). Bổ sung delta snapshot phía trên, không thay phê duyệt của các delta khác.
+
+- User trực tiếp 09/11: 9 chủ đề năm, đủ ngày khi gửi, mỗi mục tiêu năm có nội dung, mỗi mục tiêu tổ ít nhất một nội dung được tick. Lưu nháp chưa đủ; điều kiện và quyền kiểm server. EDU-66/68 PROPOSED; không tự nâng xác nhận giáo viên.
+- Tổ trưởng thêm/sửa nội dung riêng của tổ; giáo viên phía dưới xem theo quyền/trạng thái. Khi nguồn năm và tổ cùng sửa nội dung, giữ bản tổ và báo rà soát (EDU-65/67 PROPOSED). Không ghi đè nguồn năm hoặc mất tick/ID/bản ban hành cho lớp.
+- Phase1 snapshot annual/migration mới + validate năm; Phase2 tổ/nội dung/đồng bộ/ownership; Phase3 FE, mock, consumer và test. Từng phase chạy test gốc và dừng review theo plan-change; theo chỉ đạo repo không chạy wrapper/harness. Nhiều hơn 8 file: chia 3 phase; liên kết FR/AC/test cụ thể tiếp tục tại tasks/analyze.
+- Snapshot bị mất chỉ khôi phục khi có bằng chứng và giữ trạng thái; version điều chỉnh chụp cấu hình hiện tại khi tạo. Plan345 đang REVIEW không tự đổi. Mọi áp dụng DB thực phải backup và phê duyệt riêng; không suy giá trị historical.
+- Tình trạng: plan draft. Chưa sửa source, migration, DB hoặc triển khai. User gọi plan chưa phải phê duyệt implement; cần review plan lane L và hoàn thành tasks/analyze trước code.
+
+### Điều chỉnh sau analyze 016 — 09/11/2026 (draft)
+
+User chọn duyệt theo thứ bậc cố định và bỏ lease 90 giây/heartbeat20 theo flow: EDU-70 PROPOSED thay phần chuỗi duyệt cấu hình tùy ý và lease nêu ở delta cũ trong phạm vi kế hoạch giáo dục. EDU-69 PROPOSED ghi rõ 9 chủ đề, mỗi mục tiêu năm có nội dung và mỗi mục tiêu tổ có một nội dung tick. `specs/016-education-submit-validation/tasks.md` thêm T036–T042, giữ ID cũ: kiểm kê/khôi phục snapshot theo bằng chứng, thiết kế/duyệt contract và consumer, test/triển khai phân công và thứ bậc, bỏ lease nhưng giữ revision/chống ghi đè. Phase quyền cần review trước US1; không sửa code/migration/DB trong lượt cập nhật artifact. Plan vẫn draft, cần chạy lại analyze và được duyệt trước triển khai.
+
+### Đồng bộ sau analyze — 09/11/2026 (draft)
+
+User chọn hồ sơ mất giới hạn chưa có bằng chứng phải chặn gửi, báo kiểm tra/khôi phục; hồ sơ chưa phân biệt legacy thật cũng cần xác minh (EDU-71 PROPOSED). Ba trạng thái BOUNDED/legacy thật/mất hoặc chưa phân loại phải phân biệt; không mặc định giá trị thiếu thành legacy được phép gửi. Spec016 FR-014 và T043–T044 bao phủ; không tự ghi DB thật. T045–T046 bổ sung duyệt hồ sơ lớp; T047 kiểm STT tự sinh và nhãn tùy chọn. Ma trận và phương án tương thích dự thảo trong contract, T038 hoàn thiện trước T005; thay thứ tự cũ mâu thuẫn của delta016. Danh sách T001–T047, thực hiện theo dependencies. Plan vẫn draft; chưa sửa source/migration/database.

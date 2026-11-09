@@ -20,7 +20,8 @@ public record ClassDocsResponse(
             Long classId, String kind, boolean canCreate, String requires, String reasonCode) {}
 
     /** id dạng chuỗi như id lớp trên đường dẫn của Web; ageGroupId = mã nhóm tuổi (vd. ag-3). */
-    public record ClassItem(String id, String name, String ageGroupId, Long campusId, List<Long> teacherIds) {}
+    public record ClassItem(
+            String id, String name, String ageGroupId, Long campusId, List<Long> teacherIds, Long homeroomTeacherId) {}
 
     /** role: TEACHER hoặc TEAM_LEADER (tổ trưởng của ageGroupId). */
     public record StaffItem(Long id, String fullName, String role, String ageGroupId) {}

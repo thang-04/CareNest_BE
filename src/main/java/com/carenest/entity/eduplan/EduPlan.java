@@ -11,7 +11,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -82,6 +81,9 @@ public abstract class EduPlan {
     @Column(nullable = false, length = 20)
     protected EduPlanStatus status;
 
+    @Column(name = "disabled", nullable = false)
+    protected boolean disabled = false;
+
     @Column(name = "owner_id", nullable = false, updatable = false)
     protected Long ownerId;
 
@@ -99,23 +101,6 @@ public abstract class EduPlan {
 
     @Column(name = "issued_at")
     protected Instant issuedAt;
-
-    // EDU-10: phiên sửa được duy trì độc lập với lưu nội dung.
-    @Column(name = "editing_by")
-    protected Long editingBy;
-
-    @Column(name = "editing_since")
-    protected Instant editingSince;
-
-    @Column(name = "editing_at")
-    protected Instant editingAt;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "editing_from", length = 20)
-    protected EduPlanStatus editingFrom;
-
-    @Column(name = "edit_session_id")
-    protected UUID editSessionId;
 
     @Column(name = "content_revision", nullable = false)
     protected long contentRevision;
@@ -198,7 +183,6 @@ public abstract class EduPlan {
         plan.authorTrackingSince = now;
         plan.authorCoverage = "COMPLETE";
         plan.updatedAt = now;
-        plan.startEditing(ownerId, now);
         return plan;
     }
 
@@ -225,62 +209,6 @@ public abstract class EduPlan {
         return plan;
     }
 
-    /** Khóa cho {@code userId}; đang khóa bởi chính người đó thì chỉ gia hạn. */
-    public void startEditing(Long userId, Instant now) {
-        if (userId.equals(editingBy)) {
-            this.editingAt = now;
-            return;
-        }
-        this.status = EduPlanStatus.DRAFT;
-        this.editingFrom = EduPlanStatus.DRAFT;
-        this.editingBy = userId;
-        this.editSessionId = UUID.randomUUID();
-        this.editingSince = now;
-        this.editingAt = now;
-    }
-
-    public void touchEditing(Instant now) {
-        this.editingAt = now;
-    }
-
-    /** Nhả khóa, trả về Nháp. */
-    public void finishEditing() {
-        if (editingBy == null) {
-            return;
-        }
-        this.status = EduPlanStatus.DRAFT;
-        clearEditing();
-    }
-
-    /** Trạng thái thật của nội dung. */
-    public EduPlanStatus baseStatus() {
-        return status;
-    }
-
-    public boolean isEditingBy(Long userId) {
-        return userId.equals(editingBy);
-    }
-
-    public boolean isEditLockExpired(Instant now, Duration ttl) {
-        return editingAt != null && !editingAt.plus(ttl).isAfter(now);
-    }
-
-    protected void clearEditing() {
-        this.editingBy = null;
-        this.editingSince = null;
-        this.editingAt = null;
-        this.editingFrom = null;
-        this.editSessionId = null;
-    }
-
-    public void acquireSession(Long userId, UUID sessionId, Instant now) {
-        if (!userId.equals(editingBy) || !sessionId.equals(editSessionId)) {
-            startEditing(userId, now);
-        }
-        this.editSessionId = sessionId;
-        this.editingAt = now;
-    }
-
     public void initializeSave(UUID requestId) {
         this.createdRequestId = requestId;
         recordSave(requestId);
@@ -301,8 +229,24 @@ public abstract class EduPlan {
         return status;
     }
 
+    public boolean isDisabled() {
+        return disabled;
+    }
+
+    public void markDisabled() {
+        this.disabled = true;
+    }
+
+    public void markDisabled(Instant now) {
+        this.disabled = true;
+        this.updatedAt = now;
+    }
+
+    public void touch(Instant now) {
+        this.updatedAt = now;
+    }
+
     public void submit(Long userId, Instant now) {
-        clearEditing();
         this.status = EduPlanStatus.REVIEW;
         this.sentBy = userId;
         this.sentAt = now;
@@ -326,7 +270,6 @@ public abstract class EduPlan {
             String completionPolicy,
             String printSnapshot,
             Instant now) {
-        clearEditing();
         this.status = EduPlanStatus.APPROVED;
         this.publishedBy = publisherId;
         this.completedAt = now;
@@ -351,7 +294,6 @@ public abstract class EduPlan {
     }
 
     public void issue(Long userId, Instant now) {
-        clearEditing();
         this.status = EduPlanStatus.APPROVED;
         this.issuedBy = userId;
         this.issuedAt = now;
@@ -362,7 +304,6 @@ public abstract class EduPlan {
     }
 
     public void returnToDraft(Instant now) {
-        clearEditing();
         this.status = EduPlanStatus.DRAFT;
         this.updatedAt = now;
     }

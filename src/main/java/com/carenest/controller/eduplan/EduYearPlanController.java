@@ -112,7 +112,7 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> createYearPlan(
             @Valid @RequestBody YearPlanRequest request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix =
@@ -130,7 +130,7 @@ public class EduYearPlanController {
             @PathVariable Long planId,
             @Valid @RequestBody YearPlanRequest request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|updateYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -146,7 +146,7 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> resolveReview(
             @PathVariable Long planId, @PathVariable Long reviewItemId,
             @Valid @RequestBody ReviewResolutionRequest request, CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|resolveReview|planId=" + planId;
@@ -165,7 +165,7 @@ public class EduYearPlanController {
             @PathVariable Long planId,
             @Valid @RequestBody(required = false) PlanActionRequest.Note request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|submitYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -221,7 +221,7 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> startEditing(
             @PathVariable Long planId,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|startEditing|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -237,7 +237,7 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> finishEditing(
             @PathVariable Long planId,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|finishEditing|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -253,7 +253,7 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> heartbeat(
             @PathVariable Long planId,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|heartbeat|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -271,7 +271,7 @@ public class EduYearPlanController {
             @PathVariable Long planId,
             @RequestBody(required = false) com.carenest.dto.eduplan.YearPlanVersionRequest request,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|createVersion|userId=" + currentUser.userId() + "|planId=" + planId;
@@ -301,7 +301,7 @@ public class EduYearPlanController {
     public ResponseEntity<ResponseJson<Void>> deleteYearPlan(
             @PathVariable Long planId,
             CurrentUser currentUser,
-            @RequestHeader("X-Edit-Session") UUID sessionId,
+            @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|deleteYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;

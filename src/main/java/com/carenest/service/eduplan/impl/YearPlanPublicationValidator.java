@@ -54,6 +54,7 @@ public class YearPlanPublicationValidator {
         if (plan.getTitle() == null || plan.getTitle().isBlank()) {
             throw GlobalException.of(ApiCode.YEAR_PLAN_TITLE_REQUIRED);
         }
+        validateSubmissionSchedule(plan);
 
         SchoolYearResponse year = schoolStructureService
                 .findSchoolYear(plan.getSchoolYearId())
@@ -91,7 +92,10 @@ public class YearPlanPublicationValidator {
             }
         }
 
-        requireThemeWeeks(themes);
+        if (plan.getPlanLevel() == com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR) {
+            requireMinimumThemes(themes.size());
+        }
+        requireThemeWeeks(themes, breaks);
         requireDatesInSchoolYear(year, themes, breaks);
         List<EduPlanBranchTemplate> templates = validateBranchDates(plan.getId());
 
@@ -156,7 +160,90 @@ public class YearPlanPublicationValidator {
         }
     }
 
-    private void requireThemeWeeks(List<EduTheme> themes) {
+    static void requireMinimumThemes(int count) {
+        if (count < 9) {
+            throw GlobalException.of(
+                    ApiCode.EDUCATION_CALENDAR_INVALID,
+                    "Chưa đạt số lượng chủ đề cho phép");
+        }
+    }
+
+    static void requireAnnualContents(List<EduGoalRow> rows, List<EduGoalContent> contents) {
+        List<EduGoalRow> goals = rows.stream().filter(r -> r.getKind() == EduGoalRowKind.GOAL).toList();
+        if (goals.isEmpty()) throw GlobalException.of(ApiCode.PLAN_GOAL_REQUIRED);
+        Set<Long> goalsWithContent = contents.stream()
+                .filter(c -> c.getText() != null && !c.getText().isBlank())
+                .map(EduGoalContent::getGoalRowId).collect(Collectors.toSet());
+        for (EduGoalRow goal : goals) {
+            if (!goalsWithContent.contains(goal.getId())) {
+                throw GlobalException.withFieldErrors(ApiCode.GOAL_CONTENT_REQUIRED,
+                        List.of(new com.carenest.dto.common.FieldErrorResponse(
+                                "goal." + goal.getId(), "Mục tiêu " + goal.getText() + " cần ít nhất một nội dung")));
+            }
+        }
+        Set<Long> groups = rows.stream().filter(r -> r.getKind() == EduGoalRowKind.GROUP
+                        && r.getText() != null && !r.getText().isBlank())
+                .map(EduGoalRow::getId).collect(Collectors.toSet());
+        if (goals.stream().noneMatch(g -> g.getGoalNo() != null && g.getText() != null && !g.getText().isBlank()
+                && groups.contains(g.getExpectedResultId()) && goalsWithContent.contains(g.getId()))) {
+            throw GlobalException.withFieldErrors(ApiCode.GOAL_CONTENT_REQUIRED,
+                    List.of(new com.carenest.dto.common.FieldErrorResponse(
+                            "goals", "Cần một nhóm kết quả có mục tiêu, STT và nội dung")));
+        }
+    }
+
+    void validateSubmissionSchedule(EduPlan plan) {
+        List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
+        List<EduPlanBranchTemplate> templates = validateBranchDates(plan.getId());
+        for (EduTheme theme : themes) {
+            if (theme.getStartDate() == null || theme.getEndDate() == null) {
+                throw GlobalException.of(ApiCode.THEME_DATES_REQUIRED, theme.getAbbr());
+            }
+        }
+        for (EduPlanBranchTemplate branch : templates) {
+            EduTheme parent = themes.stream().filter(t -> Objects.equals(t.getId(), branch.getThemeId()))
+                    .findFirst().orElseThrow(() -> GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID));
+            if (branch.getStartDate().isBefore(parent.getStartDate()) || branch.getEndDate().isAfter(parent.getEndDate())) {
+                throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "Nhánh " + branch.getName() + " nằm ngoài chủ đề");
+            }
+        }
+        String snapshot = plan.getDurationPolicySnapshot();
+        if (snapshot == null || snapshot.isBlank()) {
+            throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "cần kiểm tra và khôi phục giới hạn thời lượng");
+        }
+        var limits = objectMapper.readTree(snapshot);
+        String mode = limits.path("mode").asText();
+        if ("LEGACY_UNBOUNDED".equals(mode)) return;
+        if (!"BOUNDED".equals(mode)) {
+            throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "cần kiểm tra và khôi phục giới hạn thời lượng");
+        }
+        int themeMin = limits.path("theme").path("minWeeks").asInt();
+        int themeMax = limits.path("theme").path("maxWeeks").asInt();
+        int branchMin = limits.path("branch").path("minWeeks").asInt();
+        int branchMax = limits.path("branch").path("maxWeeks").asInt();
+        if (themeMin < 1 || themeMax < themeMin || branchMin < 1 || branchMax < branchMin) {
+            throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "cần kiểm tra và khôi phục giới hạn thời lượng");
+        }
+        List<EduTeachingCalendar.BreakRange> breaks = breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())
+                .stream().map(b -> new EduTeachingCalendar.BreakRange(b.getStartDate(), b.getEndDate())).toList();
+        for (EduTheme theme : themes) {
+            validateDuration("Chủ đề " + theme.getName(), theme.getStartDate(), theme.getEndDate(), breaks, themeMin, themeMax);
+        }
+        for (EduPlanBranchTemplate branch : templates) {
+            validateDuration("Nhánh " + branch.getName(), branch.getStartDate(), branch.getEndDate(), breaks, branchMin, branchMax);
+        }
+    }
+
+    private static void validateDuration(String name, LocalDate start, LocalDate end,
+            List<EduTeachingCalendar.BreakRange> breaks, int min, int max) {
+        int weeks = EduTeachingCalendar.teachingMondays(start, end, breaks).size();
+        if (weeks < min || weeks > max) {
+            throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID,
+                    name + " có " + weeks + " tuần học; cần từ " + min + " đến " + max + " tuần");
+        }
+    }
+
+    private void requireThemeWeeks(List<EduTheme> themes, List<EduBreak> breaks) {
         List<EduTheme> dated = themes.stream()
                 .filter(t -> t.getStartDate() != null && t.getEndDate() != null)
                 .sorted(Comparator.comparing(EduTheme::getStartDate))
@@ -174,6 +261,7 @@ public class YearPlanPublicationValidator {
                 throw GlobalException.of(ApiCode.THEME_DATES_OVERLAP, current.getAbbr(), previous.getAbbr());
             }
         }
+        EduYearPlanServiceImpl.requireNoThemeGaps(dated, breaks);
     }
 
     private void requireAllOrNoSubDomains(List<EduGoalRow> rows) {
@@ -226,7 +314,11 @@ public class YearPlanPublicationValidator {
             EduPlanBranchTemplate branch = templates.get(i);
             LocalDate start = branch.getStartDate();
             LocalDate end = branch.getEndDate();
-            if (start == null || end == null) continue;
+            if (start == null || end == null) {
+                throw GlobalException.of(
+                        ApiCode.EDUCATION_CALENDAR_INVALID,
+                        "Nhánh \"" + branch.getName() + "\" cần đủ ngày bắt đầu và kết thúc");
+            }
             if (end.isBefore(start)
                     || start.getDayOfWeek() != DayOfWeek.MONDAY
                     || end.getDayOfWeek() != DayOfWeek.FRIDAY) {

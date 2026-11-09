@@ -3047,7 +3047,7 @@ paths:
       parameters:
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3113,7 +3113,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3167,7 +3167,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3235,7 +3235,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3272,7 +3272,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3394,7 +3394,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3431,7 +3431,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3473,7 +3473,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid

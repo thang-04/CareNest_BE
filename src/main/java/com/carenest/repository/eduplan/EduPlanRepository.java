@@ -20,32 +20,32 @@ public class EduPlanRepository {
         return level == EduPlanLevel.SCHOOL_YEAR ? years : teams;
     }
     private List<EduPlan> merge(Collection<? extends EduPlan> a, Collection<? extends EduPlan> b) {
-        return Stream.concat(a.stream(), b.stream()).sorted(Comparator.comparing(EduPlan::getId)).map(p -> (EduPlan) p).toList();
+        return Stream.concat(a.stream(), b.stream()).filter(p -> !p.isDisabled()).sorted(Comparator.comparing(EduPlan::getId)).map(p -> (EduPlan) p).toList();
     }
     public Optional<EduPlan> findById(Long id) {
-        return years.findById(id).map(p -> (EduPlan)p).or(() -> teams.findById(id).map(p -> (EduPlan)p));
+        return years.findById(id).filter(p -> !p.isDisabled()).map(p -> (EduPlan)p).or(() -> teams.findById(id).filter(p -> !p.isDisabled()).map(p -> (EduPlan)p));
     }
-    public boolean existsById(Long id) { return years.existsById(id) || teams.existsById(id); }
+    public boolean existsById(Long id) { return findById(id).isPresent(); }
     public List<EduPlan> findAll() { return merge(years.findAll(), teams.findAll()); }
     public List<EduPlan> findAllById(Iterable<Long> ids) { return merge(years.findAllById(ids),teams.findAllById(ids)); }
     public List<EduPlan> findAllBySchoolYearIdIn(Collection<Long> ids) { return merge(years.findAllBySchoolYearIdIn(ids),teams.findAllBySchoolYearIdIn(ids)); }
     public boolean existsByPlanLevelAndSchoolYearIdAndAgeGroupId(EduPlanLevel level, Long year, Long age) {
-        return forLevel(level).existsBySchoolYearIdAndAgeGroupId(year,age);
+        return forLevel(level).existsBySchoolYearIdAndAgeGroupIdAndDisabledFalse(year,age);
     }
     public boolean existsBySchoolYearIdAndAgeGroupId(Long year, Long age) { return teams.existsBySchoolYearIdAndAgeGroupId(year,age); }
     public List<EduPlan> findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(EduPlanLevel level,Long year,Long age) {
-        return new ArrayList<>(forLevel(level).findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(year,age));
+        return forLevel(level).findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(year,age).stream().filter(p -> !p.isDisabled()).map(p -> (EduPlan)p).toList();
     }
     public List<EduPlan> findAllBySchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(Long year,Long age) {
         return findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(EduPlanLevel.TEAM,year,age);
     }
     public Optional<EduPlan> findByOwnerIdAndCreatedRequestId(Long owner, UUID request) {
         return years.findByOwnerIdAndCreatedRequestId(owner,request).map(p -> (EduPlan)p)
-            .or(() -> teams.findByOwnerIdAndCreatedRequestId(owner,request).map(p -> (EduPlan)p));
+            .or(() -> teams.findByOwnerIdAndCreatedRequestId(owner,request).filter(p -> !p.isDisabled()).map(p -> (EduPlan)p));
     }
     public boolean existsByCode(String code) { return years.existsByCode(code) || teams.existsByCode(code); }
     public Optional<EduPlan> findForUpdateById(Long id) {
-        return years.findForUpdateById(id).map(p -> (EduPlan)p).or(() -> teams.findForUpdateById(id).map(p -> (EduPlan)p));
+        return years.findForUpdateById(id).filter(p -> !p.isDisabled()).map(p -> (EduPlan)p).or(() -> teams.findForUpdateById(id).filter(p -> !p.isDisabled()).map(p -> (EduPlan)p));
     }
     public List<EduPlan> findAllByIdInForUpdateOrderByIdAsc(Collection<Long> ids) {
         List<EduPlan> result = new ArrayList<>();
@@ -53,8 +53,6 @@ public class EduPlanRepository {
         return result;
     }
     public List<EduPlan> findAllByStatusInForUpdateOrderByIdAsc(Collection<EduPlanStatus> statuses) { return merge(years.findAllByStatusInForUpdateOrderByIdAsc(statuses),teams.findAllByStatusInForUpdateOrderByIdAsc(statuses)); }
-    public List<EduPlan> findAllByEditingAtLessThanEqualOrderByIdAsc(Instant time) { return merge(years.findAllByEditingAtLessThanEqualOrderByIdAsc(time),teams.findAllByEditingAtLessThanEqualOrderByIdAsc(time)); }
-    public List<EduPlan> findAllByEditingByIsNotNull() { return merge(years.findAllByEditingByIsNotNull(),teams.findAllByEditingByIsNotNull()); }
     public EduPlan save(EduPlan p) { return p instanceof EduYearPlan y ? years.save(y) : teams.save((EduTeamPlan)p); }
     public EduPlan saveAndFlush(EduPlan p) { EduPlan result=save(p); flush(); return result; }
     public void flush() { years.flush(); teams.flush(); }

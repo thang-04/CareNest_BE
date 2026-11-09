@@ -1,5 +1,8 @@
 # Tasks: Phân biệt kế hoạch năm học và kế hoạch giáo dục tổ (tách lưu trữ)
 
+> **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
+
+
 **Input**: [plan.md](./plan.md), [spec.md](./spec.md), [research.md](./research.md), [data-model.md](./data-model.md), [contracts/api.md](./contracts/api.md), [quickstart.md](./quickstart.md)
 
 **Branch**: `feature/G94-326-BE-FEAT-09-school-year-goals-backup` (không tạo/chuyển nhánh mới)
@@ -177,6 +180,8 @@ US1+US2 là demo increment trên scratch có FE, chưa hoàn thành feature ho�
 | EDU-60 tuổi/phân công | FR-015 | T014/T015/T039 | §1 |
 | EDU-07/57 cấm xóa tổ | FR-016 | T008/T044/T046, test T010 mở rộng mọi role/trạng thái | §1/§4 |
 | EDU-54 TT duyệt/trả lại | FR-017 | T039/T044/T046 | §1 |
+| EDU-63 nguồn/chủ nhiệm | FR-018, SC-007 | T051/T052/T054 | §5 |
+| EDU-64 trang/lọc/duyệt chung | FR-020, SC-009 | T051–T054 | §5 |
 
 ## Notes và bằng chứng
 
@@ -186,3 +191,12 @@ US1+US2 là demo increment trên scratch có FE, chưa hoàn thành feature ho�
 - Mọi claim pass phải có bằng chứng mới; task coverage không là implementation/test coverage. [analysis.md](analysis.md) ghi lần đối chiếu tài liệu sau sửa.
 
 - Lần fix sau analyze tiếp theo: giữ nguyên T001–T047 và trạng thái; bổ sung T048–T050 cho consumer hồ sơ lớp, legacy NULL và phiên soạn cũ. Tổng 50 task, không chạy lại speckit-tasks hoặc tái sinh/đổi số danh sách cũ. Analyze chỉ đọc; sửa task trong lượt này được user cho phép bằng “ok fix”.
+
+## Phase 9: Chủ đề / Chủ đề nhánh lớp — rule trực tiếp 09/11
+
+Các task bổ sung này chỉ bắt đầu sau T001/T047 cập nhật phê duyệt phạm vi API/DDL/FE; giữ T001–T050 và lịch sử nguyên vẹn.
+
+- [ ] T051 [US5] Viết BE regression trước tại `src/test/java/com/carenest/service/eduplan/impl/`: annual bị từ chối với GV; cả hai GV lớp đọc đúng dữ liệu lớp; chỉ `is_homeroom=true` ghi nhánh; PHT/TT lọc đúng scope; chủ đề lớn/mẫu TEAM/PHT/lớp khác không đổi khi chủ nhiệm sửa nhánh; nhánh thiếu chỉ chặn gửi hồ sơ chủ đề, không chặn tạo/lưu nháp.
+- [ ] T052 [US5] Sửa `EduClassDocServiceImpl`, `EduWorkflowServiceImpl`, repository/policy và DTO/controller liên quan: nguồn lớp chỉ TEAM APPROVED; lấy/chỉ cho ghi nhánh theo chủ nhiệm lớp và chuyển quyền khi đổi chủ nhiệm; chủ đề lớn chỉ đọc ở server; tạo/ghi nhánh lớp từ mẫu TEAM nhưng bảo toàn mẫu và lớp khác; bỏ action/status/workflow/signers riêng cho `branch`; tạo/lưu `theme` không cần branch APPROVED, khi gửi theme kiểm/snapshot nhánh cùng chủ đề; sửa phần chưa đến ngày dạy của hồ sơ APPROVED đưa phần liên quan về DRAFT để duyệt lại, phần đã đến ngày dạy từ chối.
+- [ ] T053 [US5] Sửa FE `src/layouts/menuConfig.js`, `src/pages/education-plan/BranchPlanPage.jsx`, `ClassPlanPage.jsx`, `ClassThemePlanPage.jsx`, `src/components/education-plan/BranchCalendarEditor.jsx`, `reviewUi.jsx`, model/mock/API mapper và route: một trang “Chủ đề / Chủ đề nhánh” chỉ bảng Tháng/Chủ đề/Chủ đề nhánh/Tuần/Ghi chú, bỏ card tóm tắt lịch cũ/đổi thứ tự chủ đề và mọi nút/lịch sử gửi duyệt nhánh; PHT lọc mọi tuổi/lớp, TT lọc lớp đúng tuổi, GV chỉ đúng lớp; hai GV xem nhưng chỉ chủ nhiệm có control ghi; chủ đề lớn xám; hồ sơ chủ đề là nơi gửi/duyệt chung.
+- [ ] T054 [US5] Thêm BE/FE/E2E regression: hai lớp dùng cùng mẫu PHT nhưng chủ nhiệm lớp A sửa không đổi lớp B/mẫu; giáo viên không chủ nhiệm ghi bị 403; GV không đọc annual/lớp khác; PHT/TT filter đúng scope; nháp theme và nhánh song song; gửi theme kiểm/snapshot nhánh, không còn endpoint/UI gửi nhánh riêng; sửa phần chưa đến ngày dạy chỉ đưa theme chứa phần sửa về DRAFT, phần đã đến ngày dạy bị từ chối; giáo viên gửi thủ công, nhắc tổ trưởng từ 7 ngày trước ngày bắt đầu và vẫn duyệt sớm; kiểm bảng duy nhất và không có khối tóm tắt ảnh 2. Chạy native Maven test chọn lọc và `npm run test:edu`, lint, build theo thay đổi.

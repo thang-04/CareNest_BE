@@ -1,10 +1,21 @@
 # Xác nhận nghiệp vụ kế hoạch giáo dục — 09/11/2026
 
+> **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
+
+
+> **Quyết định user10/11/2026 — duyệt hồ sơ lớp:** Theo chuỗi HT cấu hình, không bắt buộc có bước TT; chỉ PHT duyệt cũng hợp lệ. Giữ cấp trên duyệt cấp dưới, chống tự duyệt, phạm vi phân công và REVIEW cấm sửa. Quyết định này thay yêu cầu TT bắt buộc trước PHT/HT trong tài liệu09/11; chưa phải bằng chứng triển khai/nghiệm thu.
+
 ## Nguồn và phạm vi
 
 User trả lời bộ 12 câu hỏi trong chat ngày 09/11/2026 và xác nhận: **“đã được xác nhận bởi giáo viên bên trường”**. Mức nguồn: **CONFIRMED theo thông tin user cung cấp về xác nhận của giáo viên phía trường**. Chưa cung cấp tên giáo viên hoặc ngày giáo viên xác nhận; 09/11 là ngày ghi nhận trong dự án, không suy thành ngày khảo sát/xác nhận trực tiếp với trường.
 
 Tài liệu mô tả **nghiệp vụ đích**. Chỗ code chưa đáp ứng là gap triển khai, không đổi nghiệp vụ theo code và không đánh dấu hoàn tất tính năng. Các quyết định này ưu tiên hơn mô tả cũ tại những điểm trùng phạm vi; không tự nâng mức xác nhận các yêu cầu khác ngoài bộ câu hỏi.
+
+**Cập nhật sau bộ câu hỏi:** user trực tiếp làm rõ 09/11 theo EDU-65 PROPOSED: tổ trưởng được thêm/sửa nội dung riêng của tổ, không sửa nguồn năm; giáo viên phía dưới thấy nội dung tổ theo quyền/trạng thái hiện hành. Cập nhật này thay phần cấm thêm/sửa nội dung trong bảng và phần giữ quyết định dưới đây, không thay đổi lịch sử câu trả lời hoặc ngụ ý giáo viên trường đã xác nhận delta mới.
+
+**Cập nhật tiếp theo:** user trực tiếp chọn 09/11 theo EDU-70 PROPOSED: áp dụng duyệt theo thứ bậc cố định và bỏ lease 90 giây/heartbeat 20 giây như flow. Phần chuỗi tùy cấu hình và lease trong các câu trả lời lịch sử dưới đây được thay trong phạm vi kế hoạch giáo dục; không suy delta mới đã được giáo viên trường xác nhận.
+
+**Cập nhật tiếp theo:** user trực tiếp chọn 09/11 theo EDU-71 PROPOSED: hồ sơ mất giới hạn không đủ bằng chứng khôi phục bị chặn gửi và báo kiểm tra; trường hợp chưa phân biệt được legacy thật cũng cần xác minh trước khi gửi. Không suy delta này đã được giáo viên trường xác nhận; không tự đổi dữ liệu/trạng thái.
 
 ## Quyết định đã trả lời
 

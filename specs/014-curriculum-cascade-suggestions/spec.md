@@ -1,5 +1,7 @@
 # Feature Specification: Lọc phân cấp và gợi ý từ chương trình Bộ
 
+> **Delta liên quan 09/11/2026:** đối chiếu [spec016](../016-education-submit-validation/spec.md) và EDU-65–71 cho nội dung riêng của tổ, STT tự sinh/nhãn tùy chọn và điều kiện gửi. Nội dung dưới đây giữ lịch sử; delta mới chưa chứng minh triển khai hay xác nhận giáo viên trường.
+
 **Feature Branch**: feature/G94-326-BE-FEAT-09-school-year-goals-backup (nhánh hiện có)
 
 **Created**: 2026-11-08

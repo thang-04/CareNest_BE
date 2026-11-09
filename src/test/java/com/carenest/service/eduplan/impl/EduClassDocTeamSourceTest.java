@@ -2,6 +2,8 @@ package com.carenest.service.eduplan.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -16,12 +18,15 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -39,10 +44,31 @@ class EduClassDocTeamSourceTest {
     @Mock ClassroomService classroomService;
     @Mock EduWorkflowService eduWorkflowService;
     @Mock EduPlanAccessPolicy accessPolicy;
+    @Mock StaffAssignmentService staffAssignmentService;
+    @Mock com.carenest.repository.eduplan.EduThemeRepository themeRepository;
+    @Mock com.carenest.repository.eduplan.EduPlanBranchTemplateRepository templateRepository;
+    @Mock Clock clock;
     @InjectMocks EduClassDocServiceImpl service;
 
     private final ClassroomInfoResponse classroom = new ClassroomInfoResponse(
             1L, "Lớp mẫu", 2L, 3L, null, null, null, 4L, List.of(), null, null);
+
+    @Test
+    void classDraftCannotReorderSourceThemesEvenWhenDatesAreUnchanged() {
+        var first = mock(com.carenest.entity.eduplan.EduTheme.class);
+        var second = mock(com.carenest.entity.eduplan.EduTheme.class);
+        when(first.getId()).thenReturn(31L);
+        when(second.getId()).thenReturn(32L);
+        when(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(20L)).thenReturn(List.of(first, second));
+        var draft = new ClassCalendarPreviewRequest.CalendarDraft(List.of(
+                new ClassCalendarPreviewRequest.ThemeSchedule(32L, null, null),
+                new ClassCalendarPreviewRequest.ThemeSchedule(31L, null, null)), List.of());
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
+                service, "validateBranchIdentity", 20L, draft, null, classroom))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.EDUCATION_CALENDAR_INVALID);
+    }
 
     @Test
     void calendarPreviewRejectsApprovedAnnualAsClassSource() {
@@ -126,6 +152,20 @@ class EduClassDocTeamSourceTest {
         assertThat((String) ReflectionTestUtils.invokeMethod(
                         service, "expectedKey", EduClassDoc.WEEK, 1L, team, null, monday))
                 .isEqualTo("wp_1_2026-11-09_20");
+    }
+
+    @Test
+    void onlyCurrentHomeroomTeacherCanWriteClassDocuments() {
+        var nonHomeroom = new CurrentUser(10L, "sample", "sample", "Ví dụ", "", Set.of(CareNestRole.TEACHER));
+        when(clock.getZone()).thenReturn(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-09T00:00:00Z"));
+        when(staffAssignmentService.findHomeroomTeacherIds(eq(List.of(1L)), any()))
+                .thenReturn(java.util.Map.of(1L, 11L));
+
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "requireHomeroomAuthor", nonHomeroom, classroom))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.CLASS_DOC_TEACHER_ONLY);
     }
 
     private static EduPlan plan(EduPlanLevel level) {

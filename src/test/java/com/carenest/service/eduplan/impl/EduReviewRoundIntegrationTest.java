@@ -327,7 +327,6 @@ class EduReviewRoundIntegrationTest {
                             new YearPlanEditRequest(session(leader), editing.revision(), UUID.randomUUID())))
                     .isInstanceOf(com.carenest.exception.GlobalException.class);
             var persisted = yearPlanRepository.findById(editing.id()).orElseThrow();
-            assertThat(persisted.getEditingBy()).isNull();
             assertThat(persisted.getContentRevision()).isGreaterThan(editing.revision());
         } finally {
             release.countDown();
@@ -480,7 +479,6 @@ class EduReviewRoundIntegrationTest {
         workflowService.savePolicy(
                 principal, new EduWorkflowPolicyRequest(workflowService.getPolicyRevision(), policies));
         var after = yearPlanRepository.findById(editing.id()).orElseThrow();
-        assertThat(after.getEditingBy()).isNull();
         assertThat(after.getContentRevision()).isGreaterThan(editing.revision());
     }
 

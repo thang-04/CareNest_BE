@@ -20,6 +20,7 @@ import org.springframework.data.repository.query.Param;
 public interface EduHeaderRepository<T extends EduPlan> extends JpaRepository<T, Long> {
 
     boolean existsBySchoolYearIdAndAgeGroupId(Long schoolYearId, Long ageGroupId);
+    boolean existsBySchoolYearIdAndAgeGroupIdAndDisabledFalse(Long schoolYearId, Long ageGroupId);
 
     Optional<T> findByOwnerIdAndCreatedRequestId(Long ownerId, UUID createdRequestId);
 
@@ -42,17 +43,11 @@ public interface EduHeaderRepository<T extends EduPlan> extends JpaRepository<T,
     @Query("select p from #{#entityName} p where p.status in :statuses order by p.id asc")
     List<T> findAllByStatusInForUpdateOrderByIdAsc(@Param("statuses") Collection<EduPlanStatus> statuses);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<T> findAllByEditingAtLessThanEqualOrderByIdAsc(Instant editingAt);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select p from #{#entityName} p where p.editingBy is not null order by p.id asc")
-    List<T> findAllByEditingByIsNotNull();
-
     @Query("""
             select p from #{#entityName} p
             where (:schoolYearId is null or p.schoolYearId = :schoolYearId)
               and (:ageGroupId is null or p.ageGroupId = :ageGroupId)
+              and (p.disabled = false or p.disabled is null)
               and (p.status in :schoolWideStatuses
                    or p.ageGroupId in :fullAgeGroupIds
                    or (p.status = com.carenest.utils.enums.EduPlanStatus.REVIEW

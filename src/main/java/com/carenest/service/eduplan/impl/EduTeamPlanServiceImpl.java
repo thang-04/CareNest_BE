@@ -41,7 +41,7 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
             if (Objects.equals(target.getCurriculumSourcePlanId(),source.getId())) return;
             EduPlan before=plans.findById(target.getCurriculumSourcePlanId()).orElseThrow();
             var issues=EduPlanReviewDiff.review(snapshot(before),snapshot(source),snapshot(target),today());
-            syncTree(target,source);
+            syncTree(target,before,source);
             target.changeCurriculumSource(source.getId(),clock.instant());
             Map<String,EduTeamReviewItem> existing=reviews.findAllByTeamPlanIdOrderByIdAsc(target.getId()).stream()
                     .collect(Collectors.toMap(i->key(i.getItemKind(),i.getItemId()),Function.identity()));
@@ -61,7 +61,7 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
         } catch(RuntimeException ex) {log.warn("{}|ERROR|type={}",prefix,ex.getClass().getSimpleName());throw ex;}
     }
 
-    private void syncTree(EduTeamPlan target,EduPlan source) {
+    private void syncTree(EduTeamPlan target,EduPlan before,EduPlan source) {
         var sourceRows=rows(source.getId());
         Map<String,EduGoalRow> oldRows=rows(target.getId()).stream().collect(Collectors.toMap(r->key(r.getKind().name(),r.lineage()),Function.identity()));
         Map<Long,Long> parentIds=new HashMap<>();
@@ -76,10 +76,13 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
             parentIds.put(row.getId(),saveRow(copy).getId());
         }
         var oldContents=contentRows(target.getId()).stream().collect(Collectors.toMap(EduGoalContent::lineage,Function.identity()));
+        var priorContents=contentRows(before.getId()).stream().collect(Collectors.toMap(EduGoalContent::lineage,Function.identity()));
         for(var row:contentRows(source.getId())) {
             var copy=oldContents.get(row.lineage());
+            var prior=priorContents.get(row.lineage());
             if(copy==null) copy=EduGoalContent.copyFor(parentIds.get(row.getGoalRowId()),row);
-            copy.place(parentIds.get(row.getGoalRowId()),row.getSortOrder(),row.getText()); contents.save(copy);
+            String merged = prior == null ? copy.getText() : mergedContent(prior.getText(), copy.getText(), row.getText());
+            copy.place(parentIds.get(row.getGoalRowId()),row.getSortOrder(),merged); contents.save(copy);
         }
         Map<Long,EduTheme> oldThemes=themes.findAllByYearPlanIdOrderBySortOrderAsc(target.getId()).stream()
                 .collect(Collectors.toMap(EduTheme::lineage,Function.identity()));
@@ -109,17 +112,45 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
         contents.flush();
     }
 
+    static String mergedContent(String prior, String local, String current) {
+        return Objects.equals(prior, local) ? current : local;
+    }
+
     @Override
     public void validateMappings(EduPlan plan,boolean submitting) {
         String prefix=LOG_PREFIX+"|validateMappings|planId="+plan.getId();log.info("{}|START",prefix);
         try {
-            if(plan.getPlanLevel()!=EduPlanLevel.TEAM||plan.getCurriculumSourcePlanId()==null)return;
+            if(plan.getPlanLevel()!=EduPlanLevel.TEAM)return;
+            if (submitting) {
+                var validThemeIds = themes.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()).stream()
+                        .filter(t -> t.getName() != null && !t.getName().isBlank()
+                                && t.getStartDate() != null && t.getEndDate() != null
+                                && !t.getEndDate().isBefore(t.getStartDate()))
+                        .map(EduTheme::getId).collect(Collectors.toSet());
+                requireAllocatedGoals(rows(plan.getId()), contentRows(plan.getId()),
+                        validThemeIds.isEmpty() ? List.of() : ticks.findAllByThemeIdIn(validThemeIds), validThemeIds);
+            }
+            if (plan.getCurriculumSourcePlanId()==null)return;
             if(submitting&&hasInvalidReferences(plan,null))throw GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID);
             if(submitting&&reviews.findAllByTeamPlanIdOrderByIdAsc(plan.getId()).stream()
                     .anyMatch(i->!i.isResolved()&&!isEndedOnly(plan,i)))
                 throw GlobalException.of(ApiCode.YEAR_PLAN_REVISION_STALE);
             log.info("{}|END",prefix);
         }catch(RuntimeException ex){log.warn("{}|ERROR|type={}",prefix,ex.getClass().getSimpleName());throw ex;}
+    }
+
+    static void requireAllocatedGoals(List<EduGoalRow> rows, List<EduGoalContent> contents,
+            List<EduContentThemeTick> ticks, Set<Long> validThemeIds) {
+        Set<Long> allocatedContents = ticks.stream().filter(t -> validThemeIds.contains(t.getThemeId()))
+                .map(EduContentThemeTick::getContentId).collect(Collectors.toSet());
+        Set<Long> allocatedGoals = contents.stream().filter(c -> allocatedContents.contains(c.getId()))
+                .map(EduGoalContent::getGoalRowId).collect(Collectors.toSet());
+        rows.stream().filter(r -> r.getKind() == EduGoalRowKind.GOAL && !allocatedGoals.contains(r.getId()))
+                .findFirst().ifPresent(goal -> {
+                    throw GlobalException.withFieldErrors(ApiCode.GOAL_CONTENT_REQUIRED,
+                            List.of(new com.carenest.dto.common.FieldErrorResponse("goal." + goal.getId(),
+                                    "Mục tiêu " + goal.getText() + " cần chọn nội dung vào ít nhất một chủ đề")));
+                });
     }
 
     private boolean hasInvalidReferences(EduPlan plan,EduTeamReviewItem scope) {
@@ -134,7 +165,7 @@ public class EduTeamPlanServiceImpl implements EduTeamPlanService {
                     || "THEME".equals(scope.getItemKind()) && Objects.equals(scope.getItemId(),t.getThemeId()))
                 .anyMatch(t->{
             var theme=localThemes.get(t.getThemeId());var content=localContents.get(t.getContentId());
-            return !ended(theme)&&(content==null||!validContents.contains(content.lineage())||!validThemes.contains(theme.lineage()));
+            return !ended(theme)&&(content==null||(content.getLineageId()!=null&&!validContents.contains(content.lineage()))||!validThemes.contains(theme.lineage()));
         });
     }
 

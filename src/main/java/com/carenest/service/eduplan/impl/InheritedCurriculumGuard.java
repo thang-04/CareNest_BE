@@ -12,6 +12,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.stream.Collectors;
 
 final class InheritedCurriculumGuard {
 
@@ -75,25 +78,15 @@ final class InheritedCurriculumGuard {
                             existingContentsByRowId.getOrDefault(expectedRow.getId(), List.of());
                     List<YearPlanRequest.Content> requestContents =
                             requestRow.contents() == null ? List.of() : requestRow.contents();
-                    if (requestContents.size() != expectedContents.size()) {
-                        throw GlobalException.of(ApiCode.INHERITED_CURRICULUM_READ_ONLY);
-                    }
-                    for (int c = 0; c < requestContents.size(); c++) {
-                        YearPlanRequest.Content reqContent = requestContents.get(c);
-                        EduGoalContent expContent = expectedContents.get(c);
-                        if (!Objects.equals(reqContent.id(), expContent.getId())) {
-                            throw GlobalException.of(ApiCode.INHERITED_CURRICULUM_READ_ONLY);
-                        }
-                        String reqContentText = reqContent.text() == null
-                                ? ""
-                                : reqContent.text().trim();
-                        String expContentText = expContent.getText() == null
-                                ? ""
-                                : expContent.getText().trim();
-                        if (!reqContentText.equals(expContentText)) {
+                    Set<Long> expectedIds = expectedContents.stream().map(EduGoalContent::getId).collect(Collectors.toSet());
+                    Set<Long> seen = new HashSet<>();
+                    for (YearPlanRequest.Content content : requestContents) {
+                        if (content.id() != null && (!expectedIds.contains(content.id()) || !seen.add(content.id())
+                                || content.text() == null || content.text().isBlank())) {
                             throw GlobalException.of(ApiCode.INHERITED_CURRICULUM_READ_ONLY);
                         }
                     }
+                    if (!seen.equals(expectedIds)) throw GlobalException.of(ApiCode.INHERITED_CURRICULUM_READ_ONLY);
                 }
             }
         }

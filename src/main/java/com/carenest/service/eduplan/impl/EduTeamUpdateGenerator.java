@@ -27,6 +27,9 @@ class EduTeamUpdateGenerator {
     private final EduContentThemeTickRepository tickRepository;
     private final EduPlanBranchTemplateRepository templateRepository;
     private final EduTeamPlanService teamService;
+    private final com.carenest.service.organization.StaffAssignmentService assignments;
+    private final com.carenest.service.account.AccountService accounts;
+    private final java.time.Clock clock;
 
     void updateAfterPublication(EduPlan annual, Instant now) {
         String prefix = LOG_PREFIX + "|updateAfterPublication|planId=" + annual.getId();
@@ -35,10 +38,28 @@ class EduTeamUpdateGenerator {
             if (annual.getPlanLevel() != EduPlanLevel.SCHOOL_YEAR || annual.getStatus() != EduPlanStatus.APPROVED) return;
             var years = plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                     EduPlanLevel.SCHOOL_YEAR, annual.getSchoolYearId(), annual.getAgeGroupId());
+            if (years.stream().anyMatch(p -> p.getStatus() == EduPlanStatus.APPROVED
+                    && p.getVersionNo() > annual.getVersionNo())) return;
             Set<Long> sources = new HashSet<>(); years.forEach(p -> sources.add(p.getId()));
             var chain = plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                     EduPlanLevel.TEAM, annual.getSchoolYearId(), annual.getAgeGroupId());
-            if (chain.isEmpty()) return;
+            if (chain.isEmpty()) {
+                var leaders = accounts.findActiveUserIds(assignments.findActiveTeamLeaderIds(
+                        annual.getAgeGroupId(), now.atZone(clock.getZone()).toLocalDate()));
+                if (leaders.size() != 1)
+                    throw com.carenest.exception.GlobalException.of(com.carenest.utils.ApiCode.INVALID_VALUE,
+                            "cần đúng một tổ trưởng đang được phân công cho nhóm tuổi để soạn kế hoạch tổ");
+                Long ownerId = leaders.iterator().next();
+                EduPlan target = EduPlan.createDraft(EduPlanLevel.TEAM,
+                        years.getFirst().getCode().replaceFirst("^KHN-", ""),
+                        annual.getSchoolYearId(), annual.getAgeGroupId(), "Kế hoạch giáo dục tổ", "",
+                        ownerId, "Tổ trưởng", now);
+                target.initializePlanSource(EduPlanLevel.TEAM, annual.getId(), false, annual.getDurationPolicySnapshot());
+                plans.saveAndFlush(target);
+                copyContent(annual.getId(), target.getId());
+                log.info("{}|END", prefix);
+                return;
+            }
             var open = chain.stream().filter(p -> p.getStatus() != EduPlanStatus.APPROVED).findFirst();
             EduPlan prior = open.orElseGet(() -> chain.stream()
                     .filter(p -> p.getStatus() == EduPlanStatus.APPROVED)

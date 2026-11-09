@@ -1,5 +1,7 @@
 # Feature Specification: Tách Kế hoạch năm học và Kế hoạch tổ
 
+> **Delta mới hơn 09/11/2026:** đối chiếu [spec016](../016-education-submit-validation/spec.md) và EDU-65–71 cho nội dung riêng của tổ, điều kiện gửi, snapshot và duyệt thứ bậc/bỏ lease. Nội dung cũ bên dưới giữ lịch sử; delta user trực tiếp chưa chứng minh triển khai hoặc xác nhận giáo viên trường.
+
 > Mốc nghiệp vụ mới ghi nhận09/11/2026: [12 câu trả lời được giáo viên phía trường xác nhận theo user](../../docs/business/education-plan-confirmation-2026-11-09.md). Ưu tiên quyết định này khi nội dung/plan/tasks cũ khác phạm vi: tổ dùng chung hai điểm trường theo tuổi, một chuỗi/năm/tuổi; không ai xóa tổ kể cả nháp; TT duyệt năm/tổ theo cấu hình đúng tuổi và không tự duyệt; năm mới ban hành tự chuyển nguồn nháp/chờ và tạo cập nhật cho tổ ban hành, giữ bản cũ cho lớp; đỏ phần đổi/xóa/liên kết ảnh hưởng, mục mới riêng, chủ đề kết thúc không đỏ; phủ đủ tuần học bằng nhánh có tên. Đây là xác nhận yêu cầu, không phải delivery hoặc phê duyệt chạy migration; plan/tasks cần đối chiếu mốc này khi triển khai tiếp.
 
 **Feature Branch**: `feature/G94-326-BE-FEAT-09-school-year-goals-backup` (nhánh hiện tại, không tạo/chuyển nhánh)

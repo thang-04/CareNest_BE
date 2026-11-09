@@ -1,12 +1,21 @@
 # Module — education-plan
 
+> **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
+
+
+> **Quyết định user10/11/2026 — duyệt hồ sơ lớp:** Theo chuỗi HT cấu hình, không bắt buộc có bước TT; chỉ PHT duyệt cũng hợp lệ. Giữ cấp trên duyệt cấp dưới, chống tự duyệt, phạm vi phân công và REVIEW cấm sửa. Quyết định này thay yêu cầu TT bắt buộc trước PHT/HT trong tài liệu09/11; chưa phải bằng chứng triển khai/nghiệm thu.
+
 ## Mốc nghiệp vụ hiện hành — ghi nhận09/11/2026
 
 [12 câu trả lời đã chốt](../business/education-plan-confirmation-2026-11-09.md): user xác nhận đã được giáo viên phía trường xác nhận; chưa cung cấp tên/ngày xác nhận trực tiếp. Tài liệu mô tả nghiệp vụ đích, không dùng mức CONFIRMED để suy delivery. Ưu tiên phần này và [flow hiện hành](../business/flows/education-plan.md) khi đọc các delta/lịch sử cũ bên dưới.
 
 - Năm → tổ → nhánh lớp → kế hoạch chủ đề → tuần/ngày → đánh giá. Tổ theo nhóm tuổi, dùng chung hai điểm trường; mỗi loại/năm/tuổi một chuỗi, tối đa một bản nháp/chờ.
-- Năm biên soạn cây; tổ chọn một annual APPROVED hiện hành cùng năm/tuổi, giữ cây nguồn và tick từng nội dung. Lập tổ vào form trực tiếp, nhập tên riêng; không tự lập tổ lần đầu.
-- Mặc định năm PHT→HT, tổ TT→PHT, hồ sơ lớp GV→TT→PHT. HT cấu hình; TT có thể duyệt năm/tổ đúng tuổi và không tự duyệt. REVIEW cấm sửa/lease, cuối chuỗi tự ban hành.
+- Năm biên soạn cây; tổ chọn một annual APPROVED hiện hành cùng năm/tuổi và tick từng nội dung. Theo EDU-65 PROPOSED (user trực tiếp 09/11), tổ trưởng được thêm/sửa nội dung riêng của tổ, không sửa nguồn năm; GV thấy nội dung tổ theo phạm vi và trạng thái hiện hành. Lập tổ vào form trực tiếp, nhập tên riêng; không tự lập tổ lần đầu.
+- Theo EDU-66 PROPOSED (user trực tiếp 09/11), khi gửi năm mọi chủ đề và mẫu nhánh đã khai báo phải đủ ngày bắt đầu/kết thúc để kiểm tuần; nháp vẫn có thể thiếu ngày. Điều này thay phần cho phép gửi thiếu ngày của EDU-52.
+- Theo EDU-67/68 PROPOSED (user trực tiếp 09/11), xung đột sửa nội dung năm/tổ giữ bản tổ và báo rà soát; phiên bản năm điều chỉnh chụp cấu hình thời lượng hiện tại, snapshot mất chỉ khôi phục khi có bằng chứng và giữ trạng thái.
+- Theo EDU-69/70 PROPOSED (user trực tiếp 09/11), kiểm 9 chủ đề/nội dung/tick khi gửi; duyệt theo thứ bậc cố định, một người được chỉ định soạn, bỏ hẳn trạng thái/nhãn Đang sửa, lease 90 giây và heartbeat 20 giây khỏi luồng nghiệp vụ và UI; vẫn giữ revision/chống ghi đè. Các mô tả lease cũ bên dưới phản ánh lịch sử hoặc source hiện tại, không phải nghiệp vụ đích; chưa chứng minh đã gỡ khỏi code.
+- Theo EDU-71 PROPOSED (user trực tiếp 09/11), hồ sơ mất giới hạn hoặc chưa phân biệt được legacy thật phải bị chặn gửi và báo kiểm tra; chỉ khôi phục khi có bằng chứng, giữ trạng thái. Legacy thật được xác nhận giữ ngoại lệ thời lượng cũ và vẫn kiểm đủ ngày.
+- Theo EDU-70, PHT soạn năm → chỉ HT duyệt; TT soạn năm hoặc tổ → PHT hoặc HT duyệt; GV soạn hồ sơ chủ đề lớp → chuỗi theo cấu hình HT, không bắt buộc bước TT; chỉ PHT duyệt cũng hợp lệ (user10/11). HT phân công một người soạn theo phạm vi; không tự duyệt hoặc cấp dưới duyệt cấp trên. REVIEW cấm sửa, cuối chuỗi ban hành; không dùng lease. Phần HT cấu hình chuỗi tùy ý và TT duyệt năm/tổ trong quyết định lịch sử đã được EDU-70 thay thế.
 - Năm mới ban hành tự chuyển nguồn tổ nháp/chờ (giữ phần nhập, chờ về nháp); tổ đã ban hành có bản cập nhật nháp, giữ bản ban hành cũ cho lớp tới khi cập nhật duyệt. Đỏ phần đổi/xóa/liên kết ảnh hưởng; mục mới riêng để phân bổ, chủ đề kết thúc không đỏ; baseline là nguồn tổ dùng trước chuyển.
 - Không ai xóa tổ kể cả nháp; chỉ điều chỉnh và giữ lịch sử. Chỉ năm hiện phiên bản, tổ giữ lịch sử nội bộ.
 - Mẫu nhánh tùy chọn nhưng gửi phải phủ mọi tuần học bằng nhánh có tên; nhánh nhiều tuần có đủ giáo án từng tuần. Năm nhập file hai chế độ thay toàn bộ/thay phần có, preview/xác nhận nháp/lưu tay; tổ không nhập file sửa cây.
@@ -54,7 +63,7 @@ Soạn/duyệt kế hoạch giáo dục theo chuỗi năm→tổ→lớp và n�
 Năm học, nhóm tuổi, lớp, phân công (school-structure); tài khoản/role (identity-access); kết quả đánh giá trẻ theo MT (learning-observation — chỉ đọc giáo án đã duyệt của module này).
 
 ## Rules (ID)
-EDU-01..28, EDU-39..43, EDU-46..62 (các ID có trong BUSINESS_RULES; lịch chủ đề, lấy chủ đề, nhập file mục tiêu/nhánh; `docs/business/BUSINESS_RULES.md`); EDU-29..38 (khảo sát team 27/10 từ `dev`, đổi số khi merge; EDU-31/32/35/38 SUPERSEDED theo code — xem flow); OBS-07, PAR-01 (EDU-37), AI-07, AUTH-03, AUTH-23. ADR-0020 (số cũ ADR-0017), ADR-0021, ADR-0018, ADR-0006, ADR-0003; phân quyền động: ADR-0017. ADR-0019 của `dev` (làm lại trên `dev`) lệch với việc đã merge nhánh này — chờ user chốt.
+EDU-01..28, EDU-39..43, EDU-46..64 (các ID có trong BUSINESS_RULES; lịch chủ đề, lấy chủ đề, nhập file mục tiêu/nhánh; `docs/business/BUSINESS_RULES.md`); EDU-29..38 (khảo sát team 27/10 từ `dev`, đổi số khi merge; EDU-31/32/35/38 SUPERSEDED theo code — xem flow); OBS-07, PAR-01 (EDU-37), AI-07, AUTH-03, AUTH-23. ADR-0020 (số cũ ADR-0017), ADR-0021, ADR-0018, ADR-0006, ADR-0003; phân quyền động: ADR-0017. ADR-0019 của `dev` (làm lại trên `dev`) lệch với việc đã merge nhánh này — chờ user chốt.
 
 ## Flows
 `docs/business/flows/education-plan.md`. Sequence mục tiêu năm học SD-01..SD-10: `huong_dan_nghiep_vu/sequence/muc_tieu_nam_hoc_sequence.drawio` (ngoài repo).

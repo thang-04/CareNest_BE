@@ -91,6 +91,73 @@ class EduYearPlanServiceIntegrationTest {
     private final Map<Long, UUID> sessions = new HashMap<>();
 
     @Test
+    void deletedAnnualDraftCannotBeReadOrUpdatedAndReleasesItsCreationSlot() {
+        var request = new YearPlanRequest(schoolYear, ageGroup3, "Năm học nháp", "", List.of(),
+                List.of(), List.of(), com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, null, List.of());
+        var first = service.createYearPlan(vicePrincipal, request, new YearPlanEditRequest(null, 0L, UUID.randomUUID()));
+        service.deleteYearPlan(vicePrincipal, first.id(), new YearPlanEditRequest(null, first.revision(), UUID.randomUUID()));
+        assertErrorCode(() -> service.getYearPlan(vicePrincipal, first.id()), ApiCode.YEAR_PLAN_NOT_FOUND);
+        assertErrorCode(() -> service.updateYearPlan(vicePrincipal, first.id(), request,
+                new YearPlanEditRequest(null, first.revision(), UUID.randomUUID())), ApiCode.YEAR_PLAN_NOT_FOUND);
+        var replacement = service.createYearPlan(vicePrincipal, request, new YearPlanEditRequest(null, 0L, UUID.randomUUID()));
+        assertThat(replacement.id()).isNotEqualTo(first.id());
+        assertThat(jdbc.queryForObject("SELECT disabled FROM edu_year_plans WHERE id=?", Boolean.class, first.id())).isTrue();
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"{\"mode\":\"MISSING_OR_UNKNOWN\"}", "null"})
+    void savingAndSubmittingDoNotInventMissingDurationSnapshot(String snapshot) {
+        var themes = new java.util.ArrayList<YearPlanRequest.Theme>();
+        for (int i=0;i<9;i++) {
+            var start = LocalDate.of(2026,9,7).plusWeeks(i);
+            themes.add(new YearPlanRequest.Theme("s"+i,null,"Chủ đề "+i,"S"+i,start,start.plusDays(4),"",""));
+        }
+        var req = new YearPlanRequest(schoolYear, ageGroup3, "Năm học cần kiểm tra", "", List.of(),
+                themes, List.of(), com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, null, List.of());
+        var created = service.createYearPlan(vicePrincipal, req, new YearPlanEditRequest(null, 0L, UUID.randomUUID()));
+        entityManager.flush();
+        jdbc.update("UPDATE edu_year_plans SET duration_policy_snapshot = ?::jsonb WHERE id=?", snapshot, created.id());
+        entityManager.clear();
+        var before = service.getYearPlan(vicePrincipal, created.id());
+        service.updateYearPlan(vicePrincipal, created.id(), req,
+                new YearPlanEditRequest(null, before.revision(), UUID.randomUUID()));
+        entityManager.flush();
+        entityManager.clear();
+        var saved = service.getYearPlan(vicePrincipal, created.id());
+        assertThat(saved.durationPolicySnapshot()).doesNotContain("BOUNDED");
+        assertThatThrownBy(() -> service.submitYearPlan(vicePrincipal, created.id(), null,
+                new YearPlanEditRequest(null, saved.revision(), UUID.randomUUID())))
+                .isInstanceOf(GlobalException.class).hasMessageContaining("giới hạn");
+        assertThat(service.getYearPlan(vicePrincipal, created.id()).status()).isEqualTo(EduPlanStatus.DRAFT);
+    }
+
+    @Test
+    void annualSnapshotSurvivesReloadAndFiveWeeksCannotBeSubmitted() {
+        var start = LocalDate.of(2026, 9, 7);
+        var themes = new java.util.ArrayList<YearPlanRequest.Theme>();
+        for (int i = 0; i < 9; i++) {
+            var from = i == 0 ? start : start.plusWeeks(5L + (i - 1) * 2L);
+            var end = from.plusWeeks(i == 0 ? 4 : 1).plusDays(4);
+            themes.add(new YearPlanRequest.Theme("k" + i, null, "Chủ đề " + i, "C" + i, from, end, "", ""));
+        }
+        var req = new YearPlanRequest(schoolYear, ageGroup3, "Năm học", "", List.of(
+                new YearPlanRequest.Domain(domainPhysical, List.of(
+                        new YearPlanRequest.Row(null, "group", "Kết quả", List.of()),
+                        new YearPlanRequest.Row(null, "goal", "Mục tiêu", List.of(
+                                new YearPlanRequest.Content(null, "Nội dung", List.of())))))),
+                themes, List.of(), com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, null, List.of());
+        var created = service.createYearPlan(vicePrincipal, req, new YearPlanEditRequest(null, 0L, UUID.randomUUID()));
+        entityManager.flush();
+        entityManager.clear();
+        var reloaded = service.getYearPlan(vicePrincipal, created.id());
+        assertThat(reloaded.durationPolicySnapshot()).contains("BOUNDED");
+        assertThatThrownBy(() -> service.submitYearPlan(vicePrincipal, created.id(), null,
+                new YearPlanEditRequest(null, reloaded.revision(), UUID.randomUUID())))
+                .isInstanceOf(GlobalException.class).hasMessageContaining("5 tuần");
+        assertThat(service.getYearPlan(vicePrincipal, created.id()).status()).isEqualTo(EduPlanStatus.DRAFT);
+    }
+
+    @Test
     @DisplayName("EDU-10: cùng tài khoản mở lại (vd. sau mất điện) thì phiên mới nhận quyền ngay; phiên cũ mất quyền")
     void sameAccountNewSessionTakesOverAndOldSessionLosesLease() {
         YearPlanDetailResponse created = service.createYearPlan(
@@ -651,7 +718,7 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-06: GV chỉ xem bản đã ban hành; HT không xem nháp; TT khác khối chỉ đọc bản đã ban hành")
+    @DisplayName("EDU-64: tổ trưởng chỉ xem kế hoạch tổ của nhóm tuổi được phân công")
     void viewScopeByRole() {
         YearPlanDetailResponse plan = service.createYearPlan(
                 leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
@@ -670,22 +737,8 @@ class EduYearPlanServiceIntegrationTest {
 
         assertThat(service.getYearPlan(teacher3, plan.id()).permissions().canEdit())
                 .isFalse();
-        // Tổ trưởng khối khác đọc bản đã ban hành để lấy chủ đề/mục tiêu, không sửa được
-        YearPlanDetailResponse seenByOtherLeader = service.getYearPlan(leader4, plan.id());
-        assertThat(seenByOtherLeader.permissions().canEdit()).isFalse();
-        assertThat(list(leader4).items())
-                .extracting(YearPlanSummaryResponse::id)
-                .containsExactly(plan.id());
-        assertApiError(
-                () -> service.startEditing(leader4, plan.id(), edit(leader4, plan.id(), false)), ApiCode.CONFLICT);
-        assertApiError(
-                () -> service.updateYearPlan(
-                        leader4, plan.id(), toUpdateRequest(seenByOtherLeader), edit(leader4, plan.id(), true)),
-                ApiCode.CONFLICT);
-        assertApiError(
-                () -> service.createVersion(
-                        leader4, plan.id(), new YearPlanEditRequest(session(leader4), 0L, UUID.randomUUID())),
-                ApiCode.FORBIDDEN);
+        assertApiError(() -> service.getYearPlan(leader4, plan.id()), ApiCode.FORBIDDEN);
+        assertThat(list(leader4).items()).isEmpty();
         PageResponse<YearPlanSummaryResponse> teacherList = list(teacher3);
         assertThat(teacherList.items()).singleElement().satisfies(summary -> {
             assertThat(summary.goalCount()).isEqualTo(2);

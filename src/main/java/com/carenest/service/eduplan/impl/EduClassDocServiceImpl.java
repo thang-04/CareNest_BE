@@ -180,7 +180,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             long actualVersion = currentBranch.map(EduClassDoc::getVersion).orElse(-1L);
             if (request.expectedBranchVersion() == null || request.expectedBranchVersion() != actualVersion)
                 throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
-            if (currentBranch.isPresent() && !currentBranch.get().getStatus().editable())
+            if (currentBranch.isPresent() && currentBranch.get().getStatus() == EduClassDocStatus.REVIEW)
                 throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
             List<EduTheme> themes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
             List<EduBreak> breaks = breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId());
@@ -225,6 +225,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
             EduTeachingCalendar.ReorderResult reorderResult =
                     EduTeachingCalendar.reorderThemeBlocks(baseDraft, orderedThemeIds, breakRanges, limits);
+            validateBranchIdentity(plan.getId(), calendarDraft(objectMapper.valueToTree(reorderResult.calendar())),
+                    currentBranch.orElse(null), cls);
 
             log.info("{}|END", logPrefix);
             return new ClassCalendarPreviewResponse(
@@ -252,16 +254,24 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             ClassCalendarPreviewRequest.CalendarDraft draft,
             EduClassDoc current,
             ClassroomInfoResponse cls) {
-        var themeIds = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId).stream()
-                .map(EduTheme::getId)
-                .collect(Collectors.toSet());
+        var sourceThemes = themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(planId);
+        var themesById = sourceThemes.stream().collect(Collectors.toMap(EduTheme::getId, Function.identity()));
+        var themeIds = themesById.keySet();
         if (draft.themeSchedules() == null
                 || draft.themeSchedules().size() != themeIds.size()
                 || !draft.themeSchedules().stream()
                         .map(ClassCalendarPreviewRequest.ThemeSchedule::themeId)
                         .collect(Collectors.toSet())
                         .equals(themeIds)) throw GlobalException.of(ApiCode.THEME_NOT_IN_PLAN);
+        if (!draft.themeSchedules().stream().map(ClassCalendarPreviewRequest.ThemeSchedule::themeId).toList()
+                .equals(sourceThemes.stream().map(EduTheme::getId).toList())) {
+            throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "thứ tự chủ đề lớn chỉ đọc");
+        }
         for (var theme : draft.themeSchedules()) {
+            EduTheme source = themesById.get(theme.themeId());
+            if (!Objects.equals(theme.startDate(), source.getStartDate()) || !Objects.equals(theme.endDate(), source.getEndDate())) {
+                throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "chủ đề lớn chỉ đọc");
+            }
             if (theme.startDate() != null && theme.startDate().isBefore(cls.yearStart())
                     || theme.endDate() != null && theme.endDate().isAfter(cls.yearEnd()))
                 throw GlobalException.of(ApiCode.EDUCATION_CALENDAR_INVALID, "chủ đề phải nằm trong năm học");
@@ -457,6 +467,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             List<Long> classIds =
                     classes.stream().map(ClassroomInfoResponse::id).toList();
             Map<Long, List<Long>> teachers = staffAssignmentService.findCurrentTeacherIds(classIds, today);
+            Map<Long, Long> homerooms = staffAssignmentService.findHomeroomTeacherIds(classIds, today);
             Map<Long, String> codes = ageGroupCodes();
 
             // Tổ trưởng của các nhóm tuổi có lớp đang xem (để hiện chuỗi duyệt, tên người duyệt)
@@ -489,7 +500,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             c.campusId(),
                             teachers.getOrDefault(c.id(), List.of()).stream()
                                     .distinct()
-                                    .toList()))
+                                    .toList(),
+                            homerooms.get(c.id())))
                     .toList();
 
             List<EduClassDoc> docs =
@@ -582,7 +594,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     "ISSUED_YEAR_PLAN",
                     canAuthorBranch ? null : "AUTHOR_FORBIDDEN"));
             list.add(new ClassDocsResponse.CreationCapability(
-                    classId, "theme", canAuthorTheme, "APPROVED_BRANCH", canAuthorTheme ? null : "AUTHOR_FORBIDDEN"));
+                    classId, "theme", canAuthorTheme, "ISSUED_TEAM_PLAN", canAuthorTheme ? null : "AUTHOR_FORBIDDEN"));
             list.add(new ClassDocsResponse.CreationCapability(
                     classId, "week", canAuthorTheme, "THEME_DOSSIER", canAuthorTheme ? null : "AUTHOR_FORBIDDEN"));
         }
@@ -617,6 +629,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (!eduWorkflowService.isAuthorEligible(currentUser, kind, cls.ageGroupId(), classId)) {
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
             }
+            requireHomeroomAuthor(currentUser, cls);
             EduPlan plan = requireIssuedPlan(yearPlanId, cls);
             if (!expectedKey(kind, classId, plan, themeId, weekStart).equals(docKey)) {
                 throw GlobalException.of(ApiCode.CLASS_DOC_KEY_MISMATCH);
@@ -645,7 +658,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "X-Dossier-Version");
                 root = lockDossierRoot(classId, plan.getId(), themeId);
                 if (!expectedRootVersion.equals(root.getVersion())) throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
-                if (!root.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                if (root.getStatus() == EduClassDocStatus.REVIEW) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
             }
             Optional<EduClassDoc> current = classDocRepository.findForUpdateByDocKey(docKey);
             EduClassDoc entity;
@@ -666,8 +679,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 if (expectedVersion != null && !expectedVersion.equals(entity.getVersion())) {
                     throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
                 }
-                // EDU-18: chỉ sửa khi Nháp hoặc Bị trả lại
-                if (!entity.getStatus().editable()) {
+                // EDU-64: phần tương lai được sửa; REVIEW vẫn khóa.
+                if (entity.getStatus() == EduClassDocStatus.REVIEW) {
                     throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 }
             }
@@ -750,9 +763,29 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     doc.set("names", objectMapper.valueToTree(result.calendar().names()));
                     doc.set("notes", objectMapper.valueToTree(result.calendar().notes()));
                     doc.put("calendarRevision", System.currentTimeMillis());
+                    validateBranchIdentity(plan.getId(), calendarDraft(doc), current.orElse(null), cls);
                 }
             }
-            entity.changeContent(objectMapper.writeValueAsString(contentOf(doc)), currentUser.userId());
+            ObjectNode previousContent = readObject(entity.getContent());
+            ObjectNode nextContent = contentOf(doc);
+            if (!previousContent.equals(nextContent)) {
+                Set<Long> affectedThemes;
+                if (EduClassDoc.BRANCH.equals(kind)) {
+                    Map<LocalDate, Long> weekThemes = weeks.stream().collect(Collectors.toMap(
+                            TeachingWeek::start, TeachingWeek::themeId, (first, second) -> first));
+                    affectedThemes = EduClassDocFutureEdit.validateBranch(previousContent, nextContent, weekThemes, today);
+                } else {
+                    if (EduClassDoc.WEEK.equals(kind)) {
+                        EduClassDocFutureEdit.validateWeek(previousContent, nextContent, weekStart, today);
+                    } else {
+                        EduClassDocFutureEdit.requireFuture(
+                                themeRepository.findById(themeId).map(EduTheme::getStartDate).orElse(null), today);
+                    }
+                    affectedThemes = Set.of(themeId);
+                }
+                reopenAffectedDossiers(classId, plan.getId(), affectedThemes, currentUser);
+            }
+            entity.changeContent(objectMapper.writeValueAsString(nextContent), currentUser.userId());
             if (root != null) root.touchDossier(clock.instant());
             EduClassDoc saved = classDocRepository.saveAndFlush(entity);
             eduWorkflowService.recordAuthor(
@@ -770,6 +803,31 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
     }
 
+    private void reopenAffectedDossiers(Long classId, Long planId, Set<Long> themeIds, CurrentUser user) {
+        for (Long themeId : themeIds) {
+            List<EduClassDoc> members = classDocRepository.findAllByDossierForUpdateOrderByIdAsc(classId, planId, themeId);
+            if (members.stream().anyMatch(member -> member.getStatus() == EduClassDocStatus.REVIEW))
+                throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+            for (EduClassDoc member : members) {
+                if (member.getStatus() != EduClassDocStatus.APPROVED) continue;
+                ArrayNode history = readArray(member.getHistory());
+                ObjectNode event = history.addObject();
+                event.put("action", "revise_future");
+                event.put("actorId", user.userId());
+                event.put("by", user.fullName());
+                event.put("at", clock.instant().toString());
+                event.put("round", member.getReviewRound());
+                event.set("previousApprovals", readArray(member.getApprovals()));
+                if (member.getPrintSnapshot() != null)
+                    event.set("previousPrintSnapshot", objectMapper.readTree(member.getPrintSnapshot()));
+                member.updateWorkflowState(EduClassDocStatus.DRAFT, member.getReviewRound(), "[]",
+                        objectMapper.writeValueAsString(history), member.getAppliedPolicyRevision(),
+                        null, null, null, null, user.userId());
+                member.touchDossier(clock.instant());
+            }
+        }
+    }
+
     @Override
     @Transactional
     public ObjectNode actOnClassDoc(
@@ -779,6 +837,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         try {
             settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
             requireKind(kind);
+            if (EduClassDoc.BRANCH.equals(kind)) {
+                throw GlobalException.of(ApiCode.INVALID_VALUE, "chủ đề nhánh gửi cùng hồ sơ chủ đề");
+            }
             if (EduClassDoc.WEEK.equals(kind)) throw GlobalException.of(ApiCode.WEEKLY_LESSON_VIA_THEME);
             EduClassDoc found = classDocRepository
                     .findByDocKey(docKey)
@@ -814,6 +875,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (ACTION_SUBMIT.equals(request.action())) {
                 if (!eduWorkflowService.isAuthorEligible(currentUser, kind, cls.ageGroupId(), cls.id()))
                     throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+                requireHomeroomAuthor(currentUser, cls);
                 if (!doc.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
                 requireCanSubmit(doc);
@@ -931,6 +993,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
             if (!eduWorkflowService.isAuthorEligible(currentUser, "theme", cls.ageGroupId(), cls.id()))
                 throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+            requireHomeroomAuthor(currentUser, cls);
             if (doc.getStatus() == EduClassDocStatus.REVIEW) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
             ObjectNode next = objectMapper.createObjectNode();
             new TreeMap<>(adjustments).forEach((day, text) -> {
@@ -1226,6 +1289,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
     }
 
+    /** EDU-64: hai giáo viên cùng xem, nhưng chỉ chủ nhiệm đang hiệu lực được ghi hồ sơ lớp. */
+    private void requireHomeroomAuthor(CurrentUser user, ClassroomInfoResponse classroom) {
+        Long homeroomId = staffAssignmentService
+                .findHomeroomTeacherIds(List.of(classroom.id()), LocalDate.now(clock))
+                .get(classroom.id());
+        if (!Objects.equals(homeroomId, user.userId())) {
+            throw GlobalException.of(ApiCode.CLASS_DOC_TEACHER_ONLY);
+        }
+    }
+
     /** EDU-12: tài liệu lớp chỉ nhận tổ đã ban hành đúng nhóm tuổi, năm học của lớp. */
     private EduPlan requireIssuedPlan(Long yearPlanId, ClassroomInfoResponse cls) {
         EduPlan plan = yearPlanRepository
@@ -1242,17 +1315,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         return plan;
     }
 
-    /** EDU-13: chủ đề nhánh đã duyệt mới lập kế hoạch chủ đề; có kế hoạch chủ đề mới lập giáo án tuần. */
+    /** EDU-64: nhánh và hồ sơ chủ đề được soạn song song; giáo án cần hồ sơ chủ đề đã lưu. */
     private void requireCanCreate(String kind, Long classId, Long yearPlanId, Long themeId) {
         if (EduClassDoc.BRANCH.equals(kind)) {
             return;
         }
         List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdAndYearPlanId(classId, yearPlanId);
-        boolean branchApproved = docs.stream()
-                .anyMatch(d -> EduClassDoc.BRANCH.equals(d.getKind()) && d.getStatus() == EduClassDocStatus.APPROVED);
-        if (!branchApproved) {
-            throw GlobalException.of(ApiCode.BRANCH_THEMES_NOT_APPROVED);
-        }
         if (EduClassDoc.WEEK.equals(kind)
                 && docs.stream()
                         .noneMatch(d -> EduClassDoc.THEME.equals(d.getKind()) && themeId.equals(d.getThemeId()))) {
@@ -1260,42 +1328,23 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
     }
 
-    /** EDU-14, EDU-17: điều kiện gửi chủ đề nhánh / hồ sơ chủ đề. */
+    /** EDU-64: chỉ hồ sơ chủ đề được gửi; lúc gửi phải có tên nhánh cho các tuần thuộc chủ đề. */
     private void requireCanSubmit(EduClassDoc doc) {
-        List<TeachingWeek> weeks =
-                teachingWeeks(doc.getClassroomId(), doc.getYearPlanId(), EduClassDoc.BRANCH.equals(doc.getKind()));
         if (EduClassDoc.BRANCH.equals(doc.getKind())) {
-            ObjectNode content = readObject(doc.getContent());
-            JsonNode names = content.path("names");
-            if (content.path("schemaVersion").asInt() == 2) {
-                var draft = calendarDraft(content);
-                validateBranchIdentity(doc.getYearPlanId(), draft, doc, requireClass(doc.getClassroomId()));
-                if (draft.branches().stream()
-                        .anyMatch(b -> b.name() == null || b.name().isBlank()))
-                    throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, 1);
-                var projected =
-                        projectBranch(doc.getYearPlanId(), draft, snapshotLimits(doc.getDurationPolicySnapshot()));
-                names = objectMapper.valueToTree(projected.calendar().names());
-            }
-            JsonNode projectedNames = names;
-            long empty = weeks.stream()
-                    .filter(w -> projectedNames
-                            .path(w.start().toString())
-                            .asString("")
-                            .isBlank())
-                    .count();
-            if (empty > 0) {
-                throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, empty);
-            }
-            return;
+            throw GlobalException.of(ApiCode.INVALID_VALUE, "chủ đề nhánh gửi cùng hồ sơ chủ đề");
         }
-        boolean branchApproved =
-                classDocRepository.findAllByClassroomIdAndYearPlanId(doc.getClassroomId(), doc.getYearPlanId()).stream()
-                        .anyMatch(d ->
-                                EduClassDoc.BRANCH.equals(d.getKind()) && d.getStatus() == EduClassDocStatus.APPROVED);
-        if (!branchApproved) {
-            throw GlobalException.of(ApiCode.BRANCH_THEMES_NOT_APPROVED);
-        }
+        List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdAndYearPlanId(doc.getClassroomId(), doc.getYearPlanId());
+        EduClassDoc branch = docs.stream()
+                .filter(candidate -> EduClassDoc.BRANCH.equals(candidate.getKind()))
+                .findFirst()
+                .orElseThrow(() -> GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, 1));
+        JsonNode names = readObject(branch.getContent()).path("names");
+        List<TeachingWeek> weeks = teachingWeeks(doc.getClassroomId(), doc.getYearPlanId(), true);
+        long empty = weeks.stream()
+                .filter(w -> w.themeId().equals(doc.getThemeId()))
+                .filter(w -> names.path(w.start().toString()).asString("").isBlank())
+                .count();
+        if (empty > 0) throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, empty);
         List<TeachingWeek> themeWeeks =
                 weeks.stream().filter(w -> w.themeId().equals(doc.getThemeId())).toList();
         Set<LocalDate> written =
@@ -1483,6 +1532,12 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         boolean author = context == null
                 ? eduWorkflowService.isAuthorEligible(currentUser, type, cls.ageGroupId(), cls.id())
                 : context.scope().canAuthor(policy, cls.ageGroupId(), cls.campusId(), cls.id());
+        author = author
+                && Objects.equals(
+                        staffAssignmentService
+                                .findHomeroomTeacherIds(List.of(cls.id()), LocalDate.now(clock))
+                                .get(cls.id()),
+                        currentUser.userId());
         boolean activeVersion = context == null
                 ? !isSuperseded(doc.getYearPlanId())
                 : !context.supersededPlanIds().contains(doc.getYearPlanId());
@@ -1501,19 +1556,34 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 "canEdit",
                 author
                         && activeVersion
-                        && doc.getStatus().editable()
-                        && root.getStatus().editable());
+                        && doc.getStatus() != EduClassDocStatus.REVIEW
+                        && root.getStatus() != EduClassDocStatus.REVIEW
+                        && hasFutureContent(doc));
         permissions.put(
                 "canSubmit",
-                author && activeVersion && doc.getStatus().editable() && !EduClassDoc.WEEK.equals(doc.getKind()));
-        permissions.put("canApprove", reviewable && !EduClassDoc.WEEK.equals(doc.getKind()));
-        permissions.put("canReturn", reviewable && !EduClassDoc.WEEK.equals(doc.getKind()));
-        permissions.put("canReject", reviewable && !EduClassDoc.WEEK.equals(doc.getKind()));
+                author
+                        && activeVersion
+                        && doc.getStatus().editable()
+                        && EduClassDoc.THEME.equals(doc.getKind()));
+        permissions.put("canApprove", reviewable && EduClassDoc.THEME.equals(doc.getKind()));
+        permissions.put("canReturn", reviewable && EduClassDoc.THEME.equals(doc.getKind()));
+        permissions.put("canReject", reviewable && EduClassDoc.THEME.equals(doc.getKind()));
         boolean canAdjust = author && doc.getStatus() != EduClassDocStatus.REVIEW;
         permissions.put("canAdjust", canAdjust);
         permissions.put("canEditAdjustments", canAdjust);
         node.set("adjustments", readObject(doc.getAdjustments()));
         return node;
+    }
+
+    private boolean hasFutureContent(EduClassDoc doc) {
+        LocalDate today = LocalDate.now(clock);
+        if (EduClassDoc.WEEK.equals(doc.getKind()))
+            return doc.getWeekStart() != null && doc.getWeekStart().plusDays(4).isAfter(today);
+        if (EduClassDoc.THEME.equals(doc.getKind()))
+            return themeRepository.findById(doc.getThemeId()).map(EduTheme::getStartDate)
+                    .filter(start -> start.isAfter(today)).isPresent();
+        return teachingWeeks(doc.getClassroomId(), doc.getYearPlanId(), false).stream()
+                .anyMatch(week -> week.start().isAfter(today));
     }
 
     private ObjectNode readObject(String json) {

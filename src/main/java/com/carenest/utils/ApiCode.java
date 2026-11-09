@@ -512,6 +512,7 @@ public enum ApiCode {
             7038,
             HttpStatus.BAD_REQUEST,
             "Lĩnh vực đã có lĩnh vực con thì mọi mục tiêu phải thuộc một lĩnh vực con: {0}"),
+    THEME_DATES_GAP(7039, HttpStatus.BAD_REQUEST, "Bị trống ngày chưa tạo chủ đề ({0})"),
 
     // ========== 71xx TÀI LIỆU LỚP (KẾ HOẠCH CHỦ ĐỀ, GIÁO ÁN) (module Tiền) ==========
     CLASS_DOC_NOT_FOUND(7101, HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"),

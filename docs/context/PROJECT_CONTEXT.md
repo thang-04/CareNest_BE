@@ -1,5 +1,10 @@
 # Project Context — CareNest
 
+> **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
+
+
+> **Quyết định user10/11/2026 — duyệt hồ sơ lớp:** Theo chuỗi HT cấu hình, không bắt buộc có bước TT; chỉ PHT duyệt cũng hợp lệ. Giữ cấp trên duyệt cấp dưới, chống tự duyệt, phạm vi phân công và REVIEW cấm sửa. Quyết định này thay yêu cầu TT bắt buộc trước PHT/HT trong tài liệu09/11; chưa phải bằng chứng triển khai/nghiệm thu.
+
 Nguồn: xem bảng **Nguồn bằng chứng** cuối file. Tổng hợp 26/09/2026, đối chiếu lại 04/10/2026; stack chốt 03/10/2026. Đọc file này **một lần** khi task ở mức L2+; task L1 dùng module card.
 
 ## Quy ước trạng thái thông tin
@@ -41,9 +46,15 @@ CareNest tạo **hồ sơ có cấu trúc, lấy trẻ làm trung tâm, có lị
 
 User xác nhận [bộ 12 quyết định](../business/education-plan-confirmation-2026-11-09.md) đã được giáo viên phía trường xác nhận; chưa có tên/ngày xác nhận trực tiếp. Đây là nghiệp vụ đích, delivery theo [module card](../modules/education-plan.md).
 
-Năm học biên soạn cây mục tiêu/nội dung và dự kiến chủ đề. Tổ theo nhóm tuổi dùng chung hai điểm trường, lấy đúng một năm APPROVED hiện hành cùng năm/tuổi, giữ cây nguồn và tick từng nội dung. Mỗi loại/năm/tuổi một chuỗi, tối đa một bản nháp/chờ. GV triển khai lớp từ tổ đã ban hành; nhánh có thể nhiều tuần, trước gửi phải phủ đủ tuần học bằng nhánh có tên.
+Năm học biên soạn cây mục tiêu/nội dung và dự kiến chủ đề. Tổ theo nhóm tuổi dùng chung hai điểm trường, lấy đúng một năm APPROVED hiện hành cùng năm/tuổi và tick từng nội dung. Theo EDU-65 PROPOSED (user trực tiếp 09/11), tổ trưởng được thêm/sửa nội dung riêng của tổ, không sửa nguồn năm; GV phía dưới thấy nội dung tổ theo phạm vi và trạng thái hiện hành. Mỗi loại/năm/tuổi một chuỗi, tối đa một bản nháp/chờ. GV triển khai lớp từ tổ đã ban hành; nhánh có thể nhiều tuần, trước gửi phải phủ đủ tuần học bằng nhánh có tên.
 
-Mặc định năm PHT→HT, tổ TT→PHT, lớp GV→TT→PHT; HT cấu hình riêng, TT được duyệt năm/tổ khi được cấu hình đúng tuổi và không tự duyệt. REVIEW khóa sửa. Không ai xóa tổ; giữ lịch sử, chỉ năm hiện phiên bản. Năm mới ban hành tự chuyển nguồn tổ nháp/chờ và mở cập nhật tổ đã ban hành, giữ bản cũ cho lớp tới khi cập nhật duyệt; đỏ phần đổi/xóa/liên kết ảnh hưởng, mục mới riêng để phân bổ, chủ đề kết thúc không đỏ. Năm nhập file hai chế độ thay toàn bộ/thay phần có, preview/xác nhận/lưu tay; tổ không nhập file sửa cây. Các gap code không làm đổi yêu cầu này.
+Theo EDU-67/68 PROPOSED (user trực tiếp 09/11), năm mới và tổ cùng sửa nội dung thì bản cập nhật giữ phần tổ đã sửa và báo tổ trưởng rà soát; phiên bản năm điều chỉnh dùng giới hạn cấu hình tại lúc tạo. Giới hạn đã mất do lỗi chỉ khôi phục khi có bằng chứng, giữ trạng thái hồ sơ.
+
+Theo EDU-69/70 PROPOSED (user trực tiếp 09/11, lựa chọn mới nhất), kiểm đủ 9 chủ đề và nội dung/tick khi gửi; áp dụng duyệt theo thứ bậc cố định, một người soạn được chỉ định, bỏ lease 90 giây/heartbeat 20 giây như flow hiện hành. Phần mô tả chuỗi duyệt tùy cấu hình và lease trong đoạn lịch sử dưới đây không còn là nghiệp vụ đích trong phạm vi kế hoạch giáo dục. Chưa có xác nhận giáo viên trường hoặc bằng chứng triển khai delta này.
+
+Theo EDU-71 PROPOSED (user trực tiếp 09/11), hồ sơ năm mất giới hạn do lỗi hoặc chưa thể phân biệt với legacy thật phải chặn gửi và báo kiểm tra/khôi phục; chỉ khôi phục theo bằng chứng, giữ trạng thái. Legacy thật có bằng chứng không bị áp giới hạn mới; vẫn kiểm đủ ngày. STT mục tiêu tự sinh theo EDU-09, nhãn tùy chọn rỗng về mặc định theo EDU-58.
+
+Mặc định năm PHT→HT, tổ TT→PHT, hồ sơ chủ đề lớp GV→TT→PHT; HT cấu hình riêng, TT được duyệt năm/tổ khi được cấu hình đúng tuổi và không tự duyệt. REVIEW khóa sửa. TT chỉ xem kế hoạch tổ đúng nhóm tuổi; quyền xem annual APPROVED cùng tuổi làm nguồn lập tổ vẫn giữ, GV không xem/truy cập annual. PHT là vai trò duy nhất lập/sửa chủ đề trong annual và mẫu nhánh nguồn. Từ tổ APPROVED, cả hai GV của lớp xem chủ đề/nhánh đúng lớp; chỉ GV chủ nhiệm lưu nhánh riêng theo chủ nhiệm/lớp/tổ, không đổi nguồn hay lớp khác; đổi chủ nhiệm chuyển quyền soạn nhưng giữ lịch sử. Chủ đề lớn xám/chỉ đọc với GV. Trang chủ đề nhánh: PHT lọc mọi tuổi/lớp, TT lọc lớp đúng tuổi, GV không lọc đa lớp. Chủ nhiệm có thể soạn cả năm; một chủ đề kéo qua nhiều tháng vẫn một hồ sơ. Nhánh không duyệt riêng, đi cùng hồ sơ kế hoạch chủ đề; GV chủ động gửi, TT được nhắc từ 7 ngày trước ngày bắt đầu nhưng vẫn duyệt sớm. Phần nhánh/chủ đề/giáo án chưa đến ngày dạy được sửa, chỉ hồ sơ chủ đề chứa phần sửa về Nháp và gửi duyệt lại, phần đã đến ngày dạy khóa sửa. Không ai xóa tổ; giữ lịch sử, chỉ năm hiện phiên bản. Năm mới ban hành tự chuyển nguồn tổ nháp/chờ và mở cập nhật tổ đã ban hành, giữ bản cũ cho lớp tới khi cập nhật duyệt; đỏ phần đổi/xóa/liên kết ảnh hưởng, mục mới riêng để phân bổ, chủ đề kết thúc không đỏ. Năm nhập file hai chế độ thay toàn bộ/thay phần có, preview/xác nhận/lưu tay; tổ không nhập file sửa cây. Reset demo chỉ là local và chỉ xóa dữ liệu nghiệp vụ kế hoạch/hồ sơ lớp, giữ danh mục, trường/lớp, tài khoản, phân công và cấu hình. Các gap code không làm đổi yêu cầu này.
 
 ## Actor (CONFIRMED)
 

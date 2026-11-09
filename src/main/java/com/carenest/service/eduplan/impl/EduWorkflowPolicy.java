@@ -17,16 +17,18 @@ public class EduWorkflowPolicy {
 
     public record RolePolicy(List<Role> creators, List<Role> reviewers) {
         public RolePolicy {
-            creators = List.copyOf(creators);
-            reviewers = List.copyOf(reviewers);
-            if (creators.isEmpty()
-                    || reviewers.isEmpty()
-                    || Set.copyOf(creators).size() != creators.size()
-                    || Set.copyOf(reviewers).size() != reviewers.size()
-                    || reviewers.contains(Role.TEACHER)
-                    || creators.stream().anyMatch(reviewers::contains)) {
-                throw new IllegalArgumentException("Invalid education creator/reviewer roles");
+            List<Role> cList = List.copyOf(creators);
+            List<Role> rList = List.copyOf(reviewers);
+            if (cList.size() != 1
+                    || rList.isEmpty()
+                    || Set.copyOf(cList).size() != cList.size()
+                    || Set.copyOf(rList).size() != rList.size()
+                    || rList.contains(Role.TEACHER)
+                    || cList.stream().anyMatch(c -> rList.stream().anyMatch(r -> r.ordinal() <= c.ordinal()))) {
+                throw new IllegalArgumentException("Invalid education creator/reviewer roles: reviewer must have strictly higher hierarchy than creator");
             }
+            creators = cList;
+            reviewers = rList;
         }
     }
 

@@ -396,31 +396,6 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             var assignmentSnapshot = staffAssignmentService.findActiveEducationReviewerAssignments(today);
             var activeSnapshot = accountService.findActiveUserIds(assignmentSnapshot.keySet());
 
-            List<EduPlan> leasedDrafts = yearPlanRepository.findAllByEditingByIsNotNull();
-            Set<Long> leaseHolders =
-                    leasedDrafts.stream().map(EduPlan::getEditingBy).collect(java.util.stream.Collectors.toSet());
-            var holderAssignments = leaseHolders.isEmpty()
-                    ? Map.<Long, List<StaffAssignmentSummaryResponse>>of()
-                    : staffAssignmentService.findActiveAssignmentsByUserIds(leaseHolders, today);
-            var activeHolders =
-                    leaseHolders.isEmpty() ? Set.<Long>of() : accountService.findActiveUserIds(leaseHolders);
-            Map<Long, Optional<com.carenest.dto.organization.ClassroomInfoResponse>> classroomCache =
-                    new java.util.HashMap<>();
-            for (EduPlan draft : leasedDrafts) {
-                if (draft.getStatus() == EduPlanStatus.DRAFT
-                        && !leaseHolderEligible(
-                                draft.getEditingBy(),
-                                draft.getAgeGroupId(),
-                                loadPolicy(draft.workflowKey()),
-                                holderAssignments,
-                                activeHolders,
-                                classroomCache)) {
-                    draft.finishEditing();
-                    draft.recordSave(null);
-                    yearPlanRepository.save(draft);
-                }
-            }
-
             // 2. Year plans lock in ascending ID order
             List<EduPlan> pendingYears =
                     yearPlanRepository.findAllByStatusInForUpdateOrderByIdAsc(List.of(EduPlanStatus.REVIEW));
@@ -487,7 +462,6 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                             plan.getCompletedAt(),
                             now);
                 }
-                plan.finishEditing();
                 plan.recordSave(null);
                 String action = eval.complete() ? "COMPLETED_BY_POLICY" : "POLICY_RECONCILED";
                 var event = com.carenest.entity.eduplan.EduPlanEvent.of(
@@ -635,49 +609,6 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         return history.toString();
     }
 
-    private boolean leaseHolderEligible(
-            Long userId,
-            Long ageGroupId,
-            RolePolicy policy,
-            Map<Long, List<StaffAssignmentSummaryResponse>> assignmentsByUser,
-            Set<Long> activeHolders,
-            Map<Long, Optional<com.carenest.dto.organization.ClassroomInfoResponse>> classroomCache) {
-        if (!activeHolders.contains(userId)) return false;
-        var assignments = assignmentsByUser.getOrDefault(userId, List.of());
-        Set<Role> roles = EnumSet.noneOf(Role.class);
-        for (var assignment : assignments) {
-            switch (assignment.staffRole()) {
-                case PRINCIPAL -> roles.add(Role.PRINCIPAL);
-                case VICE_PRINCIPAL -> roles.add(Role.VICE_PRINCIPAL);
-                case AGE_GROUP_TEAM_LEADER -> {
-                    roles.add(Role.TEAM_LEADER);
-                    roles.add(Role.TEACHER);
-                }
-                case TEACHER -> roles.add(Role.TEACHER);
-                default -> {}
-            }
-        }
-        if (policy.reviewers().stream().anyMatch(roles::contains)) return false;
-        return policy.creators().stream()
-                .anyMatch(role -> roles.contains(role)
-                        && switch (role) {
-                            case PRINCIPAL, VICE_PRINCIPAL -> true;
-                            case TEAM_LEADER ->
-                                assignments.stream()
-                                        .anyMatch(a -> a.staffRole() == StaffRole.AGE_GROUP_TEAM_LEADER
-                                                && Objects.equals(a.ageGroupId(), ageGroupId));
-                            case TEACHER ->
-                                assignments.stream()
-                                        .anyMatch(a -> a.staffRole() == StaffRole.TEACHER
-                                                && a.classroomId() != null
-                                                && classroomCache
-                                                        .computeIfAbsent(
-                                                                a.classroomId(), classroomService::findClassroomInfo)
-                                                        .map(c -> Objects.equals(c.ageGroupId(), ageGroupId))
-                                                        .orElse(false));
-                        });
-    }
-
     @Override
     @Transactional
     public void activateLegacyPending(Instant now) {
@@ -714,6 +645,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                 if (modified) {
                     yearPlanRepository.save(plan);
                 }
+                teamUpdates.updateAfterPublication(plan, now);
             }
 
             // 3. Backfill approved class docs without print snapshot (idempotent)
@@ -1253,7 +1185,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             if (entry == null || entry.creators() == null || entry.reviewers() == null) {
                 throw GlobalException.of(ApiCode.SIGNERS_INVALID);
             }
-            if (entry.creators().isEmpty() || entry.reviewers().isEmpty()) {
+            if (entry.creators().size() != 1 || entry.reviewers().isEmpty()) {
                 throw GlobalException.of(ApiCode.SIGNERS_INVALID);
             }
             if (new HashSet<>(entry.creators()).size() != entry.creators().size()) {
@@ -1289,7 +1221,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             // Disjoint check
             Set<Role> intersection = new HashSet<>(creators);
             intersection.retainAll(reviewers);
-            if (!intersection.isEmpty()) {
+            if (!intersection.isEmpty()
+                    || creators.stream().anyMatch(c -> reviewers.stream().anyMatch(r -> r.ordinal() <= c.ordinal()))) {
                 throw GlobalException.of(ApiCode.SIGNERS_INVALID);
             }
         }

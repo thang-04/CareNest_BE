@@ -618,3 +618,38 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 - T048 chuyển consumer hồ sơ lớp/requireIssuedPlan/isSuperseded/context/copy/lock sang TEAM và rà nguồn lesson-query/observation; T049 legacy NULL nằm ngoài cập nhật tự động bằng FK, không đoán/gán năm/baseline; T050 chuyển nguồn tăng revision/vô hiệu lease/session nguyên tử, form cũ conflict, giữ input, replay/rollback không mất dữ liệu.
 - Native Python assert trực tiếp: 11 Markdown files, FR17+SC6, T001–T050 duy nhất/đủ/unchecked, 23/23 yêu cầu mapped; T048–T050 có implementation/check/dependency trước T035/T009; local links/fences/UTF-8/trailing whitespace đạt. git diff --check phạm vi spec015 exit0; artifact untracked được kiểm riêng bằng Python.
 - Coverage tài liệu không phải test/code coverage; chưa chạy Maven/FE/browser/SQL/Flyway hoặc sửa source/client/migration. Không commit/push/deploy; phê duyệt plan/API/DDL/quyền client theo scope vẫn cần trước thực thi.
+
+## Spec016 — triển khai một phần, 09/11/2026
+
+- Thêm kiểm gửi năm (9 chủ đề, ngày/giới hạn, mục tiêu/nội dung), phân bổ tổ, sửa nội dung tổ và giữ chỉnh sửa khi nguồn năm đổi; FE thêm kiểm tra, dấu bắt buộc và khôi phục nháp. Chưa hoàn thành bỏ lease/heartbeat, thứ bậc duyệt và toàn bộ ca tích hợp.
+- `mvn -Dtest=InheritedCurriculumGuardTest,EduTeamContentMergeTest,EduTeamAllocationTest,YearPlanPublicationValidatorTest,EduTeachingCalendarTest test`: 16 test đạt. FE: `node --test tests/education-plan/submit-requirements.test.mjs tests/education-plan/team-plan-ui.test.mjs`: 10 đạt; `node --import ./scripts/register-auth-test-loader.mjs --test tests/education-plan/school-year-team-mock.test.mjs`: 5 đạt; ESLint file sửa và `npm run build` đạt, Vite có cảnh báo phụ thuộc.
+- Docker daemon không kết nối được; chưa chạy integration PostgreSQL, kiểm snapshot reload, toàn bộ test hoặc rehearsal Flyway. V91 mới chỉ là migration trong source, có thể tự chạy khi BE khởi động với Flyway; chưa áp dụng hay xác minh trên database đang dùng. Không xác nhận tính năng hoàn tất.
+
+### Tiếp tục bỏ khóa phiên
+
+- Theo chỉ đạo user, năm/tổ chỉ người được chỉ định soạn, không lấy/gia hạn/nhả lease 90 giây; giữ kiểm revision và request id. Tắt job nhả khóa, giữ các endpoint cũ tương thích, không hiện editor/expiry trong response. Bản lớp tiếp tục kiểm giáo viên chủ nhiệm theo phân công hiện hành.
+- `mvn -Dtest=EduYearPlanEditingTest,InheritedCurriculumGuardTest,EduTeamContentMergeTest,EduTeamAllocationTest,YearPlanPublicationValidatorTest,EduTeachingCalendarTest test`: 17 test đạt. `npm run test:edu`: 316 test đạt; ESLint các file FE thay đổi và `npm run build` đạt. Chưa kiểm DB/migration hoặc chạy integration khi Docker chưa kết nối; chưa áp dụng quy tắc thứ bậc cố định trên toàn bộ các đường duyệt. Không đánh dấu hoàn thành feature.
+
+
+## Đối chiếu task giáo dục — 10/11/2026
+
+BE chọn lọc 44/44 (PostgreSQL Testcontainers); FE giáo dục 320/320; ESLint source sửa và build FE exit0. Đã kiểm chuỗi PHT-only/TT→PHT, thiếu ứng viên giữa/cuối, policy reconcile, reorder save/preview, snapshot unknown và năm xóa mềm. BE mở rộng trước đó còn 5 failure/25 error trên 49 ca do fixture/lease/schema chưa đồng bộ; không coi full BE đạt. Chưa browser/E2E hoặc áp dụng migration V94 lên DB người dùng. Chi tiết ở workspace root: `huong_dan_nghiep_vu/ket_qua_trien_khai_task_ke_hoach_giao_duc_2026-11-10.md`; tasks T002/T006/T015/T019/T020 còn mở.
+
+
+## Tiếp tục EDU-64 và cấm xóa tổ — 10/11/2026
+
+- BE: 78/78, 0 failure/error, exit0; gồm 33 ca workflow integration (21 tổ hợp cấm xóa tổ), 5 ca future-edit và 7 ca schema. PostgreSQL Testcontainers, không DB runtime.
+- FE: 325/325 test giáo dục, exit0; ESLint bảy source sửa exit0; build FE exit0 (còn cảnh báo phụ thuộc hiện có).
+- Diff BE đạt; diff toàn FE còn dòng trắng cuối file `src/styles/modules/education-plan.css` trong thay đổi ngoài phạm vi lượt này, không tự sửa CSS đó. Diff các source của lượt tiếp tục được kiểm riêng.
+- Không commit/push, restart/deploy, thêm dependency hay áp dụng migration lên DB thực. Chưa kiểm browser/E2E. T002/T015/T020 vẫn mở như mô tả.
+
+Chi tiết lệnh và AC: báo cáo workspace `huong_dan_nghiep_vu/ket_qua_trien_khai_task_ke_hoach_giao_duc_2026-11-10.md`. Đã thực hiện T006/T019: chỉ sửa phần tương lai, reopen đúng dossier, giữ evidence publication trong history; FE/mock cùng quy tắc. Sửa fixture schema qua initializeOwner, không nới constraint.
+
+
+## Kiểm tra trước commit/push theo user — 10/11/2026
+
+- Maven native chọn lọc: 90/90 test, không failure/error/skipped, exit0. Bộ EDU-72/EDU-64/workflow/schema thêm EduYearPlanEditingTest, InheritedCurriculumGuardTest, EduTeachingCalendarTest. Không khẳng định full BE đạt; annual integration cũ còn khoảng trống đã ghi ở trên.
+- EDU-72: tự tạo TEAM DRAFT gắn năm/tuổi/phiên bản mới nhất, giao tổ trưởng duy nhất; activation không trùng/không lùi nguồn. Có regression ban hành thực, giữ nháp và giữ tổ đã ban hành làm nguồn lớp.
+- FE giáo dục/menu: 328 test thành công; lint source thay đổi exit0 (một warning availableCreators), build exit0. Chưa browser/E2E/restart.
+- User đã yêu cầu commit/push hai repo; BE dùng G94-326, FE user xác nhận G94-278. File docs/TAI_KHOAN_DEMO.md chỉ ghi tài khoản giả local được user yêu cầu; không đưa dump/token/.env vào commit.
+- DB test đã reset theo phạm vi user chọn; 89 bảng khác giữ nguyên. Đã kiểm 34 tài khoản qua Keycloak/accounts/me; gateway login runtime trả401, không khẳng định đã sửa gateway.

@@ -1119,7 +1119,6 @@ class EduClassDocServiceIntegrationTest {
         EduPlan source = planRepository.findById(plan.id()).orElseThrow();
         Instant now = Instant.parse("2026-10-22T03:00:00Z");
         EduPlan update = EduPlan.createVersion(source, source.getCode() + "-V2", leader.userId(), "Tổ trưởng", now);
-        update.acquireSession(leader.userId(), session, now);
         update.initializeSave(java.util.UUID.randomUUID());
         update = planRepository.saveAndFlush(update);
         workflow.recordAuthor(update.getId(), null, leader.userId(), "CREATOR", now);

@@ -131,8 +131,10 @@ class EduYearPlanSchemaIntegrationTest {
                 domainRepository.findAllByActiveTrueOrderBySortOrderAsc().get(0).getId();
 
         EduPlanSubDomain sub = (EduPlanSubDomain) EduGoalRow.create(plan.getId(), EduGoalRowKind.SUB);
+        sub.initializeOwner(plan);
         sub.place(domain, (short) 0, EduGoalRowKind.SUB, "Phát triển vận động", null);
         EduPlanGoal goal = (EduPlanGoal) EduGoalRow.create(plan.getId(), EduGoalRowKind.GOAL);
+        goal.initializeOwner(plan);
         goal.place(domain, (short) 1, EduGoalRowKind.GOAL, "Trẻ thực hiện đủ động tác", (short) 1);
         subDomainRepository.saveAndFlush(sub);
         goal.attachParents(sub.getId(), null);
@@ -142,6 +144,7 @@ class EduYearPlanSchemaIntegrationTest {
         content.place(goal.getId(), (short) 0, "Hô hấp: hít vào, thở ra");
         goalContentRepository.saveAndFlush(content);
         EduTheme theme = EduTheme.create(plan.getId());
+        theme.initializeOwner(plan);
         theme.update((short) 0, "Trường mầm non", "TMN", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "");
         themeRepository.saveAndFlush(theme);
         tickRepository.saveAndFlush(EduContentThemeTick.of(content.getId(), theme.getId()));
@@ -180,8 +183,10 @@ class EduYearPlanSchemaIntegrationTest {
     void draftThemesMayShareAbbr() {
         EduPlan plan = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
         EduTheme first = EduTheme.create(plan.getId());
+        first.initializeOwner(plan);
         first.update((short) 0, "Trường mầm non", "TMN", null, null, "", "");
         EduTheme second = EduTheme.create(plan.getId());
+        second.initializeOwner(plan);
         second.update((short) 1, "Thế giới mới", "tmn", null, null, "", "");
 
         themeRepository.saveAllAndFlush(List.of(first, second));
@@ -214,18 +219,6 @@ class EduYearPlanSchemaIntegrationTest {
 
     private EduPlan draft(String code, long ageGroupId) {
         return legacyDraft(code, schoolYear, ageGroupId, "Kế hoạch " + code, "", owner, null, NOW);
-    }
-
-    @Test
-    @DisplayName("EDU-10: phiên đang giữ quyền bắt buộc có trạng thái để trả về, không để CHECK lọt NULL")
-    void activeSessionCannotHaveNullReturnStatus() {
-        long ageGroup5 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-5'", Long.class);
-        EduPlan plan = draft("NULL-GUARD-5", ageGroup5);
-        plan.acquireSession(owner, UUID.randomUUID(), NOW);
-        plan = yearPlanRepository.saveAndFlush(plan);
-        final Long planId = plan.getId();
-        assertThatThrownBy(() -> jdbc.update("UPDATE edu_team_plans SET editing_from = NULL WHERE id = ?", planId))
-                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private long insertId(String sql, Object... args) {

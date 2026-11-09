@@ -1,5 +1,8 @@
 # Implementation Plan: Phân biệt kế hoạch năm học và kế hoạch tổ
 
+> **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
+
+
 **Branch**: `feature/G94-326-BE-FEAT-09-school-year-goals-backup` (không tạo/chuyển nhánh). **Date**: 2026-11-09. **Spec**: [spec.md](spec.md).
 
 **Status**: Thiết kế sửa theo analyze và lệnh user “fix”; chưa phê duyệt triển khai/API/DDL hoặc sửa repo FE/APP. Làn L. Không coi các nhãn PASS cũ là bằng chứng triển khai.
@@ -14,6 +17,7 @@ Bắt buộc đối chiếu [PROJECT_CONTEXT](../../docs/context/PROJECT_CONTEXT
 - **D2 nghiệp vụ**: khi năm mới ban hành, cập nhật bản tổ đang mở trước; chỉ sinh nháp từ tổ APPROVED khi chưa có bản mở. Không lập tổ lần đầu; không sửa bản ban hành cũ/lớp. Thiết kế sửa đề xuất xử lý cùng transaction ban hành, thay event AFTER_COMMIT để không mất cập nhật.
 - **D3 định danh đề xuất**: sequence edu_plan_id_seq dùng chung hai bảng, đặt lớn hơn max ID toàn bộ trong maintenance; giữ numeric endpoint. Kiểm trùng ID và tất cả writer/copy/default, không suy bảng theo tên.
 - **Bảo vệ nghiệp vụ**: không ai xóa TEAM (FR-016); TT duyệt/trả lại theo policy/tuổi/lượt, không tự duyệt/coauthor (FR-017); server chặn sửa cây/import TEAM (FR-004).
+- **D4 chủ đề/nhánh lớp**: annual chỉ là nguồn PHT; TEAM APPROVED là nguồn duy nhất của lớp. Chủ đề lớn lớp chỉ đọc; bản nhánh lớp tách theo chủ nhiệm/lớp/TEAM, không sửa mẫu PHT/tổ. Nhánh không còn workflow riêng: thuộc hồ sơ kế hoạch chủ đề khi gửi/duyệt. Trang “Chủ đề / Chủ đề nhánh” dùng một bảng Tháng/Chủ đề/Chủ đề nhánh/Tuần/Ghi chú; PHT lọc toàn trường, TT lọc đúng tuổi, GV chỉ đọc lớp mình.
 
 ## Technical Context
 
@@ -54,6 +58,7 @@ Không tuyên bố “gate pass” trước kiểm chứng/phê duyệt. Analysi
 - Entity/repository eduplan: EduYearPlan, EduTeamPlan mới; EduPlanGoal, EduPlanSubDomain, EduPlanExpectedResult, EduTheme, EduBreak, EduPlanEvent, EduDocumentAuthor, EduPlanBranchTemplate, EduClassDoc; EduTeamReviewItem mới. EduGoalRow là superclass, không bảng/entity approval mới.
 - Service eduplan: EduYearPlanService/impl chỉ năm; EduTeamPlanService/impl mới; impl/EduTeamUpdateGenerator và impl/EduPlanReviewDiff. Generator same-module đồng bộ, không listener bắt buộc.
 - Consumer nguồn TEAM: EduClassDocServiceImpl (requireIssuedPlan/isSuperseded/batch/context/lock/copy/docKey), EduLessonQueryServiceImpl và caller observation theo đường phụ thuộc thực tế; giữ API lớp/docKey và lịch sử, T048 regression.
+- Class branch/UI: `EduClassDocServiceImpl`, `EduWorkflowServiceImpl` và policy/repository phân quyền theo `StaffAssignment.isHomeroom`; `BranchPlanPage`, `BranchCalendarEditor`, `ClassPlanPage`, `ClassThemePlanPage`, `menuConfig` và route/sidebar. Không dùng workflow/config/signers riêng cho branch.
 - Controller: EduYearPlanController; DTO YearPlanRequest/SummaryResponse/DetailResponse; mapper và EduPlanAccessPolicy hiện có. API spec docs/api/openapi.yaml cập nhật khi implement.
 - Migration: V89__separate_team_plans.sql local + V90__drop_team_from_year_plans.sql dự kiến (hoặc migration mới theo history); docs/database/DATA_DICTIONARY.md, ERD.md cập nhật cùng implementation.
 - FE (task có gate riêng): GoalListPage, GoalFormPage, GoalDetailPage, PlanReviewQueuePage; GoalTables, YearPlanSourceCard, planUi, VersionWidgets/VersionHistory; educationPlanApi/yearPlanMapper và test education-plan.

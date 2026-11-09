@@ -21,6 +21,8 @@ class EduWorkflowPolicyTest {
     @Test
     @DisplayName("EDU-54: nhóm soạn và duyệt không rỗng, không trùng hoặc giao nhau")
     void rejectsInvalidRoleSets() {
+        assertThatThrownBy(() -> new RolePolicy(List.of(Role.TEACHER, Role.TEAM_LEADER), List.of(Role.PRINCIPAL)))
+                .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new RolePolicy(List.of(), List.of(Role.PRINCIPAL)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new RolePolicy(List.of(Role.TEACHER), List.of()))
@@ -32,6 +34,8 @@ class EduWorkflowPolicyTest {
         assertThatThrownBy(() -> new RolePolicy(List.of(Role.PRINCIPAL), List.of(Role.PRINCIPAL)))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new RolePolicy(List.of(Role.TEAM_LEADER), List.of(Role.TEACHER)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.TEAM_LEADER)))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

@@ -94,6 +94,19 @@ class EduWorkflowAccessPolicyTest {
     }
 
     @Test
+    @DisplayName("EDU-64: tổ trưởng không xem kế hoạch tổ đã ban hành của nhóm tuổi khác")
+    void teamLeaderViewScopeStaysWithinAssignedAgeGroup() {
+        CurrentUser leader = user(11L, CareNestRole.TEACHER);
+        given(staffAssignmentService.findActiveTeamLeaderAgeGroupIds(11L, TODAY)).willReturn(Set.of(1L));
+        given(staffAssignmentService.findActiveTeacherAgeGroupIds(11L, TODAY)).willReturn(Set.of());
+
+        var scope = accessPolicy.viewScope(leader);
+
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.APPROVED)).isTrue();
+        assertThat(scope.allows(2L, com.carenest.utils.enums.EduPlanStatus.APPROVED)).isFalse();
+    }
+
+    @Test
     @DisplayName("EDU-54: giáo viên chỉ soạn lớp được phân công dạy, lớp khác bị từ chối")
     void teacherAuthorScopedToClassroom() {
         CurrentUser teacher = user(12L, CareNestRole.TEACHER);
@@ -179,7 +192,7 @@ class EduWorkflowAccessPolicyTest {
         given(staffAssignmentService.hasActiveTeamLeaderAssignment(52L, TODAY)).willReturn(true);
         given(staffAssignmentService.findActiveTeamLeaderAgeGroupIds(52L, TODAY))
                 .willReturn(Set.of(1L));
-        var annual = new RolePolicy(List.of(Role.VICE_PRINCIPAL), List.of(Role.TEAM_LEADER));
+        var annual = new RolePolicy(List.of(Role.TEACHER), List.of(Role.TEAM_LEADER));
         var team = new RolePolicy(List.of(Role.TEAM_LEADER), List.of(Role.VICE_PRINCIPAL));
         var scope = accessPolicy.annualViewScope(leader, annual, team, Set.of(1L, 2L));
         assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.REVIEW))

@@ -1,5 +1,7 @@
 # Feature Specification: Chỉ xem năm đã ban hành và hiển thị đầy đủ mục tiêu trong tổ
 
+> **Delta mới hơn 09/11/2026:** đối chiếu [spec016](../016-education-submit-validation/spec.md) và EDU-65–71; tổ trưởng được thêm/sửa nội dung riêng, không thay nguồn năm, và các điều kiện gửi/duyệt theo delta mới. Các phần cũ giữ lịch sử; chưa suy delta đã triển khai hoặc được giáo viên trường xác nhận.
+
 **Feature Branch**: `feature/G94-326-BE-FEAT-09-school-year-goals-backup` (nhánh hiện tại; không tạo/chuyển nhánh)
 
 **Created**: 2026-11-08
