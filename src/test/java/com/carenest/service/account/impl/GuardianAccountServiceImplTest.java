@@ -234,7 +234,7 @@ class GuardianAccountServiceImplTest {
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(99L)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED);
-        verify(links, never()).createLink(any(), any(), any());
+        verify(selected, never()).recordLink(any(), any(), any(), any());
         verifyNoInteractions(identity);
     }
 
@@ -294,7 +294,7 @@ class GuardianAccountServiceImplTest {
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.ACCOUNT_MANAGE_DENIED);
         verifyNoInteractions(identity);
-        verify(links, never()).createLink(any(), any(), any());
+        verify(selected, never()).recordLink(any(), any(), any(), any());
     }
 
     @Test

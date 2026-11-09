@@ -40,7 +40,6 @@ import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
-import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -95,7 +94,6 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     private final ChildHistoryRepository childHistoryRepository;
     private final ChildCodeSequenceRepository codeSequenceRepository;
     private final EnrollmentRepository enrollmentRepository;
-    private final GuardianChildLinkService guardianChildLinkService;
     private final ClassroomService classroomService;
     private final CampusService campusService;
     private final StaffAssignmentService staffAssignmentService;
@@ -332,21 +330,14 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             for (GuardianDraft g : draft.guardians()) {
                 Long userId = accountIdByPosition.get(g.position());
                 ChildGuardian savedGuardian = ChildGuardian.create(
-                        childId,
-                        g.position(),
-                        g.fullName(),
-                        g.relationship(),
-                        g.phone(),
-                        g.citizenId(),
-                        g.email(),
-                        userId);
+                        childId, g.position(), g.fullName(), g.relationship(), g.phone(), g.citizenId(), g.email());
                 savedGuardian.selectAccountRecipient(g.accountRecipient());
-                childGuardianRepository.save(savedGuardian);
                 // Liên kết là nguồn scope của phụ huynh (AUTH-04)
                 if (userId != null) {
-                    guardianChildLinkService.createLink(userId, childId, g.relationship());
+                    savedGuardian.linkAccount(userId, now);
                     linked++;
                 }
+                childGuardianRepository.save(savedGuardian);
             }
             log.info(
                     "{}|childId={}|guardians={}|linked={}|END",
@@ -679,10 +670,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             if (chosen.getUserId() != null && !chosen.getUserId().equals(userId)) {
                 throw GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
             }
-            if (!guardianChildLinkService.isGuardianOf(userId, childId)) {
-                guardianChildLinkService.createLink(userId, childId, chosen.getRelationship());
-            }
-            chosen.linkAccount(userId);
+            chosen.linkAccount(userId, clock.instant());
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());

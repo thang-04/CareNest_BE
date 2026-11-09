@@ -238,7 +238,8 @@ class ConcurrentDailyAssessmentIntegrationTest {
                 TODAY.plusDays(1));
         var parent = user("parent-lock", CareNestRole.PARENT);
         jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                "INSERT INTO child_guardians (user_id, child_id, position, full_name, relationship, phone, citizen_id,"
+                        + " linked_at) VALUES (?, ?, 0, 'Mẹ (giả)', 'MOTHER', '0900000009', '000000000009', now())",
                 parent.userId(),
                 child1);
         race(

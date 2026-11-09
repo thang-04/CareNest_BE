@@ -122,13 +122,13 @@ class StaffDirectoryIntegrationTest {
     void teamLeaderLookupAndMatrixColumn() {
         assertThat(assignments.existsActiveTeamLeader(teacher, TODAY)).isFalse();
 
-        jdbc.update("INSERT INTO role_permissions (role, permission_code) VALUES ('TEAM_LEADER', 'TEST_CODE')");
+        jdbc.update("INSERT INTO permission_grants (role, permission_code) VALUES ('TEAM_LEADER', 'TEST_CODE')");
         try {
             assertThat(jdbc.queryForObject(
-                            "SELECT count(*) FROM role_permissions WHERE role = 'TEAM_LEADER'", Long.class))
+                            "SELECT count(*) FROM permission_grants WHERE role = 'TEAM_LEADER'", Long.class))
                     .isEqualTo(1L);
         } finally {
-            jdbc.update("DELETE FROM role_permissions WHERE role = 'TEAM_LEADER'");
+            jdbc.update("DELETE FROM permission_grants WHERE role = 'TEAM_LEADER'");
         }
     }
 

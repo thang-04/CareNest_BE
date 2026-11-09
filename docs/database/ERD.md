@@ -3,18 +3,17 @@
 > Status: **ĐANG ĐIỀN** — cập nhật cùng thay đổi với migration. Chi tiết cột: `DATA_DICTIONARY.md`. Mô hình khái niệm đầy đủ: `docs/business/DOMAIN_MODEL.md`.
 
 ## identity-access, school-structure, child (V1–V3)
+Liên kết phụ huynh–trẻ (nguồn scope phụ huynh) là `child_guardians.user_id` (V63), không có bảng riêng.
 
 ```mermaid
 erDiagram
     user_accounts ||--o{ staff_assignments : "được phân công"
-    user_accounts ||--o{ guardian_child_links : "là phụ huynh"
     campuses ||--o{ classrooms : "có"
     school_years ||--o{ classrooms : "có"
     campuses |o--o{ staff_assignments : "VP/bếp"
     classrooms |o--o{ staff_assignments : "GV"
     classrooms ||--o{ enrollments : "có"
     children ||--o{ enrollments : "học"
-    children ||--o{ guardian_child_links : "có"
 
     user_accounts {
         BIGINT id PK
@@ -62,12 +61,6 @@ erDiagram
         BIGINT classroom_id FK
         DATE valid_from
         DATE valid_to
-    }
-    guardian_child_links {
-        BIGINT id PK
-        BIGINT user_id FK
-        BIGINT child_id FK
-        VARCHAR relationship
     }
 ```
 
@@ -158,22 +151,17 @@ erDiagram
 
 ```mermaid
 erDiagram
-    user_accounts ||--o{ user_permission_overrides : "có ngoại lệ"
-    user_accounts |o--o{ role_permissions : "updated_by"
+    user_accounts |o--o{ permission_grants : "ngoại lệ (user_id) / granted_by"
     user_accounts ||--o{ permission_change_log : "actor / target_user"
 
-    role_permissions {
+    permission_grants {
         BIGINT id PK
-        VARCHAR role "VICE_PRINCIPAL|TEACHER|KITCHEN_STAFF"
+        VARCHAR role "dòng role: VICE_PRINCIPAL|TEACHER|KITCHEN_STAFF|TEAM_LEADER"
+        BIGINT user_id FK "dòng người; đúng một trong role/user_id"
         VARCHAR permission_code
-    }
-    user_permission_overrides {
-        BIGINT id PK
-        BIGINT user_id FK
-        VARCHAR permission_code
-        VARCHAR effect "GRANT|REVOKE"
+        VARCHAR effect "GRANT|REVOKE, chỉ dòng người"
         VARCHAR scope "CAMPUS|SCHOOL, chỉ GRANT"
-        BIGINT created_by FK "khác user_id"
+        BIGINT granted_by FK "khác user_id"
     }
     permission_change_log {
         BIGINT id PK

@@ -241,7 +241,7 @@ class DevSeedIntegrationTest {
                 count(schema, "select count(*) from %s.stock_daily_demands") + "",
                 count(schema, "select count(*) from %s.stock_movements") + "",
                 count(schema, "select count(*) from %s.user_accounts") + "",
-                count(schema, "select count(*) from %s.guardian_child_links") + "",
+                count(schema, "select count(*) from %s.child_guardians where user_id is not null") + "",
                 count(schema, "select count(*) from %s.leave_requests") + "",
                 count(schema, "select count(*) from %s.pickup_records") + "",
                 count(schema, "select count(*) from %s.notifications") + "",
@@ -261,10 +261,11 @@ class DevSeedIntegrationTest {
                                 schema,
                                 "select count(*) from %s.user_accounts where keycloak_user_id like '00000000-0000-4000-d000-%%'"))
                 .isGreaterThan(90);
-        assertThat(count(
-                        schema,
-                        "select count(*) from %1$s.attendance_records r where r.status = 'EXCUSED' and not exists"
-                                + " (select 1 from %1$s.guardian_child_links l where l.child_id = r.child_id)"))
+        assertThat(
+                        count(
+                                schema,
+                                "select count(*) from %1$s.attendance_records r where r.status = 'EXCUSED' and not exists"
+                                        + " (select 1 from %1$s.child_guardians l where l.child_id = r.child_id and l.user_id is not null)"))
                 .isZero();
         assertThat(count(schema, "select count(*) from %s.attendance_records where status = 'EXCUSED'"))
                 .isPositive();
@@ -275,17 +276,17 @@ class DevSeedIntegrationTest {
                 .isEqualTo(count(schema, "select count(*) from %s.attendance_records where status = 'PRESENT'"));
         assertThat(count(schema, "select count(*) from %s.pickup_records where outcome = 'NOT_HANDED_OVER'"))
                 .isPositive();
-        assertThat(
-                        count(
-                                schema,
-                                "select count(*) from %1$s.pickup_records p where p.outcome = 'HANDED_OVER' and p.notified_parents"
-                                        + " <> (select count(*) from %1$s.guardian_child_links l where l.child_id = p.child_id)"))
+        assertThat(count(
+                        schema,
+                        "select count(*) from %1$s.pickup_records p where p.outcome = 'HANDED_OVER' and p.notified_parents"
+                                + " <> (select count(*) from %1$s.child_guardians l where l.child_id = p.child_id"
+                                + " and l.user_id is not null)"))
                 .isZero();
         assertThat(count(schema, "select count(*) from %s.notifications"))
                 .isEqualTo(count(
                         schema,
-                        "select count(*) from %1$s.pickup_records p join %1$s.guardian_child_links l on l.child_id ="
-                                + " p.child_id where p.outcome = 'HANDED_OVER'"));
+                        "select count(*) from %1$s.pickup_records p join %1$s.child_guardians l on l.child_id ="
+                                + " p.child_id and l.user_id is not null where p.outcome = 'HANDED_OVER'"));
         // Đánh giá ngày: đúng một dòng cho mỗi trẻ có mặt, mức ăn chỉ cho bữa của nhóm tuổi; một nhận xét lớp/ngày
         assertThat(count(schema, "select count(*) from %s.daily_observations"))
                 .isEqualTo(count(schema, "select count(*) from %s.attendance_records where status = 'PRESENT'"));

@@ -261,16 +261,8 @@ WHERE t.idx % 2 = 0
   AND NOT EXISTS (SELECT 1 FROM user_accounts u WHERE u.username = g.phone OR u.citizen_id = g.citizen_id)
 ON CONFLICT (keycloak_user_id) DO NOTHING;
 
-INSERT INTO guardian_child_links (user_id, child_id, relationship)
-SELECT u.id, ch.id, g.relationship
-FROM th_children t
-JOIN children ch ON ch.code = t.code
-JOIN child_guardians g ON g.child_id = ch.id AND g.position = 0
-JOIN user_accounts u ON u.username = g.phone AND u.keycloak_user_id LIKE '00000000-0000-4000-d000-%'
-WHERE t.idx % 2 = 0
-ON CONFLICT (user_id, child_id) DO NOTHING;
-
-UPDATE child_guardians g SET user_id = u.id
+-- Liên kết tài khoản với trẻ (nguồn scope phụ huynh, AUTH-04)
+UPDATE child_guardians g SET user_id = u.id, linked_at = now()
 FROM th_children t, children ch, user_accounts u
 WHERE ch.code = t.code AND g.child_id = ch.id AND g.position = 0 AND t.idx % 2 = 0
   AND u.username = g.phone AND u.keycloak_user_id LIKE '00000000-0000-4000-d000-%' AND g.user_id IS NULL;

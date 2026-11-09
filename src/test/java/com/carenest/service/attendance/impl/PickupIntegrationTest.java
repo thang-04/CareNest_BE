@@ -137,14 +137,11 @@ class PickupIntegrationTest {
         attendance(present, "PRESENT");
         attendance(absent, "UNEXCUSED");
         jdbc.update(
-                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id) "
-                        + "VALUES (?, 0, 'Mẹ An (giả)', 'MOTHER', '0900000001', '000000000001', ?)",
+                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
+                        + " linked_at) "
+                        + "VALUES (?, 0, 'Mẹ An (giả)', 'MOTHER', '0900000001', '000000000001', ?, now())",
                 present,
                 parent.userId());
-        jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
-                parent.userId(),
-                present);
     }
 
     @Test

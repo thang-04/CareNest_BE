@@ -120,16 +120,9 @@ class ChildEnrollmentMigrationIntegrationTest {
     }
 
     @Test
-    @DisplayName("AUTH-18: quan hệ nhận 6 loại cho cả liên kết tài khoản và hồ sơ trẻ")
+    @DisplayName("AUTH-18: quan hệ phụ huynh trên hồ sơ trẻ nhận 6 loại")
     void relationshipAcceptsSixKinds() {
         long child = child("HS26101", "ACTIVE", null);
-        long parent = account("kc-r1", "0911000001");
-
-        assertThatCode(() -> db.update(
-                        "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'GRANDMOTHER')",
-                        parent,
-                        child))
-                .doesNotThrowAnyException();
         assertThatThrownBy(() -> guardian(child, 0, "UNCLE", "0911000002", "999911000002"))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatCode(() -> guardian(child, 0, "SIBLING", "0911000002", "999911000002"))
@@ -336,8 +329,16 @@ class ChildEnrollmentMigrationIntegrationTest {
                         Long.class,
                         children[2]))
                 .isZero();
-        assertThat(old.queryForObject("SELECT count(*) FROM guardian_child_links", Long.class))
+        // V82: liên kết chuyển sang child_guardians (user_id + linked_at); dòng có user_id mà không có liên kết bị gỡ
+        assertThat(old.queryForObject(
+                        "SELECT count(*) FROM child_guardians WHERE user_id IS NOT NULL AND linked_at IS NOT NULL",
+                        Long.class))
                 .isEqualTo(3);
+        assertThat(old.queryForObject(
+                        "SELECT user_id FROM child_guardians WHERE child_id = ? AND position = 0",
+                        Long.class,
+                        children[0]))
+                .isNull();
     }
 
     private static long child(String code, String status, Long intakeCampusId) {

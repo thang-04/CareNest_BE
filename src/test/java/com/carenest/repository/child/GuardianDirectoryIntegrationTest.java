@@ -4,9 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.carenest.entity.account.UserAccount;
-import com.carenest.entity.child.GuardianChildLink;
+import com.carenest.entity.child.ChildGuardian;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.GuardianRelationship;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
@@ -41,7 +42,7 @@ class GuardianDirectoryIntegrationTest {
     private ChildRepository children;
 
     @Autowired
-    private GuardianChildLinkRepository links;
+    private ChildGuardianRepository links;
 
     @Autowired
     private UserAccountRepository accounts;
@@ -109,17 +110,31 @@ class GuardianDirectoryIntegrationTest {
     @Test
     @DisplayName("AUTH-18: một phụ huynh liên kết nhiều trẻ; trùng liên kết và quan hệ lạ bị DB chặn")
     void guardianLinks() {
-        links.saveAndFlush(GuardianChildLink.create(parent, childAn, "MOTHER"));
-        links.saveAndFlush(GuardianChildLink.create(parent, childBinh, "MOTHER"));
+        links.saveAndFlush(linked(childAn, 0, "0912000001", "000000000101", parent));
+        links.saveAndFlush(linked(childBinh, 0, "0912000001", "000000000101", parent));
 
-        assertThat(links.findChildIdsByUserId(parent)).containsExactlyInAnyOrder(childAn, childBinh);
-        assertThat(links.countByChildIds(List.of(childAn, childBinh))).hasSize(2);
-        assertThatThrownBy(() -> links.saveAndFlush(GuardianChildLink.create(parent, childAn, "FATHER")))
+        assertThat(links.findLinkedChildIds(parent)).containsExactlyInAnyOrder(childAn, childBinh);
+        assertThat(links.countLinkedByChildIds(List.of(childAn, childBinh))).hasSize(2);
+        assertThat(links.existsByUserIdAndChildId(parent, childAn)).isTrue();
+        // Một tài khoản chỉ liên kết một lần với một trẻ
+        assertThatThrownBy(() -> links.saveAndFlush(linked(childAn, 1, "0912000002", "000000000102", parent)))
                 .isInstanceOf(DataIntegrityViolationException.class);
         Long other = accounts.save(UserAccount.create("kc-q", "0987654321", null, "PH2", CareNestRole.PARENT))
                 .getId();
-        assertThatThrownBy(() -> links.saveAndFlush(GuardianChildLink.create(other, childAn, "UNCLE")))
+        assertThatThrownBy(() -> jdbc.update(
+                        "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id,"
+                                + " user_id, linked_at) VALUES (?, 2, 'Chú', 'UNCLE', '0912000003', '000000000103', ?,"
+                                + " now())",
+                        childAn,
+                        other))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private ChildGuardian linked(Long childId, int position, String phone, String citizenId, Long userId) {
+        ChildGuardian guardian = ChildGuardian.create(
+                childId, position, "PH (giả)", GuardianRelationship.MOTHER, phone, citizenId, null);
+        guardian.linkAccount(userId, java.time.Instant.now());
+        return guardian;
     }
 
     private Long insert(String sql, Object... args) {

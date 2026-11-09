@@ -137,7 +137,8 @@ class LeaveRequestIntegrationTest {
         parent = user("parent", CareNestRole.PARENT);
         otherParent = user("parent2", CareNestRole.PARENT);
         jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                "INSERT INTO child_guardians (user_id, child_id, position, full_name, relationship, phone, citizen_id,"
+                        + " linked_at) VALUES (?, ?, 0, 'Mẹ (giả)', 'MOTHER', '0900000009', '000000000009', now())",
                 parent.userId(),
                 child1);
         principal = user("principal", CareNestRole.PRINCIPAL);

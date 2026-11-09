@@ -11,7 +11,7 @@ import java.util.Set;
  * quyền của nó. Quyền chỉ trả lời "được làm hay không" — phạm vi campus/lớp/trẻ vẫn do policy kiểm (AUTH-13).
  *
  * <p>{@code defaultRoles}: role có quyền mặc định (role cố định lấy thẳng từ đây, role cấu hình được seed vào
- * {@code role_permissions}). {@code configurableRoles}: role mà HT được bật/tắt hoặc tạo ngoại lệ.
+ * {@code permission_grants}). {@code configurableRoles}: role mà HT được bật/tắt hoặc tạo ngoại lệ.
  */
 public enum Permission {
     CHILD_PROFILE_VIEW(
