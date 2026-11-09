@@ -3,28 +3,26 @@ package com.carenest.entity.meals;
 import com.carenest.utils.enums.FoodSampleDisposalStatus;
 import com.carenest.utils.enums.FoodSampleStatus;
 import com.carenest.utils.enums.MealSession;
-import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
-import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Bản lưu mẫu thức ăn của một điểm trường–ngày–bữa (NUT-21). Bếp ghi và sửa khi chưa duyệt; hủy mẫu là bước sau của
@@ -87,10 +85,10 @@ public class FoodSample {
     @Column(nullable = false, length = 500)
     private String note = "";
 
-    @ElementCollection
-    @CollectionTable(name = "food_sample_dishes", joinColumns = @JoinColumn(name = "sample_id"))
-    @Column(name = "dish_id", nullable = false)
-    private Set<Long> dishIds = new HashSet<>();
+    // Món đã lưu mẫu (cột bigint[]) thay cho bảng nối riêng; service kiểm món tồn tại trước khi ghi
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "dish_ids", nullable = false, columnDefinition = "bigint[]")
+    private List<Long> dishIds = List.of();
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -126,8 +124,7 @@ public class FoodSample {
         this.session = session;
         this.sampledAt = sampledAt;
         this.note = note;
-        this.dishIds.retainAll(dishIds);
-        this.dishIds.addAll(dishIds);
+        this.dishIds = dishIds.stream().distinct().sorted().toList();
     }
 
     public Instant disposableFrom() {
