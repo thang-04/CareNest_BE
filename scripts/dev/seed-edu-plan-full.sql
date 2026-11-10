@@ -57,10 +57,11 @@ WHERE c.sort_order = 2
 -- ============ 3. Giáo án lớp (edu_class_docs) ============
 -- doc_key đúng format BE: bp_<lớp>_<kế hoạch>, tp_<lớp>_<chủ đề>, wp_<lớp>_<ngày bắt đầu tuần>.
 -- BRANCH: giáo án cả năm (mỗi lớp 1). THEME: giáo án chủ đề (mỗi lớp × chủ đề 1). WEEK: giáo án tuần.
+-- content có khung rỗng đúng kiểu FE đọc (names/notes, rows); thiếu thì màn Chủ đề nhánh từng sập.
 INSERT INTO edu_class_docs (doc_key, kind, classroom_id, year_plan_id, theme_id, week_start, status,
                             content, approvals, history, created_by, updated_by, created_at, updated_at)
 SELECT 'bp_' || c.id || '_' || p.id, 'branch', c.id, p.id, NULL, NULL, 'DRAFT',
-       '{}'::jsonb, '[]'::jsonb, '[]'::jsonb, gv.id, gv.id, now(), now()
+       '{"names": {}, "notes": {}}'::jsonb, '[]'::jsonb, '[]'::jsonb, gv.id, gv.id, now(), now()
 FROM classrooms c
 JOIN edu_year_plans p ON p.school_year_id = c.school_year_id AND p.age_group_id = c.age_group_id
 CROSS JOIN LATERAL (
@@ -72,7 +73,7 @@ WHERE NOT EXISTS (
 INSERT INTO edu_class_docs (doc_key, kind, classroom_id, year_plan_id, theme_id, week_start, status,
                             content, approvals, history, created_by, updated_by, created_at, updated_at)
 SELECT 'tp_' || c.id || '_' || th.id, 'theme', c.id, p.id, th.id, NULL, 'DRAFT',
-       '{}'::jsonb, '[]'::jsonb, '[]'::jsonb, gv.id, gv.id, now(), now()
+       '{"rows": {}, "envIn": "", "envOut": ""}'::jsonb, '[]'::jsonb, '[]'::jsonb, gv.id, gv.id, now(), now()
 FROM edu_themes th
 JOIN edu_year_plans p ON p.id = th.year_plan_id
 JOIN classrooms c ON c.school_year_id = p.school_year_id AND c.age_group_id = p.age_group_id
