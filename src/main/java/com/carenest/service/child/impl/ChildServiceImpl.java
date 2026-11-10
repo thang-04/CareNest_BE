@@ -1,5 +1,6 @@
 package com.carenest.service.child.impl;
 
+import com.carenest.dto.child.ChildIdentity;
 import com.carenest.dto.child.ChildProfileResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.exception.GlobalException;
@@ -12,6 +13,8 @@ import com.carenest.service.child.EnrollmentService;
 import com.carenest.utils.ApiCode;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,5 +54,17 @@ public class ChildServiceImpl implements ChildService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChildIdentity> findIdentities(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findIdentities|count=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        List<ChildIdentity> identities = childRepository.findAllById(childIds).stream()
+                .map(child -> new ChildIdentity(child.getId(), child.getFullName(), child.getDateOfBirth()))
+                .toList();
+        log.info("{}|END", logPrefix);
+        return identities;
     }
 }

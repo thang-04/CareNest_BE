@@ -55,6 +55,38 @@ carenest:
     actions-email-enabled: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:false}
     connect-timeout: 3s
     read-timeout: 5s
+  ai:
+    # Tắt mặc định: luồng nghiệp vụ chạy bằng template (OBS-04). Bật khi đã có key và đã chốt P-02.
+    enabled: ${AI_ENABLED:false}
+    llm:
+      # API tương thích OpenAI, vd. Groq: https://api.groq.com/openai/v1
+      provider: ${AI_LLM_PROVIDER:}
+      base-url: ${AI_LLM_BASE_URL:}
+      model: ${AI_LLM_MODEL:}
+      api-key: ${AI_LLM_API_KEY:}
+      connect-timeout: 3s
+      read-timeout: ${AI_LLM_READ_TIMEOUT:15s}
+      max-retries: 1
+      retry-backoff: 2s
+      # Tuỳ chọn cho model suy luận (vd. gpt-oss trên Groq): low|medium|high; bỏ trống = không gửi
+      reasoning-effort: ${AI_LLM_REASONING_EFFORT:}
+    embedding:
+      # vd. Gemini: https://generativelanguage.googleapis.com/v1beta/openai
+      provider: ${AI_EMBEDDING_PROVIDER:}
+      base-url: ${AI_EMBEDDING_BASE_URL:}
+      model: ${AI_EMBEDDING_MODEL:}
+      api-key: ${AI_EMBEDDING_API_KEY:}
+      # 0 = không gửi tham số dimensions, dùng số chiều mặc định của model
+      dimensions: ${AI_EMBEDDING_DIMENSIONS:0}
+      batch-size: 32
+      connect-timeout: 3s
+      read-timeout: 10s
+    rag:
+      top-k: 4
+      # Ngưỡng cosine similarity. gemini-embedding-001 đo được: câu liên quan ~0.80, không liên quan ~0.52
+      min-score: ${AI_RAG_MIN_SCORE:0.65}
+      # Vùng của trường: tài liệu có region này hoặc ALL mới được dùng
+      region: ${AI_RAG_REGION:HAI_PHONG}
 
 management:
   endpoints:

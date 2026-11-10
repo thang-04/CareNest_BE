@@ -16,4 +16,11 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
             order by e.validFrom desc, e.id desc
             """)
     List<Long> findActiveClassroomIds(@Param("childId") Long childId, @Param("date") LocalDate date);
+
+    @Query("""
+            select distinct e.childId from Enrollment e
+            where e.classroomId = :classroomId
+              and e.validFrom <= :date and (e.validTo is null or e.validTo >= :date)
+            """)
+    List<Long> findActiveChildIds(@Param("classroomId") Long classroomId, @Param("date") LocalDate date);
 }

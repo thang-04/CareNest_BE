@@ -64,6 +64,98 @@ paths:
           description: OK
       tags:
       - account-controller
+  /api/ai-documents:
+    get:
+      operationId: listDocuments
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAiDocumentResponse"
+          description: OK
+      tags:
+      - ai-document-controller
+    post:
+      operationId: ingest
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAiDocumentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAiDocumentResponse"
+          description: OK
+      tags:
+      - ai-document-controller
+  /api/ai-documents/{documentId}:
+    delete:
+      operationId: delete
+      parameters:
+      - in: path
+        name: documentId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - ai-document-controller
+  /api/ai-documents/{documentId}/reindex:
+    post:
+      operationId: reindex
+      parameters:
+      - in: path
+        name: documentId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAiDocumentResponse"
+          description: OK
+      tags:
+      - ai-document-controller
+  /api/ai-documents/{documentId}/status:
+    patch:
+      operationId: changeStatus
+      parameters:
+      - in: path
+        name: documentId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAiDocumentStatusRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAiDocumentResponse"
+          description: OK
+      tags:
+      - ai-document-controller
   /api/auth/csrf:
     get:
       operationId: csrf
@@ -265,6 +357,106 @@ paths:
           description: OK
       tags:
       - child-controller
+  /api/children/{childId}/observations:
+    get:
+      operationId: listChildObservations
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: true
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListObservationResponse"
+          description: OK
+      tags:
+      - observation-controller
+  /api/children/{childId}/summaries:
+    get:
+      operationId: listSummaries
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListChildSummaryResponse"
+          description: OK
+      tags:
+      - child-summary-controller
+  /api/children/{childId}/summaries/draft:
+    post:
+      operationId: createDraft
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSummaryDraftRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildSummaryResponse"
+          description: OK
+      tags:
+      - child-summary-controller
+  /api/classrooms/{classroomId}/observations:
+    post:
+      operationId: recordObservations
+      parameters:
+      - in: path
+        name: classroomId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecordObservationsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonRecordObservationsResponse"
+          description: OK
+      tags:
+      - observation-controller
   /api/me/password:
     put:
       operationId: changePassword
@@ -283,6 +475,62 @@ paths:
           description: OK
       tags:
       - password-controller
+  /api/observation-criteria:
+    get:
+      operationId: listCriteria
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListObservationCriteriaResponse"
+          description: OK
+      tags:
+      - observation-controller
+  /api/summaries/{summaryId}:
+    put:
+      operationId: updateContent
+      parameters:
+      - in: path
+        name: summaryId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateSummaryContentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildSummaryResponse"
+          description: OK
+      tags:
+      - child-summary-controller
+  /api/summaries/{summaryId}/approve:
+    post:
+      operationId: approve
+      parameters:
+      - in: path
+        name: summaryId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildSummaryResponse"
+          description: OK
+      tags:
+      - child-summary-controller
 components:
   schemas:
     AccessToken:
@@ -309,6 +557,70 @@ components:
           type: integer
           format: int64
         username:
+          type: string
+    AiDocumentResponse:
+      type: object
+      properties:
+        chunkCount:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        documentType:
+          type: string
+          enum:
+          - NUTRITION_STANDARD
+          - FOOD_SAFETY_GUIDANCE
+          - FOOD_SAFETY_ALERT
+          - HEALTH_MONITORING_GUIDANCE
+          - CHILD_DEVELOPMENT_STANDARD
+          - SCHOOL_POLICY
+          - SCHOOL_SOP
+          - APPROVED_MENU
+          - MENU_GUIDELINE
+          - OTHER_REFERENCE
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        region:
+          type: string
+        sourceName:
+          type: string
+        sourceUrl:
+          type: string
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+        title:
+          type: string
+        version:
+          type: string
+    AiDraftView:
+      type: object
+      properties:
+        areasForFollowUp:
+          type: array
+          items:
+            $ref: "#/components/schemas/PointView"
+        sources:
+          type: array
+          items:
+            type: integer
+            format: int64
+        strengths:
+          type: array
+          items:
+            $ref: "#/components/schemas/PointView"
+        summary:
           type: string
     ChangePassword:
       type: object
@@ -343,6 +655,55 @@ components:
         id:
           type: integer
           format: int64
+    ChildSummaryResponse:
+      type: object
+      properties:
+        aiDraft:
+          $ref: "#/components/schemas/AiDraftView"
+        aiErrorCode:
+          type: string
+        aiModel:
+          type: string
+        aiPromptVersion:
+          type: string
+        approvedAt:
+          type: string
+          format: date-time
+        approvedBy:
+          type: integer
+          format: int64
+        childId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        generatedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        periodFrom:
+          type: string
+          format: date
+        periodTo:
+          type: string
+          format: date
+        periodType:
+          type: string
+          enum:
+          - WEEK
+          - TERM
+        source:
+          type: string
+          enum:
+          - AI
+          - TEMPLATE
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - APPROVED
     CreateAccountRequest:
       type: object
       properties:
@@ -405,6 +766,77 @@ components:
           format: int64
         username:
           type: string
+    CreateAiDocumentRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          maxLength: 200000
+          minLength: 0
+        documentType:
+          type: string
+          enum:
+          - NUTRITION_STANDARD
+          - FOOD_SAFETY_GUIDANCE
+          - FOOD_SAFETY_ALERT
+          - HEALTH_MONITORING_GUIDANCE
+          - CHILD_DEVELOPMENT_STANDARD
+          - SCHOOL_POLICY
+          - SCHOOL_SOP
+          - APPROVED_MENU
+          - MENU_GUIDELINE
+          - OTHER_REFERENCE
+        effectiveDate:
+          type: string
+          format: date
+        expiryDate:
+          type: string
+          format: date
+        region:
+          type: string
+          maxLength: 50
+          minLength: 0
+          pattern: "^[A-Za-z_]*$"
+        sourceName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        sourceUrl:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        title:
+          type: string
+          maxLength: 255
+          minLength: 0
+        version:
+          type: string
+          maxLength: 50
+          minLength: 0
+      required:
+      - content
+      - documentType
+      - effectiveDate
+      - sourceName
+      - title
+    CreateSummaryDraftRequest:
+      type: object
+      properties:
+        periodFrom:
+          type: string
+          format: date
+        periodTo:
+          type: string
+          format: date
+        periodType:
+          type: string
+          enum:
+          - WEEK
+          - TERM
+      required:
+      - periodFrom
+      - periodTo
+      - periodType
     Csrf:
       type: object
       properties:
@@ -412,6 +844,25 @@ components:
           type: string
         token:
           type: string
+    Entry:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        note:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/Value"
+          maxItems: 30
+          minItems: 0
+      required:
+      - childId
+      - values
     Forgot:
       type: object
       properties:
@@ -484,6 +935,54 @@ components:
           format: int64
         username:
           type: string
+    ObservationCriteriaResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        options:
+          type: array
+          items:
+            $ref: "#/components/schemas/OptionResponse"
+    ObservationResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        note:
+          type: string
+        observedOn:
+          type: string
+          format: date
+        values:
+          type: array
+          items:
+            $ref: "#/components/schemas/ValueResponse"
+    OptionResponse:
+      type: object
+      properties:
+        code:
+          type: string
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+        score:
+          type: integer
+          format: int32
     OtpRequest:
       type: object
       properties:
@@ -495,6 +994,42 @@ components:
         resendAvailableAt:
           type: string
           format: date-time
+    PointView:
+      type: object
+      properties:
+        evidenceIds:
+          type: array
+          items:
+            type: string
+        text:
+          type: string
+    RecordObservationsRequest:
+      type: object
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Entry"
+          maxItems: 60
+          minItems: 0
+        observedOn:
+          type: string
+          format: date
+      required:
+      - entries
+      - observedOn
+    RecordObservationsResponse:
+      type: object
+      properties:
+        classroomId:
+          type: integer
+          format: int64
+        observedOn:
+          type: string
+          format: date
+        savedCount:
+          type: integer
+          format: int32
     Refresh:
       type: object
       properties:
@@ -546,6 +1081,16 @@ components:
           $ref: "#/components/schemas/AccountResponse"
         desc:
           type: string
+    ResponseJsonAiDocumentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AiDocumentResponse"
+        desc:
+          type: string
     ResponseJsonChildProfileResponse:
       type: object
       properties:
@@ -554,6 +1099,16 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ChildProfileResponse"
+        desc:
+          type: string
+    ResponseJsonChildSummaryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildSummaryResponse"
         desc:
           type: string
     ResponseJsonCreateAccountResponse:
@@ -574,6 +1129,54 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/Csrf"
+        desc:
+          type: string
+    ResponseJsonListAiDocumentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AiDocumentResponse"
+        desc:
+          type: string
+    ResponseJsonListChildSummaryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildSummaryResponse"
+        desc:
+          type: string
+    ResponseJsonListObservationCriteriaResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObservationCriteriaResponse"
+        desc:
+          type: string
+    ResponseJsonListObservationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObservationResponse"
         desc:
           type: string
     ResponseJsonLoginData:
@@ -604,6 +1207,16 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/OtpRequest"
+        desc:
+          type: string
+    ResponseJsonRecordObservationsResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/RecordObservationsResponse"
         desc:
           type: string
     ResponseJsonResetToken:
@@ -657,6 +1270,50 @@ components:
           - INACTIVE
       required:
       - status
+    UpdateAiDocumentStatusRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - INACTIVE
+      required:
+      - status
+    UpdateSummaryContentRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          maxLength: 5000
+          minLength: 0
+      required:
+      - content
+    Value:
+      type: object
+      properties:
+        criteriaId:
+          type: integer
+          format: int64
+        optionId:
+          type: integer
+          format: int64
+      required:
+      - criteriaId
+      - optionId
+    ValueResponse:
+      type: object
+      properties:
+        criteriaId:
+          type: integer
+          format: int64
+        criteriaName:
+          type: string
+        optionId:
+          type: integer
+          format: int64
+        optionLabel:
+          type: string
     VerifyOtp:
       type: object
       properties:

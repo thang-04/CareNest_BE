@@ -1,5 +1,6 @@
 package com.carenest;
 
+import com.carenest.support.TestDatabaseImage;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -14,9 +15,8 @@ class CareNestApplicationTests {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
+    static PostgreSQLContainer postgres = new PostgreSQLContainer(TestDatabaseImage.POSTGRES);
 
     @Test
-    void contextLoads() {
-    }
+    void contextLoads() {}
 }

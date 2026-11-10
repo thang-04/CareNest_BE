@@ -71,3 +71,54 @@ FROM (VALUES ('parent.a', 'Trẻ Demo A1-01', 'MOTHER'),
 JOIN user_accounts u ON u.username = v.username
 JOIN children ch ON ch.full_name = v.child_name
 ON CONFLICT (user_id, child_id) DO NOTHING;
+
+-- Tiêu chí quan sát mẫu (bộ chính thức chờ P-11); thang Tốt/Đạt/Cần cố gắng
+INSERT INTO observation_criteria (code, name, sort_order) VALUES
+    ('PARTICIPATION', 'Tham gia hoạt động', 1),
+    ('BEHAVIOUR', 'Hành vi, nề nếp', 2),
+    ('EMOTION', 'Cảm xúc', 3),
+    ('EATING', 'Ăn', 4),
+    ('SLEEPING', 'Ngủ', 5)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO criteria_options (criteria_id, code, label, score, sort_order)
+SELECT c.id, o.code, o.label, o.score, o.sort_order
+FROM observation_criteria c
+CROSS JOIN (VALUES ('GOOD', 'Tốt', 3, 1),
+                   ('OK', 'Đạt', 2, 2),
+                   ('NEEDS_SUPPORT', 'Cần cố gắng', 1, 3)) AS o (code, label, score, sort_order)
+WHERE c.code IN ('PARTICIPATION', 'BEHAVIOUR', 'EMOTION', 'EATING', 'SLEEPING')
+ON CONFLICT (criteria_id, code) DO NOTHING;
+
+-- Hai tuần quan sát giả (thứ 2–6, 28/09–09/10/2026) cho 2 trẻ lớp A1 để demo nhận xét tuần/kỳ
+INSERT INTO observations (child_id, classroom_id, observed_on, note, recorded_by)
+SELECT ch.id, r.id, d::date,
+       CASE d::date
+           WHEN DATE '2026-09-30' THEN 'Hăng hái giơ tay phát biểu trong giờ kể chuyện'
+           WHEN DATE '2026-10-02' THEN 'Chủ động giúp bạn cất đồ chơi'
+           WHEN DATE '2026-10-06' THEN 'Ngủ trưa muộn, cần cô vỗ về một lúc'
+           WHEN DATE '2026-10-08' THEN 'Ăn hết suất, tự xúc cơm gọn gàng'
+       END,
+       u.id
+FROM generate_series(DATE '2026-09-28', DATE '2026-10-09', INTERVAL '1 day') AS d
+JOIN children ch ON ch.full_name IN ('Trẻ Demo A1-01', 'Trẻ Demo A1-02')
+JOIN classrooms r ON r.name = 'Lớp A1'
+JOIN user_accounts u ON u.username = 'teacher.a'
+WHERE EXTRACT(ISODOW FROM d) < 6
+ON CONFLICT (child_id, observed_on) DO NOTHING;
+
+-- Phần lớn "Tốt", xen kẽ "Đạt"; trẻ A1-02 ngủ trưa dao động Đạt/Cần cố gắng để có điểm cần theo dõi
+INSERT INTO observation_values (observation_id, criteria_id, option_id)
+SELECT o.id, c.id, opt.id
+FROM observations o
+JOIN children ch ON ch.id = o.child_id AND ch.full_name IN ('Trẻ Demo A1-01', 'Trẻ Demo A1-02')
+CROSS JOIN observation_criteria c
+JOIN criteria_options opt ON opt.criteria_id = c.id
+    AND opt.sort_order = CASE
+        WHEN c.code = 'SLEEPING' AND ch.full_name = 'Trẻ Demo A1-02'
+            THEN 2 + (EXTRACT(DAY FROM o.observed_on)::int % 2)
+        WHEN (EXTRACT(DAY FROM o.observed_on)::int + c.sort_order) % 4 = 0 THEN 2
+        ELSE 1
+    END
+WHERE c.code IN ('PARTICIPATION', 'BEHAVIOUR', 'EMOTION', 'EATING', 'SLEEPING')
+ON CONFLICT (observation_id, criteria_id) DO NOTHING;

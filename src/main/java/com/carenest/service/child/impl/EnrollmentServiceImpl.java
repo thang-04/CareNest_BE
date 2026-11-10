@@ -31,4 +31,18 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             throw ex;
         }
     }
+
+    @Override
+    public List<Long> findActiveChildIds(Long classroomId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveChildIds|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<Long> childIds = enrollmentRepository.findActiveChildIds(classroomId, date);
+            log.info("{}|END|count={}", logPrefix, childIds.size());
+            return childIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 }

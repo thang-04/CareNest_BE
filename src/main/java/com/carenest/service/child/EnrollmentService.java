@@ -7,4 +7,7 @@ import java.util.List;
 public interface EnrollmentService {
 
     List<Long> findActiveClassroomIds(Long childId, LocalDate date);
+
+    /** Trẻ đang học lớp tại ngày; caller phải tự kiểm phạm vi lớp trước khi gọi. */
+    List<Long> findActiveChildIds(Long classroomId, LocalDate date);
 }
