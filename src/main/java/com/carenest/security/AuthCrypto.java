@@ -171,6 +171,6 @@ public class AuthCrypto {
     }
 
     private static GlobalException unavailable() {
-        return new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication storage configuration is unavailable");
+        return GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
     }
 }

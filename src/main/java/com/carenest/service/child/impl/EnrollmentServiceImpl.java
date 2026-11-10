@@ -1,9 +1,19 @@
 package com.carenest.service.child.impl;
 
+import com.carenest.dto.child.ClassChildResponse;
+import com.carenest.entity.child.Child;
+import com.carenest.entity.child.Enrollment;
+import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.service.child.EnrollmentService;
 import java.time.LocalDate;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -17,6 +27,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     private static final String LOG_PREFIX = "[EnrollmentServiceImpl]";
 
     private final EnrollmentRepository enrollmentRepository;
+    private final ChildRepository childRepository;
 
     @Override
     public List<Long> findActiveClassroomIds(Long childId, LocalDate date) {
@@ -33,13 +44,114 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     @Override
-    public List<Long> findActiveChildIds(Long classroomId, LocalDate date) {
-        String logPrefix = LOG_PREFIX + "|findActiveChildIds|classroomId=" + classroomId;
+    public Set<Long> findChildIdsLeftSchool(Collection<Long> childIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findChildIdsLeftSchool|count=" + childIds.size();
         log.info("{}|START", logPrefix);
         try {
-            List<Long> childIds = enrollmentRepository.findActiveChildIds(classroomId, date);
-            log.info("{}|END|count={}", logPrefix, childIds.size());
-            return childIds;
+            Set<Long> left = childIds.isEmpty()
+                    ? Set.of()
+                    : Set.copyOf(enrollmentRepository.findChildIdsLeftSchool(childIds, date));
+            log.info("{}|left={}|END", logPrefix, left.size());
+            return left;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<ClassChildResponse> findChildrenInClassroom(Long classroomId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findChildrenInClassroom|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> childIds = enrollmentRepository.findActiveByClassroomIds(List.of(classroomId), date).stream()
+                    .map(Enrollment::getChildId)
+                    .collect(Collectors.toSet());
+            List<ClassChildResponse> children = childRepository.findAllById(childIds).stream()
+                    .sorted(Comparator.comparing(Child::getFullName).thenComparing(Child::getId))
+                    .map(c -> new ClassChildResponse(c.getId(), c.getFullName(), c.getDateOfBirth()))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return children;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<ClassChildResponse> findChildrenInClassroomDuring(Long classroomId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findChildrenInClassroomDuring|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> ids = enrollmentRepository.findDuring(classroomId, from, to).stream()
+                    .map(Enrollment::getChildId)
+                    .collect(Collectors.toSet());
+            List<ClassChildResponse> children = childRepository.findAllById(ids).stream()
+                    .sorted(Comparator.comparing(Child::getFullName).thenComparing(Child::getId))
+                    .map(c -> new ClassChildResponse(c.getId(), c.getFullName(), c.getDateOfBirth()))
+                    .toList();
+            log.info("{}|END", logPrefix);
+            return children;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<ClassStay> findStaysInClassroom(Long classroomId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findStaysInClassroom|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ClassStay> stays = enrollmentRepository.findDuring(classroomId, from, to).stream()
+                    .map(e -> new ClassStay(
+                            e.getChildId(),
+                            e.getValidFrom().isBefore(from) ? from : e.getValidFrom(),
+                            e.getValidTo() == null || e.getValidTo().isAfter(to) ? to : e.getValidTo()))
+                    .sorted(Comparator.comparing(ClassStay::childId).thenComparing(ClassStay::from))
+                    .toList();
+            log.info("{}|count={}|END", logPrefix, stays.size());
+            return stays;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public List<ChildClassStay> findChildStays(Long childId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|findChildStays|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildClassStay> stays = enrollmentRepository.findChildDuring(childId, from, to).stream()
+                    .map(e -> new ChildClassStay(
+                            e.getClassroomId(),
+                            e.getValidFrom().isBefore(from) ? from : e.getValidFrom(),
+                            e.getValidTo() == null || e.getValidTo().isAfter(to) ? to : e.getValidTo()))
+                    .toList();
+            log.info("{}|count={}|END", logPrefix, stays.size());
+            return stays;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, Long> findActiveClassroomIdByChildIds(Collection<Long> childIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveClassroomIdByChildIds|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> classroomByChild = new HashMap<>();
+            if (!childIds.isEmpty()) {
+                // Query sắp mới nhất trước: giữ bản ghi đầu tiên của mỗi trẻ
+                for (Enrollment enrollment : enrollmentRepository.findActiveByChildIdIn(childIds, date)) {
+                    classroomByChild.putIfAbsent(enrollment.getChildId(), enrollment.getClassroomId());
+                }
+            }
+            log.info("{}|END", logPrefix);
+            return classroomByChild;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

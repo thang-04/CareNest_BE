@@ -1,6 +1,6 @@
 # ADR-0003 — Mô hình quyền: Role × Permission ∩ Access scope
 
-- Status: ACCEPTED (chi tiết phạm vi HP: PENDING P-14)
+- Status: ACCEPTED (phạm vi HP: P-14 đóng 2026-10-27 — AUTH-02, AUTH-20)
 - Date: 2026-10-03
 
 ## Bối cảnh

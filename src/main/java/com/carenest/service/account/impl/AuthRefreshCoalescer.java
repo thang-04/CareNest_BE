@@ -67,6 +67,6 @@ public class AuthRefreshCoalescer {
     }
 
     private static GlobalException unavailable() {
-        return new GlobalException(ApiCode.SERVICE_UNAVAILABLE, "Authentication service unavailable");
+        return GlobalException.of(ApiCode.AUTH_SERVICE_UNAVAILABLE);
     }
 }

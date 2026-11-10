@@ -1,10 +1,18 @@
 package com.carenest.security;
 
+import com.carenest.entity.account.RolePermission;
 import com.carenest.entity.account.UserAccount;
+import com.carenest.entity.account.UserPermissionOverride;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.account.RolePermissionRepository;
 import com.carenest.repository.account.UserAccountRepository;
+import com.carenest.repository.account.UserPermissionOverrideRepository;
+import com.carenest.security.authorization.EffectivePermissionResolver;
+import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -25,12 +33,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class CurrentUserService {
 
     private final UserAccountRepository userAccountRepository;
+    private final RolePermissionRepository rolePermissionRepository;
+    private final UserPermissionOverrideRepository userPermissionOverrideRepository;
+    private final TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
+    private final KeycloakRealmRoleConverter realmRoleConverter;
 
     @Transactional(readOnly = true)
     public CurrentUser getCurrentUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (!(authentication instanceof JwtAuthenticationToken jwtAuthentication)) {
-            throw new GlobalException(ApiCode.UNAUTHORIZED, "Unauthorized");
+            throw GlobalException.of(ApiCode.UNAUTHENTICATED);
         }
 
         return getCurrentUser(jwtAuthentication.getToken(), rolesOf(authentication));
@@ -40,10 +52,10 @@ public class CurrentUserService {
     @Transactional(readOnly = true)
     public CurrentUser getCurrentUser(Jwt validatedToken) {
         if (validatedToken == null || validatedToken.getSubject() == null) {
-            throw new GlobalException(ApiCode.UNAUTHORIZED, "Unauthorized");
+            throw GlobalException.of(ApiCode.UNAUTHENTICATED);
         }
         JwtAuthenticationToken verifiedAuthentication =
-                new JwtAuthenticationToken(validatedToken, new KeycloakRealmRoleConverter().convert(validatedToken));
+                new JwtAuthenticationToken(validatedToken, realmRoleConverter.convert(validatedToken));
         return getCurrentUser(validatedToken, rolesOf(verifiedAuthentication));
     }
 
@@ -54,21 +66,33 @@ public class CurrentUserService {
                 .findByKeycloakUserId(keycloakUserId)
                 .orElseThrow(() -> {
                     log.warn("[getCurrentUser]|keycloakUserId={}|reason=notProvisioned", keycloakUserId);
-                    return new GlobalException(ApiCode.FORBIDDEN, "Account is not provisioned");
+                    return GlobalException.of(ApiCode.ACCOUNT_NOT_PROVISIONED);
                 });
         // Token còn hạn vẫn bị chặn khi CareNest đã khóa tài khoản
         if (!account.isActive()) {
             log.warn("[getCurrentUser]|userId={}|reason=inactive", account.getId());
-            throw new GlobalException(ApiCode.FORBIDDEN, "Account is inactive");
+            throw GlobalException.of(ApiCode.ACCOUNT_INACTIVE);
         }
 
+        Set<CareNestRole> permissionRoles = EffectivePermissionResolver.permissionRoles(
+                roles, teamLeaderAssignmentChecker.isActiveTeamLeader(account.getId(), roles));
+        Set<CareNestRole> configurableRoles =
+                permissionRoles.stream().filter(Permission::isConfigurableRole).collect(Collectors.toSet());
+        // Đọc DB mỗi request nên HT đổi quyền là có hiệu lực ngay, không chờ token mới (ADR-0017)
+        List<RolePermission> matrixRows =
+                configurableRoles.isEmpty() ? List.of() : rolePermissionRepository.findByRoleIn(configurableRoles);
+        List<UserPermissionOverride> overrides = configurableRoles.isEmpty()
+                ? List.of()
+                : userPermissionOverrideRepository.findByUserId(account.getId());
         return new CurrentUser(
                 account.getId(),
                 keycloakUserId,
                 account.getUsername(),
                 account.getFullName(),
                 account.getEmail(),
-                roles);
+                roles,
+                EffectivePermissionResolver.resolve(permissionRoles, matrixRows, overrides),
+                EffectivePermissionResolver.schoolWide(permissionRoles, overrides));
     }
 
     private static Set<CareNestRole> rolesOf(Authentication authentication) {

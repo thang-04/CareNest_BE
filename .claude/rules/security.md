@@ -16,7 +16,7 @@ Nguồn chuẩn: guide mục 2 (Auth), 8.5, 9, 10; `docs/architecture/SECURITY.m
 - Ngoại lệ Web đã duyệt: ADR-0013 cho gateway opt-in dùng confidential Direct Grant, token mã hóa tại server và cookie opaque + CSRF; Keycloak vẫn xác minh mật khẩu/ký access JWT. Mobile giữ PKCE. Không mở rộng ngoại lệ sang API nghiệp vụ hay lưu mật khẩu.
 - Danh tính hiện tại lấy từ JWT `sub` (= `user_accounts.keycloak_user_id`); KHÔNG tin `userId`/`parentId`/`teacherId` client gửi.
 - Role Keycloak chỉ là role toàn cục; KHÔNG tạo role theo lớp/campus/trẻ, KHÔNG đưa phân công/danh sách trẻ vào JWT.
-- Mọi controller method có `@PreAuthorize` (lớp 1). Quyền = role + scope campus/class/child kiểm ở service/policy (lớp 2) — đúng role không có nghĩa được xem mọi dữ liệu. Truy cập theo id ⇒ xác minh thuộc scope (IDOR).
+- Mọi controller method có `@PreAuthorize("@permissionGuard.has('CODE')")` (lớp 1, ADR-0017; mã phải có trong enum `Permission`, không dùng `hasRole` cho endpoint nghiệp vụ). Quyền = permission + scope campus/class/child kiểm ở service/policy (lớp 2) — có quyền không có nghĩa được xem mọi dữ liệu (AUTH-13). Truy cập theo id ⇒ xác minh thuộc scope (IDOR).
 - 401/403 từ filter ghi `ResponseJson` qua entry point/access denied handler (guide 8.5); 403 từ `@PreAuthorize` qua `GlobalExceptionHandler`.
 - Nhà bếp không xem hồ sơ sức khỏe/đánh giá; Admin không mặc định xem dữ liệu trẻ (không bypass scope).
 - Secret qua biến môi trường; `.env.example` chỉ tên biến/giá trị giả; không commit `.env`. Realm import dùng placeholder `${ENV}` cho secret.

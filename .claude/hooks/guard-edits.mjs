@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { matchAny } from "../../scripts/ai-layer/lib.mjs";
 import { classify } from "./lib/commands.mjs";
-import { isFreeZone, normPath, preToolUse, run, toRel, tryGit } from "./lib/hook-io.mjs";
+import { addContext, isFreeZone, normPath, preToolUse, run, toRel, tryGit } from "./lib/hook-io.mjs";
 import { appendEvent, approvedPlanFor, readEvents } from "./lib/session.mjs";
 
 const WRITE_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
@@ -58,7 +58,10 @@ run("guard-edits", (input, ctx) => {
     if (!SHELL_FAST_PATH.test(command)) return;
     const env = { branch: tryGit(["branch", "--show-current"], ctx.root), readFile: (p) => readMessageFile(ctx, p) };
     const { decision, reasons } = classify(command, env);
-    if (decision) preToolUse(decision, `[CareNest] ${reasons.join("; ")}`);
+    if (!decision) return;
+    // Chế độ tự chạy: lệnh "ask" không hỏi user (agent vẫn theo AGENTS.md, chỉ commit/push khi user bảo); "deny" giữ nguyên
+    if (decision === "ask" && ctx.config.guard.autonomous) return addContext("PreToolUse", `[CareNest] ${reasons.join("; ")}`);
+    preToolUse(decision, `[CareNest] ${reasons.join("; ")}`);
     return;
   }
 
@@ -71,7 +74,7 @@ run("guard-edits", (input, ctx) => {
   }
   if (!WRITE_TOOLS.has(tool)) return;
   if (!rel) {
-    if (isFreeZone(file, input)) return;
+    if (isFreeZone(file, input) || ctx.config.guard.autonomous) return;
     return preToolUse("ask", "[CareNest] Ghi file ngoài repo này — sửa repo khác cần user cho phép rõ (AGENTS.md › Phạm vi).");
   }
 
@@ -79,6 +82,9 @@ run("guard-edits", (input, ctx) => {
   const events = readEvents(ctx);
   const pending = editRules(ctx, rel, branch).filter(([key]) => !alreadyApproved(events, `${key}:${rel}`, rel));
   if (!pending.length) return;
+  const why = `[CareNest] ${rel}: ${pending.map(([, w]) => w).join("; ")}`;
+  // Chế độ tự chạy (harness.config.json › guard.autonomous): không hỏi user, chỉ nhắc agent ghi vào báo cáo bàn giao
+  if (ctx.config.guard.autonomous) return addContext("PreToolUse", `${why} — chế độ tự chạy: cứ làm, ghi rõ trong báo cáo bàn giao.`);
   for (const [key] of pending) appendEvent(ctx, { kind: "ask", key: `${key}:${rel}` });
-  preToolUse("ask", `[CareNest] ${rel}: ${pending.map(([, why]) => why).join("; ")}`);
+  preToolUse("ask", why);
 });

@@ -18,11 +18,11 @@ Cách ly AI provider khỏi domain; áp guardrail, data minimization, logging me
 Draft nghiệp vụ (lưu ở module domain, vd. `child_summaries`), quyết định duyệt, dữ liệu domain (không query domain).
 
 ## Rules
-AI-01..06, HLT-04, NUT-05.
+AI-01..10, HLT-04, NUT-05. Provider: Gemini API, Groq (AI-09, ADR-0007).
 
 ## Phụ thuộc
-- `integration/ai` dùng common/utils; **không import module domain nào**, không dùng repository.
-- Được dùng bởi: learning-observation (đã có); nutrition, health (sau). Domain tự build input tối thiểu rồi gọi port.
+- Dùng: common/utils. **Không import module domain nào.**
+- Được dùng bởi: nutrition, health, learning-observation, education-plan — domain tự build input tối thiểu rồi gọi port.
 
 ```text
 domain: facts tính bằng code → ẩn danh → KnowledgeService.retrieve (lọc SQL rồi mới tìm vector)
@@ -89,6 +89,7 @@ AI tắt/lỗi ⇒ domain dùng template baseline, nghiệp vụ không dừng
 ## PENDING
 - P-02 / ADR-0007: chốt provider + điều khoản lưu dữ liệu trước khi gửi dữ liệu trẻ thật. Free tier Gemini có thể dùng dữ liệu để train ⇒ chỉ dùng cho embedding tài liệu công khai.
 - Nạp PDF cần thư viện (PDFBox) ⇒ hỏi trước khi thêm dependency; v1 chỉ nhận text/markdown.
+P-34: nháp tổng kết năm học (AI-07 mục 5) — làm tới đâu, module nào lưu nháp.
 
 ## Known pitfalls
 - Gọi SDK provider trực tiếp từ domain ⇒ vi phạm AI-06 (ArchUnit chặn `org.springframework.web.client` ngoài `integration/`).
@@ -97,6 +98,9 @@ AI tắt/lỗi ⇒ domain dùng template baseline, nghiệp vụ không dừng
 - Không tin output AI: guard trước khi lưu DRAFT.
 - Query RAG gửi ra embedding API ⇒ chỉ dựng từ nhóm tuổi + tên tiêu chí, không đưa ghi chú/tên trẻ.
 - Sửa prompt ⇒ tạo file version mới (`draft_v2.txt`), không sửa file cũ; version được lưu kèm nháp.
+- Không tin output AI: validate schema + rule xác định trước khi lưu DRAFT.
+- Nhận xét tự do của GV đưa vào prompt cũng phải lọc tên, ngày sinh (AI-08, AI-04).
+- Gợi ý thực đơn có công tắc bật/tắt (AI-07); tắt ⇒ không gọi provider.
 
 ## Related issues
 G94-200 / BE-FEAT-28 — `docs/plans/active/2026-10-14-ai-assessment-drafting.md`.

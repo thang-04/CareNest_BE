@@ -122,6 +122,36 @@ class KeycloakIdentityProviderClientTest {
     }
 
     @Test
+    void resetsTemporaryPassword() {
+        expectAdminToken();
+        server.expect(requestTo(USERS_URL + "/kc-1/reset-password"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(jsonPath("$.type").value("password"))
+                .andExpect(jsonPath("$.value").value("New-Temp-1"))
+                .andExpect(jsonPath("$.temporary").value(true))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+        client.resetTemporaryPassword("kc-1", "New-Temp-1");
+
+        server.verify();
+    }
+
+    @Test
+    void readsAssignedRealmRoleNames() {
+        expectAdminToken();
+        server.expect(requestTo(USERS_URL + "/kc-1/role-mappings/realm"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "[{\"id\":\"r-teacher\",\"name\":\"TEACHER\"},{\"id\":\"r-default\","
+                                + "\"name\":\"default-roles-carenest\",\"composite\":true}]",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(client.getRealmRoleNames("kc-1")).containsExactly("TEACHER", "default-roles-carenest");
+
+        server.verify();
+    }
+
+    @Test
     void disablingUserKeepsOtherAttributes() {
         expectAdminToken();
         server.expect(requestTo(USERS_URL + "/kc-1"))
@@ -136,6 +166,48 @@ class KeycloakIdentityProviderClientTest {
                 .andRespond(withStatus(HttpStatus.NO_CONTENT));
 
         client.setUserEnabled("kc-1", false);
+
+        server.verify();
+    }
+
+    @Test
+    void updatingProfileChangesNameAndEmailAndResetsEmailVerification() {
+        expectAdminToken();
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"id\":\"kc-1\",\"username\":\"0912000001\",\"firstName\":\"Old\","
+                                + "\"email\":\"old@example.test\",\"emailVerified\":true,\"enabled\":true}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(jsonPath("$.firstName").value("Nguyễn Văn B"))
+                .andExpect(jsonPath("$.email").value("new@example.test"))
+                .andExpect(jsonPath("$.emailVerified").value(false))
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+        client.updateUserProfile("kc-1", "Nguyễn Văn B", "new@example.test");
+
+        server.verify();
+    }
+
+    @Test
+    void updatingProfileWithoutEmailKeepsEmail() {
+        expectAdminToken();
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess(
+                        "{\"id\":\"kc-1\",\"firstName\":\"Old\",\"email\":\"old@example.test\",\"emailVerified\":true}",
+                        MediaType.APPLICATION_JSON));
+        server.expect(requestTo(USERS_URL + "/kc-1"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(jsonPath("$.firstName").value("New"))
+                .andExpect(jsonPath("$.email").value("old@example.test"))
+                .andExpect(jsonPath("$.emailVerified").value(true))
+                .andRespond(withStatus(HttpStatus.NO_CONTENT));
+
+        client.updateUserProfile("kc-1", "New", null);
 
         server.verify();
     }

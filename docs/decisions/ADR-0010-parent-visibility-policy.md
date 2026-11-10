@@ -1,6 +1,6 @@
 # ADR-0010 — Chính sách hiển thị cho phụ huynh
 
-- Status: ACCEPTED (nguyên tắc) · field cụ thể PENDING P-13b
+- Status: ACCEPTED (nguyên tắc) · danh sách dữ liệu và bước công bố chốt 2026-10-29 (PAR-01, PAR-03; P-13b đã đóng)
 - Date: 2026-10-03
 - Liên quan: PAR-01..04, AUTH-04
 

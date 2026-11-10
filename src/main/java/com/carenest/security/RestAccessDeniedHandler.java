@@ -27,6 +27,6 @@ public class RestAccessDeniedHandler implements AccessDeniedHandler {
                 "[handle]|path={}|type={}",
                 request.getRequestURI(),
                 accessDeniedException.getClass().getSimpleName());
-        SecurityResponseWriter.write(response, objectMapper, ApiCode.FORBIDDEN, "Forbidden");
+        SecurityResponseWriter.write(response, objectMapper, ApiCode.FORBIDDEN, ApiCode.FORBIDDEN.getDefaultDesc());
     }
 }

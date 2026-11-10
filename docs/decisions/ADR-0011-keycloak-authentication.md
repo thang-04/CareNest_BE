@@ -43,6 +43,6 @@ Giá trị realm (PROPOSED, chỉnh trong `docker/keycloak/import/carenest-realm
 - FE/APP: đăng nhập qua Keycloak (PKCE), gửi `Authorization: Bearer`, refresh/logout qua Keycloak; không gửi mật khẩu cho CareNest.
 
 ## Còn chờ
-- Phụ huynh đăng nhập bằng gì (username do trường cấp / SĐT / email) — AUTH_CONTRACT.
+- ~~Phụ huynh đăng nhập bằng gì~~ — chốt 2026-10-17 (user, AUTH-18): username = SĐT chuẩn hóa (10 số bắt đầu 0), mật khẩu tạm hệ thống sinh, bắt đổi lần đầu; tài khoản tạo kèm liên kết trẻ (`POST /children/{id}/guardians`).
 - Mobile có dùng `offline_access` (phiên dài) không — APP quyết.
 - Hạ tầng server (domain, HTTPS, backup DB `keycloak`) — `docs/system/DEPLOYMENT.md`.

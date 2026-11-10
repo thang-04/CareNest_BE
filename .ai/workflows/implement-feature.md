@@ -1,6 +1,6 @@
 # Workflow — Implement feature
 
-Làn S (`AGENTS.md`): chỉ bước 1 (1 dòng rule), 5, 6, 8. Làn L: bước 1 rồi `plan-change.md`, làm theo phase.
+Feature mới ở mọi làn: thực hiện [feature-spec-loop.md](feature-spec-loop.md) trước và dùng các bước dưới ở giai đoạn tương ứng. Refactor/validation cục bộ làn S (`AGENTS.md`): chỉ bước 1 (1 dòng rule), 5, 6, 8. Làn L: bước 1 rồi `plan-change.md`, làm theo phase.
 
 0. **Làn:** xác định S/M/L theo `AGENTS.md`; vượt tiêu chí giữa chừng ⇒ nâng làn.
 1. **Làm rõ nghiệp vụ:** `clarify-business.md` — actor, outcome, rule ID + status, đối chiếu tài liệu, ảnh hưởng; chưa rõ ⇒ hỏi tới khi rõ, ghi T1. Không code khi còn câu hỏi nghiệp vụ.

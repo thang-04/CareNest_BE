@@ -13,7 +13,9 @@ public enum CareNestRole {
     VICE_PRINCIPAL,
     TEACHER,
     KITCHEN_STAFF,
-    PARENT;
+    PARENT,
+    // AUTH-23: cột "Tổ trưởng" của ma trận quyền, suy ra từ phân công tổ trưởng; không phải realm role
+    TEAM_LEADER;
 
     private static final String AUTHORITY_PREFIX = "ROLE_";
 
@@ -21,8 +23,14 @@ public enum CareNestRole {
         return AUTHORITY_PREFIX + name();
     }
 
+    /** Có trong token Keycloak; TEAM_LEADER không bao giờ lấy từ token để không ai tự nhận quyền tổ trưởng. */
+    public boolean isLoginRole() {
+        return this != TEAM_LEADER;
+    }
+
     public static Optional<CareNestRole> fromKeycloakRole(String roleName) {
         return Arrays.stream(values())
+                .filter(CareNestRole::isLoginRole)
                 .filter(role -> role.name().equals(roleName))
                 .findFirst();
     }

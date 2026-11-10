@@ -1,0 +1,76 @@
+# VPS dev (k8selchat): CI chép file này + file mount vào /data/thangnd/CAPSTONE/CareNest_BE-dev khi push nhánh dev rồi chạy
+# `docker compose -f compose.dev.yaml up -d --no-build`; secret ở .env dev đặt tay (mẫu deploy/dev.env.example).
+# Chạy cạnh production: Postgres (18330) và Mailpit (18340) dùng chung của compose.vps.yaml, DB + role riêng
+# (carenest_dev, keycloak_dev); Keycloak riêng vì seed db/dev gắn cứng ID user Keycloak (docs/system/DEPLOYMENT.md).
+name: carenest-be-dev
+
+services:
+  keycloak:
+    image: ${KEYCLOAK_IMAGE:?KEYCLOAK_IMAGE is set by CI, e.g. thangnd04/carenest-be:keycloak-<content-hash>}
+    network_mode: host
+    restart: unless-stopped
+    # Không --optimized: KC_CACHE khác lúc build image ⇒ Keycloak tự build lại khi khởi động
+    command: ["start", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KC_BOOTSTRAP_ADMIN_USERNAME:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KC_BOOTSTRAP_ADMIN_PASSWORD:?KC_BOOTSTRAP_ADMIN_PASSWORD is required, see deploy/dev.env.example}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://127.0.0.1:18330/keycloak_dev
+      KC_DB_USERNAME: keycloak_dev
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD:?KEYCLOAK_DB_PASSWORD is required, see deploy/dev.env.example}
+      # Caddy host giữ HTTPS, Keycloak chỉ nghe HTTP loopback
+      KC_HTTP_ENABLED: "true"
+      KC_HTTP_HOST: 127.0.0.1
+      KC_HTTP_PORT: "18322"
+      KC_HTTP_MANAGEMENT_PORT: "18323"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HOSTNAME: https://auth-dev.carenest.edu.vn
+      # Admin console bị chặn ở Caddy; vào qua SSH tunnel `ssh -L 18322:127.0.0.1:18322`
+      KC_HOSTNAME_ADMIN: http://localhost:18322
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # 1 node: tắt cluster để không mở cổng JGroups ra mọi địa chỉ trên mạng host
+      KC_CACHE: local
+      KC_HEALTH_ENABLED: "true"
+      # Placeholder trong realm import (docker/keycloak/auth/generated/carenest-realm.json)
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET:?KEYCLOAK_ADMIN_CLIENT_SECRET is required, see deploy/dev.env.example}
+      KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET: ${KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET:?KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET is required, see deploy/dev.env.example}
+      KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET:?KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET is required, see deploy/dev.env.example}
+      CARENEST_WEB_ORIGIN: https://dev.carenest.edu.vn
+      CARENEST_AUTH_WEB_ORIGIN: https://dev.carenest.edu.vn
+      CARENEST_MOBILE_REDIRECT_URI: ${CARENEST_MOBILE_REDIRECT_URI:-carenest://oauth/callback}
+      CARENEST_DEV_CLIENT_ENABLED: "false"
+      # Mailpit của stack production (xem email qua tunnel 18341)
+      CARENEST_SMTP_HOST: ${CARENEST_SMTP_HOST:-127.0.0.1}
+      CARENEST_SMTP_PORT: ${CARENEST_SMTP_PORT:-18340}
+      # Placeholder mật khẩu user demo trong docker/keycloak/vps/carenest-users-0.json (chỉ áp lần import đầu)
+      KEYCLOAK_DEV_USER_PASSWORD: ${KEYCLOAK_DEV_USER_PASSWORD:?KEYCLOAK_DEV_USER_PASSWORD is required while dev users are imported}
+    volumes:
+      - ./docker/keycloak/auth/generated/carenest-realm.json:/opt/keycloak/data/import/carenest-realm.json:ro
+      - ./docker/keycloak/vps/carenest-users-0.json:/opt/keycloak/data/import/carenest-users-0.json:ro
+
+  api:
+    image: ${API_IMAGE:?API_IMAGE is set by CI, e.g. thangnd04/carenest-be:api-<content-hash>}
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      SERVER_ADDRESS: 127.0.0.1
+      SERVER_PORT: "18311"
+      DB_URL: jdbc:postgresql://127.0.0.1:18330/carenest_dev
+      DB_USERNAME: carenest_dev
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required, see deploy/dev.env.example}
+      API_PREFIX: /api
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE-dev}
+      KEYCLOAK_ISSUER_URI: https://auth-dev.carenest.edu.vn/realms/carenest
+      KEYCLOAK_JWK_SET_URI: http://127.0.0.1:18322/realms/carenest/protocol/openid-connect/certs
+      KEYCLOAK_AUDIENCE: carenest-api
+      KEYCLOAK_BASE_URL: http://127.0.0.1:18322
+      KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
+      KEYCLOAK_ACTIONS_EMAIL_ENABLED: "true"
+      CARENEST_CORS_ALLOWED_ORIGINS: https://dev.carenest.edu.vn
+      # Gateway chỉ bật sau khi bootstrap.mjs --apply --enable trên Keycloak dev (docs/system/DEPLOYMENT.md)
+      CARENEST_AUTH_ENABLED: ${CARENEST_AUTH_ENABLED:-false}
+      CARENEST_AUTH_ENCRYPTION_KEY: ${CARENEST_AUTH_ENCRYPTION_KEY:?CARENEST_AUTH_ENCRYPTION_KEY is required, see deploy/dev.env.example}
+      KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET: ${KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET}
+      KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET}
+      CARENEST_AUTH_SECURE_COOKIES: "true"
+      CARENEST_AUTH_WEB_ORIGIN: https://dev.carenest.edu.vn

@@ -9,6 +9,7 @@ import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Set;
+import java.util.function.BiPredicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -32,21 +33,41 @@ public class ChildAccessPolicy {
     private final Clock clock;
 
     public boolean canViewChild(CurrentUser user, Long childId) {
-        // AUTH-04: phụ huynh chỉ trẻ có liên kết với chính tài khoản đang đăng nhập
-        if (user.hasRole(CareNestRole.PARENT) && guardianChildLinkService.isGuardianOf(user.userId(), childId)) {
+        return canAccessChild(user, childId, classroomAccessPolicy::canViewClassroom);
+    }
+
+    public void checkCanViewChild(CurrentUser user, Long childId) {
+        if (!canViewChild(user, childId)) {
+            log.warn("[checkCanViewChild]|userId={}|childId={}|denied", user.userId(), childId);
+            throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
+        }
+    }
+
+    // Chỉ đọc: nhân sự theo phạm vi đọc của lớp (AUTH-20); phụ huynh giữ nguyên AUTH-04
+    public boolean canReadChild(CurrentUser user, Long childId) {
+        return canAccessChild(user, childId, classroomAccessPolicy::canReadClassroom);
+    }
+
+    public void checkCanReadChild(CurrentUser user, Long childId) {
+        if (!canReadChild(user, childId)) {
+            log.warn("[checkCanReadChild]|userId={}|childId={}|denied", user.userId(), childId);
+            throw GlobalException.of(ApiCode.CHILD_ACCESS_DENIED);
+        }
+    }
+
+    private boolean canAccessChild(CurrentUser user, Long childId, BiPredicate<CurrentUser, Long> classroomScope) {
+        // AUTH-04: phụ huynh chỉ trẻ có liên kết với chính tài khoản; CHD-04: trẻ đã nghỉ học/ra trường thì không xem
+        if (user.hasRole(CareNestRole.PARENT)
+                && guardianChildLinkService.isGuardianOf(user.userId(), childId)
+                && enrollmentService
+                        .findChildIdsLeftSchool(Set.of(childId), LocalDate.now(clock))
+                        .isEmpty()) {
             return true;
         }
         if (STAFF_ROLES_WITH_CHILD_SCOPE.stream().noneMatch(user::hasRole)) {
             return false;
         }
         return enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock)).stream()
-                .anyMatch(classroomId -> classroomAccessPolicy.canViewClassroom(user, classroomId));
-    }
-
-    public void checkCanViewChild(CurrentUser user, Long childId) {
-        if (!canViewChild(user, childId)) {
-            log.warn("[checkCanViewChild]|userId={}|childId={}|denied", user.userId(), childId);
-            throw new GlobalException(ApiCode.FORBIDDEN, "You do not have access to this child");
-        }
+                .anyMatch(classroomId -> classroomScope.test(user, classroomId));
     }
 }

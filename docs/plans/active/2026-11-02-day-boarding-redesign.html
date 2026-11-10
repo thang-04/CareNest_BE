@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bán trú — cũ và mới</title>
+<style>
+:root{
+  --bg:#f7f7f5;--surface:#fff;--surface-2:#f1f0ec;--text:#1d1d1b;--muted:#6b6a65;--line:#dcdad3;
+  --accent:#2f6f5e;--accent-soft:#e3efe9;--old:#a4462f;--old-soft:#f6e6e1;--warn:#9a6b00;--warn-soft:#fbf1d9;
+  --info:#2c5a8a;--info-soft:#e4edf7;--radius:10px;--mono:ui-monospace,SFMono-Regular,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#161615;--surface:#1f1f1d;--surface-2:#282825;--text:#ecebe6;--muted:#a3a19a;--line:#3a3935;
+  --accent:#7cc4ad;--accent-soft:#1f3a32;--old:#e48a72;--old-soft:#3d241e;--warn:#e3b44f;--warn-soft:#3a2f14;--info:#8db8e6;--info-soft:#1d2c3d;
+}}
+:root[data-theme="dark"]{
+  --bg:#161615;--surface:#1f1f1d;--surface-2:#282825;--text:#ecebe6;--muted:#a3a19a;--line:#3a3935;
+  --accent:#7cc4ad;--accent-soft:#1f3a32;--old:#e48a72;--old-soft:#3d241e;--warn:#e3b44f;--warn-soft:#3a2f14;--info:#8db8e6;--info-soft:#1d2c3d;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header.top{background:var(--surface);border-bottom:1px solid var(--line);padding:28px 16px 18px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+header.top .wrap{padding:0}
+h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+h2{font-size:20px;margin:0 0 4px}
+h3{font-size:16px;margin:18px 0 8px}
+p.lead{color:var(--muted);margin:0 0 14px;max-width:860px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;font-size:13px}
+.chip{display:inline-block;padding:2px 9px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-size:12.5px;white-space:nowrap}
+.chip.old{background:var(--old-soft);color:var(--old);border-color:transparent}
+.chip.new{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+.chip.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.chip.info{background:var(--info-soft);color:var(--info);border-color:transparent}
+.tt{display:inline-block;font-size:11.5px;font-weight:700;padding:1px 7px;border-radius:5px;white-space:nowrap}
+.tt.c{background:var(--accent-soft);color:var(--accent)}
+.tt.p{background:var(--warn-soft);color:var(--warn)}
+.tt.b{background:var(--surface-2);color:var(--muted);border:1px solid var(--line)}
+nav.toc{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line);overflow-x:auto}
+nav.toc .wrap{display:flex;gap:4px;padding-top:6px;padding-bottom:6px}
+nav.toc a{color:var(--muted);text-decoration:none;font-size:13.5px;padding:6px 10px;border-radius:7px;white-space:nowrap}
+nav.toc a:hover{background:var(--surface-2);color:var(--text)}
+section{padding:34px 0 8px}
+section>.wrap>.sub{color:var(--muted);margin:0 0 18px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media (max-width:860px){.g2,.g3,.g4{grid-template-columns:1fr}}
+.stat b{display:block;font-size:24px}
+.stat span{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12.5px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.03em;background:var(--surface)}
+.tablewrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+table.dense{font-size:13px}
+table.dense th,table.dense td{padding:6px 8px}
+table.matrix td:nth-child(n+3):nth-child(-n+8){text-align:center;white-space:nowrap}
+table.matrix th{position:sticky;top:0}
+tr.grp td{background:var(--surface-2);font-weight:700}
+code{font-family:var(--mono);font-size:12.5px;background:var(--surface-2);padding:1px 5px;border-radius:5px}
+.compare{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+@media (max-width:860px){.compare{grid-template-columns:1fr}}
+.pane{border-radius:var(--radius);border:1px solid var(--line);background:var(--surface);overflow:hidden}
+.pane>.ph{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);font-weight:600}
+.pane.old>.ph{background:var(--old-soft)}
+.pane.new>.ph{background:var(--accent-soft)}
+.pane>.pb{padding:14px}
+.pane .notes{margin:12px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
+.pane .notes li{margin:3px 0}
+.tree{font-size:13.5px;margin:0;padding:0;list-style:none}
+.tree li{padding:3px 0}
+.tree .grp{font-weight:600;margin-top:6px}
+.tree ul{list-style:none;margin:2px 0 4px 12px;padding-left:10px;border-left:2px solid var(--line);font-weight:400}
+.del{color:var(--old);text-decoration:line-through}
+.add{color:var(--accent);font-weight:600}
+.wf{background:var(--surface-2);border:1px dashed var(--line);border-radius:8px;padding:12px;font-size:13px}
+.wf .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.wf .btn{display:inline-block;border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:3px 10px;font-size:12.5px}
+.wf .btn.primary{background:var(--accent);color:var(--surface);border-color:var(--accent)}
+.wf .box{background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:8px 10px;margin:6px 0}
+.wf .row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.wf .muted{color:var(--muted)}
+.wf table{font-size:12.5px;background:var(--surface);border-radius:6px}
+.wf th,.wf td{padding:5px 7px}
+.ok{color:var(--accent);font-weight:600}
+.bad{color:var(--old);font-weight:600}
+.wn{color:var(--warn);font-weight:600}
+.step{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:center}
+.num{width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--surface);display:grid;place-items:center;font-size:12px;font-weight:700}
+.phone{max-width:300px;margin:0 auto;border:2px solid var(--line);border-radius:22px;padding:14px 12px;background:var(--surface)}
+.phone .title{font-weight:700;margin-bottom:8px}
+.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:860px){.flow{grid-template-columns:1fr 1fr}}
+.flow .node{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px;position:relative}
+.flow .node b{display:block;font-size:14px;margin-bottom:2px}
+.flow .node .who{color:var(--muted);font-size:12.5px}
+.flow .node.sys{border-top:4px solid var(--accent)}
+.flow .node.ext{border-top:4px solid var(--muted)}
+.flow .node .n{position:absolute;top:8px;right:10px;color:var(--muted);font-weight:700}
+.callout{border-left:4px solid var(--warn);background:var(--warn-soft);padding:10px 14px;border-radius:6px;font-size:14px}
+.callout.ok{border-color:var(--accent);background:var(--accent-soft);color:var(--text);font-weight:400}
+.phase{border-left:3px solid var(--accent);padding:4px 0 4px 12px;margin:10px 0}
+.phase b{display:block}
+.shot{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:8px;cursor:zoom-in;background:var(--surface-2)}
+.shotcap{font-size:12.5px;color:var(--muted);margin:6px 0 0}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.gallery figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:8px}
+.gallery figcaption{font-size:13px;margin-top:6px}
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:20;padding:16px;cursor:zoom-out}
+#lightbox img{max-width:100%;max-height:100%;border-radius:6px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.filters button{border:1px solid var(--line);background:var(--surface);color:var(--text);border-radius:999px;padding:4px 12px;font-size:13px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--accent);color:var(--surface);border-color:var(--accent)}
+.legend{display:flex;gap:14px;font-size:12.5px;color:var(--muted);margin:8px 0;flex-wrap:wrap}
+footer{color:var(--muted);font-size:13px;padding:30px 0 40px}
+.themebtn{float:right;border:1px solid var(--line);background:var(--surface-2);color:var(--text);border-radius:7px;padding:4px 10px;cursor:pointer;font-size:13px}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <button class="themebtn" id="themeBtn" type="button">Sáng / tối</button>
+  <h1>Bán trú CareNest — luồng, bố cục, phân quyền: cũ → mới</h1>
+  <p class="lead">Tối ưu luồng bán trú Trường Mầm non Thượng Hồng: menu, quy trình 8 bước, chức năng từng màn hình, ma trận quyền và danh sách thay đổi so với FE/BE hiện tại. Cột "Cũ" dùng ảnh chụp thật FE; cột "Mới" là wireframe.</p>
+  <div class="meta">
+    <span class="chip new">User duyệt 02/11: P-38, P-39, plan BE L1</span>
+    <span class="chip new">02/11 tối: công bố thực đơn cả tuần (user chốt)</span>
+    <span class="chip">Jira G94-254 / BE-FEAT-27</span>
+    <span class="chip">Nguồn chuẩn: docs/business/flows/meal-management-permissions.md</span>
+  </div>
+  <div class="legend"><span><span class="tt c">C</span> đã xác nhận từ rule có ID</span><span><span class="tt p">P</span> agent đề xuất, cần xác minh</span><span><span class="tt b">B</span> ngoài hệ thống</span></div>
+</div></header>
+
+<nav class="toc"><div class="wrap">
+  <a href="#hientrang">Hiện trạng</a>
+  <a href="#menu">Menu</a>
+  <a href="#flow">Luồng 8 bước</a>
+  <a href="#manhinh">Màn hình cũ/mới</a>
+  <a href="#chucnang">Chức năng màn hình</a>
+  <a href="#ma">Mã quyền</a>
+  <a href="#matrix">Ma trận quyền</a>
+  <a href="#ngoaile">Ngoại lệ</a>
+  <a href="#dulieu">Dữ liệu</a>
+  <a href="#app">App</a>
+  <a href="#thaydoi">Thay đổi</a>
+  <a href="#lotrinh">Lộ trình</a>
+  <a href="#mo">Còn mở</a>
+</div></nav>
+
+<!-- ================= HIỆN TRẠNG ================= -->
+<section id="hientrang"><div class="wrap">
+  <h2>1. Hiện trạng</h2>
+  <p class="sub">FE nhiều màn nhưng chạy dữ liệu demo theo luồng cũ; BE mới có sổ số suất.</p>
+  <div class="grid g4">
+    <div class="card stat"><b>3</b><span>endpoint BE bán trú (<code>/meal-counts</code>: xem, xác nhận, điều chỉnh)</span></div>
+    <div class="card stat"><b>~45</b><span>màn FE bán trú (<code>/menu/*</code>, <code>/kitchen/*</code>), dữ liệu demo</span></div>
+    <div class="card stat"><b>4 + 2</b><span>nhóm menu + trang "quy trình" rời rạc ở FE</span></div>
+    <div class="card stat"><b>role cứng</b><span>quyền FE theo <code>only(VP_ONLY…)</code>, chưa theo mã quyền</span></div>
+  </div>
+  <div class="callout ok" style="margin-top:14px"><b>Quyết định mới 02/11 (user):</b> công bố thực đơn <b>cả tuần</b> một lần, không công bố theo ngày; đến ngày chỉ thêm ảnh bữa thực tế. Đã cập nhật NUT-08, NUT-07, NUT-11, NUT-12, PAR-01. Hệ quả (user duyệt 02/11): kho khô trừ khi suất điểm trường được xác nhận, thiếu không chặn (<b>P-38</b>); sửa thực đơn đã công bố chỉ khi bất khả kháng, có quyền riêng (<b>P-39</b>).</div>
+</div></section>
+
+<!-- ================= MENU ================= -->
+<section id="menu"><div class="wrap">
+  <h2>2. Cấu trúc menu: cũ → mới</h2>
+  <p class="sub">Cũ lấy từ <code>CareNest_FE/src/layouts/menuConfig.js</code> (PHT). <span class="del">Gạch</span> = bỏ, <span class="add">xanh</span> = thêm/chuyển.</p>
+  <div class="compare">
+    <div class="pane old"><div class="ph"><span class="chip old">Cũ</span> 4 nhóm + "Sổ báo ăn" ở Điểm danh</div><div class="pb">
+      <ul class="tree">
+        <li class="grp">Danh mục thực phẩm<ul><li>Thực phẩm</li><li>Món ăn</li></ul></li>
+        <li class="grp">Dinh dưỡng<ul><li class="del">Quy trình</li><li>Thiết lập dinh dưỡng</li><li class="del">Thực đơn mẫu (ngày)</li><li>Thực đơn tuần</li><li>Cân đối khẩu phần</li></ul></li>
+        <li class="grp">Kho thực phẩm<ul><li class="del">Quy trình bếp hôm nay</li><li>Nhập kho</li><li>Nhà cung cấp</li><li>Tồn kho</li><li class="del">Xuất kho</li><li>Hàng tươi</li></ul></li>
+        <li class="grp">Báo cáo bếp<ul><li>Lưu mẫu thực phẩm</li><li>Dự trù thực phẩm</li></ul></li>
+      </ul>
+      <img class="shot" style="margin-top:10px" src="day-boarding-screens/old-kitchen-web-home.png" alt="Bếp trên Web">
+      <p class="shotcap">Tài khoản bếp demo vào Web, có menu "Kho thực phẩm" — trái AUTH-21</p>
+    </div></div>
+    <div class="pane new"><div class="ph"><span class="chip new">Mới</span> 6 nhóm theo việc</div><div class="pb">
+      <ul class="tree">
+        <li class="grp add">1. Bán trú hôm nay <span class="chip">một trang</span></li>
+        <li class="grp">2. Thực đơn &amp; dinh dưỡng<ul><li>Kế hoạch tuần &amp; công bố <span class="chip new">công bố cả tuần</span></li><li class="add">Bộ thực đơn mẫu (4 tuần, nhãn mùa)</li><li class="add">Món thay thế dị ứng (chất × món)</li></ul></li>
+        <li class="grp add">3. Vận hành bếp<ul><li>Sổ suất ăn <span class="chip">chuyển từ Điểm danh</span></li><li>Bếp hôm nay (xem như bếp)</li><li>Bản dự trù hàng tươi</li><li>Kiểm nhận hàng tươi (PHT ghi 2 lần)</li></ul></li>
+        <li class="grp">4. Kho thực phẩm<ul><li>Tồn kho khô theo lô</li><li>Phiếu nhập</li><li class="add">Lịch sử nhập/trừ</li><li class="add">Phần thiếu chờ bổ sung</li></ul></li>
+        <li class="grp add">5. An toàn thực phẩm<ul><li>Duyệt lưu/hủy mẫu</li><li>In nhãn &amp; biểu mẫu</li><li>Ảnh bữa</li></ul></li>
+        <li class="grp">6. Danh mục &amp; thiết lập<ul><li>Thực phẩm · Món</li><li class="add">Cấu hình nhóm tuổi (gộp giá suất, có ngày hiệu lực)</li><li>Nhà cung cấp</li><li>Khung giờ ảnh bữa <span class="chip">chỉ HT</span></li></ul></li>
+      </ul>
+      <ul class="notes"><li>Cân đối dinh dưỡng thành tab trong Kế hoạch tuần.</li><li>Bếp: chỉ App (Hôm nay · Lưu mẫu · Ảnh bữa).</li><li>Mục hiện theo mã quyền, không theo role cứng.</li></ul>
+    </div></div>
+  </div>
+</div></section>
+
+<!-- ================= FLOW ================= -->
+<section id="flow"><div class="wrap">
+  <h2>3. Business flow xuyên suốt</h2>
+  <p class="sub">Viền xanh = hệ thống ghi; viền xám = việc ngoài hệ thống. Thực đơn dùng chung toàn trường; từ bước 3 dữ liệu tách theo điểm trường.</p>
+  <div class="flow">
+    <div class="node sys"><span class="n">1</span><b>Lập &amp; công bố thực đơn</b><span class="who">PHT · Web · tuần trước</span><br>Kiểm cân đối từng ngày → công bố cả tuần</div>
+    <div class="node sys"><span class="n">2</span><b>Báo ăn</b><span class="who">GV · App · trước giờ chốt</span><br>Điểm danh; có mặt = ăn mọi bữa</div>
+    <div class="node sys"><span class="n">3</span><b>Chốt suất</b><span class="who">Hệ thống + PHT điểm trường · Web</span><br>Xác nhận suất điểm trường × bữa × lớp</div>
+    <div class="node sys"><span class="n">4</span><b>Tính nguyên liệu</b><span class="who">Hệ thống</span><br>Định lượng × suất; trừ kho khô; ghi thiếu <span class="tt c">P-38</span></div>
+    <div class="node sys"><span class="n">5</span><b>Tiếp nhận</b><span class="who">Bếp kiểm (B) · PHT ghi · Web</span><br>Kiểm nhận tươi 2 lần; phiếu nhập kho khô</div>
+    <div class="node ext"><span class="n">6</span><b>Chế biến</b><span class="who">Bếp · App xem; nấu (B)</span><br>Lưu mẫu, ảnh bữa ghi trên App</div>
+    <div class="node ext"><span class="n">7</span><b>Bàn giao</b><span class="who">Bếp (B)</span><br>Chia suất theo danh sách lớp, không ghi</div>
+    <div class="node sys"><span class="n">8</span><b>Lưu hồ sơ</b><span class="who">Bếp · App; PHT duyệt, in · Web</span><br>Hủy mẫu ≥24 giờ, biểu mẫu, lịch sử</div>
+  </div>
+  <div class="tablewrap" style="margin-top:14px"><table class="dense">
+    <thead><tr><th>#</th><th>Bước</th><th>Ai · kênh</th><th>Màn hình</th><th>Đầu vào</th><th>Đầu ra</th><th>Rule</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Lập &amp; công bố thực đơn</td><td>PHT dinh dưỡng · Web</td><td>Kế hoạch tuần &amp; công bố</td><td>Bộ mẫu / lập tay / AI nháp; món, định lượng; cấu hình nhóm tuổi; số trẻ dị ứng theo chất</td><td>Thực đơn tuần PUBLISHED cả trường; món thay thế; cảnh báo kho theo sĩ số dự kiến</td><td><span class="tt c">C</span> NUT-08 (02/11), 11, 13, 18–20, 23</td></tr>
+      <tr><td>1b</td><td>Bản dự trù, đặt hàng tươi</td><td>PHT · Web; gửi NCC (B)</td><td>Bản dự trù</td><td>Thực đơn tuần; sĩ số dự kiến điền sẵn nhóm tuổi × điểm trường</td><td>Bản dự trù, danh sách đặt hàng in</td><td><span class="tt c">C</span> NUT-07, NUT-12</td></tr>
+      <tr><td>2</td><td>Báo ăn</td><td>GV · App; PH gửi đơn nghỉ</td><td>Điểm danh</td><td>Trẻ đang học; đơn nghỉ</td><td>Điểm danh (khóa ở giờ chốt)</td><td><span class="tt c">C</span> ATT-01, 02, 04, 06</td></tr>
+      <tr><td>3</td><td>Chốt suất</td><td>Hệ thống; PHT điểm trường (HT thay) · Web</td><td>Sổ suất ăn</td><td>Điểm danh đã khóa</td><td>Suất điểm trường × ngày × bữa × lớp CONFIRMED</td><td><span class="tt c">C</span> NUT-01..04</td></tr>
+      <tr><td>4</td><td>Tính nguyên liệu</td><td>Hệ thống</td><td>Bán trú hôm nay · Kho</td><td>Thực đơn tuần × suất đã xác nhận + thải bỏ</td><td>Nhu cầu ngày theo điểm trường; bút toán trừ kho (lô hết hạn trước); phần thiếu</td><td><span class="tt c">C</span> NUT-07, NUT-11 (P-38)</td></tr>
+      <tr><td>5</td><td>Tiếp nhận</td><td>Bếp kiểm, báo PHT (B); PHT ghi · Web</td><td>Kiểm nhận hàng tươi · Phiếu nhập</td><td>Bản dự trù; nhu cầu theo suất; phiếu giao</td><td>Kiểm nhận lần 1, 2; lô mới, trừ tiếp phần thiếu</td><td><span class="tt c">C</span> NUT-11, NUT-12</td></tr>
+      <tr><td>6</td><td>Chế biến</td><td>Bếp · App xem; nấu (B)</td><td>Bếp hôm nay (App)</td><td>Thực đơn ngày, suất lớp × bữa, định lượng tổng, suất thay thế</td><td>Không ghi trạng thái nấu; lưu mẫu; ảnh bữa trong khung giờ</td><td><span class="tt c">C</span> AUTH-05, NUT-16, 21, 23; NUT-14 REMOVED</td></tr>
+      <tr><td>7</td><td>Bàn giao</td><td>Bếp (B)</td><td>Bếp hôm nay: bảng suất theo lớp</td><td>Suất đã xác nhận theo lớp</td><td>Không ghi; thiếu/thừa báo Zalo</td><td><span class="tt c">C</span> NUT-15 REMOVED, NUT-22</td></tr>
+      <tr><td>8</td><td>Lưu hồ sơ</td><td>Bếp ghi hủy · App; PHT duyệt, in · Web</td><td>Duyệt mẫu · In biểu mẫu · Lịch sử kho</td><td>Bản ghi lưu/hủy mẫu</td><td>Nhãn, biểu mẫu (ký giấy — B); lịch sử suất, kho, ảnh</td><td><span class="tt c">C</span> NUT-21 · mẫu sổ P-26</td></tr>
+    </tbody>
+  </table></div>
+</div></section>
+
+<!-- ================= MÀN HÌNH ================= -->
+<section id="manhinh"><div class="wrap">
+  <h2>4. Màn hình Web: cũ → mới</h2>
+  <p class="sub">"Cũ" = ảnh chụp thật FE (<code>CareNest_FE</code>, mock, tài khoản PHT demo, 02/11/2026). "Mới" = wireframe. Bấm ảnh để phóng to.</p>
+
+  <h3>4.1 Bán trú hôm nay</h3>
+  <div class="compare">
+    <div class="pane old"><div class="ph"><span class="chip old">Cũ</span> Hai trang "Quy trình"</div><div class="pb">
+      <img class="shot" src="day-boarding-screens/old-menu-flow.png" alt="">
+      <p class="shotcap"><code>/menu/flow</code> — 6 bước thiết lập → đi chợ, mỗi bước chỉ là link</p>
+      <img class="shot" style="margin-top:10px" src="day-boarding-screens/old-kitchen-day.png" alt="">
+      <p class="shotcap"><code>/kitchen</code> — dòng thời gian bếp: kiểm nhận, chốt suất, xuất kho, lưu mẫu, dự trù</p>
+    </div></div>
+    <div class="pane new"><div class="ph"><span class="chip new">Mới</span> Một trang theo điểm trường × ngày</div><div class="pb">
+      <div class="wf">
+        <div class="bar"><span class="btn">◀</span><b>Thứ Hai 03/11</b><span class="btn">▶</span><span class="btn">CS1 ▾</span></div>
+        <div class="box step"><span class="num">1</span><div>Thực đơn tuần này <span class="ok">✓ đã công bố</span> · tuần sau <span class="wn">chưa công bố</span></div><span class="btn">Kế hoạch tuần</span></div>
+        <div class="box step"><span class="num">2</span><div>Số suất · <span class="ok">✓ 312 đã xác nhận</span></div><span class="btn">Sổ suất</span></div>
+        <div class="box step"><span class="num">3</span><div>Kho khô · đã trừ · <span class="bad">thiếu 2 kg đường</span></div><span class="btn">Nhập bổ sung</span></div>
+        <div class="box step"><span class="num">4</span><div>Hàng tươi · lần 1 <span class="ok">✓</span> · lần 2 —</div><span class="btn">Kiểm nhận</span></div>
+        <div class="box step"><span class="num">5</span><div>Lưu mẫu <span class="wn">2 chờ duyệt</span> · ảnh trưa <span class="ok">✓</span></div><span class="btn">Duyệt</span></div>
+      </div>
+      <ul class="notes"><li>Thay hai trang quy trình; mỗi dòng có trạng thái và nút tới việc.</li><li>Không có bước "công bố ngày" — thực đơn đã công bố từ tuần trước.</li></ul>
+    </div></div>
+  </div>
+
+  <h3>4.2 Kế hoạch tuần &amp; công bố</h3>
+  <div class="compare">
+    <div class="pane old"><div class="ph"><span class="chip old">Cũ</span> Xuất bản tuần + phiên bản thay thế</div><div class="pb">
+      <img class="shot" src="day-boarding-screens/old-weekly-list.png" alt="">
+      <p class="shotcap"><code>/menu/weekly</code> — tab nhóm tuổi; mỗi ngày lấy một thực đơn mẫu; "Đã xuất bản"; nút "Tạo phiên bản thay thế"</p>
+      <img class="shot" style="margin-top:10px" src="day-boarding-screens/old-sample-menus.png" alt="">
+      <p class="shotcap"><code>/menu/menus</code> — thực đơn mẫu một ngày theo từng nhóm tuổi</p>
+      <ul class="notes"><li>Hướng công bố cả tuần đã đúng — <b>giữ</b>.</li><li>Bỏ "phiên bản thay thế" (NUT-08: đã công bố không sửa; ngoại lệ P-39).</li><li>Mẫu một ngày ⇒ đổi thành bộ 4 tuần có nhãn mùa, theo khối nhà trẻ / mẫu giáo.</li></ul>
+    </div></div>
+    <div class="pane new"><div class="ph"><span class="chip new">Mới</span> Công bố cả tuần; đến ngày thêm ảnh</div><div class="pb">
+      <div class="wf">
+        <div class="bar"><b>Tuần 10–14/11</b><span class="chip">Nháp</span><span class="btn">Sao từ bộ mẫu</span><span class="btn">AI gợi ý</span><span class="btn">Khối: Mẫu giáo ▾</span></div>
+        <table>
+          <tr><th></th><th>T2</th><th>T3</th><th>T4</th><th>T5</th><th>T6</th></tr>
+          <tr><td>Trưa</td><td>Cơm, cá kho</td><td>Cơm, gà <span class="wn">⚠ giá</span></td><td>Cơm, tôm <span class="wn">⚠ dị ứng</span></td><td>…</td><td>…</td></tr>
+          <tr><td>Chiều</td><td>Cháo</td><td>Bánh</td><td>…</td><td>…</td><td>…</td></tr>
+          <tr><td>Cân đối</td><td class="ok">✓</td><td class="ok">✓</td><td class="bad">✗ đạm</td><td class="ok">✓</td><td class="ok">✓</td></tr>
+        </table>
+        <div class="row" style="margin-top:8px"><span class="muted">T4 chưa đạt cân đối ⇒ chưa công bố được</span><span class="btn primary">Công bố cả tuần</span></div>
+        <div class="box" style="margin-top:10px"><b>Tuần 03–07/11</b> <span class="chip new">Đã công bố 🔒</span>
+          <table style="margin-top:6px"><tr><th></th><th>T2 03/11</th><th>T3 04/11</th><th>T4</th></tr>
+            <tr><td>Trưa</td><td>Cơm, cá kho<br><span class="ok">📷 CS1 · CS2</span></td><td>Cơm, gà<br><span class="muted">📷 chờ ảnh</span></td><td>…</td></tr></table></div>
+      </div>
+      <ul class="notes"><li>Trạng thái theo tuần: Nháp → Đã công bố (khóa).</li><li>Công bố không chờ chốt suất; chặn khi có ngày chưa cân đối; thiếu kho chỉ cảnh báo.</li><li>Ngày đã tới: ô hiện ảnh bữa thực tế theo điểm trường.</li></ul>
+    </div></div>
+  </div>
+
+  <h3>4.3 Hộp thoại công bố tuần</h3>
+  <div class="grid g2">
+    <div class="wf">
+      <b>Công bố thực đơn tuần 10–14/11 — cả trường</b>
+      <div class="box"><span class="bad">Chặn</span> · T4 nhóm Mẫu giáo lớn: đạm 11% &lt; 13%</div>
+      <div class="box"><span class="wn">Cảnh báo</span> · Kho khô theo sĩ số dự kiến: CS2 thiếu đường 1 kg (T5)</div>
+      <div class="box"><span class="wn">Cảnh báo</span> · Giá trưa T3 vượt giá suất 1.200đ · Món "Cơm gà" lặp 2 lần</div>
+      <div class="row"><span class="muted">Sau công bố: khóa cả tuần, bếp và phụ huynh thấy ngay</span><span class="btn primary">Công bố</span></div>
+    </div>
+    <div class="card"><b>Quy tắc</b>
+      <ul style="padding-left:18px;margin:6px 0 0">
+        <li>Chặn: chưa đạt cân đối ở bất kỳ ngày × nhóm tuổi nào. <span class="tt c">C</span></li>
+        <li>Cảnh báo: giá vượt, món lặp, thiếu kho theo sĩ số dự kiến. <span class="tt c">C</span></li>
+        <li>Không trừ kho lúc công bố; trừ khi suất từng ngày được xác nhận. <span class="tt c">P-38</span></li>
+        <li>Đã công bố không sửa; ngoại lệ bất khả kháng có quyền riêng. <span class="tt c">P-39</span></li>
+      </ul></div>
+  </div>
+
+  <h3>4.4 Món ăn</h3>
+  <div class="compare">
+    <div class="pane old"><div class="ph"><span class="chip old">Cũ</span> Đã là lưới gam/trẻ theo nhóm tuổi</div><div class="pb">
+      <img class="shot" src="day-boarding-screens/old-dish-form.png" alt="">
+      <p class="shotcap"><code>/menu/dishes/d02/edit</code> — thành phần × 4 nhóm tuổi, "Chép định lượng từ … sang", dinh dưỡng 1 suất</p>
+    </div></div>
+    <div class="pane new"><div class="ph"><span class="chip new">Mới</span> Giữ bố cục, đổi nguồn dữ liệu</div><div class="pb">
+      <ul class="notes" style="margin-top:0"><li>Dinh dưỡng, giá, chất dị ứng lấy từ BE (<code>/nutrition/dishes</code>).</li><li><span class="add">Thêm</span> món tham khảo chỉ đọc + "Sao chép thành món của trường".</li><li><span class="add">Thêm</span> nguồn dinh dưỡng bắt buộc ở form thực phẩm (NUT-05).</li></ul>
+    </div></div>
+  </div>
+
+  <h3>4.5 Cấu hình nhóm tuổi</h3>
+  <div class="compare">
+    <div class="pane old"><div class="ph"><span class="chip old">Cũ</span> Thiết lập + giá suất riêng</div><div class="pb">
+      <img class="shot" src="day-boarding-screens/old-nutrition-setup.png" alt="">
+      <p class="shotcap"><code>/menu/setup</code> — bữa, giá suất, chuẩn tạm theo nhóm tuổi; thiếu ngày hiệu lực</p>
+    </div></div>
+    <div class="pane new"><div class="ph"><span class="chip new">Mới</span> Một thẻ/nhóm tuổi, có phiên bản</div><div class="pb">
+      <div class="wf"><div class="box"><div class="row"><b>Mẫu giáo lớn</b><span class="chip">hiệu lực từ 01/09</span></div>
+        <div class="muted">Bữa: Trưa, Chiều · kcal 615–726 · P 13–20% · Giá suất 30.000đ</div>
+        <div class="row" style="margin-top:6px"><span class="muted">Đã hiệu lực — chỉ đọc</span><span class="btn">Tạo bản mới từ ngày…</span></div></div></div>
+      <ul class="notes"><li>Bỏ màn <code>/menu/prices</code>; giá suất chỉ sửa ở đây.</li></ul>
+    </div></div>
+  </div>
+
+  <h3>4.6 Kho khô</h3>
+  <div class="compare">
+    <div class="pane old"><div class="ph"><span class="chip old">Cũ</span> Phiếu xuất, bếp chọn lô</div><div class="pb">
+      <img class="shot" src="day-boarding-screens/old-stock-issues.png" alt="">
+      <p class="shotcap"><code>/kitchen/stock-issues</code> — "thiếu hàng thì dừng cả phiếu; đủ hàng thì bếp chọn lô"</p>
+    </div></div>
+    <div class="pane new"><div class="ph"><span class="chip new">Mới</span> Trừ tự động khi xác nhận suất</div><div class="pb">
+      <div class="wf"><div class="bar"><span class="btn primary">Tồn theo lô</span><span class="btn">Phiếu nhập</span><span class="btn">Lịch sử nhập/trừ</span><span class="btn">Phần thiếu (1)</span></div>
+        <table><tr><th>Ngày</th><th>Loại</th><th>CS</th><th>Đường</th></tr>
+          <tr><td>03/11</td><td>Nhập lô B</td><td>CS2</td><td>+5 kg</td></tr>
+          <tr><td>04/11</td><td>Trừ khi xác nhận suất</td><td>CS2</td><td>−3 kg</td></tr>
+          <tr><td>04/11</td><td>Xác nhận lại suất</td><td>CS2</td><td>−0,2 kg</td></tr>
+          <tr><td>05/11</td><td class="bad">Thiếu, chờ phiếu bổ sung</td><td>CS2</td><td>1 kg</td></tr></table></div>
+      <ul class="notes"><li>Không còn phiếu xuất, không chặn bếp; thiếu ⇒ hiện ở hub cho PHT. <span class="tt c">P-38</span></li></ul>
+    </div></div>
+  </div>
+
+  <h3>4.7 Hàng tươi</h3>
+  <div class="compare">
+    <div class="pane old"><div class="ph"><span class="chip old">Cũ</span> Bếp kiểm nhận → PHT xác nhận; dự trù theo lớp × tuần</div><div class="pb">
+      <img class="shot" src="day-boarding-screens/old-fresh-receipts.png" alt="">
+      <p class="shotcap"><code>/kitchen/fresh-receipts</code> — Đặt / Giao / Thực nhận · Đủ / Thiếu / Trả lại</p>
+      <img class="shot" style="margin-top:10px" src="day-boarding-screens/old-forecast.png" alt="">
+      <p class="shotcap"><code>/kitchen/forecast</code> — suất dự kiến theo lớp × ngày trong tuần</p>
+    </div></div>
+    <div class="pane new"><div class="ph"><span class="chip new">Mới</span> PHT ghi, so 2 lần</div><div class="pb">
+      <div class="wf"><table><tr><th>Thực phẩm</th><th>Theo dự trù</th><th>Theo suất chốt</th><th>Thực nhận</th><th>KQ</th></tr>
+        <tr><td>Thịt heo</td><td>6 kg</td><td>6,3 kg</td><td>6 kg</td><td class="wn">Thiếu 0,3</td></tr>
+        <tr><td>Rau cải</td><td>8 kg</td><td>7,6 kg</td><td>8 kg</td><td class="ok">Đủ</td></tr></table></div>
+      <ul class="notes"><li>Giữ bảng kiểm nhận hiện có; đổi người ghi thành PHT.</li><li>Dự trù: chọn kỳ, sĩ số dự kiến theo nhóm tuổi × điểm trường (không theo lớp).</li></ul>
+    </div></div>
+  </div>
+
+  <h3>4.8 Các màn còn lại</h3>
+  <div class="gallery">
+    <figure><img class="shot" src="day-boarding-screens/old-allergy-menus.png" alt=""><figcaption><b>Thực đơn thay thế</b> — thay nguyên thực đơn theo nhóm tuổi. <span class="chip old">đổi: món thay thế theo chất × món</span></figcaption></figure>
+    <figure><img class="shot" src="day-boarding-screens/old-food-samples.png" alt=""><figcaption><b>Sổ lưu mẫu</b> — bếp ghi trên Web, in Mẫu 4/5. <span class="chip old">đổi: bếp ghi App, PHT duyệt; Web duyệt + in</span></figcaption></figure>
+    <figure><img class="shot" src="day-boarding-screens/old-preparation.png" alt=""><figcaption><b>Trạng thái chuẩn bị</b>. <span class="chip old">xóa — NUT-14/15 REMOVED</span></figcaption></figure>
+    <figure><img class="shot" src="day-boarding-screens/old-suppliers.png" alt=""><figcaption><b>Nhà cung cấp</b>. <span class="chip new">giữ, chuyển về Danh mục &amp; thiết lập</span></figcaption></figure>
+    <figure><img class="shot" src="day-boarding-screens/old-dry-stock.png" alt=""><figcaption><b>Tồn kho</b>. <span class="chip new">giữ, thêm lịch sử và phần thiếu</span></figcaption></figure>
+    <figure><img class="shot" src="day-boarding-screens/old-meal-prices.png" alt=""><figcaption><b>Giá suất ăn</b>. <span class="chip old">gộp vào cấu hình nhóm tuổi</span></figcaption></figure>
+  </div>
+</div></section>
+
+<!-- ================= CHỨC NĂNG ================= -->
+<section id="chucnang"><div class="wrap">
+  <h2>5. Chức năng từng màn hình</h2>
+  <div class="tablewrap"><table class="dense">
+    <thead><tr><th>Màn hình (kênh)</th><th>Chức năng</th><th>Đầu vào</th><th>Đầu ra</th><th>Người dùng</th></tr></thead>
+    <tbody>
+      <tr><td>Bán trú hôm nay (Web)</td><td>Việc của ngày theo điểm trường, nút tới màn xử lý</td><td>Suất, kho, kiểm nhận, mẫu, ảnh, thực đơn tuần sau</td><td>— (đọc)</td><td>PHT, HT</td></tr>
+      <tr><td>Kế hoạch tuần &amp; công bố (Web)</td><td>Lưới ngày × bữa × khối; sao từ bộ mẫu; AI nháp; kiểm tự động; tab cân đối; công bố tuần</td><td>Món, cấu hình, số trẻ dị ứng theo chất</td><td>Tuần DRAFT → PUBLISHED</td><td>PHT có <code>MENU_MANAGE</code></td></tr>
+      <tr><td>Bộ thực đơn mẫu (Web)</td><td>Bộ 4 tuần, nhãn mùa, theo khối</td><td>Món</td><td>Bộ mẫu</td><td>như trên</td></tr>
+      <tr><td>Món thay thế dị ứng (Web)</td><td>Chất × món → món thay thế; hệ thống gợi ý</td><td>Món, chất dị ứng</td><td>Cặp thay thế dùng chung</td><td>như trên</td></tr>
+      <tr><td>Sổ suất ăn (Web)</td><td>Xem, xác nhận, xác nhận lại</td><td>Điểm danh đã khóa</td><td>Suất CONFIRMED, lịch sử</td><td>PHT điểm trường, HT</td></tr>
+      <tr><td>Bếp hôm nay (App bếp; Web xem)</td><td>Thực đơn ngày, suất lớp × bữa, định lượng tổng, suất thay thế theo món × lớp</td><td>Thực đơn tuần, suất</td><td>—</td><td>Bếp; PHT/HT xem</td></tr>
+      <tr><td>Bản dự trù (Web)</td><td>Chọn kỳ, điểm trường; sĩ số dự kiến điền sẵn; in đặt hàng</td><td>Thực đơn tuần, sĩ số</td><td>Bản dự trù</td><td>PHT có <code>STOCK_MANAGE</code></td></tr>
+      <tr><td>Kiểm nhận hàng tươi (Web)</td><td>Theo dự trù / theo suất / thực nhận / kết quả</td><td>Bản dự trù, nhu cầu theo suất</td><td>Kiểm nhận 2 lần</td><td>như trên</td></tr>
+      <tr><td>Kho khô (Web)</td><td>Tồn theo lô; phiếu nhập; lịch sử; phần thiếu</td><td>Phiếu giao NCC</td><td>Lô, bút toán</td><td>như trên</td></tr>
+      <tr><td>Duyệt mẫu, In (Web)</td><td>Hàng chờ duyệt; in nhãn, biểu mẫu</td><td>Bản ghi của bếp</td><td>Bản ghi đã duyệt, file in</td><td>PHT có <code>FOOD_SAFETY_APPROVE</code></td></tr>
+      <tr><td>Lưu mẫu (App bếp)</td><td>Ghi lưu (món điền sẵn); ghi hủy ≥24 giờ; xem trạng thái</td><td>Thực đơn ngày</td><td>Bản ghi chờ duyệt</td><td>Bếp</td></tr>
+      <tr><td>Ảnh bữa (App bếp; xem Web/App PH)</td><td>Chụp/sửa trong khung giờ</td><td>Ảnh</td><td>Ảnh điểm trường × ngày × bữa</td><td>Bếp; PHT, HT, PH xem</td></tr>
+      <tr><td>Danh mục &amp; thiết lập (Web)</td><td>Thực phẩm, món, cấu hình nhóm tuổi, NCC; HT: khung giờ ảnh</td><td>Viện Dinh dưỡng, chuẩn Bộ</td><td>Danh mục chung</td><td>PHT có <code>NUTRITION_MANAGE</code>; HT</td></tr>
+      <tr><td>Thực đơn (App PH, GV)</td><td>Thực đơn tuần đã công bố + ảnh bữa</td><td>—</td><td>—</td><td>PH; GV <span class="tt p">P</span></td></tr>
+    </tbody>
+  </table></div>
+</div></section>
+
+<!-- ================= MÃ QUYỀN ================= -->
+<section id="ma"><div class="wrap">
+  <h2>6. Mã quyền (RBAC động)</h2>
+  <p class="sub">Quyền hiệu lực = phần cố định của role ∪ (ma trận ∪ GRANT − REVOKE); GRANT mang phạm vi điểm trường/cả trường (AUTH-10, AUTH-20, ADR-0017, ADR-0023). Phạm vi campus/lớp/trẻ luôn kiểm ở BE. Mã mới là đề xuất thiết kế <span class="tt p">P</span>.</p>
+  <div class="tablewrap"><table class="dense">
+    <thead><tr><th>Mã</th><th>Phạm vi</th><th>Mặc định</th><th>HT cấu hình cho</th><th>Nghiệp vụ</th></tr></thead>
+    <tbody>
+      <tr><td><code>MEAL_COUNT_CONFIRM</code> <span class="tt c">đã có</span></td><td>điểm trường, GRANT nâng T</td><td>HT; PHT (bật, điểm trường mình)</td><td>PHT</td><td>Xác nhận, xác nhận lại suất (NUT-02)</td></tr>
+      <tr><td><code>NUTRITION_MANAGE</code> <span class="tt p">plan L1</span></td><td>T</td><td>HT</td><td>PHT (tắt)</td><td>Danh mục, cấu hình nhóm tuổi, NCC</td></tr>
+      <tr><td><code>MENU_MANAGE</code> <span class="tt p">P</span></td><td>T</td><td>HT</td><td>PHT (tắt)</td><td>Bộ mẫu, kế hoạch tuần, món thay thế, <b>công bố tuần</b></td></tr>
+      <tr><td><code>STOCK_MANAGE</code> <span class="tt p">P</span></td><td>điểm trường, GRANT nâng T</td><td>HT</td><td>PHT (tắt)</td><td>Phiếu nhập kho khô, bản dự trù, kiểm nhận hàng tươi</td></tr>
+      <tr><td><code>FOOD_SAFETY_APPROVE</code> <span class="tt p">P</span></td><td>điểm trường, GRANT nâng T</td><td>HT</td><td>PHT (tắt)</td><td>Duyệt lưu/hủy mẫu, in biểu mẫu</td></tr>
+      <tr><td><code>KITCHEN_RECORD</code> <span class="tt p">P</span></td><td>điểm trường của tài khoản</td><td>Bếp</td><td>Bếp</td><td>Ghi lưu/hủy mẫu, đăng ảnh bữa</td></tr>
+      <tr><td><code>MENU_PUBLISHED_EDIT</code> <span class="tt p">P</span></td><td>T</td><td>HT</td><td>PHT (tắt)</td><td>Sửa thực đơn đã công bố khi bất khả kháng (P-39 duyệt 02/11)</td></tr>
+    </tbody>
+  </table></div>
+  <p class="sub" style="margin-top:10px">PHT không có mã vẫn xem dữ liệu bán trú mọi điểm trường (AUTH-20 <span class="tt c">C</span>). HT có sẵn các mã để làm thay khi PHT vắng, theo cách NUT-02 áp cho số suất (<span class="tt p">P</span> với mã mới). Khung giờ ảnh: phần cố định của HT (NUT-16 <span class="tt c">C</span>).</p>
+</div></section>
+
+<!-- ================= MATRIX ================= -->
+<section id="matrix"><div class="wrap">
+  <h2>7. Permission matrix — Function × Actor × Action × Scope × Conditions</h2>
+  <p class="sub">T = toàn trường · "điểm trường" = điểm trường được phân công, hoặc cả trường nếu HT cấp phạm vi SCHOOL · L = lớp phân công · Tr = trẻ liên kết · TK = điểm trường của tài khoản bếp · — = không. Admin không có quyền bán trú (AUTH-06, P-16). Audit "Có" = người, thời điểm, trước/sau (+ lý do khi ghi).</p>
+  <div class="filters" role="group" aria-label="Lọc trạng thái">
+    <button type="button" data-f="all" aria-pressed="true">Tất cả</button>
+    <button type="button" data-f="c" aria-pressed="false">Chỉ đã xác nhận (C)</button>
+    <button type="button" data-f="p" aria-pressed="false">Chỉ đề xuất (P)</button>
+  </div>
+  <div class="tablewrap" style="max-height:80vh"><table class="dense matrix" id="mx">
+    <thead><tr><th>Chức năng</th><th>Action</th><th>HT</th><th>PHT có mã</th><th>PHT khác</th><th>GV</th><th>Bếp</th><th>PH</th><th>Điều kiện · giới hạn</th><th>Audit</th><th>TT</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="11">Danh mục &amp; thiết lập</td></tr>
+      <tr data-s="c"><td>Thực phẩm, món</td><td>View</td><td>T</td><td>T</td><td>T</td><td>—</td><td>—</td><td>—</td><td></td><td>—</td><td><span class="tt c">C</span> AUTH-20</td></tr>
+      <tr data-s="c"><td></td><td>Create / Update</td><td>T</td><td>T <code>NUTRITION_MANAGE</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Nguồn dinh dưỡng bắt buộc; món tham khảo chỉ đọc</td><td>Có</td><td><span class="tt c">C</span> NUT-05, 18</td></tr>
+      <tr data-s="p"><td></td><td>Delete</td><td>T</td><td>T</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Chỉ ngừng dùng, không xóa cứng</td><td>Có</td><td><span class="tt p">P</span></td></tr>
+      <tr data-s="p"><td></td><td>Import</td><td>T</td><td>T</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Tất cả hoặc không</td><td>Có</td><td><span class="tt p">P</span></td></tr>
+      <tr data-s="c"><td>Cấu hình nhóm tuổi</td><td>Create / Update</td><td>T</td><td>T <code>NUTRITION_MANAGE</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Chỉ bản có ngày hiệu lực &gt; hôm nay (khóa bản đã hiệu lực: P)</td><td>Có</td><td><span class="tt c">C</span> NUT-17</td></tr>
+      <tr data-s="c"><td>Nhà cung cấp</td><td>View</td><td>T</td><td>T</td><td>T (ẩn CCCD — P)</td><td>—</td><td>—</td><td>—</td><td>CCCD là dữ liệu cá nhân</td><td>—</td><td><span class="tt c">C</span> NUT-12</td></tr>
+      <tr data-s="c"><td></td><td>Create / Update / Delete</td><td>T</td><td>T <code>NUTRITION_MANAGE</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Delete = ngừng dùng</td><td>Có</td><td><span class="tt c">C</span> NUT-12</td></tr>
+      <tr data-s="c"><td>Khung giờ ảnh bữa</td><td>Update</td><td>T</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Chung toàn trường</td><td>Có</td><td><span class="tt c">C</span> NUT-16</td></tr>
+
+      <tr class="grp"><td colspan="11">Thực đơn &amp; dinh dưỡng</td></tr>
+      <tr data-s="c"><td>Bộ mẫu, kế hoạch tuần, món thay thế</td><td>View</td><td>T</td><td>T</td><td>T</td><td>—</td><td>—</td><td>—</td><td>Bản nháp chỉ BGH thấy</td><td>—</td><td><span class="tt c">C</span></td></tr>
+      <tr data-s="c"><td></td><td>Create / Update / Delete</td><td>T</td><td>T <code>MENU_MANAGE</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Chỉ tuần DRAFT</td><td>Có</td><td><span class="tt c">C</span> NUT-08, 13, 23</td></tr>
+      <tr data-s="c"><td>Công bố thực đơn tuần</td><td>Publish</td><td>T</td><td>T <code>MENU_MANAGE</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Mọi ngày đạt cân đối; cả trường một lần; không chờ suất; thiếu kho chỉ cảnh báo</td><td>Có</td><td><span class="tt c">C</span> NUT-08, NUT-11</td></tr>
+      <tr data-s="c"><td>Thực đơn tuần đã công bố</td><td>View</td><td>T</td><td>T</td><td>T</td><td>T (P)</td><td>TK</td><td>Tr</td><td>PH chỉ bản đã công bố</td><td>—</td><td><span class="tt c">C</span> AUTH-05, PAR-01</td></tr>
+      <tr data-s="c"><td></td><td>Update (ngoại lệ)</td><td>T</td><td>T <code>MENU_PUBLISHED_EDIT</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Ngày chưa tới / hôm nay trước giờ chốt; lý do bắt buộc; báo bếp + PH; ngày đã có suất ⇒ tính lại kho</td><td>Có, lý do</td><td><span class="tt c">C</span> NUT-08 (P-39)</td></tr>
+      <tr data-s="p"><td></td><td>Export (in thực đơn)</td><td>T</td><td>T</td><td>T</td><td>—</td><td>—</td><td>—</td><td></td><td>—</td><td><span class="tt p">P</span></td></tr>
+
+      <tr class="grp"><td colspan="11">Báo ăn, chốt suất</td></tr>
+      <tr data-s="c"><td>Điểm danh = báo ăn</td><td>Create / Update</td><td>—</td><td>—</td><td>—</td><td>L</td><td>—</td><td>—</td><td>Trước giờ chốt hoặc khi được mở lại</td><td>Có</td><td><span class="tt c">C</span> ATT-01, 02</td></tr>
+      <tr data-s="c"><td></td><td>Mở lại sau giờ chốt</td><td>T</td><td>điểm trường</td><td>điểm trường</td><td>—</td><td>—</td><td>—</td><td>Lý do bắt buộc</td><td>Có, lý do</td><td><span class="tt c">C</span> ATT-08</td></tr>
+      <tr data-s="c"><td>Sổ suất ăn</td><td>View</td><td>T</td><td>T</td><td>T</td><td>L (P)</td><td>TK, chỉ số đã xác nhận</td><td>—</td><td>Bếp không thấy tên trẻ</td><td>—</td><td><span class="tt c">C</span> NUT-03, AUTH-05</td></tr>
+      <tr data-s="c"><td></td><td>Confirm / xác nhận lại</td><td>T</td><td>điểm trường <code>MEAL_COUNT_CONFIRM</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Sau giờ chốt; số sai ⇒ mở lại điểm danh, không sửa tay</td><td>Có</td><td><span class="tt c">C</span> NUT-02..04</td></tr>
+
+      <tr class="grp"><td colspan="11">Kho &amp; hàng tươi</td></tr>
+      <tr data-s="c"><td>Trừ kho khô theo suất</td><td>(hệ thống)</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Khi suất điểm trường × ngày xác nhận; lô hết hạn trước; thiếu ⇒ ghi thiếu, không chặn</td><td>Có (bút toán)</td><td><span class="tt c">C</span> NUT-11 (P-38)</td></tr>
+      <tr data-s="c"><td>Kho khô: tồn, lịch sử</td><td>View</td><td>T</td><td>T</td><td>T</td><td>—</td><td>—</td><td>—</td><td></td><td>—</td><td><span class="tt c">C</span> NUT-11</td></tr>
+      <tr data-s="c"><td>Phiếu nhập kho khô</td><td>Create</td><td>T</td><td>điểm trường <code>STOCK_MANAGE</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>NCC, lô, hạn, giá; xác nhận ⇒ tạo lô, trừ tiếp phần thiếu</td><td>Có</td><td><span class="tt c">C</span> NUT-11</td></tr>
+      <tr data-s="p"><td></td><td>Update / Delete</td><td>T</td><td>điểm trường</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Trước xác nhận: sửa/xóa. Sau: chỉ bút toán đảo khi lô chưa bị trừ, lý do bắt buộc</td><td>Có, lý do</td><td><span class="tt p">P</span></td></tr>
+      <tr data-s="c"><td></td><td>Chuyển kho, kiểm kê</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Không có</td><td>—</td><td><span class="tt c">C</span> NUT-11</td></tr>
+      <tr data-s="c"><td>Bản dự trù hàng tươi</td><td>Create / Update · Export</td><td>T</td><td>điểm trường <code>STOCK_MANAGE</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Sĩ số dự kiến điền sẵn, sửa được; in đặt hàng</td><td>Có</td><td><span class="tt c">C</span> NUT-07, 12</td></tr>
+      <tr data-s="c"><td>Kiểm nhận hàng tươi</td><td>Create / Update</td><td>T</td><td>điểm trường <code>STOCK_MANAGE</code></td><td>—</td><td>—</td><td>— (báo ngoài HT)</td><td>—</td><td>Lần 2 mở khi suất ngày đã xác nhận</td><td>Có</td><td><span class="tt c">C</span> NUT-12</td></tr>
+
+      <tr class="grp"><td colspan="11">Bếp &amp; an toàn thực phẩm</td></tr>
+      <tr data-s="c"><td>Bếp hôm nay</td><td>View</td><td>T</td><td>T</td><td>T</td><td>—</td><td>TK</td><td>—</td><td>Dị ứng chỉ dạng số suất</td><td>—</td><td><span class="tt c">C</span> AUTH-05, NUT-23</td></tr>
+      <tr data-s="c"><td>Lưu mẫu, hủy mẫu</td><td>Create</td><td>—</td><td>—</td><td>—</td><td>—</td><td>TK <code>KITCHEN_RECORD</code></td><td>—</td><td>Hủy sau ≥24 giờ</td><td>Có (theo tài khoản)</td><td><span class="tt c">C</span> NUT-21</td></tr>
+      <tr data-s="c"><td></td><td>Approve</td><td>T</td><td>điểm trường <code>FOOD_SAFETY_APPROVE</code></td><td>—</td><td>—</td><td>—</td><td>—</td><td>Đã duyệt thì khóa (P)</td><td>Có</td><td><span class="tt c">C</span> NUT-21</td></tr>
+      <tr data-s="c"><td></td><td>Export</td><td>T</td><td>điểm trường</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Chỉ bản ghi đã duyệt</td><td>—</td><td><span class="tt c">C</span> NUT-21</td></tr>
+      <tr data-s="c"><td>Ảnh bữa</td><td>Create / Update</td><td>—</td><td>—</td><td>—</td><td>—</td><td>TK <code>KITCHEN_RECORD</code></td><td>—</td><td>Chỉ trong khung giờ theo bữa</td><td>Có</td><td><span class="tt c">C</span> NUT-16</td></tr>
+      <tr data-s="c"><td></td><td>View</td><td>T</td><td>T</td><td>T</td><td>—</td><td>TK</td><td>điểm trường của con</td><td></td><td>—</td><td><span class="tt c">C</span> NUT-16, PAR-01</td></tr>
+
+      <tr class="grp"><td colspan="11">Điều phối, phân quyền</td></tr>
+      <tr data-s="p"><td>Bán trú hôm nay</td><td>View</td><td>T</td><td>T</td><td>T</td><td>—</td><td>—</td><td>—</td><td>Lọc theo điểm trường</td><td>—</td><td><span class="tt p">P</span> màn mới</td></tr>
+      <tr data-s="c"><td>Phân quyền các mã</td><td>Update</td><td>T</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>Lý do bắt buộc; không tự sửa mình</td><td>Có</td><td><span class="tt c">C</span> AUTH-10..14</td></tr>
+    </tbody>
+  </table></div>
+</div></section>
+
+<!-- ================= NGOẠI LỆ ================= -->
+<section id="ngoaile"><div class="wrap">
+  <h2>8. Xử lý ngoại lệ</h2>
+  <div class="tablewrap"><table class="dense">
+    <thead><tr><th>Ngoại lệ</th><th>Cách xử lý</th><th>TT</th></tr></thead>
+    <tbody>
+      <tr><td>Sửa thực đơn đã công bố</td><td>Chỉ bất khả kháng, người có <code>MENU_PUBLISHED_EDIT</code>: ngày chưa tới hoặc hôm nay trước giờ chốt, lý do, báo bếp + phụ huynh</td><td><span class="tt c">C</span> NUT-08 (P-39)</td></tr>
+      <tr><td>Điều chỉnh suất sau giờ chốt</td><td>Mở lại điểm danh → GV sửa → xác nhận lại; kho ghi chênh lệch</td><td><span class="tt c">C</span> ATT-08, NUT-03, 04</td></tr>
+      <tr><td>Thay đổi dữ liệu kho</td><td>Không sửa bút toán; phiếu nhập sai ⇒ bút toán đảo có lý do; không kiểm kê, không chuyển cơ sở</td><td><span class="tt c">C</span> / bút toán đảo <span class="tt p">P</span></td></tr>
+      <tr><td>Thiếu kho khi xác nhận suất</td><td>Không chặn; ghi thiếu; PHT mua thêm (B), nhập bổ sung ⇒ trừ tiếp</td><td><span class="tt c">C</span> NUT-11 (P-38)</td></tr>
+      <tr><td>Sai lệch hàng tươi</td><td>Ghi ở kiểm nhận; báo NCC ngoài hệ thống</td><td><span class="tt c">C</span> NUT-12</td></tr>
+      <tr><td>Thiếu/thừa suất thực tế khi chia</td><td>Báo PHT qua Zalo; hệ thống không ghi</td><td><span class="tt c">C</span> NUT-22</td></tr>
+    </tbody>
+  </table></div>
+</div></section>
+
+<!-- ================= DỮ LIỆU ================= -->
+<section id="dulieu"><div class="wrap">
+  <h2>9. Dữ liệu dùng chung / tách điểm trường &amp; giảm thao tác</h2>
+  <div class="grid g3">
+    <div class="card"><b>Dùng chung toàn trường</b><p style="margin:6px 0 0;font-size:14px">Thực phẩm, món, cấu hình nhóm tuổi, NCC, bộ mẫu, kế hoạch và thực đơn tuần đã công bố, món thay thế dị ứng, khung giờ ảnh.</p></div>
+    <div class="card"><b>Tách theo điểm trường</b><p style="margin:6px 0 0;font-size:14px">Sổ suất, lô và bút toán kho khô, phần thiếu, bản dự trù, kiểm nhận hàng tươi, lưu/hủy mẫu, ảnh bữa, tài khoản bếp.</p></div>
+    <div class="card"><b>Theo lớp / trẻ</b><p style="margin:6px 0 0;font-size:14px">Điểm danh, suất theo lớp; dị ứng của trẻ ở module child — bếp chỉ thấy số đếm.</p></div>
+  </div>
+  <div class="card" style="margin-top:14px"><b>Giảm thao tác lặp</b>
+    <ul style="padding-left:18px;margin:6px 0 0">
+      <li>Một thực đơn tuần là nguồn cho bản dự trù, nhu cầu ngày, trừ kho, bếp hôm nay, lưu mẫu (món điền sẵn), phụ huynh.</li>
+      <li>Xác nhận suất một lần ⇒ tự trừ kho, cập nhật bếp hôm nay và kiểm nhận lần 2; không nhập lại số.</li>
+      <li>Sĩ số dự kiến điền sẵn từ trẻ đang học; kiểm nhận lần 1 điền sẵn từ bản dự trù.</li>
+      <li>Sao tuần từ bộ mẫu; chép định lượng giữa nhóm tuổi; món thay thế dùng chung theo chất.</li>
+      <li>Nhãn, biểu mẫu lưu mẫu sinh từ bản ghi đã duyệt.</li>
+    </ul></div>
+</div></section>
+
+<!-- ================= APP ================= -->
+<section id="app"><div class="wrap">
+  <h2>10. App</h2>
+  <p class="sub">Bếp dùng chung một tài khoản mỗi cơ sở (AUTH-22), không thấy tên trẻ (AUTH-05).</p>
+  <div class="grid g3">
+    <div class="phone"><div class="title">Bếp · Hôm nay (CS1)</div>
+      <div class="wf"><div class="box"><b>Trưa</b> · Cơm, cá kho, canh bí</div>
+        <table><tr><th>Lớp</th><th>Suất</th><th>Thay thế</th></tr><tr><td>Lá 1</td><td>28</td><td>1 (cá → gà)</td></tr><tr><td>Chồi 2</td><td>30 <span class="chip info">Mới</span></td><td>—</td></tr></table>
+        <div class="box muted">Định lượng tổng: Gạo 9,4 kg · Cá 3,1 kg…</div></div></div>
+    <div class="phone"><div class="title">Bếp · Lưu mẫu &amp; ảnh</div>
+      <div class="wf"><div class="box row"><span>Lưu mẫu trưa</span><span class="wn">chờ duyệt</span></div>
+        <div class="box row"><span>Hủy mẫu 03/11</span><span class="btn">Ghi hủy</span></div>
+        <div class="box row"><span>Ảnh bữa trưa</span><span class="btn primary">Chụp</span></div>
+        <div class="muted">Ngoài khung giờ ⇒ khóa chụp</div></div></div>
+    <div class="phone"><div class="title">Phụ huynh · Thực đơn</div>
+      <div class="wf"><div class="box"><b>Tuần 03–07/11</b> <span class="chip new">đã công bố</span><div class="muted">T2 cơm cá kho · T3 cơm gà · …</div></div>
+        <div class="box"><b>Hôm nay</b><div class="muted">📷 ảnh bữa trưa, chiều của CS con học</div></div></div></div>
+  </div>
+</div></section>
+
+<!-- ================= THAY ĐỔI ================= -->
+<section id="thaydoi"><div class="wrap">
+  <h2>11. Thay đổi so với thiết kế hiện tại</h2>
+  <div class="tablewrap"><table class="dense">
+    <thead><tr><th>Hiện tại</th><th>Mới</th><th>Căn cứ</th></tr></thead>
+    <tbody>
+      <tr><td>Rule 01/11 + bản HTML trước: công bố thực đơn chuẩn theo ngày sau chốt suất</td><td>Công bố cả tuần một lần; đến ngày chỉ thêm ảnh</td><td>User chốt 02/11</td></tr>
+      <tr><td>Trừ kho khi công bố ngày, chặn công bố nếu thiếu</td><td>Trừ khi suất điểm trường xác nhận; thiếu không chặn</td><td>NUT-11 (P-38 duyệt 02/11)</td></tr>
+      <tr><td>FE: "Tạo phiên bản thay thế" sau xuất bản</td><td>Bỏ; ngoại lệ bất khả kháng qua mã riêng (P-39)</td><td>NUT-08</td></tr>
+      <tr><td>FE: 4 nhóm menu + 2 trang quy trình</td><td>6 nhóm, một trang Bán trú hôm nay</td><td>Yêu cầu 02/11</td></tr>
+      <tr><td>FE: bếp dùng Web</td><td>Bếp chỉ App</td><td>AUTH-21</td></tr>
+      <tr><td>FE: xuất kho, bếp chọn lô</td><td>Trừ tự động, lịch sử, phần thiếu</td><td>NUT-11</td></tr>
+      <tr><td>FE: hàng tươi bếp ghi → PHT xác nhận; dự trù theo lớp × tuần</td><td>PHT ghi 2 lần; dự trù theo kỳ, nhóm tuổi × điểm trường</td><td>NUT-07, NUT-12</td></tr>
+      <tr><td>FE: thực đơn mẫu một ngày; thực đơn thay thế nguyên ngày</td><td>Bộ 4 tuần nhãn mùa; món thay thế chất × món</td><td>NUT-13, NUT-23</td></tr>
+      <tr><td>FE: trạng thái chuẩn bị</td><td>Bỏ; chế biến, bàn giao là việc ngoài hệ thống</td><td>NUT-14, 15 REMOVED</td></tr>
+      <tr><td>FE: quyền theo role cứng</td><td>Mã quyền cấu hình được</td><td>AUTH-10, AUTH-20</td></tr>
+      <tr><td>"Sổ báo ăn" ở nhóm Điểm danh</td><td>Sổ suất ăn ở Vận hành bếp cho PHT/HT</td><td>NUT-02</td></tr>
+      <tr><td>Giá suất ở 2 màn; cấu hình chưa có ngày hiệu lực</td><td>Gộp vào cấu hình nhóm tuổi có phiên bản</td><td>NUT-17, NUT-19</td></tr>
+    </tbody>
+  </table></div>
+</div></section>
+
+<!-- ================= LỘ TRÌNH ================= -->
+<section id="lotrinh"><div class="wrap">
+  <h2>12. Lộ trình (Capstone 15 tuần)</h2>
+  <p class="sub">Mỗi lát một plan con. L6, L7 cắt được nếu thiếu thời gian. Không thêm kiểm kê, chuyển kho, theo dõi nấu, bàn giao.</p>
+  <div class="tablewrap"><table class="dense">
+    <thead><tr><th>Lát</th><th>BE</th><th>FE / App</th><th>Cần trước</th></tr></thead>
+    <tbody>
+      <tr><td><span class="chip new">L1</span> Danh mục</td><td>Thực phẩm, món + gam/trẻ, cấu hình nhóm tuổi, NCC, <code>NUTRITION_MANAGE</code></td><td>Dọn menu 6 nhóm; Danh mục &amp; thiết lập</td><td>—</td></tr>
+      <tr><td>L2 Kho khô</td><td>Phiếu nhập → lô, tồn, lịch sử, <code>STOCK_MANAGE</code></td><td>Kho thực phẩm; bỏ xuất kho</td><td>L1</td></tr>
+      <tr><td>L3 Thực đơn</td><td>Bộ mẫu, kế hoạch tuần, kiểm tra, món thay thế, công bố tuần, trừ kho khi xác nhận suất, <code>MENU_MANAGE</code></td><td>Kế hoạch tuần, Bán trú hôm nay</td><td>L1, L2</td></tr>
+      <tr><td>L4 Hàng tươi</td><td>Bản dự trù, kiểm nhận 2 lần</td><td>Vận hành bếp</td><td>L3</td></tr>
+      <tr><td>L5 Bếp + ATTP</td><td>API bếp, lưu/hủy mẫu + duyệt + in, ảnh bữa, <code>FOOD_SAFETY_APPROVE</code>, <code>KITCHEN_RECORD</code></td><td>App bếp; Web duyệt/in</td><td>L3</td></tr>
+      <tr><td>L6 Phụ huynh</td><td>Đọc thực đơn tuần, ảnh bữa</td><td>App phụ huynh</td><td>L3, L5</td></tr>
+      <tr><td>L7 AI (tùy chọn)</td><td>Gợi ý kế hoạch tuần qua <code>integration/</code></td><td>Nút AI gợi ý</td><td>L3</td></tr>
+    </tbody>
+  </table></div>
+  <div class="grid g2" style="margin-top:14px">
+    <div class="card"><b>Plan L1 BE</b> — <code>docs/plans/completed/2026-11-02-day-boarding-l1-catalog.md</code>
+      <div class="phase"><b>P1</b>V41, <code>NUTRITION_MANAGE</code>, entity</div>
+      <div class="phase"><b>P2</b>Thực phẩm, chất dị ứng, nhập hàng loạt</div>
+      <div class="phase"><b>P3</b>Món, định lượng, sao chép</div>
+      <div class="phase"><b>P4</b>Cấu hình nhóm tuổi, NCC, OpenAPI</div></div>
+    <div class="card"><b>Plan L1 FE</b> — <code>CareNest_FE/docs/plans/active/2026-11-02-day-boarding-l1-catalog-fe.md</code>
+      <div class="phase"><b>P1</b>Menu 6 nhóm; bỏ menu bếp Web, xuất kho, trạng thái chuẩn bị</div>
+      <div class="phase"><b>P2</b>Shape theo contract (vẫn mock)</div>
+      <div class="phase"><b>P3</b>Nối BE</div></div>
+  </div>
+</div></section>
+
+<!-- ================= CÒN MỞ ================= -->
+<section id="mo"><div class="wrap">
+  <h2>13. Còn mở — cần user/trường xác nhận</h2>
+  <div class="tablewrap"><table class="dense">
+    <thead><tr><th>ID</th><th>Câu hỏi</th><th>Đề xuất của agent</th></tr></thead>
+    <tbody>
+      <tr><td>—</td><td>GV xem thực đơn tuần và sổ suất lớp mình?</td><td>Cho xem (chỉ đọc)</td></tr>
+      <tr><td>—</td><td>Bản lưu mẫu khóa sau khi PHT duyệt? Phiếu nhập sai xử lý bằng bút toán đảo?</td><td>Có / có</td></tr>
+      <tr><td>P-26, P-27</td><td>Mẫu sổ lưu mẫu; kiểm thực ba bước</td><td>Ngoài lát hiện tại</td></tr>
+    </tbody>
+  </table></div>
+  <footer>Nguồn: <code>docs/business/BUSINESS_RULES.md</code> (NUT-*, ATT-*, AUTH-*, PAR-01; P-38, P-39), <code>docs/business/flows/meal-management.md</code>, <code>docs/business/flows/meal-management-permissions.md</code>, plan <code>2026-11-02-day-boarding-*</code>, ảnh <code>day-boarding-screens/</code>.</footer>
+</div></section>
+
+<div id="lightbox"><img alt=""></div>
+<script>
+(function(){
+  var lb=document.getElementById('lightbox'),li=lb.querySelector('img');
+  document.querySelectorAll('img.shot').forEach(function(im){im.addEventListener('click',function(){li.src=im.src;lb.style.display='flex';});});
+  lb.addEventListener('click',function(){lb.style.display='none';});
+  var btns=document.querySelectorAll('.filters button'),rows=document.querySelectorAll('#mx tbody tr[data-s]');
+  btns.forEach(function(b){b.addEventListener('click',function(){
+    btns.forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false');});
+    var f=b.getAttribute('data-f');
+    rows.forEach(function(r){r.style.display=(f==='all'||r.getAttribute('data-s')===f)?'':'none';});
+  });});
+})();
+(function(){
+  var root=document.documentElement,btn=document.getElementById('themeBtn');
+  try{var t=localStorage.getItem('theme');if(t)root.setAttribute('data-theme',t);}catch(e){}
+  btn.addEventListener('click',function(){
+    var cur=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');
+    var next=cur==='dark'?'light':'dark';root.setAttribute('data-theme',next);
+    try{localStorage.setItem('theme',next);}catch(e){}
+  });
+})();
+</script>
+</body>
+</html>

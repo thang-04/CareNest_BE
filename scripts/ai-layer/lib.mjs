@@ -29,6 +29,7 @@ export const DEFAULTS = {
   lanes: { smallMaxFiles: 2, mediumMaxFiles: 8, riskGlobs: [] },
   verify: { activeWhen: [], globs: ["src/**"], display: "node scripts/verify.mjs" },
   guard: {
+    autonomous: false,
     denyRead: ["**/.env", "**/.env.*", "**/*.pem", "**/*.key", "**/*.p12", "**/*.pfx", "**/*.jks", "**/id_rsa*", "**/id_ed25519*"],
     denyReadExcept: ["**/.env.example", "**/.env.sample", "**/.env.template"],
     immutableGlobs: [],

@@ -1,6 +1,6 @@
 ---
 name: implement-feature
-description: Use for new CareNest backend features or business behavior changes ("thêm chức năng", "làm tính năng", "implement", "điểm danh", "suất ăn", "thực đơn", "sức khỏe", "quan sát", "sự cố CSVC"). Routes to module card, business rules and the feature workflow.
+description: Use for new CareNest backend features or business behavior changes ("thêm chức năng", "làm tính năng", "implement", "điểm danh", "suất ăn", "thực đơn", "sức khỏe", "quan sát", "đánh giá", "đón trẻ", "kế hoạch giáo dục"). Routes to module card, business rules and the feature workflow.
 ---
 
 # Implement feature — CareNest_BE

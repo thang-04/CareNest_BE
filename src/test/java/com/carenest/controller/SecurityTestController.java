@@ -18,4 +18,10 @@ public class SecurityTestController {
     ResponseEntity<ResponseJson<Void>> getTeacherResource() {
         return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Teacher resource");
     }
+
+    @GetMapping("/authenticated")
+    @PreAuthorize("isAuthenticated()")
+    ResponseEntity<ResponseJson<Void>> getAuthenticatedResource() {
+        return ResponseJson.toJson(ApiCode.SUCCESSFUL, "Authenticated resource");
+    }
 }

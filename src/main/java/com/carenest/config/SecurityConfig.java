@@ -1,16 +1,24 @@
 package com.carenest.config;
 
+import com.carenest.security.ClientPlatformProperties;
+import com.carenest.security.CurrentUserService;
 import com.carenest.security.KeycloakRealmRoleConverter;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
+import com.carenest.security.authorization.PermissionGuard;
+import com.carenest.utils.enums.ClientPlatform;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authorization.AuthenticatedAuthorizationManager;
+import org.springframework.security.authorization.AuthorityAuthorizationManager;
+import org.springframework.security.authorization.AuthorizationManagers;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.ObjectPostProcessor;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -41,7 +49,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 // Resource Server giữ Bearer API; Web gateway opt-in dùng cookie và CSRF theo ADR-0013.
 @Configuration
 @EnableMethodSecurity
-@EnableConfigurationProperties(AuthProperties.class)
+@EnableConfigurationProperties({AuthProperties.class, ClientPlatformProperties.class})
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -54,7 +62,10 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http, AuthProperties authProperties, @Value("${carenest.api.prefix}") String apiPrefix)
+            HttpSecurity http,
+            AuthProperties authProperties,
+            KeycloakRealmRoleConverter realmRoleConverter,
+            @Value("${carenest.api.prefix}") String apiPrefix)
             throws Exception {
         RequestMatcher authGet = authGetMatcher(apiPrefix);
         RequestMatcher authPost = authPostMatcher(apiPrefix);
@@ -87,10 +98,15 @@ public class SecurityConfig {
                     auth.requestMatchers(PUBLIC_PATHS).permitAll();
                     if (authProperties.enabled())
                         auth.requestMatchers(authGet, authPost).permitAll();
-                    auth.anyRequest().authenticated();
+                    // AUTH-21: token không còn role nào dùng được trên nền tảng của client ⇒ 403 mọi API
+                    auth.anyRequest()
+                            .access(AuthorizationManagers.allOf(
+                                    AuthenticatedAuthorizationManager.authenticated(),
+                                    AuthorizationManagers.not(AuthorityAuthorizationManager.hasAuthority(
+                                            ClientPlatform.DENIED_AUTHORITY))));
                 })
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(
-                                jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                                jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter(realmRoleConverter)))
                         .authenticationEntryPoint(restAuthenticationEntryPoint)
                         .accessDeniedHandler(restAccessDeniedHandler)
                         // Mặc định lỗi không lấy được JWKS bị ném tiếp thành 500; đưa về entry point để trả 503
@@ -125,9 +141,23 @@ public class SecurityConfig {
                 new JwtClaimValidator<List<String>>(JwtClaimNames.AUD, aud -> aud != null && aud.contains(audience)));
     }
 
-    private JwtAuthenticationConverter jwtAuthenticationConverter() {
+    // Khai báo ở đây (không @Component) để mọi WebMvcTest đã import SecurityConfig có sẵn bean cho SpEL
+    // @permissionGuard
+    @Bean
+    public PermissionGuard permissionGuard(ObjectProvider<CurrentUserService> currentUserService) {
+        return new PermissionGuard(currentUserService);
+    }
+
+    @Bean
+    public KeycloakRealmRoleConverter keycloakRealmRoleConverter(
+            ClientPlatformProperties platforms, AuthProperties authProperties) {
+        return new KeycloakRealmRoleConverter(platforms.withWebClient(authProperties.clientId()));
+    }
+
+    private static JwtAuthenticationConverter jwtAuthenticationConverter(
+            KeycloakRealmRoleConverter realmRoleConverter) {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(new KeycloakRealmRoleConverter());
+        converter.setJwtGrantedAuthoritiesConverter(realmRoleConverter);
         return converter;
     }
 
@@ -141,7 +171,15 @@ public class SecurityConfig {
         if (authProperties.enabled()) businessOrigins.addAll(authProperties.allowedOrigins());
         config.setAllowedOrigins(List.copyOf(businessOrigins));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of(HttpHeaders.AUTHORIZATION, HttpHeaders.CONTENT_TYPE));
+        config.setAllowedHeaders(List.of(
+                HttpHeaders.AUTHORIZATION,
+                HttpHeaders.CONTENT_TYPE,
+                "X-Edit-Session",
+                "X-Plan-Revision",
+                "Idempotency-Key",
+                HttpHeaders.RANGE));
+        config.setExposedHeaders(
+                List.of(HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES));
         config.setAllowCredentials(false);
         config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

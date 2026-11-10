@@ -11,10 +11,12 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -36,7 +38,8 @@ import org.springframework.web.client.RestClientResponseException;
 public class KeycloakIdentityProviderClient implements IdentityProviderClient {
 
     private static final Duration TOKEN_EXPIRY_MARGIN = Duration.ofSeconds(30);
-    private static final String UPDATE_PASSWORD = "UPDATE_PASSWORD";
+    private static final String UPDATE_PASSWORD =
+            "UPDATE_PASSWORD"; // carenest:allow-secret: tên required action Keycloak
 
     private final KeycloakProperties properties;
     private final Clock clock;
@@ -130,6 +133,52 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
     }
 
     @Override
+    public List<String> getRealmRoleNames(String userId) {
+        RoleRepresentation[] assigned = call(
+                "getRealmRoleNames",
+                () -> restClient
+                        .get()
+                        .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .retrieve()
+                        .body(RoleRepresentation[].class));
+        return assigned == null
+                ? List.of()
+                : Arrays.stream(assigned).map(RoleRepresentation::name).toList();
+    }
+
+    @Override
+    public void removeRealmRole(String userId, String roleName) {
+        RoleRepresentation[] assigned = call(
+                "removeRealmRole",
+                () -> restClient
+                        .get()
+                        .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .retrieve()
+                        .body(RoleRepresentation[].class));
+        RoleRepresentation role = assigned == null
+                ? null
+                : Arrays.stream(assigned)
+                        .filter(candidate -> roleName.equals(candidate.name()))
+                        .findFirst()
+                        .orElse(null);
+        if (role == null) {
+            return;
+        }
+        call(
+                "removeRealmRole",
+                () -> restClient
+                        .method(HttpMethod.DELETE)
+                        .uri("/admin/realms/{realm}/users/{id}/role-mappings/realm", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(List.of(Map.of("id", role.id(), "name", role.name())))
+                        .retrieve()
+                        .toBodilessEntity());
+    }
+
+    @Override
     public void deleteUser(String userId) {
         call(
                 "deleteUser",
@@ -143,9 +192,25 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
 
     @Override
     public void setUserEnabled(String userId, boolean enabled) {
-        // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+        updateUser("setUserEnabled", userId, user -> user.put("enabled", enabled));
+    }
+
+    @Override
+    public void updateUserProfile(String userId, String fullName, String email) {
+        updateUser("updateUserProfile", userId, user -> {
+            // Họ tên đầy đủ ở firstName như lúc tạo
+            user.put("firstName", fullName);
+            if (email != null && !email.equalsIgnoreCase(String.valueOf(user.get("email")))) {
+                user.put("email", email);
+                user.put("emailVerified", false);
+            }
+        });
+    }
+
+    // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+    private void updateUser(String operation, String userId, Consumer<Map<String, Object>> change) {
         Map<String, Object> user = call(
-                "setUserEnabled",
+                operation,
                 () -> restClient
                         .get()
                         .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
@@ -156,15 +221,29 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
             throw new IdentityProviderException(
                     IdentityProviderErrorReason.UNAVAILABLE, "Keycloak returned empty user", null);
         }
-        user.put("enabled", enabled);
+        change.accept(user);
         call(
-                "setUserEnabled",
+                operation,
                 () -> restClient
                         .put()
                         .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
                         .headers(headers -> headers.setBearerAuth(adminToken()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(user)
+                        .retrieve()
+                        .toBodilessEntity());
+    }
+
+    @Override
+    public void resetTemporaryPassword(String userId, String temporaryPassword) {
+        call(
+                "resetTemporaryPassword",
+                () -> restClient
+                        .put()
+                        .uri("/admin/realms/{realm}/users/{id}/reset-password", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Map.of("type", "password", "value", temporaryPassword, "temporary", true))
                         .retrieve()
                         .toBodilessEntity());
     }

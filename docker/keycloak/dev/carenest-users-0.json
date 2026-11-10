@@ -3,81 +3,83 @@
   "users": [
     {
       "id": "00000000-0000-4000-a000-000000000001",
-      "username": "admin.dev",
+      "username": "admin",
       "enabled": true,
       "firstName": "Quản trị Demo",
-      "email": "admin.dev@carenest.test",
+      "email": "admin@gmail.com",
       "emailVerified": true,
       "realmRoles": ["ADMIN"],
-      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
     },
     {
       "id": "00000000-0000-4000-a000-000000000002",
-      "username": "principal.dev",
+      "username": "principal",
       "enabled": true,
       "firstName": "Hiệu trưởng Demo",
-      "email": "principal.dev@carenest.test",
+      "email": "principal@gmail.com",
       "emailVerified": true,
       "realmRoles": ["PRINCIPAL"],
-      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
     },
     {
       "id": "00000000-0000-4000-a000-000000000003",
-      "username": "viceprincipal.a",
+      "username": "viceprincipal",
       "enabled": true,
       "firstName": "Hiệu phó Cơ sở A Demo",
-      "email": "viceprincipal.a@carenest.test",
+      "email": "viceprincipal@gmail.com",
       "emailVerified": true,
       "realmRoles": ["VICE_PRINCIPAL"],
-      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
     },
     {
       "id": "00000000-0000-4000-a000-000000000004",
-      "username": "teacher.a",
+      "username": "teacher1",
       "enabled": true,
       "firstName": "Giáo viên A Demo",
-      "email": "teacher.a@carenest.test",
+      "email": "teacher1@gmail.com",
       "emailVerified": true,
       "realmRoles": ["TEACHER"],
-      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
     },
     {
       "id": "00000000-0000-4000-a000-000000000005",
-      "username": "teacher.b",
+      "username": "teacher2",
       "enabled": true,
       "firstName": "Giáo viên B Demo",
-      "email": "teacher.b@carenest.test",
+      "email": "teacher2@gmail.com",
       "emailVerified": true,
       "realmRoles": ["TEACHER"],
-      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
     },
     {
       "id": "00000000-0000-4000-a000-000000000006",
-      "username": "parent.a",
+      "username": "parent1",
       "enabled": true,
       "firstName": "Phụ huynh A Demo",
-      "email": "parent.a@carenest.test",
+      "email": "parent1@gmail.com",
       "emailVerified": true,
       "realmRoles": ["PARENT"],
-      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
     },
     {
       "id": "00000000-0000-4000-a000-000000000007",
-      "username": "parent.b",
+      "username": "parent2",
       "enabled": true,
       "firstName": "Phụ huynh B Demo",
+      "email": "parent2@gmail.com",
+      "emailVerified": true,
       "realmRoles": ["PARENT"],
-      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
     },
     {
       "id": "00000000-0000-4000-a000-000000000008",
-      "username": "kitchen.a",
+      "username": "kitchen",
       "enabled": true,
       "firstName": "Nhà bếp Cơ sở A Demo",
-      "email": "kitchen.a@carenest.test",
+      "email": "kitchen@gmail.com",
       "emailVerified": true,
       "realmRoles": ["KITCHEN_STAFF"],
-      "credentials": [{ "type": "password", "value": "${KEYCLOAK_DEV_USER_PASSWORD}", "temporary": false }]
+      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
     }
   ]
 }

@@ -3,23 +3,34 @@ package com.carenest.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.carenest.entity.account.RolePermission;
 import com.carenest.entity.account.UserAccount;
+import com.carenest.entity.account.UserPermissionOverride;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.account.RolePermissionRepository;
 import com.carenest.repository.account.UserAccountRepository;
+import com.carenest.repository.account.UserPermissionOverrideRepository;
+import com.carenest.security.authorization.TeamLeaderAssignmentChecker;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
+import com.carenest.utils.enums.PermissionEffect;
 import com.carenest.utils.enums.UserStatus;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -35,6 +46,19 @@ class CurrentUserServiceTest {
 
     @Mock
     private UserAccountRepository userAccountRepository;
+
+    @Mock
+    private RolePermissionRepository rolePermissionRepository;
+
+    @Mock
+    private UserPermissionOverrideRepository userPermissionOverrideRepository;
+
+    @Mock
+    private TeamLeaderAssignmentChecker teamLeaderAssignmentChecker;
+
+    @Spy
+    private KeycloakRealmRoleConverter realmRoleConverter =
+            new KeycloakRealmRoleConverter(KeycloakRealmRoleConverterTest.PLATFORMS);
 
     @InjectMocks
     private CurrentUserService currentUserService;
@@ -55,11 +79,28 @@ class CurrentUserServiceTest {
                 .issuedAt(Instant.parse("2026-10-12T01:00:00Z"))
                 .expiresAt(Instant.parse("2026-10-12T01:05:00Z"))
                 .claim("realm_access", java.util.Map.of("roles", java.util.List.of("TEACHER")))
+                .claim("azp", "carenest-auth-gateway")
                 .build();
         var currentUser = currentUserService.getCurrentUser(jwt);
         assertThat(currentUser.userId()).isEqualTo(47L);
         assertThat(currentUser.roles()).containsExactly(CareNestRole.TEACHER);
         assertThat(currentUser.fullName()).isEqualTo("Giáo viên Web");
+    }
+
+    @Test
+    @DisplayName("AUTH-21: GV kiêm phụ huynh đăng nhập Web gateway chỉ còn role GV")
+    void webGatewayTokenDropsParentRole() {
+        UserAccount account = UserAccount.create("kc-web-user", "0912345678", null, "Giáo viên Phụ huynh");
+        ReflectionTestUtils.setField(account, "id", 48L);
+        when(userAccountRepository.findByKeycloakUserId("kc-web-user")).thenReturn(Optional.of(account));
+        Jwt jwt = Jwt.withTokenValue("validated-web-token")
+                .header("alg", "RS256")
+                .subject("kc-web-user")
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of("TEACHER", "PARENT")))
+                .claim("azp", "carenest-auth-gateway")
+                .build();
+
+        assertThat(currentUserService.getCurrentUser(jwt).roles()).containsExactly(CareNestRole.TEACHER);
     }
 
     @Test
@@ -77,15 +118,92 @@ class CurrentUserServiceTest {
     }
 
     @Test
+    @DisplayName("AUTH-10: quyền giáo viên đọc từ ma trận + ngoại lệ ở mỗi request, REVOKE có hiệu lực ngay")
+    void shouldResolveTeacherPermissionsFromMatrixAndOverrides() {
+        authenticateWithJwt("ROLE_TEACHER");
+        given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
+                .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+        given(rolePermissionRepository.findByRoleIn(Set.of(CareNestRole.TEACHER)))
+                .willReturn(List.of(RolePermission.create(CareNestRole.TEACHER, "CHILD_PROFILE_VIEW", null)));
+        given(userPermissionOverrideRepository.findByUserId(10L)).willReturn(List.of());
+
+        assertThat(currentUserService.getCurrentUser().permissions()).containsExactly(Permission.CHILD_PROFILE_VIEW);
+
+        given(userPermissionOverrideRepository.findByUserId(10L))
+                .willReturn(List.of(UserPermissionOverride.create(
+                        10L, "CHILD_PROFILE_VIEW", PermissionEffect.REVOKE, "Tạm nghỉ", 1L)));
+
+        assertThat(currentUserService.getCurrentUser().permissions()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("AUTH-23: GV đang có phân công tổ trưởng đọc thêm cột TEAM_LEADER của ma trận, role token giữ nguyên")
+    void activeTeamLeaderAlsoReadsTeamLeaderMatrixColumn() {
+        authenticateWithJwt("ROLE_TEACHER");
+        given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
+                .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+        given(teamLeaderAssignmentChecker.isActiveTeamLeader(10L, Set.of(CareNestRole.TEACHER)))
+                .willReturn(true);
+        given(rolePermissionRepository.findByRoleIn(Set.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)))
+                .willReturn(List.of(RolePermission.create(CareNestRole.TEACHER, "CHILD_PROFILE_VIEW", null)));
+        given(userPermissionOverrideRepository.findByUserId(10L)).willReturn(List.of());
+
+        CurrentUser currentUser = currentUserService.getCurrentUser();
+
+        assertThat(currentUser.roles()).containsExactly(CareNestRole.TEACHER);
+        assertThat(currentUser.permissions()).containsExactly(Permission.CHILD_PROFILE_VIEW);
+    }
+
+    @Test
+    @DisplayName("AUTH-23: token tự mang role TEAM_LEADER không được nhận")
+    void teamLeaderRoleInTokenIsIgnored() {
+        authenticateWithJwt("ROLE_TEAM_LEADER");
+        given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
+                .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+
+        CurrentUser currentUser = currentUserService.getCurrentUser();
+
+        assertThat(currentUser.roles()).isEmpty();
+        assertThat(currentUser.permissions()).isEmpty();
+        verifyNoInteractions(rolePermissionRepository, userPermissionOverrideRepository);
+    }
+
+    @Test
+    @DisplayName("AUTH-11: quyền PRINCIPAL cố định trong code, không đọc ma trận")
+    void shouldGivePrincipalFixedPermissionsWithoutQueryingMatrix() {
+        authenticateWithJwt("ROLE_PRINCIPAL");
+        given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID))
+                .willReturn(Optional.of(account(UserStatus.ACTIVE)));
+
+        assertThat(currentUserService.getCurrentUser().permissions())
+                .containsExactlyInAnyOrder(
+                        Permission.CHILD_PROFILE_VIEW,
+                        Permission.CHILD_ENROLL,
+                        Permission.CHILD_PROFILE_EDIT,
+                        Permission.CHILD_PLACEMENT,
+                        Permission.ACCOUNT_MANAGE,
+                        Permission.ACCOUNT_STATUS_MANAGE,
+                        Permission.STAFF_ASSIGNMENT_MANAGE,
+                        Permission.PARENT_ACCOUNT_MANAGE,
+                        Permission.MEAL_COUNT_CONFIRM,
+                        Permission.NUTRITION_MANAGE,
+                        Permission.MENU_MANAGE,
+                        Permission.STOCK_MANAGE,
+                        Permission.FOOD_SAFETY_APPROVE,
+                        Permission.PERMISSION_MANAGE);
+        verifyNoInteractions(rolePermissionRepository, userPermissionOverrideRepository);
+    }
+
+    @Test
     void shouldRejectAuthenticatedUserWithoutCareNestAccount() {
         authenticateWithJwt("ROLE_TEACHER");
         given(userAccountRepository.findByKeycloakUserId(KEYCLOAK_USER_ID)).willReturn(Optional.empty());
 
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("Account is not provisioned")
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .hasMessage(ApiCode.ACCOUNT_NOT_PROVISIONED.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     @Test
@@ -96,9 +214,9 @@ class CurrentUserServiceTest {
 
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
-                .hasMessage("Account is inactive")
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.FORBIDDEN);
+                .hasMessage(ApiCode.ACCOUNT_INACTIVE.getDefaultDesc())
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.FORBIDDEN.getHttpStatus());
     }
 
     @Test
@@ -107,8 +225,8 @@ class CurrentUserServiceTest {
 
         assertThatThrownBy(() -> currentUserService.getCurrentUser())
                 .isInstanceOf(GlobalException.class)
-                .extracting("apiCode")
-                .isEqualTo(ApiCode.UNAUTHORIZED);
+                .extracting(ex -> ((GlobalException) ex).getApiCode().getHttpStatus())
+                .isEqualTo(ApiCode.UNAUTHORIZED.getHttpStatus());
     }
 
     private static void authenticateWithJwt(String... authorities) {

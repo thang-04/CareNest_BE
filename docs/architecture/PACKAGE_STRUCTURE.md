@@ -25,7 +25,7 @@ Không tạo package `domain/`, không tách module theo DDD (guide mục 3).
 
 ## Module nghiệp vụ → feature sub-package
 
-Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (`controller/<feature>`, `service/<feature>`, ...). Tên feature: guide đã nêu ví dụ `attendance`, `child`, `meals`, `facilities`; các tên còn lại là **PROPOSED** — dùng tên đã có trong source nếu khác.
+Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (`controller/<feature>`, `service/<feature>`, ...). Tên feature: guide đã nêu ví dụ `attendance`, `child`, `meals` (ví dụ `facilities` trong guide thuộc mảng CSVC đã loại 29/10); các tên còn lại là **PROPOSED** — dùng tên đã có trong source nếu khác.
 
 | Module (docs) | Feature sub-package | Ghi chú |
 | --- | --- | --- |
@@ -35,11 +35,11 @@ Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (
 | attendance | `attendance` | Gồm đơn nghỉ |
 | nutrition | `meals` | Thực đơn (MealPlan), số suất, định lượng |
 | health | `health` (PROPOSED) | |
-| learning-observation | `observation` | Quan sát + nhận xét tuần/kỳ |
-| facility-issue | `facilities` | FacilityReport |
+| learning-observation | `observation` (PROPOSED) | |
+| education-plan | `eduplan` | Kế hoạch giáo dục: kế hoạch năm, cấu hình, tài liệu lớp, học liệu (ADR-0020) |
 | notification | `notification` (PROPOSED) + `integration/` | |
 | audit | `audit` (PROPOSED) | AuditEvent |
-| ai-assistance | `integration/ai/` (`AiClient`, `EmbeddingClient`) + `knowledge` (RAG: tài liệu tham khảo) | `knowledge` không chứa dữ liệu trẻ; module domain gọi `KnowledgeService.retrieve` |
+| ai-assistance | `integration/` (`AiClient`) | Không có service nghiệp vụ riêng |
 | reporting | `report` (PROPOSED) | Chỉ đọc |
 
 ## Quy tắc ranh giới giữa feature (bổ sung guide mục 4)

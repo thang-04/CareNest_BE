@@ -13,7 +13,7 @@ test('opt-in overlay preserves the stock public Web origin when unset', async ()
   const file = resolve(directory, 'test.env');
   const secret = randomBytes(32).toString('hex'); // carenest:allow-secret
   await writeFile(file, ['POSTGRES_PASSWORD', 'KEYCLOAK_DB_PASSWORD', 'KC_BOOTSTRAP_ADMIN_PASSWORD',
-    'KEYCLOAK_ADMIN_CLIENT_SECRET', 'KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET', 'KEYCLOAK_DEV_USER_PASSWORD']
+    'KEYCLOAK_ADMIN_CLIENT_SECRET', 'KEYCLOAK_AUTH_GATEWAY_CLIENT_SECRET']
     .map((name) => `${name}=${secret}`).join('\n'));
   const env = { ...process.env };
   delete env.CARENEST_WEB_ORIGIN;
