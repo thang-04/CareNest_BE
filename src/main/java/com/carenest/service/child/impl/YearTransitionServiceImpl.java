@@ -114,6 +114,7 @@ public class YearTransitionServiceImpl implements YearTransitionService {
                             c.name(),
                             c.campusId(),
                             c.ageGroupId(),
+                            taught.contains(c.id()),
                             childIdsByClass.getOrDefault(c.id(), List.of()).stream()
                                     .map(children::get)
                                     .filter(Objects::nonNull)

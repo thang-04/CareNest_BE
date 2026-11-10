@@ -14482,6 +14482,8 @@ components:
           format: int64
         name:
           type: string
+        teaches:
+          type: boolean
     PrepClassesResponse:
       type: object
       properties:

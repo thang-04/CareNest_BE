@@ -11,7 +11,9 @@ import java.util.List;
 public record PrepClassesResponse(
         Long schoolYearId, String schoolYearName, LocalDate prepDate, LocalDate startDate, List<PrepClass> classes) {
 
-    public record PrepClass(Long id, String name, Long campusId, Long ageGroupId, List<PrepChild> children) {}
+    /** teaches: người xem dạy lớp này; false = tổ trưởng / BGH chỉ xem. */
+    public record PrepClass(
+            Long id, String name, Long campusId, Long ageGroupId, boolean teaches, List<PrepChild> children) {}
 
     public record PrepChild(Long id, String fullName, LocalDate dateOfBirth, Gender gender) {}
 }

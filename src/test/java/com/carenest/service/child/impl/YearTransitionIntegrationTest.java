@@ -231,6 +231,25 @@ class YearTransitionIntegrationTest {
                 new CurrentUser(user("stranger"), "kc-stranger", "stranger", "S", null, Set.of(CareNestRole.TEACHER));
         assertThat(service.getPrepClasses(stranger, newYear).classes()).isEmpty();
 
+        // Tổ trưởng nhóm tuổi 4 năm mới (không dạy lớp nào): thấy mọi lớp nhóm tuổi đó, chỉ xem
+        long leaderId = user("leader");
+        long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from, valid_to)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2027-09-05', '2028-05-31')",
+                leaderId,
+                ag4,
+                newYear);
+        CurrentUser leader = new CurrentUser(leaderId, "kc-leader", "leader", "L", null, Set.of(CareNestRole.TEACHER));
+        assertThat(service.getPrepClasses(leader, newYear).classes())
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.id()).isEqualTo(newClass4);
+                    assertThat(c.teaches()).isFalse();
+                    assertThat(c.children()).extracting(ch -> ch.id()).containsExactly(child1);
+                });
+        assertThat(service.getPrepClasses(teacher, newYear).classes()).allMatch(c -> c.teaches());
+
         // Chưa tới ngày mở chuẩn bị: GV không thấy năm
         jdbc.update("UPDATE school_years SET prep_date = '2027-09-01' WHERE id = ?", newYear);
         entityManager.clear();
