@@ -1,6 +1,6 @@
 package com.carenest.utils.enums;
 
-/** Trạng thái yêu cầu đổi SĐT phụ huynh đã có tài khoản (G94-180/AUTH-21, V82). */
+/** Trạng thái yêu cầu đổi SĐT phụ huynh đã có tài khoản (G94-180/AUTH-21, V84). */
 public enum PhoneChangeStatus {
     PENDING,
     APPROVED,

@@ -220,14 +220,14 @@ Mục đích: trẻ học lớp nào theo thời gian; campus của trẻ suy t�
 | classroom_id | BIGINT FK classrooms | không | | — |
 | valid_from | DATE | không | Tính cả ngày này | — |
 | valid_to | DATE | có | Tính cả ngày này; NULL = đang học | — |
-| reason | VARCHAR(300) | có | Chưa dùng (entity không ánh xạ): lý do xếp/chuyển lớp ghi ở `child_placements` (V84) | — |
+| reason | VARCHAR(300) | có | Chưa dùng (entity không ánh xạ): lý do xếp/chuyển lớp ghi ở `child_placements` (V86) | — |
 | created_by | BIGINT FK user_accounts | có | Người xếp/chuyển lớp (V63); NULL ở dữ liệu cũ | — |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Xếp lớp mở enrollment mới; chuyển lớp đóng enrollment đang mở rồi mở enrollment mới. `uk_enrollments_child_open` (V63, partial unique `valid_to IS NULL`): mỗi trẻ tối đa 1 enrollment đang mở; chồng thời gian giữa các enrollment đã đóng vẫn do service kiểm.
 Index: `child_id`, `classroom_id`, `uk_enrollments_child_open`.
 
 ## child_placements  (module: child, scope: CHILD)
-Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-10, G94-180/CHD-02): ghi khi tiếp nhận có lớp (form, Excel) và khi `POST /children/{id}/placement`; chuyển năm học không ghi. Lớp tại một ngày vẫn đọc từ `enrollments`. Migration: V84.
+Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-10, G94-180/CHD-02): ghi khi tiếp nhận có lớp (form, Excel) và khi `POST /children/{id}/placement`; chuyển năm học không ghi. Lớp tại một ngày vẫn đọc từ `enrollments`. Migration: V86.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -320,7 +320,7 @@ Mục đích: thông báo theo người nhận để App hiện danh sách; đ�
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V82), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V83), `CHILD_PLACED` (V84). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V84), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V85), `CHILD_PLACED` (V86). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | created_at | TIMESTAMPTZ | không | | — |
@@ -475,7 +475,7 @@ Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
 Index: `(measurement_id, created_at)`.
 
 ## health_interpretations  (module: health, scope: CHILD)
-Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V83.
+Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V85.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -651,7 +651,7 @@ Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V63.
 Index: `idx_child_history_child_id` (`child_id`, `created_at`).
 
 ## guardian_phone_change_requests  (module: identity-access, scope: ACCOUNT)
-Mục đích: yêu cầu đổi SĐT (= tên đăng nhập) của phụ huynh đã có tài khoản, tạo khi Sửa hồ sơ trẻ; PHT có quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ hoặc HT duyệt. Không lưu mật khẩu. Migration: V82.
+Mục đích: yêu cầu đổi SĐT (= tên đăng nhập) của phụ huynh đã có tài khoản, tạo khi Sửa hồ sơ trẻ; PHT có quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ hoặc HT duyệt. Không lưu mật khẩu. Migration: V84.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |

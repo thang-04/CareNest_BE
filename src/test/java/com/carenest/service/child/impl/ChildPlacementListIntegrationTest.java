@@ -42,7 +42,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Xếp / chuyển lớp và danh sách trẻ trên PostgreSQL thật (V84): enrollment theo ngày, lịch sử xếp lớp, thông báo
+ * Xếp / chuyển lớp và danh sách trẻ trên PostgreSQL thật (V86): enrollment theo ngày, lịch sử xếp lớp, thông báo
  * {@code CHILD_PLACED}, chuyển điểm trường, quy tắc năm học của danh sách (CHD-09). Hôm nay = 10/11/2026.
  */
 @SpringBootTest

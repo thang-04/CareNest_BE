@@ -86,3 +86,4 @@ Không chặn; giả định ở "Key decisions".
 
 ## Progress log
 - 2026-11-10: gộp `dev` vào nhánh trước (commit `0a41316`, user cho phép); Phase 1–2 xong: V84 (`child_placements`, `CHILD_PLACED`), `POST /children/{id}/placement`, `cls`, `placements[]` ở hồ sơ, tiếp nhận có lớp ghi lịch sử + báo GV, `GET /children` đủ bộ lọc (`ChildListService`; bỏ `ChildService.searchChildren`, `ChildSummaryResponse`, truy vấn `searchForParentAccounts`). Docs: card child, notification; ERROR_CONTRACT; DATA_DICTIONARY; CROSS_REPO_MAP; OpenAPI snapshot. FE cần nối (module `children` còn demo).
+- 2026-11-11: gộp `origin/dev` (có `V83__consolidate_boarding_tables`, không có V82) ⇒ đổi số migration của nhánh: V84 `child_placements` → V86. Nội dung migration không đổi.

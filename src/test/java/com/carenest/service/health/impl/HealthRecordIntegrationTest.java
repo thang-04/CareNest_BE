@@ -60,7 +60,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Hồ sơ sức khỏe trên PostgreSQL thật (V83): sửa khai báo + thông báo lao (CHD-06, CHD-07), phụ huynh xem kết quả đã công
+ * Hồ sơ sức khỏe trên PostgreSQL thật (V85): sửa khai báo + thông báo lao (CHD-06, CHD-07), phụ huynh xem kết quả đã công
  * bố + thông báo (PAR-03, HLT-11), giải thích xu hướng AI nháp → duyệt (HLT-05). AI giả lập. Hôm nay = 10/11/2026.
  */
 @SpringBootTest
@@ -260,7 +260,7 @@ class HealthRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("HLT-05: AI viết nháp (lưu V83) ⇒ phụ huynh chưa thấy; GV duyệt ⇒ phụ huynh thấy bản duyệt")
+    @DisplayName("HLT-05: AI viết nháp (lưu V85) ⇒ phụ huynh chưa thấy; GV duyệt ⇒ phụ huynh thấy bản duyệt")
     void interpretationVisibleToParentOnlyAfterApproval() {
         measure(round("Cân đo tháng 9 (giả)", "2026-09-10", "2026-09-20"), "2026-09-15", "98.0", "15.0");
         measure(round("Cân đo tháng 11 (giả)", "2026-11-01", "2026-11-20"), "2026-11-09", "99.5", "15.6");

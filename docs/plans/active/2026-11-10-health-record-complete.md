@@ -84,3 +84,4 @@ Không chặn; giả định ở "Key decisions".
 
 ## Progress log
 - 2026-11-10: Phase 1–3 xong. V83; `PUT /children/{id}/health-declaration`, `declaration` ở `GET /children/{id}/profile`, CHD-07 (tiếp nhận, nhập Excel, sửa khai báo, phiếu khám); `GET /children/{id}/health/published`; thông báo kết quả, mở/mở lại đợt/kỳ; `integration/ai` + `/children/{id}/health/trend-analysis` (phân tích, xem, duyệt). Docs: card health, child, notification, ai-assistance; ERROR_CONTRACT (5040); DATA_DICTIONARY (`health_interpretations`, loại thông báo V83); OpenAPI snapshot. Chưa: FE nút duyệt giải thích AI, APP màn sức khỏe phụ huynh (repo khác, cần user cho phép); khóa AI ở môi trường (`CARENEST_AI_API_KEY`).
+- 2026-11-11: gộp `origin/dev` (có `V83__consolidate_boarding_tables`, không có V82) ⇒ đổi số migration của nhánh: V83 `health_record_notifications_interpretations` → V85. Nội dung migration không đổi.

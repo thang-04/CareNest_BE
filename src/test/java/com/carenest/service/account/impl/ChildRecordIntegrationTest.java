@@ -55,7 +55,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Cho nghỉ học, Sửa hồ sơ, duyệt đổi SĐT phụ huynh trên PostgreSQL thật (V82 + ràng buộc V63): trạng thái, lớp, lịch sử
+ * Cho nghỉ học, Sửa hồ sơ, duyệt đổi SĐT phụ huynh trên PostgreSQL thật (V84 + ràng buộc V63): trạng thái, lớp, lịch sử
  * JSONB, thông báo, yêu cầu đổi SĐT, tên đăng nhập. Keycloak, SMS giả lập. Hôm nay = 10/11/2026.
  */
 @SpringBootTest
@@ -159,7 +159,7 @@ class ChildRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName("G94-180/CHD-03: nghỉ học ⇒ LEFT, lớp kết thúc hôm qua, lịch sử, thông báo GV lớp (CHECK V63/V82 qua)")
+    @DisplayName("G94-180/CHD-03: nghỉ học ⇒ LEFT, lớp kết thúc hôm qua, lịch sử, thông báo GV lớp (CHECK V63/V84 qua)")
     void withdrawWritesStatusEnrollmentHistoryAndNotification() {
         ChildViewResponse view =
                 recordService.withdraw(vicePrincipal, childA, new WithdrawChildRequest(TODAY.toString(), "Chuyển nhà"));

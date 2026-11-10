@@ -1,6 +1,6 @@
 -- DỮ LIỆU GIẢ CHỈ CHO DEV/DEMO (profile "dev"): dữ liệu thử các màn của nhánh G94-180 trên cơ cấu MN Thượng Hồng — trẻ chờ
--- xếp lớp, trẻ đã nghỉ học, chuyển lớp (V84), yêu cầu đổi SĐT phụ huynh (V82), khai báo tiếp xúc lao (CHD-07), 2 kỳ cân đo
--- đã đóng + giải thích xu hướng (V83) và thông báo đi kèm. Chạy sau các seed Thượng Hồng khác (Flyway sắp repeatable theo
+-- xếp lớp, trẻ đã nghỉ học, chuyển lớp (V86), yêu cầu đổi SĐT phụ huynh (V84), khai báo tiếp xúc lao (CHD-07), 2 kỳ cân đo
+-- đã đóng + giải thích xu hướng (V85) và thông báo đi kèm. Chạy sau các seed Thượng Hồng khác (Flyway sắp repeatable theo
 -- mô tả). Giữ khớp điểm danh 19/10–04/11 của seed vận hành (mọi trẻ đang học có đủ điểm danh):
 --   - trẻ mới không vào lớp đang học (chờ xếp lớp, hoặc đã nghỉ trước 19/10);
 --   - chuyển lớp dùng trẻ có sẵn, hiệu lực 09/11/2026 (sau khoảng điểm danh).

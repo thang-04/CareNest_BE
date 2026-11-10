@@ -12,7 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 /**
- * Một lần xếp / chuyển lớp của trẻ, chỉ thêm (V84): tiếp nhận có lớp ({@code fromClassroomId} null) và xếp / chuyển lớp
+ * Một lần xếp / chuyển lớp của trẻ, chỉ thêm (V86): tiếp nhận có lớp ({@code fromClassroomId} null) và xếp / chuyển lớp
  * (CHD-10, G94-180/CHD-02). Lớp tại một ngày vẫn đọc từ {@link Enrollment}; bảng này chỉ để hiện lịch sử kèm lý do.
  */
 @Getter
