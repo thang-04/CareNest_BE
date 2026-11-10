@@ -791,4 +791,10 @@ Ràng buộc: UNIQUE (classroom_id, theme_id); end_date ≥ start_date.
 
 V79: child_evaluations thêm phiếu đánh giá sự phát triển cuối năm (OBS-28): `goal_results` TEXT (JSON ô GV sửa tay trước khi xác nhận; cả phiếu khi đã xác nhận: [{g: dòng gốc MT, m: đạt, x: sửa tay}]), `note_for_child`, `note_for_teacher`, `note_for_school`, `note_for_parent` VARCHAR(1000) (lưu ý điều chỉnh kế hoạch năm sau, null = để trống).
 
+V81: child_evaluations thêm `domain_comments` TEXT (JSON {"<domainId>": "nhận xét"}, lĩnh vực chưa gắn mã dùng khóa "0") — nhận xét dưới từng lĩnh vực của phiếu cuối năm (OBS-28).
+
 V74: daily_activity_results.goals_effort gộp vào goals_not_met (bỏ mức "Cần cố gắng", OBS-15).
+
+## Bảng đánh giá học kỳ theo lớp — 05/11/2026
+
+`semester_assessments`: FK classroom_id → classrooms, campus_id → campuses, school_year_id → school_years, confirmed_by → user_accounts; unique(classroom_id,semester_no). period_start/end là kỳ cấu hình; note; result_snapshot TEXT chốt domains/goals/children/counts; confirmed_at; version optimistic. Mỗi lớp-năm (lớp gắn một năm) có tối đa hai bảng, không thay child_evaluations cũ.

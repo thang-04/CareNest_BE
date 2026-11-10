@@ -673,6 +673,10 @@ public enum ApiCode {
     YEAR_SHEET_ONLY_YEAR_END(7381, HttpStatus.BAD_REQUEST, "Phiếu đánh giá sự phát triển chỉ có ở đánh giá cuối năm"),
     YEAR_SHEET_GOAL_INVALID(7382, HttpStatus.BAD_REQUEST, "Có mục tiêu không thuộc phiếu đánh giá, tải lại trang"),
     YEAR_SHEET_NOTE_TOO_LONG(7383, HttpStatus.BAD_REQUEST, "Mỗi lưu ý tối đa {0} ký tự"),
+    SEMESTER_ASSESSMENT_INCOMPLETE(
+            7384, HttpStatus.CONFLICT, "Còn mục tiêu chưa được đánh giá, bổ sung trước khi xác nhận"),
+    SEMESTER_ASSESSMENT_NOT_ENDED(7385, HttpStatus.CONFLICT, "Học kỳ chưa kết thúc, chưa xác nhận được"),
+    YEAR_SHEET_DOMAIN_INVALID(7386, HttpStatus.BAD_REQUEST, "Có lĩnh vực không thuộc phiếu đánh giá, tải lại trang"),
     CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,

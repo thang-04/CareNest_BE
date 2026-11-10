@@ -49,6 +49,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     private static final String LOG_PREFIX = "[YearEndSheetServiceImpl]";
     static final int NOTE_MAX = 1000;
     private static final TypeReference<List<StoredGoal>> GOALS = new TypeReference<>() {};
+    private static final TypeReference<Map<Long, String>> COMMENTS = new TypeReference<>() {};
 
     private final ObservationDayRules rules;
     private final ChildEvaluationRepository evaluationRepository;
@@ -106,7 +107,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
             ChildEvaluation ev = findYearEnd(evaluationId);
             ClassroomInfoResponse cls = editable(currentUser, ev);
             List<YearGoalRow> goals = yearGoals(cls);
-            Map<Long, ThemeGoalResult> auto = themeEvaluationService.childThemeResults(cls.id(), ev.getChildId());
+            Map<Long, ThemeGoalResult> auto = autoOf(ev, cls);
             Map<Long, Cell> manual = manualCells(ev);
             Set<Long> lineages = goals.stream().map(YearGoalRow::getLineage).collect(Collectors.toSet());
             for (SheetGoalInput in : request.goals() == null ? List.<SheetGoalInput>of() : request.goals()) {
@@ -122,6 +123,10 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                     manual.put(in.goalId(), new Cell(in.met(), true));
                 }
             }
+            // Kiểm tra hết (cả nhận xét lĩnh vực, độ dài lưu ý) trước khi ghi vào phiếu
+            Map<Long, String> comments = request.domainComments() == null
+                    ? null
+                    : mergeComments(readComments(ev.getDomainComments()), request.domainComments(), goals);
             List<StoredGoal> stored = new ArrayList<>();
             manual.forEach((g, c) -> stored.add(new StoredGoal(g, c.met(), true)));
             ev.saveSheet(
@@ -130,6 +135,9 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                     note(request.forTeacher()),
                     note(request.forSchool()),
                     note(request.forParent()));
+            if (comments != null) {
+                ev.saveDomainComments(objectMapper.writeValueAsString(comments));
+            }
             evaluationRepository.saveAndFlush(ev);
             YearEndSheetResponse response = view(currentUser, ev, cls);
             log.info("{}|manual={}|END", logPrefix, stored.size());
@@ -185,12 +193,13 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                 : themeRepository.findYearGoals(cls.schoolYearId(), cls.ageGroupId());
     }
 
-    // Đã xác nhận: không tính lại (phiếu đã chốt không đổi khi kế hoạch hay cuối chủ đề đổi)
+    // Đã xác nhận: không tính lại (phiếu đã chốt không đổi khi kế hoạch hoặc kết quả chủ đề thay đổi)
     private Map<Long, ThemeGoalResult> autoOf(ChildEvaluation ev, ClassroomInfoResponse cls) {
-        return frozen(ev) ? Map.of() : themeEvaluationService.childThemeResults(cls.id(), ev.getChildId());
+        if (frozen(ev)) return Map.of();
+        return themeEvaluationService.childThemeResults(cls.id(), ev.getChildId());
     }
 
-    // Mỗi MT: phiếu đã xác nhận lấy bản đã chốt; chưa xác nhận = ô sửa tay, không thì kết quả tổng hợp cuối chủ đề
+    // Mỗi MT: phiếu đã xác nhận lấy bản đã chốt; chưa xác nhận = ô sửa tay, không thì tỷ lệ chủ đề đạt trong năm
     private Map<Long, Cell> cells(
             ChildEvaluation ev, ClassroomInfoResponse cls, List<YearGoalRow> goals, Map<Long, ThemeGoalResult> auto) {
         Map<Long, Cell> result = new LinkedHashMap<>();
@@ -258,6 +267,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         List<GoalMeta> goals = goalList(ev, cls, auto);
         Map<Long, Cell> cells = cells(ev, cls, goals.isEmpty() ? List.of() : yearGoalsIfLive(ev, cls), auto);
         Map<Long, SheetDomain> domains = new LinkedHashMap<>();
+        Map<Long, String> comments = readComments(ev.getDomainComments());
         int met = 0;
         int notMet = 0;
         for (GoalMeta goal : goals) {
@@ -271,7 +281,11 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
             ThemeGoalResult a = auto.get(goal.lineage());
             domains.computeIfAbsent(
                             goal.domainId() == null ? -1L : goal.domainId(),
-                            k -> new SheetDomain(goal.domainId(), goal.domainName(), new ArrayList<>()))
+                            k -> new SheetDomain(
+                                    goal.domainId(),
+                                    goal.domainName(),
+                                    new ArrayList<>(),
+                                    comments.get(goal.domainId() == null ? 0L : goal.domainId())))
                     .goals()
                     .add(new SheetGoal(
                             goal.lineage(),
@@ -307,7 +321,8 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
 
     // Kết quả lấy ở lớp cũ (trẻ chuyển lớp cùng nhóm tuổi) ghi kèm tên lớp
     private static String source(ThemeGoalResult r) {
-        return r.className() == null ? r.themeName() : r.themeName() + " (lớp " + r.className() + ")";
+        String summary = r.metThemes() + "/" + r.totalThemes() + " chủ đề đạt: " + r.themeNames();
+        return r.className() == null ? summary : summary + " (lớp " + r.className() + ")";
     }
 
     // Chỗ ký "Giáo viên": GV chủ nhiệm, lớp chưa có chủ nhiệm thì các GV lớp (như bản in cuối chủ đề)
@@ -362,6 +377,31 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
             throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
         }
         return cls;
+    }
+
+    // Nhận xét theo lĩnh vực: chỉ lĩnh vực có trên phiếu; chuỗi trống = xóa; lĩnh vực không gửi giữ nguyên
+    private static Map<Long, String> mergeComments(
+            Map<Long, String> current, Map<Long, String> incoming, List<YearGoalRow> goals) {
+        Set<Long> domainIds = goals.stream()
+                .map(g -> g.getDomainId() == null ? 0L : g.getDomainId())
+                .collect(Collectors.toSet());
+        Map<Long, String> result = new LinkedHashMap<>(current);
+        incoming.forEach((domainId, text) -> {
+            if (domainId == null || !domainIds.contains(domainId)) {
+                throw GlobalException.of(ApiCode.YEAR_SHEET_DOMAIN_INVALID);
+            }
+            String value = note(text);
+            if (value == null) {
+                result.remove(domainId);
+            } else {
+                result.put(domainId, value);
+            }
+        });
+        return result;
+    }
+
+    private Map<Long, String> readComments(String json) {
+        return json == null || json.isBlank() ? Map.of() : objectMapper.readValue(json, COMMENTS);
     }
 
     private static String note(String text) {

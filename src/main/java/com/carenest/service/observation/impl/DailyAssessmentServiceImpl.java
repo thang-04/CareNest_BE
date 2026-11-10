@@ -144,6 +144,14 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                     cls.mealSessions(),
                     lesson,
                     rows,
+                    // Lớp đã điểm danh: hiện cả trẻ vắng để cô thấy đủ lớp, không chấm được
+                    statuses.isEmpty()
+                            ? List.of()
+                            : children.stream()
+                                    .filter(c -> statuses.get(c.id()) != AttendanceStatus.PRESENT)
+                                    .map(c -> new DailySheetResponse.AbsentChild(
+                                            c.id(), c.fullName(), statuses.get(c.id())))
+                                    .toList(),
                     classCommentRepository
                             .findByClassroomIdAndDate(classId, date)
                             .map(c -> rules.commentViews(List.of(c)).getFirst())

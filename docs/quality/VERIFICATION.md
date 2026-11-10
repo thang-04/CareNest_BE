@@ -143,3 +143,35 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 - `node scripts/verify.mjs` → `VERIFY PASS full | tests 1039 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 672s | log target/verify.log`.
 - Snapshot diff chỉ thêm ChildDay.contacts/handedOverAt và DailyHealthContact; không đổi request/endpoint/API code. FE adapter/panel đã map; App chưa triển khai và không sửa.
 - FE full 840 tests fail/skip 0, browser export và chuẩn hóa nhập đạt; chưa browser E2E với runtime BE khởi động lại. User chọn chờ loại nhiệt kế nên giữ dải nhập hiện tại. Không migration, commit hoặc push.
+
+## OBS-27 mục tiêu đạt từ 50% hoạt động — 05/11/2026
+
+- Cần chốt theo quy tắc cô ở trường: mỗi hoạt động cô đã chấm là một lần; đạt ít nhất 50% thì +, chưa chấm/ngày vắng không tính; không lần nào để trống. Không đổi tổng kết chủ đề 70%, sửa tay, khóa xác nhận hoặc API.
+- Service gom theo trẻ + dòng gốc MT, khử trùng trong một hoạt động và lọc điểm danh có mặt đúng lớp/ngày. Phiếu năm nhận lại qua luồng sẵn có; bảng đã xác nhận vẫn dùng snapshot.
+- Test đầu vướng fixture JDBC sửa đối tượng đã đọc qua JPA trong cùng transaction; đã clear persistence context để kiểm lần đọc tiếp, không đổi logic production vì fixture. Review read-only chỉ ra test freeze cần thêm hai lần chưa đạt để làm kết quả live đổi; đã tăng cường ca này.
+- Lượt test tiếp theo phát hiện fixture dùng trạng thái ABSENT không thuộc enum BE (EXCUSED/UNEXCUSED); sửa fixture thành EXCUSED. `node scripts/verify.mjs` → `VERIFY PASS full | tests 1041 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 661s | log target/verify.log`. Nhóm ThemeEvaluationIntegrationTest 8/8 đạt với PostgreSQL thật; FE full verify đạt. Không sửa cấu hình local, không commit/push.
+
+## Bảng đánh giá học kỳ theo lĩnh vực — 05/11/2026
+
+- PostgreSQL tích hợp kiểm kỳ cấu hình, biên 50% hai tầng, dữ liệu thiếu, quyền, snapshot lớp và lũy kế năm có lớp cũ. 11 test tập trung đạt.
+- Full verify: 1044 tests, 0 fail/error/skip, ArchUnit/OpenAPI/Spotless đạt. OpenAPI giữ operationId cũ và thêm contract học kỳ mới.
+- FE verify full đạt. Local BE :8081 và FE :5190 đã lên, trình duyệt đến màn đăng nhập. Chưa xác nhận thao tác trình duyệt sau đăng nhập trên bản thử riêng.
+
+## Sửa script dữ liệu demo học kỳ — 08/11/2026
+
+- Lỗi user gửi là MismatchedInputException START_ARRAY khi đọc snapshot bảng học kỳ đã xác nhận. Script cũ chốt bảng với snapshot=[]; nay script tạo nháp để service chốt nội dung đúng cấu trúc khi giáo viên xác nhận.
+- DB local đã sao lưu và trả về nháp 10 bản đúng marker dữ liệu dev, snapshot=[], confirmed_at khác null. Giữ note và tăng version. Backup trong TEMP, chi tiết incident BUG-261108-semester-demo-array-snapshot.
+- Regression mới thực thi block SQL seed hai lần rồi GET bảng. Lần chạy đầu thiếu ngày học kỳ trong fixture; đã bổ sung cấu hình. Sau sửa format cuối, `mvnw.cmd -q -Dtest=ThemeEvaluationIntegrationTest,SemesterDomainResultTest test spotless:check` đạt, exit 0. Tổng 12 test, không lỗi hoặc skip; Spotless đạt.
+- `node scripts/verify.mjs` full đã dừng có chủ đích sau 957 giây để chuyển sang kiểm tra tập trung. Trước khi dừng đã ghi 1017 test, 0 failure/error/skip; full trả FAIL do JVM test bị dừng, không coi là full pass.
+
+## Trẻ vắng trong phiếu ngày, cuối năm chỉ chủ đề đã xong — 10/11/2026
+
+- Cần chốt 10/11: `DailySheetResponse.absentChildren` (trẻ vắng / chưa điểm danh, chỉ hiện; vẫn chặn lưu ASSESSMENT_CHILD_NOT_PRESENT). `childThemeResults` bỏ chủ đề chưa tới ngày kết thúc. OpenAPI snapshot cập nhật có chủ đích (thêm `AbsentChild`, `absentChildren`); FE đã đọc field mới.
+- Test tập trung `DailyAssessmentIntegrationTest, ThemeEvaluationIntegrationTest, OpenApiSnapshotTest, ConcurrentDailyAssessmentIntegrationTest, ClassCommentServiceTest`: 35 test, 0 fail/error/skip, BUILD SUCCESS.
+- `node scripts/verify.mjs` full: VERIFY PASS, 1221 test, 0 fail/error/skip, ArchUnit/snapshot/Spotless đạt (2059 giây).
+
+## Chất lượng tháng: trẻ ra lớp, bé chăm khi chuyển lớp/nghỉ hẳn — 10/11/2026
+
+- Cần chốt 10/11 (OBS-23): dòng toàn trường chỉ đếm trẻ nghỉ hẳn; dòng lớp/khối đếm chuyển lớp + nghỉ hẳn kèm %; bé chăm theo thời gian trẻ ở lớp, trẻ rời lớp trong tháng không xét bé chăm ở lớp đó; nghỉ có phép vẫn là nghỉ.
+- Test mới `schoolTotalCountsOnlyChildrenWhoQuitWhileClassRowCountsTransfers`; sửa kỳ vọng `AssessmentHistoryIntegrationTest#qualityReportUsesDaysChildBelongsToClassAndIssuedTickets` (trẻ chuyển đi không còn là bé chăm ở lớp cũ).
+- Full verify trước khi kéo dev: VERIFY PASS, 1222 test, 0 fail/error/skip. Sau đó fast-forward lên origin/dev 0b17e54 (AUTH-26), gộp 3 chiều BUSINESS_RULES.md và ApiCode.java không conflict; verify lại đang chạy.

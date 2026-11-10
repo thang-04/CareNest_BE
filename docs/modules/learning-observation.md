@@ -42,7 +42,7 @@ P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng e
 - Class-comment get/save/confirm must validate the month intersects the class year, including partial boundary months. See [month scope](../knowledge/incidents/BUG-261103-class-comment-month-scope.md).
 
 - Không enum cứng tiêu chí đánh giá khi P-11 chưa chốt (OBS-02).
-- Trẻ vắng không có đánh giá ngày; trẻ có mặt mặc định "bình thường", GV chỉ sửa trẻ khác thường (OBS-01).
+- Trẻ vắng không có đánh giá ngày (vẫn hiện trong phiếu ngày qua `absentChildren`, không chấm được); trẻ có mặt mặc định "bình thường", GV chỉ sửa trẻ khác thường (OBS-01).
 - Đánh giá ngày khóa sau hết ngày (OBS-12); không mở API sửa ngày cũ, ngoại lệ là lần mở lại còn hiệu lực do PHT/HT cấp (OBS-18, OBS-19).
 - Nhận xét định kỳ không có bước BGH duyệt; GV xác nhận là xong (OBS-05).
 - Hệ thống không gợi ý trẻ nhận phiếu bé ngoan; GV tự chọn (OBS-10).
@@ -56,3 +56,7 @@ Chưa có.
 
 ## Đọc thêm khi
 Đụng đánh giá theo MT / ngữ cảnh hoạt động ⇒ ADR-0006, card education-plan. Đụng AI nháp nhận xét ⇒ card ai-assistance, ADR-0008. Đụng hiển thị phụ huynh ⇒ ADR-0010.
+
+- OBS-27 (user chốt lại 09/11/2026): từng MT cuối chủ đề Đạt khi có ít nhất một hoạt động Đạt; vắng/chưa có hoạt động Đạt là Chưa đạt. Tổng kết cả chủ đề 70% giữ nguyên. Bảng đã xác nhận không tính lại.
+
+- Học kỳ vẫn dùng bảng lớp/lĩnh vực, hai tầng 50% và kỳ II riêng. Riêng cuối năm, user chốt 09/11/2026: mỗi MT tổng hợp theo các chủ đề có gắn MT và Đạt khi ít nhất 50% chủ đề Đạt; bảng chủ đề/phiếu năm đã xác nhận giữ snapshot.

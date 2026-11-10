@@ -185,3 +185,7 @@ erDiagram
         VARCHAR after_scope
     }
 ```
+
+## Bảng đánh giá học kỳ theo lớp — 05/11/2026
+
+`semester_assessments`: FK classroom_id → classrooms, campus_id → campuses, school_year_id → school_years, confirmed_by → user_accounts; unique(classroom_id,semester_no). period_start/end là kỳ cấu hình; note; result_snapshot TEXT chốt domains/goals/children/counts; confirmed_at; version optimistic. Mỗi lớp-năm (lớp gắn một năm) có tối đa hai bảng, không thay child_evaluations cũ.

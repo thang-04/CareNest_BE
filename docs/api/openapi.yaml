@@ -1238,6 +1238,66 @@ paths:
           description: OK
       tags:
       - reward-list-controller
+  /api/assessment/semester-evaluations:
+    get:
+      operationId: getSemesterAssessment
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: semester
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
+          description: OK
+      tags:
+      - semester-assessment-controller
+    put:
+      operationId: saveSemesterAssessment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SemesterAssessmentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
+          description: OK
+      tags:
+      - semester-assessment-controller
+  /api/assessment/semester-evaluations/confirm:
+    post:
+      operationId: confirmSemesterAssessment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SemesterAssessmentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
+          description: OK
+      tags:
+      - semester-assessment-controller
   /api/assessment/theme-evaluations:
     get:
       operationId: getEvaluation
@@ -6712,6 +6772,20 @@ paths:
       - teacher-assignment-controller
 components:
   schemas:
+    AbsentChild:
+      type: object
+      properties:
+        attendanceStatus:
+          type: string
+          enum:
+          - PRESENT
+          - EXCUSED
+          - UNEXCUSED
+        childId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
     AccessToken:
       type: object
       properties:
@@ -9420,6 +9494,10 @@ components:
     DailySheetResponse:
       type: object
       properties:
+        absentChildren:
+          type: array
+          items:
+            $ref: "#/components/schemas/AbsentChild"
         attendanceTaken:
           type: boolean
         campusId:
@@ -16521,6 +16599,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonSemesterAssessmentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SemesterAssessmentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonSemesterLockResponse:
       type: object
       properties:
@@ -17331,6 +17422,122 @@ components:
         semester2Start:
           type: string
           format: date
+    SemesterAssessmentChild:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemesterAssessmentDomain"
+        fullName:
+          type: string
+    SemesterAssessmentDomain:
+      type: object
+      properties:
+        domainId:
+          type: integer
+          format: int64
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemesterAssessmentGoal"
+        met:
+          type: boolean
+        metCount:
+          type: integer
+          format: int32
+        missingCount:
+          type: integer
+          format: int32
+        name:
+          type: string
+        notMetCount:
+          type: integer
+          format: int32
+    SemesterAssessmentGoal:
+      type: object
+      properties:
+        assessedActivities:
+          type: integer
+          format: int32
+        goalId:
+          type: integer
+          format: int64
+        goalNo:
+          type: integer
+          format: int32
+        met:
+          type: boolean
+        metActivities:
+          type: integer
+          format: int32
+        text:
+          type: string
+    SemesterAssessmentRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        note:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        semester:
+          type: integer
+          format: int32
+          maximum: 2
+          minimum: 1
+      required:
+      - classId
+    SemesterAssessmentResponse:
+      type: object
+      properties:
+        canConfirm:
+          type: boolean
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedByName:
+          type: string
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemesterAssessmentDomain"
+        endDate:
+          type: string
+          format: date
+        note:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemesterAssessmentChild"
+        schoolYearId:
+          type: integer
+          format: int64
+        semester:
+          type: integer
+          format: int32
+        signers:
+          $ref: "#/components/schemas/ThemeSigners"
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+        yearName:
+          type: string
     SemesterLockResponse:
       type: object
       properties:
@@ -17416,6 +17623,8 @@ components:
     SheetDomain:
       type: object
       properties:
+        comment:
+          type: string
         domainId:
           type: integer
           format: int64
@@ -18759,6 +18968,10 @@ components:
     YearEndSheetRequest:
       type: object
       properties:
+        domainComments:
+          type: object
+          additionalProperties:
+            type: string
         forChild:
           type: string
         forParent:

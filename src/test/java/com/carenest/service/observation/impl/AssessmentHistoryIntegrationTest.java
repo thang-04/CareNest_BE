@@ -321,7 +321,8 @@ class AssessmentHistoryIntegrationTest {
         assertThat(a.children()).isEqualTo(3);
         assertThat(a.possibleDays()).isEqualTo(30);
         assertThat(a.attendanceRate()).isEqualTo(100);
-        assertThat(a.diligentChildren()).isEqualTo(3);
+        // Trẻ chuyển sang lớp B tính trẻ ra lớp của A, không xét bé chăm ở A (Cần chốt 10/11/2026)
+        assertThat(a.diligentChildren()).isEqualTo(2);
         assertThat(a.goodChildren()).isEqualTo(1);
         assertThat(a.allRoundChildren()).isZero();
         assertThat(b.diligentChildren()).isEqualTo(1);

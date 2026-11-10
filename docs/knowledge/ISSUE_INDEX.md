@@ -5,6 +5,7 @@ Search đầu tiên khi gặp bug, lỗi môi trường, case lạ. Grep chuỗi
 ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường/build/deploy), dạng `<loại>-YYMMDD-<slug>` (vd. `BUG-261004-meal-count-stale`). Status: `open` | `workaround` | `fixed`.
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261108-semester-demo-array-snapshot](incidents/BUG-261108-semester-demo-array-snapshot.md) | learning-observation | MismatchedInputException START_ARRAY khi mở học kỳ I | Script demo chốt snapshot=[] thay vì DTO object; seed đã đổi sang nháp và 10 bảng demo local đã sao lưu, sửa | fixed |
 | [ENV-261106-dev-migration-renumber-checksum](incidents/ENV-261106-dev-migration-renumber-checksum.md) | child / tooling | Migration checksum mismatch for migration version 68…79; API dev restart liên tục | Chèn migration giữa làm dịch số V68–V79 đã chạy trên production — trả số về như main, ảnh hồ sơ thành V80 | fixed |
 | [BUG-261104-confirmed-year-sheet-live-goals](incidents/BUG-261104-confirmed-year-sheet-live-goals.md) | learning-observation / education-plan | Confirmed sheet goal list/text changes with newest plan | Only cell results frozen; metadata queried live — nay chốt cả metadata MT | fixed |
 | [BUG-261104-concurrent-main-teacher-assignment](incidents/BUG-261104-concurrent-main-teacher-assignment.md) | school-structure | Concurrent assignments bypass one-main-class check | Read/check/insert lacks common teacher-year lock — nay khóa lớp + GV-năm | fixed |

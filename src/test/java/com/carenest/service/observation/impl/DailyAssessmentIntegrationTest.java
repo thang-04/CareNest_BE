@@ -241,6 +241,11 @@ class DailyAssessmentIntegrationTest {
         assertThat(sheet.attendanceTaken()).isTrue();
         // Chỉ trẻ có mặt; sức khỏe điền sẵn từ sức khỏe trong ngày
         assertThat(sheet.rows()).extracting(DailySheetResponse.Row::childId).containsExactly(child1);
+        // Trẻ vắng vẫn hiện riêng, không có dòng đánh giá
+        assertThat(sheet.absentChildren()).singleElement().satisfies(a -> {
+            assertThat(a.childId()).isEqualTo(child2);
+            assertThat(a.attendanceStatus()).isEqualTo(AttendanceStatus.UNEXCUSED);
+        });
         assertThat(sheet.rows().getFirst().health().signs()).containsExactly(HealthSymptom.COUGH);
         assertThat(sheet.rows().getFirst().recorded()).isFalse();
         assertThat(sheet.rows().getFirst().generalRecorded()).isFalse();
@@ -912,6 +917,67 @@ class DailyAssessmentIntegrationTest {
                         .getReport(vpA, null, java.time.YearMonth.of(2026, 9), campusA)
                         .rows())
                 .allMatch(r -> r.campusId().equals(campusA));
+    }
+
+    @Test
+    void schoolTotalCountsOnlyChildrenWhoQuitWhileClassRowCountsTransfers() {
+        // Cần chốt 10/11/2026: lớp đếm cả trẻ chuyển đi; dòng toàn trường chỉ đếm trẻ nghỉ hẳn
+        jdbc.update("UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ?", child1);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-20')",
+                child1,
+                classB);
+        // Trẻ đi đủ mọi ngày học ở cả lớp A (1–19/9) lẫn lớp B (20–30/9)
+        for (LocalDate d = LocalDate.of(2026, 9, 1); !d.isAfter(LocalDate.of(2026, 9, 30)); d = d.plusDays(1)) {
+            if (d.getDayOfWeek().getValue() <= 5) {
+                attendance(child1, d.isBefore(LocalDate.of(2026, 9, 20)) ? classA : classB, d);
+            }
+        }
+        entityManager.clear();
+        var transferred = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 9), null);
+        // Lớp A: trẻ chuyển đi tính vào trẻ ra lớp, không xét bé chăm
+        assertThat(transferred.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.leftChildren()).isEqualTo(1);
+                    assertThat(r.diligentChildren()).isZero();
+                });
+        // Lớp B: trẻ vào 20/9 đi đủ thời gian ở lớp = 100% ⇒ bé chăm; vẫn tính vào sĩ số tháng 9
+        assertThat(transferred.rows())
+                .filteredOn(r -> r.classId().equals(classB))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.children()).isEqualTo(2);
+                    assertThat(r.diligentChildren()).isEqualTo(1);
+                });
+        assertThat(transferred.totals())
+                .filteredOn(t -> t.level().equals("TOAN_TRUONG"))
+                .singleElement()
+                .satisfies(t -> assertThat(t.leftChildren()).isZero());
+
+        // Thôi học ở lớp B sau đó ⇒ nghỉ hẳn, dòng toàn trường đếm 1
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-09-25' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classB);
+        entityManager.clear();
+        var quit = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 9), null);
+        // Nghỉ hẳn ở lớp B ⇒ trẻ ra lớp của B, không còn là bé chăm
+        assertThat(quit.rows())
+                .filteredOn(r -> r.classId().equals(classB))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.leftChildren()).isEqualTo(1);
+                    assertThat(r.diligentChildren()).isZero();
+                });
+        assertThat(quit.totals())
+                .filteredOn(t -> t.level().equals("TOAN_TRUONG"))
+                .singleElement()
+                .satisfies(t -> {
+                    assertThat(t.leftChildren()).isEqualTo(1);
+                    assertThat(t.leftRate()).isNotNull();
+                });
     }
 
     private static SaveDailySkillsRequest skills(LocalDate date, long childId, String comment, Activity... activities) {
