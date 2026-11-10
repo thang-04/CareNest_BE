@@ -92,7 +92,7 @@ Provider thiếu `api-key` thì bị bỏ khỏi chuỗi. `enabled=false` hoặc
 ## 4. Pipeline cổng giá trị (gợi ý tuần; mẫu ngày và thay món dùng cùng các bước, ít ô hơn)
 
 1. **Dựng ngữ cảnh (code):** các nhóm tuổi thuộc khối, định mức hiệu lực (NUT-17, NUT-24, NUT-25), bữa phục vụ, giá suất (NUT-19), món của 2 tuần trước, mùa, mong muốn của PHT (≤ 300 ký tự, chỉ là ưu tiên).
-2. **Lọc ứng viên (code) cho từng ô bữa × khối:** món đang dùng, đúng loại bữa, đủ dữ liệu dinh dưỡng và nguồn gốc ĐV/TV, không chứa chất dị ứng mức nặng có trong tập chất cần tránh (dạng tổng hợp, không có danh tính trẻ — AI-04, NUT-09). Rút còn tối đa `candidate-limit` (mặc định 15) món/ô theo độ đa dạng. Món gửi cho model dưới dạng alias `D1..Dn` kèm loại món, 6 chỉ số, giá/suất, nhãn chính ⇒ ít token, model không bịa được ID thật.
+2. **Lọc ứng viên (code) cho từng ô bữa × khối:** món đang dùng, đúng loại bữa, đủ dữ liệu dinh dưỡng và nguồn gốc ĐV/TV. Không lọc theo chất dị ứng: NUT-23 xử lý dị ứng nặng bằng món thay thế, thực đơn chung không đổi; chất dị ứng hiển thị như evaluator (INFO) — sửa 10/11/2026. Rút còn tối đa `candidate-limit` (mặc định 15) món/ô theo độ đa dạng. Món gửi cho model dưới dạng alias `D1..Dn` kèm loại món, 6 chỉ số, giá/suất, nhãn chính ⇒ ít token, model không bịa được ID thật.
 3. **Baseline (code, chạy song song từ đầu):** `RuleBasedMenuPlanner` điền theo thực đơn mẫu của khối nếu có, không có thì quay vòng món ứng viên, tránh lặp; sau đó chạy `MenuPlanRepairer`.
 4. **Gọi model** theo chuỗi provider: trả JSON `{days:[{date, items:[{session, dish:"D7"}], reason}]}`, `reason` ≤ 150 ký tự/ngày.
 5. **Guard cấu trúc:** đúng schema; alias thuộc tập ứng viên của **đúng ô**; đủ ô, không thừa ô; ngày nghỉ để trống. Sai ⇒ coi như output lỗi của vòng đó.
@@ -142,7 +142,7 @@ Không lưu prompt hay response thô (AI-05).
 
 ## 6. API
 
-Dưới `/nutrition/menu-ai-drafts`, quyền `MENU_MANAGE`, phạm vi theo quy tắc quyền hiện hành:
+Dưới `/nutrition/menu-ai-drafts` (không đặt dưới `/meal-plans/` vì trùng `/meal-plans/{weekStart}`), quyền `MENU_MANAGE`, phạm vi theo quy tắc quyền hiện hành:
 
 - `POST` — tạo nháp (đồng bộ). Trả lưới món, issue, điểm AI và baseline, `source`, `fallbackReason`, lý do theo ngày.
 - `GET /{id}` — xem.

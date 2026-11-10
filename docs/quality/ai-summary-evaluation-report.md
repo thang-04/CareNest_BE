@@ -27,7 +27,7 @@
 
 ## 2. Phạm vi và cách thử
 - **Chạy đúng pipeline thật:** prompt → `ExternalAiClient` → guard (lọc output, retry 1 lần). Không giả lập phần AI.
-- **Bộ dữ liệu:** 20 case giả lập (`src/test/resources/ai-eval/summary-cases.json`), không chứa dữ liệu trẻ thật. 12 nhóm:
+- **Bộ dữ liệu:** 20 case giả lập (file `summary-cases.json` trong thư mục test resources `ai-eval`, đã gỡ 10/11/2026 cùng slice nhận xét cũ — lấy lại từ commit `0d8938a`), không chứa dữ liệu trẻ thật. 12 nhóm:
 
   | Nhóm | Case | Kiểm điều gì |
   |---|---|---|
