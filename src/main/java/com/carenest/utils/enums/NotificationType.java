@@ -11,5 +11,15 @@ public enum NotificationType {
     /** Sửa hồ sơ trẻ đổi SĐT của phụ huynh đã có tài khoản, chờ PHT/HT duyệt (G94-180/AUTH-21). */
     GUARDIAN_PHONE_CHANGE_REQUESTED,
     /** Yêu cầu đổi SĐT phụ huynh đã được duyệt hoặc từ chối, báo người gửi yêu cầu. */
-    GUARDIAN_PHONE_CHANGE_DECIDED
+    GUARDIAN_PHONE_CHANGE_DECIDED,
+    /** Khai Có tiếp xúc người bệnh lao: HT, PHT điểm trường, GV lớp, người lưu (G94-180/CHD-07). */
+    CHILD_TB_CONTACT,
+    /** Ngày tiếp xúc người bệnh lao đã có đổi sang ngày khác: HT, PHT điểm trường, người lưu (G94-180/CHD-07). */
+    CHILD_TB_CONTACT_DATE_CHANGED,
+    /** Kết quả cân đo / phiếu khám mới công bố, báo phụ huynh (HLT-11, PAR-03). */
+    HEALTH_RESULT_PUBLISHED,
+    /** Kết quả đã công bố được sửa, báo phụ huynh (HLT-11, HLT-13). */
+    HEALTH_RESULT_UPDATED,
+    /** Mở hoặc mở lại đợt khám / kỳ cân đo, báo GV lớp và PHT điểm trường. */
+    HEALTH_CHECK_OPENED
 }

@@ -1,6 +1,6 @@
 # Module — notification
 
-Feature: `notification` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thông báo trẻ đã được đón, danh sách trong App, đăng ký thiết bị (2026-10-31, V66); thông báo trường của BGH: thiết kế
+Feature: `notification` (trong `controller/`, `service/`, `repository/`, ... — `docs/architecture/PACKAGE_STRUCTURE.md`) · Status: thông báo trẻ đã được đón, danh sách trong App, đăng ký thiết bị (2026-10-31, V66); nghỉ học, đổi SĐT phụ huynh, tiếp xúc lao, kết quả sức khỏe, mở đợt/kỳ (2026-11-10, V82–V83); thông báo trường của BGH: thiết kế
 
 ## Mục đích
 Gửi thông báo (in-app, push mobile) khi domain phát event; thông báo chung của trường do BGH gửi (PAR-05).
@@ -24,11 +24,12 @@ Plan `docs/plans/completed/2026-10-31-child-pickup.md`.
 - `NotificationService.notifyUsers(...)` — module khác gọi trong giao dịch của mình; `NotificationsCreatedEvent` ⇒ `PushDispatchListener` (after-commit) đẩy qua `integration/push/PushGateway`.
 - `PushGateway` hiện là `LoggingPushGateway` (cổng giả: chỉ log nền tảng, loại). Push provider chưa chốt (xem `CareNest_APP/docs/integration/PUSH_NOTIFICATION.md`); gắn Firebase Cloud Messaging cần project + thông tin xác thực ngoài repo.
 - API (mọi người dùng đã đăng nhập, thường là App phụ huynh): `GET /me/notifications?limit`, `POST /me/notifications/{id}/read`, `POST /me/notifications/read-all`, `PUT /me/devices`, `DELETE /me/devices`. Mã lỗi 1201.
-- Loại hiện có: `CHILD_PICKED_UP` (PCK-04).
+- Loại hiện có (CHECK `ck_notifications_type`, V83): `CHILD_PICKED_UP` (PCK-04), `MEAL_COUNT_RECONFIRM`, `CHILD_WITHDRAWN` (G94-180/CHD-03), `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (G94-180/AUTH-21), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED` (G94-180/CHD-07), `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED` (HLT-11, PAR-03), `HEALTH_CHECK_OPENED` (HLT-08).
 
 ## Known pitfalls
 - Không làm trạng thái "phụ huynh đã đọc" cho trường xem (PAR-05); `read_at` chỉ để App hiện badge cho chính người nhận.
-- Nội dung push không chứa dữ liệu sức khỏe/chi tiết nhạy cảm; chỉ "có cập nhật mới" + deep link.
+- Nội dung push không chứa dữ liệu sức khỏe/chi tiết nhạy cảm; chỉ "có cập nhật mới" + deep link. Loại sức khỏe nằm trong `PushDispatchListener.HEALTH_TYPES`: push chỉ "Thông tin sức khỏe" / "Có thông tin sức khỏe mới. Mở ứng dụng để xem."; thêm loại sức khỏe mới phải thêm vào tập này.
+- Thêm loại mới cần migration mới (không sửa migration cũ) thả và tạo lại `ck_notifications_type` liệt kê đủ mọi loại đang có.
 - Gửi lỗi không được rollback giao dịch nghiệp vụ (listener after-commit).
 
 ## Related issues

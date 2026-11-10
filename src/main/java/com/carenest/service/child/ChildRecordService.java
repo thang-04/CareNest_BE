@@ -2,6 +2,8 @@ package com.carenest.service.child;
 
 import com.carenest.dto.child.ChildEditDraft;
 import com.carenest.dto.child.ChildViewResponse;
+import com.carenest.dto.child.HealthDeclarationRequest;
+import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.security.CurrentUser;
@@ -36,4 +38,13 @@ public interface ChildRecordService {
 
     /** Đổi SĐT trên mọi dòng phụ huynh đã liên kết tài khoản (yêu cầu đổi SĐT được duyệt); chạy trong giao dịch người gọi. */
     void changeGuardianPhone(Long accountId, String newPhone);
+
+    /** Khai báo sức khỏe kèm lịch sử (mục 4.6 plan tiếp nhận); null khi trẻ chưa có khai báo. Người gọi đã kiểm phạm vi. */
+    HealthDeclarationResponse findDeclaration(Long childId);
+
+    /**
+     * Sửa khai báo sức khỏe (CHD-06, mục 4.5): lỗi theo ô không tiền tố {@code declaration.}; lý do bắt buộc khi đã có
+     * khai báo; dị ứng có hiệu lực ngay; lịch sử kèm dị ứng/tiền sử trước-sau; thông báo tiếp xúc lao (CHD-07).
+     */
+    HealthDeclarationResponse saveDeclaration(CurrentUser actor, Long childId, HealthDeclarationRequest request);
 }

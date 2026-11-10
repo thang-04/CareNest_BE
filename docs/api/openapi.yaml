@@ -2274,6 +2274,31 @@ paths:
           description: OK
       tags:
       - health-measurement-controller
+  /api/children/{childId}/health-declaration:
+    put:
+      operationId: saveDeclaration
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthDeclarationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthDeclarationResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/health/measurements:
     post:
       operationId: createMeasurement
@@ -2330,6 +2355,92 @@ paths:
           description: OK
       tags:
       - health-measurement-controller
+  /api/children/{childId}/health/published:
+    get:
+      operationId: getPublishedHealth
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPublishedHealthResponse"
+          description: OK
+      tags:
+      - health-measurement-controller
+  /api/children/{childId}/health/trend-analysis:
+    get:
+      operationId: latestTrend
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthTrendAnalysisResponse"
+          description: OK
+      tags:
+      - health-trend-controller
+    post:
+      operationId: analyzeTrend
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthTrendAnalysisResponse"
+          description: OK
+      tags:
+      - health-trend-controller
+  /api/children/{childId}/health/trend-analysis/{interpretationId}/approve:
+    post:
+      operationId: approveTrend
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: interpretationId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthTrendApproveRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthTrendAnalysisResponse"
+          description: OK
+      tags:
+      - health-trend-controller
   /api/children/{childId}/photo:
     get:
       operationId: getChildPhoto
@@ -7518,6 +7629,21 @@ components:
         weekStart:
           type: string
           format: date
+    ApprovedInterpretation:
+      type: object
+      properties:
+        approvedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        summary:
+          type: string
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendWarning"
     AssessmentClassRow:
       type: object
       properties:
@@ -8272,6 +8398,8 @@ components:
       properties:
         child:
           $ref: "#/components/schemas/ChildViewResponse"
+        declaration:
+          $ref: "#/components/schemas/HealthDeclarationResponse"
     ChildPlacement:
       type: object
       properties:
@@ -9725,6 +9853,37 @@ components:
         validUntil:
           type: string
           format: date-time
+    DeclarationAllergies:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+        state:
+          type: string
+          enum:
+          - REPORTED
+          - NONE_REPORTED
+          - NOT_PROVIDED
+    DeclarationAllergyChange:
+      type: object
+      properties:
+        from:
+          $ref: "#/components/schemas/DeclarationAllergies"
+        to:
+          $ref: "#/components/schemas/DeclarationAllergies"
+    DeclarationAnswer:
+      type: object
+      properties:
+        state:
+          type: string
+          enum:
+          - REPORTED
+          - NONE_REPORTED
+          - NOT_PROVIDED
+        text:
+          type: string
     DeclarationAnswerInput:
       type: object
       properties:
@@ -9732,6 +9891,58 @@ components:
           type: string
         text:
           type: string
+    DeclarationHistoryChange:
+      type: object
+      properties:
+        from:
+          $ref: "#/components/schemas/DeclarationMedicalHistory"
+        to:
+          $ref: "#/components/schemas/DeclarationMedicalHistory"
+    DeclarationHistoryEntry:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+          - DECLARED
+          - UPDATED
+          - UPDATED_FROM_FOLLOW_UP
+          - UPDATED_FROM_EXAM
+        allergyChange:
+          $ref: "#/components/schemas/DeclarationAllergyChange"
+        at:
+          type: string
+          format: date-time
+        historyChange:
+          $ref: "#/components/schemas/DeclarationHistoryChange"
+        note:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
+    DeclarationMedicalHistory:
+      type: object
+      properties:
+        family:
+          $ref: "#/components/schemas/DeclarationAnswer"
+        self:
+          $ref: "#/components/schemas/DeclarationAnswer"
+        tbContact:
+          $ref: "#/components/schemas/DeclarationTbContact"
+    DeclarationTbContact:
+      type: object
+      properties:
+        contactDate:
+          type: string
+          format: date
+        state:
+          type: string
+          enum:
+          - REPORTED
+          - NONE_REPORTED
+          - NOT_PROVIDED
     DevelopmentChildRow:
       type: object
       properties:
@@ -11088,6 +11299,30 @@ components:
         planned:
           type: integer
           format: int64
+    GrowthPoint:
+      type: object
+      properties:
+        ageMonths:
+          type: integer
+          format: int32
+        bmi:
+          type: number
+        bmiZScore:
+          type: number
+        date:
+          type: string
+          format: date
+        heightCm:
+          type: number
+        heightForAgeZ:
+          type: number
+        measurementId:
+          type: integer
+          format: int64
+        weightForAgeZ:
+          type: number
+        weightKg:
+          type: number
     GuardianAccountChangeResponse:
       type: object
       properties:
@@ -11629,6 +11864,39 @@ components:
           $ref: "#/components/schemas/MedicalHistoryInput"
         otherNotes:
           $ref: "#/components/schemas/DeclarationAnswerInput"
+    HealthDeclarationRequest:
+      type: object
+      properties:
+        declaration:
+          $ref: "#/components/schemas/HealthDeclarationInput"
+        reason:
+          type: string
+    HealthDeclarationResponse:
+      type: object
+      properties:
+        allergies:
+          $ref: "#/components/schemas/DeclarationAllergies"
+        childId:
+          type: integer
+          format: int64
+        declaredAt:
+          type: string
+          format: date-time
+        declaredBy:
+          type: integer
+          format: int64
+        declaredByName:
+          type: string
+        diet:
+          $ref: "#/components/schemas/DeclarationAnswer"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeclarationHistoryEntry"
+        medicalHistory:
+          $ref: "#/components/schemas/DeclarationMedicalHistory"
+        otherNotes:
+          $ref: "#/components/schemas/DeclarationAnswer"
     HealthExamAddress:
       type: object
       properties:
@@ -12465,6 +12733,42 @@ components:
           - MODERATE
           - HIGH
           - VERY_HIGH
+    HealthTrendAnalysisResponse:
+      type: object
+      properties:
+        approvedAt:
+          type: string
+          format: date-time
+        approvedBy:
+          type: integer
+          format: int64
+        approvedByName:
+          type: string
+        draft:
+          type: boolean
+        generatedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        model:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+        summary:
+          type: string
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendWarning"
+    HealthTrendApproveRequest:
+      type: object
+      properties:
+        summary:
+          type: string
     History:
       type: object
       properties:
@@ -13595,6 +13899,11 @@ components:
           - CHILD_WITHDRAWN
           - GUARDIAN_PHONE_CHANGE_REQUESTED
           - GUARDIAN_PHONE_CHANGE_DECIDED
+          - CHILD_TB_CONTACT
+          - CHILD_TB_CONTACT_DATE_CHANGED
+          - HEALTH_RESULT_PUBLISHED
+          - HEALTH_RESULT_UPDATED
+          - HEALTH_CHECK_OPENED
     NutritionTotals:
       type: object
       properties:
@@ -14402,6 +14711,90 @@ components:
         unmarked:
           type: integer
           format: int32
+    PublishedHealthResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        growth:
+          type: array
+          items:
+            $ref: "#/components/schemas/GrowthPoint"
+        interpretation:
+          $ref: "#/components/schemas/ApprovedInterpretation"
+        latestBmi:
+          $ref: "#/components/schemas/HealthLatestBmi"
+        latestExam:
+          $ref: "#/components/schemas/HealthLatestExam"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublishedHealthResult"
+    PublishedHealthResult:
+      type: object
+      properties:
+        ageMonths:
+          type: integer
+          format: int32
+        bmi:
+          type: number
+        bmiStatus:
+          type: string
+          enum:
+          - SEVERE_THINNESS
+          - THINNESS
+          - NORMAL
+          - OVERWEIGHT_RISK
+          - OVERWEIGHT
+          - OBESE
+        bmiZScore:
+          type: number
+        campaignKind:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+        campaignName:
+          type: string
+        conclusion:
+          $ref: "#/components/schemas/HealthConclusionBrief"
+        conclusionCategory:
+          type: string
+          enum:
+          - NORMAL
+          - ISSUE
+          - REFERRAL
+          - TB_RISK
+          - FOLLOWING_NO_NEW
+          - FOLLOWING_NEW
+        date:
+          type: string
+          format: date
+        followUpLevel:
+          type: string
+          enum:
+          - UNAVAILABLE
+          - NONE
+          - WATCH
+          - CLOSE_WATCH
+          - KNOWN_STABLE
+        headCircumferenceCm:
+          type: number
+        heightCm:
+          type: number
+        id:
+          type: integer
+          format: int64
+        note:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+        weightKg:
+          type: number
     QualityReportResponse:
       type: object
       properties:
@@ -15391,6 +15784,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonHealthDeclarationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthDeclarationResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonHealthExamResponse:
       type: object
       properties:
@@ -15451,6 +15857,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/HealthScheduleWarningResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthTrendAnalysisResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthTrendAnalysisResponse"
         desc:
           type: string
         errorCode:
@@ -16547,6 +16966,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ProgramCompletionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPublishedHealthResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PublishedHealthResponse"
         desc:
           type: string
         errorCode:
@@ -18552,6 +18984,13 @@ components:
         substitute:
           type: integer
           format: int32
+    TrendWarning:
+      type: object
+      properties:
+        level:
+          type: string
+        text:
+          type: string
     Unplaced:
       type: object
       properties:

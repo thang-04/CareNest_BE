@@ -2,9 +2,11 @@ package com.carenest.controller.child;
 
 import com.carenest.dto.child.ChildPhotoProfileResponse;
 import com.carenest.dto.child.ChildViewResponse;
+import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.child.ChildPhotoService;
+import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChildPhotoController {
     private static final String LOG_PREFIX = "[ChildPhotoController]";
     private final ChildPhotoService photoService;
+    private final ChildRecordService childRecordService;
 
     @GetMapping("/{childId}/photo")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
@@ -53,10 +56,12 @@ public class ChildPhotoController {
             @PathVariable Long childId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getProfile|childId=" + childId;
         log.info("{}|START", logPrefix);
+        // Phạm vi trẻ kiểm ở getProfile trước khi đọc khai báo sức khỏe (CHD-06)
         ChildViewResponse profile = photoService.getProfile(currentUser, childId);
+        HealthDeclarationResponse declaration = childRecordService.findDeclaration(childId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(
-                ApiCode.SUCCESSFUL, "Get child profile success", new ChildPhotoProfileResponse(profile));
+                ApiCode.SUCCESSFUL, "Get child profile success", new ChildPhotoProfileResponse(profile, declaration));
     }
 
     private static ResponseEntity<byte[]> image(ImageContent photo) {

@@ -307,7 +307,7 @@ Mục đích: thông báo theo người nhận để App hiện danh sách; đ�
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V82) | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V82), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V83). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | created_at | TIMESTAMPTZ | không | | — |
@@ -460,6 +460,23 @@ Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
 | changes | JSONB | không | `[{ field, label, from, to }]` các ô đổi, chuỗi hiển thị (phiếu khám: số định danh che, chỉ 3 số cuối; bản ghi trước V65 không có `label`) | HLT-13 |
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `(measurement_id, created_at)`.
+
+## health_interpretations  (module: health, scope: CHILD)
+Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V83.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | | — |
+| status | VARCHAR(20) | không | `DRAFT` / `APPROVED` (CHECK) | HLT-05, AI-02 |
+| summary | TEXT | không | Đoạn diễn giải (AI viết; người duyệt sửa được, ≤ 2000 ký tự khi duyệt) — không ngôn ngữ chẩn đoán | HLT-03, HLT-04 |
+| warnings | JSONB | không | `[{ level: "warning" hoặc "info", text }]` tính xác định từ số đo lúc phân tích | HLT-02 |
+| measurement_ids | JSONB | không | Id các lần đo đã công bố dùng để phân tích | HLT-02 |
+| source | VARCHAR(10) | không | `AI` / `HUMAN` (người duyệt sửa câu chữ) (CHECK) | AI-01, AI-02 |
+| model | VARCHAR(100) | có | Model AI đã dùng | AI-01 |
+| generated_by, generated_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người bấm phân tích, lúc tạo | AI-01 |
+| approved_by, approved_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Có khi và chỉ khi `APPROVED` (CHECK `ck_health_interpretations_approval`) | HLT-05 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `idx_health_interpretations_child` (`child_id`, `generated_at DESC`).
 
 ## health_follow_ups  (module: health, scope: CHILD) — ngừng dùng từ 2026-11-04
 **Ngừng dùng** cùng bảng `health_follow_up_events`, `health_follow_up_images`: phiếu theo dõi đã bỏ (HLT-16 REMOVED, cảnh báo lưu ở sổ sức khỏe — HLT-19). Không còn entity/API ghi hay đọc; giữ dữ liệu cũ, xóa bảng bằng migration riêng khi team chốt. Ảnh cũ vẫn ở S3 dưới prefix `health/follow-up-results/`.

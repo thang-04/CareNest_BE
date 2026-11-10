@@ -103,6 +103,10 @@ services:
       KEYCLOAK_BASE_URL: http://127.0.0.1:18320
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       KEYCLOAK_ACTIONS_EMAIL_ENABLED: "true"
+      # Trợ lý AI (AI-09); khóa trống ⇒ AI tắt (AI-03)
+      CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      CARENEST_AI_API_KEY: ${CARENEST_AI_API_KEY:-}
+      CARENEST_AI_MODEL: ${CARENEST_AI_MODEL:-gemini-2.0-flash}
       CARENEST_CORS_ALLOWED_ORIGINS: https://web.carenest.edu.vn
       # Gateway chỉ bật sau khi bootstrap.mjs --apply --enable (docs/system/DEPLOYMENT.md)
       CARENEST_AUTH_ENABLED: ${CARENEST_AUTH_ENABLED:-false}

@@ -107,6 +107,18 @@ final class EnrollmentFormValidator {
                 info.fullName(), info.dateOfBirth(), info.gender(), info.guardians(), info.profile(), null, null, null);
     }
 
+    /**
+     * Sửa khai báo sức khỏe (mục 4.5): kiểm như tiếp nhận nhưng đường dẫn ô không có tiền tố {@code declaration.} (như
+     * BE giả). Lỗi đưa vào {@code errors}; trả null khi có lỗi.
+     */
+    static HealthDeclarationDraft validateDeclarationOnly(
+            HealthDeclarationInput input, LocalDate dateOfBirth, LocalDate today, Map<String, String> errors) {
+        Map<String, String> prefixed = new LinkedHashMap<>();
+        HealthDeclarationDraft draft = validateDeclaration(input, dateOfBirth, today, prefixed);
+        prefixed.forEach((field, message) -> errors.put(field.replaceFirst("^declaration\\.", ""), message));
+        return prefixed.isEmpty() ? draft : null;
+    }
+
     static List<FieldErrorResponse> toList(Map<String, String> errors) {
         return errors.entrySet().stream()
                 .map(e -> new FieldErrorResponse(e.getKey(), e.getValue()))

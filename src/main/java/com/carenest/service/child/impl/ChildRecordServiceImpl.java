@@ -9,15 +9,24 @@ import com.carenest.dto.child.EnrollmentDraft;
 import com.carenest.dto.child.GuardianDraft;
 import com.carenest.dto.child.GuardianInput;
 import com.carenest.dto.child.GuardianLinkResponse;
+import com.carenest.dto.child.HealthDeclarationDraft;
+import com.carenest.dto.child.HealthDeclarationRequest;
+import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.entity.child.Child;
+import com.carenest.entity.child.ChildAllergy;
 import com.carenest.entity.child.ChildGuardian;
+import com.carenest.entity.child.ChildHealthDeclaration;
+import com.carenest.entity.child.ChildHealthDeclarationHistory;
 import com.carenest.entity.child.ChildHistory;
 import com.carenest.entity.child.ChildProfile;
 import com.carenest.entity.child.Enrollment;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.child.ChildAllergyRepository;
 import com.carenest.repository.child.ChildGuardianRepository;
+import com.carenest.repository.child.ChildHealthDeclarationHistoryRepository;
+import com.carenest.repository.child.ChildHealthDeclarationRepository;
 import com.carenest.repository.child.ChildHistoryRepository;
 import com.carenest.repository.child.ChildProfileRepository;
 import com.carenest.repository.child.ChildRepository;
@@ -34,10 +43,13 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.ChildHistoryAction;
 import com.carenest.utils.enums.ChildStatus;
+import com.carenest.utils.enums.DeclarationState;
 import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.GuardianRelationship;
+import com.carenest.utils.enums.HealthDeclarationAction;
 import com.carenest.utils.enums.NotificationType;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
@@ -80,6 +92,210 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final ApplicationEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final ChildHealthDeclarationRepository declarationRepository;
+    private final ChildAllergyRepository allergyRepository;
+    private final ChildHealthDeclarationHistoryRepository declarationHistoryRepository;
+    private final TbContactNotifier tbContactNotifier;
+
+    @Override
+    @Transactional(readOnly = true)
+    public HealthDeclarationResponse findDeclaration(Long childId) {
+        String logPrefix = LOG_PREFIX + "|findDeclaration|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<ChildHealthDeclaration> found = declarationRepository.findById(childId);
+            if (found.isEmpty()) {
+                log.info("{}|found=false|END", logPrefix);
+                return null;
+            }
+            ChildHealthDeclaration d = found.get();
+            List<ChildHealthDeclarationHistory> entries =
+                    declarationHistoryRepository.findAllByChildIdOrderByCreatedAtAscIdAsc(childId);
+            Set<Long> userIds = new HashSet<>();
+            userIds.add(d.getDeclaredBy());
+            entries.forEach(h -> userIds.add(h.getUserId()));
+            Map<Long, String> names = childHistoryRepository.findUserNames(userIds).stream()
+                    .collect(Collectors.toMap(
+                            ChildHistoryRepository.UserName::getUserId, ChildHistoryRepository.UserName::getFullName));
+            List<HealthDeclarationResponse.DeclarationHistoryEntry> history = entries.stream()
+                    .map(h -> new HealthDeclarationResponse.DeclarationHistoryEntry(
+                            h.getAction(),
+                            h.getUserId(),
+                            names.get(h.getUserId()),
+                            h.getCreatedAt(),
+                            h.getNote(),
+                            read(h.getAllergyChange(), HealthDeclarationResponse.DeclarationAllergyChange.class),
+                            read(h.getHistoryChange(), HealthDeclarationResponse.DeclarationHistoryChange.class)))
+                    .toList();
+            HealthDeclarationResponse response = new HealthDeclarationResponse(
+                    childId,
+                    new HealthDeclarationResponse.DeclarationAllergies(d.getAllergiesState(), allergyNames(childId)),
+                    new HealthDeclarationResponse.DeclarationAnswer(d.getDietState(), d.getDietText()),
+                    new HealthDeclarationResponse.DeclarationAnswer(d.getOtherNotesState(), d.getOtherNotesText()),
+                    medicalHistoryOf(d),
+                    d.getDeclaredBy(),
+                    names.get(d.getDeclaredBy()),
+                    d.getDeclaredAt(),
+                    history);
+            log.info("{}|history={}|END", logPrefix, history.size());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public HealthDeclarationResponse saveDeclaration(
+            CurrentUser actor, Long childId, HealthDeclarationRequest request) {
+        String logPrefix = LOG_PREFIX + "|saveDeclaration|userId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            Instant now = clock.instant();
+            Child child = loadInScope(actor, childId, today);
+            if (child.getStatus() == ChildStatus.LEFT) {
+                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            }
+            Map<String, String> errors = new LinkedHashMap<>();
+            HealthDeclarationDraft d = EnrollmentFormValidator.validateDeclarationOnly(
+                    request == null ? null : request.declaration(), child.getDateOfBirth(), today, errors);
+            Optional<ChildHealthDeclaration> existing = declarationRepository.findById(childId);
+            String reason = request == null || request.reason() == null
+                    ? ""
+                    : request.reason().strip();
+            if (existing.isPresent() && reason.isEmpty()) {
+                errors.put("reason", "Nhập lý do thay đổi khai báo");
+            } else if (reason.length() > MAX_REASON) {
+                errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
+            }
+            if (!errors.isEmpty()) {
+                throw GlobalException.withFieldErrors(
+                        ApiCode.INVALID_REQUEST_DATA, EnrollmentFormValidator.toList(errors));
+            }
+
+            HealthDeclarationResponse.DeclarationAllergies beforeAllergies = existing.map(
+                            e -> new HealthDeclarationResponse.DeclarationAllergies(
+                                    e.getAllergiesState(), allergyNames(childId)))
+                    .orElse(null);
+            HealthDeclarationResponse.DeclarationMedicalHistory beforeHistory =
+                    existing.map(ChildRecordServiceImpl::medicalHistoryOf).orElse(null);
+            DeclarationState beforeTb =
+                    existing.map(ChildHealthDeclaration::getTbContactState).orElse(null);
+            LocalDate beforeTbDate =
+                    existing.map(ChildHealthDeclaration::getTbContactDate).orElse(null);
+
+            ChildHealthDeclaration.Answer diet = answer(d.diet());
+            ChildHealthDeclaration.Answer otherNotes = answer(d.otherNotes());
+            ChildHealthDeclaration.Answer self = answer(d.selfHistory());
+            ChildHealthDeclaration.Answer family = answer(d.familyHistory());
+            if (existing.isPresent()) {
+                existing.get()
+                        .update(
+                                d.allergiesState(),
+                                diet,
+                                otherNotes,
+                                self,
+                                family,
+                                d.tbContactState(),
+                                d.tbContactDate(),
+                                actor.userId(),
+                                now);
+            } else {
+                declarationRepository.save(ChildHealthDeclaration.declare(
+                        childId,
+                        d.allergiesState(),
+                        diet,
+                        otherNotes,
+                        self,
+                        family,
+                        d.tbContactState(),
+                        d.tbContactDate(),
+                        actor.userId(),
+                        now));
+            }
+            // CHD-06: dị ứng có hiệu lực ngay cho bếp, điểm danh (đọc child_allergies)
+            allergyRepository.deleteByChildId(childId);
+            allergyRepository.saveAll(d.allergies().stream()
+                    .map(name -> ChildAllergy.of(childId, name))
+                    .toList());
+
+            HealthDeclarationResponse.DeclarationAllergies afterAllergies =
+                    new HealthDeclarationResponse.DeclarationAllergies(d.allergiesState(), d.allergies());
+            HealthDeclarationResponse.DeclarationMedicalHistory afterHistory = medicalHistoryOf(d);
+            String allergyChange = Objects.equals(beforeAllergies, afterAllergies)
+                    ? null
+                    : objectMapper.writeValueAsString(
+                            new HealthDeclarationResponse.DeclarationAllergyChange(beforeAllergies, afterAllergies));
+            String historyChange = Objects.equals(beforeHistory, afterHistory)
+                    ? null
+                    : objectMapper.writeValueAsString(
+                            new HealthDeclarationResponse.DeclarationHistoryChange(beforeHistory, afterHistory));
+            declarationHistoryRepository.save(ChildHealthDeclarationHistory.record(
+                    childId,
+                    existing.isPresent() ? HealthDeclarationAction.UPDATED : HealthDeclarationAction.DECLARED,
+                    actor.userId(),
+                    reason.isEmpty() ? null : reason,
+                    allergyChange,
+                    historyChange,
+                    now));
+
+            // CHD-07: chuyển sang Có ⇒ báo; đã Có mà đổi ngày ⇒ báo đổi ngày; lưu lại không đổi ⇒ không báo
+            Long campusId = campusOf(child, today);
+            if (d.tbContactState() == DeclarationState.REPORTED && beforeTb != DeclarationState.REPORTED) {
+                tbContactNotifier.contactReported(
+                        childId, child.getFullName(), campusId, d.tbContactDate(), actor.userId());
+            } else if (d.tbContactState() == DeclarationState.REPORTED
+                    && beforeTbDate != null
+                    && !beforeTbDate.equals(d.tbContactDate())) {
+                tbContactNotifier.contactDateChanged(
+                        childId,
+                        child.getFullName(),
+                        campusId,
+                        beforeTbDate,
+                        d.tbContactDate(),
+                        "sửa khai báo sức khỏe",
+                        actor.userId());
+            }
+            HealthDeclarationResponse response = findDeclaration(childId);
+            log.info("{}|existing={}|END", logPrefix, existing.isPresent());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private List<String> allergyNames(Long childId) {
+        return allergyRepository.findAllByChildIdOrderByIdAsc(childId).stream()
+                .map(ChildAllergy::getName)
+                .toList();
+    }
+
+    private static HealthDeclarationResponse.DeclarationMedicalHistory medicalHistoryOf(ChildHealthDeclaration d) {
+        return new HealthDeclarationResponse.DeclarationMedicalHistory(
+                new HealthDeclarationResponse.DeclarationAnswer(d.getSelfHistoryState(), d.getSelfHistoryText()),
+                new HealthDeclarationResponse.DeclarationAnswer(d.getFamilyHistoryState(), d.getFamilyHistoryText()),
+                new HealthDeclarationResponse.DeclarationTbContact(d.getTbContactState(), d.getTbContactDate()));
+    }
+
+    private static HealthDeclarationResponse.DeclarationMedicalHistory medicalHistoryOf(HealthDeclarationDraft d) {
+        return new HealthDeclarationResponse.DeclarationMedicalHistory(
+                new HealthDeclarationResponse.DeclarationAnswer(
+                        d.selfHistory().state(), d.selfHistory().text()),
+                new HealthDeclarationResponse.DeclarationAnswer(
+                        d.familyHistory().state(), d.familyHistory().text()),
+                new HealthDeclarationResponse.DeclarationTbContact(d.tbContactState(), d.tbContactDate()));
+    }
+
+    private static ChildHealthDeclaration.Answer answer(HealthDeclarationDraft.Answer a) {
+        return new ChildHealthDeclaration.Answer(a.state(), a.text());
+    }
+
+    private <T> T read(String json, Class<T> type) {
+        return json == null ? null : objectMapper.readValue(json, type);
+    }
 
     @Override
     @Transactional

@@ -337,6 +337,32 @@ class ChildEnrollmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("G94-180/CHD-07: tiếp nhận khai Có tiếp xúc lao ⇒ báo HT, PHT điểm trường tiếp nhận (không PHT khác)")
+    void intakeWithTbContactNotifiesLeaders() {
+        EnrollChildRequest base =
+                request("Trần Gia Huy", "2023-05-01", null, campusA, newGuardian("0912345679", "001234567891"));
+        HealthDeclarationInput declaration = base.declaration();
+        EnrollChildRequest withTbContact = new EnrollChildRequest(
+                base.child(),
+                new HealthDeclarationInput(
+                        declaration.allergies(),
+                        declaration.diet(),
+                        declaration.otherNotes(),
+                        new MedicalHistoryInput(
+                                declaration.medicalHistory().self(),
+                                declaration.medicalHistory().family(),
+                                new TbContactInput("REPORTED", "2026-10-20"))),
+                null,
+                campusA);
+
+        enrollmentService.enroll(principal, withTbContact);
+        entityManager.flush();
+
+        assertThat(jdbc.queryForList("SELECT user_id FROM notifications WHERE type = 'CHILD_TB_CONTACT'", Long.class))
+                .containsExactlyInAnyOrder(principal.userId(), vicePrincipal.userId());
+    }
+
+    @Test
     @DisplayName(
             "CHD-10: tiếp nhận vào lớp năm đang hoạt động ⇒ Đang học; lớp đủ sĩ số, lớp năm khác, lệch điểm trường ⇒ 400 classId")
     void enrollIntoClassChecksClass() {

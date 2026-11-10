@@ -15,7 +15,7 @@ Child, Enrollment (childId, classroomId, from, to), GuardianChildLink (childId, 
 AUTH-04, AUTH-18, CHD-01..05, HLT-06, NUT-09, NUT-23. Luồng tiếp nhận (nhánh G94-180): G94-180/AUTH-20, G94-180/AUTH-21, G94-180/CHD-01..10, G94-180/HLT-08, G94-180/ATT-09 — `docs/business/BUSINESS_RULES.md` mục "G94-180" (trùng mã với rule `dev`, chờ đánh lại mã). Trong card này, mã CHD-06..10, AUTH-20, AUTH-21 ở phần tiếp nhận theo nghĩa của mục đó.
 
 ## Phụ thuộc
-- Dùng: common/utils, service `organization` (classroom/campus).
+- Dùng: common/utils, service `organization` (classroom/campus), `notification` (thông báo nghỉ học, tiếp xúc lao — `TbContactNotifier`).
 - Được dùng bởi: attendance, nutrition (dị ứng tổng hợp), health, learning-observation, reporting, kiểm tra scope (`security/`).
 - **Không** đọc ngược health/learning (tránh cycle).
 
@@ -35,6 +35,12 @@ Plan `docs/plans/active/2026-11-10-child-edit-withdraw.md`.
 - `PUT /children/{id}` (`CHILD_PROFILE_EDIT`) → `ChildProfileEditService` (feature account điều phối) → `ChildRecordService.prepareEdit`/`applyEdit`: kiểm như tiếp nhận trừ khai báo sức khỏe, người nhận tài khoản (`EnrollmentFormValidator.validateEdit`); ngày sinh không sau ngày tiếp nhận/lớp đầu tiên; trùng hồ sơ khác 409; ghép phụ huynh theo `guardians[].id` (mới, tùy chọn) → CCCD → vị trí; bỏ phụ huynh đang liên kết tài khoản ⇒ lỗi ô `guardians`; lịch sử UPDATED ghi `changes` (CCCD/số định danh 3 số cuối), trả trong `history[].changes`. Phụ huynh có tài khoản: xem `docs/modules/identity-access.md` (AUTH-21).
 - Nhập Excel đã làm trước đó (Spec013): `ChildEnrollmentImportController`.
 
+## Khai báo sức khỏe, thông báo lao — 10/11/2026
+Plan `docs/plans/active/2026-11-10-health-record-complete.md`.
+- `PUT /children/{id}/health-declaration` (`CHILD_PROFILE_EDIT`) → `ChildRecordService.saveDeclaration` (G94-180/CHD-06): body `{ declaration: { allergies, diet, otherNotes, medicalHistory }, reason }` như form tiếp nhận; kiểm bằng `EnrollmentFormValidator.validateDeclarationOnly` (lỗi ô không tiền tố `declaration.`); đã có khai báo ⇒ bắt buộc `reason` (≤ 300); thay toàn bộ dị ứng; lịch sử `UPDATED` (chưa có ⇒ `DECLARED`) kèm `allergy_change`, `history_change` (JSONB trước/sau); trẻ đã nghỉ 409 3011; phạm vi như Sửa hồ sơ. Trả khai báo đã lưu + `history[]`.
+- `GET /children/{id}/profile` (`ChildPhotoProfileResponse`) thêm `declaration` cạnh `child` (null khi chưa khai báo; không phá contract cũ).
+- Thông báo tiếp xúc lao (G94-180/CHD-07, `TbContactNotifier`): chuyển sang Có tiếp xúc (form tiếp nhận, nhập Excel — chung `createEnrolledChild` — hoặc sửa khai báo) ⇒ `CHILD_TB_CONTACT` cho HT, PHT điểm trường của trẻ, GV lớp hiện tại, người lưu; đã Có mà đổi ngày (sửa khai báo, kết luận phiếu khám — `ChildIntakeService.updateMedicalHistory` tham số `changeSource`) ⇒ `CHILD_TB_CONTACT_DATE_CHANGED` cho HT, PHT, người lưu; lưu lại không đổi ⇒ không báo. Câu thông báo có tên trẻ (trong ứng dụng); push chỉ câu chung.
+
 ## Đã chốt, BE chưa làm (user chốt 2026-10-28)
 Nghiệp vụ tiếp nhận trẻ chốt theo danh sách lệch BE–FE của nhánh G94-180 (`FE:docs/integration/CHILD_ENROLLMENT_BE_GAPS.md`); FE đang chạy bằng BE giả, contract đề xuất ở `FE:src/services/children/api/childrenApi.js` (PROPOSED). **Plan làm BE (đặc tả đủ dữ liệu, quyền, API, lỗi): `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`.**
 Đã làm (Phase 1, 2026-10-28): mã quyền `CHILD_ENROLL`, `CHILD_PROFILE_EDIT`, `CHILD_PLACEMENT` trong enum `Permission` + seed ma trận PHT (CHD-01); enum `GuardianRelationship` 6 loại, CHECK V63 (AUTH-18); migration V63 cho mọi bảng/cột dưới đây; seed dev nhập đủ thông tin (CHD-08). Đã làm (Phase 2–3, 2026-10-29): kiểm trùng hồ sơ, kiểm phụ huynh, tra tài khoản theo CCCD, lớp tiếp nhận, `POST /children/enrollments` (tạo/liên kết tài khoản, SMS qua cổng giả), mở lại hồ sơ — mục "API & bảng". Còn lại:
@@ -43,8 +49,8 @@ Nghiệp vụ tiếp nhận trẻ chốt theo danh sách lệch BE–FE của nh
 - Bỏ `POST /children/{childId}/guardians` (AUTH-20, C-4): phụ huynh nhập ở hồ sơ trẻ rồi kích hoạt.
 - Dữ liệu trẻ: mã trẻ, giới tính, điểm trường tiếp nhận cho trẻ chưa có lớp (CHD-02), trạng thái Đang học / Chờ xếp lớp / Đã nghỉ học, ngày tiếp nhận, ngày + lý do nghỉ (CHD-03); bảng hành chính (CHD-05); khai báo sức khỏe khi tiếp nhận (CHD-06).
 - Phụ huynh: thông tin phụ huynh trên hồ sơ trẻ trước khi có tài khoản (AUTH-20), CCCD phụ huynh làm khóa nhận diện (AUTH-18), sửa thông tin phụ huynh cập nhật tài khoản, đổi SĐT đổi tên đăng nhập (AUTH-21 — xem `docs/modules/identity-access.md`).
-- API: xếp/chuyển lớp (đóng enrollment cũ, mở enrollment mới), khai báo sức khỏe, màn Tài khoản phụ huynh. (Nhập Excel, Sửa hồ sơ, cho nghỉ học: đã làm — mục "Sửa hồ sơ, cho nghỉ học — 10/11/2026".)
-- Thông báo tiếp xúc người bệnh lao (CHD-07) khi có module notification.
+- API: xếp/chuyển lớp (đóng enrollment cũ, mở enrollment mới), màn Tài khoản phụ huynh. (Nhập Excel, Sửa hồ sơ, cho nghỉ học, sửa khai báo sức khỏe: đã làm — mục "Sửa hồ sơ, cho nghỉ học — 10/11/2026", "Khai báo sức khỏe, thông báo lao — 10/11/2026".)
+- ~~Thông báo tiếp xúc người bệnh lao (CHD-07)~~ — đã làm 10/11/2026.
 
 ## PENDING
 P-28 đã đóng 05/11/2026 theo Spec013: một recipient cho tiếp nhận mới, giữ nguyên historical links. Đã đóng 28/10: P-17 (khai báo dị ứng — HLT-06); G94-180/P-17 (CHD-06), G94-180/P-18 (AUTH-20: người lưu không có quyền quản lý tài khoản phụ huynh vẫn lưu, phụ huynh chờ kích hoạt).

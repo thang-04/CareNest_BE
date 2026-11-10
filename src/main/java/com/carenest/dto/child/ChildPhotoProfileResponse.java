@@ -1,4 +1,7 @@
 package com.carenest.dto.child;
 
-/** Phần hồ sơ hiện có để xem ảnh; không giả lập dữ liệu khai báo hoặc lịch sử xếp lớp chưa có API. */
-public record ChildPhotoProfileResponse(ChildViewResponse child) {}
+/**
+ * Hồ sơ trẻ để Web mở lại hồ sơ (mục 4.6 plan tiếp nhận): ChildView kèm khai báo sức khỏe ({@code declaration} null khi
+ * chưa khai báo). Lịch sử xếp lớp chưa có API nên không trả.
+ */
+public record ChildPhotoProfileResponse(ChildViewResponse child, HealthDeclarationResponse declaration) {}

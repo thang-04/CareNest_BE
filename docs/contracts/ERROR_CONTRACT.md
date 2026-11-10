@@ -35,6 +35,8 @@ Bổ sung 31/10/2026 (G94-180, phiếu khám Phụ lục II và phiếu theo dõ
 
 Bổ sung 31/10/2026 (G94-180, đón trẻ, ảnh phụ huynh, thông báo): ảnh chân dung sai loại/quá 2 MB 1131, chưa có ảnh hoặc ngoài phạm vi 1132; thông báo không tìm thấy (hoặc của người khác) 1201; đón trẻ 4101–4107 — trẻ không tìm thấy hoặc ngoài phạm vi 4101, không phải GV lớp 4102, lớp không thuộc năm học đang hoạt động 4103, ngày ngoài khoảng 4104, trẻ chưa điểm danh có mặt 4105, trẻ vắng 4106, đã trả hôm nay 4107. Lỗi theo ô của form trả trẻ, đăng ký thiết bị dùng 9001 `INVALID_REQUEST_DATA` (`verification`, `guardianPosition`, `handoverTime`, `note`, `token`, `platform`). Cần thêm vào bản Word của Cần.
 
+Bổ sung 10/11/2026 (G94-180, hồ sơ sức khỏe đầy đủ): bản giải thích xu hướng sức khỏe không tìm thấy 5040 (404). Dùng lại 8001/8002 cho AI giải thích xu hướng, 5025 cho nhân sự ngoài phạm vi, 9001 + ô cho sửa khai báo sức khỏe (bảng dưới). Cần thêm vào bản Word của Cần.
+
 Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
 
 | Dải | Phân hệ |
@@ -96,6 +98,10 @@ Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và 
 | Duyệt đổi SĐT: số mới đã thuộc người khác, tài khoản đã đổi số, phụ huynh hết liên kết, trẻ đã nghỉ (desc nêu lý do) | `PHONE_CHANGE_REQUEST_STALE` (1136, 409) | G94-180/AUTH-21 |
 | Duyệt đổi SĐT khi realm Keycloak chưa bật sửa username (`docs/system/KEYCLOAK.md` mục 7) | `USERNAME_CHANGE_NOT_ALLOWED` (1137, 503) | G94-180/AUTH-21 |
 | AI không khả dụng / quá thời gian | `AI_SERVICE_UNAVAILABLE` (503) / `AI_TIMEOUT` (504) | AI-03 |
+| Sửa khai báo sức khỏe: form sai (ô theo khai báo, không tiền tố `declaration.`: `allergies`, `medicalHistory.tbContactDate`…), thiếu lý do khi đã có khai báo (`reason`, ≤ 300) | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-06 |
+| Giải thích xu hướng sức khỏe: AI chưa cấu hình hoặc viết ngôn ngữ chẩn đoán (bỏ, không lưu) / quá thời gian | `AI_SERVICE_UNAVAILABLE` (8001, 503) / `AI_TIMEOUT` (8002, 504) | HLT-04, AI-03 |
+| Duyệt bản giải thích xu hướng không tồn tại hoặc của trẻ khác / nhân sự ngoài phạm vi trẻ | `HEALTH_INTERPRETATION_NOT_FOUND` (5040, 404) / `HEALTH_RECORD_ACCESS_DENIED` (5025, 403) | HLT-05 |
+| Phụ huynh xem kết quả sức khỏe của trẻ không liên kết | `CHILD_ACCESS_DENIED` (403) | PAR-03, AUTH-07 |
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
 | Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |
 | Ghi tài liệu lớp trên phiên bản đã thay thế / gửi bản chép còn ô đỏ | `YEAR_PLAN_SUPERSEDED` (7122, 409) / `CLASS_DOC_VERSION_FIX_REQUIRED` (7121, 409) | EDU-26 |

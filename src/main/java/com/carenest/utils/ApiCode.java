@@ -378,6 +378,7 @@ public enum ApiCode {
     HEALTH_EXAM_INCOMPLETE(5033, HttpStatus.BAD_REQUEST, "Phiếu chưa đủ thông tin. Kiểm tra các ô được đánh dấu"),
     HEALTH_MEASUREMENT_IS_EXAM(5034, HttpStatus.CONFLICT, "Kết quả này là phiếu khám. Sửa ở trang phiếu khám của đợt"),
     // 5035–5039 của phiếu theo dõi sức khỏe đã bỏ (HLT-16, 2026-11-04); không dùng lại mã
+    HEALTH_INTERPRETATION_NOT_FOUND(5040, HttpStatus.NOT_FOUND, "Không tìm thấy bản giải thích xu hướng sức khỏe"),
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),

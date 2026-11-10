@@ -204,6 +204,46 @@ class ChildEnrollmentControllerTest {
     }
 
     @Test
+    @DisplayName("CHD-06: sửa khai báo sức khỏe cần quyền CHILD_PROFILE_EDIT ⇒ 200 trả khai báo đã lưu")
+    void profileEditorSavesHealthDeclaration() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);
+        given(childRecordService.saveDeclaration(eq(actor), eq(301L), any()))
+                .willReturn(new com.carenest.dto.child.HealthDeclarationResponse(
+                        301L, null, null, null, null, 2L, "Demo", null, List.of()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                                "/api/children/301/health-declaration")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"declaration\":{\"allergies\":{\"state\":\"NONE_REPORTED\",\"items\":[]}},"
+                                + "\"reason\":\"Phụ huynh bổ sung\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Save health declaration success"))
+                .andExpect(jsonPath("$.data.childId").value(301));
+
+        ArgumentCaptor<com.carenest.dto.child.HealthDeclarationRequest> request =
+                ArgumentCaptor.forClass(com.carenest.dto.child.HealthDeclarationRequest.class);
+        verify(childRecordService).saveDeclaration(eq(actor), eq(301L), request.capture());
+        assertThat(request.getValue().reason()).isEqualTo("Phụ huynh bổ sung");
+        assertThat(request.getValue().declaration().allergies().state()).isEqualTo("NONE_REPORTED");
+    }
+
+    @Test
+    @DisplayName("CHD-06: thiếu quyền CHILD_PROFILE_EDIT ⇒ 403, không gọi service")
+    void healthDeclarationNeedsProfileEditPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_PROFILE_VIEW);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                                "/api/children/301/health-declaration")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"declaration\":null,\"reason\":\"x\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
+    }
+
+    @Test
     @DisplayName("Mục 4.2: Sửa hồ sơ cần quyền CHILD_PROFILE_EDIT ⇒ 200 kèm yêu cầu đổi SĐT")
     void profileEditorUpdatesChild() throws Exception {
         CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);

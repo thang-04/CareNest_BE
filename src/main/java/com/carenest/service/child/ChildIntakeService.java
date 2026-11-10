@@ -71,14 +71,16 @@ public interface ChildIntakeService {
     Optional<ChildMedicalHistory> findMedicalHistory(Long childId);
 
     /**
-     * Ghi tiền sử mới vào khai báo sức khỏe (từ phiếu khám; HLT-06) và một dòng lịch sử khai báo. Trẻ
-     * chưa có khai báo ⇒ tạo khai báo, các mục khác "chưa cung cấp". Chạy trong giao dịch của người gọi.
+     * Ghi tiền sử mới vào khai báo sức khỏe (từ phiếu khám; HLT-06) và một dòng lịch sử khai báo kèm tiền sử trước/sau.
+     * Trẻ chưa có khai báo ⇒ tạo khai báo, các mục khác "chưa cung cấp". Ngày tiếp xúc lao đã có đổi ⇒ thông báo
+     * CHD-07 với {@code changeSource} (vd. "phiếu khám ngày 01/11/2026"). Chạy trong giao dịch của người gọi.
      */
     void updateMedicalHistory(
             Long childId,
             ChildMedicalHistory history,
             HealthDeclarationAction action,
             String note,
+            String changeSource,
             Long userId,
             Instant at);
 

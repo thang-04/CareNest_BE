@@ -85,6 +85,13 @@ class ChildRecordServiceImplTest {
     private final StaffAccessPolicy policy = mock(StaffAccessPolicy.class);
     private final NotificationService notificationService = mock(NotificationService.class);
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
+    private final com.carenest.repository.child.ChildHealthDeclarationRepository declarationRepository =
+            mock(com.carenest.repository.child.ChildHealthDeclarationRepository.class);
+    private final com.carenest.repository.child.ChildAllergyRepository allergyRepository =
+            mock(com.carenest.repository.child.ChildAllergyRepository.class);
+    private final com.carenest.repository.child.ChildHealthDeclarationHistoryRepository declarationHistoryRepository =
+            mock(com.carenest.repository.child.ChildHealthDeclarationHistoryRepository.class);
+    private final TbContactNotifier tbNotifier = mock(TbContactNotifier.class);
     private final ChildRecordServiceImpl service = new ChildRecordServiceImpl(
             childRepository,
             profileRepository,
@@ -99,7 +106,11 @@ class ChildRecordServiceImplTest {
             notificationService,
             events,
             JsonMapper.builder().build(),
-            CLOCK);
+            CLOCK,
+            declarationRepository,
+            allergyRepository,
+            declarationHistoryRepository,
+            tbNotifier);
 
     private Child child;
     private Enrollment enrollment;
@@ -262,6 +273,97 @@ class ChildRecordServiceImplTest {
         assertThatThrownBy(() -> service.prepareEdit(PRINCIPAL, CHILD_ID, request("2022-03-01", List.of())))
                 .isInstanceOfSatisfying(
                         GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+    }
+
+    @Test
+    @DisplayName("CHD-06: sửa khai báo khi đã có khai báo mà thiếu lý do ⇒ lỗi ô không tiền tố declaration.")
+    void saveDeclarationRequiresReasonAndUsesUnprefixedFields() {
+        given(declarationRepository.findById(CHILD_ID))
+                .willReturn(Optional.of(declaration(com.carenest.utils.enums.DeclarationState.NONE_REPORTED, null)));
+        var request = new com.carenest.dto.child.HealthDeclarationRequest(
+                declarationInput("REPORTED", List.of(), "NONE_REPORTED", null), " ");
+
+        assertThatThrownBy(() -> service.saveDeclaration(PRINCIPAL, CHILD_ID, request))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(FieldErrorResponse::field)
+                                .containsExactly("allergies", "reason"));
+    }
+
+    @Test
+    @DisplayName(
+            "G94-180/CHD-07: chuyển sang Có tiếp xúc lao ⇒ báo; dị ứng thay danh sách, lịch sử UPDATED kèm thay đổi")
+    void saveDeclarationNotifiesTbContactAndReplacesAllergies() {
+        given(declarationRepository.findById(CHILD_ID))
+                .willReturn(Optional.of(declaration(com.carenest.utils.enums.DeclarationState.NONE_REPORTED, null)));
+        var request = new com.carenest.dto.child.HealthDeclarationRequest(
+                declarationInput("REPORTED", List.of("Tôm"), "REPORTED", "2026-11-01"), "Phụ huynh bổ sung");
+
+        service.saveDeclaration(PRINCIPAL, CHILD_ID, request);
+
+        verify(allergyRepository).deleteByChildId(CHILD_ID);
+        verify(tbNotifier).contactReported(CHILD_ID, "Bé An", CAMPUS_ID, LocalDate.of(2026, 11, 1), PRINCIPAL.userId());
+        verify(tbNotifier, never()).contactDateChanged(any(), any(), any(), any(), any(), any(), any());
+        ArgumentCaptor<com.carenest.entity.child.ChildHealthDeclarationHistory> history =
+                ArgumentCaptor.forClass(com.carenest.entity.child.ChildHealthDeclarationHistory.class);
+        verify(declarationHistoryRepository).save(history.capture());
+        assertThat(history.getValue().getAction()).isEqualTo(com.carenest.utils.enums.HealthDeclarationAction.UPDATED);
+        assertThat(history.getValue().getAllergyChange()).contains("Tôm");
+        assertThat(history.getValue().getHistoryChange()).contains("2026-11-01");
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-07: đã Có tiếp xúc, đổi ngày ⇒ báo đổi ngày (không báo tiếp xúc mới)")
+    void saveDeclarationNotifiesTbDateChange() {
+        given(declarationRepository.findById(CHILD_ID))
+                .willReturn(Optional.of(
+                        declaration(com.carenest.utils.enums.DeclarationState.REPORTED, LocalDate.of(2026, 10, 1))));
+        var request = new com.carenest.dto.child.HealthDeclarationRequest(
+                declarationInput("NONE_REPORTED", List.of(), "REPORTED", "2026-11-01"), "Sửa ngày");
+
+        service.saveDeclaration(PRINCIPAL, CHILD_ID, request);
+
+        verify(tbNotifier)
+                .contactDateChanged(
+                        CHILD_ID,
+                        "Bé An",
+                        CAMPUS_ID,
+                        LocalDate.of(2026, 10, 1),
+                        LocalDate.of(2026, 11, 1),
+                        "sửa khai báo sức khỏe",
+                        PRINCIPAL.userId());
+        verify(tbNotifier, never()).contactReported(any(), any(), any(), any(), any());
+    }
+
+    private static com.carenest.entity.child.ChildHealthDeclaration declaration(
+            com.carenest.utils.enums.DeclarationState tb, LocalDate tbDate) {
+        var none = new com.carenest.entity.child.ChildHealthDeclaration.Answer(
+                com.carenest.utils.enums.DeclarationState.NONE_REPORTED, null);
+        var notProvided = new com.carenest.entity.child.ChildHealthDeclaration.Answer(
+                com.carenest.utils.enums.DeclarationState.NOT_PROVIDED, null);
+        return com.carenest.entity.child.ChildHealthDeclaration.declare(
+                CHILD_ID,
+                com.carenest.utils.enums.DeclarationState.NONE_REPORTED,
+                none,
+                notProvided,
+                none,
+                none,
+                tb,
+                tbDate,
+                9L,
+                Instant.parse("2026-09-01T03:00:00Z"));
+    }
+
+    private static com.carenest.dto.child.HealthDeclarationInput declarationInput(
+            String allergyState, List<String> allergies, String tbState, String tbDate) {
+        var none = new com.carenest.dto.child.DeclarationAnswerInput("NONE_REPORTED", null);
+        return new com.carenest.dto.child.HealthDeclarationInput(
+                new com.carenest.dto.child.AllergiesInput(allergyState, allergies),
+                none,
+                new com.carenest.dto.child.DeclarationAnswerInput("NOT_PROVIDED", null),
+                new com.carenest.dto.child.MedicalHistoryInput(
+                        none, none, new com.carenest.dto.child.TbContactInput(tbState, tbDate)));
     }
 
     private static ChildGuardian guardian(Long id, int position, String citizenId, String phone, Long userId) {

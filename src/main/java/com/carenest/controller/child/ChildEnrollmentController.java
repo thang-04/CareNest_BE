@@ -6,6 +6,8 @@ import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.DuplicateCheckResponse;
 import com.carenest.dto.child.EnrollChildRequest;
 import com.carenest.dto.child.GuardianCheckRequest;
+import com.carenest.dto.child.HealthDeclarationRequest;
+import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.ParentAccountLookupResponse;
 import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
@@ -165,6 +167,17 @@ public class ChildEnrollmentController {
         ChildViewResponse child = childRecordService.withdraw(currentUser, childId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw child success", child);
+    }
+
+    @PutMapping("/{childId}/health-declaration")
+    @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_EDIT')")
+    public ResponseEntity<ResponseJson<HealthDeclarationResponse>> saveDeclaration(
+            @PathVariable Long childId, @RequestBody HealthDeclarationRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|saveDeclaration|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        HealthDeclarationResponse declaration = childRecordService.saveDeclaration(currentUser, childId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save health declaration success", declaration);
     }
 
     @PutMapping("/{childId}")

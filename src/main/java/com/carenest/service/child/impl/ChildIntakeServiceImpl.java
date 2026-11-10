@@ -15,6 +15,7 @@ import com.carenest.dto.child.GuardianChildSummary;
 import com.carenest.dto.child.GuardianDraft;
 import com.carenest.dto.child.GuardianRecord;
 import com.carenest.dto.child.HealthDeclarationDraft;
+import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
@@ -75,6 +76,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 /** Không log họ tên, ngày sinh, SĐT, CCCD, sức khỏe — chỉ id, số lượng. */
 @Slf4j
@@ -101,6 +103,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     private final StaffAssignmentService staffAssignmentService;
     private final StaffAccessPolicy staffAccessPolicy;
     private final Clock clock;
+    private final TbContactNotifier tbContactNotifier;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -322,6 +326,11 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     .toList());
             declarationHistoryRepository.save(ChildHealthDeclarationHistory.record(
                     childId, HealthDeclarationAction.DECLARED, actor.userId(), null, now));
+            // CHD-07: khai Có tiếp xúc người bệnh lao khi tiếp nhận / nhập Excel
+            if (d.tbContactState() == DeclarationState.REPORTED) {
+                tbContactNotifier.contactReported(
+                        childId, draft.fullName(), draft.campusId(), d.tbContactDate(), actor.userId());
+            }
             childHistoryRepository.save(
                     ChildHistory.record(childId, ChildHistoryAction.ENROLLED, actor.userId(), null, now));
             if (placed) {
@@ -810,6 +819,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             ChildMedicalHistory history,
             HealthDeclarationAction action,
             String note,
+            String changeSource,
             Long userId,
             Instant at) {
         String logPrefix = LOG_PREFIX + "|updateMedicalHistory|childId=" + childId + "|action=" + action;
@@ -819,6 +829,10 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             ChildHealthDeclaration.Answer family =
                     new ChildHealthDeclaration.Answer(history.family(), history.familyText());
             Optional<ChildHealthDeclaration> existing = declarationRepository.findById(childId);
+            HealthDeclarationResponse.DeclarationMedicalHistory before =
+                    existing.map(ChildIntakeServiceImpl::medicalHistoryView).orElse(null);
+            LocalDate beforeTbDate =
+                    existing.map(ChildHealthDeclaration::getTbContactDate).orElse(null);
             if (existing.isPresent()) {
                 existing.get().updateMedicalHistory(self, family, history.tbContact(), history.tbContactDate());
             } else {
@@ -837,12 +851,45 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                         userId,
                         at));
             }
-            declarationHistoryRepository.save(ChildHealthDeclarationHistory.record(childId, action, userId, note, at));
+            HealthDeclarationResponse.DeclarationMedicalHistory after =
+                    new HealthDeclarationResponse.DeclarationMedicalHistory(
+                            new HealthDeclarationResponse.DeclarationAnswer(history.self(), history.selfText()),
+                            new HealthDeclarationResponse.DeclarationAnswer(history.family(), history.familyText()),
+                            new HealthDeclarationResponse.DeclarationTbContact(
+                                    history.tbContact(), history.tbContactDate()));
+            String historyChange = objectMapper.writeValueAsString(
+                    new HealthDeclarationResponse.DeclarationHistoryChange(before, after));
+            declarationHistoryRepository.save(
+                    ChildHealthDeclarationHistory.record(childId, action, userId, note, null, historyChange, at));
+            // CHD-07: ngày tiếp xúc lao đã có đổi (từ phiếu khám) ⇒ báo HT, PHT điểm trường, người lưu
+            if (history.tbContact() == DeclarationState.REPORTED
+                    && beforeTbDate != null
+                    && history.tbContactDate() != null
+                    && !beforeTbDate.equals(history.tbContactDate())) {
+                Child child = childRepository
+                        .findById(childId)
+                        .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
+                tbContactNotifier.contactDateChanged(
+                        childId,
+                        child.getFullName(),
+                        currentCampusOf(child, LocalDate.now(clock)),
+                        beforeTbDate,
+                        history.tbContactDate(),
+                        changeSource,
+                        userId);
+            }
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private static HealthDeclarationResponse.DeclarationMedicalHistory medicalHistoryView(ChildHealthDeclaration d) {
+        return new HealthDeclarationResponse.DeclarationMedicalHistory(
+                new HealthDeclarationResponse.DeclarationAnswer(d.getSelfHistoryState(), d.getSelfHistoryText()),
+                new HealthDeclarationResponse.DeclarationAnswer(d.getFamilyHistoryState(), d.getFamilyHistoryText()),
+                new HealthDeclarationResponse.DeclarationTbContact(d.getTbContactState(), d.getTbContactDate()));
     }
 
     private static ChildProfileDetailResponse toProfileResponse(ChildProfile p) {
