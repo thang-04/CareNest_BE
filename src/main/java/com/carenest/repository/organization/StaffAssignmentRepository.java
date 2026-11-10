@@ -108,6 +108,13 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " and (a.validTo is null or a.validTo >= :date)")
     List<Long> findCurrentTeacherClassroomIds(@Param("userId") Long userId, @Param("date") LocalDate date);
 
+    // Nhóm tuổi Tổ trưởng phụ trách trong một năm học (kể cả năm sắp diễn ra), phân công chưa kết thúc tính tới :date
+    @Query("select distinct a.ageGroupId from StaffAssignment a where a.userId = :userId"
+            + " and a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER"
+            + " and a.schoolYearId = :schoolYearId and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findYearTeamLeaderAgeGroupIds(
+            @Param("userId") Long userId, @Param("schoolYearId") Long schoolYearId, @Param("date") LocalDate date);
+
     @Query("select distinct a.userId from StaffAssignment a"
             + " where a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER"
             + " and a.ageGroupId = :ageGroupId and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")

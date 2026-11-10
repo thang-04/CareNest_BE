@@ -205,6 +205,42 @@ class YearTransitionIntegrationTest {
     }
 
     @Test
+    @DisplayName("CFG-YR-05: GV năm đang chuẩn bị thấy lớp mình và trẻ đã xếp, chỉ trong giai đoạn chuẩn bị")
+    void teacherSeesPrepClassesWithPlacedChildren() {
+        service.savePlacements(
+                principal,
+                newYear,
+                new SavePlacementsRequest(List.of(
+                        new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass4),
+                        new SavePlacementsRequest.Item(child2, PlacementAction.LEAVE, null))));
+        long teacherId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE username = 'teacher1'", Long.class);
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-teacher1", "teacher1", "T", null, Set.of(CareNestRole.TEACHER));
+
+        // Hôm nay 30/08/2027 ≥ ngày mở chuẩn bị mặc định 05/08/2027
+        var prep = service.getPrepClasses(teacher, newYear);
+        assertThat(prep.prepDate()).isEqualTo(LocalDate.of(2027, 8, 5));
+        assertThat(prep.classes()).extracting(c -> c.id()).containsExactlyInAnyOrder(newClass4, newClass3);
+        assertThat(prep.classes())
+                .filteredOn(c -> c.id().equals(newClass4))
+                .singleElement()
+                .satisfies(
+                        c -> assertThat(c.children()).extracting(ch -> ch.id()).containsExactly(child1));
+
+        CurrentUser stranger =
+                new CurrentUser(user("stranger"), "kc-stranger", "stranger", "S", null, Set.of(CareNestRole.TEACHER));
+        assertThat(service.getPrepClasses(stranger, newYear).classes()).isEmpty();
+
+        // Chưa tới ngày mở chuẩn bị: GV không thấy năm
+        jdbc.update("UPDATE school_years SET prep_date = '2027-09-01' WHERE id = ?", newYear);
+        entityManager.clear();
+        assertThatThrownBy(() -> service.getPrepClasses(teacher, newYear))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_NOT_FOUND);
+    }
+
+    @Test
     void activationMovesChildrenAndClosesOldYear() {
         service.savePlacements(
                 principal,

@@ -4,6 +4,7 @@ import com.carenest.config.DevActivationProperties;
 import com.carenest.dto.child.AutoPlaceRequest;
 import com.carenest.dto.child.AutoPlaceResponse;
 import com.carenest.dto.child.PlacementBoardResponse;
+import com.carenest.dto.child.PrepClassesResponse;
 import com.carenest.dto.child.SavePlacementsRequest;
 import com.carenest.dto.child.YearReadinessResponse;
 import com.carenest.dto.organization.AgeGroupDetailResponse;
@@ -69,6 +70,65 @@ public class YearTransitionServiceImpl implements YearTransitionService {
     private final DevActivationProperties devActivation;
     private final ApplicationEventPublisher eventPublisher;
     private final List<ProgramCompletionLookup> programCompletionLookups;
+
+    @Override
+    @Transactional(readOnly = true)
+    public PrepClassesResponse getPrepClasses(CurrentUser currentUser, Long schoolYearId) {
+        String logPrefix =
+                LOG_PREFIX + "|getPrepClasses|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            // GV không thấy năm chưa tới ngày mở chuẩn bị ⇒ 404 từ service năm học
+            SchoolYearDetailResponse year = schoolYearService.getSchoolYear(currentUser, schoolYearId);
+            if (year.status() != SchoolYearStatus.PLANNED || !year.preparing()) {
+                throw GlobalException.of(ApiCode.PREP_YEAR_NOT_OPEN, year.name(), DISPLAY_DATE.format(year.prepDate()));
+            }
+            LocalDate today = LocalDate.now(clock);
+            YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
+            boolean leader =
+                    currentUser.hasRole(CareNestRole.PRINCIPAL) || currentUser.hasRole(CareNestRole.VICE_PRINCIPAL);
+            Set<Long> taught = staffAssignmentService.findCurrentTeacherClassroomIds(currentUser.userId(), today);
+            Set<Long> led =
+                    staffAssignmentService.findYearTeamLeaderAgeGroupIds(currentUser.userId(), schoolYearId, today);
+            List<YearSetupResponse.SetupClass> classes = setup.classes().stream()
+                    .filter(c -> leader || taught.contains(c.id()) || led.contains(c.ageGroupId()))
+                    .toList();
+            Set<Long> classIds =
+                    classes.stream().map(YearSetupResponse.SetupClass::id).collect(Collectors.toSet());
+            Map<Long, List<Long>> childIdsByClass =
+                    classPlacementRepository.findAllBySchoolYearId(schoolYearId).stream()
+                            .filter(p -> p.getAction().keepsChildInClass() && classIds.contains(p.getToClassroomId()))
+                            .collect(Collectors.groupingBy(
+                                    ClassPlacement::getToClassroomId,
+                                    Collectors.mapping(ClassPlacement::getChildId, Collectors.toList())));
+            Map<Long, Child> children =
+                    childRepository
+                            .findAllById(childIdsByClass.values().stream()
+                                    .flatMap(List::stream)
+                                    .toList())
+                            .stream()
+                            .collect(Collectors.toMap(Child::getId, Function.identity()));
+            List<PrepClassesResponse.PrepClass> rows = classes.stream()
+                    .map(c -> new PrepClassesResponse.PrepClass(
+                            c.id(),
+                            c.name(),
+                            c.campusId(),
+                            c.ageGroupId(),
+                            childIdsByClass.getOrDefault(c.id(), List.of()).stream()
+                                    .map(children::get)
+                                    .filter(Objects::nonNull)
+                                    .sorted(Comparator.comparing(Child::getFullName))
+                                    .map(ch -> new PrepClassesResponse.PrepChild(
+                                            ch.getId(), ch.getFullName(), ch.getDateOfBirth(), ch.getGender()))
+                                    .toList()))
+                    .toList();
+            log.info("{}|classes={}|END", logPrefix, rows.size());
+            return new PrepClassesResponse(year.id(), year.name(), year.prepDate(), year.startDate(), rows);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
 
     @Override
     @Transactional(readOnly = true)

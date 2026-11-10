@@ -34,6 +34,12 @@ public interface StaffAssignmentService {
     /** Nhóm tuổi Tổ trưởng đang phụ trách (phân công AGE_GROUP_TEAM_LEADER còn hiệu lực). */
     Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, LocalDate date);
 
+    /**
+     * Nhóm tuổi Tổ trưởng phụ trách trong năm học schoolYearId, gồm cả phân công năm sắp diễn ra chưa tới ngày bắt
+     * đầu (giai đoạn chuẩn bị, CFG-YR-05).
+     */
+    Set<Long> findYearTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate date);
+
     /** Nhóm tuổi của các lớp giáo viên đang dạy. */
     Set<Long> findActiveTeacherAgeGroupIds(Long userId, LocalDate date);
 

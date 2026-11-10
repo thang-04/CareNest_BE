@@ -145,6 +145,12 @@ public enum ApiCode {
     HOLIDAY_RANGE_INVALID(2032, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\": ngày bắt đầu không được sau ngày kết thúc"),
     HOLIDAY_TOO_LONG(2033, HttpStatus.BAD_REQUEST, "Đợt nghỉ \"{0}\" dài tối đa {1} ngày"),
     HOLIDAY_HAS_ATTENDANCE(2034, HttpStatus.CONFLICT, "Ngày {0} đã có điểm danh, không đặt thành ngày nghỉ được"),
+    SCHOOL_YEAR_PREP_AFTER_START(2035, HttpStatus.BAD_REQUEST, "Ngày mở chuẩn bị phải trước ngày bắt đầu năm học"),
+    SCHOOL_YEAR_PREP_BEFORE_PREVIOUS_END(
+            2036, HttpStatus.BAD_REQUEST, "Ngày mở chuẩn bị phải sau ngày kết thúc năm học {0} ({1})"),
+    SCHOOL_YEAR_PREP_IN_PAST(2037, HttpStatus.BAD_REQUEST, "Ngày mở chuẩn bị không được trước hôm nay"),
+    SCHOOL_YEAR_PREP_LOCKED(
+            2038, HttpStatus.CONFLICT, "Năm học đã bắt đầu hoặc đã kết thúc, không đổi được ngày mở chuẩn bị"),
     SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
@@ -255,6 +261,7 @@ public enum ApiCode {
     PLACEMENT_WRONG_AGE_GROUP(2407, HttpStatus.BAD_REQUEST, "{0} không đúng nhóm tuổi cho lựa chọn {1}"),
     PLACEMENT_CLASS_FULL(2408, HttpStatus.CONFLICT, "Vượt sĩ số tối đa: {0}"),
     PLACEMENT_YEAR_NOT_UPCOMING(2409, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học chưa bắt đầu"),
+    PREP_YEAR_NOT_OPEN(2412, HttpStatus.CONFLICT, "Năm học {0} chưa tới ngày mở chuẩn bị ({1})"),
     NO_ACTIVE_YEAR_TO_MOVE_FROM(2410, HttpStatus.CONFLICT, "Không có năm học đang hoạt động để chuyển trẻ"),
     PLACEMENT_NOT_NEXT_YEAR(2411, HttpStatus.CONFLICT, "Chỉ xếp lớp cho năm học kế tiếp {0}"),
 

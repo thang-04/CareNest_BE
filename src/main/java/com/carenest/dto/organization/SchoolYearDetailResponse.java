@@ -20,4 +20,6 @@ public record SchoolYearDetailResponse(
         Instant closedAt,
         Long closedBy,
         Instant createdAt,
-        Instant updatedAt) {}
+        Instant updatedAt,
+        LocalDate prepDate,
+        boolean preparing) {}

@@ -3,6 +3,7 @@ package com.carenest.controller.child;
 import com.carenest.dto.child.AutoPlaceRequest;
 import com.carenest.dto.child.AutoPlaceResponse;
 import com.carenest.dto.child.PlacementBoardResponse;
+import com.carenest.dto.child.PrepClassesResponse;
 import com.carenest.dto.child.SavePlacementsRequest;
 import com.carenest.dto.child.YearReadinessResponse;
 import com.carenest.dto.organization.ActivateSchoolYearRequest;
@@ -34,6 +35,19 @@ public class YearTransitionController {
     private static final String LOG_PREFIX = "[YearTransitionController]";
 
     private final YearTransitionService yearTransitionService;
+
+    // CFG-YR-05: GV, tổ trưởng xem lớp năm đang chuẩn bị và trẻ đã xếp vào; service lọc theo phân công
+    @GetMapping("/prep-classes")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<PrepClassesResponse>> getPrepClasses(
+            @PathVariable Long schoolYearId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getPrepClasses|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        PrepClassesResponse classes = yearTransitionService.getPrepClasses(currentUser, schoolYearId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get preparation classes success", classes);
+    }
 
     @GetMapping("/placements")
     @PreAuthorize("@permissionGuard.has('YEAR_PLACEMENT_MANAGE')")

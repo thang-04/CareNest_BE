@@ -6567,6 +6567,25 @@ paths:
           description: OK
       tags:
       - year-transition-controller
+  /api/school-years/{schoolYearId}/prep-classes:
+    get:
+      operationId: getPrepClasses
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPrepClassesResponse"
+          description: OK
+      tags:
+      - year-transition-controller
   /api/school-years/{schoolYearId}/readiness:
     get:
       operationId: getReadiness
@@ -14429,6 +14448,58 @@ components:
         userId:
           type: integer
           format: int64
+    PrepChild:
+      type: object
+      properties:
+        dateOfBirth:
+          type: string
+          format: date
+        fullName:
+          type: string
+        gender:
+          type: string
+          enum:
+          - MALE
+          - FEMALE
+        id:
+          type: integer
+          format: int64
+    PrepClass:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrepChild"
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    PrepClassesResponse:
+      type: object
+      properties:
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrepClass"
+        prepDate:
+          type: string
+          format: date
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
+        startDate:
+          type: string
+          format: date
     Preview:
       type: object
       properties:
@@ -16621,6 +16692,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonPrepClassesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PrepClassesResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonPreview:
       type: object
       properties:
@@ -17543,6 +17627,11 @@ components:
           format: int64
         name:
           type: string
+        prepDate:
+          type: string
+          format: date
+        preparing:
+          type: boolean
         semester1End:
           type: string
           format: date
@@ -17577,6 +17666,9 @@ components:
           type: string
           minLength: 1
           pattern: "\\s*\\d{4}-\\d{4}\\s*"
+        prepDate:
+          type: string
+          format: date
         startDate:
           type: string
           format: date

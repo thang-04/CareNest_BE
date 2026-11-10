@@ -133,6 +133,22 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Set<Long> findYearTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|findYearTeamLeaderAgeGroupIds|userId=" + userId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> ageGroupIds =
+                    Set.copyOf(staffAssignmentRepository.findYearTeamLeaderAgeGroupIds(userId, schoolYearId, date));
+            log.info("{}|END", logPrefix);
+            return ageGroupIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderAgeGroupIds|userId=" + userId;
         log.info("{}|START", logPrefix);
