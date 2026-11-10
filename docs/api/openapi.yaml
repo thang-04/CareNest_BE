@@ -8757,6 +8757,8 @@ components:
           - SEMESTER_1
           - SEMESTER_2
           - YEAR
+        principalName:
+          type: string
         rows:
           type: array
           items:
@@ -19154,6 +19156,8 @@ components:
           format: int32
         notes:
           $ref: "#/components/schemas/SheetNotes"
+        principal:
+          type: string
         status:
           type: string
           enum:

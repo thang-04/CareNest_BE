@@ -36,6 +36,8 @@ public final class YearEndSheetDtos {
             Long classId,
             String ageGroupName,
             List<String> teachers,
+            // Họ tên Hiệu trưởng (trường chỉ có 1 HT) điền sẵn chỗ "Xác nhận của BGH"; null khi chưa có / nhiều HT
+            String principal,
             SheetMeasurement measurement,
             List<SheetDomain> domains,
             int metCount,

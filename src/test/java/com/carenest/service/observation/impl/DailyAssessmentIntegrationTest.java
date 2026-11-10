@@ -733,6 +733,9 @@ class DailyAssessmentIntegrationTest {
                 .satisfies(r -> assertThat(r.canEdit()).isFalse());
         expectCode(() -> ratings.save(vpB, request), ApiCode.CLASS_RATING_FORBIDDEN);
 
+        // Trường chỉ có 1 HT: tên HT điền sẵn chỗ ký bản in (Cần chốt 10/11/2026)
+        jdbc.update("UPDATE user_accounts SET primary_role = 'PRINCIPAL' WHERE id = ?", principal.userId());
+        assertThat(ratings.list(vpA, null, period, null).principalName()).isEqualTo("principal");
         var saved = ratings.save(vpA, request);
         assertThat(saved.rows())
                 .filteredOn(r -> r.classId().equals(classA))

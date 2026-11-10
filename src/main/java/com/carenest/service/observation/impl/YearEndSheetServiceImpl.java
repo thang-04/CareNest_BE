@@ -311,6 +311,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                 cls.id(),
                 ageGroupName(cls.ageGroupId()),
                 teacherNames(cls, at),
+                principalName(),
                 measurement,
                 List.copyOf(domains.values()),
                 met,
@@ -366,6 +367,12 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     // GV xem: đang dạy lớp hoặc từng dạy lớp của năm đã kết thúc (như đánh giá cuối năm)
     private boolean teaches(CurrentUser user, ClassroomInfoResponse cls) {
         return user.hasRole(CareNestRole.TEACHER) && (rules.canRecord(user, cls) || rules.taughtClosedYear(user, cls));
+    }
+
+    // Trường chỉ có 1 Hiệu trưởng: điền sẵn tên ở bản in (Cần chốt 10/11/2026)
+    private String principalName() {
+        List<String> names = accountService.findActiveFullNamesByRole(CareNestRole.PRINCIPAL);
+        return names.size() == 1 ? names.getFirst() : null;
     }
 
     private ClassroomInfoResponse editable(CurrentUser user, ChildEvaluation ev) {

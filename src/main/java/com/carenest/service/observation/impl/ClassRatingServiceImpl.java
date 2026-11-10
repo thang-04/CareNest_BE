@@ -18,6 +18,7 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ClassRatingLevel;
 import com.carenest.utils.enums.ClassRatingPeriod;
 import com.carenest.utils.enums.Permission;
@@ -207,7 +208,9 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                                 r.ratedAt(),
                                 false))
                         .toList();
-        return new ClassRatingResponse(period, yearId, openFrom, campusIds, result);
+        List<String> principals = accountService.findActiveFullNamesByRole(CareNestRole.PRINCIPAL);
+        return new ClassRatingResponse(
+                period, yearId, openFrom, campusIds, result, principals.size() == 1 ? principals.getFirst() : null);
     }
 
     private ClassRatingRow rowOf(CurrentUser user, ClassroomInfoResponse cls, ClassRating r, Map<Long, String> names) {
