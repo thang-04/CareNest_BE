@@ -92,20 +92,14 @@ class EduWorkflowCompatibilityIntegrationTest {
                 "Mô tả nguồn",
                 List.of(new YearPlanRequest.Domain(
                         domainPhysical,
-                        List.of(new YearPlanRequest.Row(
-                                null,
-                                "goal",
-                                "Trẻ phát triển thể chất",
-                                List.of(new YearPlanRequest.Content(null, "Nội dung vận động", List.of("t-1"))))))),
-                List.of(new YearPlanRequest.Theme(
-                        "t-1",
-                        null,
-                        "Trường mầm non",
-                        "TMN",
-                        LocalDate.of(2026, 9, 7),
-                        LocalDate.of(2026, 9, 25),
-                        "",
-                        "")),
+                        List.of(
+                                new YearPlanRequest.Row(null, "group", "Kết quả mong đợi", List.of()),
+                                new YearPlanRequest.Row(
+                                        null,
+                                        "goal",
+                                        "Trẻ phát triển thể chất",
+                                        List.of(new YearPlanRequest.Content(null, "Nội dung vận động", List.of("t-1"))))))),
+                annualThemes(),
                 List.of(),
                 com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
                 null,
@@ -123,8 +117,42 @@ class EduWorkflowCompatibilityIntegrationTest {
         annualPlanIds.put(ageGroupId, app.id());
     }
 
+    /** Quy tắc hiện hành: kế hoạch năm cần tối thiểu 9 chủ đề (chủ đề phụ 1 tuần nối tiếp). */
+    private static List<YearPlanRequest.Theme> annualThemes() {
+        var themes = new java.util.ArrayList<YearPlanRequest.Theme>();
+        themes.add(new YearPlanRequest.Theme(
+                "t-1", null, "Trường mầm non", "TMN", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", ""));
+        for (int i = 0; i < 8; i++) {
+            LocalDate monday = LocalDate.of(2026, 9, 28).plusWeeks(i);
+            themes.add(new YearPlanRequest.Theme(
+                    "t-x" + i, null, "Chủ đề phụ " + i, "CDX" + i, monday, monday.plusDays(4), "", ""));
+        }
+        return themes;
+    }
+
+    /** Ban hành kế hoạch năm tự tạo bản nháp tổ cho nhóm tuổi (tổ trưởng là người soạn). */
+    private YearPlanDetailResponse autoTeamPlan(CurrentUser leader, long ageGroupId) {
+        Long id = jdbc.queryForObject(
+                "SELECT id FROM edu_team_plans WHERE school_year_id = ? AND age_group_id = ? ORDER BY version_no LIMIT 1",
+                Long.class,
+                schoolYear,
+                ageGroupId);
+        // Kế hoạch năm không nhận tick: tick nội dung bản tổ vào chủ đề đầu để đủ điều kiện gửi duyệt
+        jdbc.update(
+                "INSERT INTO edu_content_theme_ticks (content_id, theme_id) "
+                        + "SELECT c.id, (SELECT id FROM edu_themes WHERE team_plan_id = ? ORDER BY sort_order LIMIT 1) "
+                        + "FROM edu_goal_contents c WHERE c.goal_id IN (SELECT id FROM edu_plan_goals WHERE team_plan_id = ?) "
+                        + "ON CONFLICT DO NOTHING",
+                id,
+                id);
+        entityManager.clear();
+        return service.getYearPlan(leader, id);
+    }
+
     @BeforeEach
     void setUp() {
+        jdbc.update(
+                "UPDATE edu_settings SET duration_policy = '{\"theme\":{\"minWeeks\":1,\"maxWeeks\":4},\"branch\":{\"minWeeks\":1,\"maxWeeks\":2}}'::jsonb");
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-COMPAT', 'Campus Compat') RETURNING id");
         schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31') RETURNING id");
@@ -163,8 +191,7 @@ class EduWorkflowCompatibilityIntegrationTest {
             "T048 [US3]: PHT duyệt và ban hành -> published_by = PHT, issued_by = PHT, completed_at != null, DTO issued = PHT, status = APPROVED")
     void vicePrincipalReviewsAndPublishes() {
         // Cấu hình policy: TEAM_LEADER -> VICE_PRINCIPAL (mặc định)
-        YearPlanDetailResponse draft = service.createYearPlan(
-                leader3, sampleRequest(ageGroup3), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse draft = autoTeamPlan(leader3, ageGroup3);
         YearPlanDetailResponse submitted =
                 service.submitYearPlan(leader3, draft.id(), "Gửi duyệt", edit(leader3, draft.id(), true));
 
@@ -200,8 +227,7 @@ class EduWorkflowCompatibilityIntegrationTest {
                 + "workflow_revision = workflow_revision + 1");
         entityManager.clear();
 
-        YearPlanDetailResponse draft = service.createYearPlan(
-                leader4, sampleRequest(ageGroup4), new YearPlanEditRequest(session(leader4), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse draft = autoTeamPlan(leader4, ageGroup4);
         YearPlanDetailResponse submitted =
                 service.submitYearPlan(leader4, draft.id(), "Gửi duyệt cho HT", edit(leader4, draft.id(), true));
 
@@ -238,8 +264,7 @@ class EduWorkflowCompatibilityIntegrationTest {
                 + "workflow_revision = workflow_revision + 1");
         entityManager.clear();
 
-        YearPlanDetailResponse draft = service.createYearPlan(
-                leader5, sampleRequest(ageGroup5), new YearPlanEditRequest(session(leader5), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse draft = autoTeamPlan(leader5, ageGroup5);
         YearPlanDetailResponse submitted =
                 service.submitYearPlan(leader5, draft.id(), "Gửi duyệt 2 bước", edit(leader5, draft.id(), true));
         assertThat(submitted.status()).isEqualTo(EduPlanStatus.REVIEW);
@@ -273,20 +298,6 @@ class EduWorkflowCompatibilityIntegrationTest {
         // issued_by legacy lưu PHT vì có PHT duyệt trong chuỗi
         assertThat(entity.getIssuedBy()).isEqualTo(vicePrincipal.userId());
         assertThat(entity.getCompletedAt()).isNotNull();
-    }
-
-    private YearPlanRequest sampleRequest(long ageGroupId) {
-        return new YearPlanRequest(
-                schoolYear,
-                ageGroupId,
-                "Kế hoạch năm học nhóm " + ageGroupId,
-                "Mô tả",
-                List.of(),
-                List.of(),
-                List.of(),
-                com.carenest.utils.enums.EduPlanLevel.TEAM,
-                annualPlanIds.get(ageGroupId),
-                List.of());
     }
 
     private YearPlanEditRequest edit(CurrentUser user, Long planId, boolean acquire) {

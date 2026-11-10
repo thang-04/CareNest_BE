@@ -76,7 +76,11 @@ class EduClassDocTeamSourceTest {
         EduPlan annual = plan(EduPlanLevel.SCHOOL_YEAR);
         when(accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW)).thenReturn(true);
         when(classroomService.findClassroomInfo(1L)).thenReturn(Optional.of(classroom));
-        when(eduWorkflowService.isAuthorEligible(user, EduClassDoc.BRANCH, 4L, 1L)).thenReturn(true);
+        // Quyền ghi hồ sơ lớp hiện chỉ theo GV chủ nhiệm đang hiệu lực
+        when(clock.getZone()).thenReturn(java.time.ZoneId.of("Asia/Ho_Chi_Minh"));
+        when(clock.instant()).thenReturn(Instant.parse("2026-11-09T00:00:00Z"));
+        when(staffAssignmentService.findHomeroomTeacherIds(eq(List.of(1L)), any()))
+                .thenReturn(java.util.Map.of(1L, 10L));
         when(yearPlanRepository.findById(20L)).thenReturn(Optional.of(annual));
 
         assertThatThrownBy(() -> service.previewClassCalendar(
@@ -162,7 +166,7 @@ class EduClassDocTeamSourceTest {
         when(staffAssignmentService.findHomeroomTeacherIds(eq(List.of(1L)), any()))
                 .thenReturn(java.util.Map.of(1L, 11L));
 
-        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "requireHomeroomAuthor", nonHomeroom, classroom))
+        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "requireClassDocAuthor", nonHomeroom, classroom))
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.CLASS_DOC_TEACHER_ONLY);

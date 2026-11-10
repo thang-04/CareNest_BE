@@ -36,6 +36,12 @@ public interface EduClassDocService {
     ObjectNode actOnClassDoc(
             CurrentUser currentUser, String kind, String docKey, ClassDocActionRequest request, Long expectedVersion);
 
+    /** Một bản hồ sơ chủ đề đã ban hành trước đây (nội dung + chuỗi ký), chỉ đọc. */
+    ObjectNode getClassDocRelease(CurrentUser currentUser, Long releaseId);
+
+    /** Spec 003 FR-013: nhắc một lần khi gói học kỳ / hồ sơ chủ đề chưa ban hành vào "Gần đến hạn"; trả số gốc đã nhắc. */
+    int remindNearDeadlines();
+
     /** EDU-27: "Kế hoạch điều chỉnh và bổ sung" của giáo án tuần; giáo viên lớp sửa ở mọi trạng thái. */
     ObjectNode saveAdjustments(
             CurrentUser currentUser,

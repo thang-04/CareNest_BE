@@ -681,6 +681,10 @@ public enum ApiCode {
     YEAR_SHEET_ONLY_YEAR_END(7381, HttpStatus.BAD_REQUEST, "Phiếu đánh giá sự phát triển chỉ có ở đánh giá cuối năm"),
     YEAR_SHEET_GOAL_INVALID(7382, HttpStatus.BAD_REQUEST, "Có mục tiêu không thuộc phiếu đánh giá, tải lại trang"),
     YEAR_SHEET_NOTE_TOO_LONG(7383, HttpStatus.BAD_REQUEST, "Mỗi lưu ý tối đa {0} ký tự"),
+    EDU_PLAN_NOT_RELEASED(7384, HttpStatus.FORBIDDEN, "Bản này chưa ban hành"),
+    // Spec 003: mốc duyệt theo thời gian dạy
+    CLASS_DOC_DEADLINE_PASSED(7385, HttpStatus.CONFLICT, "Đã quá hạn gửi, cần Hiệu trưởng/Phó HT mở hạn"),
+    SEMESTER_PACKAGE_NOT_RELEASED(7386, HttpStatus.CONFLICT, "Lịch chủ đề nhánh học kỳ chưa duyệt"),
     CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,

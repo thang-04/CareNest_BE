@@ -51,7 +51,7 @@ class FullYearPlanFileImportTest {
         given(schoolStructure.findAgeGroups())
                 .willReturn(List.of(
                         new com.carenest.dto.organization.AgeGroupResponse(1L, "ag-3", "Mẫu giáo", "MG", (short) 1)));
-        given(workflow.isAuthorEligible(any(), eq("year"), eq(1L), org.mockito.ArgumentMatchers.isNull()))
+        given(workflow.isAuthorEligible(any(), eq("schoolYear"), eq(1L), org.mockito.ArgumentMatchers.isNull()))
                 .willReturn(true);
         var domain = Mockito.mock(EduDomain.class);
         given(domain.isActive()).willReturn(true);

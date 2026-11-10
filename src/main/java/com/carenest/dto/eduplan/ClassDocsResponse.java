@@ -14,7 +14,12 @@ public record ClassDocsResponse(
         List<ObjectNode> weekPlans,
         List<ClassItem> classes,
         List<StaffItem> staff,
-        List<CreationCapability> creationCapabilities) {
+        List<CreationCapability> creationCapabilities,
+        // Spec 003: gói học kỳ, hồ sơ chủ đề (kèm hạn), giáo án ngày; năm học chưa cấu hình học kỳ
+        List<ObjectNode> semesterPackages,
+        List<ObjectNode> themeDossiers,
+        List<ObjectNode> dayPlans,
+        boolean semesterConfigMissing) {
 
     public record CreationCapability(
             Long classId, String kind, boolean canCreate, String requires, String reasonCode) {}

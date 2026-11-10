@@ -2637,6 +2637,55 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/day/{docKey}/adjustments:
+    put:
+      operationId: saveAdjustments
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: X-Class-Doc-Version
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Dossier-Version
+        required: false
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassDocAdjustmentsRequest"
+        required: true
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
+  /api/education-plans/class-docs/releases/{releaseId}:
+    get:
+      operationId: getClassDocRelease
+      parameters:
+      - in: path
+        name: releaseId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/theme/{docKey}/learning-resources:
     get:
       operationId: list
@@ -2779,7 +2828,7 @@ paths:
       - learning-resource-controller
   /api/education-plans/class-docs/week/{docKey}/adjustments:
     put:
-      operationId: saveAdjustments
+      operationId: saveAdjustments_1
       parameters:
       - in: path
         name: docKey
@@ -3012,7 +3061,14 @@ paths:
         required: false
         schema:
           type: string
-          default: TEAM
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+      - in: query
+        name: planType
+        required: false
+        schema:
+          type: string
           enum:
           - SCHOOL_YEAR
           - TEAM
@@ -3098,6 +3154,18 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonGoalFilePreviewResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/review-queue:
+    get:
+      operationId: getReviewQueue
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListYearPlanSummaryResponse"
           description: OK
       tags:
       - edu-year-plan-controller
@@ -3372,6 +3440,55 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/RequiredNote"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/review/{reviewItemId}/resolve:
+    post:
+      operationId: resolveReview
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: reviewItemId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Edit-Session
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewResolutionRequest"
         required: true
       responses:
         "200":
@@ -8588,6 +8705,9 @@ components:
         action:
           type: string
           minLength: 1
+        deadline:
+          type: string
+          format: date
         note:
           type: string
           maxLength: 2000
@@ -13669,6 +13789,14 @@ components:
           format: int64
         username:
           type: string
+    NewItem:
+      type: object
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        itemKind:
+          type: string
     NormRow:
       type: object
       properties:
@@ -13722,6 +13850,8 @@ components:
         id:
           type: integer
           format: int64
+        link:
+          type: string
         readAt:
           type: string
           format: date-time
@@ -13732,6 +13862,12 @@ components:
           enum:
           - CHILD_PICKED_UP
           - MEAL_COUNT_RECONFIRM
+          - EDU_SUBMITTED
+          - EDU_STEP_APPROVED
+          - EDU_RELEASED
+          - EDU_RETURNED
+          - EDU_DEADLINE_EXTENDED
+          - EDU_DEADLINE_NEAR
     NutritionTotals:
       type: object
       properties:
@@ -16257,6 +16393,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListYearPlanSummaryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonLoginData:
       type: object
       properties:
@@ -16961,6 +17112,38 @@ components:
         errorCode:
           type: integer
           format: int32
+    ReviewItem:
+      type: object
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        itemKind:
+          type: string
+        reason:
+          type: string
+        resolved:
+          type: boolean
+        resolvedAt:
+          type: string
+          format: date-time
+        resolvedBy:
+          type: integer
+          format: int64
+        reviewItemId:
+          type: integer
+          format: int64
+        sourcePlanId:
+          type: integer
+          format: int64
+    ReviewResolutionRequest:
+      type: object
+      properties:
+        expectedSourcePlanId:
+          type: integer
+          format: int64
+      required:
+      - expectedSourcePlanId
     RewardChildRow:
       type: object
       properties:
@@ -19127,6 +19310,9 @@ components:
           type: boolean
         code:
           type: string
+        contentRevision:
+          type: integer
+          format: int64
         createdAt:
           type: string
           format: date-time
@@ -19159,6 +19345,10 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         lastReturnNote:
           type: string
+        newItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewItem"
         owner:
           $ref: "#/components/schemas/PlanActorResponse"
         permissions:
@@ -19168,12 +19358,26 @@ components:
           enum:
           - SCHOOL_YEAR
           - TEAM
+        planType:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+        planTypeLabel:
+          type: string
+        previousSourcePlanId:
+          type: integer
+          format: int64
         remapWarnings:
           type: array
           items:
             type: string
         review:
           $ref: "#/components/schemas/EduReviewStateResponse"
+        reviewItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewItem"
         revision:
           type: integer
           format: int64
@@ -19182,6 +19386,9 @@ components:
           format: int64
         schoolYearName:
           type: string
+        sentAt:
+          type: string
+          format: date-time
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
         sourceMode:
@@ -19390,6 +19597,11 @@ components:
           enum:
           - SCHOOL_YEAR
           - TEAM
+        planType:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
         schoolYearId:
           type: integer
           format: int64
@@ -19445,6 +19657,13 @@ components:
           enum:
           - SCHOOL_YEAR
           - TEAM
+        planType:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+        planTypeLabel:
+          type: string
         review:
           $ref: "#/components/schemas/EduReviewStateResponse"
         revision:
@@ -19455,6 +19674,9 @@ components:
           format: int64
         schoolYearName:
           type: string
+        sentAt:
+          type: string
+          format: date-time
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
         sourceMode:

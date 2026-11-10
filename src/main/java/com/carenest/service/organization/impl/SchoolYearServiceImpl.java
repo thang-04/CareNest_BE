@@ -360,6 +360,11 @@ public class SchoolYearServiceImpl implements SchoolYearService {
 
     @Override
     @Transactional(readOnly = true)
+    public java.util.Optional<SchoolYearDetailResponse> findSchoolYearDetail(Long schoolYearId) {
+        return schoolYearRepository.findById(schoolYearId).map(this::toDetail);
+    }
+
+    @Override
     public SchoolYearDetailResponse findNextPlannedYear() {
         return schoolYearRepository
                 .findFirstByStatusOrderByStartDateAsc(SchoolYearStatus.PLANNED)

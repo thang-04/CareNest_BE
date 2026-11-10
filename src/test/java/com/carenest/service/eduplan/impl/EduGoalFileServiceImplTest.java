@@ -60,7 +60,7 @@ class EduGoalFileServiceImplTest {
     @Test
     @DisplayName("Không có quyền sửa kế hoạch năm ⇒ 7005, không đọc file")
     void rejectsWithoutEditPermission() {
-        given(workflow.isAuthorEligible(eq(TEACHER), eq("year"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
+        given(workflow.isAuthorEligible(eq(TEACHER), eq("schoolYear"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
                 .willReturn(false);
 
         assertThatThrownBy(() -> service.preview(TEACHER, file("a.csv", CSV.getBytes(StandardCharsets.UTF_8))))
@@ -73,7 +73,7 @@ class EduGoalFileServiceImplTest {
     @Test
     @DisplayName("File trên 2 MB ⇒ 7035")
     void rejectsLargeFile() {
-        given(workflow.isAuthorEligible(eq(TEACHER), eq("year"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
+        given(workflow.isAuthorEligible(eq(TEACHER), eq("schoolYear"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
                 .willReturn(true);
 
         assertThatThrownBy(() -> service.preview(TEACHER, file("a.csv", new byte[2 * 1024 * 1024 + 1])))
@@ -85,7 +85,7 @@ class EduGoalFileServiceImplTest {
     @Test
     @DisplayName("Chỉ dùng lĩnh vực đang bật trong cấu hình")
     void usesActiveConfiguredDomains() {
-        given(workflow.isAuthorEligible(eq(TEACHER), eq("year"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
+        given(workflow.isAuthorEligible(eq(TEACHER), eq("schoolYear"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
                 .willReturn(true);
         EduDomain active = Mockito.mock(EduDomain.class);
         given(active.isActive()).willReturn(true);
@@ -104,7 +104,7 @@ class EduGoalFileServiceImplTest {
     @Test
     @DisplayName("EDU-46: .doc nhị phân qua service vẫn dùng quyền và lĩnh vực cấu hình hiện có")
     void binaryDocUsesConfiguredDomains() throws IOException {
-        given(workflow.isAuthorEligible(eq(TEACHER), eq("year"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
+        given(workflow.isAuthorEligible(eq(TEACHER), eq("schoolYear"), eq(3L), org.mockito.ArgumentMatchers.isNull()))
                 .willReturn(true);
         EduDomain active = Mockito.mock(EduDomain.class);
         given(active.isActive()).willReturn(true);

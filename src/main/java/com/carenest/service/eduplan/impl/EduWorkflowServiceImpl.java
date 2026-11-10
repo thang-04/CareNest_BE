@@ -82,7 +82,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         String logPrefix = LOG_PREFIX + "|loadPolicy|docType=" + docType;
         log.info("{}|START", logPrefix);
         try {
-            RolePolicy policy = parsePolicyNode(loadSettingsPolicyNode(), "week".equals(docType) ? "theme" : docType);
+            RolePolicy policy = parsePolicyNode(loadSettingsPolicyNode(), (EduClassDoc.isRoot(docType) || "week".equals(docType) || "day".equals(docType) ? EduClassDoc.policyType(docType) : docType));
             var result = policy;
             log.info("{}|END", logPrefix);
             return result;
@@ -157,7 +157,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         String logPrefix = LOG_PREFIX + "|evaluateClassDoc";
         log.info("{}|START", logPrefix);
         try {
-            String type = "week".equals(doc.getKind()) ? "theme" : doc.getKind();
+            String type = EduClassDoc.policyType(doc.getKind());
             RolePolicy policy = loadPolicy(type);
             int round = doc.getReviewRound();
             List<Approval> approvals = parseApprovals(doc.getApprovals());
@@ -186,7 +186,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             Map<Long, Evaluation> results = new java.util.HashMap<>();
             for (EduClassDoc doc : docs) {
                 if (doc.getStatus() != EduClassDocStatus.REVIEW) continue;
-                var policy = policies.get("week".equals(doc.getKind()) ? "theme" : doc.getKind());
+                var policy = policies.get(EduClassDoc.policyType(doc.getKind()));
                 var classroom = classInfos.get(doc.getClassroomId());
                 if (classroom == null) {
                     classroom = classroomService
@@ -270,7 +270,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             Set<Long> userIds = new HashSet<>();
             userIds.add(doc.getCreatedBy());
 
-            if ("theme".equals(doc.getKind()) || "week".equals(doc.getKind())) {
+            if (doc.getThemeId() != null) {
                 Long themeId = doc.getThemeId();
                 if (themeId != null) {
                     List<EduClassDoc> siblingDocs = classDocRepository.findAllByClassroomIdAndYearPlanId(
@@ -487,7 +487,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             var classInfos = batchClassroomInfos(pendingClassDocs);
             var policies = loadAllPolicies();
             for (EduClassDoc doc : pendingClassDocs) {
-                RolePolicy currentPolicy = policies.get("week".equals(doc.getKind()) ? "theme" : doc.getKind());
+                RolePolicy currentPolicy = policies.get(EduClassDoc.policyType(doc.getKind()));
                 Set<Long> excludedAuthors = classAuthors.get(doc.getId());
                 ClassroomInfoResponse classroom = classInfos.get(doc.getClassroomId());
                 if (classroom == null) {
@@ -560,7 +560,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         Map<Long, Set<Long>> result = new java.util.HashMap<>();
         for (EduClassDoc doc : docs) {
             Set<Long> union = new HashSet<>(authors.get(doc.getId()));
-            if (("theme".equals(doc.getKind()) || "week".equals(doc.getKind())) && doc.getThemeId() != null) {
+            if (doc.getThemeId() != null) {
                 for (EduClassDoc sibling : byId.values()) {
                     if (Objects.equals(doc.getClassroomId(), sibling.getClassroomId())
                             && Objects.equals(doc.getYearPlanId(), sibling.getYearPlanId())
@@ -690,7 +690,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     }
 
     private String legacySnapshot(String type, Instant at, List<Approval> approvals, Set<Long> authors, String chain) {
-        String key = "year".equals(type) ? "year" : "branch".equals(type) ? "branch" : "week";
+        String key = "year".equals(type) ? "year" : "branch".equals(type) || "semester".equals(type) ? "branch" : "week";
         JsonNode legacy = settingsRepository
                 .findById(EduSettings.SINGLETON_ID)
                 .map(EduSettings::getLegacySigners)

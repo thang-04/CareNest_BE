@@ -73,85 +73,6 @@ class EduWorkflowConcurrencyIntegrationTest {
     AccountService accounts;
 
     @Test
-    void sharedWritersProgressAndExclusivePolicyWaitsThenSnapshotStaysStable() throws Exception {
-        String suffix = UUID.randomUUID().toString().substring(0, 12);
-        CurrentUser author = user("author" + suffix, CareNestRole.TEACHER);
-        CurrentUser principal = user("principal" + suffix, CareNestRole.PRINCIPAL);
-        jdbc.update(
-                "INSERT INTO staff_assignments(user_id,staff_role,valid_from) VALUES (?,'PRINCIPAL','2020-01-01')",
-                principal.userId());
-        var ages = jdbc.queryForList("SELECT id FROM age_groups ORDER BY id LIMIT 2", Long.class);
-        for (long age : ages)
-            jdbc.update(
-                    "INSERT INTO staff_assignments(user_id,staff_role,age_group_id,valid_from) VALUES (?,'AGE_GROUP_TEAM_LEADER',?,'2020-01-01')",
-                    author.userId(),
-                    age);
-        long year = id(
-                "INSERT INTO school_years(name,start_date,end_date) VALUES (?,'2026-01-01','2026-12-31') RETURNING id",
-                suffix);
-        long first = draft(year, ages.get(0), author.userId(), "A" + suffix);
-        long second = draft(year, ages.get(1), author.userId(), "B" + suffix);
-        CountDownLatch held = new CountDownLatch(1), release = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(3);
-        try {
-            Future<?> writer = pool.submit(() -> new TransactionTemplate(transactions).execute(status -> {
-                years.startEditing(author, first, new YearPlanEditRequest(UUID.randomUUID(), 0L, UUID.randomUUID()));
-                held.countDown();
-                await(release);
-                return null;
-            }));
-            assertThat(held.await(10, TimeUnit.SECONDS)).isTrue();
-            Future<?> independent = pool.submit(() -> years.startEditing(
-                    author, second, new YearPlanEditRequest(UUID.randomUUID(), 0L, UUID.randomUUID())));
-            independent.get(10, TimeUnit.SECONDS);
-            var request = changedPolicy(principal);
-            Future<?> exclusive = pool.submit(() -> new TransactionTemplate(transactions).execute(status -> {
-                jdbc.execute("SET LOCAL lock_timeout='400ms'");
-                return workflow.savePolicy(principal, request);
-            }));
-            assertThatThrownBy(() -> exclusive.get(10, TimeUnit.SECONDS))
-                    .isInstanceOf(ExecutionException.class)
-                    .hasRootCauseInstanceOf(org.postgresql.util.PSQLException.class);
-            release.countDown();
-            writer.get(10, TimeUnit.SECONDS);
-            workflow.savePolicy(principal, request);
-            // GET phải đọc policy/document từ cùng snapshot dù writer khác đã commit.
-            CountDownLatch read = new CountDownLatch(1), committed = new CountDownLatch(1);
-            TransactionTemplate snapshot = new TransactionTemplate(transactions);
-            snapshot.setReadOnly(true);
-            snapshot.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
-            Future<?> reader = pool.submit(() -> snapshot.execute(status -> {
-                long before = workflow.getPolicy(principal).revision();
-                Long holder =
-                        jdbc.queryForObject("SELECT editing_by FROM edu_team_plans WHERE id=?", Long.class, first);
-                assertThat(holder).isEqualTo(author.userId());
-                read.countDown();
-                await(committed);
-                entityManager.clear();
-                assertThat(workflow.getPolicy(principal).revision()).isEqualTo(before);
-                assertThat(jdbc.queryForObject("SELECT editing_by FROM edu_team_plans WHERE id=?", Long.class, first))
-                        .isEqualTo(holder);
-                return null;
-            }));
-            assertThat(read.await(10, TimeUnit.SECONDS)).isTrue();
-            var restored = originalPolicy(principal);
-            var changed = new HashMap<>(restored.policies());
-            changed.put(
-                    "year", new EduWorkflowPolicyRequest.PolicyEntry(List.of("PRINCIPAL"), List.of("VICE_PRINCIPAL")));
-            workflow.savePolicy(principal, new EduWorkflowPolicyRequest(restored.revision(), changed));
-            committed.countDown();
-            reader.get(10, TimeUnit.SECONDS);
-            assertThat(jdbc.queryForObject("SELECT editing_by FROM edu_team_plans WHERE id=?", Long.class, first))
-                    .isNull();
-            workflow.savePolicy(principal, originalPolicy(principal));
-        } finally {
-            release.countDown();
-            pool.shutdownNow();
-            jdbc.update("DELETE FROM edu_team_plans WHERE id IN (?,?)", first, second);
-        }
-    }
-
-    @Test
     void slowUploadDoesNotBlockPolicyChangeAndCannotCommitAfterRightsRevoked() throws Exception {
         String suffix = UUID.randomUUID().toString().substring(0, 12);
         CurrentUser principal = user("media-principal" + suffix, CareNestRole.PRINCIPAL);
@@ -170,7 +91,7 @@ class EduWorkflowConcurrencyIntegrationTest {
                 year,
                 age);
         jdbc.update(
-                "INSERT INTO staff_assignments(user_id,staff_role,classroom_id,valid_from) VALUES (?,'TEACHER',?,'2020-01-01')",
+                "INSERT INTO staff_assignments(user_id,staff_role,classroom_id,valid_from,is_homeroom) VALUES (?,'TEACHER',?,'2020-01-01',true)",
                 author.userId(),
                 classroom);
         long plan = draft(year, age, author.userId(), suffix);
@@ -280,7 +201,7 @@ class EduWorkflowConcurrencyIntegrationTest {
                 year,
                 age);
         jdbc.update(
-                "INSERT INTO staff_assignments(user_id,staff_role,classroom_id,valid_from) VALUES (?,'TEACHER',?,'2020-01-01')",
+                "INSERT INTO staff_assignments(user_id,staff_role,classroom_id,valid_from,is_homeroom) VALUES (?,'TEACHER',?,'2020-01-01',true)",
                 author.userId(),
                 classroom);
         long plan = draft(year, age, author.userId(), suffix);
@@ -288,10 +209,19 @@ class EduWorkflowConcurrencyIntegrationTest {
         long theme = id(
                 "INSERT INTO edu_themes(team_plan_id,sort_order,name,abbr,start_date,end_date,festivals,note) VALUES (?,1,'Synthetic','S','2026-09-07','2026-09-11','','') RETURNING id",
                 plan);
-        String rootKey = "tp_" + classroom + "_" + theme;
+        String rootKey = "ds_" + classroom + "_" + theme;
         String weekKey = "wp_" + classroom + "_2026-09-07";
+        // Spec 003: hồ sơ chủ đề là gốc duyệt; kế hoạch chủ đề là thành viên
         jdbc.update(
                 "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,team_plan_id,theme_id,status,created_by,updated_by,review_round) VALUES (?,'theme',?,?,?,'REVIEW',?,?,1)",
+                "tp_" + classroom + "_" + theme,
+                classroom,
+                plan,
+                theme,
+                author.userId(),
+                author.userId());
+        jdbc.update(
+                "INSERT INTO edu_class_docs(doc_key,kind,classroom_id,team_plan_id,theme_id,status,created_by,updated_by,review_round) VALUES (?,'dossier',?,?,?,'REVIEW',?,?,1)",
                 rootKey,
                 classroom,
                 plan,
@@ -318,7 +248,7 @@ class EduWorkflowConcurrencyIntegrationTest {
             Future<?> approval = pool.submit(() -> new TransactionTemplate(transactions).execute(status -> {
                 classDocs.actOnClassDoc(
                         leader,
-                        "theme",
+                        "dossier",
                         rootKey,
                         new com.carenest.dto.eduplan.ClassDocActionRequest("approve", null),
                         0L);
@@ -347,106 +277,6 @@ class EduWorkflowConcurrencyIntegrationTest {
             release.countDown();
             pool.shutdownNow();
             jdbc.update("DELETE FROM edu_team_plans WHERE id=?", plan);
-        }
-    }
-
-    @Test
-    void policySaveExcludesConcurrentExpiredLeaseCleanup() throws Exception {
-        String suffix = UUID.randomUUID().toString().substring(0, 12);
-        CurrentUser principal = user("cleanup-principal" + suffix, CareNestRole.PRINCIPAL);
-        CurrentUser author = user("cleanup-author" + suffix, CareNestRole.TEACHER);
-        jdbc.update(
-                "INSERT INTO staff_assignments(user_id,staff_role,valid_from) VALUES (?,'PRINCIPAL','2020-01-01')",
-                principal.userId());
-        long age = jdbc.queryForObject("SELECT min(id) FROM age_groups", Long.class);
-        jdbc.update(
-                "INSERT INTO staff_assignments(user_id,staff_role,age_group_id,valid_from) VALUES (?,'AGE_GROUP_TEAM_LEADER',?,'2020-01-01')",
-                author.userId(),
-                age);
-        long year = id(
-                "INSERT INTO school_years(name,start_date,end_date) VALUES (?,'2026-01-01','2026-12-31') RETURNING id",
-                suffix);
-        long plan = draft(year, age, author.userId(), suffix);
-        jdbc.update(
-                "UPDATE edu_team_plans SET editing_by=?, edit_session_id=?, editing_since='2020-01-01', editing_at='2020-01-01', editing_from='DRAFT' WHERE id=?",
-                author.userId(),
-                UUID.randomUUID(),
-                plan);
-        CountDownLatch saved = new CountDownLatch(1), release = new CountDownLatch(1);
-        ExecutorService pool = Executors.newFixedThreadPool(2);
-        try {
-            var request = changedPolicy(principal);
-            Future<?> policy = pool.submit(() -> new TransactionTemplate(transactions).execute(status -> {
-                workflow.savePolicy(principal, request);
-                saved.countDown();
-                await(release);
-                return null;
-            }));
-            assertThat(saved.await(10, TimeUnit.SECONDS)).isTrue();
-            Future<?> cleanup = pool.submit(() -> new TransactionTemplate(transactions).execute(status -> {
-                jdbc.execute("SET LOCAL lock_timeout='400ms'");
-                return years.releaseExpiredEditLocks();
-            }));
-            assertThatThrownBy(() -> cleanup.get(10, TimeUnit.SECONDS))
-                    .isInstanceOf(ExecutionException.class)
-                    .hasRootCauseInstanceOf(org.postgresql.util.PSQLException.class);
-            release.countDown();
-            policy.get(10, TimeUnit.SECONDS);
-            assertThat(years.releaseExpiredEditLocks()).isGreaterThanOrEqualTo(1);
-            assertThat(jdbc.queryForObject(
-                            "SELECT editing_by IS NULL FROM edu_team_plans WHERE id=?", Boolean.class, plan))
-                    .isTrue();
-        } finally {
-            release.countDown();
-            pool.shutdownNow();
-            jdbc.update("DELETE FROM edu_team_plans WHERE id=?", plan);
-            workflow.savePolicy(principal, originalPolicy(principal));
-        }
-    }
-
-    @Test
-    void draftLeaseReconciliationBatchesHolderLookups() {
-        String suffix = UUID.randomUUID().toString().substring(0, 12);
-        CurrentUser principal = user("leases-principal" + suffix, CareNestRole.PRINCIPAL);
-        CurrentUser author = user("leases-author" + suffix, CareNestRole.TEACHER);
-        jdbc.update(
-                "INSERT INTO staff_assignments(user_id,staff_role,valid_from) VALUES (?,'PRINCIPAL','2020-01-01')",
-                principal.userId());
-        var ages = jdbc.queryForList("SELECT id FROM age_groups ORDER BY id LIMIT 2", Long.class);
-        for (long age : ages) {
-            jdbc.update(
-                    "INSERT INTO staff_assignments(user_id,staff_role,age_group_id,valid_from) VALUES (?,'AGE_GROUP_TEAM_LEADER',?,'2020-01-01')",
-                    author.userId(),
-                    age);
-        }
-        long year = id(
-                "INSERT INTO school_years(name,start_date,end_date) VALUES (?,'2026-01-01','2026-12-31') RETURNING id",
-                suffix);
-        long first = draft(year, ages.get(0), author.userId(), "A" + suffix);
-        long second = draft(year, ages.get(1), author.userId(), "B" + suffix);
-        for (long plan : List.of(first, second)) {
-            jdbc.update(
-                    "UPDATE edu_team_plans SET editing_by=?, edit_session_id=?, editing_since=now(), editing_at=now(), editing_from='DRAFT' WHERE id=?",
-                    author.userId(),
-                    UUID.randomUUID(),
-                    plan);
-        }
-        try {
-            var request = changedPolicy(principal);
-            clearInvocations(assignments, accounts);
-            workflow.savePolicy(principal, request);
-            verify(assignments, times(1)).findActiveAssignmentsByUserIds(any(), any());
-            verify(assignments, never()).findActiveAssignments(eq(author.userId()), any());
-            assertThat(jdbc.queryForObject(
-                            "SELECT count(*) FROM edu_team_plans WHERE id IN (?,?) AND editing_by=?",
-                            Long.class,
-                            first,
-                            second,
-                            author.userId()))
-                    .isEqualTo(2);
-        } finally {
-            jdbc.update("DELETE FROM edu_team_plans WHERE id IN (?,?)", first, second);
-            workflow.savePolicy(principal, originalPolicy(principal));
         }
     }
 

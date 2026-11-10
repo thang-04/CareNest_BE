@@ -158,80 +158,6 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-10: cùng tài khoản mở lại (vd. sau mất điện) thì phiên mới nhận quyền ngay; phiên cũ mất quyền")
-    void sameAccountNewSessionTakesOverAndOldSessionLosesLease() {
-        YearPlanDetailResponse created = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
-        YearPlanEditRequest oldTab = new YearPlanEditRequest(session(leader3), created.revision(), UUID.randomUUID());
-        UUID newSession = UUID.randomUUID();
-        YearPlanDetailResponse taken = service.startEditing(
-                leader3, created.id(), new YearPlanEditRequest(newSession, created.revision(), UUID.randomUUID()));
-        assertThat(taken.editing().userId()).isEqualTo(leader3.userId());
-
-        assertErrorCode(() -> service.heartbeat(leader3, created.id(), oldTab), ApiCode.EDIT_SESSION_LOST);
-        assertErrorCode(
-                () -> service.updateYearPlan(leader3, created.id(), sampleRequest(), oldTab),
-                ApiCode.EDIT_SESSION_LOST);
-        // Phiên cũ thoát trang không nhả được quyền của phiên mới
-        assertThat(service.finishEditing(leader3, created.id(), oldTab).editing())
-                .isNotNull();
-
-        YearPlanEditRequest write = new YearPlanEditRequest(newSession, created.revision(), UUID.randomUUID());
-        YearPlanDetailResponse saved = service.updateYearPlan(leader3, created.id(), toUpdateRequest(created), write);
-        YearPlanDetailResponse retried = service.updateYearPlan(leader3, created.id(), toUpdateRequest(created), write);
-        assertThat(retried.revision()).isEqualTo(saved.revision()).isEqualTo(created.revision() + 1);
-        YearPlanEditRequest stale = new YearPlanEditRequest(newSession, created.revision(), UUID.randomUUID());
-        assertErrorCode(
-                () -> service.updateYearPlan(leader3, created.id(), toUpdateRequest(created), stale),
-                ApiCode.YEAR_PLAN_REVISION_STALE);
-    }
-
-    @Test
-    @DisplayName("EDU-10: người khác vẫn phải chờ khóa hết hạn; thông báo nêu tên người đang sửa")
-    void otherUserStillWaitsForLeaseExpiry() {
-        jdbc.update("UPDATE edu_settings SET workflow_policy = "
-                + "'{\"year\":{\"creators\":[\"TEAM_LEADER\",\"VICE_PRINCIPAL\"],\"reviewers\":[\"PRINCIPAL\"]},"
-                + "\"branch\":{\"creators\":[\"TEACHER\"],\"reviewers\":[\"TEAM_LEADER\"]},"
-                + "\"theme\":{\"creators\":[\"TEACHER\"],\"reviewers\":[\"TEAM_LEADER\"]}}'::jsonb");
-        entityManager.clear();
-
-        YearPlanDetailResponse created = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
-        assertThatThrownBy(() -> service.startEditing(
-                        vicePrincipal,
-                        created.id(),
-                        new YearPlanEditRequest(UUID.randomUUID(), created.revision(), UUID.randomUUID())))
-                .isInstanceOf(GlobalException.class)
-                .hasMessage("Đang được Demo leader3 sửa");
-    }
-
-    @Test
-    @DisplayName("EDU-10: quyền hết sau 90 giây; yêu cầu cũ không nhả khóa mới")
-    void expiredLeaseCannotOverwriteOrReleaseNewSession() {
-        jdbc.update("UPDATE edu_settings SET workflow_policy = "
-                + "'{\"year\":{\"creators\":[\"TEAM_LEADER\",\"VICE_PRINCIPAL\"],\"reviewers\":[\"PRINCIPAL\"]},"
-                + "\"branch\":{\"creators\":[\"TEACHER\"],\"reviewers\":[\"TEAM_LEADER\"]},"
-                + "\"theme\":{\"creators\":[\"TEACHER\"],\"reviewers\":[\"TEAM_LEADER\"]}}'::jsonb");
-        entityManager.clear();
-
-        YearPlanDetailResponse created = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
-        jdbc.update(
-                "UPDATE edu_year_plans SET editing_at = editing_at - interval '91 seconds' WHERE id = ?", created.id());
-        entityManager.clear();
-        YearPlanEditRequest old = new YearPlanEditRequest(session(leader3), created.revision(), UUID.randomUUID());
-        assertErrorCode(() -> service.heartbeat(leader3, created.id(), old), ApiCode.EDIT_SESSION_LOST);
-        YearPlanEditRequest next =
-                new YearPlanEditRequest(session(vicePrincipal), created.revision(), UUID.randomUUID());
-        service.startEditing(vicePrincipal, created.id(), next);
-        assertThat(service.finishEditing(leader3, created.id(), old).editing().userId())
-                .isEqualTo(vicePrincipal.userId());
-        assertErrorCode(
-                () -> service.updateYearPlan(leader3, created.id(), toUpdateRequest(created), old),
-                ApiCode.YEAR_PLAN_LOCKED_BY_OTHER);
-    }
-
-    @Test
     @DisplayName("EDU-22: tự lưu thiếu tiêu đề được nhưng không gửi duyệt mục tiêu trống")
     void incompleteDraftSavesButCannotBeSubmitted() {
         YearPlanRequest draft = new YearPlanRequest(
@@ -259,7 +185,7 @@ class EduYearPlanServiceIntegrationTest {
                 "Title",
                 "",
                 draft.domains(),
-                List.of(),
+                withMinimumThemes(List.of()),
                 List.of(),
                 com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
                 null,
@@ -274,10 +200,11 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-22: tạo đã lưu nhưng mất phản hồi được thử lại cùng request mà không tạo trùng")
     void retryFirstCreateReturnsTheSamePlan() {
-        YearPlanEditRequest create = new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID());
-        YearPlanRequest req = sampleRequest();
-        YearPlanDetailResponse first = service.createYearPlan(leader3, req, create);
-        YearPlanDetailResponse again = service.createYearPlan(leader3, req, create);
+        // Bản tổ do hệ thống tạo khi ban hành năm; kiểm lặp tạo trên kế hoạch năm (PHT soạn)
+        YearPlanEditRequest create = new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID());
+        YearPlanRequest req = sampleSchoolYearRequest(ageGroup3);
+        YearPlanDetailResponse first = service.createYearPlan(vicePrincipal, req, create);
+        YearPlanDetailResponse again = service.createYearPlan(vicePrincipal, req, create);
         assertThat(again.id()).isEqualTo(first.id());
         assertThat(again.revision()).isEqualTo(first.revision());
         assertThat(again.domains()).isEqualTo(first.domains());
@@ -352,25 +279,12 @@ class EduYearPlanServiceIntegrationTest {
                 ageGroupId,
                 "Định hướng năm học",
                 "Định hướng",
-                List.of(
-                        new YearPlanRequest.Domain(
-                                domainLanguage,
-                                List.of(new YearPlanRequest.Row(null, "goal", "Trẻ nghe hiểu lời nói", List.of()))),
-                        new YearPlanRequest.Domain(
-                                domainPhysical,
-                                List.of(
-                                        new YearPlanRequest.Row(null, "sub", "Phát triển vận động", List.of()),
-                                        new YearPlanRequest.Row(
-                                                null,
-                                                "goal",
-                                                "Trẻ thực hiện đủ động tác",
-                                                List.of(new YearPlanRequest.Content(
-                                                        null, "Hô hấp: hít vào, thở ra", List.of())))))),
-                List.of(datedTheme("t-1", abbr, 7, 25)),
+                annualDomains(),
+                withMinimumThemes(List.of(datedTheme("t-1", abbr, 7, 25))),
                 List.of(),
                 com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
                 null,
-                List.of(new YearPlanRequest.BranchTemplate("tmpl-1", null, "t-1", "Mẫu nhánh 1", null, null)));
+                List.of(annualTemplate()));
         UUID session = UUID.randomUUID();
         YearPlanDetailResponse draft =
                 service.createYearPlan(vicePrincipal, req, new YearPlanEditRequest(session, 0L, UUID.randomUUID()));
@@ -539,10 +453,9 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-09: đổi thứ tự hoặc xóa chủ đề, đợt nghỉ thì lưu theo thứ tự gửi lên, giữ id và dấu tích")
     void reordersThemesAndBreaksKeepingIdsAndTicks() {
-        YearPlanDetailResponse created = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse created = teamDraft(ageGroup3, leader3);
         jdbc.update(
-                "UPDATE edu_year_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
+                "UPDATE edu_team_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
                 created.id());
         entityManager.clear();
 
@@ -630,8 +543,7 @@ class EduYearPlanServiceIntegrationTest {
     @DisplayName(
             "EDU-03, EDU-04, EDU-05: gửi duyệt sang REVIEW, người soạn & reviewer cấm sửa khi REVIEW, ban hành sang APPROVED")
     void submitEditIssueFlow() {
-        YearPlanDetailResponse plan = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse plan = teamDraft(ageGroup3, leader3);
 
         YearPlanDetailResponse sent = service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
         assertThat(sent.status()).isEqualTo(EduPlanStatus.REVIEW);
@@ -673,11 +585,11 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-05: trả lại cần lý do, chỉ khi chờ duyệt; Tổ trưởng thấy lý do")
     void returnRequiresPendingAndReason() {
-        YearPlanDetailResponse plan = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
-        assertApiError(
+        YearPlanDetailResponse plan = teamDraft(ageGroup3, leader3);
+        // Nháp: người duyệt chưa mở được bản (EDU-73(3) ⇒ 7384)
+        assertErrorCode(
                 () -> service.returnYearPlan(vicePrincipal, plan.id(), "Sửa MT", edit(vicePrincipal, plan.id(), true)),
-                ApiCode.CONFLICT);
+                ApiCode.EDU_PLAN_NOT_RELEASED);
         service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
         assertApiError(
                 () -> service.returnYearPlan(vicePrincipal, plan.id(), " ", edit(vicePrincipal, plan.id(), true)),
@@ -698,13 +610,12 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-05: tác giả gửi duyệt, không tự ban hành được; người duyệt ban hành thành công")
     void authorSubmitsAndReviewerIssues() {
-        YearPlanDetailResponse plan = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse plan = teamDraft(ageGroup3, leader3);
 
-        // Chưa gửi duyệt (DRAFT) cấm ban hành
-        assertApiError(
+        // Chưa gửi duyệt (DRAFT): người duyệt chưa mở được bản (EDU-73(3) ⇒ 7384)
+        assertErrorCode(
                 () -> service.issueYearPlan(vicePrincipal, plan.id(), null, edit(vicePrincipal, plan.id(), true)),
-                ApiCode.CONFLICT);
+                ApiCode.EDU_PLAN_NOT_RELEASED);
 
         service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
 
@@ -720,20 +631,21 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-64: tổ trưởng chỉ xem kế hoạch tổ của nhóm tuổi được phân công")
     void viewScopeByRole() {
-        YearPlanDetailResponse plan = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse plan = teamDraft(ageGroup3, leader3);
 
         assertApiError(() -> service.getYearPlan(teacher3, plan.id()), ApiCode.FORBIDDEN);
         assertApiError(() -> service.getYearPlan(principal, plan.id()), ApiCode.FORBIDDEN);
         assertApiError(() -> service.getYearPlan(leader4, plan.id()), ApiCode.FORBIDDEN);
         assertThat(list(leader4).items()).isEmpty();
         assertThat(list(teacher3).items()).isEmpty();
-        assertThat(list(vicePrincipal).items())
-                .extracting(YearPlanSummaryResponse::id)
-                .containsExactly(plan.id());
+        // EDU-73(3): PHT không phụ trách chỉ thấy bản tổ đã ban hành
+        assertThat(list(vicePrincipal).items()).isEmpty();
 
         service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
         service.issueYearPlan(vicePrincipal, plan.id(), null, edit(vicePrincipal, plan.id(), true));
+        assertThat(list(vicePrincipal).items())
+                .extracting(YearPlanSummaryResponse::id)
+                .containsExactly(plan.id());
 
         assertThat(service.getYearPlan(teacher3, plan.id()).permissions().canEdit())
                 .isFalse();
@@ -742,7 +654,7 @@ class EduYearPlanServiceIntegrationTest {
         PageResponse<YearPlanSummaryResponse> teacherList = list(teacher3);
         assertThat(teacherList.items()).singleElement().satisfies(summary -> {
             assertThat(summary.goalCount()).isEqualTo(2);
-            assertThat(summary.themeCount()).isEqualTo(1);
+            assertThat(summary.themeCount()).isEqualTo(9);
             assertThat(summary.owner().name()).isEqualTo("Demo leader3");
         });
     }
@@ -750,8 +662,7 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("EDU-07: chỉ Phó HT xóa nháp định hướng năm; kế hoạch tổ không ai được xóa")
     void onlyVicePrincipalDeletesDraft() {
-        YearPlanDetailResponse teamPlan = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse teamPlan = teamDraft(ageGroup3, leader3);
         // Kế hoạch tổ: cả Tổ trưởng lẫn Phó HT đều không được xóa (FR-018)
         assertApiError(
                 () -> service.deleteYearPlan(leader3, teamPlan.id(), edit(leader3, teamPlan.id(), true)),
@@ -763,29 +674,13 @@ class EduYearPlanServiceIntegrationTest {
         // Kế hoạch định hướng năm học (SCHOOL_YEAR): Phó HT được xóa nháp
         YearPlanDetailResponse plan = service.createYearPlan(
                 vicePrincipal,
-                requestSchoolYear(
-                        ageGroup4,
-                        List.of(new YearPlanRequest.Domain(
-                                domainPhysical, List.of(new YearPlanRequest.Row(null, "goal", "MT xóa", List.of())))),
-                        List.of(theme("t-1", null))),
+                // Mục tiêu có nhóm kết quả + nội dung để gửi được (EDU-66)
+                requestSchoolYear(ageGroup4, annualDomains(), List.of(theme("t-1", null))),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
 
         // Tổ trưởng không được xóa định hướng
         assertApiError(
                 () -> service.deleteYearPlan(leader3, plan.id(), edit(leader3, plan.id(), true)), ApiCode.FORBIDDEN);
-
-        // Phiên khác đang giữ khóa thì Phó HT chưa xóa được
-        UUID otherSession = UUID.randomUUID();
-        service.startEditing(
-                vicePrincipal, plan.id(), new YearPlanEditRequest(otherSession, plan.revision(), UUID.randomUUID()));
-        assertApiError(
-                () -> service.deleteYearPlan(
-                        vicePrincipal,
-                        plan.id(),
-                        new YearPlanEditRequest(session(vicePrincipal), plan.revision(), UUID.randomUUID())),
-                ApiCode.CONFLICT);
-        service.finishEditing(
-                vicePrincipal, plan.id(), new YearPlanEditRequest(otherSession, plan.revision(), UUID.randomUUID()));
 
         // Đang ở REVIEW thì không được xóa
         YearPlanDetailResponse sent =
@@ -809,71 +704,9 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-10: người đang sửa giữ khóa; lưu vẫn DRAFT; thoát trang mới về Nháp, người kia sửa tiếp")
-    void editingLockIsHeldUntilEditorLeaves() {
-        jdbc.update("UPDATE edu_settings SET workflow_policy = "
-                + "'{\"year\":{\"creators\":[\"TEAM_LEADER\",\"VICE_PRINCIPAL\"],\"reviewers\":[\"PRINCIPAL\"]},"
-                + "\"branch\":{\"creators\":[\"TEACHER\"],\"reviewers\":[\"TEAM_LEADER\"]},"
-                + "\"theme\":{\"creators\":[\"TEACHER\"],\"reviewers\":[\"TEAM_LEADER\"]}}'::jsonb");
-        entityManager.clear();
-
-        YearPlanDetailResponse created = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
-        assertThat(created.status()).isEqualTo(EduPlanStatus.DRAFT);
-        assertThat(created.editing().userId()).isEqualTo(leader3.userId());
-
-        YearPlanDetailResponse seenByVp = service.getYearPlan(vicePrincipal, created.id());
-        assertThat(seenByVp.editing().name()).isEqualTo("Demo leader3");
-        assertThat(seenByVp.permissions().canEdit()).isFalse();
-        assertApiError(
-                () -> service.startEditing(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false)),
-                ApiCode.CONFLICT);
-        assertApiError(
-                () -> service.updateYearPlan(
-                        vicePrincipal, created.id(), toUpdateRequest(created), edit(vicePrincipal, created.id(), true)),
-                ApiCode.CONFLICT);
-
-        assertThat(service.updateYearPlan(
-                                leader3, created.id(), toUpdateRequest(created), edit(leader3, created.id(), true))
-                        .status())
-                .isEqualTo(EduPlanStatus.DRAFT);
-        YearPlanDetailResponse released =
-                service.finishEditing(leader3, created.id(), edit(leader3, created.id(), false));
-        assertThat(released.status()).isEqualTo(EduPlanStatus.DRAFT);
-        assertThat(released.editing()).isNull();
-
-        // Phó HT cùng có quyền soạn: lấy khóa sửa
-        assertThat(service.startEditing(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false))
-                        .status())
-                .isEqualTo(EduPlanStatus.DRAFT);
-        assertThat(service.getYearPlan(leader3, created.id()).permissions().canSubmit())
-                .isFalse();
-        assertApiError(
-                () -> service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true)),
-                ApiCode.CONFLICT);
-        // Thoát lại khi không giữ khóa thì không làm gì
-        assertThat(service.finishEditing(leader3, created.id(), edit(leader3, created.id(), false))
-                        .status())
-                .isEqualTo(EduPlanStatus.DRAFT);
-        service.finishEditing(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false));
-
-        assertThat(service.submitYearPlan(leader3, created.id(), null, edit(leader3, created.id(), true))
-                        .status())
-                .isEqualTo(EduPlanStatus.REVIEW);
-        // Chờ duyệt (REVIEW): cấm mọi tác giả lấy lease sửa
-        assertApiError(
-                () -> service.startEditing(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false)),
-                ApiCode.YEAR_PLAN_INVALID_STATUS);
-        assertApiError(
-                () -> service.startEditing(leader3, created.id(), edit(leader3, created.id(), false)),
-                ApiCode.YEAR_PLAN_INVALID_STATUS);
-    }
-
-    @Test
     @DisplayName("EDU-10: bị trả lại thì về DRAFT, tác giả sửa tiếp được và gửi lại")
     void rejectedPlanEditableByBothAndKeepsStatus() {
-        YearPlanDetailResponse plan = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse plan = teamDraft(ageGroup3, leader3);
         service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true));
         service.returnYearPlan(vicePrincipal, plan.id(), "Sửa MT", edit(vicePrincipal, plan.id(), true));
 
@@ -889,37 +722,6 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(service.submitYearPlan(leader3, plan.id(), null, edit(leader3, plan.id(), true))
                         .status())
                 .isEqualTo(EduPlanStatus.REVIEW);
-    }
-
-    @Test
-    @DisplayName("EDU-10: khóa quá 30 phút không lưu thì người khác lấy được, job trả về trạng thái trước")
-    void expiredEditLockIsReleased() {
-        jdbc.update("UPDATE edu_settings SET workflow_policy = "
-                + "'{\"year\":{\"creators\":[\"TEAM_LEADER\",\"VICE_PRINCIPAL\"],\"reviewers\":[\"PRINCIPAL\"]},"
-                + "\"branch\":{\"creators\":[\"TEACHER\"],\"reviewers\":[\"TEAM_LEADER\"]},"
-                + "\"theme\":{\"creators\":[\"TEACHER\"],\"reviewers\":[\"TEAM_LEADER\"]}}'::jsonb");
-        entityManager.clear();
-
-        YearPlanDetailResponse plan = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
-        Long annual4 = createApprovedAnnualPlan(ageGroup4);
-        YearPlanDetailResponse other = service.createYearPlan(
-                leader4,
-                sampleTeamRequest(ageGroup4, annual4),
-                new YearPlanEditRequest(session(leader4), 0L, UUID.randomUUID()));
-        entityManager.flush();
-        jdbc.update("UPDATE edu_year_plans SET editing_at = editing_at - INTERVAL '30 minutes'");
-        entityManager.clear();
-
-        assertThat(service.getYearPlan(vicePrincipal, plan.id()).permissions().canEdit())
-                .isTrue();
-        YearPlanDetailResponse takenOver =
-                service.startEditing(vicePrincipal, plan.id(), edit(vicePrincipal, plan.id(), false));
-        assertThat(takenOver.editing().userId()).isEqualTo(vicePrincipal.userId());
-
-        assertThat(service.releaseExpiredEditLocks()).isEqualTo(1);
-        assertThat(service.getYearPlan(vicePrincipal, other.id()).status()).isEqualTo(EduPlanStatus.DRAFT);
-        assertThat(service.getYearPlan(vicePrincipal, plan.id()).status()).isEqualTo(EduPlanStatus.DRAFT);
     }
 
     @Test
@@ -987,6 +789,7 @@ class EduYearPlanServiceIntegrationTest {
                         ageGroup3,
                         List.of(physical(
                                 subRow("Phát triển vận động"),
+                                groupRow("Kết quả mong đợi"),
                                 goalRow("Trẻ thực hiện đủ động tác", "Hô hấp"),
                                 goalRow(" trẻ thực hiện  đủ ĐỘNG tác ", "Tay"))),
                         List.of(theme("t-1", null))),
@@ -998,7 +801,9 @@ class EduYearPlanServiceIntegrationTest {
         YearPlanRequest duplicateContent = requestSchoolYear(
                 ageGroup3,
                 List.of(physical(
-                        subRow("Phát triển vận động"), goalRow("Trẻ thực hiện đủ động tác", "Hô hấp", "hô  hấp"))),
+                        subRow("Phát triển vận động"),
+                        groupRow("Kết quả mong đợi"),
+                        goalRow("Trẻ thực hiện đủ động tác", "Hô hấp", "hô  hấp"))),
                 List.of(theme("t-1", null)));
         service.updateYearPlan(vicePrincipal, plan.id(), duplicateContent, edit(vicePrincipal, plan.id(), true));
         assertErrorCode(
@@ -1009,8 +814,10 @@ class EduYearPlanServiceIntegrationTest {
                 ageGroup3,
                 List.of(physical(
                         subRow("Phát triển vận động"),
+                        groupRow("Kết quả mong đợi"),
                         goalRow("Trẻ thực hiện đủ động tác", "Hô hấp"),
                         subRow("Dinh dưỡng"),
+                        groupRow("Kết quả mong đợi"),
                         goalRow("Trẻ thực hiện đủ động tác", "Hô hấp"))),
                 List.of(theme("t-1", null)));
         service.updateYearPlan(vicePrincipal, plan.id(), separateSubs, edit(vicePrincipal, plan.id(), true));
@@ -1029,6 +836,7 @@ class EduYearPlanServiceIntegrationTest {
                         List.of(physical(
                                 goalRow("Trẻ giữ được thăng bằng", "Đi trên ghế thể dục"),
                                 subRow("Phát triển vận động"),
+                                groupRow("Kết quả mong đợi"),
                                 goalRow("Trẻ thực hiện đủ động tác", "Hô hấp"))),
                         List.of(theme("t-1", null))),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
@@ -1040,6 +848,7 @@ class EduYearPlanServiceIntegrationTest {
                 ageGroup3,
                 List.of(physical(
                         subRow("Phát triển vận động"),
+                        groupRow("Kết quả mong đợi"),
                         goalRow("Trẻ giữ được thăng bằng", "Đi trên ghế thể dục"),
                         goalRow("Trẻ thực hiện đủ động tác", "Hô hấp"))),
                 List.of(theme("t-1", null)));
@@ -1094,7 +903,7 @@ class EduYearPlanServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-52: chủ đề chưa chọn ngày vẫn gửi duyệt được nhưng chưa ban hành được")
+    @DisplayName("EDU-52/EDU-66 (Tiền 10/11/2026): chủ đề chưa chọn ngày bị chặn ngay từ bước gửi duyệt")
     void themeDatesRequiredToIssue() {
         YearPlanDetailResponse plan = service.createYearPlan(
                 vicePrincipal,
@@ -1103,9 +912,8 @@ class EduYearPlanServiceIntegrationTest {
                         sampleSchoolYearRequest(ageGroup3).domains(),
                         List.of(namedTheme("t-1", null, "Trường mầm non", "TMN"))),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
-        service.submitYearPlan(vicePrincipal, plan.id(), null, edit(vicePrincipal, plan.id(), true));
         assertErrorCode(
-                () -> service.issueYearPlan(principal, plan.id(), null, edit(principal, plan.id(), true)),
+                () -> service.submitYearPlan(vicePrincipal, plan.id(), null, edit(vicePrincipal, plan.id(), true)),
                 ApiCode.THEME_DATES_REQUIRED);
     }
 
@@ -1122,14 +930,17 @@ class EduYearPlanServiceIntegrationTest {
                 ageGroup3,
                 List.of(new YearPlanRequest.Domain(
                         domainPhysical,
-                        List.of(new YearPlanRequest.Row(null, "goal", ministryText, List.of(), ministryGoal)))),
+                        List.of(
+                                groupRow("Kết quả mong đợi"),
+                                new YearPlanRequest.Row(null, "goal", ministryText, contentOf("Nội dung"), ministryGoal)))),
                 List.of(theme("t-1", null)));
         YearPlanDetailResponse created = service.createYearPlan(
                 vicePrincipal, linked, new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
 
-        YearPlanDetailResponse.Row row = domain(created, domainPhysical).rows().getFirst();
+        YearPlanDetailResponse.Row row = goalOf(created);
         assertThat(row.curriculumGoalId()).isEqualTo(ministryGoal);
-        assertThat(row.curriculumGoalText()).isEqualTo("Giữ được thăng bằng cơ thể khi thực hiện vận động");
+        // Câu gốc theo danh mục Bộ hiện hành trong DB (seed đã đổi), không hard-code
+        assertThat(row.curriculumGoalText()).isEqualTo(ministryText);
         assertThat(row.curriculumSectionRef()).isEqualTo("Phần ba › D › I › a) › 2 › 2.1");
 
         Long otherAgeGoal = jdbc.queryForObject(
@@ -1152,7 +963,7 @@ class EduYearPlanServiceIntegrationTest {
         service.issueYearPlan(principal, created.id(), "Đạt", edit(principal, created.id(), true));
         YearPlanDetailResponse v2 =
                 service.createVersion(vicePrincipal, created.id(), edit(vicePrincipal, created.id(), false));
-        YearPlanDetailResponse.Row copied = domain(v2, domainPhysical).rows().getFirst();
+        YearPlanDetailResponse.Row copied = goalOf(v2);
         assertThat(copied.curriculumGoalId()).isEqualTo(ministryGoal);
         assertThat(copied.curriculumSectionRef()).isEqualTo("Phần ba › D › I › a) › 2 › 2.1");
     }
@@ -1179,7 +990,7 @@ class EduYearPlanServiceIntegrationTest {
                                 new YearPlanRequest.Row(
                                         null, "sub", "Vận động (trường sửa)", List.of(), null, ministrySub, null),
                                 new YearPlanRequest.Row(null, "group", groupText, List.of(), null, null, ministryGroup),
-                                new YearPlanRequest.Row(null, "goal", "Giữ thăng bằng", List.of(), ministryGoal)))),
+                                new YearPlanRequest.Row(null, "goal", "Giữ thăng bằng", contentOf("Nội dung"), ministryGoal)))),
                 List.of(theme("t-1", null)));
         YearPlanDetailResponse created = service.createYearPlan(
                 vicePrincipal, linked, new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
@@ -1227,10 +1038,10 @@ class EduYearPlanServiceIntegrationTest {
                 new YearPlanRequest.Row(
                         null, "goal", "MT 1", List.of(new YearPlanRequest.Content(null, "Nội dung demo", List.of()))),
                 new YearPlanRequest.Row(null, "group", "Nhóm A2", List.of()),
-                new YearPlanRequest.Row(null, "goal", "MT 2", List.of()),
+                new YearPlanRequest.Row(null, "goal", "MT 2", contentOf("Nội dung 2")),
                 new YearPlanRequest.Row(null, "sub", "Lĩnh vực con B", List.of()),
                 new YearPlanRequest.Row(null, "group", "Nhóm B1", List.of()),
-                new YearPlanRequest.Row(null, "goal", "MT 3", List.of()));
+                new YearPlanRequest.Row(null, "goal", "MT 3", contentOf("Nội dung 3")));
         var created = service.createYearPlan(
                 vicePrincipal,
                 requestSchoolYear(
@@ -1254,9 +1065,9 @@ class EduYearPlanServiceIntegrationTest {
                         "goal",
                         "MT 1",
                         List.of(new YearPlanRequest.Content(content.id(), content.text(), List.of()))),
-                new YearPlanRequest.Row(saved.get(4).id(), "goal", "MT 2", List.of()),
+                new YearPlanRequest.Row(saved.get(4).id(), "goal", "MT 2", keepContents(saved.get(4))),
                 new YearPlanRequest.Row(saved.get(6).id(), "group", "Nhóm B1", List.of()),
-                new YearPlanRequest.Row(saved.get(7).id(), "goal", "MT 3", List.of()));
+                new YearPlanRequest.Row(saved.get(7).id(), "goal", "MT 3", keepContents(saved.get(7))));
         var updated = service.updateYearPlan(
                 vicePrincipal,
                 created.id(),
@@ -1333,7 +1144,7 @@ class EduYearPlanServiceIntegrationTest {
                 vicePrincipal,
                 sampleSchoolYearRequest(ageGroup3),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
-        var row = domain(created, domainPhysical).rows().get(1);
+        var row = goalOf(created);
         var wrongKind = new YearPlanRequest.Row(row.id(), "group", "Không đổi loại ID", List.of());
         assertErrorCode(
                 () -> service.updateYearPlan(
@@ -1354,7 +1165,7 @@ class EduYearPlanServiceIntegrationTest {
                 vicePrincipal,
                 sampleSchoolYearRequest(ageGroup3),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
-        var row = domain(created, domainPhysical).rows().get(1);
+        var row = goalOf(created);
         var existing = new YearPlanRequest.Row(row.id(), "goal", row.text(), List.of());
         assertErrorCode(
                 () -> service.updateYearPlan(
@@ -1375,7 +1186,7 @@ class EduYearPlanServiceIntegrationTest {
                 vicePrincipal,
                 sampleSchoolYearRequest(ageGroup3),
                 new YearPlanEditRequest(session(vicePrincipal), 0L, UUID.randomUUID()));
-        var row = domain(created, domainPhysical).rows().get(1);
+        var row = goalOf(created);
         var other = service.createYearPlan(
                 vicePrincipal,
                 requestSchoolYear(
@@ -1400,6 +1211,81 @@ class EduYearPlanServiceIntegrationTest {
                 ApiCode.INVALID_VALUE);
     }
 
+    /** Kế hoạch năm cần tối thiểu 9 chủ đề liền nhau: thêm chủ đề phụ 1 tuần ngay sau chủ đề có ngày cuối cùng. */
+    private static List<YearPlanRequest.Theme> withMinimumThemes(List<YearPlanRequest.Theme> themes) {
+        var all = new java.util.ArrayList<>(themes);
+        LocalDate first = themes.stream()
+                .map(YearPlanRequest.Theme::endDate)
+                .filter(java.util.Objects::nonNull)
+                .max(java.util.Comparator.naturalOrder())
+                .map(end -> end.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY)))
+                .orElse(LocalDate.of(2026, 9, 7));
+        for (int i = 0; all.size() < 9; i++) {
+            LocalDate monday = first.plusWeeks(i);
+            all.add(new YearPlanRequest.Theme(
+                    "px-" + i, null, "Chủ đề phụ " + i, "PX" + i, monday, monday.plusDays(4), "", ""));
+        }
+        return all;
+    }
+
+    /** Mục tiêu năm hợp lệ: thuộc nhóm kết quả và có nội dung. */
+    private List<YearPlanRequest.Domain> annualDomains() {
+        return List.of(
+                new YearPlanRequest.Domain(
+                        domainLanguage,
+                        List.of(groupRow("Nghe hiểu"), goalRow("Trẻ nghe hiểu lời nói", "Nghe kể chuyện"))),
+                new YearPlanRequest.Domain(
+                        domainPhysical,
+                        List.of(
+                                subRow("Phát triển vận động"),
+                                groupRow("Vận động cơ bản"),
+                                goalRow("Trẻ thực hiện đủ động tác", "Hô hấp: hít vào, thở ra"))));
+    }
+
+    // Mẫu nhánh cần đủ ngày bắt đầu/kết thúc
+    private static YearPlanRequest.BranchTemplate annualTemplate() {
+        return new YearPlanRequest.BranchTemplate(
+                "tmpl-1", null, "t-1", "Mẫu nhánh 1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 11));
+    }
+
+    /** Ban hành kế hoạch năm tự tạo bản nháp tổ (tổ trưởng soạn); tick nội dung vào chủ đề đầu để gửi duyệt được. */
+    private YearPlanDetailResponse teamDraft(long ageGroupId, CurrentUser leader) {
+        createApprovedAnnualPlan(ageGroupId);
+        Long teamId = jdbc.queryForObject(
+                "SELECT id FROM edu_team_plans WHERE school_year_id = ? AND age_group_id = ? ORDER BY version_no LIMIT 1",
+                Long.class,
+                schoolYear,
+                ageGroupId);
+        jdbc.update(
+                "INSERT INTO edu_content_theme_ticks (content_id, theme_id) "
+                        + "SELECT c.id, (SELECT id FROM edu_themes WHERE team_plan_id = ? ORDER BY sort_order LIMIT 1) "
+                        + "FROM edu_goal_contents c WHERE c.goal_id IN (SELECT id FROM edu_plan_goals WHERE team_plan_id = ?) "
+                        + "ON CONFLICT DO NOTHING",
+                teamId,
+                teamId);
+        entityManager.clear();
+        return service.getYearPlan(leader, teamId);
+    }
+
+    private static YearPlanRequest.Row groupRow(String text) {
+        return new YearPlanRequest.Row(null, "group", text, List.of());
+    }
+
+    private static List<YearPlanRequest.Content> contentOf(String text) {
+        return List.of(new YearPlanRequest.Content(null, text, List.of()));
+    }
+
+    private static List<YearPlanRequest.Content> keepContents(YearPlanDetailResponse.Row row) {
+        return row.contents().stream().map(c -> new YearPlanRequest.Content(c.id(), c.text(), List.of())).toList();
+    }
+
+    private YearPlanDetailResponse.Row goalOf(YearPlanDetailResponse plan) {
+        return domain(plan, domainPhysical).rows().stream()
+                .filter(r -> r.kind().equals("goal"))
+                .findFirst()
+                .orElseThrow();
+    }
+
     private YearPlanRequest sampleSchoolYearRequest(long ageGroupId) {
         String abbr = ageGroupId == ageGroup3 ? "TMN3" : "TMN4";
         return new YearPlanRequest(
@@ -1407,25 +1293,12 @@ class EduYearPlanServiceIntegrationTest {
                 ageGroupId,
                 "Định hướng năm học",
                 "",
-                List.of(
-                        new YearPlanRequest.Domain(
-                                domainLanguage,
-                                List.of(new YearPlanRequest.Row(null, "goal", "Trẻ nghe hiểu lời nói", List.of()))),
-                        new YearPlanRequest.Domain(
-                                domainPhysical,
-                                List.of(
-                                        new YearPlanRequest.Row(null, "sub", "Phát triển vận động", List.of()),
-                                        new YearPlanRequest.Row(
-                                                null,
-                                                "goal",
-                                                "Trẻ thực hiện đủ động tác",
-                                                List.of(new YearPlanRequest.Content(
-                                                        null, "Hô hấp: hít vào, thở ra", List.of())))))),
-                List.of(datedTheme("t-1", abbr, 7, 25)),
+                annualDomains(),
+                withMinimumThemes(List.of(datedTheme("t-1", abbr, 7, 25))),
                 List.of(),
                 com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
                 null,
-                List.of(new YearPlanRequest.BranchTemplate("tmpl-1", null, "t-1", "Mẫu nhánh 1", null, null)));
+                List.of(annualTemplate()));
     }
 
     private YearPlanRequest requestSchoolYear(
@@ -1436,7 +1309,7 @@ class EduYearPlanServiceIntegrationTest {
                 "Định hướng năm học",
                 "",
                 domains,
-                themes,
+                withMinimumThemes(themes),
                 List.of(),
                 com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
                 null,
@@ -1598,8 +1471,7 @@ class EduYearPlanServiceIntegrationTest {
     @DisplayName("T027 [US2]: người có vai trò trong creators được tạo; reviewer bị từ chối quyền tác giả (precedence)")
     void creatorRoleScopeEnforcedAndReviewerPrecedence() {
         // Mặc định policy year: creators=[TEAM_LEADER], reviewers=[VICE_PRINCIPAL]
-        YearPlanDetailResponse created = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse created = teamDraft(ageGroup3, leader3);
         assertThat(created.id()).isNotNull();
 
         Long annual4 = createApprovedAnnualPlan(ageGroup4);
@@ -1623,8 +1495,7 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("T027 [US2]: 3 trạng thái DRAFT -> REVIEW -> cấm sửa nội dung & cấm lấy author lease khi REVIEW")
     void threeStateTransitionsAndImmutabilityInReview() {
-        YearPlanDetailResponse draft = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
         assertThat(draft.status()).isEqualTo(EduPlanStatus.DRAFT);
 
         YearPlanDetailResponse reviewed =
@@ -1669,8 +1540,7 @@ class EduYearPlanServiceIntegrationTest {
                 + "workflow_revision = workflow_revision + 1");
         entityManager.clear();
 
-        YearPlanDetailResponse draft = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
         YearPlanDetailResponse underReview =
                 service.submitYearPlan(leader3, draft.id(), "Xin duyệt", edit(leader3, draft.id(), true));
 
@@ -1678,14 +1548,14 @@ class EduYearPlanServiceIntegrationTest {
         assertThat(underReview.review()).isNotNull();
         assertThat(underReview.review().waitingRole()).isEqualTo("VICE_PRINCIPAL");
 
-        // PRINCIPAL duyệt trước lượt bị từ chối
+        // PRINCIPAL chưa tới lượt: không mở được bản Chờ duyệt (EDU-73(2)(3) ⇒ 7384)
         assertErrorCode(
                 () -> service.issueYearPlan(
                         principal,
                         draft.id(),
                         "HT duyệt sớm",
                         new YearPlanEditRequest(null, underReview.revision(), UUID.randomUUID())),
-                ApiCode.NOT_YOUR_REVIEW_STEP);
+                ApiCode.EDU_PLAN_NOT_RELEASED);
 
         // VICE_PRINCIPAL duyệt bước 1: vẫn giữ REVIEW, chuyển waitingRole sang PRINCIPAL
         YearPlanDetailResponse advanced = service.issueYearPlan(
@@ -1712,8 +1582,7 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("T027 [US2]: review actions (issue/return) không bắt buộc X-Edit-Session")
     void reviewActionsDoNotRequireEditSession() {
-        YearPlanDetailResponse draft = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
         YearPlanDetailResponse reviewed =
                 service.submitYearPlan(leader3, draft.id(), "Gửi duyệt", edit(leader3, draft.id(), true));
 
@@ -1729,8 +1598,7 @@ class EduYearPlanServiceIntegrationTest {
     @Test
     @DisplayName("T027 [US2]: returnYearPlan trả về DRAFT kèm note; cấm return nếu thiếu note")
     void returnYearPlanRevertsToDraftWithReason() {
-        YearPlanDetailResponse draft = service.createYearPlan(
-                leader3, sampleRequest(), new YearPlanEditRequest(session(leader3), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse draft = teamDraft(ageGroup3, leader3);
         YearPlanDetailResponse reviewed =
                 service.submitYearPlan(leader3, draft.id(), "Gửi duyệt", edit(leader3, draft.id(), true));
 

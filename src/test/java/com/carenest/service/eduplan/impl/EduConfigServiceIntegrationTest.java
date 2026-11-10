@@ -271,8 +271,8 @@ class EduConfigServiceIntegrationTest {
         EduPlan reloaded = yearPlanRepository.findById(plan.getId()).orElseThrow();
         assertThat(reloaded.getStatus()).isEqualTo(EduPlanStatus.REVIEW);
         assertThat(reloaded.getApprovals()).contains("TEAM_LEADER");
-        EduWorkflowPolicy.Evaluation eval =
-                workflowService.evaluateYearPlan(reloaded, LocalDate.ofInstant(now, java.time.ZoneOffset.UTC));
+        // Phân công PHT/HT hiệu lực từ hôm qua (setUp) nên đánh giá theo ngày hiện tại, không theo mốc cố định
+        EduWorkflowPolicy.Evaluation eval = workflowService.evaluateYearPlan(reloaded, LocalDate.now());
         assertThat(eval.waitingRole()).isEqualTo(EduWorkflowPolicy.Role.VICE_PRINCIPAL);
     }
 

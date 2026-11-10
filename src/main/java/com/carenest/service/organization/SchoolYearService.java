@@ -55,4 +55,7 @@ public interface SchoolYearService {
 
     /** CFG-YR-03: năm sắp diễn ra sớm nhất (năm kế tiếp năm đang hoạt động); null nếu chưa có. */
     SchoolYearDetailResponse findNextPlannedYear();
+
+    /** Năm học theo id cho module khác (vd. hạn gói học kỳ, spec 003); không kiểm quyền xem. */
+    java.util.Optional<SchoolYearDetailResponse> findSchoolYearDetail(Long schoolYearId);
 }

@@ -86,7 +86,7 @@ public class YearPlanPublicationValidator {
                     && theme.getEndDate().isBefore(theme.getStartDate())) {
                 throw GlobalException.of(ApiCode.THEME_END_BEFORE_START);
             }
-            // EDU-52: ban hành cần mọi chủ đề có đủ ngày bắt đầu, kết thúc
+            // EDU-52: gửi duyệt và ban hành cần mọi chủ đề có đủ ngày bắt đầu, kết thúc
             if (theme.getStartDate() == null || theme.getEndDate() == null) {
                 throw GlobalException.of(ApiCode.THEME_DATES_REQUIRED, theme.getAbbr());
             }
@@ -200,6 +200,8 @@ public class YearPlanPublicationValidator {
                 throw GlobalException.of(ApiCode.THEME_DATES_REQUIRED, theme.getAbbr());
             }
         }
+        // EDU-40, EDU-39: báo đúng chủ đề lệch tuần / trùng ngày trước khi kiểm thời lượng chung
+        requireThemeWeeks(themes, breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()));
         for (EduPlanBranchTemplate branch : templates) {
             EduTheme parent = themes.stream().filter(t -> Objects.equals(t.getId(), branch.getThemeId()))
                     .findFirst().orElseThrow(() -> GlobalException.of(ApiCode.CURRICULUM_SOURCE_INVALID));

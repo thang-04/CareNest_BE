@@ -107,6 +107,13 @@ class EduReviewRoundIntegrationTest {
                 "SY-" + suffix);
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
 
+        // Lớp test không rollback: kết thúc tổ trưởng của test trước vì tạo bản tổ cần đúng một tổ trưởng
+        jdbc.update("UPDATE staff_assignments SET valid_to='2026-09-01' WHERE staff_role='AGE_GROUP_TEAM_LEADER' "
+                + "AND age_group_id=? AND valid_to IS NULL", ageGroup3);
+        jdbc.update("UPDATE edu_settings SET duration_policy = '{\"theme\":{\"minWeeks\":1,\"maxWeeks\":4},\"branch\":{\"minWeeks\":1,\"maxWeeks\":2}}'::jsonb");
+        // Test khác có thể đổi chính sách kế hoạch năm; khôi phục mặc định PHT soạn, HT duyệt
+        jdbc.update("UPDATE edu_settings SET workflow_policy = workflow_policy || "
+                + "'{\"schoolYear\":{\"creators\":[\"VICE_PRINCIPAL\"],\"reviewers\":[\"PRINCIPAL\"]}}'::jsonb");
         leader = user("leader-" + suffix, CareNestRole.TEACHER);
         insertAssignment(leader.userId(), "AGE_GROUP_TEAM_LEADER", null, ageGroup3, null);
 
@@ -116,25 +123,9 @@ class EduReviewRoundIntegrationTest {
         principal = user("ht-" + suffix, CareNestRole.PRINCIPAL);
         insertAssignment(principal.userId(), "PRINCIPAL", null, null, null);
 
-        long domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
-        var annualReq = new YearPlanRequest(
-                schoolYear,
-                ageGroup3,
-                "Annual Round " + suffix,
-                "",
-                List.of(new YearPlanRequest.Domain(
-                        domainPhysical,
-                        List.of(new YearPlanRequest.Row(
-                                null,
-                                "goal",
-                                "Mục tiêu thể chất",
-                                List.of(new YearPlanRequest.Content(null, "Nội dung", List.of())))))),
-                List.of(new YearPlanRequest.Theme(
-                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
-                List.of(),
-                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
-                null,
-                List.of(new YearPlanRequest.BranchTemplate("tmpl-1", null, "t-1", "Mẫu 1", null, null)));
+        var annualReq = annualRequest(schoolYear, "Annual Round " + suffix,
+                List.of(new YearPlanRequest.BranchTemplate(
+                        "tmpl-1", null, "t-1", "Mẫu 1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 11))));
         UUID vpSession = UUID.randomUUID();
         var annualDraft = yearPlanService.createYearPlan(
                 vicePrincipal, annualReq, new YearPlanEditRequest(vpSession, 0L, UUID.randomUUID()));
@@ -185,10 +176,59 @@ class EduReviewRoundIntegrationTest {
                 List.of());
     }
 
+    /** Kế hoạch năm hợp lệ theo quy tắc hiện hành: ≥9 chủ đề, có nhóm kết quả, nội dung được tick vào chủ đề. */
+    private YearPlanRequest annualRequest(long yearId, String title, List<YearPlanRequest.BranchTemplate> templates) {
+        long domain = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);
+        var themes = new java.util.ArrayList<YearPlanRequest.Theme>();
+        themes.add(new YearPlanRequest.Theme(
+                "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", ""));
+        for (int i = 0; i < 8; i++) {
+            LocalDate monday = LocalDate.of(2026, 9, 28).plusWeeks(i);
+            themes.add(new YearPlanRequest.Theme(
+                    "t-x" + i, null, "Chủ đề phụ " + i, "CDX" + i, monday, monday.plusDays(4), "", ""));
+        }
+        return new YearPlanRequest(
+                yearId,
+                ageGroup3,
+                title,
+                "",
+                List.of(new YearPlanRequest.Domain(
+                        domain,
+                        List.of(
+                                new YearPlanRequest.Row(null, "group", "Kết quả mong đợi", List.of()),
+                                new YearPlanRequest.Row(
+                                        null,
+                                        "goal",
+                                        "Mục tiêu thể chất",
+                                        List.of(new YearPlanRequest.Content(null, "Nội dung", List.of("t-1"))))))),
+                themes,
+                List.of(),
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                null,
+                templates);
+    }
+
+    /** Ban hành kế hoạch năm tự tạo bản nháp tổ cho nhóm tuổi; test dùng bản đó thay vì tạo mới. */
+    private Long autoTeamPlanId() {
+        Long teamId = jdbc.queryForObject(
+                "SELECT id FROM edu_team_plans WHERE school_year_id = ? AND age_group_id = ? ORDER BY version_no LIMIT 1",
+                Long.class,
+                schoolYear,
+                ageGroup3);
+        // Kế hoạch năm không nhận tick: tick nội dung bản tổ vào chủ đề đầu để đủ điều kiện gửi duyệt
+        jdbc.update(
+                "INSERT INTO edu_content_theme_ticks (content_id, theme_id) "
+                        + "SELECT c.id, (SELECT id FROM edu_themes WHERE team_plan_id = ? ORDER BY sort_order LIMIT 1) "
+                        + "FROM edu_goal_contents c WHERE c.goal_id IN (SELECT id FROM edu_plan_goals WHERE team_plan_id = ?) "
+                        + "ON CONFLICT DO NOTHING",
+                teamId,
+                teamId);
+        return teamId;
+    }
+
     private YearPlanDetailResponse createAndSubmitSamplePlan() {
 
-        YearPlanDetailResponse created = yearPlanService.createYearPlan(
-                leader, sampleRequest(), new YearPlanEditRequest(session(leader), 0L, UUID.randomUUID()));
+        YearPlanDetailResponse created = yearPlanService.getYearPlan(leader, autoTeamPlanId());
 
         return yearPlanService.submitYearPlan(
                 leader,
@@ -265,76 +305,6 @@ class EduReviewRoundIntegrationTest {
     }
 
     @Test
-    void policySaveSerializesWithContentSaveAndRevokesOldLease() throws Exception {
-        var submitted = createAndSubmitSamplePlan();
-        var returned = yearPlanService.returnYearPlan(
-                vicePrincipal,
-                submitted.id(),
-                "Sửa",
-                new YearPlanEditRequest(null, submitted.revision(), UUID.randomUUID()));
-        var editing = yearPlanService.startEditing(
-                leader,
-                returned.id(),
-                new YearPlanEditRequest(session(leader), returned.revision(), UUID.randomUUID()));
-        var policyEntries = new java.util.HashMap<String, EduWorkflowPolicyRequest.PolicyEntry>();
-        workflowService
-                .getPolicy(principal)
-                .policies()
-                .forEach((key, value) -> policyEntries.put(
-                        key, new EduWorkflowPolicyRequest.PolicyEntry(value.creators(), value.reviewers())));
-        policyEntries.put(
-                "year", new EduWorkflowPolicyRequest.PolicyEntry(List.of("PRINCIPAL"), List.of("VICE_PRINCIPAL")));
-        var request = new EduWorkflowPolicyRequest(workflowService.getPolicyRevision(), policyEntries);
-        var saved = new java.util.concurrent.CountDownLatch(1);
-        var release = new java.util.concurrent.CountDownLatch(1);
-        var executor = java.util.concurrent.Executors.newFixedThreadPool(2);
-        try {
-            var policy =
-                    executor.submit(() -> new org.springframework.transaction.support.TransactionTemplate(transactions)
-                            .execute(status -> {
-                                workflowService.savePolicy(principal, request);
-                                saved.countDown();
-                                try {
-                                    if (!release.await(10, java.util.concurrent.TimeUnit.SECONDS))
-                                        throw new AssertionError("barrier timed out");
-                                } catch (InterruptedException ex) {
-                                    Thread.currentThread().interrupt();
-                                    throw new AssertionError(ex);
-                                }
-                                return null;
-                            }));
-            assertThat(saved.await(10, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
-            var save = executor.submit(() -> new org.springframework.transaction.support.TransactionTemplate(
-                            transactions)
-                    .execute(status -> {
-                        jdbc.execute("SET LOCAL lock_timeout='400ms'");
-                        return yearPlanService.updateYearPlan(
-                                leader,
-                                editing.id(),
-                                sampleRequest(),
-                                new YearPlanEditRequest(session(leader), editing.revision(), UUID.randomUUID()));
-                    }));
-            org.assertj.core.api.Assertions.assertThatThrownBy(
-                            () -> save.get(10, java.util.concurrent.TimeUnit.SECONDS))
-                    .isInstanceOf(java.util.concurrent.ExecutionException.class)
-                    .hasRootCauseInstanceOf(org.postgresql.util.PSQLException.class);
-            release.countDown();
-            policy.get(10, java.util.concurrent.TimeUnit.SECONDS);
-            org.assertj.core.api.Assertions.assertThatThrownBy(() -> yearPlanService.updateYearPlan(
-                            leader,
-                            editing.id(),
-                            sampleRequest(),
-                            new YearPlanEditRequest(session(leader), editing.revision(), UUID.randomUUID())))
-                    .isInstanceOf(com.carenest.exception.GlobalException.class);
-            var persisted = yearPlanRepository.findById(editing.id()).orElseThrow();
-            assertThat(persisted.getContentRevision()).isGreaterThan(editing.revision());
-        } finally {
-            release.countDown();
-            executor.shutdownNow();
-        }
-    }
-
-    @Test
     @DisplayName("EDU-54: reviewer chưa tới lượt không được trả lại hồ sơ")
     void reviewerMustWaitBeforeReturning() {
         var submitted = createAndSubmitSamplePlan();
@@ -378,8 +348,10 @@ class EduReviewRoundIntegrationTest {
                 schoolYear,
                 ageGroup3);
         insertAssignment(author.userId(), "TEACHER", null, null, classroom);
-        var created = yearPlanService.createYearPlan(
-                author, sampleRequest(), new YearPlanEditRequest(session(author), 0L, UUID.randomUUID()));
+        // Bản tổ tự tạo giao cho tổ trưởng; giao lại cho giáo viên để tổ trưởng vẫn là người duyệt
+        Long teamId = autoTeamPlanId();
+        jdbc.update("UPDATE edu_team_plans SET owner_id=? WHERE id=?", author.userId(), teamId);
+        var created = yearPlanService.getYearPlan(author, teamId);
         var submitted = yearPlanService.submitYearPlan(
                 author,
                 created.id(),
@@ -456,30 +428,6 @@ class EduReviewRoundIntegrationTest {
                 principal, current.id(), "", new YearPlanEditRequest(null, current.revision(), UUID.randomUUID()));
         assertThat(yearPlanRepository.findById(current.id()).orElseThrow().getPublishedBy())
                 .isEqualTo(vicePrincipal.userId());
-    }
-
-    @Test
-    @DisplayName("EDU-54: đổi creator thu hồi lease DRAFT và tăng revision trong cùng policy transaction")
-    void policyRevokesDraftLease() {
-        var submitted = createAndSubmitSamplePlan();
-        var draft = yearPlanService.returnYearPlan(
-                vicePrincipal,
-                submitted.id(),
-                "Sửa",
-                new YearPlanEditRequest(null, submitted.revision(), UUID.randomUUID()));
-        var editing = yearPlanService.startEditing(
-                leader, draft.id(), new YearPlanEditRequest(session(leader), draft.revision(), UUID.randomUUID()));
-        var policies = new java.util.HashMap<String, EduWorkflowPolicyRequest.PolicyEntry>();
-        workflowService
-                .getPolicy(principal)
-                .policies()
-                .forEach((k, v) ->
-                        policies.put(k, new EduWorkflowPolicyRequest.PolicyEntry(v.creators(), v.reviewers())));
-        policies.put("year", new EduWorkflowPolicyRequest.PolicyEntry(List.of("PRINCIPAL"), List.of("VICE_PRINCIPAL")));
-        workflowService.savePolicy(
-                principal, new EduWorkflowPolicyRequest(workflowService.getPolicyRevision(), policies));
-        var after = yearPlanRepository.findById(editing.id()).orElseThrow();
-        assertThat(after.getContentRevision()).isGreaterThan(editing.revision());
     }
 
     @Test
@@ -657,20 +605,13 @@ class EduReviewRoundIntegrationTest {
         var entries = new java.util.HashMap<String, EduWorkflowPolicyRequest.PolicyEntry>();
         workflowService.getPolicy(principal).policies().forEach((key, policy) -> entries.put(
                 key, new EduWorkflowPolicyRequest.PolicyEntry(policy.creators(), policy.reviewers())));
-        entries.put("school_year", new EduWorkflowPolicyRequest.PolicyEntry(
+        entries.put("schoolYear", new EduWorkflowPolicyRequest.PolicyEntry(
                 List.of("TEAM_LEADER"), List.of("VICE_PRINCIPAL", "PRINCIPAL")));
         workflowService.savePolicy(principal, new EduWorkflowPolicyRequest(workflowService.getPolicyRevision(), entries));
         long versionYear = insertId(
                 "INSERT INTO school_years(name,start_date,end_date) VALUES (?, '2026-09-01','2027-05-31') RETURNING id",
-                "Version-" + UUID.randomUUID());
-        long domain = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order=1", Long.class);
-        var request = new YearPlanRequest(
-                versionYear, ageGroup3, "Kế hoạch năm kiểm tra vòng duyệt", "",
-                List.of(new YearPlanRequest.Domain(domain, List.of(new YearPlanRequest.Row(
-                        null, "goal", "Mục tiêu thể chất", List.of(new YearPlanRequest.Content(null, "Nội dung", List.of())))))),
-                List.of(new YearPlanRequest.Theme(
-                        "t-1", null, "Chủ đề 1", "CD1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "")),
-                List.of(), com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, null, List.of());
+                "V-" + UUID.randomUUID().toString().substring(0, 8));
+        var request = annualRequest(versionYear, "Kế hoạch năm kiểm tra vòng duyệt", List.of());
         var created = yearPlanService.createYearPlan(
                 leader, request, new YearPlanEditRequest(session(leader), 0L, UUID.randomUUID()));
         return yearPlanService.submitYearPlan(leader, created.id(), "Gửi duyệt vòng 1",

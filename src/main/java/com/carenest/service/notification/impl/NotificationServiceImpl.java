@@ -44,15 +44,35 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void notifyUsers(Collection<Long> userIds, NotificationType type, String title, String body, Long childId) {
+        save(userIds, type, title, body, childId, null, false);
+    }
+
+    @Override
+    @Transactional
+    public void notifyUsers(
+            Collection<Long> userIds, NotificationType type, String title, String body, String link, boolean once) {
+        save(userIds, type, title, body, null, link, once);
+    }
+
+    private void save(
+            Collection<Long> userIds,
+            NotificationType type,
+            String title,
+            String body,
+            Long childId,
+            String link,
+            boolean once) {
         String logPrefix = LOG_PREFIX + "|notifyUsers|type=" + type + "|users=" + userIds.size();
         log.info("{}|START", logPrefix);
         try {
             Instant now = clock.instant();
             List<Notification> created = new ArrayList<>();
             for (Long userId : new LinkedHashSet<>(userIds)) {
-                if (userId != null) {
-                    created.add(notificationRepository.save(Notification.of(userId, type, title, body, childId, now)));
-                }
+                if (userId == null
+                        || (once && link != null && notificationRepository.existsByUserIdAndTypeAndLink(userId, type, link)))
+                    continue;
+                created.add(notificationRepository.save(Notification.of(
+                        userId, type, truncate(title, 150), truncate(body, 500), childId, now, link)));
             }
             if (!created.isEmpty()) {
                 // Đẩy tới thiết bị sau khi giao dịch tạo thông báo đã lưu (PushDispatchListener)
@@ -184,6 +204,17 @@ public class NotificationServiceImpl implements NotificationService {
 
     private static NotificationResponse toView(Notification n) {
         return new NotificationResponse(
-                n.getId(), n.getType(), n.getTitle(), n.getBody(), n.getChildId(), n.getCreatedAt(), n.getReadAt());
+                n.getId(),
+                n.getType(),
+                n.getTitle(),
+                n.getBody(),
+                n.getChildId(),
+                n.getCreatedAt(),
+                n.getReadAt(),
+                n.getLink());
+    }
+
+    private static String truncate(String text, int max) {
+        return text == null || text.length() <= max ? text : text.substring(0, max - 1) + "…";
     }
 }

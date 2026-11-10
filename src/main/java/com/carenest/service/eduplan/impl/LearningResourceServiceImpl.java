@@ -10,9 +10,12 @@ import com.carenest.service.eduplan.*;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.LearningResourcePolicy;
+import com.carenest.utils.enums.CareNestRole;
 import java.io.IOException;
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -207,7 +210,11 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     private boolean isEditor(CurrentUser user, EduClassDoc doc) {
         var classroom = classrooms.findClassroomInfo(doc.getClassroomId()).orElseThrow();
         return doc.getStatus().editable()
-                && workflow.isAuthorEligible(user, "theme", classroom.ageGroupId(), doc.getClassroomId());
+                && user.hasRole(CareNestRole.TEACHER)
+                && Objects.equals(
+                        assignments.findHomeroomTeacherIds(List.of(classroom.id()), LocalDate.now(clock))
+                                .get(classroom.id()),
+                        user.userId());
     }
 
     private EduLearningResource requireResource(EduClassDoc doc, Long id) {

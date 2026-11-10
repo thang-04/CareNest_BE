@@ -50,11 +50,18 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
         String logPrefix = LOG_PREFIX + "|findApprovedDayLessons|classroomId=" + classroomId;
         log.info("{}|START", logPrefix);
         try {
-            // Giáo án tuần duyệt cùng hồ sơ chủ đề (EDU-17): chỉ bản đã duyệt mới dùng để chấm
+            // EDU-19 + spec 003 FR-008: chấm theo tuần có kế hoạch tuần và giáo án ngày đã ban hành (giáo án ngày duyệt trong
+            // hồ sơ chủ đề); hồ sơ mở lại sửa phần tương lai vẫn giữ ngày đã dạy (phần đã qua khóa sửa, EDU-64)
+            List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdInOrderByIdAsc(List.of(classroomId));
+            java.util.Set<String> releasedDays = docs.stream()
+                    .filter(d -> EduClassDoc.DAY.equals(d.getKind()) && released(d))
+                    .map(d -> d.getYearPlanId() + ":" + d.getWeekStart())
+                    .collect(java.util.stream.Collectors.toSet());
             List<EduClassDoc> weeks =
-                    classDocRepository.findAllByClassroomIdInOrderByIdAsc(List.of(classroomId)).stream()
-                            .filter(d ->
-                                    EduClassDoc.WEEK.equals(d.getKind()) && d.getStatus() == EduClassDocStatus.APPROVED)
+                    docs.stream()
+                            .filter(d -> EduClassDoc.WEEK.equals(d.getKind())
+                                    && released(d)
+                                    && releasedDays.contains(d.getYearPlanId() + ":" + d.getWeekStart()))
                             .filter(d ->
                                     !d.getWeekStart().plusDays(SCHOOL_DAYS - 1L).isBefore(from)
                                             && !d.getWeekStart().isAfter(to))
@@ -106,7 +113,12 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
         return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
     }
 
-    private Map<Long, EduPlanGoal> goalsOf(List<JsonNode> contents) {
+    private static boolean released(EduClassDoc doc) {
+        return doc.getStatus() == EduClassDocStatus.APPROVED
+                || (doc.getHistory() != null && doc.getHistory().contains("\"revise_future\""));
+    }
+
+        private Map<Long, EduPlanGoal> goalsOf(List<JsonNode> contents) {
         Set<Long> ids = new LinkedHashSet<>();
         contents.forEach(c -> c.path("picks")
                 .forEach(list -> list.forEach(p -> {

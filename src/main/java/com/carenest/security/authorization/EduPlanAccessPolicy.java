@@ -194,7 +194,10 @@ public class EduPlanAccessPolicy {
     }
 
     public record ClassScopeSnapshot(
-            Set<EduWorkflowPolicy.Role> roles, Set<Long> viceCampuses, Set<Long> leaderAges, Set<Long> teacherClasses) {
+            Set<EduWorkflowPolicy.Role> roles,
+            Set<Long> viceCampuses,
+            Set<Long> leaderAges,
+            Set<Long> homeroomClasses) {
         public boolean canReview(EduWorkflowPolicy.Role role, Long ageGroupId, Long campusId) {
             return switch (role) {
                 case PRINCIPAL -> roles.contains(role);
@@ -204,16 +207,8 @@ public class EduPlanAccessPolicy {
             };
         }
 
-        public boolean canAuthor(EduWorkflowPolicy.RolePolicy policy, Long ageGroupId, Long campusId, Long classId) {
-            if (policy.reviewers().stream().anyMatch(roles::contains)) return false;
-            return policy.creators().stream()
-                    .anyMatch(role -> roles.contains(role)
-                            && switch (role) {
-                                case PRINCIPAL -> true;
-                                case VICE_PRINCIPAL -> campusId != null && viceCampuses.contains(campusId);
-                                case TEAM_LEADER -> ageGroupId != null && leaderAges.contains(ageGroupId);
-                                case TEACHER -> classId != null && teacherClasses.contains(classId);
-                            });
+        public boolean canAuthor(Long classId) {
+            return roles.contains(EduWorkflowPolicy.Role.TEACHER) && homeroomClasses.contains(classId);
         }
     }
 
@@ -243,12 +238,19 @@ public class EduPlanAccessPolicy {
                 .map(a -> a.ageGroupId())
                 .filter(Objects::nonNull)
                 .collect(java.util.stream.Collectors.toSet());
-        Set<Long> classes = assignments.stream()
+        Set<Long> teacherClasses = assignments.stream()
                 .filter(a -> a.staffRole() == StaffRole.TEACHER)
                 .map(a -> a.classroomId())
                 .filter(Objects::nonNull)
                 .collect(java.util.stream.Collectors.toSet());
-        return new ClassScopeSnapshot(Set.copyOf(roles), Set.copyOf(campuses), Set.copyOf(ages), Set.copyOf(classes));
+        Set<Long> homeroomClasses = staffAssignmentService
+                .findHomeroomTeacherIds(List.copyOf(teacherClasses), LocalDate.now(clock))
+                .entrySet().stream()
+                .filter(entry -> Objects.equals(entry.getValue(), user.userId()))
+                .map(Map.Entry::getKey)
+                .collect(java.util.stream.Collectors.toSet());
+        return new ClassScopeSnapshot(
+                Set.copyOf(roles), Set.copyOf(campuses), Set.copyOf(ages), Set.copyOf(homeroomClasses));
     }
 
     public boolean canAuthorYearPlan(CurrentUser user, EduWorkflowPolicy.RolePolicy policy, Long ageGroupId) {

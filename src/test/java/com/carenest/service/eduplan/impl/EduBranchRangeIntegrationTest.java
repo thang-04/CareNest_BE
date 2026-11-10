@@ -94,7 +94,7 @@ class EduBranchRangeIntegrationTest {
 
         teacher = user("teacher-br", CareNestRole.TEACHER);
         jdbc.update(
-                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from) VALUES (?, 'TEACHER', ?, '2026-09-01')",
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) VALUES (?, 'TEACHER', ?, '2026-09-01', true)",
                 teacher.userId(),
                 classroomId);
 
@@ -124,8 +124,10 @@ class EduBranchRangeIntegrationTest {
                 "",
                 List.of(new YearPlanRequest.Domain(
                         domainId,
-                        List.of(new YearPlanRequest.Row(
-                                null, "goal", "MT", List.of(new YearPlanRequest.Content(null, "ND", List.of())))))),
+                        List.of(
+                                new YearPlanRequest.Row(null, "group", "Kết quả mong đợi", List.of()),
+                                new YearPlanRequest.Row(
+                                        null, "goal", "MT", List.of(new YearPlanRequest.Content(null, "ND", List.of("th1"))))))),
                 List.of(
                         new YearPlanRequest.Theme(
                                 "th1",
@@ -144,11 +146,16 @@ class EduBranchRangeIntegrationTest {
                                 LocalDate.of(2026, 9, 21),
                                 LocalDate.of(2026, 10, 16),
                                 "",
-                                "")),
+                                ""),
+                        // Quy tắc hiện hành: kế hoạch năm cần tối thiểu 9 chủ đề
+                        extraTheme(0), extraTheme(1), extraTheme(2), extraTheme(3), extraTheme(4), extraTheme(5),
+                        extraTheme(6)),
                 List.of(),
                 EduPlanLevel.SCHOOL_YEAR,
                 null,
-                List.of(new YearPlanRequest.BranchTemplate("tmpl1", null, "th1", "Mẫu dự án 1", null, null)));
+                // Mẫu nhánh cần đủ ngày bắt đầu/kết thúc
+                List.of(new YearPlanRequest.BranchTemplate(
+                        "tmpl1", null, "th1", "Mẫu dự án 1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 11))));
         UUID vpSession = UUID.randomUUID();
         var annualDraft = yearPlanService.createYearPlan(
                 vicePrincipal, annualReq, new YearPlanEditRequest(vpSession, 0L, UUID.randomUUID()));
@@ -163,22 +170,23 @@ class EduBranchRangeIntegrationTest {
                 "Approved",
                 new YearPlanEditRequest(null, annualSub.revision(), UUID.randomUUID()));
 
-        // Create and issue team plan
+        // Ban hành kế hoạch năm tự tạo bản nháp tổ cho nhóm tuổi; tổ trưởng gửi duyệt bản đó
         UUID leaderSession = UUID.randomUUID();
-        var teamDraft = yearPlanService.createYearPlan(
-                leader,
-                new YearPlanRequest(
-                        schoolYear,
-                        ageGroup,
-                        "Team BR",
-                        "",
-                        List.of(),
-                        List.of(),
-                        List.of(),
-                        EduPlanLevel.TEAM,
-                        annualApp.id(),
-                        List.of()),
-                new YearPlanEditRequest(leaderSession, 0L, UUID.randomUUID()));
+        Long teamId = jdbc.queryForObject(
+                "SELECT id FROM edu_team_plans WHERE school_year_id = ? AND age_group_id = ? ORDER BY version_no LIMIT 1",
+                Long.class,
+                schoolYear,
+                ageGroup);
+        // Kế hoạch năm không nhận tick: tick nội dung bản tổ vào chủ đề đầu để đủ điều kiện gửi duyệt
+        jdbc.update(
+                "INSERT INTO edu_content_theme_ticks (content_id, theme_id) "
+                        + "SELECT c.id, (SELECT id FROM edu_themes WHERE team_plan_id = ? ORDER BY sort_order LIMIT 1) "
+                        + "FROM edu_goal_contents c WHERE c.goal_id IN (SELECT id FROM edu_plan_goals WHERE team_plan_id = ?) "
+                        + "ON CONFLICT DO NOTHING",
+                teamId,
+                teamId);
+        entityManager.clear();
+        var teamDraft = yearPlanService.getYearPlan(leader, teamId);
         var teamSub = yearPlanService.submitYearPlan(
                 leader,
                 teamDraft.id(),
@@ -193,6 +201,12 @@ class EduBranchRangeIntegrationTest {
 
         theme1Id = teamApp.themes().get(0).id();
         theme2Id = teamApp.themes().get(1).id();
+    }
+
+    /** Chủ đề phụ 2 tuần nối tiếp sau chủ đề 2 (từ 19/10/2026), đúng giới hạn thời lượng mặc định. */
+    private static YearPlanRequest.Theme extraTheme(int no) {
+        LocalDate monday = LocalDate.of(2026, 10, 19).plusWeeks(2L * no);
+        return new YearPlanRequest.Theme("x" + no, null, "Chủ đề phụ " + no, "CDX" + no, monday, monday.plusDays(11), "", "");
     }
 
     private CurrentUser user(String username, CareNestRole role) {
@@ -377,7 +391,7 @@ class EduBranchRangeIntegrationTest {
     @Test
     void calendarPreviewRejectsAnnualAsClassSource() {
         Long source = jdbc.queryForObject(
-                "SELECT curriculum_source_plan_id FROM edu_year_plans WHERE id=?", Long.class, teamPlanId);
+                "SELECT curriculum_source_plan_id FROM edu_team_plans WHERE id=?", Long.class, teamPlanId);
         org.assertj.core.api.Assertions.assertThatThrownBy(
                         () -> classDocService.previewClassCalendar(teacher, previewRequest(source, -1)))
                 .isInstanceOf(com.carenest.exception.GlobalException.class);

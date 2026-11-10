@@ -18,6 +18,9 @@ public interface EduClassDocRepository extends JpaRepository<EduClassDoc, Long> 
 
     Optional<EduClassDoc> findByDocKey(String docKey);
 
+    List<EduClassDoc> findAllByKindInAndStatusIn(
+            Collection<String> kinds, Collection<com.carenest.utils.enums.EduClassDocStatus> statuses);
+
     // Gửi / duyệt hồ sơ chủ đề đổi trạng thái nhiều tài liệu một lúc: khóa dòng để hai người duyệt không chồng nhau
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select d from EduClassDoc d where d.docKey = :docKey")

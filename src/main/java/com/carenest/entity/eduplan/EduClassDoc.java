@@ -32,6 +32,20 @@ public class EduClassDoc {
     public static final String BRANCH = "branch";
     public static final String THEME = "theme";
     public static final String WEEK = "week";
+    // Spec 003: gốc gói học kỳ, gốc hồ sơ chủ đề, giáo án ngày (tách khỏi giáo án tuần)
+    public static final String SEMESTER = "semester";
+    public static final String DOSSIER = "dossier";
+    public static final String DAY = "day";
+
+    /** Loại chuỗi duyệt cấu hình: gói học kỳ theo "chủ đề nhánh", còn lại theo "hồ sơ chủ đề" (EDU-18, Q6). */
+    public static String policyType(String kind) {
+        return BRANCH.equals(kind) || SEMESTER.equals(kind) ? BRANCH : THEME;
+    }
+
+    /** Gốc giữ trạng thái duyệt của cả gói/hồ sơ. */
+    public static boolean isRoot(String kind) {
+        return SEMESTER.equals(kind) || DOSSIER.equals(kind);
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -51,6 +65,10 @@ public class EduClassDoc {
 
     @Column(name = "theme_id")
     private Long themeId;
+
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Column(name = "semester_no")
+    private Integer semesterNo;
 
     @Column(name = "week_start")
     private LocalDate weekStart;
@@ -211,6 +229,25 @@ public class EduClassDoc {
 
     public void changeContent(String content, Long userId) {
         this.content = content;
+        this.updatedBy = userId;
+    }
+
+    public static EduClassDoc createSemester(
+            Long classroomId, Long yearPlanId, int semesterNo, Long userId) {
+        EduClassDoc doc = create(
+                "sp_" + classroomId + "_" + yearPlanId + "_" + semesterNo,
+                SEMESTER,
+                classroomId,
+                yearPlanId,
+                null,
+                null,
+                userId);
+        doc.semesterNo = semesterNo;
+        return doc;
+    }
+
+    public void changeHistory(String history, Long userId) {
+        this.history = history;
         this.updatedBy = userId;
     }
 

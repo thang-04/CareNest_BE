@@ -28,6 +28,9 @@ public interface EduYearPlanService {
 
     YearPlanDetailResponse getYearPlan(CurrentUser currentUser, Long planId);
 
+    /** Kế hoạch năm/tổ đang chờ đúng người gọi duyệt ở bước hiện tại. */
+    java.util.List<YearPlanSummaryResponse> getReviewQueue(CurrentUser currentUser);
+
     YearPlanDetailResponse createYearPlan(CurrentUser currentUser, YearPlanRequest request, YearPlanEditRequest edit);
 
     YearPlanDetailResponse updateYearPlan(

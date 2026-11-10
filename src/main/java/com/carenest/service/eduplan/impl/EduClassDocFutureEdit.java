@@ -18,6 +18,11 @@ final class EduClassDocFutureEdit {
     }
 
     static void validateWeek(ObjectNode before, ObjectNode after, LocalDate start, LocalDate today) {
+        validateWeek(before, after, start, today, true);
+    }
+
+    /** {@code released}: hồ sơ chủ đề đã từng ban hành ⇒ chỉ sửa phần tương lai (EDU-64); bản chưa ban hành sửa tự do. */
+    static void validateWeek(ObjectNode before, ObjectNode after, LocalDate start, LocalDate today, boolean released) {
         if (start == null) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
         if (after.has("days")) {
             if (!after.path("days").isArray() || after.path("days").size() > 5)
@@ -30,7 +35,7 @@ final class EduClassDocFutureEdit {
             if (after.has(field) && !after.path(field).isObject()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
         if (after.has("dayGoals") && (!after.path("dayGoals").isArray() || after.path("dayGoals").size() > 5))
             throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
-        if (start.isAfter(today)) return;
+        if (start.isAfter(today) || !released) return;
         ObjectNode oldShared = before.deepCopy();
         ObjectNode newShared = after.deepCopy();
         oldShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked"));
@@ -78,14 +83,24 @@ final class EduClassDocFutureEdit {
 
     static Set<Long> validateBranch(
             ObjectNode before, ObjectNode after, Map<LocalDate, Long> weeks, LocalDate today) {
+        return validateBranch(before, after, weeks, today, null);
+    }
+
+    /**
+     * Chủ đề nhánh: chỉ khóa phần đã qua của các chủ đề đã từng ban hành ({@code releasedThemes}; null = mọi chủ đề).
+     * Chủ đề chưa ban hành (kể cả lần lưu đầu) sửa được mọi tuần — spec 002 FR-024.
+     */
+    static Set<Long> validateBranch(
+            ObjectNode before, ObjectNode after, Map<LocalDate, Long> weeks, LocalDate today, Set<Long> releasedThemes) {
+        java.util.function.Predicate<Long> locked = theme -> releasedThemes == null || releasedThemes.contains(theme);
         Set<Long> affected = new LinkedHashSet<>();
         for (String field : Set.of("names", "notes")) {
             for (String key : keys(before.path(field), after.path(field))) {
                 if (Objects.equals(before.path(field).path(key), after.path(field).path(key))) continue;
                 LocalDate date = date(key);
-                requireFuture(date, today);
                 Long theme = weeks.get(date);
                 if (theme == null) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                if (locked.test(theme)) requireFuture(date, today);
                 affected.add(theme);
             }
         }
@@ -104,7 +119,7 @@ final class EduClassDocFutureEdit {
                 String start = branch.path("startDate").asString("");
                 LocalDate sourceStart = weeks.entrySet().stream().filter(entry -> entry.getValue() == theme)
                         .map(Map.Entry::getKey).min(LocalDate::compareTo).orElse(null);
-                requireFuture(start.isBlank() ? sourceStart : date(start), today);
+                if (locked.test(theme)) requireFuture(start.isBlank() ? sourceStart : date(start), today);
                 affected.add(theme);
             }
         }
@@ -115,7 +130,9 @@ final class EduClassDocFutureEdit {
         if (!oldShared.equals(newShared)) {
             if (weeks.isEmpty()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
             // EDU-64: đổi cấu trúc chung chỉ khi toàn bộ phần được áp dụng còn ở tương lai.
-            weeks.keySet().forEach(day -> requireFuture(day, today));
+            weeks.forEach((day, theme) -> {
+                if (locked.test(theme)) requireFuture(day, today);
+            });
             affected.addAll(weeks.values());
         }
         return affected;

@@ -97,7 +97,8 @@ public class EduClassDocController {
     }
 
     // EDU-27: ô "Kế hoạch điều chỉnh và bổ sung" của kế hoạch ngày, ghi riêng để sửa được cả sau khi duyệt
-    @PutMapping("/week/{docKey}/adjustments")
+    // ponytail: giữ đường /week cũ (khóa wp_ chuyển sang dd_) một đợt cho Web cũ; bỏ ở spec sau
+    @PutMapping({"/day/{docKey}/adjustments", "/week/{docKey}/adjustments"})
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ObjectNode>> saveAdjustments(
             @PathVariable String docKey,
@@ -112,6 +113,19 @@ public class EduClassDocController {
                 currentUser, docKey, request.adjustments(), expectedVersion, expectedRootVersion);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save lesson adjustments success", saved);
+    }
+
+    /** Spec 002 FR-018: xem lại một bản hồ sơ chủ đề đã ban hành trước đây. */
+    @GetMapping("/releases/{releaseId}")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<ObjectNode>> getClassDocRelease(
+            @PathVariable Long releaseId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getClassDocRelease|userId=" + currentUser.userId() + "|releaseId=" + releaseId;
+        log.info("{}|START", logPrefix);
+        ObjectNode release = classDocService.getClassDocRelease(currentUser, releaseId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class document release success", release);
     }
 
     @PostMapping("/{kind}/{docKey}/actions")

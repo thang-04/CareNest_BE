@@ -34,12 +34,38 @@ class EduLessonQueryServiceImplTest {
         when(update.getWeekStart()).thenReturn(monday);
         when(update.getId()).thenReturn(200L);
         when(update.getContent()).thenReturn("{}");
-        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(old, update));
+        EduClassDoc releasedDay = day(EduClassDocStatus.APPROVED, "[]", monday);
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(old, update, releasedDay));
         when(config.getEduConfig()).thenReturn(new EduConfigResponse(List.of(), List.of(), List.of(), null, List.of(), null));
         when(goals.findAllById(Set.of())).thenReturn(List.of());
 
         assertThat(service.findApprovedDayLessons(1L, monday, monday).get(monday).classDocId()).isEqualTo(100L);
         assertThat(service.findApprovedDayLessons(1L, monday, monday).get(monday).classDocId()).isEqualTo(200L);
+    }
+
+    @Test
+    void lessonNeedsReleasedDayPlanOfTheWeek() {
+        // Spec 003 FR-008: kế hoạch tuần ban hành trong gói học kỳ nhưng giáo án ngày chưa duyệt ⇒ chưa chấm
+        LocalDate monday = LocalDate.of(2026, 11, 9);
+        when(config.getEduConfig()).thenReturn(new EduConfigResponse(List.of(), List.of(), List.of(), null, List.of(), null));
+        when(goals.findAllById(Set.of())).thenReturn(List.of());
+        EduClassDoc approvedWeek = week(100L, EduClassDocStatus.APPROVED, monday);
+        EduClassDoc draftDay = day(EduClassDocStatus.DRAFT, "[]", monday);
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(approvedWeek, draftDay));
+        assertThat(service.findApprovedDayLessons(1L, monday, monday)).isEmpty();
+        // Hồ sơ đã ban hành rồi mở lại sửa phần tương lai: ngày đã dạy vẫn chấm được
+        EduClassDoc reopenedDay = day(EduClassDocStatus.DRAFT, "[{\"action\":\"revise_future\"}]", monday);
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(approvedWeek, reopenedDay));
+        assertThat(service.findApprovedDayLessons(1L, monday, monday)).containsKey(monday);
+    }
+
+    private static EduClassDoc day(EduClassDocStatus status, String history, LocalDate monday) {
+        EduClassDoc doc = mock(EduClassDoc.class);
+        when(doc.getKind()).thenReturn(EduClassDoc.DAY);
+        when(doc.getStatus()).thenReturn(status);
+        when(doc.getHistory()).thenReturn(history);
+        when(doc.getWeekStart()).thenReturn(monday);
+        return doc;
     }
 
     @Test

@@ -24,7 +24,7 @@ Kế hoạch năm học (nhóm tuổi, toàn trường)
 
 Mỗi loại năm/tổ có một chuỗi cho một năm học/nhóm tuổi, tối đa một bản DRAFT/REVIEW trong chuỗi.
 
-Khi gửi kế hoạch năm, mọi chủ đề và mẫu nhánh đã khai báo phải đủ ngày bắt đầu/kết thúc để kiểm số tuần theo khoảng áp dụng; nháp vẫn được lưu thiếu ngày. Quyết định user trực tiếp 09/11 theo EDU-66 PROPOSED thay phần cho phép gửi thiếu ngày của EDU-52.
+Khi gửi kế hoạch năm, mọi chủ đề và mẫu nhánh đã khai báo phải đủ ngày bắt đầu/kết thúc để kiểm số tuần theo khoảng áp dụng; nháp vẫn được lưu thiếu ngày. EDU-66 CONFIRMED (Tiền 10/11/2026); EDU-52 đổi: **mọi điều kiện bắt buộc khi ban hành chặn ngay từ bước gửi duyệt** — gửi và ban hành dùng chung một bộ kiểm (`requireReadyToIssue`).
 
 Theo EDU-71 PROPOSED (user trực tiếp 09/11), nếu giới hạn bị mất hoặc chưa đủ bằng chứng phân biệt với legacy thật, chặn gửi và báo kiểm tra/khôi phục. Khôi phục theo bằng chứng, giữ trạng thái; legacy thật có bằng chứng không tự bị áp khoảng tuần mới nhưng vẫn kiểm đủ ngày. STT hệ thống tự sinh; nhãn trống về mặc định theo EDU-09/58.
 
@@ -38,7 +38,8 @@ Chỉ HT có quyền cấu hình người soạn/duyệt theo loại hồ sơ. P
 |---|---|---|
 | Kế hoạch năm học | PHT (hoặc TT) | **Nếu PHT soạn: Bắt buộc CHỈ CÓ Hiệu trưởng duyệt**<br>Nếu TT soạn: PHT hoặc HT duyệt |
 | Kế hoạch tổ | Tổ trưởng đúng nhóm tuổi | PHT hoặc HT duyệt |
-| Hồ sơ chủ đề lớp (gồm nhánh/tuần/ngày) | GV chủ nhiệm | Theo cấu hình HT: ví dụ chỉ PHT hoặc TT → PHT; không bắt buộc bước TT |
+| Gói học kỳ lớp (lịch nhánh của kỳ + kế hoạch chủ đề/tuần chọn "theo học kỳ"; EDU-74) | GV chủ nhiệm | Theo chuỗi cấu hình "chủ đề nhánh"; hạn = ngày bắt đầu học kỳ |
+| Hồ sơ chủ đề lớp (giáo án ngày + kế hoạch chủ đề/tuần nếu "theo chủ đề"; EDU-74) | GV chủ nhiệm | Theo cấu hình HT: ví dụ chỉ PHT hoặc TT → PHT; không bắt buộc bước TT |
 
 - **Chống tự duyệt:** Người tham gia soạn thảo bị loại khỏi ứng viên duyệt. Cấp dưới không bao giờ được duyệt bài cấp trên.
 - **Trạng thái duyệt:**
@@ -64,3 +65,17 @@ Chỉ HT có quyền cấu hình người soạn/duyệt theo loại hồ sơ. P
 - **Tổ trưởng:** Kế thừa từ năm, được thêm/sửa nội dung giáo dục riêng trong kế hoạch tổ và tick vào chủ đề. Không sửa nguồn năm; giáo viên phía dưới thấy nội dung tổ theo quyền và trạng thái hiện hành (EDU-65 PROPOSED, user trực tiếp 09/11).
 - **Giáo viên ở lớp:** Kế thừa từ tổ, **được quyền sửa nội dung giáo dục** và **được quyền tick chọn lại mục tiêu/nội dung theo chủ đề** cho phù hợp với đặc thù học sinh lớp mình.
 - **Sau khi dạy:** Giáo viên ghi nhận thực tế vào ô *"Kế hoạch điều chỉnh và bổ sung"* (EDU-27) qua endpoint riêng, lưu độc lập ở mọi trạng thái mà không ảnh hưởng trạng thái `APPROVED` của giáo án.
+
+## Mốc duyệt theo thời gian dạy (EDU-74, Tiền 10/11/2026)
+
+```text
+Gói học kỳ (hạn = ngày bắt đầu học kỳ)   ──ban hành──▶ Hồ sơ chủ đề được gửi (hạn = ngày bắt đầu chủ đề)
+   lịch nhánh của kỳ                                   giáo án ngày mọi tuần
+   + chủ đề "theo học kỳ": kế hoạch chủ đề, tuần       + chủ đề "theo chủ đề" (mặc định): kế hoạch chủ đề, tuần
+Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chưa ban hành: "Quá hạn", khóa gửi → HT/PHT mở hạn (lý do, hạn mới)
+```
+
+- Bản đang Chờ duyệt khi tới hạn vẫn được duyệt; ban hành sau hạn hiện "Ban hành trễ"; bản đã ban hành mở lại sửa phần
+  tương lai sau hạn cũng là "Quá hạn".
+- Trang Kế hoạch tuần và trang Giáo án ngày tách riêng; người chỉ xem chỉ thấy lịch nhánh của học kỳ đã ban hành.
+

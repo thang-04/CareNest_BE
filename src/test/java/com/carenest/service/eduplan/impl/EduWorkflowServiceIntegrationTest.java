@@ -195,25 +195,26 @@ class EduWorkflowServiceIntegrationTest {
                 hasVp ? "[\"VICE_PRINCIPAL\"]" : "[\"TEAM_LEADER\",\"VICE_PRINCIPAL\"]";
         jdbc.update("UPDATE edu_settings SET workflow_policy=jsonb_set(workflow_policy,'{theme}',?::jsonb)",
                 "{\"creators\":[\"TEACHER\"],\"reviewers\":" + reviewers + "}");
-        var doc = classDocRepository.findByDocKey(fixture.themeKey()).orElseThrow();
-        var sent = classDocs.actOnClassDoc(fixture.teacher(), "theme", fixture.themeKey(),
+        String dossierKey = "ds_" + fixture.themeKey().substring(3);
+        var doc = classDocRepository.findByDocKey(dossierKey).orElseThrow();
+        var sent = classDocs.actOnClassDoc(fixture.teacher(), "dossier", dossierKey,
                 new com.carenest.dto.eduplan.ClassDocActionRequest("submit", null), doc.getVersion());
         assertThat(sent.path("status").asText()).isEqualTo("REVIEW");
         assertThat(sent.path("review").path("waitingRole").asText())
                 .isEqualTo(hasLeader ? "TEAM_LEADER" : "VICE_PRINCIPAL");
         assertThat(sent.path("approvals").size()).isZero();
-        assertThatThrownBy(() -> classDocs.actOnClassDoc(fixture.teacher(), "theme", fixture.themeKey(),
+        assertThatThrownBy(() -> classDocs.actOnClassDoc(fixture.teacher(), "dossier", dossierKey,
                 new com.carenest.dto.eduplan.ClassDocActionRequest("approve", null), doc.getVersion()))
                 .isInstanceOf(GlobalException.class);
         if (!hasVp) return;
         if (hasLeader) {
-            assertThatThrownBy(() -> classDocs.actOnClassDoc(fixture.vp(), "theme", fixture.themeKey(),
+            assertThatThrownBy(() -> classDocs.actOnClassDoc(fixture.vp(), "dossier", dossierKey,
                     new com.carenest.dto.eduplan.ClassDocActionRequest("approve", null), doc.getVersion()))
                     .isInstanceOf(GlobalException.class);
-            classDocs.actOnClassDoc(fixture.leader(), "theme", fixture.themeKey(),
+            classDocs.actOnClassDoc(fixture.leader(), "dossier", dossierKey,
                     new com.carenest.dto.eduplan.ClassDocActionRequest("approve", null), doc.getVersion());
         }
-        var issued = classDocs.actOnClassDoc(fixture.vp(), "theme", fixture.themeKey(),
+        var issued = classDocs.actOnClassDoc(fixture.vp(), "dossier", dossierKey,
                 new com.carenest.dto.eduplan.ClassDocActionRequest("approve", null), doc.getVersion());
         assertThat(issued.path("status").asText()).isEqualTo("APPROVED");
         assertThat(issued.path("approvals").size()).isEqualTo(hasLeader ? 2 : 1);
@@ -324,7 +325,7 @@ class EduWorkflowServiceIntegrationTest {
                 new com.carenest.dto.eduplan.YearPlanEditRequest(null, 0L, java.util.UUID.randomUUID())))
                 .isInstanceOf(GlobalException.class);
         assertThat(jdbc.queryForObject("SELECT disabled FROM edu_team_plans WHERE id=?", Boolean.class, fixture.planId())).isFalse();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_class_docs WHERE team_plan_id=?", Long.class, fixture.planId())).isEqualTo(3L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_class_docs WHERE team_plan_id=?", Long.class, fixture.planId())).isEqualTo(5L);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_themes WHERE team_plan_id=?", Long.class, fixture.planId())).isEqualTo(2L);
     }
 
@@ -376,16 +377,19 @@ class EduWorkflowServiceIntegrationTest {
         classDocRepository.saveAndFlush(week);
         var body = mapper.createObjectNode();
         body.put("classId", fixture.classId()).put("yearPlanId", fixture.planId()).put("themeId", root.getThemeId()).put("weekStart", start.toString()).put("prep", "Mới");
-        var saved = classDocs.saveClassDoc(fixture.teacher(), "week", week.getDocKey(), body, week.getVersion(), root.getVersion());
+        long dossierVersion = classDocRepository.findByDocKey("ds_" + root.getDocKey().substring(3)).orElseThrow().getVersion();
+        var saved = classDocs.saveClassDoc(fixture.teacher(), "week", week.getDocKey(), body, week.getVersion(), dossierVersion);
         assertThat(saved.path("status").asString()).isEqualTo("DRAFT");
         assertThat(root.getStatus()).isEqualTo(com.carenest.utils.enums.EduClassDocStatus.DRAFT);
         var branch = classDocRepository.findByDocKey("bp_"+fixture.classId()+"_"+fixture.planId()).orElseThrow();
         branch.changeContent("{\"names\":{\""+start+"\":\"Nhánh mới\"}}", fixture.teacher().userId());
         entityManager.flush();
-        classDocs.actOnClassDoc(fixture.teacher(), "theme", root.getDocKey(),
-                new com.carenest.dto.eduplan.ClassDocActionRequest("submit", null), root.getVersion());
+        classDocRepository.saveAndFlush(EduClassDoc.create("dd_"+fixture.classId()+"_"+start, "day", fixture.classId(), fixture.planId(), root.getThemeId(), start, fixture.teacher().userId()));
+        var dossier = classDocRepository.findByDocKey("ds_" + root.getDocKey().substring(3)).orElseThrow();
+        classDocs.actOnClassDoc(fixture.teacher(), "dossier", dossier.getDocKey(),
+                new com.carenest.dto.eduplan.ClassDocActionRequest("submit", null), dossier.getVersion());
         entityManager.flush();
-        assertThatThrownBy(() -> classDocs.saveClassDoc(fixture.teacher(), "week", week.getDocKey(), body, week.getVersion(), root.getVersion()))
+        assertThatThrownBy(() -> classDocs.saveClassDoc(fixture.teacher(), "week", week.getDocKey(), body, week.getVersion(), dossier.getVersion()))
                 .isInstanceOf(GlobalException.class).extracting("apiCode").isEqualTo(ApiCode.CLASS_DOC_LOCKED);
     }
 
@@ -394,6 +398,7 @@ class EduWorkflowServiceIntegrationTest {
         var fixture = classFixture(true, true);
         var root = classDocRepository.findByDocKey(fixture.themeKey()).orElseThrow();
         root.publish(fixture.vp().userId(), "[]", 1L, "{}", "{\"proof\":true}", clock.instant());
+        publishDossier(fixture.classId(), fixture.planId(), root.getThemeId(), fixture.vp().userId());
         jdbc.update("UPDATE edu_themes SET start_date=? WHERE id=?", LocalDate.now(clock), root.getThemeId());
         entityManager.flush();
         var body = mapper.createObjectNode();
@@ -437,6 +442,18 @@ class EduWorkflowServiceIntegrationTest {
                 .isInstanceOf(GlobalException.class).extracting("apiCode").isEqualTo(ApiCode.CONCURRENT_UPDATE);
     }
 
+    /** Hồ sơ chủ đề đã ban hành: gốc APPROVED + một bản ban hành (spec 003). */
+    private EduClassDoc publishDossier(Long classId, Long planId, Long themeId, Long approver) {
+        String key = "ds_" + classId + "_" + themeId;
+        var dossier = classDocRepository.findByDocKey(key)
+                .orElseGet(() -> EduClassDoc.create(key, "dossier", classId, planId, themeId, null, approver));
+        dossier.publish(approver, "[]", 1L, "{}", "{\"proof\":true}", clock.instant());
+        dossier = classDocRepository.saveAndFlush(dossier);
+        jdbc.update("INSERT INTO edu_class_doc_releases(class_doc_id,dossier_version,print_snapshot,approved_by,released_at) "
+                + "VALUES (?,?,'{\"members\":[]}'::jsonb,?,now())", dossier.getId(), dossier.getVersion(), approver);
+        return dossier;
+    }
+
     private record ClassFixture(Long classId, Long planId, String themeKey,
             com.carenest.security.CurrentUser teacher, com.carenest.security.CurrentUser leader,
             com.carenest.security.CurrentUser vp) {}
@@ -466,6 +483,9 @@ class EduWorkflowServiceIntegrationTest {
         String key="tp_"+cls+"_"+theme;
         classDocRepository.saveAndFlush(EduClassDoc.create(key,"theme",cls,plan.getId(),theme,null,teacher.userId()));
         classDocRepository.saveAndFlush(EduClassDoc.create("wp_"+cls+"_2026-09-07","week",cls,plan.getId(),theme,LocalDate.of(2026,9,7),teacher.userId()));
+        // Spec 003: hồ sơ chủ đề là gốc gửi/duyệt; giáo án ngày tách khỏi giáo án tuần
+        classDocRepository.saveAndFlush(EduClassDoc.create("ds_"+cls+"_"+theme,"dossier",cls,plan.getId(),theme,null,teacher.userId()));
+        classDocRepository.saveAndFlush(EduClassDoc.create("dd_"+cls+"_2026-09-07","day",cls,plan.getId(),theme,LocalDate.of(2026,9,7),teacher.userId()));
         return new ClassFixture(cls,plan.getId(),key,teacher,leader,vp);
     }
 

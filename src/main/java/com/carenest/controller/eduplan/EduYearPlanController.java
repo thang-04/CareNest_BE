@@ -94,6 +94,18 @@ public class EduYearPlanController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get year plans success", plans);
     }
 
+    /** Kế hoạch năm/tổ đang chờ đúng người gọi duyệt (spec 002 FR-001, FR-007). */
+    @GetMapping("/review-queue")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<java.util.List<YearPlanSummaryResponse>>> getReviewQueue(
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getReviewQueue|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        var plans = eduYearPlanService.getReviewQueue(currentUser);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get review queue success", plans);
+    }
+
     @GetMapping("/{planId}")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> getYearPlan(

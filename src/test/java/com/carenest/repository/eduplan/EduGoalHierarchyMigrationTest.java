@@ -132,32 +132,33 @@ class EduGoalHierarchyMigrationTest {
     @DisplayName("EDU-09: FK cha chặn plan/sub khác; ID mới dùng chung sequence")
     void enforcesParentOwnershipAndSharedIdentity() {
         flyway("latest").migrate();
-        long owner = id("SELECT owner_id FROM edu_year_plans WHERE id=?", plan);
-        long year = id("SELECT school_year_id FROM edu_year_plans WHERE id=?", plan);
+        // V90 tách bảng: kế hoạch cũ (cấp tổ) nằm ở edu_team_plans, bảng con dùng team_plan_id
+        long owner = id("SELECT owner_id FROM edu_team_plans WHERE id=?", plan);
+        long year = id("SELECT school_year_id FROM edu_team_plans WHERE id=?", plan);
         long age = id("SELECT id FROM age_groups WHERE code='ag-4'");
         long other = id(
-                "INSERT INTO edu_year_plans(code,school_year_id,age_group_id,title,status,owner_id,legacy_team_without_source) VALUES ('OTHER',?,?,'Demo','DRAFT',?,true) RETURNING id",
+                "INSERT INTO edu_team_plans(code,school_year_id,age_group_id,title,status,owner_id,legacy_team_without_source) VALUES ('OTHER',?,?,'Demo','DRAFT',?,true) RETURNING id",
                 year,
                 age,
                 owner);
         assertThatThrownBy(() -> jdbc.update(
-                        "INSERT INTO edu_plan_expected_results(year_plan_id,domain_id,sort_order,text,sub_domain_id) VALUES (?,?,0,'Sai cha',104)",
+                        "INSERT INTO edu_plan_expected_results(team_plan_id,domain_id,sort_order,text,sub_domain_id) VALUES (?,?,0,'Sai cha',104)",
                         other,
                         domain))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("UPDATE edu_plan_goals SET sub_domain_id=110 WHERE id=107"))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         long sub = id(
-                "INSERT INTO edu_plan_sub_domains(year_plan_id,domain_id,sort_order,text) VALUES (?,?,11,'Demo') RETURNING id",
+                "INSERT INTO edu_plan_sub_domains(team_plan_id,domain_id,sort_order,text) VALUES (?,?,11,'Demo') RETURNING id",
                 plan,
                 domain);
         long group = id(
-                "INSERT INTO edu_plan_expected_results(year_plan_id,domain_id,sort_order,text,sub_domain_id) VALUES (?,?,12,'Demo',?) RETURNING id",
+                "INSERT INTO edu_plan_expected_results(team_plan_id,domain_id,sort_order,text,sub_domain_id) VALUES (?,?,12,'Demo',?) RETURNING id",
                 plan,
                 domain,
                 sub);
         long goal = id(
-                "INSERT INTO edu_plan_goals(year_plan_id,domain_id,sort_order,text,sub_domain_id,expected_result_id,goal_no) VALUES (?,?,13,'Demo',?,?,7) RETURNING id",
+                "INSERT INTO edu_plan_goals(team_plan_id,domain_id,sort_order,text,sub_domain_id,expected_result_id,goal_no) VALUES (?,?,13,'Demo',?,?,7) RETURNING id",
                 plan,
                 domain,
                 sub,

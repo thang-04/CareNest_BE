@@ -111,13 +111,33 @@ class EduWorkflowPublicationTest {
     }
 
     @Test
-    @DisplayName("EDU-59: nhánh liền tuần, khác cha và mẫu chỉ tên vẫn hợp lệ")
-    void acceptsDisjointDifferentParentAndUndatedBranches() {
+    @DisplayName("EDU-59: nhánh liền tuần, khác cha vẫn hợp lệ; nhánh thiếu ngày bị từ chối")
+    void acceptsDisjointDifferentParentAndRejectsUndatedBranches() {
         given(templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(1L))
                 .willReturn(List.of(
                         branch(1, "2026-09-07", "2026-09-11"), branch(1, "2026-09-14", "2026-09-18"),
-                        branch(2, "2026-09-07", "2026-09-18"), branch(1, null, null)));
+                        branch(2, "2026-09-07", "2026-09-18")));
         assertThatCode(() -> validator.validateBranchDates(1L)).doesNotThrowAnyException();
+        // Quy tắc hiện hành: mẫu nhánh phải có đủ ngày bắt đầu/kết thúc
+        given(templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(1L)).willReturn(List.of(branch(1, null, null)));
+        assertThatThrownBy(() -> validator.validateBranchDates(1L))
+                .isInstanceOf(GlobalException.class)
+                .hasFieldOrPropertyWithValue("apiCode", ApiCode.EDUCATION_CALENDAR_INVALID);
+    }
+
+    /** Kế hoạch năm cần tối thiểu 9 chủ đề; chủ đề phụ 1 tuần nối tiếp sau chủ đề chính. */
+    private static List<EduTheme> withMinimumThemes(EduTheme first) {
+        var themes = new java.util.ArrayList<EduTheme>(List.of(first));
+        for (int i = 1; i < 9; i++) {
+            EduTheme extra = mock(EduTheme.class);
+            LocalDate monday = LocalDate.of(2026, 9, 7).plusWeeks(i);
+            given(extra.getName()).willReturn("Chủ đề " + i);
+            given(extra.getAbbr()).willReturn("CD" + i);
+            given(extra.getStartDate()).willReturn(monday);
+            given(extra.getEndDate()).willReturn(monday.plusDays(4));
+            themes.add(extra);
+        }
+        return themes;
     }
 
     @Test
@@ -158,8 +178,8 @@ class EduWorkflowPublicationTest {
         given(theme.getAbbr()).willReturn("TMN");
         given(theme.getStartDate()).willReturn(LocalDate.of(2026, 9, 7)); // Monday
         given(theme.getEndDate()).willReturn(LocalDate.of(2026, 9, 11)); // Friday
-        given(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()))
-                .willReturn(List.of(theme));
+        List<EduTheme> themes = withMinimumThemes(theme);
+        given(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())).willReturn(themes);
 
         EduPlanSubDomain sub = mock(EduPlanSubDomain.class);
         given(sub.getId()).willReturn(100L);
@@ -203,8 +223,8 @@ class EduWorkflowPublicationTest {
         given(theme.getAbbr()).willReturn("TMN");
         given(theme.getStartDate()).willReturn(LocalDate.of(2026, 9, 7)); // Monday
         given(theme.getEndDate()).willReturn(LocalDate.of(2026, 9, 11)); // Friday
-        given(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()))
-                .willReturn(List.of(theme));
+        List<EduTheme> themes = withMinimumThemes(theme);
+        given(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())).willReturn(themes);
 
         EduPlanGoal goal1 = mock(EduPlanGoal.class);
         given(goal1.getId()).willReturn(201L);
