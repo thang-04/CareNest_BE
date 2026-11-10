@@ -2004,6 +2004,61 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/guardian-overview:
+    get:
+      operationId: guardianOverview
+      parameters:
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 0
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponseChildGuardianOverviewResponse"
+          description: OK
+      tags:
+      - guardian-controller
   /api/children/parent-accounts/by-citizen-id:
     get:
       operationId: findParentAccount
@@ -8465,6 +8520,13 @@ components:
           type: string
         to:
           type: string
+    ChildGuardianOverviewResponse:
+      type: object
+      properties:
+        account:
+          $ref: "#/components/schemas/GuardianResponse"
+        child:
+          $ref: "#/components/schemas/ChildListItemResponse"
     ChildGuardianResponse:
       type: object
       properties:
@@ -14338,6 +14400,25 @@ components:
         totalPages:
           type: integer
           format: int32
+    PageResponseChildGuardianOverviewResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildGuardianOverviewResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
     PageResponseChildListItemResponse:
       type: object
       properties:
@@ -17111,6 +17192,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/PageResponseAccountSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPageResponseChildGuardianOverviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponseChildGuardianOverviewResponse"
         desc:
           type: string
         errorCode:

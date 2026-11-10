@@ -15,6 +15,9 @@ public interface GuardianChildLinkService {
 
     List<GuardianLinkResponse> findLinksOfChild(Long childId);
 
+    /** Như {@link #findLinksOfChild} cho nhiều trẻ trong một truy vấn (màn Tài khoản phụ huynh). */
+    List<GuardianLinkResponse> findLinksOfChildren(Collection<Long> childIds);
+
     /** childId → số phụ huynh đang liên kết (trẻ không có phụ huynh không có trong map). */
     Map<Long, Long> countGuardiansByChildIds(Collection<Long> childIds);
 

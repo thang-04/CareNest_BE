@@ -17,6 +17,8 @@ public interface GuardianChildLinkRepository extends JpaRepository<GuardianChild
 
     List<GuardianChildLink> findByChildIdOrderByCreatedAtAscIdAsc(Long childId);
 
+    List<GuardianChildLink> findByChildIdInOrderByChildIdAscCreatedAtAscIdAsc(Collection<Long> childIds);
+
     Optional<GuardianChildLink> findByUserIdAndChildId(Long userId, Long childId);
 
     @Query("select g.childId, count(g) from GuardianChildLink g where g.childId in :childIds group by g.childId")

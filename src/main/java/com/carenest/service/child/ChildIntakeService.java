@@ -27,6 +27,9 @@ import java.util.Optional;
 public interface ChildIntakeService {
     Optional<Long> findRecipientAccountId(Long childId);
 
+    /** Như {@link #findRecipientAccountId} cho nhiều trẻ: childId → tài khoản người nhận (trẻ chưa có không có khóa). */
+    java.util.Map<Long, Long> findRecipientAccountIds(java.util.Collection<Long> childIds);
+
     List<com.carenest.dto.child.ChildGuardianResponse> accountCandidates(Long childId);
 
     void selectAccountRecipient(Long childId, Long guardianId, Long actorUserId);

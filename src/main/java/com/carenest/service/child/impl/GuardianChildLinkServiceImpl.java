@@ -71,6 +71,24 @@ public class GuardianChildLinkServiceImpl implements GuardianChildLinkService {
     }
 
     @Override
+    public List<GuardianLinkResponse> findLinksOfChildren(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findLinksOfChildren|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            List<GuardianLinkResponse> links = childIds.isEmpty()
+                    ? List.of()
+                    : guardianChildLinkRepository.findByChildIdInOrderByChildIdAscCreatedAtAscIdAsc(childIds).stream()
+                            .map(GuardianChildLinkServiceImpl::toResponse)
+                            .toList();
+            log.info("{}|count={}|END", logPrefix, links.size());
+            return links;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Map<Long, Long> countGuardiansByChildIds(Collection<Long> childIds) {
         String logPrefix = LOG_PREFIX + "|countGuardiansByChildIds|children=" + childIds.size();
         log.info("{}|START", logPrefix);

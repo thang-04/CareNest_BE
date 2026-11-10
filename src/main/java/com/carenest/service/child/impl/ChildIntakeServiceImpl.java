@@ -614,6 +614,25 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     }
 
     @Override
+    public Map<Long, Long> findRecipientAccountIds(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findRecipientAccountIds|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> result = new HashMap<>();
+            if (!childIds.isEmpty()) {
+                childGuardianRepository.findAllByChildIdInOrderByChildIdAscPositionAsc(childIds).stream()
+                        .filter(g -> g.isAccountRecipient() && g.getUserId() != null)
+                        .forEach(g -> result.putIfAbsent(g.getChildId(), g.getUserId()));
+            }
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ChildGuardianResponse> accountCandidates(Long childId) {
         String logPrefix = LOG_PREFIX + "|accountCandidates|childId=" + childId;
