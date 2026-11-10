@@ -127,13 +127,15 @@ class CurrentUserServiceTest {
                 .willReturn(List.of(RolePermission.create(CareNestRole.TEACHER, "CHILD_PROFILE_VIEW", null)));
         given(userPermissionOverrideRepository.findByUserId(10L)).willReturn(List.of());
 
-        assertThat(currentUserService.getCurrentUser().permissions()).containsExactly(Permission.CHILD_PROFILE_VIEW);
+        // ASSESSMENT_VIEW cố định cho GV (AUTH-20), không bị REVOKE trừ
+        assertThat(currentUserService.getCurrentUser().permissions())
+                .containsExactlyInAnyOrder(Permission.CHILD_PROFILE_VIEW, Permission.ASSESSMENT_VIEW);
 
         given(userPermissionOverrideRepository.findByUserId(10L))
                 .willReturn(List.of(UserPermissionOverride.create(
                         10L, "CHILD_PROFILE_VIEW", PermissionEffect.REVOKE, "Tạm nghỉ", 1L)));
 
-        assertThat(currentUserService.getCurrentUser().permissions()).isEmpty();
+        assertThat(currentUserService.getCurrentUser().permissions()).containsExactly(Permission.ASSESSMENT_VIEW);
     }
 
     @Test
@@ -151,7 +153,8 @@ class CurrentUserServiceTest {
         CurrentUser currentUser = currentUserService.getCurrentUser();
 
         assertThat(currentUser.roles()).containsExactly(CareNestRole.TEACHER);
-        assertThat(currentUser.permissions()).containsExactly(Permission.CHILD_PROFILE_VIEW);
+        assertThat(currentUser.permissions())
+                .containsExactlyInAnyOrder(Permission.CHILD_PROFILE_VIEW, Permission.ASSESSMENT_VIEW);
     }
 
     @Test

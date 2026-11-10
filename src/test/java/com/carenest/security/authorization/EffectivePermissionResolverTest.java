@@ -22,19 +22,29 @@ class EffectivePermissionResolverTest {
     @DisplayName("AUTH-10: role cấu hình được lấy quyền từ ma trận")
     void configurableRoleTakesMatrixRows() {
         assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(TEACHER_CHILD_VIEW), List.of()))
-                .containsExactly(Permission.CHILD_PROFILE_VIEW);
-        assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(), List.of())).isEmpty();
+                .containsExactlyInAnyOrder(Permission.CHILD_PROFILE_VIEW, Permission.ASSESSMENT_VIEW);
+        assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(), List.of()))
+                .containsExactly(Permission.ASSESSMENT_VIEW);
     }
 
     @Test
     @DisplayName("AUTH-10: GRANT cộng thêm, REVOKE thu hồi phần ma trận")
     void grantAddsAndRevokeRemovesConfiguredPermission() {
         assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(), List.of(override(PermissionEffect.GRANT))))
-                .containsExactly(Permission.CHILD_PROFILE_VIEW);
+                .containsExactlyInAnyOrder(Permission.CHILD_PROFILE_VIEW, Permission.ASSESSMENT_VIEW);
         assertThat(resolve(
                         Set.of(CareNestRole.TEACHER),
                         List.of(TEACHER_CHILD_VIEW),
                         List.of(override(PermissionEffect.REVOKE))))
+                .containsExactly(Permission.ASSESSMENT_VIEW);
+    }
+
+    @Test
+    @DisplayName("AUTH-20: GV/tổ trưởng luôn xem đánh giá, kể cả khi ma trận trống (Cần chốt 10/11/2026)")
+    void teacherAlwaysViewsAssessment() {
+        assertThat(resolve(Set.of(CareNestRole.TEAM_LEADER), List.of(), List.of()))
+                .containsExactly(Permission.ASSESSMENT_VIEW);
+        assertThat(resolve(Set.of(CareNestRole.VICE_PRINCIPAL), List.of(), List.of()))
                 .isEmpty();
     }
 
@@ -45,7 +55,7 @@ class EffectivePermissionResolverTest {
                         Set.of(CareNestRole.TEACHER, CareNestRole.PARENT),
                         List.of(TEACHER_CHILD_VIEW),
                         List.of(override(PermissionEffect.REVOKE))))
-                .containsExactly(Permission.CHILD_PROFILE_VIEW);
+                .containsExactlyInAnyOrder(Permission.CHILD_PROFILE_VIEW, Permission.ASSESSMENT_VIEW);
     }
 
     @Test
@@ -78,7 +88,7 @@ class EffectivePermissionResolverTest {
         RolePermission teamLeaderRow = RolePermission.create(CareNestRole.TEAM_LEADER, "CHILD_PROFILE_VIEW", null);
 
         assertThat(resolve(Set.of(CareNestRole.TEACHER), List.of(teamLeaderRow), List.of()))
-                .isEmpty();
+                .containsExactly(Permission.ASSESSMENT_VIEW);
     }
 
     @Test

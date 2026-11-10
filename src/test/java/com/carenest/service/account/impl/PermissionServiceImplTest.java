@@ -136,7 +136,7 @@ class PermissionServiceImplTest {
             assertThat(log.getActorUserId()).isEqualTo(PRINCIPAL_ID);
             assertThat(log.getReason()).isEqualTo("Giảm quyền thử nghiệm");
         });
-        assertThat(response.permissions()).isEmpty();
+        assertThat(response.permissions()).containsExactly(Permission.ASSESSMENT_VIEW);
         assertThat(response.editable()).isTrue();
     }
 
@@ -156,10 +156,11 @@ class PermissionServiceImplTest {
                                     Permission.ATTENDANCE_RECORD,
                                     Permission.DAILY_HEALTH_RECORD,
                                     Permission.PICKUP_RECORD,
-                                    Permission.ASSESSMENT_VIEW,
                                     Permission.ASSESSMENT_RECORD,
-                                    Permission.ASSESSMENT_CONFIRM);
-                    assertThat(role.permissions()).isEmpty();
+                                    Permission.ASSESSMENT_CONFIRM)
+                            // AUTH-20: tổ trưởng luôn xem đánh giá, không bật/tắt trong ma trận
+                            .doesNotContain(Permission.ASSESSMENT_VIEW);
+                    assertThat(role.permissions()).containsExactly(Permission.ASSESSMENT_VIEW);
                 });
         assertThatThrownBy(() -> permissionService.updateRolePermissions(
                         principal,
@@ -235,7 +236,7 @@ class PermissionServiceImplTest {
             assertThat(log.getBeforeState()).isEqualTo(PermissionState.INHERIT);
             assertThat(log.getAfterState()).isEqualTo(PermissionState.REVOKE);
         });
-        assertThat(response.effectivePermissions()).isEmpty();
+        assertThat(response.effectivePermissions()).containsExactly(Permission.ASSESSMENT_VIEW);
         assertThat(response.overrides()).hasSize(1);
     }
 

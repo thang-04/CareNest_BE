@@ -75,7 +75,10 @@ class PermissionTest {
         assertThat(Permission.fixedPermissionsOf(CareNestRole.ADMIN))
                 .containsExactlyInAnyOrder(Permission.ACCOUNT_MANAGE, Permission.ACCOUNT_STATUS_MANAGE);
         assertThat(Permission.fixedPermissionsOf(CareNestRole.PARENT)).containsExactly(Permission.CHILD_PROFILE_VIEW);
-        assertThat(Permission.fixedPermissionsOf(CareNestRole.TEACHER)).isEmpty();
+        // AUTH-20 (Cần chốt 10/11/2026): GV/tổ trưởng luôn xem đánh giá, không nằm trong ma trận
+        assertThat(Permission.fixedPermissionsOf(CareNestRole.TEACHER)).containsExactly(Permission.ASSESSMENT_VIEW);
+        assertThat(Permission.fixedPermissionsOf(CareNestRole.TEAM_LEADER)).containsExactly(Permission.ASSESSMENT_VIEW);
+        assertThat(Permission.fixedPermissionsOf(CareNestRole.VICE_PRINCIPAL)).isEmpty();
         assertThat(Permission.configurablePermissionsOf(CareNestRole.PRINCIPAL)).isEmpty();
     }
 
@@ -87,6 +90,7 @@ class PermissionTest {
                 .containsExactlyInAnyOrder(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER);
         assertThat(Permission.ASSESSMENT_RECORD.configurableRoles())
                 .containsExactlyInAnyOrder(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER);
+        assertThat(Permission.ASSESSMENT_VIEW.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
         assertThat(Permission.ASSESSMENT_UNLOCK.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
         assertThat(Permission.REWARD_REVIEW.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
     }

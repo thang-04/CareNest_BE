@@ -110,6 +110,7 @@ public enum Permission {
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL),
             true),
+    // AUTH-20 (Cần chốt 10/11/2026): GV/tổ trưởng luôn xem đánh giá lớp mình, HT không thu hồi; PHT theo HT cấp
     ASSESSMENT_VIEW(
             "assessment",
             "Xem đánh giá trẻ trong phạm vi",
@@ -118,7 +119,7 @@ public enum Permission {
                     CareNestRole.VICE_PRINCIPAL,
                     CareNestRole.TEACHER,
                     CareNestRole.TEAM_LEADER),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
             true),
     ASSESSMENT_RECORD(
             "assessment",
@@ -240,14 +241,14 @@ public enum Permission {
         return CONFIGURABLE_ROLES.contains(role);
     }
 
-    /** Quyền cố định của role không cấu hình được (ADMIN, PRINCIPAL, PARENT); role cấu hình được ⇒ rỗng. */
+    /**
+     * Quyền cố định: mặc định của role mà HT không bật/tắt được. Role cố định (ADMIN, PRINCIPAL, PARENT) ⇒ mọi quyền
+     * mặc định; role cấu hình được ⇒ chỉ quyền mặc định không nằm trong ma trận (vd. GV xem đánh giá).
+     */
     public static Set<Permission> fixedPermissionsOf(CareNestRole role) {
-        if (isConfigurableRole(role)) {
-            return EnumSet.noneOf(Permission.class);
-        }
         EnumSet<Permission> result = EnumSet.noneOf(Permission.class);
         for (Permission permission : values()) {
-            if (permission.defaultRoles.contains(role)) {
+            if (permission.defaultRoles.contains(role) && !permission.isConfigurableFor(role)) {
                 result.add(permission);
             }
         }
