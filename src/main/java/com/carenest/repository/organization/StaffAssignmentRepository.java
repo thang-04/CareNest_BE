@@ -120,6 +120,24 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     List<Long> findActiveLeaderIds(
             @Param("role") StaffRole role, @Param("campusId") Long campusId, @Param("date") LocalDate date);
 
+    // Dạy thay: người được thay đang dạy chính lớp này vào ngày bắt đầu dạy thay
+    @Query("select case when count(a) > 0 then true else false end from StaffAssignment a"
+            + " where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER and a.substitute = false"
+            + " and a.classroomId = :classroomId and a.userId = :userId"
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    boolean existsMainTeacherOn(
+            @Param("classroomId") Long classroomId, @Param("userId") Long userId, @Param("date") LocalDate date);
+
+    // Dạy thay: đã có người dạy thay cho cùng GV ở lớp này trùng khoảng [from, to]
+    @Query("select case when count(a) > 0 then true else false end from StaffAssignment a"
+            + " where a.substitute = true and a.classroomId = :classroomId and a.replacedUserId = :replacedUserId"
+            + " and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)")
+    boolean existsSubstituteFor(
+            @Param("classroomId") Long classroomId,
+            @Param("replacedUserId") Long replacedUserId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
     // GV hiện tại của lớp: phân công chưa kết thúc tính tới ngày :date (gồm phân công bắt đầu sau, cho năm sắp tới)
     @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
             + " and a.classroomId in :classroomIds and (a.validTo is null or a.validTo >= :date) order by a.id")

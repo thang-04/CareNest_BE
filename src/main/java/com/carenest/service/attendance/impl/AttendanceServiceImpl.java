@@ -95,8 +95,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                             c.campusId(),
                             c.ageGroupId(),
                             c.mealSessions(),
-                            rules.canRecord(currentUser, c) || rules.taughtClosedYear(currentUser, c),
-                            c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, c),
+                            rules.canRecordAttendance(currentUser, c) || rules.taughtClosedYear(currentUser, c),
+                            c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendance(currentUser, c),
                             c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canUnlock(currentUser, c.campusId())))
                     .toList();
             log.info("{}|END", logPrefix);
@@ -196,7 +196,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     cls.name(),
                     cls.campusId(),
                     cls.mealSessions(),
-                    cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls),
+                    cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendance(currentUser, cls),
                     rows);
             log.info("{}|END", logPrefix);
             return sheet;
@@ -214,7 +214,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         try {
             ClassroomInfoResponse cls = findClass(classId);
             // ATT-01, AUTH-03: chỉ giáo viên đang dạy lớp
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!rules.canRecordAttendance(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             // CFG-YR-01: lớp năm đã kết thúc (hoặc chưa kích hoạt) chỉ xem

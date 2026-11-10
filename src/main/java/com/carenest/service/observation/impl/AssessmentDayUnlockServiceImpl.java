@@ -11,6 +11,7 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.observation.AssessmentDayUnlockService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -47,7 +48,7 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
         String logPrefix = LOG_PREFIX + "|getUnlocks|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            if (!rules.isLeader(currentUser)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_UNLOCK) || !rules.isLeader(currentUser)) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
             }
             if (from != null && to != null && to.isBefore(from)) {
@@ -97,7 +98,8 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            if (!rules.leadsCampus(currentUser, cls.campusId())) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_UNLOCK)
+                    || !rules.leadsCampus(currentUser, Permission.ASSESSMENT_UNLOCK, cls.campusId())) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -155,7 +157,8 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             AssessmentDayUnlock unlock = unlockRepository
                     .findById(unlockId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_NOT_FOUND));
-            if (!rules.leadsCampus(currentUser, unlock.getCampusId())) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_UNLOCK)
+                    || !rules.leadsCampus(currentUser, Permission.ASSESSMENT_UNLOCK, unlock.getCampusId())) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
             }
             Instant now = rules.now();

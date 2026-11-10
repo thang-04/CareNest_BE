@@ -173,15 +173,21 @@ class MealCountIntegrationTest {
                         MealCountResponse.Line::present, MealCountResponse.Line::absent, MealCountResponse.Line::normal)
                 .containsExactly(1, 1, 1);
         assertThat(service.getMealCounts(kitchenA, TODAY, null).counts()).isEmpty();
-        // AUTH-20: PHT điểm trường khác xem được nhưng không xác nhận/điều chỉnh; HT xác nhận được, không điều chỉnh
-        // (Cần chốt 27/10)
-        assertThat(lunch(service.getMealCounts(vpB, TODAY, null)))
+        // Phân quyền động (Cần chốt 10/11/2026): PHT cơ sở khác mặc định không thấy sổ cơ sở A; HT cấp ATTENDANCE_VIEW
+        // toàn trường thì xem được nhưng không xác nhận/điều chỉnh. HT xác nhận và điều chỉnh suất thay thế được
+        assertThat(service.getMealCounts(vpB, TODAY, null).counts())
+                .noneMatch(c -> c.id() != null && c.id().equals(lunch.id()));
+        CurrentUser vpBViewsSchool = withPermissions(
+                vpB,
+                Set.of(Permission.ATTENDANCE_VIEW, Permission.MEAL_COUNT_CONFIRM),
+                Set.of(Permission.ATTENDANCE_VIEW));
+        assertThat(lunch(service.getMealCounts(vpBViewsSchool, TODAY, null)))
                 .extracting(MealCountResponse::id, MealCountResponse::canConfirm, MealCountResponse::canAdjust)
                 .containsExactly(lunch.id(), false, false);
         expectError(() -> service.confirm(vpB, lunch.id()), ApiCode.FORBIDDEN);
         assertThat(lunch(service.getMealCounts(principal, TODAY, null)))
                 .extracting(MealCountResponse::canConfirm, MealCountResponse::canAdjust)
-                .containsExactly(true, false);
+                .containsExactly(true, true);
 
         MealCountResponse confirmed = service.confirm(vpA, lunch.id());
         assertThat(confirmed.status()).isEqualTo("CONFIRMED");
@@ -231,7 +237,8 @@ class MealCountIntegrationTest {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         clock.now = AFTER_CUTOFF;
         MealCountResponse lunch = lunch(service.getMealCounts(vpA, TODAY, null));
-        CurrentUser vpARevoked = withPermissions(vpA, Set.of(), Set.of());
+        // Thu hồi MEAL_COUNT_CONFIRM, còn ATTENDANCE_VIEW cơ sở mình: vẫn xem sổ, không xác nhận được
+        CurrentUser vpARevoked = withPermissions(vpA, Set.of(Permission.ATTENDANCE_VIEW), Set.of());
         CurrentUser vpBSchoolWide =
                 withPermissions(vpB, Set.of(Permission.MEAL_COUNT_CONFIRM), Set.of(Permission.MEAL_COUNT_CONFIRM));
 
@@ -309,7 +316,23 @@ class MealCountIntegrationTest {
     }
 
     @Test
-    @DisplayName("NUT-02: PHT chỉ điều chỉnh suất thay thế (có lý do, chờ xác nhận lại); sửa suất thường bị từ chối")
+    @DisplayName("NUT-02: HT điều chỉnh được suất thay thế như PHT (Cần chốt 10/11/2026)")
+    void principalAdjustsSubstituteServings() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        service.confirm(
+                principal, lunch(service.getMealCounts(principal, TODAY, null)).id());
+
+        List<MealCountResponse> adjusted = service.adjust(
+                principal, new MealAdjustRequest(campusA, TODAY, MealSession.LUNCH, classA, null, 1, "Trẻ dị ứng"));
+        assertThat(adjusted).singleElement().satisfies(c -> {
+            assertThat(c.needsReconfirmation()).isTrue();
+            assertThat(c.totals().substitute()).isEqualTo(1);
+        });
+    }
+
+    @Test
+    @DisplayName("NUT-02: BGH chỉ điều chỉnh suất thay thế (có lý do, chờ xác nhận lại); sửa suất thường bị từ chối")
     void leadersAdjustOnlySubstituteServings() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
         clock.now = AFTER_CUTOFF;
@@ -319,7 +342,6 @@ class MealCountIntegrationTest {
         MealAdjustRequest adjust =
                 new MealAdjustRequest(campusA, TODAY, MealSession.LUNCH, classA, null, 1, " Trẻ dị ứng sữa ");
         expectError(() -> service.adjust(vpB, adjust), ApiCode.FORBIDDEN);
-        expectError(() -> service.adjust(principal, adjust), ApiCode.FORBIDDEN);
         expectCode(
                 () -> service.adjust(
                         vpA, new MealAdjustRequest(campusA, TODAY, MealSession.LUNCH, classA, 3, 1, "Thêm suất")),

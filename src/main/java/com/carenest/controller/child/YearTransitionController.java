@@ -36,7 +36,7 @@ public class YearTransitionController {
     private final YearTransitionService yearTransitionService;
 
     @GetMapping("/placements")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('YEAR_PLACEMENT_MANAGE')")
     public ResponseEntity<ResponseJson<PlacementBoardResponse>> getPlacements(
             @PathVariable Long schoolYearId, CurrentUser currentUser) {
         String logPrefix =
@@ -48,7 +48,7 @@ public class YearTransitionController {
     }
 
     @PutMapping("/placements")
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('YEAR_PLACEMENT_MANAGE')")
     public ResponseEntity<ResponseJson<Map<String, Integer>>> savePlacements(
             @PathVariable Long schoolYearId,
             @Valid @RequestBody SavePlacementsRequest request,
@@ -62,7 +62,7 @@ public class YearTransitionController {
     }
 
     @PostMapping("/placements/auto")
-    @PreAuthorize("hasRole('PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('YEAR_PLACEMENT_MANAGE')")
     public ResponseEntity<ResponseJson<AutoPlaceResponse>> autoPlace(
             @PathVariable Long schoolYearId,
             @RequestBody(required = false) AutoPlaceRequest request,

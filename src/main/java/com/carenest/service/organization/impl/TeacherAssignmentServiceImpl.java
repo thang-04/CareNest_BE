@@ -20,12 +20,12 @@ import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
-import com.carenest.security.authorization.StaffAccessPolicy;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
-import com.carenest.utils.enums.StaffRole;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -53,7 +53,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final TeacherDirectory teacherDirectory;
     private final YearSnapshotReader yearSnapshotReader;
     private final SchoolConfigAccess schoolConfigAccess;
-    private final StaffAccessPolicy staffAccessPolicy;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final SchoolStructureMapper schoolStructureMapper;
     private final TeacherClassRules teacherClassRules;
 
@@ -71,11 +71,14 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             List<Classroom> classes =
                     classroomRepository.findAllBySchoolYearIdOrderByCampusIdAscNameAsc(year.getId()).stream()
                             .filter(c -> campusId == null || c.getCampusId().equals(campusId))
+                            .filter(c -> campusAccessPolicy.canEditCampus(
+                                    currentUser, Permission.STAFF_ASSIGNMENT_MANAGE, c.getCampusId()))
                             .toList();
+            Set<Long> visibleCampusIds =
+                    classes.stream().map(Classroom::getCampusId).collect(Collectors.toSet());
             List<TeacherCandidateResponse> teachers = teacherDirectory.findTeachers(schoolConfigAccess.today()).stream()
-                    .filter(t -> campusId == null
-                            || t.campusIds().isEmpty()
-                            || t.campusIds().contains(campusId))
+                    .filter(t ->
+                            t.campusIds().isEmpty() || t.campusIds().stream().anyMatch(visibleCampusIds::contains))
                     .toList();
             TeacherAssignmentResponse response = new TeacherAssignmentResponse(
                     schoolStructureMapper.toDetailResponse(year, classroomRepository.countBySchoolYearId(year.getId())),
@@ -99,8 +102,11 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             Classroom classroom = classroomRepository
                     .findById(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            // AUTH-16: HT mọi lớp, PHT chỉ lớp thuộc điểm trường mình phụ trách
-            staffAccessPolicy.checkCanAssign(currentUser, StaffRole.TEACHER, classroom.getCampusId());
+            // HT mọi lớp; PHT theo scope CAMPUS/SCHOOL mà HT cấp cho STAFF_ASSIGNMENT_MANAGE.
+            if (!campusAccessPolicy.canEditCampus(
+                    currentUser, Permission.STAFF_ASSIGNMENT_MANAGE, classroom.getCampusId())) {
+                throw GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+            }
             SchoolYear year = findYear(classroom.getSchoolYearId());
             SchoolYearRules.checkOpen(year);
             Set<Long> teacherIds = new HashSet<>(request.teacherIds());
@@ -125,13 +131,23 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             if (teacherIds.size() != request.teacherIds().size()) {
                 throw GlobalException.of(ApiCode.TEACHERS_MUST_DIFFER);
             }
+            // SCH-04 (Cần chốt 10/11/2026): năm đang học mỗi lớp đúng 2 GV đứng lớp, có chủ nhiệm; năm sắp tới xếp dần
+            if (year.getStatus() == SchoolYearStatus.ACTIVE) {
+                if (teacherIds.size() != 2) {
+                    throw GlobalException.of(ApiCode.CLASS_NEEDS_TWO_TEACHERS);
+                }
+                if (request.homeroomTeacherId() == null) {
+                    throw GlobalException.of(ApiCode.HOMEROOM_REQUIRED);
+                }
+            }
             // AUTH-24: năm mở, tài khoản hoạt động; PHT chỉ xếp GV thuộc điểm trường của lớp, HT mọi điểm trường
             teacherClassRules.checkTeachers(
                     classroom,
                     year,
                     teacherIds,
                     schoolConfigAccess.today(),
-                    schoolConfigAccess.isPrincipal(currentUser));
+                    schoolConfigAccess.isPrincipal(currentUser)
+                            || currentUser.hasSchoolWidePermission(Permission.STAFF_ASSIGNMENT_MANAGE));
             // Lớp còn 1 giáo viên mà không chọn chủ nhiệm (vd. vừa gỡ chủ nhiệm) ⇒ người còn lại làm chủ nhiệm
             Long homeroomId = request.homeroomTeacherId() == null && teacherIds.size() == 1
                     ? teacherIds.iterator().next()
@@ -255,7 +271,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             Classroom classroom = classroomRepository
                     .findById(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            schoolConfigAccess.checkCanViewSchool(currentUser);
+            if (!campusAccessPolicy.canEditCampus(
+                    currentUser, Permission.STAFF_ASSIGNMENT_MANAGE, classroom.getCampusId())) {
+                throw GlobalException.of(ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+            }
             List<AssignmentHistoryResponse> history = toHistory(staffAssignmentRepository.findTeacherHistory(classId));
             log.info("{}|END", logPrefix);
             return history;

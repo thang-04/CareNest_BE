@@ -29,6 +29,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -170,7 +171,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         try {
             ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
-            ThemeEvaluation evaluation = editable(currentUser, cls, theme);
+            ThemeEvaluation evaluation = editable(currentUser, cls, theme, Permission.ASSESSMENT_RECORD);
             Matrix matrix = matrixOf(cls, theme, evaluation);
             evaluation.save(
                     writeCells(overrides(matrix, request.cells())), note(request), currentUser.userId(), rules.now());
@@ -192,7 +193,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         try {
             ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
-            ThemeEvaluation evaluation = editable(currentUser, cls, theme);
+            ThemeEvaluation evaluation = editable(currentUser, cls, theme, Permission.ASSESSMENT_CONFIRM);
             if (rules.today().isBefore(theme.getEndDate())) {
                 throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_ENDED);
             }
@@ -327,8 +328,9 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     }
 
     // Sửa: GV lớp, năm học đang hoạt động, chủ đề đã bắt đầu, bảng chưa xác nhận; tạo bảng tuần tự theo lớp
-    private ThemeEvaluation editable(CurrentUser user, ClassroomInfoResponse cls, ThemeRow theme) {
-        if (!rules.canRecord(user, cls)) {
+    private ThemeEvaluation editable(
+            CurrentUser user, ClassroomInfoResponse cls, ThemeRow theme, Permission requiredPermission) {
+        if (!user.hasPermission(requiredPermission) || !rules.canRecord(user, cls)) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -495,6 +497,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         LocalDate today = rules.today();
         boolean confirmed = saved != null && saved.isConfirmed();
         boolean canEdit = !confirmed
+                && user.hasPermission(Permission.ASSESSMENT_RECORD)
                 && rules.canRecord(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && !today.isBefore(theme.getStartDate());
@@ -575,7 +578,11 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 notPassed,
                 PASS_PERCENT,
                 canEdit,
-                canEdit && !today.isBefore(theme.getEndDate()),
+                !confirmed
+                        && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
+                        && rules.canRecord(user, cls)
+                        && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                        && !today.isBefore(theme.getEndDate()),
                 confirmedByName,
                 confirmed ? saved.getConfirmedAt() : null,
                 signers(cls, theme, today));

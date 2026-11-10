@@ -9214,6 +9214,9 @@ components:
         classroomId:
           type: integer
           format: int64
+        replacedTeacherId:
+          type: integer
+          format: int64
         substitute:
           type: boolean
         userId:
@@ -13460,7 +13463,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -13496,7 +13512,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -13655,7 +13684,20 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - YEAR_PLACEMENT_MANAGE
+          - ROOM_MANAGE
+          - ATTENDANCE_VIEW
+          - ATTENDANCE_RECORD
+          - DAILY_HEALTH_RECORD
+          - PICKUP_RECORD
+          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
+          - ASSESSMENT_VIEW
+          - ASSESSMENT_RECORD
+          - ASSESSMENT_CONFIRM
+          - ASSESSMENT_UNLOCK
+          - ASSESSMENT_CLASS_REVIEW
+          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -13911,7 +13953,20 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - YEAR_PLACEMENT_MANAGE
+          - ROOM_MANAGE
+          - ATTENDANCE_VIEW
+          - ATTENDANCE_RECORD
+          - DAILY_HEALTH_RECORD
+          - PICKUP_RECORD
+          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
+          - ASSESSMENT_VIEW
+          - ASSESSMENT_RECORD
+          - ASSESSMENT_CONFIRM
+          - ASSESSMENT_UNLOCK
+          - ASSESSMENT_CLASS_REVIEW
+          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -13947,7 +14002,20 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - YEAR_PLACEMENT_MANAGE
+          - ROOM_MANAGE
+          - ATTENDANCE_VIEW
+          - ATTENDANCE_RECORD
+          - DAILY_HEALTH_RECORD
+          - PICKUP_RECORD
+          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
+          - ASSESSMENT_VIEW
+          - ASSESSMENT_RECORD
+          - ASSESSMENT_CONFIRM
+          - ASSESSMENT_UNLOCK
+          - ASSESSMENT_CLASS_REVIEW
+          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -17041,7 +17109,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -17063,7 +17144,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -17773,6 +17867,9 @@ components:
           type: integer
           format: int64
         id:
+          type: integer
+          format: int64
+        replacedTeacherId:
           type: integer
           format: int64
         staffRole:
@@ -18675,7 +18772,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -18705,7 +18815,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -18725,7 +18848,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE

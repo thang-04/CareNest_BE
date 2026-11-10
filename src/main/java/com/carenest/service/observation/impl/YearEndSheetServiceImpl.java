@@ -25,6 +25,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationPeriodType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -301,8 +302,10 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                 .findLatestMeasurement(ev.getChildId(), at)
                 .map(m -> new SheetMeasurement(m.date(), m.weightKg(), m.heightCm()))
                 .orElse(null);
-        boolean canEdit =
-                !ev.isConfirmed() && rules.canRecord(user, cls) && cls.yearStatus() == SchoolYearStatus.ACTIVE;
+        boolean canEdit = !ev.isConfirmed()
+                && user.hasPermission(Permission.ASSESSMENT_RECORD)
+                && rules.canRecord(user, cls)
+                && cls.yearStatus() == SchoolYearStatus.ACTIVE;
         return new YearEndSheetResponse(
                 ev.getId(),
                 cls.id(),
@@ -367,7 +370,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
 
     private ClassroomInfoResponse editable(CurrentUser user, ChildEvaluation ev) {
         ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
-        if (!rules.canRecord(user, cls)) {
+        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(user, cls)) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {

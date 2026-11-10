@@ -366,6 +366,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             if (assignment.substitute() && assignment.validTo() == null) {
                 throw GlobalException.of(ApiCode.SUBSTITUTE_END_DATE_REQUIRED);
             }
+            if (!assignment.substitute() && assignment.replacedTeacherId() != null) {
+                throw GlobalException.of(ApiCode.SUBSTITUTE_TEACHER_ONLY);
+            }
             LocalDate validTo = assignment.staffRole() == StaffRole.TEACHER
                     ? checkTeacherAssignment(assignment)
                     : assignment.validTo();
@@ -392,7 +395,8 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                     assignment.validFrom(),
                     validTo,
                     assignment.assignedBy(),
-                    assignment.substitute()));
+                    assignment.substitute(),
+                    assignment.replacedTeacherId()));
             log.info("{}|assignmentId={}|END", logPrefix, saved.getId());
             return staffAssignmentMapper.toResponse(saved);
         } catch (RuntimeException ex) {
@@ -464,9 +468,32 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         teacherClassRules.checkTeachers(classroom, year, teacher, today, false);
         if (!assignment.substitute()) {
             teacherClassRules.checkOneMainClass(classroom, year, teacher, today);
+        } else {
+            checkReplacedTeacher(assignment);
         }
         LocalDate validTo = assignment.validTo();
         return validTo == null || validTo.isAfter(year.getEndDate()) ? year.getEndDate() : validTo;
+    }
+
+    // SCH-04, AUTH-16 (Cần chốt 10/11/2026): dạy thay phải chọn dạy thay cho 1 trong 2 GV đứng lớp; người dạy thay
+    // không phải GV đứng lớp đó; mỗi GV đứng lớp chỉ 1 người dạy thay trong cùng khoảng ngày
+    private void checkReplacedTeacher(NewStaffAssignment assignment) {
+        Long replaced = assignment.replacedTeacherId();
+        if (replaced == null) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_REPLACED_REQUIRED);
+        }
+        if (!staffAssignmentRepository.existsMainTeacherOn(
+                assignment.classroomId(), replaced, assignment.validFrom())) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_REPLACED_NOT_IN_CLASS);
+        }
+        if (staffAssignmentRepository.existsMainTeacherOn(
+                assignment.classroomId(), assignment.userId(), assignment.validFrom())) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_IS_CLASS_TEACHER);
+        }
+        if (staffAssignmentRepository.existsSubstituteFor(
+                assignment.classroomId(), replaced, assignment.validFrom(), assignment.validTo())) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_ALREADY_COVERED);
+        }
     }
 
     // Hình dạng phạm vi khớp CHECK ck_staff_assignments_scope (V2); campus/lớp phải tồn tại

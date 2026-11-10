@@ -12,6 +12,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.RewardListService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RewardStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -239,7 +240,14 @@ class RewardListIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case PRINCIPAL -> Set.of(Permission.ASSESSMENT_VIEW);
+                    case VICE_PRINCIPAL -> Set.of(Permission.ASSESSMENT_VIEW, Permission.REWARD_REVIEW);
+                    case TEACHER, TEAM_LEADER -> Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
     }
 
     private static void expectCode(ThrowingCallable call, ApiCode apiCode) {

@@ -11,14 +11,17 @@ import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.organization.RoomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CampusStatus;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.RoomType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,6 +44,7 @@ public class RoomServiceImpl implements RoomService {
     private final CampusRepository campusRepository;
     private final SchoolYearRepository schoolYearRepository;
     private final SchoolConfigAccess schoolConfigAccess;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
 
     @Override
@@ -59,7 +63,7 @@ public class RoomServiceImpl implements RoomService {
                             .orElse(false);
             if (closed) {
                 // CFG-YR-02: năm đã kết thúc ⇒ phòng đúng như bản chụp lúc kết thúc năm
-                List<RoomResponse> snapshot = snapshotRooms(yearId, campusFilter);
+                List<RoomResponse> snapshot = visibleTo(currentUser, snapshotRooms(yearId, campusFilter));
                 log.info("{}|snapshot|END", logPrefix);
                 return snapshot;
             }
@@ -67,7 +71,7 @@ public class RoomServiceImpl implements RoomService {
                     ? roomRepository.findAllByStatusNotOrderByCampusIdAscCodeAsc(RoomStatus.DELETED)
                     : roomRepository.findAllByCampusIdInAndStatusNotOrderByCampusIdAscCodeAsc(
                             campusFilter, RoomStatus.DELETED);
-            List<RoomResponse> response = toResponses(rooms, yearId);
+            List<RoomResponse> response = visibleTo(currentUser, toResponses(rooms, yearId));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -82,7 +86,7 @@ public class RoomServiceImpl implements RoomService {
                 LOG_PREFIX + "|createRoom|userId=" + currentUser.userId() + "|campusId=" + request.campusId();
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.checkPrincipal(currentUser);
+            checkCanManage(currentUser, request.campusId());
             RoomRequest data = validate(request, null, 0);
             Room room = roomRepository.save(Room.create(
                     data.campusId(),
@@ -107,8 +111,9 @@ public class RoomServiceImpl implements RoomService {
         String logPrefix = LOG_PREFIX + "|updateRoom|userId=" + currentUser.userId() + "|roomId=" + roomId;
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.checkPrincipal(currentUser);
             Room room = findRoom(roomId);
+            checkCanManage(currentUser, room.getCampusId());
+            checkCanManage(currentUser, request.campusId());
             List<Classroom> openClasses = classroomRepository.findOpenYearClassesByRoomIds(List.of(roomId));
             boolean everUsed = classroomRepository.existsByRoomId(roomId);
             if (everUsed && !room.getCampusId().equals(request.campusId())) {
@@ -143,11 +148,11 @@ public class RoomServiceImpl implements RoomService {
                 + "|status=" + status;
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.checkPrincipal(currentUser);
             if (status == RoomStatus.DELETED) {
                 throw GlobalException.of(ApiCode.METHOD_NOT_ALLOWED);
             }
             Room room = findRoom(roomId);
+            checkCanManage(currentUser, room.getCampusId());
             if (status == RoomStatus.INACTIVE) {
                 checkNoOpenYearClass(roomId, "ngừng sử dụng");
             }
@@ -168,8 +173,8 @@ public class RoomServiceImpl implements RoomService {
         String logPrefix = LOG_PREFIX + "|deleteRoom|userId=" + currentUser.userId() + "|roomId=" + roomId;
         log.info("{}|START", logPrefix);
         try {
-            schoolConfigAccess.checkPrincipal(currentUser);
             Room room = findRoom(roomId);
+            checkCanManage(currentUser, room.getCampusId());
             checkNoOpenYearClass(roomId, "xóa");
             // Chưa lớp nào từng dùng ⇒ xóa hẳn; lớp năm cũ còn trỏ tới ⇒ xóa mềm để lịch sử còn tên phòng
             if (classroomRepository.existsByRoomId(roomId)) {
@@ -327,6 +332,17 @@ public class RoomServiceImpl implements RoomService {
                 .toList();
     }
 
+    // Phân quyền động (Cần chốt 10/11/2026): PHT xem phòng cơ sở mình; HT cấp ROOM_MANAGE toàn trường thì xem mọi cơ sở
+    private List<RoomResponse> visibleTo(CurrentUser user, List<RoomResponse> rooms) {
+        Map<Long, Boolean> allowed = new HashMap<>();
+        return rooms.stream()
+                .filter(r -> allowed.computeIfAbsent(
+                        r.campusId(),
+                        id -> campusAccessPolicy.canViewCampus(user, id)
+                                || campusAccessPolicy.canEditCampus(user, Permission.ROOM_MANAGE, id)))
+                .toList();
+    }
+
     private Long resolveSchoolYearId(Long schoolYearId) {
         if (schoolYearId != null) {
             return schoolYearId;
@@ -352,6 +368,12 @@ public class RoomServiceImpl implements RoomService {
             throw GlobalException.of(ApiCode.ROOM_NOT_FOUND);
         }
         return room;
+    }
+
+    private void checkCanManage(CurrentUser user, Long campusId) {
+        if (!campusAccessPolicy.canEditCampus(user, Permission.ROOM_MANAGE, campusId)) {
+            throw GlobalException.of(ApiCode.CAMPUS_ACCESS_DENIED);
+        }
     }
 
     private static Short toShort(Integer value) {

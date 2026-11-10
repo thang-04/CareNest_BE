@@ -17,6 +17,7 @@ import com.carenest.service.organization.RoomService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PlacementAction;
 import com.carenest.utils.enums.RoomStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -29,6 +30,7 @@ import java.util.List;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -348,6 +350,52 @@ class YearTransitionIntegrationTest {
                         newYear,
                         new SavePlacementsRequest(
                                 List.of(new SavePlacementsRequest.Item(child1, PlacementAction.LEAVE, null)))),
+                ApiCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Phân quyền động: PHT xếp lớp năm mới khi HT cấp YEAR_PLACEMENT_MANAGE, đúng phạm vi điểm trường")
+    void vicePrincipalPlacesWithinGrantedScope() {
+        long vpId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE username = 'vp'", Long.class);
+        CurrentUser noGrant = new CurrentUser(vpId, "kc-vp", "vp", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        expectError(() -> service.getPlacements(noGrant, newYear), ApiCode.FORBIDDEN);
+
+        CurrentUser granted = new CurrentUser(
+                vpId,
+                "kc-vp",
+                "vp",
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.YEAR_PLACEMENT_MANAGE));
+        PlacementBoardResponse board = service.getPlacements(granted, newYear);
+        assertThat(board.editable()).isTrue();
+        assertThat(board.classes())
+                .extracting(PlacementBoardResponse.SourceClass::id)
+                .containsExactly(oldClass);
+        service.savePlacements(
+                granted,
+                newYear,
+                new SavePlacementsRequest(
+                        List.of(new SavePlacementsRequest.Item(child1, PlacementAction.PROMOTE, newClass4))));
+
+        // PHT có mã nhưng không phụ trách điểm trường của lớp ⇒ không thấy, không xếp được
+        long otherVp = user("vp-other");
+        CurrentUser outside = new CurrentUser(
+                otherVp,
+                "kc-vp-other",
+                "vp-other",
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.YEAR_PLACEMENT_MANAGE));
+        assertThat(service.getPlacements(outside, newYear).classes()).isEmpty();
+        expectError(
+                () -> service.savePlacements(
+                        outside,
+                        newYear,
+                        new SavePlacementsRequest(
+                                List.of(new SavePlacementsRequest.Item(child2, PlacementAction.LEAVE, null)))),
                 ApiCode.FORBIDDEN);
     }
 

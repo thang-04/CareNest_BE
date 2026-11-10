@@ -19,6 +19,7 @@ import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationPeriodType;
+import com.carenest.utils.enums.Permission;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
@@ -799,7 +800,14 @@ class ThemeEvaluationIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case PRINCIPAL, VICE_PRINCIPAL -> Set.of(Permission.ASSESSMENT_VIEW);
+                    case TEACHER, TEAM_LEADER ->
+                        Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD, Permission.ASSESSMENT_CONFIRM);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
     }
 
     private long insertId(String sql) {

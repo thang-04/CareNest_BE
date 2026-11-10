@@ -30,6 +30,7 @@ import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.NapLevel;
 import com.carenest.utils.enums.Participation;
+import com.carenest.utils.enums.Permission;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Duration;
@@ -331,7 +332,8 @@ class DailyAssessmentIntegrationTest {
                 ApiCode.ASSESSMENT_DIAGNOSTIC_TERM);
         expectCode(() -> service.getDailySheet(teacherB, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
         // AUTH-20: PHT điểm trường khác xem được (chỉ xem), không ghi
-        assertThat(service.getDailySheet(vpB, classA, TODAY)).isNotNull();
+        assertThat(service.getDailySheet(withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), classA, TODAY))
+                .isNotNull();
         expectCode(() -> service.saveSkills(vpA, classA, skills(TODAY, child1, "x")), ApiCode.CLASS_ACCESS_DENIED);
         expectCode(() -> service.getDailySheet(teacherA, classA, TODAY.plusDays(1)), ApiCode.ASSESSMENT_FUTURE_DATE);
         expectCode(
@@ -418,8 +420,9 @@ class DailyAssessmentIntegrationTest {
         assertThat(reopened.unlock().id()).isEqualTo(opened.id());
         service.saveGeneral(teacherA, classA, general(YESTERDAY, child1, "Bổ sung"));
 
-        // PHT điểm trường khác xem được lịch sử mở lại (chỉ xem), không mở/thu hồi được
-        assertThat(unlockService.getUnlocks(vpB, null, null, null, null, null))
+        // PHT điểm trường khác chỉ xem lịch sử khi ASSESSMENT_VIEW được cấp scope SCHOOL; không mở/thu hồi được.
+        assertThat(unlockService.getUnlocks(
+                        withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), null, null, null, null, null))
                 .extracting(AssessmentDayUnlockResponse::id)
                 .containsExactly(opened.id());
         assertThat(unlockService.getUnlocks(principal, campusA, classA, true, YESTERDAY, YESTERDAY))
@@ -484,8 +487,13 @@ class DailyAssessmentIntegrationTest {
         assertThat(week.start()).isEqualTo(LocalDate.of(2026, 10, 26));
         assertThat(week.end()).isEqualTo(LocalDate.of(2026, 10, 30));
         assertThat(week.schoolDays()).isEqualTo(3);
-        // AUTH-20 (Cần chốt 03/11/2026): PHT xem tổng quan mọi điểm trường
-        assertThat(week.rows()).extracting(r -> r.classId()).contains(classA, classB);
+        // Mặc định PHT chỉ thấy campus A.
+        assertThat(week.rows()).extracting(r -> r.classId()).containsExactly(classA);
+        assertThat(overviewService
+                        .getOverview(withSchoolWide(vpA, Permission.ASSESSMENT_VIEW), "WEEK", null, null, null, null)
+                        .rows())
+                .extracting(r -> r.classId())
+                .contains(classA, classB);
         assertThat(week.rows())
                 .filteredOn(r -> r.classId().equals(classA))
                 .singleElement()
@@ -513,8 +521,11 @@ class DailyAssessmentIntegrationTest {
         expectCode(
                 () -> overviewService.getOverview(teacherA, "DAY", null, null, null, null),
                 ApiCode.ASSESSMENT_OVERVIEW_FORBIDDEN);
-        // AUTH-20: PHT điểm trường khác xem chi tiết lớp; giáo viên không phải lớp mình vẫn bị chặn
-        assertThat(overviewService.getClassDetail(vpB, classA, "DAY").classId()).isEqualTo(classA);
+        // PHT điểm trường khác cần ASSESSMENT_VIEW scope SCHOOL; giáo viên không phải lớp mình vẫn bị chặn.
+        assertThat(overviewService
+                        .getClassDetail(withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), classA, "DAY")
+                        .classId())
+                .isEqualTo(classA);
         expectCode(() -> overviewService.getClassDetail(teacherA, classA, "DAY"), ApiCode.CLASS_ACCESS_DENIED);
         // Tổ trưởng nhóm tuổi xem tổng quan và chi tiết các lớp cùng nhóm tuổi (lớp A, B)
         jdbc.update(
@@ -549,8 +560,10 @@ class DailyAssessmentIntegrationTest {
                         .getFirst()
                         .text())
                 .isEqualTo("Updated class note");
-        // AUTH-20: PHT điểm trường khác xem được chi tiết lớp (chỉ xem)
-        assertThat(overviewService.getClassDetail(vpB, classA, "DAY").classId()).isEqualTo(classA);
+        assertThat(overviewService
+                        .getClassDetail(withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), classA, "DAY")
+                        .classId())
+                .isEqualTo(classA);
         attendance(child1, classA, TODAY);
         service.saveGeneral(teacherA, classA, general(TODAY, child1, "Child note"));
         assertThat(service.getDailySheet(teacherA, classA, TODAY).classComment().text())
@@ -667,7 +680,9 @@ class DailyAssessmentIntegrationTest {
         attendance(child1, classA, LocalDate.of(2026, 9, 15));
         LocalDate september = LocalDate.of(2026, 9, 1);
         // PHT chưa thấy nội dung khi GV chưa xác nhận
-        assertThat(monthlyComments.get(vpB, classA, september).content()).isNull();
+        CurrentUser schoolViewer = withSchoolWide(vpB, Permission.ASSESSMENT_VIEW);
+        assertThat(monthlyComments.get(schoolViewer, classA, september).content())
+                .isNull();
 
         var draft = monthlyComments.get(teacherA, classA, september);
         assertThat(draft.status()).isEqualTo("AWAITING_REVIEW");
@@ -680,7 +695,7 @@ class DailyAssessmentIntegrationTest {
         assertThat(confirmed.status()).isEqualTo("CONFIRMED");
         expectCode(() -> monthlyComments.save(teacherA, request), ApiCode.EVALUATION_ALREADY_CONFIRMED);
 
-        var leaderView = monthlyComments.get(vpB, classA, september);
+        var leaderView = monthlyComments.get(schoolViewer, classA, september);
         assertThat(leaderView.content()).startsWith("Lớp đi học đều");
         assertThat(leaderView.draft()).isNull();
         assertThat(leaderView.canEdit()).isFalse();
@@ -710,8 +725,9 @@ class DailyAssessmentIntegrationTest {
         var item = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingItem(classA, levels, " Lớp làm tốt ");
         var request = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(period, List.of(item));
 
-        // PHT điểm trường B xem được lớp A (AUTH-20) nhưng không chấm được
-        assertThat(ratings.list(vpB, null, period, null).rows())
+        // ASSESSMENT_VIEW scope SCHOOL cho phép xem lớp A, nhưng không tự cấp quyền chấm.
+        assertThat(ratings.list(withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), null, period, null)
+                        .rows())
                 .filteredOn(r -> r.classId().equals(classA))
                 .singleElement()
                 .satisfies(r -> assertThat(r.canEdit()).isFalse());
@@ -1030,7 +1046,46 @@ class DailyAssessmentIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case PRINCIPAL ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_UNLOCK,
+                                Permission.ASSESSMENT_VIEW,
+                                Permission.ASSESSMENT_UNLOCK,
+                                Permission.ASSESSMENT_CLASS_REVIEW);
+                    case VICE_PRINCIPAL ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_UNLOCK,
+                                Permission.ASSESSMENT_VIEW,
+                                Permission.ASSESSMENT_UNLOCK,
+                                Permission.ASSESSMENT_CLASS_REVIEW,
+                                Permission.REWARD_REVIEW);
+                    case TEACHER, TEAM_LEADER ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_RECORD,
+                                Permission.DAILY_HEALTH_RECORD,
+                                Permission.ASSESSMENT_VIEW,
+                                Permission.ASSESSMENT_RECORD,
+                                Permission.ASSESSMENT_CONFIRM);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
+    }
+
+    private static CurrentUser withSchoolWide(CurrentUser user, Permission... permissions) {
+        return new CurrentUser(
+                user.userId(),
+                user.keycloakUserId(),
+                user.username(),
+                user.fullName(),
+                user.email(),
+                user.roles(),
+                user.permissions(),
+                Set.of(permissions));
     }
 
     private void campusRole(CurrentUser user, long campusId) {

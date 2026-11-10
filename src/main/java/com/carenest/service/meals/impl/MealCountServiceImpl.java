@@ -77,21 +77,23 @@ public class MealCountServiceImpl implements MealCountService {
     private final NotificationService notificationService;
     private final Clock clock;
 
-    /** Phạm vi người xem: HT toàn trường; PHT còn phân công xem mọi điểm trường (AUTH-20); bếp điểm trường mình. */
+    /** Phạm vi người xem: HT toàn trường; PHT theo phạm vi HT cấp (AUTH-20 cập nhật 10/11/2026); bếp điểm trường mình. */
     private record Viewer(
             CurrentUser user,
             boolean principal,
             Set<Long> leadCampuses,
             Set<Long> kitchenCampuses,
-            Predicate<Long> editsCampus) {
+            Predicate<Long> editsCampus,
+            Predicate<Long> viewsCampus) {
         boolean sees(Long campusId) {
             return reviews(campusId) || kitchenCampuses.contains(campusId);
         }
 
         // HT, PHT thấy cả số chờ xác nhận lại; bếp chỉ thấy số đã xác nhận.
-        // AUTH-20: PHT còn phân công xem số suất mọi điểm trường; xác nhận/điều chỉnh vẫn theo phạm vi
+        // Phân quyền động (Cần chốt 10/11/2026): PHT xem số suất trong phạm vi ATTENDANCE_VIEW hoặc MEAL_COUNT_CONFIRM
+        // HT cấp (mặc định cơ sở mình, SCHOOL = toàn trường)
         boolean reviews(Long campusId) {
-            return principal || !leadCampuses.isEmpty();
+            return principal || (!leadCampuses.isEmpty() && viewsCampus.test(campusId));
         }
 
         // NUT-02 + AUTH-20: HT xác nhận mọi điểm trường; PHT có MEAL_COUNT_CONFIRM trong phạm vi được giao
@@ -99,9 +101,9 @@ public class MealCountServiceImpl implements MealCountService {
             return editsCampus.test(campusId);
         }
 
-        // NUT-02: điều chỉnh suất thay thế chỉ PHT, cùng phạm vi xác nhận
+        // NUT-02: điều chỉnh suất thay thế: PHT trong phạm vi xác nhận; HT mọi điểm trường (Cần chốt 10/11/2026)
         boolean adjusts(Long campusId) {
-            return !principal && editsCampus.test(campusId);
+            return editsCampus.test(campusId);
         }
 
         StaffRole confirmerRole() {
@@ -439,7 +441,11 @@ public class MealCountServiceImpl implements MealCountService {
         Map<Long, Boolean> editable = new HashMap<>();
         Predicate<Long> editsCampus = campusId -> editable.computeIfAbsent(
                 campusId, id -> campusAccessPolicy.canEditCampus(user, Permission.MEAL_COUNT_CONFIRM, id));
-        return new Viewer(user, principal, lead, kitchen, editsCampus);
+        Map<Long, Boolean> viewable = new HashMap<>();
+        Predicate<Long> viewsCampus = campusId -> viewable.computeIfAbsent(
+                campusId,
+                id -> campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, id) || editsCampus.test(id));
+        return new Viewer(user, principal, lead, kitchen, editsCampus, viewsCampus);
     }
 
     private static Set<Long> campusesOf(

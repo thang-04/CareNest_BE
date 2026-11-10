@@ -231,6 +231,15 @@ public enum ApiCode {
             "Thay hoặc gỡ giáo viên của lớp tại màn Phân công giáo viên (năm đang học lớp phải còn giáo viên)"),
     ASSIGNMENT_END_IN_PAST(2325, HttpStatus.BAD_REQUEST, "Không kết thúc phân công lùi về trước hôm qua"),
     STAFF_ACCOUNT_LOCKED(2326, HttpStatus.CONFLICT, "Tài khoản nhân sự đã bị khóa"),
+    CLASS_NEEDS_TWO_TEACHERS(
+            2328, HttpStatus.BAD_REQUEST, "Năm học đang hoạt động: mỗi lớp phải có đúng 2 giáo viên đứng lớp"),
+    HOMEROOM_REQUIRED(2329, HttpStatus.BAD_REQUEST, "Chọn giáo viên chủ nhiệm trong 2 giáo viên của lớp"),
+    SUBSTITUTE_REPLACED_REQUIRED(2330, HttpStatus.BAD_REQUEST, "Chọn giáo viên được dạy thay"),
+    SUBSTITUTE_REPLACED_NOT_IN_CLASS(
+            2331, HttpStatus.BAD_REQUEST, "Giáo viên được dạy thay phải đang đứng lớp này vào ngày bắt đầu"),
+    SUBSTITUTE_IS_CLASS_TEACHER(2332, HttpStatus.BAD_REQUEST, "Giáo viên đứng lớp này không dạy thay cho lớp mình"),
+    SUBSTITUTE_ALREADY_COVERED(
+            2333, HttpStatus.CONFLICT, "Giáo viên này đã có người dạy thay trong khoảng ngày đã chọn"),
     VICE_PRINCIPAL_CAMPUS_TAKEN(
             2327,
             HttpStatus.CONFLICT,

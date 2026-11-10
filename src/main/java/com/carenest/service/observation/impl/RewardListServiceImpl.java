@@ -35,6 +35,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationPeriodType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RewardAction;
 import com.carenest.utils.enums.RewardStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -184,7 +185,7 @@ public class RewardListServiceImpl implements RewardListService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.REWARD_EDIT_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -334,13 +335,16 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private boolean canEdit(CurrentUser user, ClassroomInfoResponse cls, RewardList list) {
-        return rules.canRecord(user, cls)
+        return user.hasPermission(Permission.ASSESSMENT_RECORD)
+                && rules.canRecord(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && (list == null || list.isEditable());
     }
 
     private boolean isReviewer(CurrentUser user, RewardList list) {
-        return user.hasRole(CareNestRole.VICE_PRINCIPAL) && rules.leadsCampus(user, list.getCampusId());
+        return user.hasRole(CareNestRole.VICE_PRINCIPAL)
+                && user.hasPermission(Permission.REWARD_REVIEW)
+                && rules.leadsCampus(user, Permission.REWARD_REVIEW, list.getCampusId());
     }
 
     private boolean canReview(CurrentUser user, RewardList list) {

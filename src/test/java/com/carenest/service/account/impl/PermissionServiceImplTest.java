@@ -141,8 +141,8 @@ class PermissionServiceImplTest {
     }
 
     @Test
-    @DisplayName("AUTH-23: ma trận có cột TEAM_LEADER HT sửa được; chưa có quyền nào cấu hình được cho cột này")
-    void teamLeaderColumnIsEditableButHasNoPermissionYet() {
+    @DisplayName("AUTH-23: ma trận TEAM_LEADER có các quyền điểm danh và đánh giá được cấu hình")
+    void teamLeaderColumnExposesModulePermissions() {
         given(rolePermissionRepository.findAll()).willReturn(List.of());
 
         assertThat(permissionService.getRolePermissions())
@@ -150,7 +150,15 @@ class PermissionServiceImplTest {
                 .singleElement()
                 .satisfies(role -> {
                     assertThat(role.editable()).isTrue();
-                    assertThat(role.configurablePermissions()).isEmpty();
+                    assertThat(role.configurablePermissions())
+                            .contains(
+                                    Permission.ATTENDANCE_VIEW,
+                                    Permission.ATTENDANCE_RECORD,
+                                    Permission.DAILY_HEALTH_RECORD,
+                                    Permission.PICKUP_RECORD,
+                                    Permission.ASSESSMENT_VIEW,
+                                    Permission.ASSESSMENT_RECORD,
+                                    Permission.ASSESSMENT_CONFIRM);
                     assertThat(role.permissions()).isEmpty();
                 });
         assertThatThrownBy(() -> permissionService.updateRolePermissions(

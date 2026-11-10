@@ -175,3 +175,9 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 - Cần chốt 10/11 (OBS-23): dòng toàn trường chỉ đếm trẻ nghỉ hẳn; dòng lớp/khối đếm chuyển lớp + nghỉ hẳn kèm %; bé chăm theo thời gian trẻ ở lớp, trẻ rời lớp trong tháng không xét bé chăm ở lớp đó; nghỉ có phép vẫn là nghỉ.
 - Test mới `schoolTotalCountsOnlyChildrenWhoQuitWhileClassRowCountsTransfers`; sửa kỳ vọng `AssessmentHistoryIntegrationTest#qualityReportUsesDaysChildBelongsToClassAndIssuedTickets` (trẻ chuyển đi không còn là bé chăm ở lớp cũ).
 - Full verify trước khi kéo dev: VERIFY PASS, 1222 test, 0 fail/error/skip. Sau đó fast-forward lên origin/dev 0b17e54 (AUTH-26), gộp 3 chiều BUSINESS_RULES.md và ApiCode.java không conflict; verify lại đang chạy.
+## Phân quyền động: phạm vi nhiều cơ sở, 2 GV đứng lớp, dạy thay, HT sửa suất thay thế — 10/11/2026
+
+- Kéo origin/dev 0b17e54 (fast-forward). Test phạm vi STAFF_ASSIGNMENT_MANAGE (SCHOOL làm được mọi cơ sở, CAMPUS chỉ cơ sở mình, thu hồi bị chặn).
+- Cần chốt 10/11: SCH-04 năm đang học đúng 2 GV + chủ nhiệm (2328, 2329); dạy thay bắt buộc chọn người được thay (V85 `replaced_user_id`, mã 2330–2333); NUT-02 HT điều chỉnh được suất thay thế. OpenAPI snapshot cập nhật có chủ đích.
+- `node scripts/verify.mjs` full: VERIFY PASS, 1224 test, 0 fail/error/skip, ArchUnit/snapshot/Spotless đạt (951 giây).
+- Chưa sửa: StaffAccessPolicy (phân công nhân sự vào cơ sở) chưa đọc override SCHOOL — chờ Cần chốt.

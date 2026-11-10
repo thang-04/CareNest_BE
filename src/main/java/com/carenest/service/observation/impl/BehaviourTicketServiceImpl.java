@@ -26,6 +26,7 @@ import com.carenest.service.observation.BehaviourTicketService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import com.carenest.utils.enums.TicketType;
 import java.time.DayOfWeek;
@@ -91,7 +92,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             .filter(p -> p.start().equals(periodStart))
                             .findFirst()
                             .orElseThrow(() -> GlobalException.of(ApiCode.TICKET_PERIOD_INVALID));
-            List<TicketBoardRow> rows = current == null ? List.of() : boardRows(cls, t, current);
+            List<TicketBoardRow> rows = current == null ? List.of() : boardRows(currentUser, cls, t, current);
             log.info("{}|rows={}|END", logPrefix, rows.size());
             return new TicketBoardResponse(new TicketClassRef(cls.id(), cls.name()), t, periods, current, rows, RULES);
         } catch (RuntimeException ex) {
@@ -108,7 +109,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(request.classId());
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.TICKET_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -389,7 +390,8 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
 
     // ---------- số liệu ----------
 
-    private List<TicketBoardRow> boardRows(ClassroomInfoResponse cls, TicketType type, TicketPeriod period) {
+    private List<TicketBoardRow> boardRows(
+            CurrentUser currentUser, ClassroomInfoResponse cls, TicketType type, TicketPeriod period) {
         List<ClassChildResponse> children = childrenOf(cls, period);
         Set<Long> endMembers =
                 enrollmentService
@@ -418,7 +420,9 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
                             t == null && eligible(type, present, flags, weeklyCount),
                             t == null ? null : toIssued(t),
                             t != null && !t.getClassroomId().equals(cls.id()),
-                            endMembers.contains(c.id()));
+                            currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
+                                    && rules.canRecord(currentUser, cls)
+                                    && endMembers.contains(c.id()));
                 })
                 .toList();
     }
