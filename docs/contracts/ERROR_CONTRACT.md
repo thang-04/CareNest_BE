@@ -35,6 +35,8 @@ Bổ sung 31/10/2026 (G94-180, phiếu khám Phụ lục II và phiếu theo dõ
 
 Bổ sung 31/10/2026 (G94-180, đón trẻ, ảnh phụ huynh, thông báo): ảnh chân dung sai loại/quá 2 MB 1131, chưa có ảnh hoặc ngoài phạm vi 1132; thông báo không tìm thấy (hoặc của người khác) 1201; đón trẻ 4101–4107 — trẻ không tìm thấy hoặc ngoài phạm vi 4101, không phải GV lớp 4102, lớp không thuộc năm học đang hoạt động 4103, ngày ngoài khoảng 4104, trẻ chưa điểm danh có mặt 4105, trẻ vắng 4106, đã trả hôm nay 4107. Lỗi theo ô của form trả trẻ, đăng ký thiết bị dùng 9001 `INVALID_REQUEST_DATA` (`verification`, `guardianPosition`, `handoverTime`, `note`, `token`, `platform`). Cần thêm vào bản Word của Cần.
 
+Bổ sung 10/11/2026 (G94-180, yêu cầu đổi SĐT phụ huynh — AUTH-21): 1136–1140 (bảng dưới). Trước khi gộp `dev` 10/11/2026 nhánh dùng 1133–1137; `dev` đã dùng 1133–1135 cho đổi vai trò, sửa hồ sơ nhân sự (AUTH-25) nên mã của nhánh dời sang 1136–1140.
+
 Bổ sung 10/11/2026 (G94-180, hồ sơ sức khỏe đầy đủ): bản giải thích xu hướng sức khỏe không tìm thấy 5040 (404). Dùng lại 8001/8002 cho AI giải thích xu hướng, 5025 cho nhân sự ngoài phạm vi, 9001 + ô cho sửa khai báo sức khỏe (bảng dưới). Cần thêm vào bản Word của Cần.
 
 Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
@@ -94,9 +96,9 @@ Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và 
 | Sửa hồ sơ / cho nghỉ học trẻ đã nghỉ | `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/CHD-03 |
 | Cho nghỉ học: ngày nghỉ, lý do sai (`leftAt`, `reason`); Sửa hồ sơ: form sai, ngày sinh sau ngày tiếp nhận, bỏ phụ huynh đang liên kết tài khoản (`guardians`), đổi cùng lúc CCCD và SĐT, thiếu quyền quản lý tài khoản khi sửa họ tên/email/CCCD phụ huynh có tài khoản | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-03, AUTH-21 |
 | Sửa hồ sơ: SĐT mới của phụ huynh có tài khoản đã là tên đăng nhập tài khoản khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.phone` | AUTH-18, G94-180/AUTH-21 |
-| Yêu cầu đổi SĐT không tồn tại / đã xử lý / người gửi tự duyệt / ngoài điểm trường | `PHONE_CHANGE_REQUEST_NOT_FOUND` (1133, 404) / `PHONE_CHANGE_REQUEST_NOT_PENDING` (1134, 409) / `PHONE_CHANGE_SELF_DECISION` (1135, 403) / `CHILD_GUARDIAN_MANAGE_DENIED` (3006, 403) | G94-180/AUTH-21 |
-| Duyệt đổi SĐT: số mới đã thuộc người khác, tài khoản đã đổi số, phụ huynh hết liên kết, trẻ đã nghỉ (desc nêu lý do) | `PHONE_CHANGE_REQUEST_STALE` (1136, 409) | G94-180/AUTH-21 |
-| Duyệt đổi SĐT khi realm Keycloak chưa bật sửa username (`docs/system/KEYCLOAK.md` mục 7) | `USERNAME_CHANGE_NOT_ALLOWED` (1137, 503) | G94-180/AUTH-21 |
+| Yêu cầu đổi SĐT không tồn tại / đã xử lý / người gửi tự duyệt / ngoài điểm trường | `PHONE_CHANGE_REQUEST_NOT_FOUND` (1136, 404) / `PHONE_CHANGE_REQUEST_NOT_PENDING` (1137, 409) / `PHONE_CHANGE_SELF_DECISION` (1138, 403) / `CHILD_GUARDIAN_MANAGE_DENIED` (3006, 403) | G94-180/AUTH-21 |
+| Duyệt đổi SĐT: số mới đã thuộc người khác, tài khoản đã đổi số, phụ huynh hết liên kết, trẻ đã nghỉ (desc nêu lý do) | `PHONE_CHANGE_REQUEST_STALE` (1139, 409) | G94-180/AUTH-21 |
+| Duyệt đổi SĐT khi realm Keycloak chưa bật sửa username (`docs/system/KEYCLOAK.md` mục 7) | `USERNAME_CHANGE_NOT_ALLOWED` (1140, 503) | G94-180/AUTH-21 |
 | AI không khả dụng / quá thời gian | `AI_SERVICE_UNAVAILABLE` (503) / `AI_TIMEOUT` (504) | AI-03 |
 | Sửa khai báo sức khỏe: form sai (ô theo khai báo, không tiền tố `declaration.`: `allergies`, `medicalHistory.tbContactDate`…), thiếu lý do khi đã có khai báo (`reason`, ≤ 300) | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-06 |
 | Giải thích xu hướng sức khỏe: AI chưa cấu hình hoặc viết ngôn ngữ chẩn đoán (bỏ, không lưu) / quá thời gian | `AI_SERVICE_UNAVAILABLE` (8001, 503) / `AI_TIMEOUT` (8002, 504) | HLT-04, AI-03 |

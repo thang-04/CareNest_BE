@@ -100,15 +100,20 @@ public enum ApiCode {
     PHONE_OF_STAFF_ACCOUNT(1130, HttpStatus.CONFLICT, "Số điện thoại này là tên đăng nhập của tài khoản nhân sự"),
     ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP, tối đa 2 MB"),
     ACCOUNT_PHOTO_NOT_FOUND(1132, HttpStatus.NOT_FOUND, "Chưa có ảnh hoặc bạn không có quyền xem ảnh này"),
-    // G94-180/AUTH-21 (user chốt 2026-11-10): đổi SĐT phụ huynh có tài khoản phải qua duyệt
-    PHONE_CHANGE_REQUEST_NOT_FOUND(1133, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu đổi số điện thoại"),
-    PHONE_CHANGE_REQUEST_NOT_PENDING(1134, HttpStatus.CONFLICT, "Yêu cầu đổi số điện thoại đã được xử lý"),
-    PHONE_CHANGE_SELF_DECISION(1135, HttpStatus.FORBIDDEN, "Không tự duyệt yêu cầu đổi số điện thoại do chính bạn gửi"),
+    STAFF_ROLE_NOT_CHANGEABLE(
+            1133, HttpStatus.BAD_REQUEST, "Chỉ đổi vai trò giữa Phó hiệu trưởng, giáo viên và nhân viên bếp"),
+    STAFF_ROLE_UNCHANGED(1134, HttpStatus.BAD_REQUEST, "Tài khoản đang có vai trò này"),
+    ACCOUNT_PROFILE_NOT_EDITABLE(1135, HttpStatus.BAD_REQUEST, "Chỉ sửa hồ sơ tài khoản nhân sự tại đây"),
+    // G94-180/AUTH-21 (user chốt 2026-11-10): đổi SĐT phụ huynh có tài khoản phải qua duyệt. Trước khi gộp dev
+    // 10/11/2026 là 1133–1137 (dev đã dùng 1133–1135 cho tài khoản nhân sự)
+    PHONE_CHANGE_REQUEST_NOT_FOUND(1136, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu đổi số điện thoại"),
+    PHONE_CHANGE_REQUEST_NOT_PENDING(1137, HttpStatus.CONFLICT, "Yêu cầu đổi số điện thoại đã được xử lý"),
+    PHONE_CHANGE_SELF_DECISION(1138, HttpStatus.FORBIDDEN, "Không tự duyệt yêu cầu đổi số điện thoại do chính bạn gửi"),
     // Lúc duyệt: số mới đã thuộc người khác hoặc tài khoản đã đổi theo đường khác từ khi gửi yêu cầu
-    PHONE_CHANGE_REQUEST_STALE(1136, HttpStatus.CONFLICT, "{0}"),
+    PHONE_CHANGE_REQUEST_STALE(1139, HttpStatus.CONFLICT, "{0}"),
     // Realm Keycloak chưa bật sửa username cho admin (docs/system/KEYCLOAK.md mục 7) ⇒ không đổi gì
     USERNAME_CHANGE_NOT_ALLOWED(
-            1137,
+            1140,
             HttpStatus.SERVICE_UNAVAILABLE,
             "Hệ thống đăng nhập chưa cho đổi tên đăng nhập. Báo quản trị viên, chưa đổi số điện thoại."),
 
@@ -237,6 +242,11 @@ public enum ApiCode {
             HttpStatus.BAD_REQUEST,
             "Thay hoặc gỡ giáo viên của lớp tại màn Phân công giáo viên (năm đang học lớp phải còn giáo viên)"),
     ASSIGNMENT_END_IN_PAST(2325, HttpStatus.BAD_REQUEST, "Không kết thúc phân công lùi về trước hôm qua"),
+    STAFF_ACCOUNT_LOCKED(2326, HttpStatus.CONFLICT, "Tài khoản nhân sự đã bị khóa"),
+    VICE_PRINCIPAL_CAMPUS_TAKEN(
+            2327,
+            HttpStatus.CONFLICT,
+            "Điểm trường này đã có Phó hiệu trưởng phụ trách. Đổi người đó sang điểm trường khác trước"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),

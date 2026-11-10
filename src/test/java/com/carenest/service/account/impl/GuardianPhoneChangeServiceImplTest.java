@@ -174,7 +174,7 @@ class GuardianPhoneChangeServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/AUTH-21: realm chưa bật sửa username (KC 400 read-only) ⇒ 1137, không đổi DB, không SMS")
+    @DisplayName("G94-180/AUTH-21: realm chưa bật sửa username (KC 400 read-only) ⇒ 1140, không đổi DB, không SMS")
     void approveFailsClearlyWhenRealmForbidsUsernameEdit() {
         willThrow(new com.carenest.integration.keycloak.IdentityProviderException(
                         com.carenest.utils.enums.IdentityProviderErrorReason.REJECTED, "read-only", null))

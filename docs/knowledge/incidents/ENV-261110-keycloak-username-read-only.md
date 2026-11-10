@@ -36,7 +36,7 @@ Keycloak 26.8.0, realm import từ `docker/keycloak/import/carenest-realm.json` 
 Keycloak 26 dùng declarative user profile: thuộc tính `username` chỉ sửa được khi realm bật "Edit username" (`editUsernameAllowed`), kể cả ngữ cảnh Admin API. Quyền ai được sửa (admin/user) nằm ở `permissions.edit` của thuộc tính trong user profile.
 
 ## Fix
-`docker/keycloak/import/carenest-realm.json`: `"editUsernameAllowed": true`, thuộc tính `username` trong `kc.user.profile.config` đổi `"edit":["admin","user"]` ⇒ `"edit":["admin"]`. Realm đã có (dev cũ, VPS) không nhập lại file ⇒ chỉnh tay theo `docs/system/KEYCLOAK.md` mục 7. BE: realm chưa chỉnh ⇒ `USERNAME_CHANGE_NOT_ALLOWED` (1137) thay cho câu chung `IDENTITY_DATA_REJECTED`; không đổi DB, không SMS.
+`docker/keycloak/import/carenest-realm.json`: `"editUsernameAllowed": true`, thuộc tính `username` trong `kc.user.profile.config` đổi `"edit":["admin","user"]` ⇒ `"edit":["admin"]`. Realm đã có (dev cũ, VPS) không nhập lại file ⇒ chỉnh tay theo `docs/system/KEYCLOAK.md` mục 7. BE: realm chưa chỉnh ⇒ `USERNAME_CHANGE_NOT_ALLOWED` (1140) thay cho câu chung `IDENTITY_DATA_REJECTED`; không đổi DB, không SMS.
 
 ## Phòng tránh
 - Đổi thuộc tính user trên Keycloak: thử trên KC thật (container `quay.io/keycloak/keycloak:26.8.0` + realm json), không suy từ tài liệu.

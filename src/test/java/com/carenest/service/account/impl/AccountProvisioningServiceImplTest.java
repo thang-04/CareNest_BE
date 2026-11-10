@@ -15,9 +15,11 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.carenest.config.AuthProperties;
 import com.carenest.dto.account.AccountResponse;
+import com.carenest.dto.account.ChangeStaffRoleRequest;
 import com.carenest.dto.account.CreateAccountRequest;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.dto.account.StaffAssignmentScopeRequest;
+import com.carenest.dto.account.UpdateAccountProfileRequest;
 import com.carenest.dto.organization.NewStaffAssignment;
 import com.carenest.dto.organization.StaffAssignmentResponse;
 import com.carenest.entity.account.UserAccount;
@@ -31,6 +33,7 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.AuthStateStore;
+import com.carenest.service.account.PermissionService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -72,6 +75,7 @@ class AccountProvisioningServiceImplTest {
     private final StaffAssignmentService staffAssignmentService = mock(StaffAssignmentService.class);
     private final GuardianChildLinkService guardianChildLinkService = mock(GuardianChildLinkService.class);
     private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
+    private final PermissionService permissionService = mock(PermissionService.class);
     private final AccountProvisioningServiceImpl service = new AccountProvisioningServiceImpl(
             userAccountRepository,
             identityProviderClient,
@@ -88,6 +92,7 @@ class AccountProvisioningServiceImplTest {
                     new TransactionTemplate(mock(PlatformTransactionManager.class))),
             guardianChildLinkService,
             enrollmentService,
+            permissionService,
             Clock.fixed(Instant.parse("2026-10-17T03:00:00Z"), ZoneOffset.UTC));
 
     @BeforeEach
@@ -531,6 +536,7 @@ class AccountProvisioningServiceImplTest {
         order.verify(authState).revokeAccountAuth(42L);
         order.verify(identityProviderClient).logoutUser("kc-t");
         verify(staffAssignmentService, never()).endAssignment(eq(6L), any());
+        verify(permissionService).clearPermissionOverrides(eq(PRINCIPAL.userId()), eq(42L), anyString());
         assertThat(teacher.getPrimaryRole()).isEqualTo(CareNestRole.PARENT);
     }
 
@@ -699,8 +705,255 @@ class AccountProvisioningServiceImplTest {
         verify(staffAssignmentService, never()).createAssignment(any());
         verify(identityProviderClient, never()).createUser(any());
         verify(identityProviderClient, never()).resetTemporaryPassword(any(), any());
+        verify(permissionService).clearPermissionOverrides(eq(PRINCIPAL.userId()), eq(46L), anyString());
         assertThat(parent.getPrimaryRole()).isEqualTo(CareNestRole.TEACHER);
         assertThat(response.assignment()).isNull();
+    }
+
+    @Test
+    @DisplayName(
+            "AUTH-15: Admin tạo Hiệu trưởng từ SĐT đã là phụ huynh (đã xác nhận) ⇒ thêm vai trò, không kiểm campus")
+    void adminTurnsConfirmedParentIntoPrincipal() {
+        UserAccount parent = UserAccount.create("kc-p", "0912000006", null, "PH", CareNestRole.PARENT);
+        ReflectionTestUtils.setField(parent, "id", 46L);
+        given(userAccountRepository.findByUsername("0912000006")).willReturn(Optional.of(parent));
+        given(identityProviderClient.getRealmRoleNames("kc-p")).willReturn(List.of("PARENT"));
+
+        service.createAccount(
+                ADMIN, new CreateAccountRequest("0912000006", "PH", null, CareNestRole.PRINCIPAL, null, null, 46L));
+
+        verify(staffAccessPolicy, never()).checkCanManageParent(any(), any());
+        verify(identityProviderClient).assignRealmRole("kc-p", "PRINCIPAL");
+        verify(userAccountRepository).updatePrimaryRole(46L, "PRINCIPAL");
+        assertThat(parent.getPrimaryRole()).isEqualTo(CareNestRole.PRINCIPAL);
+    }
+
+    private static final CurrentUser VICE_PRINCIPAL =
+            new CurrentUser(3L, "kc-vp", "0912000003", "PHT", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+
+    private UserAccount givenStaff(Long id, CareNestRole role) {
+        UserAccount account = UserAccount.create("kc-s", "0912000042", null, "Nhân sự A", role);
+        ReflectionTestUtils.setField(account, "id", id);
+        given(userAccountRepository.findById(id)).willReturn(Optional.of(account));
+        return account;
+    }
+
+    @Test
+    @DisplayName("AUTH-25: HT đổi GV sang bếp ⇒ thêm role mới, gỡ role cũ, kết thúc phân công, xóa ngoại lệ, "
+            + "phân công campus mới, hủy phiên")
+    void principalChangesTeacherToKitchenStaff() {
+        UserAccount teacher = givenStaff(42L, CareNestRole.TEACHER);
+        given(identityProviderClient.getRealmRoleNames("kc-s")).willReturn(List.of("TEACHER"));
+        given(staffAssignmentService.resolveCampusId(StaffRole.KITCHEN_STAFF, 3L, null))
+                .willReturn(3L);
+        given(staffAssignmentService.findAssignments(42L))
+                .willReturn(List.of(new StaffAssignmentResponse(
+                        7L, 42L, StaffRole.TEACHER, null, 11L, LocalDate.of(2026, 9, 1), null, false)));
+
+        service.changeStaffRole(
+                PRINCIPAL,
+                42L,
+                new ChangeStaffRoleRequest(CareNestRole.KITCHEN_STAFF, new StaffAssignmentScopeRequest(3L, null)));
+
+        verify(staffAccessPolicy).checkCanManageAccount(PRINCIPAL, 42L, CareNestRole.TEACHER);
+        verify(staffAccessPolicy).checkCanCreate(PRINCIPAL, CareNestRole.KITCHEN_STAFF, 3L);
+        InOrder order = inOrder(
+                identityProviderClient, staffAssignmentService, permissionService, userAccountRepository, authState);
+        order.verify(identityProviderClient).assignRealmRole("kc-s", "KITCHEN_STAFF");
+        order.verify(identityProviderClient).removeRealmRole("kc-s", "TEACHER");
+        order.verify(staffAssignmentService).endAssignment(7L, TODAY);
+        order.verify(permissionService).clearPermissionOverrides(eq(PRINCIPAL.userId()), eq(42L), anyString());
+        order.verify(userAccountRepository).updatePrimaryRole(42L, "KITCHEN_STAFF");
+        ArgumentCaptor<NewStaffAssignment> assignment = ArgumentCaptor.forClass(NewStaffAssignment.class);
+        order.verify(staffAssignmentService).createAssignment(assignment.capture());
+        order.verify(authState).revokeAccountAuth(42L);
+        order.verify(identityProviderClient).logoutUser("kc-s");
+        assertThat(assignment.getValue().staffRole()).isEqualTo(StaffRole.KITCHEN_STAFF);
+        assertThat(assignment.getValue().campusId()).isEqualTo(3L);
+        assertThat(assignment.getValue().validFrom()).isEqualTo(TODAY);
+        assertThat(assignment.getValue().assignedBy()).isEqualTo(PRINCIPAL.userId());
+        assertThat(teacher.getPrimaryRole()).isEqualTo(CareNestRole.KITCHEN_STAFF);
+    }
+
+    @Test
+    @DisplayName("AUTH-25: đổi sang GV không tạo phân công lớp (AUTH-15); campus chỉ để kiểm PHT")
+    void changeToTeacherCreatesNoAssignment() {
+        givenStaff(42L, CareNestRole.KITCHEN_STAFF);
+        given(identityProviderClient.getRealmRoleNames("kc-s")).willReturn(List.of("KITCHEN_STAFF"));
+
+        service.changeStaffRole(
+                VICE_PRINCIPAL,
+                42L,
+                new ChangeStaffRoleRequest(CareNestRole.TEACHER, new StaffAssignmentScopeRequest(5L, null)));
+
+        verify(staffAccessPolicy).checkCanCreate(VICE_PRINCIPAL, CareNestRole.TEACHER, 5L);
+        verify(staffAssignmentService, never()).createAssignment(any());
+        verify(userAccountRepository).updatePrimaryRole(42L, "TEACHER");
+    }
+
+    @Test
+    @DisplayName("AUTH-25: PHT không được đổi người sang PHT ⇒ 403 trước khi gọi Keycloak")
+    void vicePrincipalCannotPromoteToVicePrincipal() {
+        givenStaff(42L, CareNestRole.TEACHER);
+        given(staffAssignmentService.resolveCampusId(StaffRole.VICE_PRINCIPAL, 5L, null))
+                .willReturn(5L);
+        willThrow(GlobalException.of(ApiCode.ACCOUNT_ROLE_CREATE_DENIED))
+                .given(staffAccessPolicy)
+                .checkCanCreate(VICE_PRINCIPAL, CareNestRole.VICE_PRINCIPAL, 5L);
+
+        assertThatThrownBy(() -> service.changeStaffRole(
+                        VICE_PRINCIPAL,
+                        42L,
+                        new ChangeStaffRoleRequest(
+                                CareNestRole.VICE_PRINCIPAL, new StaffAssignmentScopeRequest(5L, null))))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.ACCOUNT_ROLE_CREATE_DENIED);
+        verifyNoInteractions(identityProviderClient, permissionService);
+    }
+
+    @Test
+    @DisplayName("AUTH-17: đổi vai trò người ngoài phạm vi quản lý ⇒ 403")
+    void changeRoleOutsideScopeIsDenied() {
+        givenStaff(42L, CareNestRole.TEACHER);
+        willThrow(GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED))
+                .given(staffAccessPolicy)
+                .checkCanManageAccount(VICE_PRINCIPAL, 42L, CareNestRole.TEACHER);
+
+        assertThatThrownBy(() -> service.changeStaffRole(
+                        VICE_PRINCIPAL, 42L, new ChangeStaffRoleRequest(CareNestRole.KITCHEN_STAFF, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.ACCOUNT_MANAGE_DENIED);
+        verifyNoInteractions(identityProviderClient);
+    }
+
+    @Test
+    @DisplayName("AUTH-25: không tự đổi, không đổi sang/từ Hiệu trưởng, không đổi sang role đang có, không đổi TK khóa")
+    void changeStaffRoleRejectsInvalidTargets() {
+        UserAccount teacher = givenStaff(42L, CareNestRole.TEACHER);
+        UserAccount principal = UserAccount.create("kc-h", "0912000044", null, "HT", CareNestRole.PRINCIPAL);
+        ReflectionTestUtils.setField(principal, "id", 44L);
+        given(userAccountRepository.findById(44L)).willReturn(Optional.of(principal));
+
+        assertThatThrownBy(() -> service.changeStaffRole(
+                        PRINCIPAL, PRINCIPAL.userId(), new ChangeStaffRoleRequest(CareNestRole.TEACHER, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.CANNOT_MANAGE_OWN_ACCOUNT);
+        assertThatThrownBy(() -> service.changeStaffRole(
+                        PRINCIPAL, 42L, new ChangeStaffRoleRequest(CareNestRole.PRINCIPAL, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.STAFF_ROLE_NOT_CHANGEABLE);
+        assertThatThrownBy(() ->
+                        service.changeStaffRole(ADMIN, 44L, new ChangeStaffRoleRequest(CareNestRole.TEACHER, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.STAFF_ROLE_NOT_CHANGEABLE);
+        assertThatThrownBy(() ->
+                        service.changeStaffRole(PRINCIPAL, 42L, new ChangeStaffRoleRequest(CareNestRole.TEACHER, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.STAFF_ROLE_UNCHANGED);
+        teacher.changeStatus(UserStatus.INACTIVE);
+        assertThatThrownBy(() -> service.changeStaffRole(
+                        PRINCIPAL, 42L, new ChangeStaffRoleRequest(CareNestRole.KITCHEN_STAFF, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.STAFF_ACCOUNT_LOCKED);
+        verifyNoInteractions(identityProviderClient);
+    }
+
+    @Test
+    @DisplayName("AUTH-25: Keycloak lỗi khi gỡ role cũ ⇒ gỡ role mới vừa thêm, DB không đổi")
+    void changeStaffRoleCompensatesWhenRemovingOldRoleFails() {
+        UserAccount teacher = givenStaff(42L, CareNestRole.TEACHER);
+        given(identityProviderClient.getRealmRoleNames("kc-s")).willReturn(List.of("TEACHER"));
+        willThrow(new IdentityProviderException(IdentityProviderErrorReason.UNAVAILABLE, "down", null))
+                .given(identityProviderClient)
+                .removeRealmRole("kc-s", "TEACHER");
+
+        assertThatThrownBy(() -> service.changeStaffRole(
+                        PRINCIPAL, 42L, new ChangeStaffRoleRequest(CareNestRole.KITCHEN_STAFF, null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.IDENTITY_PROVIDER_UNAVAILABLE);
+        verify(identityProviderClient).removeRealmRole("kc-s", "KITCHEN_STAFF");
+        verify(userAccountRepository, never()).updatePrimaryRole(any(), any());
+        verifyNoInteractions(permissionService);
+        assertThat(teacher.getPrimaryRole()).isEqualTo(CareNestRole.TEACHER);
+    }
+
+    @Test
+    @DisplayName("AUTH-25: DB lỗi khi đổi vai trò ⇒ Keycloak trả về role cũ, không hủy phiên")
+    void changeStaffRoleRestoresKeycloakWhenDatabaseFails() {
+        UserAccount teacher = givenStaff(42L, CareNestRole.TEACHER);
+        given(identityProviderClient.getRealmRoleNames("kc-s")).willReturn(List.of("TEACHER"));
+        given(staffAssignmentService.resolveCampusId(StaffRole.KITCHEN_STAFF, 3L, null))
+                .willReturn(3L);
+        given(staffAssignmentService.createAssignment(any())).willThrow(GlobalException.of(ApiCode.ASSIGNMENT_OVERLAP));
+
+        assertThatThrownBy(() -> service.changeStaffRole(
+                        PRINCIPAL,
+                        42L,
+                        new ChangeStaffRoleRequest(
+                                CareNestRole.KITCHEN_STAFF, new StaffAssignmentScopeRequest(3L, null))))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.ASSIGNMENT_OVERLAP);
+        verify(identityProviderClient).assignRealmRole("kc-s", "TEACHER");
+        verify(identityProviderClient).removeRealmRole("kc-s", "KITCHEN_STAFF");
+        verify(authState, never()).revokeAccountAuth(any());
+        assertThat(teacher.getPrimaryRole()).isEqualTo(CareNestRole.TEACHER);
+    }
+
+    @Test
+    @DisplayName("AUTH-25: sửa họ tên/email nhân sự ⇒ Keycloak rồi DB; email trống giữ email cũ")
+    void updateProfileSyncsKeycloakThenDatabase() {
+        UserAccount teacher = givenStaff(42L, CareNestRole.TEACHER);
+        ReflectionTestUtils.setField(teacher, "email", "old@example.test");
+
+        AccountResponse response = service.updateProfile(
+                PRINCIPAL, 42L, new UpdateAccountProfileRequest("  Nguyễn Văn B ", " New@Example.TEST "));
+
+        InOrder order = inOrder(identityProviderClient, userAccountRepository);
+        order.verify(identityProviderClient).updateUserProfile("kc-s", "Nguyễn Văn B", "new@example.test");
+        order.verify(userAccountRepository).saveAndFlush(teacher);
+        assertThat(response.fullName()).isEqualTo("Nguyễn Văn B");
+        assertThat(response.email()).isEqualTo("new@example.test");
+
+        service.updateProfile(PRINCIPAL, 42L, new UpdateAccountProfileRequest("Nguyễn Văn C", " "));
+        verify(identityProviderClient).updateUserProfile("kc-s", "Nguyễn Văn C", null);
+        assertThat(teacher.getEmail()).isEqualTo("new@example.test");
+    }
+
+    @Test
+    @DisplayName("AUTH-25: DB lỗi khi sửa hồ sơ ⇒ trả Keycloak về họ tên/email cũ")
+    void updateProfileRestoresKeycloakWhenDatabaseFails() {
+        UserAccount teacher = givenStaff(42L, CareNestRole.TEACHER);
+        ReflectionTestUtils.setField(teacher, "email", "old@example.test");
+        willThrow(new DataAccessResourceFailureException("connection lost"))
+                .given(userAccountRepository)
+                .saveAndFlush(teacher);
+
+        assertThatThrownBy(() -> service.updateProfile(
+                        PRINCIPAL, 42L, new UpdateAccountProfileRequest("Tên mới", "new@example.test")))
+                .isInstanceOf(DataAccessResourceFailureException.class);
+        verify(identityProviderClient).updateUserProfile("kc-s", "Nhân sự A", "old@example.test");
+    }
+
+    @Test
+    @DisplayName("AUTH-25, AUTH-19: không sửa hồ sơ phụ huynh ở đây; nhân sự kiêm phụ huynh cần quản được phụ huynh")
+    void updateProfileChecksTargetKindAndParentScope() {
+        UserAccount parent = UserAccount.create("kc-p", "0912000046", null, "PH", CareNestRole.PARENT);
+        ReflectionTestUtils.setField(parent, "id", 46L);
+        given(userAccountRepository.findById(46L)).willReturn(Optional.of(parent));
+        givenStaff(42L, CareNestRole.TEACHER);
+        given(guardianChildLinkService.findChildIdsOfGuardian(42L)).willReturn(List.of(101L));
+        willThrow(GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED))
+                .given(staffAccessPolicy)
+                .checkCanManageParent(VICE_PRINCIPAL, 42L);
+
+        assertThatThrownBy(() -> service.updateProfile(ADMIN, 46L, new UpdateAccountProfileRequest("PH", null)))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.ACCOUNT_PROFILE_NOT_EDITABLE);
+        assertThatThrownBy(() -> service.updateProfile(
+                        VICE_PRINCIPAL, 42L, new UpdateAccountProfileRequest("GV", "vp@example.test")))
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.ACCOUNT_MANAGE_DENIED);
+        verifyNoInteractions(identityProviderClient);
     }
 
     @Test

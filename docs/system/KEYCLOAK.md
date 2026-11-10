@@ -242,7 +242,7 @@ Realm **đã có** (DB dev cũ, VPS) không nhập lại file ⇒ chỉnh tay m�
 1. *Realm settings* → *General* → bật **Edit username** → *Save*.
 2. *Realm settings* → *User profile* → thuộc tính `username` → *Permission* → *Who can edit*: chỉ **Admin** (bỏ **User**) → *Save*.
 
-Chưa chỉnh thì duyệt đổi SĐT báo `USERNAME_CHANGE_NOT_ALLOWED` (1137, 503), log `usernameChangeRejected|checkRealmEditUsername`; không đổi gì, không gửi SMS, yêu cầu vẫn chờ duyệt.
+Chưa chỉnh thì duyệt đổi SĐT báo `USERNAME_CHANGE_NOT_ALLOWED` (1140, 503), log `usernameChangeRejected|checkRealmEditUsername`; không đổi gì, không gửi SMS, yêu cầu vẫn chờ duyệt.
 
 ## 8. Xử lý lỗi thường gặp
 

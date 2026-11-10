@@ -120,7 +120,7 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
                             .orElseThrow(() -> GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT));
                     GuardianDraft g = change.edit().draft();
                     if (change.infoChanged() || account.getCitizenId() == null) {
-                        account.updateProfile(g.fullName(), g.email());
+                        account.applyGuardianContact(g.fullName(), g.email());
                         account.changeCitizenId(g.citizenId());
                         userAccountRepository.saveAndFlush(account);
                         childRecordService.syncGuardianAccountInfo(

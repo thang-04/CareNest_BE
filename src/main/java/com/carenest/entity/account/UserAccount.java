@@ -105,8 +105,11 @@ public class UserAccount {
         }
     }
 
-    /** Sửa họ tên, email theo hồ sơ trẻ (G94-180/AUTH-21); tên đăng nhập đổi qua yêu cầu đổi SĐT được duyệt. */
-    public void updateProfile(String fullName, String email) {
+    /**
+     * Họ tên, email theo hồ sơ trẻ (G94-180/AUTH-21): email trống trên hồ sơ ⇒ xóa email. Tên đăng nhập đổi qua yêu cầu
+     * đổi SĐT được duyệt. Khác {@link #updateProfile} (hồ sơ nhân sự, email null ⇒ giữ).
+     */
+    public void applyGuardianContact(String fullName, String email) {
         this.fullName = fullName;
         this.email = email;
     }
@@ -122,6 +125,12 @@ public class UserAccount {
 
     public void changeStatus(UserStatus newStatus) {
         this.status = newStatus;
+    }
+
+    /** email null ⇒ giữ email cũ (AUTH-25). */
+    public void updateProfile(String newFullName, String newEmail) {
+        this.fullName = newFullName;
+        if (newEmail != null) this.email = newEmail;
     }
 
     /** Phụ huynh được nhận làm nhân sự (chỉ bản trong bộ nhớ, DB ghi bằng updatePrimaryRole). */

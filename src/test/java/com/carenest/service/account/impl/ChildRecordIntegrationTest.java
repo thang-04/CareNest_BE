@@ -300,7 +300,7 @@ class ChildRecordIntegrationTest {
                         String.class,
                         sibling))
                 .isEqualTo("Trần Thị Mẹ Mới");
-        verify(identityProviderClient).updateProfile("kc-parent-rc", "Trần Thị Mẹ Mới", null);
+        verify(identityProviderClient).replaceProfile("kc-parent-rc", "Trần Thị Mẹ Mới", null);
     }
 
     // ---------- dữ liệu ----------

@@ -29,8 +29,14 @@ public interface IdentityProviderClient {
      */
     void updateUsername(String userId, String username);
 
-    /** Đổi họ tên (firstName, như lúc tạo) và email; email null ⇒ xóa email trên provider. */
-    void updateProfile(String userId, String fullName, String email);
+    /** Đổi họ tên và email (null ⇒ giữ email cũ); email đổi thì bỏ trạng thái đã xác minh (AUTH-25, hồ sơ nhân sự). */
+    void updateUserProfile(String userId, String fullName, String email);
+
+    /**
+     * Đặt họ tên, email đúng như DB (G94-180/AUTH-21, phụ huynh theo hồ sơ trẻ): email null ⇒ xóa email trên provider;
+     * email đổi thì bỏ trạng thái đã xác minh. Khác {@link #updateUserProfile} ở cách hiểu email null.
+     */
+    void replaceProfile(String userId, String fullName, String email);
 
     /** Đặt mật khẩu tạm mới (bắt đổi ở lần đăng nhập kế tiếp). */
     void resetTemporaryPassword(String userId, String temporaryPassword);

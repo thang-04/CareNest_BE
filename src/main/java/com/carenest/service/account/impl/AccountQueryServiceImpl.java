@@ -37,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AccountQueryServiceImpl implements AccountQueryService {
     private static final String LOG_PREFIX = "[AccountQueryServiceImpl]";
+    private static final Set<CareNestRole> SCHOOL_MANAGED_ROLES =
+            Set.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF);
     private static final Set<CareNestRole> CAMPUS_MANAGED_ROLES =
             Set.of(CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF);
 
@@ -63,10 +65,13 @@ public class AccountQueryServiceImpl implements AccountQueryService {
             LocalDate today = LocalDate.now(clock);
             Collection<Long> userIds;
             Collection<CareNestRole> roles = null;
-            if (actor.hasRole(CareNestRole.ADMIN) || staffAccessPolicy.managesWholeSchool(actor)) {
+            boolean admin = actor.hasRole(CareNestRole.ADMIN);
+            if (admin || staffAccessPolicy.managesWholeSchool(actor)) {
                 userIds = campusId == null
                         ? null
                         : staffAssignmentService.findActiveStaffUserIds(Set.of(campusId), today);
+                // AUTH-17: HT chỉ xem PHT/GV/bếp — đúng các tài khoản HT mở chi tiết được; Admin xem mọi tài khoản
+                roles = admin ? null : SCHOOL_MANAGED_ROLES;
             } else {
                 // AUTH-08: PHT chỉ thấy GV/bếp đang được phân công trong campus mình
                 Set<Long> managed = staffAccessPolicy.managedCampusIds(actor);

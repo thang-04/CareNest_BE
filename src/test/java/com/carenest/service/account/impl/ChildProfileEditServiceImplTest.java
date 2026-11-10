@@ -119,7 +119,7 @@ class ChildProfileEditServiceImplTest {
 
         assertThat(account.getFullName()).isEqualTo("Mẹ Bình");
         verify(records).syncGuardianAccountInfo(50L, "Mẹ Bình", null, CITIZEN);
-        verify(identity).updateProfile("kc-50", "Mẹ Bình", null);
+        verify(identity).replaceProfile("kc-50", "Mẹ Bình", null);
         verify(support, never()).open(any(), any(), any(), any(), any(), any(), any(), any());
         assertThat(response.accountChanges())
                 .singleElement()

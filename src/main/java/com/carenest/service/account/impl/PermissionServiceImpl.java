@@ -241,6 +241,20 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     @Override
+    @Transactional
+    public void clearPermissionOverrides(Long actorUserId, Long userId, String reason) {
+        String logPrefix = LOG_PREFIX + "|clearPermissionOverrides|actorUserId=" + actorUserId + "|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            replaceOverrides(actorUserId, userId, Map.of(), reason);
+            log.info("{}|END", logPrefix);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public PageResponse<PermissionChangeLogResponse> getPermissionChangeLogs(
             CareNestRole targetRole, Long targetUserId, int page, int size) {

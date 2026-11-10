@@ -28,6 +28,9 @@ public interface PermissionService {
     UserPermissionOverridesResponse updatePermissionOverrides(
             CurrentUser actor, Long userId, UpdatePermissionOverridesRequest request);
 
+    /** Xóa mọi ngoại lệ của tài khoản kèm lịch sử (đổi/thu hồi vai trò, AUTH-25); chạy trong transaction người gọi. */
+    void clearPermissionOverrides(Long actorUserId, Long userId, String reason);
+
     PageResponse<PermissionChangeLogResponse> getPermissionChangeLogs(
             CareNestRole targetRole, Long targetUserId, int page, int size);
 }

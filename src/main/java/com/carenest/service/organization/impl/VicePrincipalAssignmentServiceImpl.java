@@ -104,12 +104,22 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 return toResponse(year);
             }
             // Phân công đã đặt cho năm sau (bắt đầu sau năm này) giữ nguyên; phân công mới dừng trước nó
-            LocalDate nextStart = null;
+            LocalDate nextStart = open.stream()
+                    .map(StaffAssignment::getValidFrom)
+                    .filter(from -> from.isAfter(year.getEndDate()))
+                    .min(LocalDate::compareTo)
+                    .orElse(null);
+            // AUTH-26: mỗi điểm trường tối đa một PHT trong khoảng phân công mới
+            if (campusId != null
+                    && staffAssignmentRepository.existsOtherVicePrincipalAtCampusOpenEnded(
+                            campusId, userId, start, nextStart == null ? null : nextStart.minusDays(1))) {
+                throw GlobalException.of(ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
+            }
             for (StaffAssignment a : open) {
                 if (a.getValidFrom().isAfter(year.getEndDate())) {
-                    nextStart =
-                            nextStart == null || a.getValidFrom().isBefore(nextStart) ? a.getValidFrom() : nextStart;
-                } else if (a.getValidFrom().isBefore(start)) {
+                    continue;
+                }
+                if (a.getValidFrom().isBefore(start)) {
                     a.endBefore(start);
                 } else {
                     staffAssignmentRepository.delete(a);

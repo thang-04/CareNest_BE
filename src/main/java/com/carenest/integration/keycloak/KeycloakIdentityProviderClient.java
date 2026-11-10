@@ -11,6 +11,7 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -191,16 +192,24 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
 
     @Override
     public void setUserEnabled(String userId, boolean enabled) {
-        Map<String, Object> user = getUser("setUserEnabled", userId);
-        user.put("enabled", enabled);
-        putUser("setUserEnabled", userId, user);
+        updateUser("setUserEnabled", userId, user -> user.put("enabled", enabled));
+    }
+
+    @Override
+    public void updateUserProfile(String userId, String fullName, String email) {
+        updateUser("updateUserProfile", userId, user -> {
+            // Họ tên đầy đủ ở firstName như lúc tạo
+            user.put("firstName", fullName);
+            if (email != null && !email.equalsIgnoreCase(String.valueOf(user.get("email")))) {
+                user.put("email", email);
+                user.put("emailVerified", false);
+            }
+        });
     }
 
     @Override
     public void updateUsername(String userId, String username) {
-        Map<String, Object> user = getUser("updateUsername", userId);
-        user.put("username", username);
-        putUser("updateUsername", userId, user);
+        updateUser("updateUsername", userId, user -> user.put("username", username));
         // Realm cấm sửa username thì Keycloak có thể bỏ qua ô này mà vẫn trả 204: đọc lại để không báo đổi thành công
         // giả
         Object saved = getUser("updateUsername", userId).get("username");
@@ -211,14 +220,25 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
     }
 
     @Override
-    public void updateProfile(String userId, String fullName, String email) {
-        Map<String, Object> user = getUser("updateProfile", userId);
-        user.put("firstName", fullName);
-        user.put("email", email == null ? "" : email);
-        putUser("updateProfile", userId, user);
+    public void replaceProfile(String userId, String fullName, String email) {
+        updateUser("replaceProfile", userId, user -> {
+            user.put("firstName", fullName);
+            String next = email == null ? "" : email;
+            Object current = user.get("email");
+            if (!next.equalsIgnoreCase(current == null ? "" : String.valueOf(current))) {
+                user.put("email", next);
+                user.put("emailVerified", false);
+            }
+        });
     }
 
     // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+    private void updateUser(String operation, String userId, Consumer<Map<String, Object>> change) {
+        Map<String, Object> user = getUser(operation, userId);
+        change.accept(user);
+        putUser(operation, userId, user);
+    }
+
     private Map<String, Object> getUser(String operation, String userId) {
         Map<String, Object> user = call(
                 operation,

@@ -217,6 +217,56 @@ paths:
           description: OK
       tags:
       - permission-controller
+  /api/accounts/{userId}/profile:
+    patch:
+      operationId: updateProfile
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateAccountProfileRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountResponse"
+          description: OK
+      tags:
+      - account-controller
+  /api/accounts/{userId}/staff-role:
+    put:
+      operationId: changeStaffRole
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeStaffRoleRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountDetailResponse"
+          description: OK
+      tags:
+      - account-controller
   /api/accounts/{userId}/staff-role/revoke:
     post:
       operationId: revokeStaffRole
@@ -8169,6 +8219,23 @@ components:
       - confirmPassword
       - currentPassword
       - newPassword
+    ChangeStaffRoleRequest:
+      type: object
+      properties:
+        assignment:
+          $ref: "#/components/schemas/StaffAssignmentScopeRequest"
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - PRINCIPAL
+          - VICE_PRINCIPAL
+          - TEACHER
+          - KITCHEN_STAFF
+          - PARENT
+          - TEAM_LEADER
+      required:
+      - role
     ChildAddressInput:
       type: object
       properties:
@@ -10118,6 +10185,37 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    DishIngredientLine:
+      type: object
+      properties:
+        costPerChild:
+          type: number
+        dishId:
+          type: integer
+          format: int64
+        dishName:
+          type: string
+        foodId:
+          type: integer
+          format: int64
+        foodName:
+          type: string
+        gramsPerChild:
+          type: number
+        purchasePerChild:
+          type: number
+        purchaseUnit:
+          type: string
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        unitPrice:
+          type: number
+        wastePct:
+          type: number
     DishRequest:
       type: object
       properties:
@@ -10172,6 +10270,20 @@ components:
         generatedAt:
           type: string
           format: date-time
+    DryLine:
+      type: object
+      properties:
+        availableQty:
+          type: number
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        requiredQty:
+          type: number
+        shortFrom:
+          type: string
+          format: date
+        shortQty:
+          type: number
     DryStock:
       type: object
       properties:
@@ -10186,6 +10298,12 @@ components:
           format: int32
         status:
           type: string
+        upcomingShortFoodCount:
+          type: integer
+          format: int32
+        upcomingShortFrom:
+          type: string
+          format: date
     DuplicateCheckResponse:
       type: object
       properties:
@@ -11096,6 +11214,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FreshForecastDay"
+        dryLines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DryLine"
         id:
           type: integer
           format: int64
@@ -13648,6 +13770,10 @@ components:
         date:
           type: string
           format: date
+        dishIngredients:
+          type: array
+          items:
+            $ref: "#/components/schemas/DishIngredientLine"
         dishes:
           type: array
           items:
@@ -18999,6 +19125,20 @@ components:
         count:
           type: integer
           format: int32
+    UpdateAccountProfileRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+        fullName:
+          type: string
+          maxLength: 150
+          minLength: 0
+      required:
+      - fullName
     UpdateAccountStatusRequest:
       type: object
       properties:
