@@ -117,8 +117,7 @@ class MealPlanPublishConcurrencyIntegrationTest {
             String status = jdbc.queryForObject(
                     "SELECT status FROM meal_plan_weeks WHERE week_start = ?", String.class, MONDAY);
             Long afternoonDish = jdbc.queryForObject(
-                    "SELECT i.dish_id FROM meal_plan_items i JOIN meal_plan_days d ON d.id = i.day_id"
-                            + " WHERE d.menu_date = ? AND i.session = 'AFTERNOON'",
+                    "SELECT i.dish_id FROM meal_plan_items i WHERE i.menu_date = ? AND i.session = 'AFTERNOON'",
                     Long.class,
                     MONDAY);
             assertThat(afternoonDish).isEqualTo(banh);

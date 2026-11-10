@@ -13,14 +13,14 @@ import org.springframework.data.repository.query.Param;
 
 public interface MealPlanWeekRepository extends JpaRepository<MealPlanWeek, Long> {
 
-    // 5 ngày/tuần: lấy kèm ngày, món của ngày nạp lười trong transaction (không fetch 2 bag cùng lúc)
-    @EntityGraph(attributePaths = "days")
+    // Ngày nghỉ/ghi chú nằm trong cột jsonb của tuần; lấy kèm món một lần
+    @EntityGraph(attributePaths = "items")
     Optional<MealPlanWeek> findByWeekStart(LocalDate weekStart);
 
     List<MealPlanWeek> findByWeekStartBetweenOrderByWeekStartAsc(LocalDate from, LocalDate to);
 
-    // Kỳ dự trù hàng tươi ≤ 31 ngày (≤ 6 tuần): lấy kèm ngày một lần, món của ngày nạp lười trong transaction
-    @EntityGraph(attributePaths = "days")
+    // Kỳ dự trù hàng tươi ≤ 31 ngày (≤ 6 tuần): lấy kèm món một lần
+    @EntityGraph(attributePaths = "items")
     List<MealPlanWeek> findWithDaysByWeekStartBetweenOrderByWeekStartAsc(LocalDate from, LocalDate to);
 
     /**

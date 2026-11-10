@@ -4,11 +4,12 @@ import com.carenest.dto.meals.MealPhotoResponse;
 import com.carenest.dto.meals.MealPhotoWindowResponse;
 import com.carenest.dto.meals.MealPhotoWindowsRequest;
 import com.carenest.entity.meals.MealPhoto;
+import com.carenest.entity.meals.MealPhotoSettings;
 import com.carenest.entity.meals.MealPhotoWindow;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.storage.StorageService;
 import com.carenest.repository.meals.MealPhotoRepository;
-import com.carenest.repository.meals.MealPhotoWindowRepository;
+import com.carenest.repository.meals.MealPhotoSettingsRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.meals.MealPhotoService;
 import com.carenest.service.organization.StaffAssignmentService;
@@ -20,11 +21,8 @@ import java.io.InputStream;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.Comparator;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +41,7 @@ public class MealPhotoServiceImpl implements MealPhotoService {
     private static final long MAX_PHOTO_BYTES = 10L * 1024 * 1024;
     private static final int SNIFF_BYTES = 12;
 
-    private final MealPhotoWindowRepository windowRepository;
+    private final MealPhotoSettingsRepository settingsRepository;
     private final MealPhotoRepository photoRepository;
     private final StorageService storageService;
     private final StaffAssignmentService staffAssignmentService;
@@ -57,7 +55,7 @@ public class MealPhotoServiceImpl implements MealPhotoService {
         log.info("{}|START", logPrefix);
         try {
             kitchenAccess.checkCanRead(currentUser);
-            List<MealPhotoWindowResponse> response = allWindows();
+            List<MealPhotoWindowResponse> response = toResponses(settings());
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -83,20 +81,14 @@ public class MealPhotoServiceImpl implements MealPhotoService {
                     throw GlobalException.of(ApiCode.MEAL_PHOTO_WINDOW_INVALID);
                 }
             }
-            Map<MealSession, MealPhotoWindow> existing = new HashMap<>();
-            windowRepository.findAll().forEach(window -> existing.put(window.getSession(), window));
             var now = clock.instant();
-            for (MealPhotoWindowsRequest.WindowInput input : request.windows()) {
-                MealPhotoWindow window = existing.get(input.session());
-                if (window == null) {
-                    windowRepository.save(MealPhotoWindow.of(
-                            input.session(), input.startTime(), input.endTime(), currentUser.userId(), now));
-                } else {
-                    window.change(input.startTime(), input.endTime(), currentUser.userId(), now);
-                }
-            }
-            windowRepository.flush();
-            List<MealPhotoWindowResponse> response = allWindows();
+            MealPhotoSettings settings = settings();
+            settings.replaceWindows(request.windows().stream()
+                    .map(input -> new MealPhotoWindow(
+                            input.session(), input.startTime(), input.endTime(), currentUser.userId(), now))
+                    .toList());
+            settingsRepository.flush();
+            List<MealPhotoWindowResponse> response = toResponses(settings);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -113,8 +105,8 @@ public class MealPhotoServiceImpl implements MealPhotoService {
             Long campusId = kitchenAccess.resolveWriteCampus(currentUser);
             String contentType = inspect(file);
             // NUT-16: chỉ đăng ảnh của hôm nay trong khung giờ HT cấu hình; chưa cấu hình thì chưa đăng được
-            MealPhotoWindow window = windowRepository
-                    .findById(session)
+            MealPhotoWindow window = settings()
+                    .window(session)
                     .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PHOTO_WINDOW_NOT_CONFIGURED, label(session)));
             if (!window.contains(LocalTime.now(clock))) {
                 throw GlobalException.of(ApiCode.MEAL_PHOTO_OUT_OF_WINDOW, label(session));
@@ -178,10 +170,15 @@ public class MealPhotoServiceImpl implements MealPhotoService {
         }
     }
 
-    private List<MealPhotoWindowResponse> allWindows() {
-        return windowRepository.findAll().stream()
-                .sorted(Comparator.comparing(MealPhotoWindow::getSession))
-                .map(w -> new MealPhotoWindowResponse(w.getSession(), w.getStartTime(), w.getEndTime()))
+    private MealPhotoSettings settings() {
+        return settingsRepository
+                .findById(MealPhotoSettings.SINGLETON_ID)
+                .orElseThrow(() -> new IllegalStateException("edu_settings singleton row is missing"));
+    }
+
+    private static List<MealPhotoWindowResponse> toResponses(MealPhotoSettings settings) {
+        return settings.getWindows().stream()
+                .map(w -> new MealPhotoWindowResponse(w.session(), w.startTime(), w.endTime()))
                 .toList();
     }
 

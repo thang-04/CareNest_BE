@@ -228,9 +228,7 @@ VALUES ('TP001', 'Gạo tẻ', 'GRAIN', 'g', 'kg', 1000, 18000, 344, 7.9, 1.0, 7
        ('TP004', 'Sữa bò tươi', 'EGG_DAIRY', 'ml', 'hộp 180 ml', 180, 8000, 74, 3.9, 4.4, 4.8, 'DEV_SAMPLE', 0, 'DRY', 'ANIMAL')
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO food_allergens (food_id, allergen_id)
-SELECT f.id, a.id FROM foods f JOIN allergens a ON a.code = 'COW_MILK' WHERE f.code = 'TP004'
-ON CONFLICT DO NOTHING;
+UPDATE foods SET allergen_codes = 'COW_MILK' WHERE code = 'TP004' AND allergen_codes = '';
 
 INSERT INTO dishes (code, name, dish_type, description)
 VALUES ('M001', 'Cháo thịt bằm cà rốt', 'CARB', 'Món demo')
@@ -255,9 +253,7 @@ VALUES ('TP005', 'Dầu đậu nành', 'FAT_SUGAR', 'g', 'chai 1 kg', 1000, 4500
        ('TP008', 'Trứng gà', 'EGG_DAIRY', 'g', 'kg', 1000, 60000, 166, 14.8, 11.6, 0.5, 'DEV_SAMPLE', 12, 'FRESH', 'ANIMAL')
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO food_allergens (food_id, allergen_id)
-SELECT f.id, a.id FROM foods f JOIN allergens a ON a.code = 'EGG' WHERE f.code = 'TP008'
-ON CONFLICT DO NOTHING;
+UPDATE foods SET allergen_codes = 'EGG' WHERE code = 'TP008' AND allergen_codes = '';
 
 INSERT INTO dishes (code, name, dish_type, description)
 VALUES ('M002', 'Cơm trắng', 'CARB', 'Món demo'),

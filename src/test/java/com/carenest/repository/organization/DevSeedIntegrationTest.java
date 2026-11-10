@@ -120,7 +120,7 @@ class DevSeedIntegrationTest {
         assertThat(
                         count(
                                 schema,
-                                "select count(*) from %1$s.stock_lots l where l.quantity <> (select coalesce(sum(m.quantity), 0)"
+                                "select count(*) from (select l.id, l.food_id, l.quantity, r.campus_id from %1$s.stock_receipt_lines l join %1$s.stock_receipts r on r.id = l.receipt_id and r.status = 'CONFIRMED') l where l.quantity <> (select coalesce(sum(m.quantity), 0)"
                                         + " from %1$s.stock_movements m where m.lot_id = l.id and m.movement_type = 'RECEIPT')"))
                 .isZero();
         // Mọi thực phẩm khô của thực đơn đã công bố đều có lô ở cả hai điểm trường
@@ -130,14 +130,15 @@ class DevSeedIntegrationTest {
                                 "select count(*) from %1$s.campuses c cross join (select distinct di.food_id from"
                                         + " %1$s.meal_plan_items i join %1$s.dish_ingredients di on di.dish_id = i.dish_id"
                                         + " join %1$s.foods f on f.id = di.food_id and f.storage = 'DRY') x where not exists"
-                                        + " (select 1 from %1$s.stock_lots l where l.campus_id = c.id and l.food_id = x.food_id)"))
+                                        + " (select 1 from (select l.id, l.food_id, l.quantity, r.campus_id from %1$s.stock_receipt_lines l join %1$s.stock_receipts r on r.id = l.receipt_id and r.status = 'CONFIRMED') l where l.campus_id = c.id and l.food_id = x.food_id)"))
                 .isZero();
         assertThat(count(schema, "select count(*) from %s.meal_plan_weeks where status = 'PUBLISHED'"))
                 .isEqualTo(4);
         assertThat(count(
                         schema,
-                        "select count(*) from %1$s.meal_plan_days d where (select count(distinct i.menu_block)"
-                                + " from %1$s.meal_plan_items i where i.day_id = d.id) <> 2"))
+                        "select count(*) from %1$s.meal_plan_weeks w cross join jsonb_array_elements(w.days) d"
+                                + " where (select count(distinct i.menu_block) from %1$s.meal_plan_items i"
+                                + " where i.week_id = w.id and i.menu_date = (d ->> 'date')::date) <> 2"))
                 .isZero();
         assertThat(count(schema, "select count(*) from %s.menu_template_items")).isEqualTo(220);
 
@@ -219,7 +220,7 @@ class DevSeedIntegrationTest {
                 .isZero();
         assertThat(count(
                         schema,
-                        "select count(*) from %1$s.stock_lots l where (select sum(m.quantity) from %1$s.stock_movements m"
+                        "select count(*) from (select l.id, l.food_id, l.quantity, r.campus_id from %1$s.stock_receipt_lines l join %1$s.stock_receipts r on r.id = l.receipt_id and r.status = 'CONFIRMED') l where (select sum(m.quantity) from %1$s.stock_movements m"
                                 + " where m.lot_id = l.id) < 0"))
                 .isZero();
 

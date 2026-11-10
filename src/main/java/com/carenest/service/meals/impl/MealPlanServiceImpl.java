@@ -37,6 +37,7 @@ import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
+import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
 import com.carenest.utils.enums.Micronutrient;
@@ -257,6 +258,10 @@ public class MealPlanServiceImpl implements MealPlanService {
             BigDecimal totalCost = ingredients.stream()
                     .map(MenuStatisticsResponse.Ingredient::cost)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
+            // NUT-10: hàng tươi phải đặt mua, hàng khô lấy từ kho — tách tổng để màn "Định lượng & đi chợ" chia hai
+            // bảng
+            BigDecimal freshCost = costOf(ingredients, FoodStorage.FRESH);
+            BigDecimal dryCost = costOf(ingredients, FoodStorage.DRY);
             List<MenuStatisticsResponse.Dish> dishViews = items.stream()
                     .map(i -> {
                         Dish dish = dishes.get(i.dishId());
@@ -274,6 +279,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     ingredients,
                     dishIngredients,
                     totalCost,
+                    freshCost,
+                    dryCost,
                     evaluation.cost(),
                     evaluation.mealPrice(),
                     evaluation);
@@ -286,6 +293,13 @@ public class MealPlanServiceImpl implements MealPlanService {
     }
 
     private record Headcount(int count, String source) {}
+
+    private static BigDecimal costOf(List<MenuStatisticsResponse.Ingredient> ingredients, FoodStorage storage) {
+        return ingredients.stream()
+                .filter(i -> i.storage() == storage)
+                .map(MenuStatisticsResponse.Ingredient::cost)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 
     // N trẻ: người xem nhập > suất đã xác nhận của điểm trường–ngày (NUT-03) > sĩ số đang học của nhóm tuổi
     private Headcount headcountOf(MenuStatisticsRequest request, Long ageGroupId, LocalDate date) {
@@ -357,7 +371,8 @@ public class MealPlanServiceImpl implements MealPlanService {
                     size,
                     qty,
                     food.getUnitPrice(),
-                    cost));
+                    cost,
+                    food.getStorage()));
         });
         rows.sort(Comparator.comparing(MenuStatisticsResponse.Ingredient::foodName));
         return rows;
