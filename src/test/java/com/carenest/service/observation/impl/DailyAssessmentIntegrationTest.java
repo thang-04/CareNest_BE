@@ -42,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -196,6 +197,34 @@ class DailyAssessmentIntegrationTest {
                 + "week_start, status, content, created_by, updated_by) VALUES ('w-a', 'week', " + classA + ", "
                 + plan + ", " + theme + ", '2026-10-26', 'APPROVED', '" + content + "'::jsonb, "
                 + principal.userId() + ", " + principal.userId() + ") RETURNING id");
+    }
+
+    @Test
+    @DisplayName("OBS-01: trẻ vắng thì mục tiêu của giáo án ngày đó tính Chưa đạt ở tổng quan lớp")
+    void absentChildCountsDayGoalsAsNotMetInClassDetail() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(
+                                new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true)),
+                                new SaveAttendanceRequest.Entry(child2, AttendanceStatus.UNEXCUSED, Map.of()))));
+        ClassAssessmentDetailResponse detail = overviewService.getClassDetail(principal, classA, "DAY");
+        // Giáo án thứ 4 (hôm nay) có 2 mục tiêu ở Hoạt động học
+        assertThat(detail.children())
+                .filteredOn(r -> r.childId().equals(child2))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.chuaDat()).isEqualTo(2);
+                    assertThat(r.dat()).isZero();
+                });
+        // Trẻ có mặt chưa đánh giá: không có lượt nào
+        assertThat(detail.children())
+                .filteredOn(r -> r.childId().equals(child1))
+                .singleElement()
+                .satisfies(r -> assertThat(r.chuaDat()).isZero());
     }
 
     @Test

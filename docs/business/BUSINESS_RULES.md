@@ -157,7 +157,7 @@ Khi thêm rule mới: thêm ID kế tiếp trong nhóm, ghi nguồn, cập nhậ
 
 | ID | Rule | Status | Nguồn |
 | --- | --- | --- | --- |
-| OBS-01 | Đánh giá hằng ngày cho mọi trẻ có mặt; trẻ vắng vẫn hiện trong danh sách lớp (cả ngày đã qua, chỉ xem) nhưng không đánh giá được, không lưu kết quả ngày đó (Cần chốt 10/11/2026): mặc định "bình thường", GV chỉ sửa trẻ khác thường; nhập theo tiêu chí có cấu trúc, có ô nhận xét không bắt buộc | CONFIRMED | Report 1; khảo sát team 27/10 (DAS-01, DAS-04, DAS-07, DAS-10) |
+| OBS-01 | Đánh giá hằng ngày cho mọi trẻ có mặt; trẻ vắng vẫn hiện trong danh sách lớp (cả ngày đã qua, chỉ xem) nhưng không đánh giá được, không lưu kết quả ngày đó (Cần chốt 10/11/2026); mọi mục tiêu của giáo án ngày trẻ vắng (đã điểm danh vắng) tính Chưa đạt — hiện ở Kiến thức kỹ năng và Tổng quan đánh giá lớp: mặc định "bình thường", GV chỉ sửa trẻ khác thường; nhập theo tiêu chí có cấu trúc, có ô nhận xét không bắt buộc | CONFIRMED | Report 1; khảo sát team 27/10 (DAS-01, DAS-04, DAS-07, DAS-10) |
 | OBS-02 | Các mặt đánh giá ngày: ăn uống, ngủ, cảm xúc, hành vi/quan hệ với bạn, tham gia hoạt động, kiến thức–kỹ năng theo bài học, sức khỏe. Mức: Đạt / Cần cố gắng / Chưa đạt. Tiêu chí cố định theo chương trình của Bộ hay trường cấu hình: P-11 | CONFIRMED / PENDING | Report 1; khảo sát team 27/10 (DAS-02, DAS-03, DAS-09) |
 | OBS-03 | Hồ sơ phát triển là view liên tục theo trẻ, gồm: điểm danh, sức khỏe và tăng trưởng, đánh giá ngày, nhận xét định kỳ, khen thưởng. Không có mục theo dõi/can thiệp riêng | CONFIRMED | Report 1; khảo sát team 27/10 (PER-06, PER-07) |
 | OBS-04 | Nhận xét có mẫu nền không dùng AI; AI chỉ là tùy chọn tạo nháp. AI tắt/lỗi ⇒ dùng mẫu nhận xét điền số liệu sẵn | CONFIRMED | Report 1; khảo sát team 27/10 (AI-08) |
