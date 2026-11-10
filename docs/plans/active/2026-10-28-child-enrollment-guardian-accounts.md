@@ -187,6 +187,11 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 - Lệch nghiệp vụ chưa giải quyết, ghi ở `docs/business/BUSINESS_RULES.md` mục "G94-180 — chờ đánh lại mã": mã CHD-01..10, AUTH-20, AUTH-21, ATT-09, HLT-08 của nhánh này trùng mã rule khác nội dung bên `dev` (khảo sát team 27/10); AUTH-18 `dev` bỏ gửi mật khẩu qua SMS (30/10) trong khi lưu form tiếp nhận gửi SMS; CHD-03 `dev` không chuyển cơ sở.
 - `docs/api/openapi.yaml` sinh lại từ code sau gộp (`-Dopenapi.snapshot.update=true`).
 
+### 2026-11-11 — Phase 8: bảng tổng quan PHT (mục 4.8)
+- `GET /children/parent-accounts?status&keyword` (`ChildController` → `ChildListService.listParentAccounts`): mỗi phụ huynh trên hồ sơ trẻ Đang học, Chờ xếp lớp người xem quản lý được, dòng như BE giả `listParentAccounts` (không có `key`; `guardian` bỏ CCCD, email; `username` null khi chưa kích hoạt). Từ khóa không phân biệt dấu (BE giả dùng `normalizeText`). Phạm vi, truy vấn dùng chung với `GET /children` (tách `scopeOf`, `rowsOf`); tên đăng nhập lấy thêm cột `username` ở `ChildGuardianRepository.findAccountRows`.
+- Trước đó cùng ngày: `GET /children/guardian-overview` cho màn Tài khoản phụ huynh (mục 4.7; một lần gọi cho cả trang).
+- Test: `ParentAccountListIntegrationTest` (5), `ChildControllerTest` (+3). OpenAPI snapshot cập nhật (chỉ thêm).
+
 ## Đặc tả (chép từ FE ngày 28/10/2026)
 
 Nguồn: `FE:docs/integration/CHILD_ENROLLMENT_BE_SPEC.md`. "BE giả" = mock của FE (bản chạy được của từng luật); đường dẫn `FE:` nằm ở repo CareNest_FE.

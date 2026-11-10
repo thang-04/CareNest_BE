@@ -46,6 +46,18 @@ class GuardianViews {
         return views;
     }
 
+    /** Tên đăng nhập của tài khoản đã liên kết với trẻ, theo id phụ huynh trên hồ sơ; chưa kích hoạt không có khóa. */
+    Map<Long, String> usernames(Collection<Long> childIds) {
+        if (childIds.isEmpty()) {
+            return Map.of();
+        }
+        return childGuardianRepository.findAccountRows(childIds).stream()
+                .filter(row -> row.getUsername() != null)
+                .collect(Collectors.toMap(
+                        ChildGuardianRepository.GuardianAccountRow::getGuardianId,
+                        ChildGuardianRepository.GuardianAccountRow::getUsername));
+    }
+
     private static ChildGuardianResponse view(ChildGuardian g, ChildGuardianRepository.GuardianAccountRow row) {
         String accountStatus = row == null ? null : row.getAccountStatus();
         String smsStatus = row == null ? null : row.getSmsStatus();

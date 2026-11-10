@@ -3,6 +3,7 @@ package com.carenest.controller.child;
 import com.carenest.dto.child.ChildListFilter;
 import com.carenest.dto.child.ChildListItemResponse;
 import com.carenest.dto.child.ChildProfileResponse;
+import com.carenest.dto.child.ParentAccountRowResponse;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.child.ChildListService;
@@ -10,9 +11,11 @@ import com.carenest.service.child.ChildService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import com.carenest.utils.enums.ChildStatus;
+import com.carenest.utils.enums.GuardianAccountStatus;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,6 +68,20 @@ public class ChildController {
                         size));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Search children success", children);
+    }
+
+    // Bảng tổng quan PHT (đặc tả FE mục 4.8): mỗi phụ huynh trên hồ sơ trẻ chưa nghỉ; không theo năm học (Y-5)
+    @GetMapping("/parent-accounts")
+    @PreAuthorize("@permissionGuard.has('PARENT_ACCOUNT_MANAGE')")
+    public ResponseEntity<ResponseJson<List<ParentAccountRowResponse>>> listParentAccounts(
+            @RequestParam(required = false) GuardianAccountStatus status,
+            @RequestParam(required = false) @Size(max = 100) String keyword,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|listParentAccounts|userId=" + currentUser.userId() + "|status=" + status;
+        log.info("{}|START", logPrefix);
+        List<ParentAccountRowResponse> rows = childListService.listParentAccounts(currentUser, status, keyword);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "List parent accounts success", rows);
     }
 
     // Quyền chỉ là lớp 1; ChildService kiểm phạm vi lớp/liên kết của đúng trẻ này (lớp 2)

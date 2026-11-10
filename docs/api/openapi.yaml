@@ -2059,6 +2059,35 @@ paths:
           description: OK
       tags:
       - guardian-controller
+  /api/children/parent-accounts:
+    get:
+      operationId: listParentAccounts
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - NOT_ACTIVATED
+          - ACTIVE
+          - INACTIVE
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 0
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListParentAccountRowResponse"
+          description: OK
+      tags:
+      - child-controller
   /api/children/parent-accounts/by-citizen-id:
     get:
       operationId: findParentAccount
@@ -14606,6 +14635,28 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    ParentAccountRowResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        childCode:
+          type: string
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        className:
+          type: string
+        guardian:
+          $ref: "#/components/schemas/ChildGuardianResponse"
+        guardianIndex:
+          type: integer
+          format: int32
+        username:
+          type: string
     ParentPasswordResponse:
       type: object
       properties:
@@ -16887,6 +16938,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MenuTemplateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListParentAccountRowResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentAccountRowResponse"
         desc:
           type: string
         errorCode:
