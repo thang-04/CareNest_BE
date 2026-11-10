@@ -1,6 +1,6 @@
 # Module — ai-assistance
 
-Vị trí: `integration/ai/` (`AiClient`, `EmbeddingClient`) + feature `knowledge` (RAG) · Status: đã có lát cắt nhận xét trẻ · ADR-0007, ADR-0008
+Vị trí: `integration/ai/` (`AiClient`, `EmbeddingClient`) · Status: lõi adapter/guard có sẵn; lát cắt nhận xét trẻ cũ và feature `knowledge` (RAG) tạm gỡ khỏi build (10/11/2026), code còn ở commit `0d8938a`; đang làm AI bán trú theo `docs/superpowers/specs/2026-11-09-boarding-ai-quality-gate-design.md` · ADR-0007, ADR-0008
 
 ## Mục đích
 Cách ly AI provider khỏi domain; áp guardrail, data minimization, logging metadata. RAG dùng chung cho mọi module AI.
@@ -12,7 +12,7 @@ Cách ly AI provider khỏi domain; áp guardrail, data minimization, logging me
   - Adapter `ExternalAiClient` / `ExternalEmbeddingClient`: API tương thích OpenAI `/chat/completions`, `/embeddings`.
   - Adapter `DisabledAiClient` / `DisabledEmbeddingClient`.
   - `AiOutputGuard`, `PromptTemplateLoader` (prompt có version trong `resources/prompts/`), `AiProperties`.
-- Feature `knowledge`: tài liệu tham khảo (`ai_documents`, `ai_document_chunks` + pgvector), nạp/cắt chunk/embedding, truy xuất có lọc metadata. API `/ai-documents` (ADMIN, PRINCIPAL; VP xem).
+- (Tạm gỡ) feature `knowledge`: tài liệu tham khảo + pgvector, API `/ai-documents`. Lấy lại từ commit `0d8938a` khi làm giáo án; cần chốt image pgvector cho compose/test trước.
 
 ## KHÔNG owns
 Draft nghiệp vụ (lưu ở module domain, vd. `child_summaries`), quyết định duyệt, dữ liệu domain (không query domain).

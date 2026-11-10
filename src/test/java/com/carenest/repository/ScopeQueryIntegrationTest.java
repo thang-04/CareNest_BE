@@ -9,7 +9,6 @@ import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
-import com.carenest.support.TestDatabaseImage;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
@@ -42,7 +41,7 @@ class ScopeQueryIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer(TestDatabaseImage.POSTGRES);
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     private JdbcTemplate jdbc;

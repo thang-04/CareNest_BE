@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 import com.carenest.entity.account.*;
 import com.carenest.repository.account.*;
-import com.carenest.support.TestDatabaseImage;
 import com.carenest.utils.enums.PasswordTokenPurpose;
 import java.time.Instant;
 import org.junit.jupiter.api.*;
@@ -53,7 +52,7 @@ class AuthStateStoreIntegrationTest {
 
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer(TestDatabaseImage.POSTGRES);
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     AuthStateStore store;

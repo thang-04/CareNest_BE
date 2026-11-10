@@ -1,7 +1,6 @@
 services:
   postgres:
-    # PostgreSQL 17 kèm extension pgvector cho RAG (ai_document_chunks.embedding)
-    image: pgvector/pgvector:pg17
+    image: postgres:17-alpine
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-carenest}
       POSTGRES_USER: ${POSTGRES_USER:-carenest}

@@ -2,7 +2,6 @@ package com.carenest.repository.account;
 
 import static org.assertj.core.api.Assertions.*;
 
-import com.carenest.support.TestDatabaseImage;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +17,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 class AuthSchemaIntegrationTest {
     @Container
     @ServiceConnection
-    static PostgreSQLContainer postgres = new PostgreSQLContainer(TestDatabaseImage.POSTGRES);
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired
     JdbcTemplate jdbc;
