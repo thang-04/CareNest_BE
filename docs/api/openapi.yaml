@@ -12872,59 +12872,59 @@ components:
         environment:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         health:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         overall:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         parents:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         program:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         records:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         routine:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         theme:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
     Line:
       type: object
       properties:
