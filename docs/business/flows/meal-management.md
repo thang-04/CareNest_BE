@@ -91,7 +91,7 @@ Còn mở: mẫu sổ lưu mẫu (P-26); kiểm thực ba bước (P-27).
 
 ## AI gợi ý thực đơn (tùy chọn, không bắt buộc)
 
-Bắt buộc: gợi ý kế hoạch tuần. Tùy chọn, làm nếu kịp: gợi ý thực đơn mẫu, gợi ý điều chỉnh thực đơn dự kiến ngày (AI-07). Nháp lưu ở `ai_drafts` (ADR-0018).
+Bắt buộc: gợi ý kế hoạch tuần. Tùy chọn, làm nếu kịp: gợi ý thực đơn mẫu, gợi ý điều chỉnh thực đơn dự kiến ngày (AI-07). Nháp lưu ở `menu_ai_drafts` thuộc nutrition (ADR-0024); chỉ mang nhãn AI khi qua cổng cứng và không thua phương án theo quy tắc. Tiêu chí và căn cứ: `docs/quality/ai-menu-quality-criteria.md`.
 
 ```text
 Input tối thiểu: food/nutrition data, nhóm tuổi, thực đơn gần đây, mùa, khẩu vị vùng,

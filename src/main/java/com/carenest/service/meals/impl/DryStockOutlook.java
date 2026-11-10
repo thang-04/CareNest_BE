@@ -229,6 +229,15 @@ class DryStockOutlook {
                 .toList();
     }
 
+    /** Tồn còn dùng được tại ngày {@code onDate} theo thực phẩm: tổng lô còn số dư, chưa hết hạn trước ngày đó. */
+    Map<Long, BigDecimal> usableBalances(Long campusId, LocalDate onDate) {
+        Map<Long, BigDecimal> usable = new HashMap<>();
+        lots(campusId).stream()
+                .filter(lot -> lot.balance().signum() > 0 && !lot.expiryDate().isBefore(onDate))
+                .forEach(lot -> usable.merge(lot.foodId(), lot.balance(), BigDecimal::add));
+        return usable;
+    }
+
     private Map<Long, BigDecimal> openShortfalls(Long campusId) {
         Map<Long, BigDecimal> owed = new HashMap<>();
         demandRepository

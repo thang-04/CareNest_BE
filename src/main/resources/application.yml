@@ -110,6 +110,25 @@ carenest:
         data-class: PUBLIC_CATALOG
         deadline: 15s
         max-repair-rounds: 1
+  # Gợi ý thực đơn (AI-07): số món ứng viên mỗi ô, trọng số điểm phương án (chỉ chỉnh khi có kết quả eval), khung ô
+  # mặc định của bữa khi khối chưa có thực đơn mẫu đang dùng
+  menu-ai:
+    candidate-limit: 15
+    weights:
+      norm: 45
+      cost: 20
+      variety: 25
+      warnings: 10
+    default-slots:
+      MORNING:
+        - [SNACK, DESSERT]
+      LUNCH:
+        - [CARB]
+        - [MAIN]
+        - [SOUP]
+        - [VEGETABLE]
+      AFTERNOON:
+        - [CARB, SNACK, DESSERT]
 
 management:
   endpoints:

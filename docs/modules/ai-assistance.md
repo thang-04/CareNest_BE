@@ -1,106 +1,74 @@
 # Module — ai-assistance
 
-Vị trí: `integration/ai/` (`AiClient`, `EmbeddingClient`) · Status: lõi adapter/guard có sẵn; lát cắt nhận xét trẻ cũ và feature `knowledge` (RAG) tạm gỡ khỏi build (10/11/2026), code còn ở commit `0d8938a`; đang làm AI bán trú theo `docs/superpowers/specs/2026-11-09-boarding-ai-quality-gate-design.md` · ADR-0007, ADR-0008
+Vị trí: `integration/ai/` (port `AiGateway`) · Status: lõi gọi provider theo task xong (10/11/2026); dùng đầu tiên cho AI thực đơn bán trú (`docs/plans/active/2026-11-10-boarding-menu-ai.md`). Lát cắt nhận xét trẻ cũ, embedding và feature `knowledge` (RAG) đã gỡ, code còn ở commit `0d8938a` · ADR-0007, ADR-0008
 
 ## Mục đích
-Cách ly AI provider khỏi domain; áp guardrail, data minimization, logging metadata. RAG dùng chung cho mọi module AI.
+Cách ly AI provider khỏi domain; chọn provider theo loại dữ liệu, giới hạn thời gian, log metadata. Kiểm output là việc của domain (mỗi tác vụ có guard riêng).
 
 ## Owns
 - `integration/ai/`:
-  - Port `AiClient` (task-typed; hiện có `draftChildSummary`).
-  - Port `EmbeddingClient`.
-  - Adapter `ExternalAiClient` / `ExternalEmbeddingClient`: API tương thích OpenAI `/chat/completions`, `/embeddings`.
-  - Adapter `DisabledAiClient` / `DisabledEmbeddingClient`.
-  - `AiOutputGuard`, `PromptTemplateLoader` (prompt có version trong `resources/prompts/`), `AiProperties`.
-- (Tạm gỡ) feature `knowledge`: tài liệu tham khảo + pgvector, API `/ai-documents`. Lấy lại từ commit `0d8938a` khi làm giáo án; cần chốt image pgvector cho compose/test trước.
+  - Port `AiGateway`: `isAvailable(task)`, `taskConfig(task)`, `complete(AiRequest)` ⇒ `AiRawResult` (nội dung thô, provider, model, prompt version, token, latency).
+  - Dùng enum `utils/enums/AiTask` (`MENU_WEEKLY`, `MENU_DAILY`, `MENU_DAY_FIX`), `utils/enums/AiDataClass` (`PUBLIC_CATALOG`, `CHILD_DERIVED`) — enum dùng chung phải ở `utils/enums` (ArchUnit `sharedEnumsInUtils`).
+  - `ProviderChainAiGateway`: thử lần lượt provider trong chuỗi của task tới khi có nội dung hoặc hết deadline.
+  - `OpenAiCompatibleProvider`: `POST {baseUrl}/chat/completions`, `response_format` JSON, không retry.
+  - `AiProperties`, `PromptTemplateLoader` (prompt có version trong `resources/prompts/`), `AiClientException` + `AiErrorReason`.
 
 ## KHÔNG owns
-Draft nghiệp vụ (lưu ở module domain, vd. `child_summaries`), quyết định duyệt, dữ liệu domain (không query domain).
+Nháp nghiệp vụ (lưu ở module domain, vd. `menu_ai_drafts`), guard output theo tác vụ, quyết định duyệt, dữ liệu domain (không query domain).
 
 ## Rules
 AI-01..10, HLT-04, NUT-05. Provider: Gemini API, Groq (AI-09, ADR-0007).
 
 ## Phụ thuộc
 - Dùng: common/utils. **Không import module domain nào.**
-- Được dùng bởi: nutrition, health, learning-observation, education-plan — domain tự build input tối thiểu rồi gọi port.
+- Được dùng bởi: nutrition (đang làm); health, learning-observation, education-plan (sau) — domain tự dựng input tối thiểu rồi gọi port.
 
 ```text
-domain: facts tính bằng code → ẩn danh → KnowledgeService.retrieve (lọc SQL rồi mới tìm vector)
-      → AiClient → adapter → provider → AiOutputGuard
-      ← DRAFT (source=AI, model, prompt version, generatedAt) lưu ở domain → GV sửa → GV duyệt
-AI tắt/lỗi ⇒ domain dùng template baseline, nghiệp vụ không dừng
+domain: dữ liệu tính bằng code → prompt tối thiểu (không danh tính trẻ) → AiGateway.complete
+      → chuỗi provider của task (lọc theo AiDataClass, bỏ provider thiếu cấu hình) → nội dung thô
+      ← domain guard + kiểm xác định → DRAFT (source, model, prompt version) lưu ở domain → người duyệt
+AI tắt/lỗi/hết deadline ⇒ domain dùng phương án không AI, nghiệp vụ không dừng (AI-03)
 ```
 
 ## Cấu hình (`carenest.ai.*`, env `AI_*` — xem `.env.example`)
 - `AI_ENABLED=false` mặc định.
-- LLM và embedding là 2 provider độc lập; đổi provider chỉ đổi env (base URL, model, key).
-- Đề xuất free tier (đổi được):
+- `providers[]`: `id`, `base-url`, `model`, `api-key`, `may-train-on-data`, timeout, `reasoning-effort`. Thiếu base URL/model/key ⇒ provider bị bỏ khỏi chuỗi (không lỗi khởi động).
+- `tasks.<TASK>`: `chain` (thứ tự provider), `data-class`, `deadline` (cho cả chuỗi), `max-repair-rounds` (domain dùng).
+- Lỗi khởi động khi: id provider trống/trùng, chuỗi trỏ provider không tồn tại, task `CHILD_DERIVED` (hoặc không khai `data-class`) có provider `may-train-on-data=true`.
+- Mặc định (đổi được):
 
-  | Vai trò | Provider | Lưu ý |
+  | Provider | `may-train-on-data` | Dùng cho |
   |---|---|---|
-  | LLM | Groq | Theo docs Groq: mặc định không giữ dữ liệu inference |
-  | Embedding | Gemini `gemini-embedding-001` | Chỉ nhận tài liệu công khai + query dựng bằng code |
-
-- `AI_EMBEDDING_DIMENSIONS=0`: dùng số chiều mặc định của model.
-- Cột `embedding` là `vector` không cố định số chiều. Truy vấn lọc theo `embedding_model`. Đổi model ⇒ gọi `POST /ai-documents/{id}/reindex`.
-- Không tạo index ANN: kho tài liệu nhỏ. Thêm HNSW khi có số chiều cố định ≤ 2000 và kho lớn.
-- `AI_RAG_REGION` (mặc định `HAI_PHONG`): tài liệu có region này hoặc `ALL` mới được dùng.
+  | `gemini` (OpenAI-compat `/v1beta/openai`) | true (free tier có thể dùng dữ liệu để train) | task `PUBLIC_CATALOG` (thực đơn), đứng đầu chuỗi |
+  | `groq` | false (theo docs Groq: không giữ dữ liệu inference) | dự phòng thực đơn; task dữ liệu trẻ |
 
 ## Guardrail đã enforce bằng code
-- **Output:**
-  - Đúng JSON schema.
-  - Mỗi ý có `evidenceIds` thuộc input.
-  - `sources` thuộc các chunk đã gửi.
-  - Không có từ chẩn đoán (tự kỷ, tăng động, rối loạn…).
-  - Mọi con số phải có trong facts.
-  - Sai ⇒ retry 1 lần ⇒ `OUTPUT_INVALID`.
-- **Input:**
-  - Không gửi họ tên/ngày sinh/id thật; tuổi tính theo tháng.
-  - Ghi chú được ẩn danh: tên trẻ ⇒ "Trẻ", tên bạn cùng lớp ⇒ "bạn", SĐT/email ⇒ "[đã ẩn]".
-  - Facts có `dataNotAvailable` để AI không nhắc nguồn chưa có.
-- **RAG:**
-  - Nạp tài liệu từ chối câu mang tính ra lệnh (prompt injection).
-  - Chunk được bọc `<reference>` và trung hoà ký tự `<`, `>`.
-  - Prompt ghi rõ tài liệu chỉ là bằng chứng.
-- **Lỗi:**
-  - 429 ⇒ `RATE_LIMITED`; timeout ⇒ `TIMEOUT` (không retry); 5xx/mất kết nối ⇒ `PROVIDER_UNAVAILABLE`.
-  - Domain trả `aiErrorCode` (vd. `AI_TIMEOUT`) kèm bản template.
-- **Log:** chỉ metadata (model, prompt version, latency, token, số chunk). Không log prompt, facts, output, nội dung chunk.
+- **Chọn provider:** task dữ liệu trẻ không đi qua provider có thể train (kiểm lúc khởi động và lúc gọi).
+- **Thời gian:** read timeout mỗi lần gọi = min(timeout provider, thời gian còn lại tới deadline); hết deadline ⇒ `TIMEOUT`.
+- **Lỗi:** 429 ⇒ `RATE_LIMITED`; timeout ⇒ `TIMEOUT`; 4xx/5xx khác, mất kết nối ⇒ `PROVIDER_UNAVAILABLE`; response rỗng ⇒ `OUTPUT_INVALID`. Mọi lỗi ⇒ thử provider kế tiếp; hết chuỗi ⇒ ném lỗi cuối. Không có provider dùng được ⇒ `DISABLED`.
+- **Log:** một dòng mỗi lần gọi: task, provider, model, prompt version, trạng thái/lý do, latency, token. Không log prompt, output, API key.
 
-## Eval chạy tay với provider thật (không chạy trong CI)
-- **Lệnh** (Git Bash, ở thư mục repo):
-  ```bash
-  set -a && . ./.env && set +a
-  AI_LIVE_EVAL=true ./mvnw test -Dtest=AiLiveEvalTest
-  ```
-- **Dữ liệu:** `src/test/resources/ai-eval/summary-cases.json`, gồm 5 case giả lập: ổn định, giấc ngủ cần theo dõi, kỳ có xu hướng, dữ liệu ít, ghi chú dụ chẩn đoán + chèn lệnh.
-- **Tiêu chí chấm:** case nào cũng phải qua `AiOutputGuard`.
-- **Kết quả:** nội dung nháp ghi UTF-8 vào `target/ai-eval/summary-<model>-<prompt>.json` để nhóm đọc và so sánh.
-- **Kết quả 2026-10-15** với `openai/gpt-oss-120b` (Groq), `reasoning_effort=low`, prompt `summary/draft_v2`:
-  - 5/5 case qua guard.
-  - Khoảng 1.0–1.5 giây và ~1.5k token mỗi bản nháp.
-  - Câu chèn lệnh trong ghi chú bị bỏ qua.
-- **Prompt v1 → v2:** v1 hay thêm thắt (vd. "khả năng lãnh đạo" từ một ghi chú). v2 cấm suy diễn tính cách/năng lực và cấm khái quát một lần thành thói quen.
-- **Embedding `gemini-embedding-001`:** 3072 chiều; câu liên quan ~0.80, không liên quan ~0.52 ⇒ `AI_RAG_MIN_SCORE=0.65`.
-- **Lưu ý provider:**
-  - Gemini (OpenAI-compat) trả `index: null` trong response embeddings ⇒ adapter giữ thứ tự response.
-  - Groq free giới hạn token/phút ⇒ gọi dồn dập bị 429, luồng tự chuyển template.
+## Dùng ở đâu
+- Thực đơn bán trú (nutrition, ADR-0024): `MenuSuggestionEngine` gọi task `MENU_WEEKLY`, `MENU_DAILY`, `MENU_DAY_FIX`; prompt `prompts/menu/{weekly_v1,repair_v1,daily_v1,dayfix_v1}.txt`. Eval tay: `MenuAiLiveEvalTest` (`AI_LIVE_EVAL=true`, `AI_LIVE_EVAL_RUNS`, `AI_LIVE_EVAL_PAUSE_MS`), case `src/test/resources/ai-eval/menu-cases.json`, báo cáo `target/ai-eval/menu-eval-*.json` ⇒ chép vào `docs/quality/ai-eval/<ngày>/`.
+
+## Lịch sử eval nhận xét trẻ (slice đã gỡ)
+- 2026-10-15, Groq `openai/gpt-oss-120b`, `reasoning_effort=low`, prompt `summary/draft_v2`: 5/5 case qua guard, ~1.0–1.5 giây, ~1.5k token/bản; câu chèn lệnh bị bỏ qua. Báo cáo: `docs/quality/ai-summary-evaluation-report.md`.
+- Groq free giới hạn token/phút ⇒ gọi dồn dập bị 429.
+- Gemini (OpenAI-compat) trả `index: null` trong response embeddings ⇒ khi lấy lại embedding phải giữ thứ tự response.
 
 ## PENDING
-- P-02 / ADR-0007: chốt provider + điều khoản lưu dữ liệu trước khi gửi dữ liệu trẻ thật. Free tier Gemini có thể dùng dữ liệu để train ⇒ chỉ dùng cho embedding tài liệu công khai.
-- Nạp PDF cần thư viện (PDFBox) ⇒ hỏi trước khi thêm dependency; v1 chỉ nhận text/markdown.
-P-34: nháp tổng kết năm học (AI-07 mục 5) — làm tới đâu, module nào lưu nháp.
+- P-02 / ADR-0007: chốt điều khoản lưu dữ liệu trước khi gửi dữ liệu dẫn xuất từ trẻ thật.
+- P-34: nháp tổng kết năm học (AI-07 mục 5) — làm tới đâu, module nào lưu nháp.
+- RAG (giáo án): lấy lại `knowledge` từ `0d8938a`; cần chốt image pgvector cho compose/test; nạp PDF cần PDFBox (hỏi trước khi thêm dependency).
 
 ## Known pitfalls
-- Gọi SDK provider trực tiếp từ domain ⇒ vi phạm AI-06 (ArchUnit chặn `org.springframework.web.client` ngoài `integration/`).
-- Timeout/lỗi AI không được làm fail nghiệp vụ; domain dùng baseline.
+- Gọi SDK/HTTP provider trực tiếp từ domain ⇒ vi phạm AI-06 (ArchUnit chặn `org.springframework.web.client` ngoài `integration/`).
+- Timeout/lỗi AI không được làm fail nghiệp vụ; domain dùng phương án không AI.
 - Log prompt/response chứa dữ liệu trẻ ⇒ vi phạm AI-05.
-- Không tin output AI: guard trước khi lưu DRAFT.
-- Query RAG gửi ra embedding API ⇒ chỉ dựng từ nhóm tuổi + tên tiêu chí, không đưa ghi chú/tên trẻ.
-- Sửa prompt ⇒ tạo file version mới (`draft_v2.txt`), không sửa file cũ; version được lưu kèm nháp.
-- Không tin output AI: validate schema + rule xác định trước khi lưu DRAFT.
-- Nhận xét tự do của GV đưa vào prompt cũng phải lọc tên, ngày sinh (AI-08, AI-04).
-- Gợi ý thực đơn có công tắc bật/tắt (AI-07); tắt ⇒ không gọi provider.
+- Không tin output AI: domain guard + kiểm xác định trước khi lưu DRAFT.
+- Sửa prompt ⇒ tạo file version mới (`weekly_v2.txt`), không sửa file cũ; version được lưu kèm nháp.
+- Prompt `.txt` phải commit: `.gitignore` có ngoại lệ `!src/main/resources/prompts/**/*.txt` (ENV-261017-gitignore-txt-drops-ai-prompts).
+- Nhận xét tự do của GV đưa vào prompt phải lọc tên, ngày sinh (AI-08, AI-04).
 
 ## Related issues
-G94-200 / BE-FEAT-28 — `docs/plans/active/2026-10-14-ai-assessment-drafting.md`.
+G94-200 / BE-FEAT-28 — `docs/plans/active/2026-11-10-boarding-menu-ai.md`; lịch sử `docs/plans/active/2026-10-14-ai-assessment-drafting.md`.

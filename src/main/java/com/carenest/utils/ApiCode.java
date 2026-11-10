@@ -461,6 +461,16 @@ public enum ApiCode {
     FOOD_SAMPLE_STATE_INVALID(6070, HttpStatus.CONFLICT, "Bản lưu mẫu đang ở trạng thái không cho phép thao tác này"),
     FOOD_SAMPLE_DISH_INVALID(6071, HttpStatus.BAD_REQUEST, "Cần chọn ít nhất một món, các món phải còn trong danh mục"),
     MEAL_PHOTO_WINDOW_FORBIDDEN(6072, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được cấu hình khung giờ đăng ảnh bữa ăn"),
+    MENU_AI_DRAFT_NOT_FOUND(6080, HttpStatus.NOT_FOUND, "Không tìm thấy gợi ý thực đơn"),
+    MENU_AI_DRAFT_NOT_PENDING(
+            6081,
+            HttpStatus.CONFLICT,
+            "Gợi ý thực đơn đã dùng, đã bỏ hoặc không có phương án, không thao tác tiếp được"),
+    MENU_AI_DRAFT_STALE(
+            6082,
+            HttpStatus.CONFLICT,
+            "Dữ liệu món hoặc định mức đã đổi nên gợi ý không còn đạt kiểm tra, hãy tạo gợi ý mới"),
+    MENU_AI_DRAFT_KIND_INVALID(6083, HttpStatus.CONFLICT, "Thao tác này không dùng cho loại gợi ý đã chọn"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
