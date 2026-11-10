@@ -562,6 +562,12 @@ class ThemeEvaluationIntegrationTest {
                 + " now(), now() FROM classrooms c WHERE c.id = " + classA + " RETURNING id");
         expectCode(() -> sheetService.get(teacher, monthEval), ApiCode.YEAR_SHEET_ONLY_YEAR_END);
 
+        // OBS-06 (Cần chốt 10/11/2026): học kỳ II chưa kết thúc thì chưa xác nhận cuối năm
+        expectCode(
+                () -> evaluationService.confirm(
+                        teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động."),
+                ApiCode.YEAR_END_NOT_OPEN);
+        endSemesterTwo();
         // Xác nhận đánh giá cuối năm: chốt cả phiếu; kết quả ngày đổi sau đó không đổi phiếu
         evaluationService.confirm(teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động.");
         result(kid1, classA, "2026-10-20", "k8", "", String.valueOf(goal2));
@@ -634,6 +640,7 @@ class ThemeEvaluationIntegrationTest {
         assertThat(evaluationService.list(leader, EvaluationPeriodType.YEAR, null, null, null))
                 .extracting(r -> r.id())
                 .doesNotContain(yearEval);
+        endSemesterTwo();
         evaluationService.confirm(teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động.");
         assertThat(sheetService.get(leader, yearEval).canEdit()).isFalse();
         assertThat(evaluationService.get(leader, yearEval).evaluation().id()).isEqualTo(yearEval);
@@ -679,6 +686,16 @@ class ThemeEvaluationIntegrationTest {
                         .child()
                         .id())
                 .isEqualTo(kid1);
+    }
+
+    /** Học kỳ II kết thúc trước hôm nay (21/10/2026) để mở đánh giá cuối năm. */
+    private void endSemesterTwo() {
+        jdbc.update(
+                "UPDATE school_years SET semester1_start='2026-09-01', semester1_end='2026-09-30',"
+                        + " semester2_start='2026-10-01', semester2_end='2026-10-20'"
+                        + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        entityManager.clear();
     }
 
     private ThemeEvaluationService themeService() {

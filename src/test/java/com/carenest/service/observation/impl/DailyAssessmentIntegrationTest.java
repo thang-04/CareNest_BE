@@ -833,7 +833,10 @@ class DailyAssessmentIntegrationTest {
     @Test
     void yearDraftSurvivesTransferAndProgramReportCountsCurrentRosterOnce() {
         var year = com.carenest.utils.enums.EvaluationPeriodType.YEAR;
-        jdbc.update("UPDATE school_years SET end_date = '2026-10-31' WHERE status = 'ACTIVE'");
+        // OBS-06 (Cần chốt 10/11/2026): cuối năm mở khi học kỳ II kết thúc (27/10, trước hôm nay 28/10)
+        jdbc.update("UPDATE school_years SET end_date = '2026-10-31', semester1_start = start_date,"
+                + " semester1_end = '2026-09-30', semester2_start = '2026-10-01', semester2_end = '2026-10-27'"
+                + " WHERE status = 'ACTIVE'");
         jdbc.update(
                 "UPDATE classrooms SET age_group_id = (SELECT id FROM age_groups WHERE code = 'ag-5' LIMIT 1) WHERE id IN (?, ?)",
                 classA,
