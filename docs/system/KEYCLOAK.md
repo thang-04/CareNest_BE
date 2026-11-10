@@ -154,6 +154,8 @@ Keycloak đã có realm thì `--import-realm` bỏ qua file user dev: đổi fil
 
 Lớp A1 có `Trẻ Demo A1-01`, `Trẻ Demo A1-02`; lớp B1 có `Trẻ Demo B1-01`. Tất cả là dữ liệu giả.
 
+Dữ liệu thử màn G94-180 (`db/dev/R__dev_seed_thuong_hong_records_health.sql`): `principal` có 2 yêu cầu đổi SĐT phụ huynh chờ duyệt, `viceprincipal` 1 (tài khoản phụ huynh seed không có user Keycloak ⇒ chỉ xem/từ chối; thử duyệt bằng yêu cầu mới cho `parent1`/`parent2`); 3 trẻ chờ xếp lớp mới (1 trẻ chưa khai báo sức khỏe), 1 trẻ đã nghỉ học; 2 trẻ chuyển lớp 09/11/2026 (`teacher1` nhận "Lớp có trẻ mới"), 1 trẻ Lớp A1 khai tiếp xúc lao; 2 kỳ cân đo đã đóng mỗi điểm trường. `parent1` xem được giải thích xu hướng đã duyệt của `Trẻ Demo A1-01`; giải thích của `Trẻ Demo B1-01` (sụt cân) còn nháp, `teacher2` duyệt.
+
 Thử phân quyền với `GET /api/children/{id}` (id thật xem bằng `docker compose exec postgres psql -U carenest -d carenest -c "select id, full_name from children"`) — kết quả đã kiểm e2e:
 
 | User | A1-01 | A1-02 | B1-01 | id không tồn tại |

@@ -1,6 +1,6 @@
 ---
 title: Hồ sơ sức khỏe đầy đủ — khai báo, thông báo lao, phụ huynh xem, AI giải thích xu hướng
-status: in-progress
+status: done
 owner: G94 team
 jira: G94-180 / BE-FEAT-43
 branch: feature/G94-180-BE-FEAT-43-child-health-pickup
@@ -8,7 +8,7 @@ modules: [child, health, notification, ai-assistance]
 rules: [G94-180/CHD-06, G94-180/CHD-07, HLT-02, HLT-03, HLT-04, HLT-05, HLT-11, PAR-01, PAR-03, AI-01, AI-02, AI-03, AI-04, AI-05, AI-06, AI-07, AI-09]
 risk: high
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 ---
 # Hồ sơ sức khỏe đầy đủ
 

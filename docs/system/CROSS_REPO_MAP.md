@@ -114,7 +114,7 @@ GET ChildDay thêm `handedOverAt` và `contacts[{fullName,relationship,phone}]`,
 
 ## Hồ sơ trẻ, sức khỏe, xếp lớp, danh sách trẻ — 10/11/2026 (nhánh G94-180)
 
-BE đã làm; FE (module `children` còn `demo`) và APP cần nối. Plan: `docs/plans/active/2026-11-10-health-record-complete.md`, `docs/plans/active/2026-11-10-child-placement-list.md`.
+BE đã làm; FE (module `children` còn `demo`) và APP cần nối. Plan: `docs/plans/completed/2026-11-10-health-record-complete.md`, `docs/plans/completed/2026-11-10-child-placement-list.md`.
 - **FE — khai báo sức khỏe:** `PUT /children/{id}/health-declaration` `{ declaration, reason }` (lỗi ô không tiền tố `declaration.`); `GET /children/{id}/profile` = `{ child, cls, declaration, placements }`.
 - **FE — xếp / chuyển lớp:** `POST /children/{id}/placement` `{ classId, reason }` ⇒ ChildView; lỗi 400 + ô `classId` / `reason`, trẻ đã nghỉ 409 3011 (BE giả trả 403 / 422). `cls.schoolYearId` là id số (BE giả dùng tên năm).
 - **FE — danh sách trẻ `GET /children`:** `childrenApi.listAllChildren` cần gửi `schoolYear` (id số, không phải tên `2026-2027`), `status` (lặp tham số, mặc định bỏ trẻ đã nghỉ — màn Danh sách trẻ muốn thấy trẻ đã nghỉ phải gửi đủ 3 trạng thái), `classId`, `keyword`; đọc `items`, `totalPages`, `classId`, `className`; `guardians[].relation` là mã (`MOTHER`…) — adapter đổi nhãn như hồ sơ; không có CCCD, email phụ huynh. Màn Tài khoản phụ huynh (`guardianApi`) không phải đổi: tham số `classroomId`, `q` vẫn nhận; mỗi dòng vẫn có `classroomId`, `guardianCount`; nay có `canManage` thật (FE đang ép `true`).

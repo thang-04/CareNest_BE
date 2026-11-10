@@ -8,7 +8,7 @@ modules: [child, identity-access, notification]
 rules: [G94-180/AUTH-21, G94-180/CHD-03, G94-180/CHD-04, G94-180/CHD-08, AUTH-18, CHD-04]
 risk: high
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 ---
 # Sửa hồ sơ trẻ (đổi SĐT phụ huynh qua duyệt), cho trẻ nghỉ học
 

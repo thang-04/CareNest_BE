@@ -1,6 +1,6 @@
 ---
 title: Xếp lớp, chuyển lớp và danh sách trẻ đầy đủ
-status: in-progress
+status: done
 owner: G94 team
 jira: G94-180 / BE-FEAT-43
 branch: feature/G94-180-BE-FEAT-43-child-health-pickup
@@ -8,7 +8,7 @@ modules: [child, notification]
 rules: [G94-180/CHD-02, G94-180/CHD-03, G94-180/CHD-06, G94-180/CHD-09, G94-180/CHD-10, CHD-04, AUTH-02, AUTH-07, AUTH-08, CMR-04]
 risk: high
 created: 2026-11-10
-updated: 2026-11-10
+updated: 2026-11-11
 ---
 # Xếp lớp, chuyển lớp và danh sách trẻ đầy đủ
 
