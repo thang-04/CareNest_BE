@@ -147,9 +147,12 @@ class RewardListIntegrationTest {
     }
 
     @Test
-    void titlesNeedConfirmedYearEndAndOneGeneralTitle() {
-        expectCode(
-                () -> service.save(teacherA, classA, list(item(kid2, GOOD)), false), ApiCode.REWARD_YEAR_END_REQUIRED);
+    void titlesDoNotWaitForYearEndAndAllowOneGeneralTitle() {
+        // Cần chốt 10/11/2026: cô chọn danh hiệu khi trẻ chưa có đánh giá cuối năm xác nhận
+        assertThat(service.save(teacherA, classA, list(item(kid2, GOOD)), false).children())
+                .filteredOn(c -> c.childId() == kid2)
+                .singleElement()
+                .satisfies(c -> assertThat(c.titles()).containsExactly(GOOD));
         expectCode(
                 () -> service.save(teacherA, classA, list(item(kid1, GOOD, EXCELLENT)), false),
                 ApiCode.REWARD_TITLE_CONFLICT);
