@@ -228,6 +228,22 @@ Tài khoản thật **luôn** tạo qua API CareNest (role ADMIN), không tạo 
 
 - Đã chỉnh trên console và muốn đối chiếu: *Realm settings* → *Action* (góc phải) → *Partial export* (secret bị che, không có user) → so với file JSON, chép phần cần giữ vào.
 
+### Đổi tên đăng nhập phụ huynh (G94-180/AUTH-21, sửa 2026-11-10)
+
+Duyệt yêu cầu đổi SĐT phụ huynh đổi `username` qua Admin API (service account `carenest-backend`). Keycloak 26.8 chặn việc này khi realm tắt sửa username: `PUT /admin/realms/carenest/users/{id}` trả `400 error-user-attribute-read-only` (đã thử 10/11/2026). File import vì vậy đặt:
+
+- `"editUsernameAllowed": true`;
+- user profile, thuộc tính `username`: `permissions.edit = ["admin"]` (bỏ `user`) ⇒ chỉ admin/service account đổi; người dùng tự đổi ở Account Console / Account REST API bị chặn `400 error-user-attribute-read-only`.
+
+Đã kiểm trên KC 26.8.0 dựng mới từ file này: service account đổi username 204 (đọc lại đúng), trùng username 409, đăng nhập bằng username mới được, người dùng tự đổi bị chặn.
+
+Realm **đã có** (DB dev cũ, VPS) không nhập lại file ⇒ chỉnh tay một lần, không cần reset DB:
+
+1. *Realm settings* → *General* → bật **Edit username** → *Save*.
+2. *Realm settings* → *User profile* → thuộc tính `username` → *Permission* → *Who can edit*: chỉ **Admin** (bỏ **User**) → *Save*.
+
+Chưa chỉnh thì duyệt đổi SĐT báo `USERNAME_CHANGE_NOT_ALLOWED` (1137, 503), log `usernameChangeRejected|checkRealmEditUsername`; không đổi gì, không gửi SMS, yêu cầu vẫn chờ duyệt.
+
 ## 8. Xử lý lỗi thường gặp
 
 | Triệu chứng | Nguyên nhân | Cách xử lý |

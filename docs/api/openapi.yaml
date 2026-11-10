@@ -1974,6 +1974,30 @@ paths:
           description: OK
       tags:
       - child-controller
+    put:
+      operationId: update
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateChildRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildUpdateResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/account-recipient:
     get:
       operationId: candidates
@@ -2360,6 +2384,31 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/ReadmitChildRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
+  /api/children/{childId}/withdraw:
+    post:
+      operationId: withdraw
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawChildRequest"
         required: true
       responses:
         "200":
@@ -5825,6 +5874,72 @@ paths:
           description: OK
       tags:
       - supplier-controller
+  /api/parent-accounts/phone-change-requests:
+    get:
+      operationId: listPhoneChangeRequests
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListGuardianPhoneChangeResponse"
+          description: OK
+      tags:
+      - guardian-phone-change-controller
+  /api/parent-accounts/phone-change-requests/{requestId}/approve:
+    post:
+      operationId: approve
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGuardianPhoneChangeResponse"
+          description: OK
+      tags:
+      - guardian-phone-change-controller
+  /api/parent-accounts/phone-change-requests/{requestId}/reject:
+    post:
+      operationId: reject
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneChangeDecisionRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGuardianPhoneChangeResponse"
+          description: OK
+      tags:
+      - guardian-phone-change-controller
   /api/parent-accounts/{userId}/status:
     patch:
       operationId: updateParentStatus
@@ -8057,6 +8172,17 @@ components:
           - ACTIVE
           - PENDING_PLACEMENT
           - LEFT
+    ChildFieldChange:
+      type: object
+      properties:
+        field:
+          type: string
+        from:
+          type: string
+        label:
+          type: string
+        to:
+          type: string
     ChildGuardianResponse:
       type: object
       properties:
@@ -8130,6 +8256,10 @@ components:
         at:
           type: string
           format: date-time
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildFieldChange"
         note:
           type: string
         userFullName:
@@ -8292,6 +8422,19 @@ components:
         unexcused:
           type: integer
           format: int32
+    ChildUpdateResponse:
+      type: object
+      properties:
+        accountChanges:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianAccountChangeResponse"
+        child:
+          $ref: "#/components/schemas/ChildViewResponse"
+        phoneChangeRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianPhoneChangeResponse"
     ChildViewResponse:
       type: object
       properties:
@@ -10945,6 +11088,23 @@ components:
         planned:
           type: integer
           format: int64
+    GuardianAccountChangeResponse:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        phoneChanged:
+          type: boolean
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+        userId:
+          type: integer
+          format: int64
     GuardianAccountResultResponse:
       type: object
       properties:
@@ -11000,12 +11160,77 @@ components:
           type: string
         fullName:
           type: string
+        id:
+          type: integer
+          format: int64
         idNumber:
           type: string
         phone:
           type: string
         relation:
           type: string
+    GuardianPhoneChangeResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canDecide:
+          type: boolean
+        childCode:
+          type: string
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        decidedAt:
+          type: string
+          format: date-time
+        decidedBy:
+          type: integer
+          format: int64
+        decidedByName:
+          type: string
+        decisionNote:
+          type: string
+        guardianId:
+          type: integer
+          format: int64
+        guardianName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        newPhone:
+          type: string
+        oldPhone:
+          type: string
+        reason:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        requestedBy:
+          type: integer
+          format: int64
+        requestedByName:
+          type: string
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+        userId:
+          type: integer
+          format: int64
     GuardianResponse:
       type: object
       properties:
@@ -13367,6 +13592,9 @@ components:
           enum:
           - CHILD_PICKED_UP
           - MEAL_COUNT_RECONFIRM
+          - CHILD_WITHDRAWN
+          - GUARDIAN_PHONE_CHANGE_REQUESTED
+          - GUARDIAN_PHONE_CHANGE_DECIDED
     NutritionTotals:
       type: object
       properties:
@@ -13793,6 +14021,11 @@ components:
           type: boolean
         canSubmit:
           type: boolean
+    PhoneChangeDecisionRequest:
+      type: object
+      properties:
+        note:
+          type: string
     PhoneLookupRequest:
       type: object
       properties:
@@ -14380,30 +14613,6 @@ components:
           format: int64
       required:
       - guardianId
-    RecordView:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        meals:
-          type: object
-          additionalProperties:
-            type: boolean
-        recordedAt:
-          type: string
-          format: date-time
-        recordedBy:
-          type: integer
-          format: int64
-        recordedByName:
-          type: string
-        status:
-          type: string
-          enum:
-          - PRESENT
-          - EXCUSED
-          - UNEXCUSED
     Referral:
       type: object
       properties:
@@ -14696,6 +14905,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ChildProfileResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonChildUpdateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildUpdateResponse"
         desc:
           type: string
         errorCode:
@@ -15104,6 +15326,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonGuardianPhoneChangeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/GuardianPhoneChangeResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonHealthCheckClassResponse:
       type: object
       properties:
@@ -15408,21 +15643,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonListClassItem:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/ClassItem"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonListChildGuardianResponse:
       type: object
       properties:
@@ -15433,6 +15653,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ChildGuardianResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListClassItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClassItem"
         desc:
           type: string
         errorCode:
@@ -15598,6 +15833,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/FreshForecastSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListGuardianPhoneChangeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianPhoneChangeResponse"
         desc:
           type: string
         errorCode:
@@ -18320,6 +18570,13 @@ components:
           - INACTIVE
       required:
       - status
+    UpdateChildRequest:
+      type: object
+      properties:
+        child:
+          $ref: "#/components/schemas/EnrollmentChildInput"
+        reason:
+          type: string
     UpdatePermissionOverridesRequest:
       type: object
       properties:
@@ -18556,6 +18813,13 @@ components:
       - endTime
       - session
       - startTime
+    WithdrawChildRequest:
+      type: object
+      properties:
+        leftAt:
+          type: string
+        reason:
+          type: string
     Year:
       type: object
       properties:

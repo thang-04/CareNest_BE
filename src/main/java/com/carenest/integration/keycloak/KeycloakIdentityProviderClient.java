@@ -191,9 +191,37 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
 
     @Override
     public void setUserEnabled(String userId, boolean enabled) {
-        // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+        Map<String, Object> user = getUser("setUserEnabled", userId);
+        user.put("enabled", enabled);
+        putUser("setUserEnabled", userId, user);
+    }
+
+    @Override
+    public void updateUsername(String userId, String username) {
+        Map<String, Object> user = getUser("updateUsername", userId);
+        user.put("username", username);
+        putUser("updateUsername", userId, user);
+        // Realm cấm sửa username thì Keycloak có thể bỏ qua ô này mà vẫn trả 204: đọc lại để không báo đổi thành công
+        // giả
+        Object saved = getUser("updateUsername", userId).get("username");
+        if (!username.equals(saved)) {
+            throw new IdentityProviderException(
+                    IdentityProviderErrorReason.REJECTED, "Keycloak did not change username", null);
+        }
+    }
+
+    @Override
+    public void updateProfile(String userId, String fullName, String email) {
+        Map<String, Object> user = getUser("updateProfile", userId);
+        user.put("firstName", fullName);
+        user.put("email", email == null ? "" : email);
+        putUser("updateProfile", userId, user);
+    }
+
+    // Đọc rồi ghi lại cả representation để không xóa mất thuộc tính khác của user
+    private Map<String, Object> getUser(String operation, String userId) {
         Map<String, Object> user = call(
-                "setUserEnabled",
+                operation,
                 () -> restClient
                         .get()
                         .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)
@@ -204,9 +232,12 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
             throw new IdentityProviderException(
                     IdentityProviderErrorReason.UNAVAILABLE, "Keycloak returned empty user", null);
         }
-        user.put("enabled", enabled);
+        return user;
+    }
+
+    private void putUser(String operation, String userId, Map<String, Object> user) {
         call(
-                "setUserEnabled",
+                operation,
                 () -> restClient
                         .put()
                         .uri("/admin/realms/{realm}/users/{id}", properties.realm(), userId)

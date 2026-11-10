@@ -15,6 +15,9 @@ public interface ChildGuardianRepository extends JpaRepository<ChildGuardian, Lo
 
     List<ChildGuardian> findAllByChildIdOrderByPositionAsc(Long childId);
 
+    /** Mọi dòng phụ huynh đã liên kết tài khoản (đồng bộ thông tin tài khoản, đổi SĐT được duyệt — AUTH-21). */
+    List<ChildGuardian> findAllByUserId(Long userId);
+
     /** Phụ huynh trên mọi hồ sơ trẻ có SĐT hoặc CCCD trong danh sách (kiểm một người một tài khoản, AUTH-18). */
     @Query("select g from ChildGuardian g where g.phone in :phones or g.citizenId in :citizenIds order by g.id")
     List<ChildGuardian> findAllByPhoneOrCitizenId(

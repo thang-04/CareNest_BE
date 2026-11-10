@@ -100,6 +100,17 @@ public enum ApiCode {
     PHONE_OF_STAFF_ACCOUNT(1130, HttpStatus.CONFLICT, "Số điện thoại này là tên đăng nhập của tài khoản nhân sự"),
     ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP, tối đa 2 MB"),
     ACCOUNT_PHOTO_NOT_FOUND(1132, HttpStatus.NOT_FOUND, "Chưa có ảnh hoặc bạn không có quyền xem ảnh này"),
+    // G94-180/AUTH-21 (user chốt 2026-11-10): đổi SĐT phụ huynh có tài khoản phải qua duyệt
+    PHONE_CHANGE_REQUEST_NOT_FOUND(1133, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu đổi số điện thoại"),
+    PHONE_CHANGE_REQUEST_NOT_PENDING(1134, HttpStatus.CONFLICT, "Yêu cầu đổi số điện thoại đã được xử lý"),
+    PHONE_CHANGE_SELF_DECISION(1135, HttpStatus.FORBIDDEN, "Không tự duyệt yêu cầu đổi số điện thoại do chính bạn gửi"),
+    // Lúc duyệt: số mới đã thuộc người khác hoặc tài khoản đã đổi theo đường khác từ khi gửi yêu cầu
+    PHONE_CHANGE_REQUEST_STALE(1136, HttpStatus.CONFLICT, "{0}"),
+    // Realm Keycloak chưa bật sửa username cho admin (docs/system/KEYCLOAK.md mục 7) ⇒ không đổi gì
+    USERNAME_CHANGE_NOT_ALLOWED(
+            1137,
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Hệ thống đăng nhập chưa cho đổi tên đăng nhập. Báo quản trị viên, chưa đổi số điện thoại."),
 
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
@@ -262,6 +273,8 @@ public enum ApiCode {
             HttpStatus.CONFLICT,
             "Số CCCD hoặc số điện thoại đã thuộc phụ huynh khác. Kiểm tra các ô được đánh dấu."),
     CHILD_NOT_LEFT(3010, HttpStatus.CONFLICT, "Trẻ chưa nghỉ học, không cần mở lại hồ sơ"),
+    // G94-180/CHD-03: trẻ đã nghỉ học chỉ mở lại hồ sơ, không sửa, không cho nghỉ lần nữa
+    CHILD_ALREADY_LEFT(3011, HttpStatus.CONFLICT, "Trẻ đã nghỉ học. Mở lại hồ sơ trước khi thay đổi."),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),

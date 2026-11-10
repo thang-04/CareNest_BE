@@ -19,7 +19,7 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính, dùng làm `userId` trong CareNest | — |
 | keycloak_user_id | VARCHAR(36) | không | = claim `sub` của access token; UNIQUE | AUTH-07 |
-| username | VARCHAR(100) | không | Username Keycloak (không đổi được); UNIQUE. Phụ huynh = SĐT chuẩn hóa; nhân sự không được là SĐT (AUTH-18) | — |
+| username | VARCHAR(100) | không | Username Keycloak; UNIQUE. Phụ huynh = SĐT chuẩn hóa, chỉ đổi khi yêu cầu đổi SĐT được duyệt (`guardian_phone_change_requests`, G94-180/AUTH-21 — entity không ghi cột này, đổi bằng `UserAccountRepository.updateUsername`); nhân sự không được là SĐT (AUTH-18) | AUTH-21 |
 | email | VARCHAR(255) | có | Nhân sự: email đăng nhập/khôi phục mật khẩu (có trên Keycloak). Phụ huynh: email liên hệ, có thể null, chỉ lưu ở đây (không gửi Keycloak, không dùng đăng nhập/khôi phục). Không UNIQUE: phụ huynh được trùng email nhân sự | AUTH-18 |
 | full_name | VARCHAR(150) | không | Họ tên đầy đủ (= `firstName` bên Keycloak) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
@@ -29,7 +29,7 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Không có cột mật khẩu: Keycloak quản lý. Role gốc ở Keycloak (`primary_role` chỉ là bản sao).
 Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`, `uk_user_accounts_citizen_id`, `idx_user_accounts_primary_role`.
-Đã chốt 2026-10-28, chưa làm: AUTH-21 đổi tên đăng nhập phụ huynh khi đổi SĐT (cột `username` hiện "không đổi được" ⇒ BE thiết kế cách đổi, Phase 4 của plan `2026-10-28-child-enrollment-guardian-accounts`) — `docs/modules/identity-access.md`.
+AUTH-21 đổi tên đăng nhập phụ huynh khi đổi SĐT: làm 2026-11-10 qua yêu cầu được duyệt — `docs/modules/identity-access.md`, plan `2026-11-10-child-edit-withdraw`.
 
 ## campuses  (module: school-structure, scope: CAMPUS)
 Mục đích: điểm trường của trường duy nhất (ADR-0002). Migration: `V2__create_school_structure.sql`.
@@ -307,7 +307,7 @@ Mục đích: thông báo theo người nhận để App hiện danh sách; đ�
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP` | PCK-04 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V82) | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | created_at | TIMESTAMPTZ | không | | — |
@@ -616,9 +616,27 @@ Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V63.
 | action | VARCHAR(20) | không | `ENROLLED` / `UPDATED` / `WITHDRAWN` / `READMITTED` | CHD-03 |
 | user_id | BIGINT FK user_accounts | không | Người làm | — |
 | note | VARCHAR(500) | có | Lý do | CHD-03 |
-| changes | JSONB | có | `[{ field, label, from, to }]` từng ô đổi; số định danh của trẻ chỉ 3 số cuối | CHD-05 |
+| changes | JSONB | có | `[{ field, label, from, to }]` từng ô đổi khi Sửa hồ sơ (ghi từ 2026-11-10); số định danh của trẻ, CCCD phụ huynh chỉ 3 số cuối | CHD-05 |
 | created_at | TIMESTAMPTZ | không | | — |
 Index: `idx_child_history_child_id` (`child_id`, `created_at`).
+
+## guardian_phone_change_requests  (module: identity-access, scope: ACCOUNT)
+Mục đích: yêu cầu đổi SĐT (= tên đăng nhập) của phụ huynh đã có tài khoản, tạo khi Sửa hồ sơ trẻ; PHT có quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ hoặc HT duyệt. Không lưu mật khẩu. Migration: V82.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh đổi SĐT | AUTH-21 |
+| child_id | BIGINT FK children | không | Hồ sơ trẻ nơi sửa (người duyệt theo điểm trường hiện tại của trẻ) | AUTH-21 |
+| guardian_id | BIGINT FK child_guardians | không | Dòng phụ huynh trên hồ sơ đó | — |
+| old_phone, new_phone | VARCHAR(10) | không | Tên đăng nhập lúc gửi, SĐT mới (khác nhau) | AUTH-21 |
+| status | VARCHAR(20) | không | `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED` (yêu cầu mới cùng tài khoản thay thế) | AUTH-21 |
+| reason | VARCHAR(300) | không | Lý do Sửa hồ sơ | — |
+| requested_by, requested_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người gửi (không tự duyệt), lúc gửi | AUTH-21 |
+| decided_by, decided_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Có khi và chỉ khi `APPROVED`/`REJECTED` | AUTH-21 |
+| decision_note | VARCHAR(300) | có | Ghi chú khi từ chối | — |
+| sms_status | VARCHAR(10) | có | `SENT` / `FAILED` — SMS tên đăng nhập mới sau khi duyệt | L-15 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `uq_phone_change_pending_user` (UNIQUE `user_id` khi `PENDING` — mỗi tài khoản tối đa một yêu cầu chờ), `child_id`, `status`.
 
 ## parent_sms_logs  (module: identity-access, scope: ACCOUNT)
 Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V63.

@@ -1,6 +1,7 @@
 package com.carenest.controller.child;
 
 import com.carenest.dto.child.ChildEnrollmentResponse;
+import com.carenest.dto.child.ChildUpdateResponse;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.DuplicateCheckResponse;
 import com.carenest.dto.child.EnrollChildRequest;
@@ -8,9 +9,13 @@ import com.carenest.dto.child.GuardianCheckRequest;
 import com.carenest.dto.child.ParentAccountLookupResponse;
 import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
+import com.carenest.dto.child.UpdateChildRequest;
+import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.ChildEnrollmentService;
+import com.carenest.service.account.ChildProfileEditService;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.constraints.Size;
@@ -24,6 +29,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,6 +50,8 @@ public class ChildEnrollmentController {
 
     private final ChildIntakeService childIntakeService;
     private final ChildEnrollmentService childEnrollmentService;
+    private final ChildRecordService childRecordService;
+    private final ChildProfileEditService childProfileEditService;
 
     @GetMapping("/duplicate-check")
     @PreAuthorize("@permissionGuard.has('CHILD_ENROLL')")
@@ -146,5 +154,30 @@ public class ChildEnrollmentController {
         ChildViewResponse child = childIntakeService.readmit(currentUser, childId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Readmit child success", child);
+    }
+
+    @PostMapping("/{childId}/withdraw")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<ChildViewResponse>> withdraw(
+            @PathVariable Long childId, @RequestBody WithdrawChildRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|withdraw|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse child = childRecordService.withdraw(currentUser, childId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw child success", child);
+    }
+
+    @PutMapping("/{childId}")
+    @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_EDIT')")
+    public ResponseEntity<ResponseJson<ChildUpdateResponse>> update(
+            @PathVariable Long childId, @RequestBody UpdateChildRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|update|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildUpdateResponse updated = childProfileEditService.update(currentUser, childId, request);
+        log.info(
+                "{}|phoneRequests={}|END",
+                logPrefix,
+                updated.phoneChangeRequests().size());
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update child success", updated);
     }
 }

@@ -89,6 +89,12 @@ Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và 
 | Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3008, 409, không có ô) | CHD-04 |
 | CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
 | Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
+| Sửa hồ sơ / cho nghỉ học trẻ đã nghỉ | `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/CHD-03 |
+| Cho nghỉ học: ngày nghỉ, lý do sai (`leftAt`, `reason`); Sửa hồ sơ: form sai, ngày sinh sau ngày tiếp nhận, bỏ phụ huynh đang liên kết tài khoản (`guardians`), đổi cùng lúc CCCD và SĐT, thiếu quyền quản lý tài khoản khi sửa họ tên/email/CCCD phụ huynh có tài khoản | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-03, AUTH-21 |
+| Sửa hồ sơ: SĐT mới của phụ huynh có tài khoản đã là tên đăng nhập tài khoản khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.phone` | AUTH-18, G94-180/AUTH-21 |
+| Yêu cầu đổi SĐT không tồn tại / đã xử lý / người gửi tự duyệt / ngoài điểm trường | `PHONE_CHANGE_REQUEST_NOT_FOUND` (1133, 404) / `PHONE_CHANGE_REQUEST_NOT_PENDING` (1134, 409) / `PHONE_CHANGE_SELF_DECISION` (1135, 403) / `CHILD_GUARDIAN_MANAGE_DENIED` (3006, 403) | G94-180/AUTH-21 |
+| Duyệt đổi SĐT: số mới đã thuộc người khác, tài khoản đã đổi số, phụ huynh hết liên kết, trẻ đã nghỉ (desc nêu lý do) | `PHONE_CHANGE_REQUEST_STALE` (1136, 409) | G94-180/AUTH-21 |
+| Duyệt đổi SĐT khi realm Keycloak chưa bật sửa username (`docs/system/KEYCLOAK.md` mục 7) | `USERNAME_CHANGE_NOT_ALLOWED` (1137, 503) | G94-180/AUTH-21 |
 | AI không khả dụng / quá thời gian | `AI_SERVICE_UNAVAILABLE` (503) / `AI_TIMEOUT` (504) | AI-03 |
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
 | Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |

@@ -41,6 +41,8 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     /** Enrollment gần nhất của trẻ (kể cả đã đóng): điểm trường của trẻ đã nghỉ học là điểm trường lớp cuối. */
     Optional<Enrollment> findFirstByChildIdOrderByValidFromDescIdDesc(Long childId);
 
+    Optional<Enrollment> findFirstByChildIdOrderByValidFromAscIdAsc(Long childId);
+
     @Query("""
             select e from Enrollment e
             where e.childId in :childIds

@@ -113,6 +113,23 @@ public class Child {
         return child;
     }
 
+    /** Sửa hồ sơ (G94-180/CHD-08): thông tin cơ bản; mã, trạng thái, ngày tiếp nhận không đổi ở đây. */
+    public void updateBasics(String fullName, LocalDate dateOfBirth, Gender gender) {
+        this.fullName = fullName;
+        this.dateOfBirth = dateOfBirth;
+        this.gender = gender;
+    }
+
+    /**
+     * Cho nghỉ học (G94-180/CHD-03): Đã nghỉ từ ngày {@code leftOn}, không xóa dữ liệu. Điểm trường sau đó suy từ lớp
+     * cuối cùng hoặc điểm trường tiếp nhận (mở lại hồ sơ về đúng điểm trường).
+     */
+    public void withdraw(LocalDate leftOn, String reason) {
+        this.status = ChildStatus.LEFT;
+        this.leftOn = leftOn;
+        this.leftReason = reason;
+    }
+
     /** Mở lại hồ sơ trẻ đã nghỉ (CHD-03): về Chờ xếp lớp ở điểm trường cũ, bỏ ngày/lý do nghỉ, giữ mã và dữ liệu. */
     public void readmit(Long campusId, LocalDate today) {
         this.status = ChildStatus.PENDING_PLACEMENT;

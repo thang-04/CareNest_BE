@@ -55,6 +55,12 @@ public interface StaffAssignmentService {
     /** PHT đang phân công tại campus; không có thì HT (người xác nhận thay, NUT-02). */
     Set<Long> findCampusConfirmerIds(Long campusId, LocalDate date);
 
+    /** PHT đang được phân công ở điểm trường tại ngày đó (không thay bằng HT khi trống). */
+    Set<Long> findCampusVicePrincipalIds(Long campusId, LocalDate date);
+
+    /** HT đang có phân công tại ngày đó. */
+    Set<Long> findPrincipalIds(LocalDate date);
+
     /** Người có phân công PHT, GV hoặc bếp đang hiệu lực trong các campus. */
     Set<Long> findActiveStaffUserIds(Collection<Long> campusIds, LocalDate date);
 

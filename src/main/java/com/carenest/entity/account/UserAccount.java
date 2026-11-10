@@ -105,6 +105,17 @@ public class UserAccount {
         }
     }
 
+    /** Sửa họ tên, email theo hồ sơ trẻ (G94-180/AUTH-21); tên đăng nhập đổi qua yêu cầu đổi SĐT được duyệt. */
+    public void updateProfile(String fullName, String email) {
+        this.fullName = fullName;
+        this.email = email;
+    }
+
+    /** Đổi CCCD của phụ huynh ở Sửa hồ sơ (AUTH-21); service đã kiểm không trùng người khác (UNIQUE). */
+    public void changeCitizenId(String citizenId) {
+        this.citizenId = citizenId;
+    }
+
     public boolean isActive() {
         return status == UserStatus.ACTIVE;
     }
