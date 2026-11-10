@@ -12,6 +12,9 @@ public interface ChildAllergyRepository extends JpaRepository<ChildAllergy, Long
 
     List<ChildAllergy> findAllByChildIdOrderByIdAsc(Long childId);
 
+    /** Dị ứng của nhiều trẻ (danh sách trẻ), theo thứ tự khai. */
+    List<ChildAllergy> findAllByChildIdInOrderByIdAsc(Collection<Long> childIds);
+
     @Query("select distinct a.childId from ChildAllergy a where a.childId in :childIds")
     List<Long> findChildIdsWithAllergy(@Param("childIds") Collection<Long> childIds);
 

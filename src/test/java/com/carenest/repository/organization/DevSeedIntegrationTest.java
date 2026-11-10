@@ -281,7 +281,8 @@ class DevSeedIntegrationTest {
                                 "select count(*) from %1$s.pickup_records p where p.outcome = 'HANDED_OVER' and p.notified_parents"
                                         + " <> (select count(*) from %1$s.guardian_child_links l where l.child_id = p.child_id)"))
                 .isZero();
-        assertThat(count(schema, "select count(*) from %s.notifications"))
+        // Seed G94-180 thêm loại thông báo khác ⇒ chỉ đếm thông báo đón trẻ
+        assertThat(count(schema, "select count(*) from %s.notifications where type = 'CHILD_PICKED_UP'"))
                 .isEqualTo(count(
                         schema,
                         "select count(*) from %1$s.pickup_records p join %1$s.guardian_child_links l on l.child_id ="
@@ -300,6 +301,121 @@ class DevSeedIntegrationTest {
                         schema,
                         "select count(*) from (select distinct classroom_id, date from %s.attendance_records"
                                 + " where status = 'PRESENT') x"));
+    }
+
+    @Test
+    @DisplayName(
+            "Seed G94-180: chờ xếp lớp, nghỉ học, chuyển lớp, đổi SĐT phụ huynh, tiếp xúc lao, kỳ cân đo + giải thích"
+                    + " xu hướng nhất quán; chạy lại không nhân đôi")
+    void thuongHongRecordsHealthSeedCoversG94180() {
+        String schema = "dev_seed_th_records";
+        flyway(schema, "classpath:db/migration", "classpath:db/dev").migrate();
+
+        // Trẻ đã nghỉ, chờ xếp lớp không còn lớp đang học; chờ xếp lớp có điểm trường tiếp nhận (G94-180/CHD-03,
+        // CHD-10)
+        assertThat(count(
+                        schema,
+                        "select count(*) from %s.children where status = 'LEFT' and left_on = date '2026-10-05'"))
+                .isEqualTo(1);
+        assertThat(count(
+                        schema,
+                        "select count(*) from %1$s.children ch where ch.status <> 'ACTIVE' and exists (select 1 from"
+                                + " %1$s.enrollments e where e.child_id = ch.id and e.valid_to is null)"))
+                .isZero();
+        assertThat(
+                        count(
+                                schema,
+                                "select count(*) from %s.children where status = 'PENDING_PLACEMENT' and intake_campus_id is not null"))
+                .isGreaterThanOrEqualTo(4);
+        // Chuyển lớp 09/11: lớp cũ kết thúc 08/11, lớp mới đang học từ 09/11 (G94-180/CHD-02)
+        assertThat(count(schema, "select count(*) from %s.child_placements where from_classroom_id is not null"))
+                .isEqualTo(2);
+        assertThat(count(
+                        schema,
+                        "select count(*) from %1$s.child_placements p where p.from_classroom_id is not null and (not exists"
+                                + " (select 1 from %1$s.enrollments e where e.child_id = p.child_id and e.classroom_id ="
+                                + " p.to_classroom_id and e.valid_from = date '2026-11-09' and e.valid_to is null) or not"
+                                + " exists (select 1 from %1$s.enrollments e where e.child_id = p.child_id and e.classroom_id"
+                                + " = p.from_classroom_id and e.valid_to = date '2026-11-08'))"))
+                .isZero();
+        // Đổi SĐT đủ 4 trạng thái; yêu cầu chưa duyệt giữ số đăng nhập hiện tại, đã duyệt mang số mới (G94-180/AUTH-21)
+        assertThat(count(schema, "select count(*) from %s.guardian_phone_change_requests where status = 'PENDING'"))
+                .isEqualTo(3);
+        assertThat(count(schema, "select count(distinct status) from %s.guardian_phone_change_requests"))
+                .isEqualTo(4);
+        assertThat(count(
+                        schema,
+                        "select count(*) from %1$s.guardian_phone_change_requests r join %1$s.user_accounts u on u.id ="
+                                + " r.user_id where case when r.status = 'APPROVED' then r.new_phone else r.old_phone end"
+                                + " <> u.username"))
+                .isZero();
+        // HS26102 khai tiếp xúc lao khi sửa khai báo, lịch sử UPDATED có historyChange (G94-180/CHD-07)
+        assertThat(
+                        count(
+                                schema,
+                                "select count(*) from %1$s.child_health_declarations d join %1$s.children ch on ch.id = d.child_id"
+                                        + " where ch.code = 'HS26102' and d.tb_contact_state = 'REPORTED' and d.tb_contact_date ="
+                                        + " date '2026-10-20' and exists (select 1 from %1$s.child_health_declaration_history h"
+                                        + " where h.child_id = d.child_id and h.action = 'UPDATED' and h.history_change is not null)"))
+                .isEqualTo(1);
+        // Kỳ cân đo đã đóng; số đo trong khoảng của kỳ, đúng lớp của trẻ tại ngày đo (HLT-01, HLT-17)
+        assertThat(
+                        count(
+                                schema,
+                                "select count(*) from %s.health_check_campaigns where kind = 'MEASUREMENT' and closed_at is not null"))
+                .isEqualTo(4);
+        assertThat(count(schema, "select count(*) from %s.health_measurements")).isGreaterThan(350);
+        assertThat(count(
+                        schema,
+                        "select count(*) from %1$s.health_measurements h join %1$s.health_check_campaigns c on c.id ="
+                                + " h.campaign_id where h.date not between c.start_date and c.end_date or not exists (select"
+                                + " 1 from %1$s.enrollments e where e.child_id = h.child_id and e.classroom_id = h.classroom_id"
+                                + " and e.valid_from <= h.date and (e.valid_to is null or e.valid_to >= h.date))"))
+                .isZero();
+        // Giải thích xu hướng: 1 bản đã duyệt, 1 nháp có cảnh báo sụt cân (HLT-02, HLT-05)
+        assertThat(count(schema, "select count(*) from %s.health_interpretations where status = 'APPROVED'"))
+                .isEqualTo(1);
+        assertThat(count(
+                        schema,
+                        "select count(*) from %s.health_interpretations where status = 'DRAFT' and warnings::text like"
+                                + " '%%giảm%%'"))
+                .isEqualTo(1);
+        // Mỗi loại thông báo mới của nhánh có ít nhất một dòng
+        assertThat(count(
+                        schema,
+                        "select count(distinct type) from %s.notifications where type in ('CHILD_WITHDRAWN',"
+                                + " 'GUARDIAN_PHONE_CHANGE_REQUESTED', 'GUARDIAN_PHONE_CHANGE_DECIDED', 'CHILD_TB_CONTACT',"
+                                + " 'HEALTH_RESULT_PUBLISHED', 'HEALTH_CHECK_OPENED', 'CHILD_PLACED')"))
+                .isEqualTo(7);
+
+        String snapshot = recordsSnapshot(schema);
+        jdbc.update("update " + schema + ".flyway_schema_history set checksum = 0 where script like 'R__dev_seed%'");
+        flyway(schema, "classpath:db/migration", "classpath:db/dev").migrate();
+        assertThat(recordsSnapshot(schema)).isEqualTo(snapshot);
+    }
+
+    private String recordsSnapshot(String schema) {
+        String[] tables = {
+            "children",
+            "enrollments",
+            "child_placements",
+            "child_history",
+            "child_guardians",
+            "child_allergies",
+            "child_health_declaration_history",
+            "guardian_phone_change_requests",
+            "health_check_campaigns",
+            "health_check_campaign_history",
+            "health_measurements",
+            "health_check_absences",
+            "health_interpretations",
+            "notifications"
+        };
+        StringBuilder snapshot = new StringBuilder();
+        for (String table : tables) {
+            snapshot.append(count(schema, "select count(*) from %s." + table)).append(',');
+        }
+        return snapshot.toString();
     }
 
     private void assertClassInvariants(String schema) {

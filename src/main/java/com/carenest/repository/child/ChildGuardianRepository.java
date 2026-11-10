@@ -39,9 +39,12 @@ public interface ChildGuardianRepository extends JpaRepository<ChildGuardian, Lo
                     + " LEFT JOIN user_accounts u ON u.id = l.user_id"
                     + " LEFT JOIN LATERAL (SELECT p.status, p.sent_at FROM parent_sms_logs p WHERE p.user_id = l.user_id"
                     + " ORDER BY p.sent_at DESC, p.id DESC LIMIT 1) s ON TRUE"
-                    + " WHERE g.child_id = :childId",
+                    + " WHERE g.child_id IN (:childIds)",
             nativeQuery = true)
-    List<GuardianAccountRow> findAccountRows(@Param("childId") Long childId);
+    List<GuardianAccountRow> findAccountRows(@Param("childIds") Collection<Long> childIds);
+
+    /** Phụ huynh trên hồ sơ của nhiều trẻ (danh sách trẻ), theo trẻ rồi vị trí. */
+    List<ChildGuardian> findAllByChildIdInOrderByChildIdAscPositionAsc(Collection<Long> childIds);
 
     interface GuardianAccountRow {
         Long getGuardianId();

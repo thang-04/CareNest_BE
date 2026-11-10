@@ -1,8 +1,10 @@
 package com.carenest.service.child.impl;
 
+import com.carenest.dto.child.ChildClassResponse;
 import com.carenest.dto.child.ChildEditDraft;
 import com.carenest.dto.child.ChildEditDraft.GuardianEdit;
 import com.carenest.dto.child.ChildFieldChange;
+import com.carenest.dto.child.ChildPlacementResponse;
 import com.carenest.dto.child.ChildProfileDraft;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.EnrollmentDraft;
@@ -12,14 +14,17 @@ import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.child.HealthDeclarationDraft;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
+import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
+import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildAllergy;
 import com.carenest.entity.child.ChildGuardian;
 import com.carenest.entity.child.ChildHealthDeclaration;
 import com.carenest.entity.child.ChildHealthDeclarationHistory;
 import com.carenest.entity.child.ChildHistory;
+import com.carenest.entity.child.ChildPlacement;
 import com.carenest.entity.child.ChildProfile;
 import com.carenest.entity.child.Enrollment;
 import com.carenest.exception.GlobalException;
@@ -28,6 +33,7 @@ import com.carenest.repository.child.ChildGuardianRepository;
 import com.carenest.repository.child.ChildHealthDeclarationHistoryRepository;
 import com.carenest.repository.child.ChildHealthDeclarationRepository;
 import com.carenest.repository.child.ChildHistoryRepository;
+import com.carenest.repository.child.ChildPlacementRepository;
 import com.carenest.repository.child.ChildProfileRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.EnrollmentRepository;
@@ -54,6 +60,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,6 +103,8 @@ public class ChildRecordServiceImpl implements ChildRecordService {
     private final ChildAllergyRepository allergyRepository;
     private final ChildHealthDeclarationHistoryRepository declarationHistoryRepository;
     private final TbContactNotifier tbContactNotifier;
+    private final ChildPlacementRepository placementRepository;
+    private final PlacementRules placementRules;
 
     @Override
     @Transactional(readOnly = true)
@@ -295,6 +304,175 @@ public class ChildRecordServiceImpl implements ChildRecordService {
 
     private <T> T read(String json, Class<T> type) {
         return json == null ? null : objectMapper.readValue(json, type);
+    }
+
+    @Override
+    @Transactional
+    public ChildViewResponse place(CurrentUser actor, Long childId, PlaceChildRequest request) {
+        String logPrefix = LOG_PREFIX + "|place|userId=" + actor.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            Child child = loadInScope(actor, childId, today);
+            if (child.getStatus() == ChildStatus.LEFT) {
+                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            }
+            Optional<Enrollment> current = enrollmentRepository.findActiveByChildIdIn(List.of(childId), today).stream()
+                    .findFirst();
+            Long fromClassroomId = current.map(Enrollment::getClassroomId).orElse(null);
+
+            Map<String, String> errors = new LinkedHashMap<>();
+            Long classId = request == null ? null : request.classId();
+            ClassroomInfoResponse target = null;
+            if (classId == null) {
+                errors.put("classId", "Chọn lớp cho trẻ");
+            } else if (classId.equals(fromClassroomId)) {
+                errors.put("classId", "Trẻ đang học lớp này. Chọn lớp khác.");
+            } else if (!declarationRepository.existsById(childId)) {
+                // CHD-06: trẻ có khai báo sức khỏe trước khi vào lớp (bếp, điểm danh dùng dị ứng)
+                errors.put("classId", "Trẻ chưa có khai báo sức khỏe. Khai báo trước khi xếp lớp.");
+            } else {
+                target = classroomService.findClassroomInfo(classId).orElse(null);
+                String problem = placementRules.classProblem(actor, target, today);
+                if (problem != null) {
+                    errors.put("classId", problem);
+                }
+            }
+            String reason = request == null || request.reason() == null
+                    ? ""
+                    : request.reason().strip();
+            if (fromClassroomId != null && reason.isEmpty()) {
+                errors.put("reason", "Nhập lý do chuyển lớp");
+            } else if (reason.length() > MAX_REASON) {
+                errors.put("reason", "Lý do tối đa " + MAX_REASON + " ký tự");
+            }
+            if (!errors.isEmpty()) {
+                throw GlobalException.withFieldErrors(
+                        ApiCode.INVALID_REQUEST_DATA, EnrollmentFormValidator.toList(errors));
+            }
+
+            // Lớp cũ kết thúc hôm qua; vào lớp cũ ngay hôm nay thì bỏ lớp đó (một trẻ một lớp tại một ngày). Flush
+            // trước
+            // khi mở lớp mới: UNIQUE một enrollment đang mở / trẻ, Hibernate ghi INSERT trước UPDATE/DELETE
+            current.ifPresent(enrollment -> {
+                if (enrollment.getValidFrom().isBefore(today)) {
+                    enrollment.endOn(today.minusDays(1));
+                    enrollmentRepository.saveAndFlush(enrollment);
+                } else {
+                    enrollmentRepository.delete(enrollment);
+                    enrollmentRepository.flush();
+                }
+            });
+            placementRules.startEnrollment(childId, target, actor.userId(), today);
+            // G94-180/CHD-02: lớp ở điểm trường khác ⇒ trẻ chuyển điểm trường (điểm trường suy từ lớp)
+            child.placeInClass();
+            childRepository.save(child);
+            placementRules.recordPlacement(
+                    childId,
+                    child.getFullName(),
+                    fromClassroomId,
+                    target,
+                    actor.userId(),
+                    reason.isEmpty() ? null : reason,
+                    clock.instant(),
+                    today);
+            ChildViewResponse view = childIntakeService.getChildView(childId);
+            log.info("{}|fromClassroomId={}|toClassroomId={}|END", logPrefix, fromClassroomId, target.id());
+            return view;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ChildClassResponse findClass(Long childId) {
+        String logPrefix = LOG_PREFIX + "|findClass|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            Child child =
+                    childRepository.findById(childId).orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
+            LocalDate today = LocalDate.now(clock);
+            Optional<Long> classroomId = child.getStatus() == ChildStatus.PENDING_PLACEMENT
+                    ? Optional.empty()
+                    : enrollmentRepository.findActiveByChildIdIn(List.of(childId), today).stream()
+                            .findFirst()
+                            .or(() -> child.getStatus() == ChildStatus.LEFT
+                                    ? enrollmentRepository.findFirstByChildIdOrderByValidFromDescIdDesc(childId)
+                                    : Optional.empty())
+                            .map(Enrollment::getClassroomId);
+            ChildClassResponse cls = classroomId
+                    .flatMap(classroomService::findClassroomInfo)
+                    .map(c -> new ChildClassResponse(
+                            c.id(),
+                            c.name(),
+                            c.campusId(),
+                            c.ageGroupId(),
+                            c.schoolYearId(),
+                            c.capacity(),
+                            c.status(),
+                            staffAssignmentService
+                                    .findHomeroomTeacherIds(List.of(c.id()), today)
+                                    .get(c.id()),
+                            List.copyOf(staffAssignmentService
+                                    .findCurrentTeacherIds(List.of(c.id()), today)
+                                    .getOrDefault(c.id(), List.of()))))
+                    .orElse(null);
+            log.info("{}|found={}|END", logPrefix, cls != null);
+            return cls;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ChildPlacementResponse> findPlacements(Long childId) {
+        String logPrefix = LOG_PREFIX + "|findPlacements|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            List<ChildPlacement> rows = placementRepository.findAllByChildIdOrderByPlacedAtDescIdDesc(childId);
+            Map<Long, String> classNames = new HashMap<>();
+            rows.forEach(p -> {
+                if (p.getFromClassroomId() != null) {
+                    classNames.computeIfAbsent(p.getFromClassroomId(), this::classNameOf);
+                }
+                classNames.computeIfAbsent(p.getToClassroomId(), this::classNameOf);
+            });
+            Set<Long> userIds = rows.stream().map(ChildPlacement::getPlacedBy).collect(Collectors.toSet());
+            Map<Long, String> userNames = userIds.isEmpty()
+                    ? Map.of()
+                    : childHistoryRepository.findUserNames(userIds).stream()
+                            .collect(Collectors.toMap(
+                                    ChildHistoryRepository.UserName::getUserId,
+                                    ChildHistoryRepository.UserName::getFullName));
+            List<ChildPlacementResponse> placements = rows.stream()
+                    .map(p -> new ChildPlacementResponse(
+                            p.getId(),
+                            p.getFromClassroomId(),
+                            p.getFromClassroomId() == null ? null : classNames.get(p.getFromClassroomId()),
+                            p.getToClassroomId(),
+                            classNames.get(p.getToClassroomId()),
+                            p.getPlacedBy(),
+                            userNames.get(p.getPlacedBy()),
+                            p.getPlacedAt(),
+                            p.getReason()))
+                    .toList();
+            log.info("{}|count={}|END", logPrefix, placements.size());
+            return placements;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private String classNameOf(Long classroomId) {
+        return classroomService
+                .findClassroomInfo(classroomId)
+                .map(ClassroomInfoResponse::name)
+                .orElse(null);
     }
 
     @Override

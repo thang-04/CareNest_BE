@@ -130,6 +130,15 @@ public class Child {
         this.leftReason = reason;
     }
 
+    /**
+     * Xếp / chuyển lớp (CHD-10): Đang học, điểm trường theo lớp (enrollment) nên bỏ điểm trường tiếp nhận như tiếp nhận có
+     * lớp — giữ lại thì trẻ nghỉ sau khi chuyển điểm trường bị suy sai điểm trường (ưu tiên điểm trường tiếp nhận).
+     */
+    public void placeInClass() {
+        this.status = ChildStatus.ACTIVE;
+        this.intakeCampusId = null;
+    }
+
     /** Mở lại hồ sơ trẻ đã nghỉ (CHD-03): về Chờ xếp lớp ở điểm trường cũ, bỏ ngày/lý do nghỉ, giữ mã và dữ liệu. */
     public void readmit(Long campusId, LocalDate today) {
         this.status = ChildStatus.PENDING_PLACEMENT;

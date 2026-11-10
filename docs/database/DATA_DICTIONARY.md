@@ -220,11 +220,24 @@ Mục đích: trẻ học lớp nào theo thời gian; campus của trẻ suy t�
 | classroom_id | BIGINT FK classrooms | không | | — |
 | valid_from | DATE | không | Tính cả ngày này | — |
 | valid_to | DATE | có | Tính cả ngày này; NULL = đang học | — |
-| reason | VARCHAR(300) | có | Lý do chuyển lớp (bắt buộc khi chuyển, V63) | — |
+| reason | VARCHAR(300) | có | Chưa dùng (entity không ánh xạ): lý do xếp/chuyển lớp ghi ở `child_placements` (V84) | — |
 | created_by | BIGINT FK user_accounts | có | Người xếp/chuyển lớp (V63); NULL ở dữ liệu cũ | — |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Xếp lớp mở enrollment mới; chuyển lớp đóng enrollment đang mở rồi mở enrollment mới. `uk_enrollments_child_open` (V63, partial unique `valid_to IS NULL`): mỗi trẻ tối đa 1 enrollment đang mở; chồng thời gian giữa các enrollment đã đóng vẫn do service kiểm.
 Index: `child_id`, `classroom_id`, `uk_enrollments_child_open`.
+
+## child_placements  (module: child, scope: CHILD)
+Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-10, G94-180/CHD-02): ghi khi tiếp nhận có lớp (form, Excel) và khi `POST /children/{id}/placement`; chuyển năm học không ghi. Lớp tại một ngày vẫn đọc từ `enrollments`. Migration: V84.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| id | BIGINT identity | không | Khóa chính | — |
+| child_id | BIGINT FK children | không | | — |
+| from_classroom_id | BIGINT FK classrooms | có | Lớp cũ; NULL = xếp lần đầu (tiếp nhận có lớp, trẻ chờ xếp lớp) | CHD-10 |
+| to_classroom_id | BIGINT FK classrooms | không | Lớp mới; CHECK khác lớp cũ | CHD-10 |
+| placed_by | BIGINT FK user_accounts | không | Người xếp | — |
+| reason | VARCHAR(300) | có | Lý do (bắt buộc khi chuyển lớp — kiểm ở service; NULL khi xếp lần đầu không ghi) | — |
+| placed_at | TIMESTAMPTZ | không | Lúc xếp | — |
+Index: `idx_child_placements_child` (`child_id`, `placed_at DESC`).
 
 ## guardian_child_links  (module: child, scope: CHILD)
 Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/gỡ qua `/children/{id}/guardians` (AUTH-18, AUTH-19). Migration: V3, V9 (CHECK quan hệ), V63 (6 loại).
@@ -307,7 +320,7 @@ Mục đích: thông báo theo người nhận để App hiện danh sách; đ�
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V82), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V83). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V82), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V83), `CHILD_PLACED` (V84). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | created_at | TIMESTAMPTZ | không | | — |

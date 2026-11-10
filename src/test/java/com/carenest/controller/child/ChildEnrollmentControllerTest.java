@@ -204,6 +204,37 @@ class ChildEnrollmentControllerTest {
     }
 
     @Test
+    @DisplayName("CHD-10: xếp / chuyển lớp cần quyền CHILD_PLACEMENT ⇒ 200 trả hồ sơ có lớp mới")
+    void placementManagerPlacesChild() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
+        var request = new com.carenest.dto.child.PlaceChildRequest(31L, "Đổi theo độ tuổi");
+        given(childRecordService.place(actor, 301L, request)).willReturn(view(31L));
+
+        mockMvc.perform(post("/api/children/301/placement")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"classId\":31,\"reason\":\"Đổi theo độ tuổi\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Place child success"))
+                .andExpect(jsonPath("$.data.classId").value(31))
+                .andExpect(jsonPath("$.data.className").value("Lớp kiểm thử"));
+    }
+
+    @Test
+    @DisplayName("CHD-10: thiếu quyền CHILD_PLACEMENT ⇒ 403, không gọi service")
+    void placementNeedsPlacementPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(post("/api/children/301/placement")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"classId\":31,\"reason\":\"x\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
+    }
+
+    @Test
     @DisplayName("CHD-06: sửa khai báo sức khỏe cần quyền CHILD_PROFILE_EDIT ⇒ 200 trả khai báo đã lưu")
     void profileEditorSavesHealthDeclaration() throws Exception {
         CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);

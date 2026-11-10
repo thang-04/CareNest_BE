@@ -379,6 +379,20 @@ class ChildEnrollmentIntegrationTest {
                         placed.child().id(),
                         TODAY))
                 .isEqualTo(principal.userId());
+        // Mục 6.2: tiếp nhận có lớp ghi lịch sử xếp lớp (xếp lần đầu) và báo GV lớp
+        entityManager.flush();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM child_placements WHERE child_id = ? AND from_classroom_id IS NULL"
+                                + " AND to_classroom_id = ?",
+                        Long.class,
+                        placed.child().id(),
+                        classA))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT body FROM notifications WHERE type = 'CHILD_PLACED' AND user_id = ?",
+                        String.class,
+                        teacher))
+                .isEqualTo("Trẻ Có Lớp đã được xếp vào Lớp A1.");
 
         // Lớp A1 sĩ số 2: anh cả + trẻ vừa tiếp nhận
         expectField(

@@ -1804,7 +1804,19 @@ paths:
       operationId: searchChildren
       parameters:
       - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
         name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
         required: false
         schema:
           type: integer
@@ -1815,6 +1827,25 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - ACTIVE
+            - PENDING_PLACEMENT
+            - LEFT
+          uniqueItems: true
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 0
       - in: query
         name: q
         required: false
@@ -1844,7 +1875,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResponseJsonPageResponseChildSummaryResponse"
+                $ref: "#/components/schemas/ResponseJsonPageResponseChildListItemResponse"
           description: OK
       tags:
       - child-controller
@@ -2511,6 +2542,31 @@ paths:
           description: OK
       tags:
       - child-photo-controller
+  /api/children/{childId}/placement:
+    post:
+      operationId: placeChild
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceChildRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/profile:
     get:
       operationId: getProfile
@@ -8265,6 +8321,39 @@ components:
         id:
           type: integer
           format: int64
+    ChildClassResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+        homeroomTeacherId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - CLOSED
+        teacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
     ChildDay:
       type: object
       properties:
@@ -8460,13 +8549,86 @@ components:
         userId:
           type: integer
           format: int64
+    ChildListItemResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        allergies:
+          type: array
+          items:
+            type: string
+        campusId:
+          type: integer
+          format: int64
+        canManage:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        classroomId:
+          type: integer
+          format: int64
+        code:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        enrolledAt:
+          type: string
+          format: date
+        fullName:
+          type: string
+        gender:
+          type: string
+          enum:
+          - MALE
+          - FEMALE
+        guardianCount:
+          type: integer
+          format: int64
+        guardians:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildGuardianResponse"
+        hasDeclaration:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        leftAt:
+          type: string
+          format: date
+        photoUrl:
+          type: string
+        readmittedAt:
+          type: string
+          format: date
+        schoolYearId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - PENDING_PLACEMENT
+          - LEFT
     ChildPhotoProfileResponse:
       type: object
       properties:
         child:
           $ref: "#/components/schemas/ChildViewResponse"
+        cls:
+          $ref: "#/components/schemas/ChildClassResponse"
         declaration:
           $ref: "#/components/schemas/HealthDeclarationResponse"
+        placements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildPlacementResponse"
     ChildPlacement:
       type: object
       properties:
@@ -8486,6 +8648,32 @@ components:
           $ref: "#/components/schemas/Placement"
         programCompleted:
           type: boolean
+    ChildPlacementResponse:
+      type: object
+      properties:
+        at:
+          type: string
+          format: date-time
+        fromClassId:
+          type: integer
+          format: int64
+        fromClassName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        toClassId:
+          type: integer
+          format: int64
+        toClassName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
     ChildProfileDetailResponse:
       type: object
       properties:
@@ -8578,28 +8766,6 @@ components:
         rate:
           type: integer
           format: int32
-    ChildSummaryResponse:
-      type: object
-      properties:
-        campusId:
-          type: integer
-          format: int64
-        classroomId:
-          type: integer
-          format: int64
-        dateOfBirth:
-          type: string
-          format: date
-        fullName:
-          type: string
-        guardianCount:
-          type: integer
-          format: int64
-        id:
-          type: integer
-          format: int64
-        photoUrl:
-          type: string
     ChildTotal:
       type: object
       properties:
@@ -14030,6 +14196,7 @@ components:
           - HEALTH_RESULT_PUBLISHED
           - HEALTH_RESULT_UPDATED
           - HEALTH_CHECK_OPENED
+          - CHILD_PLACED
     NutritionTotals:
       type: object
       properties:
@@ -14171,13 +14338,13 @@ components:
         totalPages:
           type: integer
           format: int32
-    PageResponseChildSummaryResponse:
+    PageResponseChildListItemResponse:
       type: object
       properties:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/ChildSummaryResponse"
+            $ref: "#/components/schemas/ChildListItemResponse"
         page:
           type: integer
           format: int32
@@ -14649,6 +14816,14 @@ components:
           - PICKED_UP
           - ABSENT
           - UNMARKED
+    PlaceChildRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        reason:
+          type: string
     Placement:
       type: object
       properties:
@@ -16941,14 +17116,14 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonPageResponseChildSummaryResponse:
+    ResponseJsonPageResponseChildListItemResponse:
       type: object
       properties:
         code:
           type: integer
           format: int32
         data:
-          $ref: "#/components/schemas/PageResponseChildSummaryResponse"
+          $ref: "#/components/schemas/PageResponseChildListItemResponse"
         desc:
           type: string
         errorCode:

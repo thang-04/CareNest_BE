@@ -23,6 +23,7 @@ import com.carenest.service.child.ChildService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -49,6 +50,9 @@ class ChildControllerTest {
 
     @MockitoBean
     private ChildService childService;
+
+    @MockitoBean
+    private com.carenest.service.child.ChildListService childListService;
 
     @Test
     void shouldReturn401WithoutToken() throws Exception {
@@ -121,6 +125,49 @@ class ChildControllerTest {
 
         mockMvc.perform(get(CHILD_URL, 101).with(tokenWithRole(CareNestRole.PARENT)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName(
+            "D-4: GV xem danh sách; tên cũ classroomId, q của màn Tài khoản phụ huynh vẫn nhận; status nhiều giá trị")
+    void teacherListsChildrenWithLegacyParams() throws Exception {
+        CurrentUser teacher = authenticateAs(CareNestRole.TEACHER);
+        given(childListService.searchChildren(eq(teacher), any()))
+                .willReturn(new com.carenest.dto.common.PageResponse<>(List.of(), 0, 20, 0, 0));
+
+        mockMvc.perform(get("/api/children")
+                        .param("classroomId", "11")
+                        .param("q", "An")
+                        .param("status", "ACTIVE", "LEFT")
+                        .param("schoolYear", "5")
+                        .with(tokenWithRole(CareNestRole.TEACHER)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Search children success"))
+                .andExpect(jsonPath("$.data.items").isArray())
+                .andExpect(jsonPath("$.data.totalPages").value(0));
+
+        org.mockito.ArgumentCaptor<com.carenest.dto.child.ChildListFilter> filter =
+                org.mockito.ArgumentCaptor.forClass(com.carenest.dto.child.ChildListFilter.class);
+        verify(childListService).searchChildren(eq(teacher), filter.capture());
+        org.assertj.core.api.Assertions.assertThat(filter.getValue())
+                .isEqualTo(new com.carenest.dto.child.ChildListFilter(
+                        5L,
+                        null,
+                        11L,
+                        Set.of(com.carenest.utils.enums.ChildStatus.ACTIVE, com.carenest.utils.enums.ChildStatus.LEFT),
+                        "An",
+                        0,
+                        20));
+    }
+
+    @Test
+    @DisplayName("AUTH-05: bếp không có CHILD_PROFILE_VIEW / PARENT_ACCOUNT_MANAGE ⇒ 403 ở lớp 1, không tới service")
+    void kitchenCannotListChildren() throws Exception {
+        authenticateAs(CareNestRole.KITCHEN_STAFF);
+
+        mockMvc.perform(get("/api/children").with(tokenWithRole(CareNestRole.KITCHEN_STAFF)))
+                .andExpect(status().isForbidden());
+        verify(childListService, never()).searchChildren(any(), any());
     }
 
     @Test

@@ -19,6 +19,7 @@ import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
+import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildGuardian;
 import com.carenest.entity.child.ChildHistory;
@@ -92,6 +93,9 @@ class ChildRecordServiceImplTest {
     private final com.carenest.repository.child.ChildHealthDeclarationHistoryRepository declarationHistoryRepository =
             mock(com.carenest.repository.child.ChildHealthDeclarationHistoryRepository.class);
     private final TbContactNotifier tbNotifier = mock(TbContactNotifier.class);
+    private final com.carenest.repository.child.ChildPlacementRepository placementRepository =
+            mock(com.carenest.repository.child.ChildPlacementRepository.class);
+    private final PlacementRules placementRules = mock(PlacementRules.class);
     private final ChildRecordServiceImpl service = new ChildRecordServiceImpl(
             childRepository,
             profileRepository,
@@ -110,7 +114,9 @@ class ChildRecordServiceImplTest {
             declarationRepository,
             allergyRepository,
             declarationHistoryRepository,
-            tbNotifier);
+            tbNotifier,
+            placementRepository,
+            placementRules);
 
     private Child child;
     private Enrollment enrollment;
@@ -129,6 +135,112 @@ class ChildRecordServiceImplTest {
         given(classroomService.findCampusId(CLASS_ID)).willReturn(Optional.of(CAMPUS_ID));
         given(assignmentService.findCurrentTeacherIds(List.of(CLASS_ID), TODAY))
                 .willReturn(Map.of(CLASS_ID, List.of(7L, 8L)));
+    }
+
+    @Test
+    @DisplayName(
+            "CHD-10: chuyển lớp ⇒ lớp cũ kết thúc hôm qua, lớp mới từ hôm nay, ghi lịch sử kèm lý do, báo GV lớp mới")
+    void transferEndsOldClassAndStartsNewOne() {
+        ClassroomInfoResponse target = classroom(11L, "Lớp Chồi 2");
+        given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
+        given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(target));
+
+        service.place(PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, " Đổi theo độ tuổi "));
+
+        assertThat(enrollment.getValidTo()).isEqualTo(TODAY.minusDays(1));
+        verify(enrollmentRepository).saveAndFlush(enrollment);
+        verify(placementRules).startEnrollment(CHILD_ID, target, PRINCIPAL.userId(), TODAY);
+        verify(placementRules)
+                .recordPlacement(
+                        eq(CHILD_ID),
+                        eq("Bé An"),
+                        eq(CLASS_ID),
+                        eq(target),
+                        eq(PRINCIPAL.userId()),
+                        eq("Đổi theo độ tuổi"),
+                        any(),
+                        eq(TODAY));
+        assertThat(child.getStatus()).isEqualTo(ChildStatus.ACTIVE);
+    }
+
+    @Test
+    @DisplayName("CHD-10: trẻ chờ xếp lớp ⇒ không cần lý do, thành Đang học, bỏ điểm trường tiếp nhận")
+    void placingPendingChildNeedsNoReason() {
+        Child pending =
+                Child.enroll("HS26002", "Bé Bình", LocalDate.of(2022, 5, 1), Gender.MALE, false, CAMPUS_ID, TODAY);
+        ReflectionTestUtils.setField(pending, "id", 2L);
+        ClassroomInfoResponse target = classroom(11L, "Lớp Chồi 2");
+        given(childRepository.findById(2L)).willReturn(Optional.of(pending));
+        given(enrollmentRepository.findActiveByChildIdIn(List.of(2L), TODAY)).willReturn(List.of());
+        given(declarationRepository.existsById(2L)).willReturn(true);
+        given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(target));
+
+        service.place(PRINCIPAL, 2L, new com.carenest.dto.child.PlaceChildRequest(11L, null));
+
+        assertThat(pending.getStatus()).isEqualTo(ChildStatus.ACTIVE);
+        assertThat(pending.getIntakeCampusId()).isNull();
+        verify(enrollmentRepository, never()).saveAndFlush(any());
+        verify(placementRules)
+                .recordPlacement(eq(2L), eq("Bé Bình"), eq(null), eq(target), eq(9L), eq(null), any(), eq(TODAY));
+    }
+
+    @Test
+    @DisplayName("CHD-10: lỗi theo ô — thiếu lớp và lý do, cùng lớp, chưa khai báo sức khỏe, lớp không nhận, lý do dài")
+    void placeValidatesFields() {
+        expectFields(new com.carenest.dto.child.PlaceChildRequest(null, " "), "classId", "reason");
+        expectFields(new com.carenest.dto.child.PlaceChildRequest(CLASS_ID, "x"), "classId");
+
+        given(declarationRepository.existsById(CHILD_ID)).willReturn(false);
+        assertThatThrownBy(() ->
+                        service.place(PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, "x")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .singleElement()
+                                .satisfies(e -> assertThat(e.message())
+                                        .isEqualTo("Trẻ chưa có khai báo sức khỏe. Khai báo trước khi xếp lớp.")));
+
+        given(declarationRepository.existsById(CHILD_ID)).willReturn(true);
+        given(classroomService.findClassroomInfo(11L)).willReturn(Optional.of(classroom(11L, "Lớp Chồi 2")));
+        given(placementRules.classProblem(any(), any(), any())).willReturn("Lớp Chồi 2 đã đủ 25 trẻ. Chọn lớp khác.");
+        expectFields(new com.carenest.dto.child.PlaceChildRequest(11L, "x".repeat(301)), "classId", "reason");
+        verify(placementRules, never()).startEnrollment(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("CHD-10: trẻ đã nghỉ ⇒ 409 3011, không xếp lớp")
+    void placingLeftChildIsRejected() {
+        child.withdraw(LocalDate.of(2026, 11, 1), "Chuyển nhà");
+
+        assertThatThrownBy(() ->
+                        service.place(PRINCIPAL, CHILD_ID, new com.carenest.dto.child.PlaceChildRequest(11L, "x")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_ALREADY_LEFT));
+        verify(placementRules, never()).recordPlacement(any(), any(), any(), any(), any(), any(), any(), any());
+    }
+
+    private void expectFields(com.carenest.dto.child.PlaceChildRequest request, String... fields) {
+        assertThatThrownBy(() -> service.place(PRINCIPAL, CHILD_ID, request))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(FieldErrorResponse::field)
+                                .containsExactly(fields));
+    }
+
+    private static ClassroomInfoResponse classroom(Long id, String name) {
+        return new ClassroomInfoResponse(
+                id,
+                name,
+                CAMPUS_ID,
+                5L,
+                com.carenest.utils.enums.SchoolYearStatus.ACTIVE,
+                LocalDate.of(2026, 9, 1),
+                LocalDate.of(2027, 5, 31),
+                3L,
+                List.of(),
+                25,
+                com.carenest.utils.enums.ClassroomStatus.ACTIVE);
     }
 
     @Test

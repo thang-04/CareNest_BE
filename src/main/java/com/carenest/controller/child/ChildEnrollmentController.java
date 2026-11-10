@@ -9,6 +9,7 @@ import com.carenest.dto.child.GuardianCheckRequest;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.ParentAccountLookupResponse;
+import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
@@ -167,6 +168,17 @@ public class ChildEnrollmentController {
         ChildViewResponse child = childRecordService.withdraw(currentUser, childId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw child success", child);
+    }
+
+    @PostMapping("/{childId}/placement")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<ChildViewResponse>> placeChild(
+            @PathVariable Long childId, @RequestBody PlaceChildRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|placeChild|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse child = childRecordService.place(currentUser, childId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Place child success", child);
     }
 
     @PutMapping("/{childId}/health-declaration")

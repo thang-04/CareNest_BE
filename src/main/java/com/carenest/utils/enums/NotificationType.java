@@ -21,5 +21,7 @@ public enum NotificationType {
     /** Kết quả đã công bố được sửa, báo phụ huynh (HLT-11, HLT-13). */
     HEALTH_RESULT_UPDATED,
     /** Mở hoặc mở lại đợt khám / kỳ cân đo, báo GV lớp và PHT điểm trường. */
-    HEALTH_CHECK_OPENED
+    HEALTH_CHECK_OPENED,
+    /** Trẻ được xếp / chuyển vào lớp (tiếp nhận có lớp, xếp lớp), báo GV lớp mới (CHD-10, plan tiếp nhận mục 6.2). */
+    CHILD_PLACED
 }

@@ -93,7 +93,9 @@ Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và 
 | Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3008, 409, không có ô) | CHD-04 |
 | CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
 | Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
-| Sửa hồ sơ / cho nghỉ học trẻ đã nghỉ | `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/CHD-03 |
+| Sửa hồ sơ / cho nghỉ học / xếp lớp trẻ đã nghỉ | `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/CHD-03, CHD-10 |
+| Xếp / chuyển lớp: thiếu lớp, cùng lớp, chưa khai báo sức khỏe, lớp ngừng hoạt động / khác năm đang hoạt động / ngoài điểm trường được giao / đủ sĩ số (`classId`); đang có lớp mà thiếu lý do, lý do > 300 (`reason`) | `INVALID_REQUEST_DATA` (9001) + ô | CHD-10, G94-180/CHD-02 |
+| Danh sách trẻ: lọc lớp / điểm trường ngoài phạm vi; phụ huynh gọi | `CLASS_ACCESS_DENIED` (2201, 403) / `CAMPUS_ACCESS_DENIED` (2102, 403); `FORBIDDEN` (1101, 403) | AUTH-08, AUTH-04 |
 | Cho nghỉ học: ngày nghỉ, lý do sai (`leftAt`, `reason`); Sửa hồ sơ: form sai, ngày sinh sau ngày tiếp nhận, bỏ phụ huynh đang liên kết tài khoản (`guardians`), đổi cùng lúc CCCD và SĐT, thiếu quyền quản lý tài khoản khi sửa họ tên/email/CCCD phụ huynh có tài khoản | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-03, AUTH-21 |
 | Sửa hồ sơ: SĐT mới của phụ huynh có tài khoản đã là tên đăng nhập tài khoản khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.phone` | AUTH-18, G94-180/AUTH-21 |
 | Yêu cầu đổi SĐT không tồn tại / đã xử lý / người gửi tự duyệt / ngoài điểm trường | `PHONE_CHANGE_REQUEST_NOT_FOUND` (1136, 404) / `PHONE_CHANGE_REQUEST_NOT_PENDING` (1137, 409) / `PHONE_CHANGE_SELF_DECISION` (1138, 403) / `CHILD_GUARDIAN_MANAGE_DENIED` (3006, 403) | G94-180/AUTH-21 |

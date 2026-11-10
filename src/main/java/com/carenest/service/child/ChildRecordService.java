@@ -1,12 +1,16 @@
 package com.carenest.service.child;
 
+import com.carenest.dto.child.ChildClassResponse;
 import com.carenest.dto.child.ChildEditDraft;
+import com.carenest.dto.child.ChildPlacementResponse;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
+import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.security.CurrentUser;
+import java.util.List;
 
 /**
  * Thay đổi hồ sơ trẻ sau tiếp nhận (G94-180): cho nghỉ học, Sửa hồ sơ. Phần tài khoản phụ huynh (sửa tài khoản, yêu cầu
@@ -47,4 +51,17 @@ public interface ChildRecordService {
      * khai báo; dị ứng có hiệu lực ngay; lịch sử kèm dị ứng/tiền sử trước-sau; thông báo tiếp xúc lao (CHD-07).
      */
     HealthDeclarationResponse saveDeclaration(CurrentUser actor, Long childId, HealthDeclarationRequest request);
+
+    /**
+     * Xếp / chuyển lớp (CHD-10, G94-180/CHD-02, mục 4.4): lớp mới từ hôm nay; lớp cũ kết thúc hôm qua (vào lớp cũ hôm nay
+     * thì bỏ lớp cũ); lớp điểm trường khác ⇒ chuyển điểm trường; lỗi theo ô {@code classId}, {@code reason}; trẻ đã nghỉ
+     * 409. Ghi lịch sử xếp lớp, báo GV lớp mới.
+     */
+    ChildViewResponse place(CurrentUser actor, Long childId, PlaceChildRequest request);
+
+    /** Lớp ở hồ sơ trẻ: đang học, trẻ đã nghỉ là lớp cuối; chờ xếp lớp ⇒ null. Người gọi đã kiểm phạm vi. */
+    ChildClassResponse findClass(Long childId);
+
+    /** Lịch sử xếp / chuyển lớp, mới nhất trước. Người gọi đã kiểm phạm vi. */
+    List<ChildPlacementResponse> findPlacements(Long childId);
 }

@@ -53,11 +53,9 @@ import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.DeclarationState;
 import com.carenest.utils.enums.DuplicateChildKind;
-import com.carenest.utils.enums.GuardianAccountStatus;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
 import com.carenest.utils.enums.SchoolYearStatus;
-import com.carenest.utils.enums.SmsStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -105,6 +103,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     private final Clock clock;
     private final TbContactNotifier tbContactNotifier;
     private final ObjectMapper objectMapper;
+    private final PlacementRules placementRules;
+    private final GuardianViews guardianViews;
 
     @Override
     @Transactional(readOnly = true)
@@ -334,7 +334,13 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             childHistoryRepository.save(
                     ChildHistory.record(childId, ChildHistoryAction.ENROLLED, actor.userId(), null, now));
             if (placed) {
-                enrollmentRepository.save(Enrollment.start(childId, draft.classroomId(), today, actor.userId()));
+                // CHD-10, mục 6.2: lớp từ hôm nay, ghi lịch sử xếp lớp, báo GV lớp (tiếp nhận form và nhập Excel)
+                ClassroomInfoResponse classroom = classroomService
+                        .findClassroomInfo(draft.classroomId())
+                        .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
+                placementRules.startEnrollment(childId, classroom, actor.userId(), today);
+                placementRules.recordPlacement(
+                        childId, draft.fullName(), null, classroom, actor.userId(), null, now, today);
             }
 
             int linked = 0;
@@ -518,21 +524,9 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (classId != null) {
             ClassroomInfoResponse classroom =
                     classroomService.findClassroomInfo(classId).orElse(null);
-            if (classroom == null || classroom.status() != ClassroomStatus.ACTIVE) {
-                throw fieldError("classId", "Lớp không tồn tại hoặc đã ngừng hoạt động");
-            }
-            if (classroom.yearStatus() != SchoolYearStatus.ACTIVE) {
-                throw fieldError(
-                        "classId",
-                        "Chỉ xếp vào lớp của năm học đang hoạt động. Xếp lớp cho năm học sau ở màn Xếp lớp năm học mới.");
-            }
-            if (!wholeSchool && !managed.contains(classroom.campusId())) {
-                throw fieldError("classId", "Chỉ xếp được vào lớp thuộc điểm trường bạn được giao");
-            }
-            long enrolled = enrolledCounts(List.of(classroom.id()), today).getOrDefault(classroom.id(), 0L);
-            if (classroom.capacity() != null && enrolled >= classroom.capacity()) {
-                throw fieldError(
-                        "classId", classroom.name() + " đã đủ " + classroom.capacity() + " trẻ. Chọn lớp khác.");
+            String problem = placementRules.classProblem(actor, classroom, today);
+            if (problem != null) {
+                throw fieldError("classId", problem);
             }
             if (campusId != null && !campusId.equals(classroom.campusId())) {
                 throw fieldError("classId", "Lớp không thuộc điểm trường đã chọn");
@@ -700,32 +694,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     }
 
     private List<ChildGuardianResponse> guardiansOf(Long childId) {
-        Map<Long, ChildGuardianRepository.GuardianAccountRow> accounts =
-                childGuardianRepository.findAccountRows(childId).stream()
-                        .collect(Collectors.toMap(
-                                ChildGuardianRepository.GuardianAccountRow::getGuardianId, Function.identity()));
-        return childGuardianRepository.findAllByChildIdOrderByPositionAsc(childId).stream()
-                .map(g -> {
-                    ChildGuardianRepository.GuardianAccountRow row = accounts.get(g.getId());
-                    String accountStatus = row == null ? null : row.getAccountStatus();
-                    String smsStatus = row == null ? null : row.getSmsStatus();
-                    Long smsAt = row == null ? null : row.getSmsAtMillis();
-                    return new ChildGuardianResponse(
-                            g.getFullName(),
-                            g.getRelationship(),
-                            g.getPhone(),
-                            g.getCitizenId(),
-                            g.getEmail(),
-                            accountStatus == null
-                                    ? GuardianAccountStatus.NOT_ACTIVATED
-                                    : GuardianAccountStatus.valueOf(accountStatus),
-                            smsStatus == null ? null : SmsStatus.valueOf(smsStatus),
-                            smsAt == null ? null : Instant.ofEpochMilli(smsAt),
-                            guardianPhotoUrl(g),
-                            g.getId(),
-                            g.isAccountRecipient());
-                })
-                .toList();
+        return guardianViews.of(childId);
     }
 
     private static String guardianPhotoUrl(ChildGuardian guardian) {
