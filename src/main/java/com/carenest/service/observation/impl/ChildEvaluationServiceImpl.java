@@ -550,7 +550,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                     rows.stream()
                             .filter(r -> r.periodType() == EvaluationPeriodType.YEAR)
                             .toList(),
-                    tickets);
+                    tickets,
+                    sources.absentDates(childId, from, to));
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

@@ -156,7 +156,10 @@ public final class EvaluationDtos {
 
     public record TicketRef(Long id, TicketType type, LocalDate periodStart, LocalDate periodEnd) {}
 
-    /** Chỉ dữ liệu đã ghi nhận và đánh giá đã xác nhận; range.end không quá hôm nay. */
+    /**
+     * Chỉ dữ liệu đã ghi nhận và đánh giá đã xác nhận; range.end không quá hôm nay. absentDays: ngày đã điểm danh vắng
+     * (có phép / không phép), chưa điểm danh thì không tính.
+     */
     public record DevelopmentResponse(
             ChildRef child,
             ClassRef cls,
@@ -169,5 +172,6 @@ public final class EvaluationDtos {
             List<DevelopmentWeek> weeks,
             List<EvaluationRow> evaluations,
             List<EvaluationRow> yearEnd,
-            List<TicketRef> tickets) {}
+            List<TicketRef> tickets,
+            List<LocalDate> absentDays) {}
 }

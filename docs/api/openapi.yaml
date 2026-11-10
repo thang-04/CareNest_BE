@@ -9765,6 +9765,11 @@ components:
     DevelopmentResponse:
       type: object
       properties:
+        absentDays:
+          type: array
+          items:
+            type: string
+            format: date
         child:
           $ref: "#/components/schemas/ChildRef"
         cls:

@@ -228,6 +228,24 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("Hồ sơ phát triển trả ngày trẻ đã điểm danh vắng, trẻ có mặt thì không")
+    void developmentListsAbsentDays() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(
+                                new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true)),
+                                new SaveAttendanceRequest.Entry(child2, AttendanceStatus.UNEXCUSED, Map.of()))));
+        assertThat(evaluations.development(principal, child2, TODAY, TODAY).absentDays())
+                .containsExactly(TODAY);
+        assertThat(evaluations.development(principal, child1, TODAY, TODAY).absentDays())
+                .isEmpty();
+    }
+
+    @Test
     void sheetWithoutDateOpensLatestSchoolDaySkippingConfiguredHoliday() {
         // Hôm nay (28/10) là ngày nghỉ trong cấu hình năm học: mở màn không chọn ngày thì ra ngày học gần nhất (27/10)
         long year = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
