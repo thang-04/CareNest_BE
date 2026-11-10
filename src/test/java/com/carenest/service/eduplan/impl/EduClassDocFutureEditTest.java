@@ -48,31 +48,6 @@ class EduClassDocFutureEditTest {
         assertThatCode(() -> EduClassDocFutureEdit.requireFuture(monday.plusDays(1), monday)).doesNotThrowAnyException();
     }
 
-    @Test
-    void branchEditTargetsOnlyItsThemeAndCannotRemovePastNames() {
-        ObjectNode old = mapper.createObjectNode();
-        old.putObject("names").put("2026-11-09", "Đã dạy").put("2026-11-16", "Chưa dạy");
-        ObjectNode next = old.deepCopy();
-        ((ObjectNode) next.path("names")).put("2026-11-16", "Sửa tương lai");
-        var weeks = java.util.Map.of(monday, 1L, monday.plusWeeks(1), 2L);
-        org.assertj.core.api.Assertions.assertThat(EduClassDocFutureEdit.validateBranch(old, next, weeks, monday))
-                .containsExactly(2L);
-        ((ObjectNode) next.path("names")).remove("2026-11-09");
-        assertThatThrownBy(() -> EduClassDocFutureEdit.validateBranch(old, next, weeks, monday))
-                .isInstanceOf(GlobalException.class);
-    }
-
-    @Test
-    void incompleteFutureBranchCanBeSavedWithoutInventingDates() {
-        ObjectNode old = mapper.createObjectNode();
-        ObjectNode next = old.deepCopy();
-        next.putArray("branches").addObject().put("key", "new").put("themeId", 2L).put("name", "Đang soạn");
-        org.assertj.core.api.Assertions.assertThat(EduClassDocFutureEdit.validateBranch(
-                old, next, java.util.Map.of(monday.plusWeeks(1), 2L), monday)).containsExactly(2L);
-        assertThatThrownBy(() -> EduClassDocFutureEdit.validateBranch(
-                old, next, java.util.Map.of(monday, 2L), monday)).isInstanceOf(GlobalException.class);
-    }
-
     private ObjectNode week() {
         ObjectNode doc = mapper.createObjectNode();
         doc.put("prep", "Cũ");

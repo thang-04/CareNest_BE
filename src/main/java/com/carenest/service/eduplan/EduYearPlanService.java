@@ -1,5 +1,6 @@
 package com.carenest.service.eduplan;
 
+import java.time.LocalDate;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
@@ -41,6 +42,9 @@ public interface EduYearPlanService {
     YearPlanDetailResponse issueYearPlan(CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit);
 
     YearPlanDetailResponse returnYearPlan(CurrentUser currentUser, Long planId, String note, YearPlanEditRequest edit);
+
+    /** Spec 004 (Q5): Hiệu trưởng mở khóa kế hoạch năm học / tổ đã khóa theo ngày bắt đầu năm học. */
+    YearPlanDetailResponse unlockYearPlan(CurrentUser currentUser, Long planId, String note, LocalDate deadline);
 
     void deleteYearPlan(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 

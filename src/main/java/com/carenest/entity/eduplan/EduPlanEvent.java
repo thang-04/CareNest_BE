@@ -7,6 +7,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -62,6 +63,15 @@ public class EduPlanEvent {
 
     @Column(name = "occurred_at", nullable = false)
     private Instant occurredAt;
+
+    /** Spec 004: hạn mới khi Hiệu trưởng mở khóa (action = unlock). */
+    @Column(name = "deadline")
+    private LocalDate deadline;
+
+    public EduPlanEvent withDeadline(LocalDate value) {
+        deadline = value;
+        return this;
+    }
 
     public static EduPlanEvent of(
             Long yearPlanId,

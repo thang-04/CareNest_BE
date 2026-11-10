@@ -3578,6 +3578,31 @@ paths:
           description: OK
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/unlock:
+    post:
+      operationId: unlockYearPlan
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearPlanUnlockRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}/versions:
     post:
       operationId: createVersion
@@ -18745,6 +18770,21 @@ components:
         weekly:
           type: integer
           format: int32
+    TimeLock:
+      type: object
+      properties:
+        canUnlock:
+          type: boolean
+        deadline:
+          type: string
+          format: date
+        deadlineState:
+          type: string
+        extendedTo:
+          type: string
+          format: date
+        timeLocked:
+          type: boolean
     Totals:
       type: object
       properties:
@@ -19406,6 +19446,8 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/YearPlanThemeResponse"
+        timeLock:
+          $ref: "#/components/schemas/TimeLock"
         title:
           type: string
         updatedAt:
@@ -19778,6 +19820,14 @@ components:
         startDate:
           type: string
           format: date
+    YearPlanUnlockRequest:
+      type: object
+      properties:
+        deadline:
+          type: string
+          format: date
+        note:
+          type: string
     YearPlanVersionRequest:
       type: object
       properties:

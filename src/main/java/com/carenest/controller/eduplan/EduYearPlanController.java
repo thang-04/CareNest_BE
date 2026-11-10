@@ -276,6 +276,21 @@ public class EduYearPlanController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Editing session renewed", plan);
     }
 
+    /** Spec 004 (Q5): Hiệu trưởng mở khóa kế hoạch năm học / tổ (lý do + hạn mới). */
+    @PostMapping("/{planId}/unlock")
+    @PreAuthorize("hasRole('PRINCIPAL')")
+    public ResponseEntity<ResponseJson<YearPlanDetailResponse>> unlockYearPlan(
+            @PathVariable Long planId,
+            @RequestBody com.carenest.dto.eduplan.YearPlanUnlockRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|unlockYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        YearPlanDetailResponse plan =
+                eduYearPlanService.unlockYearPlan(currentUser, planId, request.note(), request.deadline());
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Unlock year plan success", plan);
+    }
+
     @PostMapping("/{planId}/versions")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     @ResponseStatus(HttpStatus.CREATED)

@@ -4,7 +4,6 @@ import com.carenest.exception.GlobalException;
 import com.carenest.utils.ApiCode;
 import java.time.LocalDate;
 import java.util.LinkedHashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import tools.jackson.databind.JsonNode;
@@ -78,80 +77,6 @@ final class EduClassDocFutureEdit {
             for (int i = 0; i < 5; i++)
                 if (!Objects.equals(oldRow.path("days").path(i), newRow.path("days").path(i)))
                     requireFuture(start.plusDays(i), today);
-        }
-    }
-
-    static Set<Long> validateBranch(
-            ObjectNode before, ObjectNode after, Map<LocalDate, Long> weeks, LocalDate today) {
-        return validateBranch(before, after, weeks, today, null);
-    }
-
-    /**
-     * Chủ đề nhánh: chỉ khóa phần đã qua của các chủ đề đã từng ban hành ({@code releasedThemes}; null = mọi chủ đề).
-     * Chủ đề chưa ban hành (kể cả lần lưu đầu) sửa được mọi tuần — spec 002 FR-024.
-     */
-    static Set<Long> validateBranch(
-            ObjectNode before, ObjectNode after, Map<LocalDate, Long> weeks, LocalDate today, Set<Long> releasedThemes) {
-        java.util.function.Predicate<Long> locked = theme -> releasedThemes == null || releasedThemes.contains(theme);
-        Set<Long> affected = new LinkedHashSet<>();
-        for (String field : Set.of("names", "notes")) {
-            for (String key : keys(before.path(field), after.path(field))) {
-                if (Objects.equals(before.path(field).path(key), after.path(field).path(key))) continue;
-                LocalDate date = date(key);
-                Long theme = weeks.get(date);
-                if (theme == null) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
-                if (locked.test(theme)) requireFuture(date, today);
-                affected.add(theme);
-            }
-        }
-        var oldBranches = byKey(before.path("branches"));
-        var newBranches = byKey(after.path("branches"));
-        Set<String> branchKeys = new LinkedHashSet<>(oldBranches.keySet());
-        branchKeys.addAll(newBranches.keySet());
-        for (String key : branchKeys) {
-            JsonNode oldBranch = oldBranches.get(key);
-            JsonNode newBranch = newBranches.get(key);
-            if (Objects.equals(oldBranch, newBranch)) continue;
-            for (JsonNode branch : new JsonNode[] {oldBranch, newBranch}) {
-                if (branch == null) continue;
-                long theme = branch.path("themeId").asLong();
-                if (!weeks.containsValue(theme)) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
-                String start = branch.path("startDate").asString("");
-                LocalDate sourceStart = weeks.entrySet().stream().filter(entry -> entry.getValue() == theme)
-                        .map(Map.Entry::getKey).min(LocalDate::compareTo).orElse(null);
-                if (locked.test(theme)) requireFuture(start.isBlank() ? sourceStart : date(start), today);
-                affected.add(theme);
-            }
-        }
-        ObjectNode oldShared = before.deepCopy();
-        ObjectNode newShared = after.deepCopy();
-        oldShared.remove(Set.of("names", "notes", "branches"));
-        newShared.remove(Set.of("names", "notes", "branches"));
-        if (!oldShared.equals(newShared)) {
-            if (weeks.isEmpty()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
-            // EDU-64: đổi cấu trúc chung chỉ khi toàn bộ phần được áp dụng còn ở tương lai.
-            weeks.forEach((day, theme) -> {
-                if (locked.test(theme)) requireFuture(day, today);
-            });
-            affected.addAll(weeks.values());
-        }
-        return affected;
-    }
-
-    private static Map<String, JsonNode> byKey(JsonNode branches) {
-        Map<String, JsonNode> result = new java.util.LinkedHashMap<>();
-        for (JsonNode branch : branches) {
-            String key = branch.path("key").asString("");
-            if (key.isBlank() || result.put(key, branch) != null) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
-        }
-        return result;
-    }
-
-    private static LocalDate date(String value) {
-        try {
-            return LocalDate.parse(value);
-        } catch (java.time.format.DateTimeParseException ex) {
-            throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
         }
     }
 

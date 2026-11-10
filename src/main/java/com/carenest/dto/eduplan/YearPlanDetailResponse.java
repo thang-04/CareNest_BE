@@ -49,7 +49,16 @@ public record YearPlanDetailResponse(
         List<String> remapWarnings,
         Long previousSourcePlanId,
         List<ReviewItem> reviewItems,
-        List<NewItem> newItems) {
+        List<NewItem> newItems,
+        TimeLock timeLock) {
+
+    /** Spec 004: hạn = ngày bắt đầu năm học; khóa từ ngày đó tới khi Hiệu trưởng mở khóa. */
+    public record TimeLock(
+            java.time.LocalDate deadline,
+            java.time.LocalDate extendedTo,
+            String deadlineState,
+            boolean timeLocked,
+            boolean canUnlock) {}
 
     @com.fasterxml.jackson.annotation.JsonProperty
     public com.carenest.utils.enums.EduPlanLevel planType() { return planLevel; }
@@ -106,7 +115,7 @@ public record YearPlanDetailResponse(
             boolean canAssignContents,
             boolean canEditBranchTemplates,
             List<String> remapWarnings) {
-        this(id, code, schoolYearId, schoolYearName, ageGroupId, ageGroupName, title, description, status, owner, sentBy, issued, editing, createdAt, updatedAt, domains, themes, breaks, history, lastReturnNote, review, permissions, revision, editExpiresAt, versionNo, sourcePlanId, current, versions, planLevel, curriculumSourcePlanId, sourceMode, durationPolicySnapshot, branchTemplates, canEditCurriculum, canAssignContents, canEditBranchTemplates, remapWarnings, null, List.of(), List.of());
+        this(id, code, schoolYearId, schoolYearName, ageGroupId, ageGroupName, title, description, status, owner, sentBy, issued, editing, createdAt, updatedAt, domains, themes, breaks, history, lastReturnNote, review, permissions, revision, editExpiresAt, versionNo, sourcePlanId, current, versions, planLevel, curriculumSourcePlanId, sourceMode, durationPolicySnapshot, branchTemplates, canEditCurriculum, canAssignContents, canEditBranchTemplates, remapWarnings, null, List.of(), List.of(), null);
     }
     public YearPlanDetailResponse(
             Long id,

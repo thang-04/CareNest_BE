@@ -122,6 +122,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private final YearPlanPublicationValidator publicationValidator;
     private final com.carenest.service.eduplan.EduTeamPlanService teamService;
     private final EduTeamUpdateGenerator teamUpdates;
+    private final EduPlanTimeLock timeLock;
     private final com.carenest.service.notification.NotificationService notificationService;
 
     @Override
@@ -402,6 +403,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             }
             requireSession(currentUser, plan, edit, now);
             requireRevision(plan, edit);
+            // Spec 004 (Q3b, Q4, Q5): từ ngày bắt đầu năm học không gửi bản chưa ban hành nào, tới khi HT mở khóa
+            if (timeLock.locked(plan)) throw GlobalException.of(ApiCode.PLAN_TIME_LOCKED);
             requireReadyToIssue(plan);
 
             plan.submit(currentUser.userId(), now);
@@ -418,6 +421,46 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     now);
             notifyReviewers(plan, currentUser, com.carenest.utils.enums.NotificationType.EDU_SUBMITTED, note);
 
+            YearPlanDetailResponse response = toDetail(currentUser, plan);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public YearPlanDetailResponse unlockYearPlan(CurrentUser currentUser, Long planId, String note, LocalDate deadline) {
+        String logPrefix = LOG_PREFIX + "|unlockYearPlan|userId=" + currentUser.userId() + "|planId=" + planId;
+        log.info("{}|START", logPrefix);
+        try {
+            EduPlan plan = loadPlanForUpdate(currentUser, planId);
+            if (!accessPolicy.isPrincipal(currentUser)) throw GlobalException.of(ApiCode.FORBIDDEN);
+            String reason = note == null ? "" : note.trim();
+            if (reason.isEmpty()) throw GlobalException.of(ApiCode.RETURN_REASON_REQUIRED);
+            LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
+            if (deadline == null || !deadline.isAfter(today)) throw GlobalException.of(ApiCode.INVALID_VALUE, "hạn mới");
+            if (!timeLock.locked(plan)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở khóa khi đã khóa");
+            Instant now = clock.instant();
+            EduPlanEvent event = EduPlanEvent.of(plan.getId(), EduPlanTimeLock.ACTION_UNLOCK,
+                            "Mở khóa tới " + deadline.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                            currentUser.userId(), currentUser.fullName(), roleLabel(currentUser), TONE_NONE, reason, now)
+                    .withDeadline(deadline);
+            event.initializeOwner(plan);
+            eventRepository.save(event);
+            Long owner = plan.getOwnerId();
+            if (owner != null && !owner.equals(currentUser.userId()))
+                notificationService.notifyUsers(
+                        Set.of(owner),
+                        com.carenest.utils.enums.NotificationType.EDU_DEADLINE_EXTENDED,
+                        "Đã mở khóa: " + planLabel(plan),
+                        currentUser.fullName() + " mở khóa tới "
+                                + deadline.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                                + ". Lý do: " + reason,
+                        planLink(plan),
+                        false);
             YearPlanDetailResponse response = toDetail(currentUser, plan);
             log.info("{}|END", logPrefix);
             return response;
@@ -737,6 +780,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (!currentVersion(chain).map(p -> p.getId().equals(planId)).orElse(false)) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_VERSION_SOURCE_INVALID);
             }
+            // Spec 004 (Q3b): phiên bản điều chỉnh chỉ tạo trước ngày bắt đầu năm học, trừ khi HT mở khóa
+            if (timeLock.locked(source)) throw GlobalException.of(ApiCode.PLAN_TIME_LOCKED);
             requireRevision(source, edit);
 
             Instant now = clock.instant();
@@ -1838,7 +1883,15 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 List.of(),
                 plan instanceof com.carenest.entity.eduplan.EduTeamPlan team ? team.getPreviousSourcePlanId() : null,
                 plan.getPlanLevel() == EduPlanLevel.TEAM ? teamService.reviewItems(plan) : List.of(),
-                plan.getPlanLevel() == EduPlanLevel.TEAM ? teamService.newItems(plan) : List.of());
+                plan.getPlanLevel() == EduPlanLevel.TEAM ? teamService.newItems(plan) : List.of(),
+                timeLockOf(user, plan));
+    }
+
+    private YearPlanDetailResponse.TimeLock timeLockOf(CurrentUser user, EduPlan plan) {
+        EduDeadline.Info info = timeLock.info(plan);
+        boolean locked = timeLock.locked(plan);
+        return new YearPlanDetailResponse.TimeLock(
+                info.deadline(), info.extendedTo(), info.state(), locked, locked && accessPolicy.isPrincipal(user));
     }
 
     private YearPlanDetailResponse.Permissions permissionsOf(
@@ -1853,7 +1906,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         boolean canReturn = canApprove;
         return new YearPlanDetailResponse.Permissions(
                 canEdit(user, plan, now),
-                isDraft && author,
+                isDraft && author && !timeLock.locked(plan),
                 canApprove,
                 canApprove,
                 canReturn,
@@ -1863,7 +1916,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                         && plan.getId().equals(currentId)
                         && chain.stream().allMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED)
-                        && author);
+                        && author
+                        && !timeLock.locked(plan));
     }
 
     private final EduWorkflowPolicy evaluator = new EduWorkflowPolicy();

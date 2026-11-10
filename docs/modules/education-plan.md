@@ -190,10 +190,40 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 
 - Gốc gửi/duyệt mới trong `edu_class_docs` (V96): `semester` (gói học kỳ, `sp_<lớp>_<kế hoạch tổ>_<1|2>`, chuỗi duyệt policy `branch`) và `dossier` (hồ sơ chủ đề, `ds_<lớp>_<chủ đề>`, policy `theme`); `EduClassDoc.policyType/isRoot`. Thành viên (`theme`, `week`, `day`) mang cùng trạng thái gốc. Lịch nhánh (`branch`) không mang trạng thái duyệt; bản ban hành gói học kỳ chụp tên nhánh các tuần của kỳ.
 - Giáo án ngày tách khỏi giáo án tuần: kind `day` (`dd_` + hậu tố của `wp_`) giữ `days`, `dayGoals`, `adjustments` (EDU-27); `week` từ chối `days`/`dayGoals`. `PUT /class-docs/day/{key}/adjustments` (giữ `/week/{key}/adjustments`, khóa `wp_` đổi sang `dd_`).
-- Cách gửi của chủ đề: `theme.content.submitMode` = `SEMESTER` | `THEME` (thiếu = THEME); đổi chỉ khi kế hoạch chủ đề còn Nháp và chưa từng ban hành.
+- ~~Cách gửi của chủ đề `theme.content.submitMode`~~ — bỏ ở spec 004 (EDU-75), BE bỏ qua nếu nhận được.
 - Hạn tính khi đọc (`EduDeadline`, `EduSemesters`): gói = `semesterN_start`, hồ sơ = ngày bắt đầu chủ đề (lịch lớp, không có thì kế hoạch tổ); mở hạn = sự kiện `extend` trong `history`. `deadlineState`: NORMAL/NEAR (≤7 ngày)/OVERDUE/ON_TIME/LATE; hạn trước ngày mở lớp (`ClassroomService.findOpenedDates`) không quá hạn.
 - `actOnClassDoc`: chỉ nhận `semester`/`dossier`; `submit` quá hạn ⇒ 7385 `CLASS_DOC_DEADLINE_PASSED`; hồ sơ khi gói học kỳ chưa từng ban hành ⇒ 7386 `SEMESTER_PACKAGE_NOT_RELEASED`; `extend` (HT/PHT mọi điểm trường, `note` + `deadline` > hôm nay, chỉ khi OVERDUE và DRAFT). `ClassDocActionRequest.deadline`.
-- `GET /class-docs` thêm `semesterPackages`, `themeDossiers`, `dayPlans`, `semesterConfigMissing`; gốc có `deadline, extendedTo, daysLeft, deadlineState, everReleased, themeIds, semesterNo, submitMode, branchNames, blockedReason, canExtend`; thành viên có `containerKey`, `containerStatus`. Người không soạn: `branch.names` ghép từ bản ban hành gói từng kỳ + `branchUnreleasedSemesters`.
+- `GET /class-docs` thêm `semesterPackages`, `themeDossiers`, `dayPlans`, `semesterConfigMissing`; gốc có `deadline, extendedTo, daysLeft, deadlineState, everReleased, themeIds, semesterNo, branchNames, blockedReason, canExtend`; thành viên có `containerKey`, `containerStatus`. Người không soạn: `branch.names` ghép từ bản ban hành gói từng kỳ + `branchUnreleasedSemesters`.
 - Thông báo (V97, `notifications.link`): `EDU_SUBMITTED`, `EDU_STEP_APPROVED` (người duyệt bước đang chờ), `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED` (GVCN / người gửi kế hoạch năm, tổ), `EDU_DEADLINE_NEAR` (job `remindNearDeadlines` 06:00, một lần mỗi người + đường dẫn). Email: hoãn (chưa duyệt dependency).
 - Known pitfalls: gói học kỳ đang Chờ duyệt khóa sửa/nhập lịch nhánh; thêm gói/hồ sơ mới được tạo khi lưu tài liệu của lớp (`ensureRoots`), không tạo khi chỉ đọc.
 
+## Cách duyệt cố định, phiên bản và khóa theo thời gian (spec 004 — Tiền 11/11/2026, EDU-75/76/77)
+
+- Thành phần cố định: `semester` (`sp_…`) = tên nhánh kỳ + **mọi** `theme`, `week` của chủ đề thuộc kỳ; `dossier` (`ds_…`) = chỉ `day`.
+  `classThemePlans[]`/`weekPlans[]` có `containerKey` = khóa gói học kỳ; `dayPlans[]` = khóa hồ sơ chủ đề. Bỏ `submitMode`.
+- `GET /class-docs`: `semesterPackages[]` thêm `missing: [{kind: theme|branch|week, themeId, weekStart}]` (rỗng ⇒ đủ gửi),
+  `timeLocked`, `canRevise`; `themeDossiers[]` thêm `timeLocked`, `canRevise`; `canExtend` đúng cả khi gốc APPROVED đã `timeLocked`.
+- `POST /class-docs/{kind}/{docKey}/actions`:
+  - `submit` gói thiếu phần ⇒ 400 **7387** `SEMESTER_PACKAGE_INCOMPLETE` + `details` (danh sách mục thiếu).
+  - `revise` (**mới**, GVCN, `semester`/`dossier` APPROVED, trước hạn hiệu lực, chưa có phiên bản dở): ghi sự kiện `revise`
+    (kèm `previousApprovals`, `previousPrintSnapshot`), thành viên về DRAFT, bản ban hành cũ vẫn hiệu lực tới khi bản mới ban hành.
+    Qua hạn ⇒ 409 **7388** `CLASS_DOC_TIME_LOCKED`; không APPROVED / đã có phiên bản dở ⇒ 409 `CLASS_DOC_LOCKED`.
+  - `extend` (HT/PHT, nhãn UI "Mở khóa"): nhận gốc DRAFT quá hạn **hoặc** APPROVED `timeLocked`; `note` + `deadline` > hôm nay.
+- `PUT /class-docs/{kind}/{docKey}`: thành viên của gốc APPROVED chưa `revise` ⇒ 409 `CLASS_DOC_LOCKED` (bỏ tự mở lại khi lưu);
+  qua hạn hiệu lực ⇒ 409 7388. Hạn hiệu lực = `max(mốc, extendedTo)`; mốc gói = `semesterN_start`, hồ sơ = ngày bắt đầu chủ đề.
+  `day` lưu được khi gói chưa ban hành (Q1), chỉ `submit` hồ sơ bị chặn (7386).
+- Q7: gói học kỳ phiên bản mới ban hành ⇒ so `week` với `print_snapshot` bản trước; tuần đổi ⇒ `day` cùng `weekStart` (nếu APPROVED)
+  và `dossier` chứa nó về DRAFT, sự kiện `week_changed {weeks:[…]}`, thông báo GVCN.
+- Kế hoạch năm/tổ (`EduPlanTimeLock`): mốc = `school_years.start_date`; hạn hiệu lực = `max(start_date, deadline` của sự kiện `unlock` mới nhất).
+  Từ hạn: `submit`/`issue` bản chưa từng ban hành, `POST /goals/{id}/versions`, tạo/nhận bản cập nhật tổ (EDU-62/72) ⇒ 409 **7389**
+  `PLAN_TIME_LOCKED` (bản cập nhật tổ tự động thì bỏ qua); REVIEW vẫn duyệt/trả lại. `GET /goals/{id}` có
+  `timeLock {deadline, extendedTo, deadlineState, timeLocked, canUnlock}`.
+- **Mới** `POST /api/v1/education-plans/goals/{planId}/unlock` body `{note, deadline}` — chỉ Hiệu trưởng; thiếu lý do ⇒ 400
+  `RETURN_REASON_REQUIRED`; hạn ≤ hôm nay ⇒ 400 `INVALID_VALUE`; khác HT ⇒ 403. Ghi `edu_plan_events(action='unlock', deadline)` (V98),
+  thông báo người soạn `EDU_DEADLINE_EXTENDED`.
+- Web: `/education/theme-plans/:classId?hk=1|2` (gói học kỳ), `/education/day-plans/:classId?week=|theme=` (hồ sơ chủ đề); đường dẫn cũ
+  `/education/class/:id`, `/class/:id/semesters/:no`, `/class/:id/weeks/:ws/days` chuyển hướng.
+- Dữ liệu thử tài liệu lớp trên DB dev `carenest_merge` đã xóa 11/11/2026 (Q8, không có migration V99); sao lưu
+  `local-backups/carenest_merge_class_docs_20261111.sql`.
+- Known pitfalls: sửa kế hoạch chủ đề/tuần đã ban hành phải `revise` gói học kỳ trước (lưu thẳng ⇒ 409); khóa theo thời gian chặn cả
+  lưu lẫn gửi, chỉ mở khóa mới làm tiếp; `missing` chỉ tính tuần học (bỏ tuần nghỉ cả tuần, EDU-41).

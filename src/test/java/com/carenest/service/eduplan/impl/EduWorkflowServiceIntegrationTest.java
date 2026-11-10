@@ -338,7 +338,7 @@ class EduWorkflowServiceIntegrationTest {
     @Autowired private java.time.Clock clock;
 
     @Test
-    void editingPublishedFutureThemeReopensOnlyItsDossierAndKeepsPublicationEvidence() {
+    void editingPublishedThemeRequiresRevisionAndKeepsPublicationEvidence() {
         var fixture = classFixture(false, true);
         LocalDate future = LocalDate.now(clock).with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY));
         var themes = jdbc.queryForList("SELECT id FROM edu_themes WHERE team_plan_id=? ORDER BY sort_order", Long.class, fixture.planId());
@@ -349,14 +349,20 @@ class EduWorkflowServiceIntegrationTest {
         other.publish(fixture.vp().userId(), "[]", 1L, "{}", "{\"proof\":true}", clock.instant());
         classDocRepository.saveAndFlush(other);
         root.publish(fixture.vp().userId(), "[]", 1L, "{}", "{\"proof\":true}", clock.instant());
+        var dossier = publishDossier(fixture.classId(), fixture.planId(), themes.get(0), fixture.vp().userId());
         entityManager.flush();
         long otherVersion = other.getVersion();
         var body = mapper.createObjectNode();
         body.put("classId", fixture.classId()).put("yearPlanId", fixture.planId()).put("themeId", themes.get(0));
         body.put("environment", "Môi trường mới");
+        // Spec 004 Q3: bản đã ban hành không sửa thẳng
+        assertThatThrownBy(() -> classDocs.saveClassDoc(fixture.teacher(), "theme", root.getDocKey(), body, root.getVersion(), null))
+                .isInstanceOf(GlobalException.class).extracting("apiCode").isEqualTo(ApiCode.CLASS_DOC_LOCKED);
+        classDocs.actOnClassDoc(fixture.teacher(), "dossier", dossier.getDocKey(),
+                new com.carenest.dto.eduplan.ClassDocActionRequest("revise", null), dossier.getVersion());
+        entityManager.flush();
         var result = classDocs.saveClassDoc(fixture.teacher(), "theme", root.getDocKey(), body, root.getVersion(), null);
         assertThat(result.path("status").asString()).isEqualTo("DRAFT");
-        assertThat(root.getPrintSnapshot()).isNull();
         assertThat(root.getHistory()).contains("revise_future", "previousPrintSnapshot", "proof");
         entityManager.flush();
         entityManager.refresh(other);
@@ -366,7 +372,7 @@ class EduWorkflowServiceIntegrationTest {
     }
 
     @Test
-    void publishedFutureWeekReopensDossierButReviewRemainsLocked() {
+    void publishedWeekNeedsRevisionAndReviewRemainsLocked() {
         var fixture = classFixture(false, true);
         var root = classDocRepository.findByDocKey(fixture.themeKey()).orElseThrow();
         LocalDate start = LocalDate.now(clock).with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY));
@@ -375,17 +381,20 @@ class EduWorkflowServiceIntegrationTest {
         root.publish(fixture.vp().userId(), "[]", 1L, "{}", "{}", clock.instant());
         week.publish(fixture.vp().userId(), "[]", 1L, "{}", "{}", clock.instant());
         classDocRepository.saveAndFlush(week);
+        var dossier = publishDossier(fixture.classId(), fixture.planId(), root.getThemeId(), fixture.vp().userId());
         var body = mapper.createObjectNode();
         body.put("classId", fixture.classId()).put("yearPlanId", fixture.planId()).put("themeId", root.getThemeId()).put("weekStart", start.toString()).put("prep", "Mới");
-        long dossierVersion = classDocRepository.findByDocKey("ds_" + root.getDocKey().substring(3)).orElseThrow().getVersion();
-        var saved = classDocs.saveClassDoc(fixture.teacher(), "week", week.getDocKey(), body, week.getVersion(), dossierVersion);
+        assertThatThrownBy(() -> classDocs.saveClassDoc(fixture.teacher(), "week", week.getDocKey(), body, week.getVersion(), dossier.getVersion()))
+                .isInstanceOf(GlobalException.class).extracting("apiCode").isEqualTo(ApiCode.CLASS_DOC_LOCKED);
+        classDocs.actOnClassDoc(fixture.teacher(), "dossier", dossier.getDocKey(),
+                new com.carenest.dto.eduplan.ClassDocActionRequest("revise", null), dossier.getVersion());
+        entityManager.flush();
+        var saved = classDocs.saveClassDoc(fixture.teacher(), "week", week.getDocKey(), body, week.getVersion(), dossier.getVersion());
         assertThat(saved.path("status").asString()).isEqualTo("DRAFT");
-        assertThat(root.getStatus()).isEqualTo(com.carenest.utils.enums.EduClassDocStatus.DRAFT);
         var branch = classDocRepository.findByDocKey("bp_"+fixture.classId()+"_"+fixture.planId()).orElseThrow();
         branch.changeContent("{\"names\":{\""+start+"\":\"Nhánh mới\"}}", fixture.teacher().userId());
         entityManager.flush();
         classDocRepository.saveAndFlush(EduClassDoc.create("dd_"+fixture.classId()+"_"+start, "day", fixture.classId(), fixture.planId(), root.getThemeId(), start, fixture.teacher().userId()));
-        var dossier = classDocRepository.findByDocKey("ds_" + root.getDocKey().substring(3)).orElseThrow();
         classDocs.actOnClassDoc(fixture.teacher(), "dossier", dossier.getDocKey(),
                 new com.carenest.dto.eduplan.ClassDocActionRequest("submit", null), dossier.getVersion());
         entityManager.flush();
@@ -413,7 +422,7 @@ class EduWorkflowServiceIntegrationTest {
     }
 
     @Test
-    void editingFutureBranchReopensOnlyItsPublishedThemeAndStaleWritesAreRejected() {
+    void editingBranchNoLongerReopensPublishedThemesAndStaleWritesAreRejected() {
         var fixture = classFixture(false, true);
         LocalDate start = LocalDate.now(clock).with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY));
         var themes = jdbc.queryForList("SELECT id FROM edu_themes WHERE team_plan_id=? ORDER BY sort_order", Long.class, fixture.planId());
@@ -435,7 +444,8 @@ class EduWorkflowServiceIntegrationTest {
         content.put("classId", fixture.classId()).put("yearPlanId", fixture.planId());
         classDocs.saveClassDoc(fixture.teacher(), "branch", branch.getDocKey(), content, oldVersion, null);
         entityManager.flush();
-        assertThat(root.getStatus()).isEqualTo(com.carenest.utils.enums.EduClassDocStatus.DRAFT);
+        // Spec 004: sửa lịch nhánh không tự mở lại hồ sơ đã ban hành (năm chưa cấu hình học kỳ: không có gói khóa nhánh)
+        assertThat(root.getStatus()).isEqualTo(com.carenest.utils.enums.EduClassDocStatus.APPROVED);
         assertThat(other.getStatus()).isEqualTo(com.carenest.utils.enums.EduClassDocStatus.APPROVED);
         assertThat(other.getVersion()).isEqualTo(otherVersion);
         assertThatThrownBy(() -> classDocs.saveClassDoc(fixture.teacher(), "branch", branch.getDocKey(), content, oldVersion, null))

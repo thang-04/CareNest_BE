@@ -685,6 +685,14 @@ public enum ApiCode {
     // Spec 003: mốc duyệt theo thời gian dạy
     CLASS_DOC_DEADLINE_PASSED(7385, HttpStatus.CONFLICT, "Đã quá hạn gửi, cần Hiệu trưởng/Phó HT mở hạn"),
     SEMESTER_PACKAGE_NOT_RELEASED(7386, HttpStatus.CONFLICT, "Lịch chủ đề nhánh học kỳ chưa duyệt"),
+    // Spec 004: cách duyệt cố định, phiên bản và khóa theo thời gian
+    SEMESTER_PACKAGE_INCOMPLETE(
+            7387, HttpStatus.BAD_REQUEST, "Học kỳ còn thiếu chủ đề nhánh, kế hoạch chủ đề hoặc kế hoạch tuần"),
+    CLASS_DOC_TIME_LOCKED(
+            7388,
+            HttpStatus.CONFLICT,
+            "Đã tới ngày bắt đầu, không đổi được nữa. Cần Hiệu trưởng hoặc Phó hiệu trưởng mở khóa"),
+    PLAN_TIME_LOCKED(7389, HttpStatus.CONFLICT, "Năm học đã bắt đầu, kế hoạch đã khóa. Cần Hiệu trưởng mở khóa"),
     CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,

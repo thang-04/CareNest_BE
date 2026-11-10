@@ -38,8 +38,8 @@ Chỉ HT có quyền cấu hình người soạn/duyệt theo loại hồ sơ. P
 |---|---|---|
 | Kế hoạch năm học | PHT (hoặc TT) | **Nếu PHT soạn: Bắt buộc CHỈ CÓ Hiệu trưởng duyệt**<br>Nếu TT soạn: PHT hoặc HT duyệt |
 | Kế hoạch tổ | Tổ trưởng đúng nhóm tuổi | PHT hoặc HT duyệt |
-| Gói học kỳ lớp (lịch nhánh của kỳ + kế hoạch chủ đề/tuần chọn "theo học kỳ"; EDU-74) | GV chủ nhiệm | Theo chuỗi cấu hình "chủ đề nhánh"; hạn = ngày bắt đầu học kỳ |
-| Hồ sơ chủ đề lớp (giáo án ngày + kế hoạch chủ đề/tuần nếu "theo chủ đề"; EDU-74) | GV chủ nhiệm | Theo cấu hình HT: ví dụ chỉ PHT hoặc TT → PHT; không bắt buộc bước TT |
+| Gói học kỳ lớp (tên nhánh + kế hoạch chủ đề + kế hoạch tuần của mọi chủ đề trong kỳ; EDU-74/75) | GV chủ nhiệm | Theo chuỗi cấu hình "chủ đề nhánh"; hạn = ngày bắt đầu học kỳ |
+| Hồ sơ chủ đề lớp (chỉ giáo án ngày của chủ đề; EDU-74/75) | GV chủ nhiệm | Theo cấu hình HT: ví dụ chỉ PHT hoặc TT → PHT; không bắt buộc bước TT |
 
 - **Chống tự duyệt:** Người tham gia soạn thảo bị loại khỏi ứng viên duyệt. Cấp dưới không bao giờ được duyệt bài cấp trên.
 - **Trạng thái duyệt:**
@@ -70,12 +70,35 @@ Chỉ HT có quyền cấu hình người soạn/duyệt theo loại hồ sơ. P
 
 ```text
 Gói học kỳ (hạn = ngày bắt đầu học kỳ)   ──ban hành──▶ Hồ sơ chủ đề được gửi (hạn = ngày bắt đầu chủ đề)
-   lịch nhánh của kỳ                                   giáo án ngày mọi tuần
-   + chủ đề "theo học kỳ": kế hoạch chủ đề, tuần       + chủ đề "theo chủ đề" (mặc định): kế hoạch chủ đề, tuần
-Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chưa ban hành: "Quá hạn", khóa gửi → HT/PHT mở hạn (lý do, hạn mới)
+   tên nhánh + kế hoạch chủ đề + kế hoạch tuần          chỉ giáo án ngày mọi tuần của chủ đề
+   của mọi chủ đề trong kỳ (EDU-75)
+Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chưa ban hành: "Quá hạn", khóa gửi → HT mở hạn (lý do, hạn mới)
 ```
 
-- Bản đang Chờ duyệt khi tới hạn vẫn được duyệt; ban hành sau hạn hiện "Ban hành trễ"; bản đã ban hành mở lại sửa phần
-  tương lai sau hạn cũng là "Quá hạn".
-- Trang Kế hoạch tuần và trang Giáo án ngày tách riêng; người chỉ xem chỉ thấy lịch nhánh của học kỳ đã ban hành.
+- Bản đang Chờ duyệt khi tới hạn vẫn được duyệt; ban hành sau hạn hiện "Ban hành trễ".
+- Trạng thái duyệt (Nháp/Chờ duyệt/Bị trả lại/Đã ban hành) và trạng thái hạn (Gần đến hạn/Quá hạn/Đúng hạn/Ban hành trễ)
+  hiện tách rõ; mở hạn/mở khóa chỉ Hiệu trưởng (Tiền 11/11/2026, spec 005).
+- Người chỉ xem chỉ thấy lịch nhánh của học kỳ đã ban hành.
+
+## Cách duyệt cố định, phiên bản và khóa theo thời gian (spec 004 — Tiền 11/11/2026, EDU-75/76/77)
+
+- Không còn lựa chọn "theo học kỳ"/"theo chủ đề". Gửi gói học kỳ thiếu tên nhánh, kế hoạch chủ đề hoặc kế hoạch tuần ⇒ chặn
+  (7387), hiện danh sách mục thiếu. Gói học kỳ chưa ban hành vẫn soạn/lưu được giáo án ngày, chỉ chưa gửi hồ sơ chủ đề.
+- Màn hình: "Chủ đề / Chủ đề nhánh" và kế hoạch chủ đề chỉ để sửa (không nút gửi). Gói học kỳ gửi/duyệt ở **Kế hoạch giáo
+  dục chủ đề** (tab học kỳ 1/2); hồ sơ chủ đề ở **Kế hoạch giáo dục ngày** (kế hoạch tuần chỉ xem ở trên + giáo án 5 ngày).
+
+```text
+Đã ban hành ──(trước ngày bắt đầu)── Tạo phiên bản điều chỉnh → Nháp → gửi → duyệt → ban hành (bản cũ hiệu lực tới lúc này)
+            ──(từ ngày bắt đầu)───── Khóa (7388 gói/hồ sơ; 7389 năm/tổ) → Mở khóa (lý do + hạn mới) → làm tiếp tới hạn mới
+```
+
+| Tài liệu | Ngày bắt đầu (mốc khóa) | Mở khóa |
+|---|---|---|
+| Kế hoạch năm học, kế hoạch tổ | ngày bắt đầu năm học (khóa gửi bản chưa ban hành, tạo phiên bản năm, cập nhật tổ) | Hiệu trưởng |
+| Gói học kỳ | ngày bắt đầu học kỳ | HT/PHT |
+| Hồ sơ chủ đề (giáo án ngày) | ngày bắt đầu chủ đề; sau đó chỉ còn ô điều chỉnh sau dạy (EDU-27) | HT/PHT |
+
+- Phiên bản dở khi tới ngày bắt đầu: Chờ duyệt vẫn duyệt/trả lại cho xong (trả lại thì không gửi lại được); Nháp bị khóa.
+- Phiên bản mới của gói học kỳ ban hành mà đổi kế hoạch tuần ⇒ chỉ giáo án ngày của tuần đó về Nháp (sự kiện `week_changed`,
+  báo GVCN); tuần khác giữ ban hành.
 

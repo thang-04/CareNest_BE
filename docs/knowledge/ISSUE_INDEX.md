@@ -5,6 +5,8 @@ Search đầu tiên khi gặp bug, lỗi môi trường, case lạ. Grep chuỗi
 ID: `BUG-` (code) · `CASE-` (edge case nghiệp vụ) · `ENV-` (môi trường/build/deploy), dạng `<loại>-YYMMDD-<slug>` (vd. `BUG-261004-meal-count-stale`). Status: `open` | `workaround` | `fixed`.
 | ID | Module | Triệu chứng (từ khóa + chuỗi lỗi) | Root cause (1 câu, `?` nếu chưa rõ) | Status |
 | --- | --- | --- | --- | --- |
+| [BUG-261110-released-branch-leak](incidents/BUG-261110-released-branch-leak.md) | education-plan / EDU-73/74 | HT/PHT/GV thứ hai thấy tên nhánh học kỳ chưa duyệt dù trang báo "Chưa có lịch chủ đề nhánh đã duyệt" | Released view chỉ lọc `names`, còn trả nguyên `branches`/`effectiveCalendar.branches` mà Web lịch v2 dựng tên từ đó | fixed |
+| [BUG-261110-class-doc-cors-headers](incidents/BUG-261110-class-doc-cors-headers.md) | education-plan BE↔FE / security | Lưu chủ đề nhánh báo "Không thể kết nối máy chủ" (status 0), gọi API bằng curl/node vẫn 200 | CORS `allowedHeaders` thiếu `X-Class-Doc-Version`, `X-Dossier-Version` ⇒ trình duyệt chặn preflight PUT | fixed |
 | [BUG-261109-year-team-approval-identity](incidents/BUG-261109-year-team-approval-identity.md) | education-plan / Web | Năm gửi HT chờ duyệt hiện loại/tên kế hoạch tổ; phiên bản tổ gây nhầm | ? — user báo, chưa tái hiện; đặc tả đích EDU-62/feature015 | open |
 | [BUG-261108-returned-status-draft](incidents/BUG-261108-returned-status-draft.md) | education-plan / Web | Hồ sơ trả lại hiện Nháp | Backend lưu DRAFT, FE suy nhãn từ lịch sử trả lại | fixed |
 | [BUG-261108-duration-feedback-late](incidents/BUG-261108-duration-feedback-late.md) | education-plan / Web | Chủ đề5 tuần vẫn gửi dù cấu hình tối đa4 | Annual mất snapshot sau V90; submit chưa kiểm bound server | open |

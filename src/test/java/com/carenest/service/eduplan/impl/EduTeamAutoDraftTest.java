@@ -33,6 +33,7 @@ class EduTeamAutoDraftTest {
     @Mock StaffAssignmentService assignments;
     @Mock AccountService accounts;
     @Mock Clock clock;
+    @Mock EduPlanTimeLock timeLock;
     @InjectMocks EduTeamUpdateGenerator generator;
 
     @Test

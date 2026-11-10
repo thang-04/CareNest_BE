@@ -30,6 +30,7 @@ class EduTeamUpdateGenerator {
     private final com.carenest.service.organization.StaffAssignmentService assignments;
     private final com.carenest.service.account.AccountService accounts;
     private final java.time.Clock clock;
+    private final EduPlanTimeLock timeLock;
 
     void updateAfterPublication(EduPlan annual, Instant now) {
         String prefix = LOG_PREFIX + "|updateAfterPublication|planId=" + annual.getId();
@@ -64,6 +65,8 @@ class EduTeamUpdateGenerator {
             EduPlan prior = open.orElseGet(() -> chain.stream()
                     .filter(p -> p.getStatus() == EduPlanStatus.APPROVED)
                     .max(Comparator.comparingInt(EduPlan::getVersionNo)).orElse(null));
+            // Spec 004 (Q6): kế hoạch tổ đã khóa theo năm học thì không nhận cập nhật nguồn, tới khi HT mở khóa
+            if (prior != null && timeLock.locked(prior)) return;
             if (prior == null || prior.getCurriculumSourcePlanId() == null
                     || !sources.contains(prior.getCurriculumSourcePlanId())
                     || Objects.equals(prior.getCurriculumSourcePlanId(), annual.getId())) return;
