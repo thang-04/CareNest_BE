@@ -225,7 +225,8 @@ public class RoomServiceImpl implements RoomService {
     private void checkNoOpenYearClass(Long roomId, String action) {
         List<Classroom> openClasses = classroomRepository.findOpenYearClassesByRoomIds(List.of(roomId));
         if (!openClasses.isEmpty()) {
-            String names = openClasses.stream().map(Classroom::getName).collect(Collectors.joining(", "));
+            String names =
+                    openClasses.stream().map(Classroom::getName).distinct().collect(Collectors.joining(", "));
             throw GlobalException.of(ApiCode.ROOM_IN_USE_BY_CLASS, names, action);
         }
     }
@@ -300,10 +301,9 @@ public class RoomServiceImpl implements RoomService {
                             .filter(c -> c.getSchoolYearId().equals(schoolYearId))
                             .map(Classroom::getName)
                             .toList();
-                    List<String> blockers = classes.isEmpty()
-                            ? List.of()
-                            : List.of("Room of "
-                                    + classes.stream().map(Classroom::getName).collect(Collectors.joining(", ")));
+                    // Lý do chưa ngừng / xóa được: tên lớp (năm chưa kết thúc) đang dùng phòng, không lặp
+                    List<String> blockers =
+                            classes.stream().map(Classroom::getName).distinct().toList();
                     // Phòng học: người phụ trách = GV chủ nhiệm của lớp dùng phòng trong năm học
                     return new RoomResponse(
                             room.getId(),
