@@ -9758,6 +9758,8 @@ components:
         id:
           type: integer
           format: int64
+        teaches:
+          type: boolean
     DevelopmentResponse:
       type: object
       properties:

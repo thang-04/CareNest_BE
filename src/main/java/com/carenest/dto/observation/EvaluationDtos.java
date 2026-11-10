@@ -131,6 +131,7 @@ public final class EvaluationDtos {
 
     /** Trẻ đang học lớp trong phạm vi (GV lớp mình, PHT điểm trường, HT toàn trường). */
     /** current = trẻ còn học lớp tại hôm nay; false = đã chuyển lớp / đã nghỉ (vẫn xem được hồ sơ cũ). */
+    /** teaches = người xem đang dạy lớp (false: tổ trưởng / BGH chỉ xem). */
     public record DevelopmentChildRow(
             Long id,
             String fullName,
@@ -138,7 +139,8 @@ public final class EvaluationDtos {
             Long classId,
             String className,
             Long campusId,
-            boolean current) {}
+            boolean current,
+            boolean teaches) {}
 
     public record DateRange(LocalDate start, LocalDate end) {}
 

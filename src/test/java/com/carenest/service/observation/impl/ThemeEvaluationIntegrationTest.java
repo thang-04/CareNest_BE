@@ -646,6 +646,41 @@ class ThemeEvaluationIntegrationTest {
                 ApiCode.EVALUATION_VIEW_FORBIDDEN);
     }
 
+    @Test
+    @DisplayName("AUTH-23: tổ trưởng xem (chỉ xem) bảng học kỳ, hồ sơ phát triển các lớp nhóm tuổi mình")
+    void teamLeaderViewsSemesterAndDevelopmentOfOwnAgeGroup() {
+        jdbc.update(
+                "UPDATE school_years SET semester1_start='2026-09-01', semester1_end='2027-01-15'"
+                        + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        CurrentUser leader = user("leader-z", CareNestRole.TEACHER);
+        expectCode(() -> semesters.get(leader, classA, 1), ApiCode.EVALUATION_VIEW_FORBIDDEN);
+        assertThat(evaluationService.developmentChildren(leader, null, null)).isEmpty();
+
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, valid_from) "
+                        + "SELECT ?, 'AGE_GROUP_TEAM_LEADER', age_group_id, '2026-01-01' FROM classrooms WHERE id = ?",
+                leader.userId(),
+                classA);
+        var board = semesters.get(leader, classA, 1);
+        assertThat(board.canEdit()).isFalse();
+        assertThat(board.canConfirm()).isFalse();
+        assertThat(evaluationService.developmentChildren(leader, null, null))
+                .filteredOn(r -> r.classId().equals(classA))
+                .isNotEmpty()
+                .allMatch(r -> !r.teaches());
+        assertThat(evaluationService.developmentChildren(teacher, null, classA)).allMatch(r -> r.teaches());
+        assertThat(evaluationService
+                        .development(
+                                leader,
+                                kid1,
+                                java.time.LocalDate.parse("2026-09-01"),
+                                java.time.LocalDate.parse("2026-10-21"))
+                        .child()
+                        .id())
+                .isEqualTo(kid1);
+    }
+
     private ThemeEvaluationService themeService() {
         return service;
     }

@@ -405,8 +405,12 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         String logPrefix = LOG_PREFIX + "|developmentChildren|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
         try {
+            // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem hồ sơ phát triển các lớp nhóm tuổi mình (chỉ xem)
+            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
             List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> teaches(currentUser, c) || rules.readsCampus(currentUser, c.campusId()))
+                    .filter(c -> teaches(currentUser, c)
+                            || rules.readsCampus(currentUser, c.campusId())
+                            || ledGroups.contains(c.ageGroupId()))
                     .filter(c -> classId == null || classId.equals(c.id()))
                     .toList();
             if (classId != null && visible.isEmpty()) {
@@ -416,6 +420,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             // Trẻ từng học lớp trong năm; current = còn học lớp tại hôm nay (trẻ đã chuyển/nghỉ vẫn mở được hồ sơ)
             List<DevelopmentChildRow> rows = visible.stream()
                     .flatMap(c -> {
+                        boolean teaching = teaches(currentUser, c);
                         LocalDate anchor = maxDate(c.yearStart(), minDate(rules.today(), c.yearEnd()));
                         Set<Long> current = enrollmentService.findChildrenInClassroom(c.id(), anchor).stream()
                                 .map(ClassChildResponse::id)
@@ -428,7 +433,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                                         c.id(),
                                         c.name(),
                                         c.campusId(),
-                                        current.contains(ch.id())));
+                                        current.contains(ch.id()),
+                                        teaching));
                     })
                     .sorted(Comparator.comparing(DevelopmentChildRow::className, vi)
                             .thenComparing(DevelopmentChildRow::fullName, vi))
@@ -463,10 +469,11 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             EnrollmentService.ChildClassStay chosen = null;
             ClassroomInfoResponse cls = null;
             boolean teacher = false;
+            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
             for (int i = stays.size() - 1; i >= 0 && chosen == null; i--) {
                 ClassroomInfoResponse c = rules.findClass(stays.get(i).classroomId());
                 boolean t = teaches(currentUser, c);
-                if (t || rules.readsCampus(currentUser, c.campusId())) {
+                if (t || rules.readsCampus(currentUser, c.campusId()) || ledGroups.contains(c.ageGroupId())) {
                     chosen = stays.get(i);
                     cls = c;
                     teacher = t;

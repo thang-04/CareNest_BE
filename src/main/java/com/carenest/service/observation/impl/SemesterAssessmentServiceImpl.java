@@ -14,6 +14,7 @@ import com.carenest.service.observation.SemesterAssessmentService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.*;
@@ -84,7 +85,10 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
 
     private ClassroomInfoResponse visible(CurrentUser user, Long id) {
         var cls = rules.findClass(id);
-        if (!rules.canView(user, cls)) throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
+        // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem (chỉ xem) bảng học kỳ các lớp nhóm tuổi mình
+        boolean leadsGroup = user.hasPermission(Permission.ASSESSMENT_VIEW)
+                && rules.teamLeaderAgeGroupIds(user).contains(cls.ageGroupId());
+        if (!rules.canView(user, cls) && !leadsGroup) throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
         return cls;
     }
 
