@@ -569,7 +569,12 @@ class FreshGoodsIntegrationTest {
     }
 
     private void setOff(LocalDate date) {
-        jdbc.update("UPDATE meal_plan_days SET off = TRUE WHERE menu_date = ?", date);
+        jdbc.update(
+                "UPDATE meal_plan_weeks w SET days = (SELECT jsonb_agg(CASE WHEN (e ->> 'date')::date = ?"
+                        + " THEN jsonb_set(e, '{off}', 'true') ELSE e END) FROM jsonb_array_elements(w.days) e)"
+                        + " WHERE w.days @> jsonb_build_array(jsonb_build_object('date', ?::text))",
+                date,
+                date.toString());
     }
 
     private long insertCount(String status) {
@@ -593,11 +598,17 @@ class FreshGoodsIntegrationTest {
         long week = insertId("INSERT INTO meal_plan_weeks (week_start, status, published_at) VALUES ('" + start + "', '"
                 + status + "', " + ("PUBLISHED".equals(status) ? "now()" : "NULL") + ") RETURNING id");
         for (int i = 0; i < 5; i++) {
-            long day = insertId("INSERT INTO meal_plan_days (week_id, menu_date) VALUES (" + week + ", '"
-                    + start.plusDays(i) + "') RETURNING id");
+            LocalDate day = start.plusDays(i);
+            jdbc.update(
+                    "UPDATE meal_plan_weeks SET days = days || jsonb_build_array("
+                            + "jsonb_build_object('date', ?::date, 'off', false, 'note', '')) WHERE id = ?",
+                    day,
+                    week);
             for (long dish : dishes) {
                 jdbc.update(
-                        "INSERT INTO meal_plan_items (day_id, session, menu_block, dish_id) VALUES (?, 'LUNCH', 'KINDERGARTEN', ?)",
+                        "INSERT INTO meal_plan_items (week_id, menu_date, session, menu_block, dish_id)"
+                                + " VALUES (?, ?, 'LUNCH', 'KINDERGARTEN', ?)",
+                        week,
                         day,
                         dish);
             }

@@ -5,12 +5,11 @@ import com.carenest.dto.meals.AllergenResponse;
 import com.carenest.dto.meals.FoodResponse;
 import com.carenest.dto.meals.SupplierResponse;
 import com.carenest.entity.meals.AgeGroupMealConfig;
-import com.carenest.entity.meals.Allergen;
 import com.carenest.entity.meals.Food;
 import com.carenest.entity.meals.Supplier;
+import com.carenest.utils.enums.Allergen;
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
@@ -22,10 +21,7 @@ public class NutritionCatalogMapper {
     }
 
     public List<AllergenResponse> toAllergenResponses(Collection<Allergen> allergens) {
-        return allergens.stream()
-                .sorted(Comparator.comparing(Allergen::getSortOrder))
-                .map(this::toResponse)
-                .toList();
+        return allergens.stream().distinct().sorted().map(this::toResponse).toList();
     }
 
     public FoodResponse toResponse(Food food) {

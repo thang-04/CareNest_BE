@@ -13,6 +13,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.LocalDate;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,8 +30,11 @@ public class MealPlanItem {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "day_id")
-    private MealPlanDay day;
+    @JoinColumn(name = "week_id")
+    private MealPlanWeek week;
+
+    @Column(name = "menu_date", nullable = false)
+    private LocalDate menuDate;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -63,7 +67,8 @@ public class MealPlanItem {
         this.sortOrder = (short) sortOrder;
     }
 
-    void attachTo(MealPlanDay day) {
-        this.day = day;
+    void attachTo(MealPlanWeek week, LocalDate menuDate) {
+        this.week = week;
+        this.menuDate = menuDate;
     }
 }
