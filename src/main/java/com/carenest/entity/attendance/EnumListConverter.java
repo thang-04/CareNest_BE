@@ -1,5 +1,6 @@
 package com.carenest.entity.attendance;
 
+import com.carenest.utils.enums.Allergen;
 import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthSymptom;
 import jakarta.persistence.AttributeConverter;
@@ -47,6 +48,13 @@ public abstract class EnumListConverter<E extends Enum<E>> implements AttributeC
     public static class Actions extends EnumListConverter<HealthAction> {
         public Actions() {
             super(HealthAction.class);
+        }
+    }
+
+    @Converter
+    public static class Allergens extends EnumListConverter<Allergen> {
+        public Allergens() {
+            super(Allergen.class);
         }
     }
 }

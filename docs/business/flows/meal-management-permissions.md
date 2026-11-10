@@ -88,7 +88,7 @@ Cột actor ghi phạm vi được làm; "—" = không. Admin không có quyề
 | | Export (in thực đơn tuần) | T | T | T | — | — | — | | — | P |
 | Điểm danh = báo ăn | Create/Update | — | — | — | L | — | — | Trước giờ chốt hoặc khi được mở lại | Có | C (ATT-01, ATT-02) |
 | | Mở lại sau giờ chốt | T | điểm trường | điểm trường | — | — | — | Lý do bắt buộc | Có, lý do | C (ATT-08) |
-| Sổ suất ăn | View | T | T | T | L (P) | TK (chỉ số đã xác nhận) | — | Bếp không thấy tên trẻ | — | C (NUT-03, AUTH-05, AUTH-20) |
+| Sổ suất ăn | View | T | T | T | L | TK (chỉ số đã xác nhận) | — | Bếp không thấy tên trẻ; GV chỉ lớp được phân công, không tên trẻ (`GET /meal-counts/class`) | — | C (NUT-03, AUTH-05, AUTH-20); GV xem lớp mình: user chốt 09/11/2026 |
 | | Confirm / xác nhận lại | T | điểm trường (`MEAL_COUNT_CONFIRM`) | — | — | — | — | Sau giờ chốt; số sai ⇒ mở lại điểm danh, không sửa tay | Có | C (NUT-02..04) |
 | | Điều chỉnh có lý do | — | điểm trường | — | — | — | — | Endpoint `adjustments` hiện có; đối chiếu lại NUT-04 | Có, lý do | cần đối chiếu (module card) |
 | Trừ kho khô theo suất | (hệ thống) | — | — | — | — | — | — | Khi suất điểm trường × ngày được xác nhận; lô hết hạn trước; thiếu ⇒ ghi thiếu, không chặn | Có (bút toán) | C (NUT-11, P-38) |
@@ -154,4 +154,4 @@ Căn cứ: SCH-06, NUT-11, NUT-13, NUT-16, AUTH-05, AUTH-22.
 
 ## 10. Còn mở
 
-P-26 (mẫu sổ lưu mẫu), P-27 (kiểm thực ba bước), P-16 (Admin xem dữ liệu trẻ). GV xem thực đơn và sổ suất lớp mình (đánh dấu P ở bảng), khóa bản lưu mẫu sau duyệt, bút toán đảo phiếu nhập: chờ user xác nhận.
+P-26 (mẫu sổ lưu mẫu), P-27 (kiểm thực ba bước), P-16 (Admin xem dữ liệu trẻ). GV xem thực đơn (đánh dấu P ở bảng; sổ suất lớp mình đã chốt 09/11/2026), khóa bản lưu mẫu sau duyệt, bút toán đảo phiếu nhập: chờ user xác nhận.

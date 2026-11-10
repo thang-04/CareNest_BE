@@ -120,10 +120,16 @@ class StockDeductionRecoveryIntegrationTest {
                 ag3);
         long week = insertId("INSERT INTO meal_plan_weeks (week_start, status, published_at)"
                 + " VALUES ('2026-10-19', 'PUBLISHED', now()) RETURNING id");
-        long day = insertId(
-                "INSERT INTO meal_plan_days (week_id, menu_date) VALUES (" + week + ", '2026-10-21') RETURNING id");
+        LocalDate day = LocalDate.of(2026, 10, 21);
         jdbc.update(
-                "INSERT INTO meal_plan_items (day_id, session, menu_block, dish_id) VALUES (?, 'LUNCH', 'KINDERGARTEN', ?)",
+                "UPDATE meal_plan_weeks SET days = days || jsonb_build_array("
+                        + "jsonb_build_object('date', ?::date, 'off', false, 'note', '')) WHERE id = ?",
+                day,
+                week);
+        jdbc.update(
+                "INSERT INTO meal_plan_items (week_id, menu_date, session, menu_block, dish_id)"
+                        + " VALUES (?, ?, 'LUNCH', 'KINDERGARTEN', ?)",
+                week,
                 day,
                 dish);
         CurrentUser principal = user("principal-f", CareNestRole.PRINCIPAL);

@@ -1,6 +1,7 @@
 package com.carenest.service.meals.impl;
 
 import com.carenest.dto.attendance.DayInfoResponse;
+import com.carenest.dto.meals.ClassMealCountResponse;
 import com.carenest.dto.meals.MealAdjustRequest;
 import com.carenest.dto.meals.MealCountDayResponse;
 import com.carenest.dto.meals.MealCountResponse;
@@ -185,6 +186,68 @@ public class MealCountServiceImpl implements MealCountService {
             }
             MealCountDayResponse response = new MealCountDayResponse(
                     day, info.today(), info.cutoff(), info.schoolDay(), info.baseLocked(), counts);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public ClassMealCountResponse getClassMealCount(CurrentUser currentUser, Long classId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|getClassMealCount|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate day = date == null ? LocalDate.now(clock) : date;
+            // Cùng cách kiểm lớp với màn điểm danh: không xem được lớp ⇒ CLASS_ACCESS_DENIED (403)
+            DayInfoResponse info = attendanceService.getDayInfo(currentUser, day, classId);
+            Year year = year(null);
+            ClassroomInfoResponse cls = year == null ? null : year.classById().get(classId);
+            List<ClassMealCountResponse.Meal> meals = new ArrayList<>();
+            if (cls != null && info.schoolDay() && !day.isAfter(info.today())) {
+                Map<MealSession, MealCount> stored = new HashMap<>();
+                mealCountRepository.findByCampusIdInAndDate(List.of(cls.campusId()), day).stream()
+                        .filter(c -> c.getSchoolYearId().equals(year.id()))
+                        .forEach(c -> stored.put(c.getSession(), c));
+                List<ClassMealTally> tallies = null;
+                for (MealSession session : cls.mealSessions().stream().sorted().toList()) {
+                    MealCount count = stored.get(session);
+                    if (count != null) {
+                        // Giáo viên thấy số hiện tại của lớp (kể cả số chờ xác nhận lại sau khi sửa điểm danh)
+                        MealCountLine line = count.visibleLine(classId).orElse(null);
+                        meals.add(new ClassMealCountResponse.Meal(
+                                session,
+                                line == null ? 0 : line.getNormal(),
+                                line == null ? 0 : line.getSubstitute(),
+                                count.reviewStatus().name(),
+                                count.hasPending(),
+                                count.getConfirmedAt()));
+                        continue;
+                    }
+                    // Sổ chưa lập (trước giờ chốt hoặc chưa ai mở sổ): tạm tính từ điểm danh, không lưu
+                    if (tallies == null) {
+                        tallies = attendanceService.tallyMeals(day, cls.campusId(), year.id());
+                    }
+                    ClassMealTally tally = tallies.stream()
+                            .filter(t -> t.classroomId().equals(classId))
+                            .findFirst()
+                            .orElse(null);
+                    int eating = tally == null ? 0 : tally.meals().getOrDefault(session, 0);
+                    int substitute = tally == null ? 0 : tally.substitutes().getOrDefault(session, 0);
+                    meals.add(new ClassMealCountResponse.Meal(
+                            session, eating - substitute, substitute, OPEN, false, null));
+                }
+            }
+            ClassMealCountResponse response = new ClassMealCountResponse(
+                    classId,
+                    cls == null ? null : cls.name(),
+                    day,
+                    info.today(),
+                    info.cutoff(),
+                    info.schoolDay(),
+                    info.locked(),
+                    meals);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {

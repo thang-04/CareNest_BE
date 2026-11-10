@@ -455,10 +455,10 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                 forecast.getNote(),
                 forecast.getCounts().stream()
                         .map(count -> new FreshForecastResponse.FreshForecastCount(
-                                count.getAgeGroupId(),
-                                ageGroupNames.get(count.getAgeGroupId()),
-                                count.getEnrolledCount(),
-                                count.getExpectedCount()))
+                                count.ageGroupId(),
+                                ageGroupNames.get(count.ageGroupId()),
+                                count.enrolledCount(),
+                                count.expectedCount()))
                         .toList(),
                 calculated.days().stream()
                         .map(day -> new FreshForecastResponse.FreshForecastDay(day.date(), day.off(), day.planStatus()))
@@ -477,7 +477,7 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
     private List<FreshForecastResponse.DryLine> dryLines(FreshForecast forecast) {
         Map<Long, Integer> counts = forecast.getCounts().stream()
                 .collect(Collectors.toMap(
-                        FreshForecastCount::getAgeGroupId, FreshForecastCount::getExpectedCount, Integer::sum));
+                        FreshForecastCount::ageGroupId, FreshForecastCount::expectedCount, Integer::sum));
         List<MealDemandCalculator.Servings> servings = demandCalculator.expectedServings(counts);
         List<DryStockOutlook.Line> shortages = dryStockOutlook.shortages(
                 forecast.getCampusId(),

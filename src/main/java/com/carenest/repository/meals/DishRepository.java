@@ -10,15 +10,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface DishRepository extends JpaRepository<Dish, Long> {
 
     // Danh sách kèm định lượng, thực phẩm, dị ứng trong một truy vấn: FE lập thực đơn cần đủ để tính, tránh 1 + N
-    @EntityGraph(attributePaths = {"ingredients", "ingredients.food", "ingredients.food.allergens"})
+    @EntityGraph(attributePaths = {"ingredients", "ingredients.food"})
     List<Dish> findAllByOrderByNameAsc();
 
     // Chi tiết món cần thực phẩm và chất dị ứng của từng ô định lượng để tính dinh dưỡng, giá
-    @EntityGraph(attributePaths = {"ingredients", "ingredients.food", "ingredients.food.allergens"})
+    @EntityGraph(attributePaths = {"ingredients", "ingredients.food"})
     Optional<Dish> findWithIngredientsById(Long id);
 
     // Món của kế hoạch tuần kèm định lượng, thực phẩm, dị ứng: kiểm cân đối và tính nhu cầu kho (NUT-07, NUT-24)
-    @EntityGraph(attributePaths = {"ingredients", "ingredients.food", "ingredients.food.allergens"})
+    @EntityGraph(attributePaths = {"ingredients", "ingredients.food"})
     List<Dish> findByIdIn(Collection<Long> ids);
 
     boolean existsByCode(String code);

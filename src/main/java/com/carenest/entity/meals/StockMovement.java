@@ -80,4 +80,18 @@ public class StockMovement {
         movement.createdBy = createdBy;
         return movement;
     }
+
+    /** Bút toán nhập khi xác nhận phiếu: dòng phiếu thành lô, lượng nhập = số lượng của dòng (NUT-11). */
+    public static StockMovement receipt(StockReceipt receipt, StockReceiptLine line, Long createdBy) {
+        StockMovement movement = new StockMovement();
+        movement.lotId = line.getId();
+        movement.campusId = receipt.getCampusId();
+        movement.foodId = line.getFoodId();
+        movement.movementType = StockMovementType.RECEIPT;
+        movement.quantity = line.getQuantity();
+        movement.receiptId = receipt.getId();
+        movement.reason = "";
+        movement.createdBy = createdBy;
+        return movement;
+    }
 }

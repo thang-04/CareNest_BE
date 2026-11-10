@@ -4415,6 +4415,31 @@ paths:
           description: OK
       tags:
       - meal-count-controller
+  /api/meal-counts/class:
+    get:
+      operationId: getClassMealCount
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassMealCountResponse"
+          description: OK
+      tags:
+      - meal-count-controller
   /api/meal-counts/{mealCountId}/confirm:
     post:
       operationId: confirm
@@ -8670,6 +8695,30 @@ components:
           type: string
         teaches:
           type: boolean
+    ClassMealCountResponse:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        cutoff:
+          type: string
+        date:
+          type: string
+          format: date
+        locked:
+          type: boolean
+        meals:
+          type: array
+          items:
+            $ref: "#/components/schemas/Meal"
+        schoolDay:
+          type: boolean
+        today:
+          type: string
+          format: date
     ClassMonthlyCommentRequest:
       type: object
       properties:
@@ -13022,6 +13071,28 @@ components:
         weekStart:
           type: string
           format: date
+    Meal:
+      type: object
+      properties:
+        confirmedAt:
+          type: string
+          format: date-time
+        needsReconfirmation:
+          type: boolean
+        normal:
+          type: integer
+          format: int32
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+        status:
+          type: string
+        substitute:
+          type: integer
+          format: int32
     MealAdjustRequest:
       type: object
       properties:
@@ -13339,8 +13410,12 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Dish"
+        dryCost:
+          type: number
         evaluation:
           $ref: "#/components/schemas/Evaluation"
+        freshCost:
+          type: number
         ingredients:
           type: array
           items:
@@ -15005,6 +15080,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassAttendanceResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonClassMealCountResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassMealCountResponse"
         desc:
           type: string
         errorCode:
