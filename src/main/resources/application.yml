@@ -3,8 +3,8 @@ spring:
     name: carenest-be
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/carenest}
-    username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:123456}
+    username: ${DB_USERNAME:carenest}
+    password: ${DB_PASSWORD:carenest}  # carenest:allow-secret
   jpa:
     open-in-view: false
     hibernate:
