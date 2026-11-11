@@ -246,7 +246,8 @@ public class QualityReportServiceImpl implements QualityReportService {
                     ym.format(MONTH_KEY),
                     average(
                             presentByMonth.getOrDefault(ym, 0),
-                            schoolDays.getOrDefault(ym, Set.of()).size()));
+                            counted(schoolDays.getOrDefault(ym, Set.of()), recorded, today)
+                                    .size()));
         }
 
         LocalDate monthEnd = month.atEndOfMonth();
@@ -264,7 +265,7 @@ public class QualityReportServiceImpl implements QualityReportService {
         Set<Long> children = stays.stream()
                 .map(EnrollmentService.ClassStay::childId)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<LocalDate> monthDays = schoolDays.getOrDefault(month, Set.of());
+        Set<LocalDate> monthDays = counted(schoolDays.getOrDefault(month, Set.of()), recorded, today);
         int sd = monthDays.size();
         // Ngày phải đi của từng trẻ = ngày học của lớp trong tháng mà trẻ đang thuộc lớp
         Map<Long, Integer> expected = new HashMap<>();
@@ -456,5 +457,14 @@ public class QualityReportServiceImpl implements QualityReportService {
 
     private static Integer percent(int part, int whole) {
         return whole == 0 ? null : Math.round(part * 100f / whole);
+    }
+
+    // Hôm nay chỉ tính là ngày phải đi khi lớp đã điểm danh hôm nay; chưa điểm danh thì chưa đếm (tránh hạ tỷ lệ bé
+    // chăm,
+    // chuyên cần trong ngày). Ngày đã qua vẫn đếm dù chưa điểm danh (OBS-23)
+    private static Set<LocalDate> counted(Set<LocalDate> days, Set<LocalDate> recorded, LocalDate today) {
+        return days.stream()
+                .filter(d -> d.isBefore(today) || recorded.contains(d))
+                .collect(Collectors.toSet());
     }
 }

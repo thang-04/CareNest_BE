@@ -961,6 +961,27 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("OBS-23: hôm nay lớp chưa điểm danh thì chưa tính là ngày phải đi (không hạ bé chăm, chuyên cần)")
+    void qualityReportSkipsTodayUntilClassRecordsAttendance() {
+        // Hôm nay 28/10/2026; 1–27/10 có 19 ngày học thứ 2–6
+        attendance(child1, classA, LocalDate.of(2026, 10, 1));
+        entityManager.clear();
+        var before = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 10), null);
+        assertThat(before.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> assertThat(r.schoolDays()).isEqualTo(19));
+
+        attendance(child1, classA, TODAY);
+        entityManager.clear();
+        var after = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 10), null);
+        assertThat(after.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> assertThat(r.schoolDays()).isEqualTo(20));
+    }
+
+    @Test
     void monthlyQualityCountsChildrenWhoLeftAndJoinedDuringMonth() {
         attendance(child1, classA, LocalDate.of(2026, 9, 15));
         attendance(child2, classA, LocalDate.of(2026, 9, 21));
