@@ -907,6 +907,115 @@ class ChildEnrollmentIntegrationTest {
         assertThat(count("SELECT count(*) FROM children")).isEqualTo(before);
     }
 
+    @Test
+    @DisplayName("G94-180/CHD-04: xem trước Excel như BE giả FE — trẻ trùng đã nghỉ chỉ ghi chú mở lại hồ sơ cũ,"
+            + " trẻ trùng đang học vẫn lỗi, phụ huynh trùng CCCD tài khoản có ghi chú")
+    void importPreviewNotesWithdrawnDuplicateAndExistingAccount() {
+        parent("0918888931", "Mẹ Đã Có Tài Khoản", null, "999900000931");
+        Long leftId = enrollmentService
+                .enroll(
+                        principal,
+                        request(
+                                "Trẻ Đã Nghỉ Nhập",
+                                "2023-03-03",
+                                null,
+                                campusA,
+                                newGuardian("0918888941", "999900000941")))
+                .child()
+                .id();
+        jdbc.update(
+                "UPDATE children SET status = 'LEFT', left_on = ?, left_reason = 'Đã nghỉ (giả)' WHERE id = ?",
+                TODAY,
+                leftId);
+        String leftCode = jdbc.queryForObject("SELECT code FROM children WHERE id = ?", String.class, leftId);
+        enrollmentService.enroll(
+                principal,
+                request("Trẻ Đang Học Nhập", "2023-03-04", null, campusA, newGuardian("0918888951", "999900000951")));
+        entityManager.flush();
+        entityManager.clear();
+
+        var preview = imports.preview(
+                principal,
+                importCsv(
+                        importRow(
+                                "Trẻ Mới Có Mẹ Tài Khoản",
+                                "05/03/2023",
+                                "Mẹ Đã Có Tài Khoản",
+                                "0918888931",
+                                "999900000931"),
+                        importRow("Trẻ Đã Nghỉ Nhập", "03/03/2023", "Phụ Huynh Mới", "0918888941", "999900000941"),
+                        importRow("Trẻ Đang Học Nhập", "04/03/2023", "Phụ Huynh Mới", "0918888951", "999900000951")));
+
+        var rows = preview.rows();
+        assertThat(rows.get(0).errors()).isEmpty();
+        assertThat(rows.get(0).notes())
+                .contains(
+                        "Phụ huynh đã có tài khoản (trùng CCCD): Mẹ Đã Có Tài Khoản · 0918888931. Dùng thông tin tài khoản,"
+                                + " chỉ liên kết người được chọn khi kích hoạt sau khi nhập.");
+        assertThat(rows.get(1).errors()).isEmpty();
+        assertThat(rows.get(1).notes())
+                .contains("Trẻ từng học ở trường (hồ sơ cũ " + leftCode
+                        + ", đã nghỉ học): nên mở lại hồ sơ cũ ở Tiếp nhận trẻ thay vì nhập mới.");
+        assertThat(rows.get(2).errors())
+                .contains("Trẻ đã có hồ sơ trong hệ thống (trùng họ tên, ngày sinh và phụ huynh)");
+        assertThat(rows.get(2).notes()).noneMatch(n -> n.startsWith("Trẻ từng học ở trường"));
+    }
+
+    /** File CSV theo mẫu nhập trẻ (cột bắt buộc của ChildEnrollmentImportServiceImpl), một phụ huynh mỗi dòng. */
+    private static org.springframework.mock.web.MockMultipartFile importCsv(List<String>... rows) {
+        List<String> header = List.of(
+                "Họ tên trẻ",
+                "Ngày sinh (dd/mm/yyyy)",
+                "Giới tính (Nam/Nữ)",
+                "Họ tên phụ huynh",
+                "Quan hệ (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ)",
+                "Số điện thoại",
+                "Số CCCD phụ huynh",
+                "Sinh non (Có/Không)",
+                "Tuần thai khi sinh (20–42)",
+                "Dân tộc",
+                "Đối tượng",
+                "Nơi ở - Tỉnh/thành",
+                "Nơi ở - Phường/xã",
+                "Nơi ở - Số nhà/thôn/xóm",
+                "Tiền sử bản thân (\"Không\" hoặc tên bệnh)",
+                "Tiền sử gia đình (\"Không\" hoặc tên bệnh)",
+                "Tiếp xúc người bệnh lao (Có/Không)");
+        StringBuilder csv = new StringBuilder();
+        for (List<String> line : java.util.stream.Stream.concat(
+                        java.util.stream.Stream.of(header), java.util.Arrays.stream(rows))
+                .toList()) {
+            csv.append(line.stream()
+                            .map(v -> "\"" + v.replace("\"", "\"\"") + "\"")
+                            .collect(java.util.stream.Collectors.joining(",")))
+                    .append("\n");
+        }
+        return new org.springframework.mock.web.MockMultipartFile(
+                "file", "tiep-nhan.csv", "text/csv", csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    private static List<String> importRow(
+            String fullName, String dateOfBirth, String guardian, String phone, String citizenId) {
+        return List.of(
+                fullName,
+                dateOfBirth,
+                "Nữ",
+                guardian,
+                "Mẹ",
+                phone,
+                citizenId,
+                "Không",
+                "39",
+                "Kinh",
+                "Không",
+                "Hà Nội",
+                "Cầu Giấy",
+                "1 Láng",
+                "Không",
+                "Không",
+                "Không");
+    }
+
     @Autowired
     private com.carenest.service.account.GuardianAccountService legacyAccounts;
 
