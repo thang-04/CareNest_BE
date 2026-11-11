@@ -7,5 +7,7 @@ public enum RewardAction {
     RESUBMITTED,
     FORWARDED,
     RETURNED,
-    APPROVED
+    APPROVED,
+    /** HT duyệt thẳng khi PHT chưa xét (Cần chốt 11/11/2026). */
+    DIRECT_APPROVED
 }

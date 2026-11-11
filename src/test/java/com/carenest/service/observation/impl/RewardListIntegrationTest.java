@@ -3,6 +3,7 @@ package com.carenest.service.observation.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.carenest.dto.observation.RewardDtos;
 import com.carenest.dto.observation.RewardDtos.RewardClassDetail;
 import com.carenest.dto.observation.RewardDtos.RewardDecisionRequest;
 import com.carenest.dto.observation.RewardDtos.RewardItemRequest;
@@ -13,6 +14,7 @@ import com.carenest.service.observation.RewardListService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
+import com.carenest.utils.enums.RewardAction;
 import com.carenest.utils.enums.RewardStatus;
 import java.time.Clock;
 import java.time.Instant;
@@ -137,6 +139,11 @@ class RewardListIntegrationTest {
                 .isEqualTo(RewardStatus.PENDING_PRINCIPAL);
         RewardClassDetail approved = service.decide(principal, listId, new RewardDecisionRequest("APPROVE", null));
         assertThat(approved.status()).isEqualTo(RewardStatus.APPROVED);
+        // Luồng thường (PHT đã chuyển lên): ghi "Hiệu trưởng phê duyệt", không phải duyệt trực tiếp
+        assertThat(approved.history())
+                .extracting(RewardDtos.HistoryRow::action)
+                .contains(RewardAction.APPROVED)
+                .doesNotContain(RewardAction.DIRECT_APPROVED);
         assertThat(approved.children())
                 .filteredOn(c -> c.childId() == kid1)
                 .singleElement()
@@ -189,9 +196,20 @@ class RewardListIntegrationTest {
     void principalDecidesListStillWaitingForVicePrincipal() {
         long listId =
                 service.save(teacherA, classA, list(item(kid1, GOOD)), true).listId();
-        assertThat(service.decide(principal, listId, new RewardDecisionRequest("APPROVE", null))
-                        .status())
-                .isEqualTo(RewardStatus.APPROVED);
+        RewardClassDetail direct = service.decide(principal, listId, new RewardDecisionRequest("APPROVE", null));
+        assertThat(direct.status()).isEqualTo(RewardStatus.APPROVED);
+        // Cần chốt 11/11/2026: HT duyệt thẳng khi PHT chưa xét ⇒ lịch sử ghi "HT duyệt trực tiếp" (ai, lúc nào)
+        assertThat(direct.history())
+                .extracting(RewardDtos.HistoryRow::action)
+                .contains(RewardAction.DIRECT_APPROVED)
+                .doesNotContain(RewardAction.APPROVED);
+        assertThat(direct.history())
+                .filteredOn(h -> h.action() == RewardAction.DIRECT_APPROVED)
+                .singleElement()
+                .satisfies(h -> {
+                    assertThat(h.userId()).isEqualTo(principal.userId());
+                    assertThat(h.at()).isNotNull();
+                });
         // PHT không phê duyệt thay HT
         expectCode(
                 () -> service.review(vpA, listId, new RewardDecisionRequest("FORWARD", null)),

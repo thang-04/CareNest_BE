@@ -297,13 +297,15 @@ public class RewardListServiceImpl implements RewardListService {
                 throw GlobalException.of(ApiCode.REWARD_DECISION_INVALID);
             }
             boolean approve = "APPROVE".equals(decision);
+            // Cần chốt 11/11/2026: luồng thường GV → PHT xét → HT duyệt; HT được duyệt thẳng khi PHT chưa xét, ghi rõ
+            boolean direct = list.getStatus() == RewardStatus.PENDING_VP;
             String comment = checkComment(request.comment(), !approve);
             Instant at = rules.now();
             list.decide(approve, currentUser.userId(), at, comment);
             listRepository.saveAndFlush(list);
             eventRepository.save(RewardListEvent.of(
                     list.getId(),
-                    approve ? RewardAction.APPROVED : RewardAction.RETURNED,
+                    !approve ? RewardAction.RETURNED : direct ? RewardAction.DIRECT_APPROVED : RewardAction.APPROVED,
                     currentUser.userId(),
                     at,
                     comment));
@@ -351,7 +353,8 @@ public class RewardListServiceImpl implements RewardListService {
         return list != null && list.getStatus() == RewardStatus.PENDING_VP && isReviewer(user, list);
     }
 
-    // HT toàn quyền: phê duyệt được cả danh sách đang chờ PHT (điểm trường chưa có PHT)
+    // HT toàn quyền: duyệt được cả danh sách đang chờ PHT (PHT chưa xét) — ghi "HT duyệt trực tiếp" (Cần chốt
+    // 11/11/2026)
     private boolean canDecide(CurrentUser user, RewardList list) {
         return list != null
                 && user.hasRole(CareNestRole.PRINCIPAL)

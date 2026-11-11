@@ -12551,6 +12551,7 @@ components:
           - FORWARDED
           - RETURNED
           - APPROVED
+          - DIRECT_APPROVED
         at:
           type: string
           format: date-time
