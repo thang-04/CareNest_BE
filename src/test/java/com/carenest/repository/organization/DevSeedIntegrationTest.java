@@ -33,6 +33,50 @@ class DevSeedIntegrationTest {
     }
 
     @Test
+    @DisplayName(
+            "AUTH-18: seed dev mới cho mọi trẻ có phụ huynh đúng một người nhận tài khoản như tiếp nhận (seed chạy sau V81"
+                    + " nên V81 không chọn được): ưu tiên người đã liên kết, không ai thì người đầu; chạy lại không đổi")
+    void freshSeedSelectsAccountRecipient() {
+        String schema = "dev_seed_recipient";
+        flyway(schema, "classpath:db/migration", "classpath:db/dev").migrate();
+
+        assertThat(count(
+                        schema,
+                        "select count(*) from (select child_id from %s.child_guardians group by child_id"
+                                + " having count(*) filter (where account_recipient) <> 1) x"))
+                .isZero();
+        // Hai phụ huynh chưa ai liên kết ⇒ người đầu trên hồ sơ
+        assertThat(count(
+                        schema,
+                        "select count(*) from %1$s.child_guardians g where g.account_recipient and g.position <> 0"
+                                + " and not exists (select 1 from %1$s.guardian_child_links l where l.child_id ="
+                                + " g.child_id and l.user_id = g.user_id)"))
+                .isZero();
+        // Đã liên kết mà không phải người nhận chỉ khi trẻ còn người nhận khác (liên kết cũ), không phải dữ liệu seed
+        assertThat(count(
+                        schema,
+                        "select count(*) from %1$s.child_guardians g where g.user_id is not null and not"
+                                + " g.account_recipient and not exists (select 1 from %1$s.child_guardians r"
+                                + " where r.child_id = g.child_id and r.account_recipient)"))
+                .isZero();
+
+        String recipients = String.join(
+                ",",
+                jdbc.queryForList(
+                        "select id::text from " + schema + ".child_guardians where account_recipient order by id",
+                        String.class));
+        jdbc.update("update " + schema + ".flyway_schema_history set checksum = 0 where script like 'R__dev_seed%'");
+        flyway(schema, "classpath:db/migration", "classpath:db/dev").migrate();
+        assertThat(String.join(
+                        ",",
+                        jdbc.queryForList(
+                                "select id::text from " + schema
+                                        + ".child_guardians where account_recipient order by id",
+                                String.class)))
+                .isEqualTo(recipients);
+    }
+
+    @Test
     @DisplayName("NUT-17: DB dev cũ có lớp A1/B1 thiếu nhóm tuổi/phòng ⇒ seed mới điền vào, chạy lại không đổi")
     void seedPatchesLegacyClassesWithoutAgeGroup() {
         String schema = "dev_seed_legacy";
