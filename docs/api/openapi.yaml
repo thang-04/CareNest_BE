@@ -13009,6 +13009,8 @@ components:
         ageGroupId:
           type: integer
           format: int64
+        attendanceChanged:
+          type: boolean
         classId:
           type: integer
           format: int64
@@ -13032,6 +13034,8 @@ components:
         substitute:
           type: integer
           format: int32
+        substituteAdjusted:
+          type: boolean
     LinkedChildResponse:
       type: object
       properties:
@@ -13703,6 +13707,7 @@ components:
           enum:
           - CHILD_PICKED_UP
           - MEAL_COUNT_RECONFIRM
+          - ATTENDANCE_DAY_UNLOCKED
     NutritionTotals:
       type: object
       properties:

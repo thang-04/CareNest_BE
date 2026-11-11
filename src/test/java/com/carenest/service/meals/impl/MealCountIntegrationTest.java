@@ -420,8 +420,9 @@ class MealCountIntegrationTest {
     }
 
     @Test
-    @DisplayName("Đổi điểm danh sau khi điều chỉnh: suất thay thế tính lại theo dị ứng trong hồ sơ, lịch sử ghi đủ")
-    void attendanceChangeRecomputesSubstituteFromProfile() {
+    @DisplayName(
+            "NUT-02: đổi điểm danh sau khi điều chỉnh tay giữ suất thay thế, đánh dấu cần kiểm tra lại, lịch sử ghi đủ")
+    void attendanceChangeKeepsAdjustedSubstituteAndFlagsRow() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
         clock.now = AFTER_CUTOFF;
         long lunchId = lunch(service.getMealCounts(vpA, TODAY, null)).id();
@@ -435,10 +436,14 @@ class MealCountIntegrationTest {
 
         MealCountResponse review = lunch(service.getMealCounts(vpA, TODAY, null));
         assertThat(review.needsReconfirmation()).isTrue();
-        // Hồ sơ không có trẻ dị ứng: 2 trẻ ăn = 2 suất thường (điều chỉnh tay trước đó không giữ khi điểm danh đổi)
+        // Suất thay thế PHT đã chỉnh tay (1) không bị điểm danh ghi đè: 2 trẻ ăn = 1 thường + 1 thay thế
         assertThat(review.totals())
                 .extracting(MealCountResponse.Totals::normal, MealCountResponse.Totals::substitute)
-                .containsExactly(2, 0);
+                .containsExactly(1, 1);
+        assertThat(review.classes()).singleElement().satisfies(l -> {
+            assertThat(l.substituteAdjusted()).isTrue();
+            assertThat(l.attendanceChanged()).isTrue();
+        });
         assertThat(jdbc.queryForList(
                         "SELECT action FROM meal_count_history WHERE meal_count_id = ? ORDER BY id",
                         String.class,
@@ -448,6 +453,41 @@ class MealCountIntegrationTest {
         assertThat(jdbc.queryForList(
                         "SELECT user_id FROM notifications WHERE type = 'MEAL_COUNT_RECONFIRM'", Long.class))
                 .containsExactly(vpA.userId());
+
+        // ATT-08: mở lại (trả lại GV kiểm tra) báo giáo viên lớp
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'ATTENDANCE_DAY_UNLOCKED'", Long.class))
+                .contains(teacherA.userId());
+
+        // Xác nhận lại: người duyệt đã kiểm tra ⇒ bỏ cờ, vẫn giữ suất thay thế đã chỉnh
+        MealCountResponse confirmed = service.confirm(vpA, lunchId);
+        assertThat(confirmed.classes()).singleElement().satisfies(l -> {
+            assertThat(l.substitute()).isEqualTo(1);
+            assertThat(l.attendanceChanged()).isFalse();
+        });
+    }
+
+    @Test
+    @DisplayName("Chưa điều chỉnh tay: đổi điểm danh tính lại suất thay thế theo hồ sơ, không bật cờ kiểm tra lại")
+    void attendanceChangeRecomputesSubstituteWhenNotAdjusted() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
+        clock.now = AFTER_CUTOFF;
+        long lunchId = lunch(service.getMealCounts(vpA, TODAY, null)).id();
+        service.confirm(vpA, lunchId);
+
+        unlockService.unlockDay(
+                vpA, new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "Trẻ đến muộn"));
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        service.markAttendanceChanged(TODAY, campusA, classA);
+
+        MealCountResponse review = lunch(service.getMealCounts(vpA, TODAY, null));
+        assertThat(review.totals())
+                .extracting(MealCountResponse.Totals::normal, MealCountResponse.Totals::substitute)
+                .containsExactly(2, 0);
+        assertThat(review.classes()).singleElement().satisfies(l -> {
+            assertThat(l.substituteAdjusted()).isFalse();
+            assertThat(l.attendanceChanged()).isFalse();
+        });
     }
 
     @Test

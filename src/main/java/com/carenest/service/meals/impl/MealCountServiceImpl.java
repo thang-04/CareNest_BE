@@ -692,7 +692,9 @@ public class MealCountServiceImpl implements MealCountService {
                         t.meals().getOrDefault(session, 0) - t.substitutes().getOrDefault(session, 0),
                         t.substitutes().getOrDefault(session, 0),
                         null,
-                        null))
+                        null,
+                        false,
+                        false))
                 .toList();
         return new MealCountResponse(
                 null,
@@ -726,7 +728,9 @@ public class MealCountServiceImpl implements MealCountService {
                 l.getNormal(),
                 l.getSubstitute(),
                 confirmed == null ? null : confirmed.getNormal(),
-                confirmed == null ? null : confirmed.getSubstitute());
+                confirmed == null ? null : confirmed.getSubstitute(),
+                l.isSubstituteAdjusted(),
+                l.isAttendanceChanged());
     }
 
     private static Totals totals(List<Line> lines) {
