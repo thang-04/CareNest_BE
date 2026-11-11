@@ -16,6 +16,7 @@ import com.carenest.entity.meals.FreshForecastLine;
 import com.carenest.entity.meals.MealCount;
 import com.carenest.entity.meals.MealPlanDay;
 import com.carenest.entity.meals.MealPlanWeek;
+import com.carenest.entity.meals.Supplier;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.meals.StockMapper;
 import com.carenest.repository.meals.FoodRepository;
@@ -23,6 +24,7 @@ import com.carenest.repository.meals.FreshCheckRepository;
 import com.carenest.repository.meals.FreshForecastRepository;
 import com.carenest.repository.meals.MealCountRepository;
 import com.carenest.repository.meals.MealPlanWeekRepository;
+import com.carenest.repository.meals.SupplierRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.meals.FreshGoodsService;
@@ -72,6 +74,7 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
 
     private final FreshForecastRepository forecastRepository;
     private final FreshCheckRepository checkRepository;
+    private final SupplierRepository supplierRepository;
     private final MealPlanWeekRepository weekRepository;
     private final MealCountRepository mealCountRepository;
     private final FoodRepository foodRepository;
@@ -255,12 +258,17 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                 throw GlobalException.of(ApiCode.FRESH_CHECK_NOT_AVAILABLE, round, expected.reason());
             }
             validateLines(expected, request.lines());
+            Long supplierId = request.supplierId();
+            if (supplierId != null && !supplierRepository.existsById(supplierId)) {
+                throw GlobalException.of(ApiCode.SUPPLIER_NOT_FOUND);
+            }
             FreshCheck check = checkRepository
                     .findByCampusIdAndCheckDateAndRound(campusId, date, (short) round)
                     .orElseGet(() -> FreshCheck.empty(campusId, date, round));
             String note = request.note() == null ? "" : request.note().trim();
             check.record(
                     expected.forecastId(),
+                    supplierId,
                     currentUser.userId(),
                     clock.instant(),
                     note,
@@ -600,17 +608,25 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
         foodIds.addAll(servingsRound.lines().keySet());
         saved.values().forEach(check -> check.getLines().forEach(line -> foodIds.add(line.getFoodId())));
         Map<Long, Food> foods = foods(foodIds);
+        Set<Long> supplierIds = saved.values().stream()
+                .map(FreshCheck::getSupplierId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Supplier> suppliers = supplierIds.isEmpty()
+                ? Map.of()
+                : supplierRepository.findAllById(supplierIds).stream()
+                        .collect(Collectors.toMap(Supplier::getId, Function.identity()));
         return new FreshCheckResponse(
                 campusId,
                 date,
                 campusAccessPolicy.canEditCampus(currentUser, Permission.STOCK_MANAGE, campusId),
                 List.of(
-                        toRound(ROUND_FORECAST, forecastRound, saved.get(ROUND_FORECAST), foods),
-                        toRound(ROUND_SERVINGS, servingsRound, saved.get(ROUND_SERVINGS), foods)));
+                        toRound(ROUND_FORECAST, forecastRound, saved.get(ROUND_FORECAST), foods, suppliers),
+                        toRound(ROUND_SERVINGS, servingsRound, saved.get(ROUND_SERVINGS), foods, suppliers)));
     }
 
     private FreshCheckResponse.FreshCheckRound toRound(
-            int round, Expected expected, FreshCheck saved, Map<Long, Food> foods) {
+            int round, Expected expected, FreshCheck saved, Map<Long, Food> foods, Map<Long, Supplier> suppliers) {
         List<FreshCheckResponse.FreshCheckLine> lines = saved == null
                 ? expected.lines().entrySet().stream()
                         .map(entry -> new FreshCheckResponse.FreshCheckLine(
@@ -637,7 +653,20 @@ public class FreshGoodsServiceImpl implements FreshGoodsService {
                 lines.stream()
                         .sorted(Comparator.comparing((FreshCheckResponse.FreshCheckLine line) ->
                                 line.food().name()))
-                        .toList());
+                        .toList(),
+                supplierInfo(
+                        saved == null || saved.getSupplierId() == null ? null : suppliers.get(saved.getSupplierId())));
+    }
+
+    private static FreshCheckResponse.SupplierInfo supplierInfo(Supplier supplier) {
+        return supplier == null
+                ? null
+                : new FreshCheckResponse.SupplierInfo(
+                        supplier.getId(),
+                        supplier.getName(),
+                        supplier.getPhone(),
+                        supplier.getAddress(),
+                        supplier.getDeliveryPerson());
     }
 
     private Map<Long, Food> foods(Collection<Long> ids) {

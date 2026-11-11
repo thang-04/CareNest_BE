@@ -87,7 +87,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 [B] Ký giấy các bên
 ```
 
-Còn mở: mẫu sổ lưu mẫu (P-26); kiểm thực ba bước (P-27).
+Đã chốt 09–10/11: mẫu sổ lưu mẫu theo Mẫu 4, 5 (P-26) và kiểm thực ba bước do PHT điền, ký ảnh (P-27) — INS-01..04, SIG-01; chưa cài đặt, xem `docs/plans/active/2026-11-10-inspection-records-signatures.md`.
 
 ## AI gợi ý thực đơn (tùy chọn, không bắt buộc)
 

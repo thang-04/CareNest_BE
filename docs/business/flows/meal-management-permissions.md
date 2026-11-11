@@ -154,4 +154,4 @@ Căn cứ: SCH-06, NUT-11, NUT-13, NUT-16, AUTH-05, AUTH-22.
 
 ## 10. Còn mở
 
-P-26 (mẫu sổ lưu mẫu), P-27 (kiểm thực ba bước), P-16 (Admin xem dữ liệu trẻ). GV xem thực đơn (đánh dấu P ở bảng; sổ suất lớp mình đã chốt 09/11/2026), khóa bản lưu mẫu sau duyệt, bút toán đảo phiếu nhập: chờ user xác nhận.
+P-16 (Admin xem dữ liệu trẻ). Đã đóng 09–10/11: P-26 (mẫu sổ lưu mẫu theo Mẫu 4, 5), P-27 (kiểm thực ba bước do PHT điền, ký ảnh — INS-01..04, SIG-01). GV xem thực đơn (đánh dấu P ở bảng; sổ suất lớp mình đã chốt 09/11/2026), khóa bản lưu mẫu sau duyệt, bút toán đảo phiếu nhập: chờ user xác nhận.

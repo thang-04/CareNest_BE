@@ -4,6 +4,7 @@ import com.carenest.utils.enums.FoodSampleDisposalStatus;
 import com.carenest.utils.enums.FoodSampleStatus;
 import com.carenest.utils.enums.MealSession;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -90,6 +91,12 @@ public class FoodSample {
     @Column(name = "dish_ids", nullable = false, columnDefinition = "bigint[]")
     private List<Long> dishIds = List.of();
 
+    // Khối lượng, dụng cụ chứa, nhiệt độ từng món (Mẫu 5); bản ghi cũ là mảng rỗng
+    @Convert(converter = JsonListConverter.SampleDishDetails.class)
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "dish_details", nullable = false, columnDefinition = "jsonb")
+    private List<FoodSampleDishDetail> dishDetails = List.of();
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -105,11 +112,12 @@ public class FoodSample {
             Instant sampledAt,
             Long userId,
             String note,
-            Collection<Long> dishIds) {
+            Collection<Long> dishIds,
+            List<FoodSampleDishDetail> dishDetails) {
         FoodSample sample = new FoodSample();
         sample.campusId = campusId;
         sample.recordedBy = userId;
-        sample.change(sampleDate, session, sampledAt, note, dishIds);
+        sample.change(sampleDate, session, sampledAt, note, dishIds, dishDetails);
         return sample;
     }
 
@@ -118,13 +126,26 @@ public class FoodSample {
         return status == FoodSampleStatus.RECORDED && disposalStatus == FoodSampleDisposalStatus.NONE;
     }
 
+    /**
+     * {@code dishDetails} null ⇒ giữ ghi chú đã có (client cũ không gửi trường này), chỉ bỏ ghi chú của món không còn
+     * trong mẫu; khác null ⇒ thay toàn bộ.
+     */
     public void change(
-            LocalDate sampleDate, MealSession session, Instant sampledAt, String note, Collection<Long> dishIds) {
+            LocalDate sampleDate,
+            MealSession session,
+            Instant sampledAt,
+            String note,
+            Collection<Long> dishIds,
+            List<FoodSampleDishDetail> dishDetails) {
         this.sampleDate = sampleDate;
         this.session = session;
         this.sampledAt = sampledAt;
         this.note = note;
         this.dishIds = dishIds.stream().distinct().sorted().toList();
+        List<FoodSampleDishDetail> next = dishDetails == null ? this.dishDetails : dishDetails;
+        this.dishDetails = next.stream()
+                .filter(detail -> this.dishIds.contains(detail.dishId()))
+                .toList();
     }
 
     public Instant disposableFrom() {
