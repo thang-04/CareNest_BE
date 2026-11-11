@@ -271,8 +271,11 @@ class ThemeEvaluationIntegrationTest {
                 "UPDATE school_years SET semester1_start='2026-09-01', semester1_end='2027-01-15'"
                         + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
                 classA);
-        String script =
-                java.nio.file.Files.readString(java.nio.file.Path.of("scripts/dev/seed-test-three-modules.sql"));
+        // Đoạn tạo bảng học kỳ của script dữ liệu dev, chép vào classpath (CI không có scripts/dev)
+        String script;
+        try (var in = getClass().getResourceAsStream("/fixtures/semester-assessment-seed.sql")) {
+            script = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+        }
         int start = script.indexOf("INSERT INTO semester_assessments");
         int end = script.indexOf("-- ============ 4.", start);
         String semesterSeed =
