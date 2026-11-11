@@ -25,6 +25,12 @@ import java.util.Optional;
  * khoản phụ huynh đi qua {@code ChildEnrollmentService} của feature account (feature child không gọi account).
  */
 public interface ChildIntakeService {
+    /**
+     * Phát sau khi mở lại hồ sơ trẻ đã nghỉ (CHD-03): feature account tự mở lại tài khoản phụ huynh do hệ thống khóa
+     * khi trẻ nghỉ (CHD-04, V87). Feature child không gọi account nên báo qua sự kiện.
+     */
+    record ChildReadmittedEvent(Long childId) {}
+
     Optional<Long> findRecipientAccountId(Long childId);
 
     /** Như {@link #findRecipientAccountId} cho nhiều trẻ: childId → tài khoản người nhận (trẻ chưa có không có khóa). */

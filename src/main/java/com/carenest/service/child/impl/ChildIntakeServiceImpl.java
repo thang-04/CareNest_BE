@@ -72,6 +72,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -105,6 +106,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     private final ObjectMapper objectMapper;
     private final PlacementRules placementRules;
     private final GuardianViews guardianViews;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -226,6 +228,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             childRepository.save(child);
             childHistoryRepository.save(ChildHistory.record(
                     childId, ChildHistoryAction.READMITTED, actor.userId(), reason, clock.instant()));
+            // Feature account mở lại tài khoản phụ huynh hệ thống đã khóa khi trẻ nghỉ (sau commit; CHD-04, V87)
+            eventPublisher.publishEvent(new ChildReadmittedEvent(childId));
             ChildViewResponse view = getChildView(childId);
             log.info("{}|campusId={}|END", logPrefix, campusId);
             return view;

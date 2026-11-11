@@ -74,6 +74,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -86,6 +88,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
+@RecordApplicationEvents
 class ChildEnrollmentIntegrationTest {
     // Mã phòng duy nhất trong lần chạy (nanoTime % 100000 trùng khi hai lần gọi sát nhau)
     private static final AtomicInteger ROOM_SEQ = new AtomicInteger();
@@ -730,6 +733,9 @@ class ChildEnrollmentIntegrationTest {
             assertThat(h.action()).isEqualTo(ChildHistoryAction.READMITTED);
             assertThat(h.note()).isEqualTo("Gia đình chuyển về");
         });
+        // Feature account mở lại tài khoản phụ huynh do hệ thống khóa (sau commit); lần lỗi ở trên không phát
+        assertThat(applicationEvents.stream(com.carenest.service.child.ChildIntakeService.ChildReadmittedEvent.class))
+                .containsExactly(new com.carenest.service.child.ChildIntakeService.ChildReadmittedEvent(left));
 
         expectCode(
                 () -> intakeService.readmit(principal, left, new ReadmitChildRequest("Lần nữa")),
@@ -737,6 +743,9 @@ class ChildEnrollmentIntegrationTest {
     }
 
     // ---------- dữ liệu ----------
+
+    @Autowired
+    private ApplicationEvents applicationEvents;
 
     @Autowired
     private com.carenest.service.account.SelectedParentAccountService selectedAccounts;

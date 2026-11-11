@@ -202,13 +202,30 @@ class AccountLifecycleOperations {
      */
     void deactivateQuietly(String logPrefix, UserAccount account) {
         transactionTemplate.executeWithoutResult(status -> {
-            account.changeStatus(UserStatus.INACTIVE);
+            account.lockBySystem();
             userAccountRepository.saveAndFlush(account);
             authState.revokeAccountAuth(account.getId());
         });
         try {
             identityProviderClient.setUserEnabled(account.getKeycloakUserId(), false);
             identityProviderClient.logoutUser(account.getKeycloakUserId());
+        } catch (IdentityProviderException ex) {
+            log.error("{}|identityProviderSyncFailed", logPrefix, ex);
+        }
+    }
+
+    /**
+     * Mở lại tài khoản hệ thống đã khóa (mở lại hồ sơ một con, CHD-03): DB ACTIVE trong transaction riêng rồi bật
+     * Keycloak ngoài transaction. Giữ mật khẩu cũ. Keycloak lỗi chỉ log: HT/PHT mở tay ở màn Tài khoản phụ huynh để
+     * đồng bộ lại.
+     */
+    void reactivateQuietly(String logPrefix, UserAccount account) {
+        transactionTemplate.executeWithoutResult(status -> {
+            account.unlockBySystem();
+            userAccountRepository.saveAndFlush(account);
+        });
+        try {
+            identityProviderClient.setUserEnabled(account.getKeycloakUserId(), true);
         } catch (IdentityProviderException ex) {
             log.error("{}|identityProviderSyncFailed", logPrefix, ex);
         }
