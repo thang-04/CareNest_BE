@@ -128,11 +128,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             for (ClassroomInfoResponse cls : visible.stream()
                     .sorted(Comparator.comparing(ClassroomInfoResponse::id))
                     .toList()) {
-                // GV lớp mở danh sách thì tạo bản nháp kỳ đã kết thúc; BGH chỉ tạo khi lọc một lớp (BGH chỉ thấy bản đã
-                // xác nhận) — không khóa mọi lớp của trường mỗi lần mở danh sách toàn trường
-                if (cls.yearStatus() == SchoolYearStatus.ACTIVE
-                        && (rules.canRecord(currentUser, cls)
-                                || (classId != null && rules.readsCampus(currentUser, cls.campusId())))) {
+                // Chỉ GV đang dạy lớp mở danh sách mới tạo bản nháp kỳ đã kết thúc; BGH, tổ trưởng chỉ xem bản đã xác
+                // nhận
+                // nên lượt xem của họ không ghi DB, không khóa lớp
+                if (cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)) {
                     ensureDrafts(currentUser, cls, type);
                 }
             }
