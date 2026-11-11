@@ -742,6 +742,36 @@ class ChildEnrollmentIntegrationTest {
                 ApiCode.CHILD_NOT_LEFT);
     }
 
+    @Autowired
+    private com.carenest.service.child.ChildRecordService recordService;
+
+    @Test
+    @DisplayName(
+            "CHD-03, CHD-04: nghỉ ngay ngày vào lớp (bỏ lớp đó) ⇒ hồ sơ đã nghỉ vẫn thuộc điểm trường của lớp; mở lại về Chờ xếp lớp ở đó")
+    void readmitChildWithdrawnOnPlacementDay() {
+        long childId = enrollmentService
+                .enroll(
+                        principal,
+                        request("Trẻ Nghỉ Ngay", "2022-05-06", classA, null, newGuardian("0918888981", "999900000981")))
+                .child()
+                .id();
+
+        ChildViewResponse left = recordService.withdraw(
+                principal,
+                childId,
+                new com.carenest.dto.child.WithdrawChildRequest(TODAY.toString(), "Gia đình đổi ý"));
+        assertThat(left.status()).isEqualTo(ChildStatus.LEFT);
+        assertThat(count("SELECT count(*) FROM enrollments WHERE child_id = " + childId))
+                .isZero();
+        assertThat(left.campusId()).isEqualTo(campusA);
+        entityManager.clear();
+
+        ChildViewResponse view =
+                intakeService.readmit(vicePrincipal, childId, new ReadmitChildRequest("Gia đình quay lại"));
+        assertThat(view.status()).isEqualTo(ChildStatus.PENDING_PLACEMENT);
+        assertThat(view.campusId()).isEqualTo(campusA);
+    }
+
     // ---------- dữ liệu ----------
 
     @Autowired

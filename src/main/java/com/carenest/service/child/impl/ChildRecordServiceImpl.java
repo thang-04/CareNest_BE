@@ -528,6 +528,11 @@ public class ChildRecordServiceImpl implements ChildRecordService {
                     enrollment.endOn(leftAt.minusDays(1));
                     enrollmentRepository.save(enrollment);
                 } else {
+                    // Bỏ lớp này thì có thể không còn lớp nào chỉ ra điểm trường của trẻ (xếp lớp đã bỏ điểm trường
+                    // tiếp
+                    // nhận) ⇒ ghi điểm trường của lớp vào hồ sơ để trẻ đã nghỉ vẫn thuộc điểm trường đó (mở lại, phạm
+                    // vi PHT)
+                    classroomService.findCampusId(enrollment.getClassroomId()).ifPresent(child::keepCampus);
                     enrollmentRepository.delete(enrollment);
                 }
             });

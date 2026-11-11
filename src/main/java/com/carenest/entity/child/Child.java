@@ -139,6 +139,11 @@ public class Child {
         this.intakeCampusId = null;
     }
 
+    /** Ghi điểm trường của trẻ khi bỏ lớp duy nhất (nghỉ ngay ngày vào lớp): hồ sơ đã nghỉ vẫn thuộc điểm trường đó. */
+    public void keepCampus(Long campusId) {
+        this.intakeCampusId = campusId;
+    }
+
     /** Mở lại hồ sơ trẻ đã nghỉ (CHD-03): về Chờ xếp lớp ở điểm trường cũ, bỏ ngày/lý do nghỉ, giữ mã và dữ liệu. */
     public void readmit(Long campusId, LocalDate today) {
         this.status = ChildStatus.PENDING_PLACEMENT;
