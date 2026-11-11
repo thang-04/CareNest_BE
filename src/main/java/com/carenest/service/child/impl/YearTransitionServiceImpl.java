@@ -85,8 +85,8 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             }
             LocalDate today = LocalDate.now(clock);
             YearSetupResponse setup = yearSetupService.getYearSetup(schoolYearId);
-            boolean leader =
-                    currentUser.hasRole(CareNestRole.PRINCIPAL) || currentUser.hasRole(CareNestRole.VICE_PRINCIPAL);
+            // AUTH-20: HT, PHT còn phân công xem mọi lớp (chỉ xem); PHT hết phân công chỉ như GV
+            boolean leader = campusAccessPolicy.canReadAllCampuses(currentUser);
             Set<Long> taught = staffAssignmentService.findCurrentTeacherClassroomIds(currentUser.userId(), today);
             Set<Long> led =
                     staffAssignmentService.findYearTeamLeaderAgeGroupIds(currentUser.userId(), schoolYearId, today);

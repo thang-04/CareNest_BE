@@ -250,6 +250,17 @@ class YearTransitionIntegrationTest {
                 });
         assertThat(service.getPrepClasses(teacher, newYear).classes()).allMatch(c -> c.teaches());
 
+        // AUTH-20: PHT còn phân công xem mọi lớp; PHT không còn phân công không thấy lớp nào
+        long vpId = jdbc.queryForObject("SELECT id FROM user_accounts WHERE username = 'vp'", Long.class);
+        CurrentUser vp = new CurrentUser(vpId, "kc-vp", "vp", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        assertThat(service.getPrepClasses(vp, newYear).classes())
+                .extracting(c -> c.id())
+                .contains(newClass4, newClass3);
+        CurrentUser vpWithoutAssignment =
+                new CurrentUser(user("vp-old"), "kc-vp-old", "vp-old", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        assertThat(service.getPrepClasses(vpWithoutAssignment, newYear).classes())
+                .isEmpty();
+
         // Chưa tới ngày mở chuẩn bị: GV không thấy năm
         jdbc.update("UPDATE school_years SET prep_date = '2027-09-01' WHERE id = ?", newYear);
         entityManager.clear();
