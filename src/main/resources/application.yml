@@ -32,6 +32,12 @@ carenest:
   # Ảnh chân dung phụ huynh (đối chiếu người đón khi trả trẻ): cùng bucket, prefix riêng
   account-media:
     prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
+  # Ảnh chữ ký của nhân sự Web (SIG-01): cùng bucket, prefix riêng
+  signature-media:
+    prefix: ${CARENEST_SIGNATURE_MEDIA_PREFIX:accounts/signatures/}
+  # Bản sao ảnh chữ ký trên biên bản kiểm thực đã ký (INS-03): prefix riêng để đổi/xóa chữ ký tài khoản không ảnh hưởng
+  inspection-signature-media:
+    prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}
