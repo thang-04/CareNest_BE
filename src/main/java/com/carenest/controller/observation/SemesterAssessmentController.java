@@ -30,7 +30,7 @@ public class SemesterAssessmentController {
     }
 
     @PutMapping("/assessment/semester-evaluations")
-    @PreAuthorize("hasRole('TEACHER') and @permissionGuard.has('ASSESSMENT_RECORD')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_RECORD')")
     public ResponseEntity<ResponseJson<Response>> saveSemesterAssessment(
             @Valid @RequestBody Request request, CurrentUser user) {
         String logPrefix = LOG_PREFIX + "|save|classId=" + request.classId();
@@ -41,7 +41,7 @@ public class SemesterAssessmentController {
     }
 
     @PostMapping("/assessment/semester-evaluations/confirm")
-    @PreAuthorize("hasRole('TEACHER') and @permissionGuard.has('ASSESSMENT_CONFIRM')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_CONFIRM')")
     public ResponseEntity<ResponseJson<Response>> confirmSemesterAssessment(
             @Valid @RequestBody Request request, CurrentUser user) {
         String logPrefix = LOG_PREFIX + "|confirm|classId=" + request.classId();
