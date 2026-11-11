@@ -59,7 +59,14 @@ class PermissionTest {
                         Permission.ACCOUNT_STATUS_MANAGE,
                         Permission.STAFF_ASSIGNMENT_MANAGE,
                         Permission.PARENT_ACCOUNT_MANAGE,
+                        Permission.YEAR_PLACEMENT_MANAGE,
+                        Permission.ROOM_MANAGE,
+                        Permission.ATTENDANCE_VIEW,
+                        Permission.ATTENDANCE_UNLOCK,
                         Permission.MEAL_COUNT_CONFIRM,
+                        Permission.ASSESSMENT_VIEW,
+                        Permission.ASSESSMENT_UNLOCK,
+                        Permission.ASSESSMENT_CLASS_REVIEW,
                         Permission.NUTRITION_MANAGE,
                         Permission.MENU_MANAGE,
                         Permission.STOCK_MANAGE,
@@ -68,8 +75,48 @@ class PermissionTest {
         assertThat(Permission.fixedPermissionsOf(CareNestRole.ADMIN))
                 .containsExactlyInAnyOrder(Permission.ACCOUNT_MANAGE, Permission.ACCOUNT_STATUS_MANAGE);
         assertThat(Permission.fixedPermissionsOf(CareNestRole.PARENT)).containsExactly(Permission.CHILD_PROFILE_VIEW);
-        assertThat(Permission.fixedPermissionsOf(CareNestRole.TEACHER)).isEmpty();
+        // AUTH-20 (Cần chốt 10/11/2026): GV/tổ trưởng luôn xem đánh giá, không nằm trong ma trận
+        assertThat(Permission.fixedPermissionsOf(CareNestRole.TEACHER)).containsExactly(Permission.ASSESSMENT_VIEW);
+        assertThat(Permission.fixedPermissionsOf(CareNestRole.TEAM_LEADER)).containsExactly(Permission.ASSESSMENT_VIEW);
+        assertThat(Permission.fixedPermissionsOf(CareNestRole.VICE_PRINCIPAL)).isEmpty();
         assertThat(Permission.configurablePermissionsOf(CareNestRole.PRINCIPAL)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Ba phân hệ nghiệp vụ chỉ giao quyền cho đúng vai trò, HT giữ quyền cố định")
+    void schoolAttendanceAndAssessmentPermissionsHaveSafeDelegationTargets() {
+        assertThat(Permission.ROOM_MANAGE.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
+        assertThat(Permission.ATTENDANCE_RECORD.configurableRoles())
+                .containsExactlyInAnyOrder(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER);
+        assertThat(Permission.ASSESSMENT_RECORD.configurableRoles())
+                .containsExactlyInAnyOrder(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER);
+        assertThat(Permission.ASSESSMENT_VIEW.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
+        assertThat(Permission.ASSESSMENT_UNLOCK.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
+        assertThat(Permission.REWARD_REVIEW.configurableRoles()).containsExactly(CareNestRole.VICE_PRINCIPAL);
+    }
+
+    @Test
+    @DisplayName("Quyền quản lý theo điểm trường cho phép HT cấp phạm vi toàn trường")
+    void campusManagedPermissionsSupportSchoolWideOverrides() {
+        assertThat(EnumSet.of(
+                        Permission.STAFF_ASSIGNMENT_MANAGE,
+                        Permission.YEAR_PLACEMENT_MANAGE,
+                        Permission.ROOM_MANAGE,
+                        Permission.ATTENDANCE_VIEW,
+                        Permission.ATTENDANCE_UNLOCK,
+                        Permission.ASSESSMENT_VIEW,
+                        Permission.ASSESSMENT_UNLOCK,
+                        Permission.ASSESSMENT_CLASS_REVIEW,
+                        Permission.REWARD_REVIEW))
+                .allMatch(Permission::campusScoped);
+
+        assertThat(EnumSet.of(
+                        Permission.ATTENDANCE_RECORD,
+                        Permission.DAILY_HEALTH_RECORD,
+                        Permission.PICKUP_RECORD,
+                        Permission.ASSESSMENT_RECORD,
+                        Permission.ASSESSMENT_CONFIRM))
+                .noneMatch(Permission::campusScoped);
     }
 
     @Test

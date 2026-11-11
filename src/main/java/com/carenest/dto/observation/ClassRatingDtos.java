@@ -44,7 +44,9 @@ public final class ClassRatingDtos {
             Long schoolYearId,
             LocalDate openFrom,
             List<Long> campusIds,
-            List<ClassRatingRow> rows) {}
+            List<ClassRatingRow> rows,
+            // Họ tên Hiệu trưởng (trường chỉ có 1 HT) điền sẵn chỗ ký bản in; null khi chưa có / nhiều HT
+            String principalName) {}
 
     public record ClassRatingItem(
             @NotNull Long classId,

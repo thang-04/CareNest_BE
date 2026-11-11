@@ -14,6 +14,7 @@ import com.carenest.service.observation.ClassAssessmentOverviewService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -321,7 +322,8 @@ class AssessmentHistoryIntegrationTest {
         assertThat(a.children()).isEqualTo(3);
         assertThat(a.possibleDays()).isEqualTo(30);
         assertThat(a.attendanceRate()).isEqualTo(100);
-        assertThat(a.diligentChildren()).isEqualTo(3);
+        // Trẻ chuyển sang lớp B tính trẻ ra lớp của A, không xét bé chăm ở A (Cần chốt 10/11/2026)
+        assertThat(a.diligentChildren()).isEqualTo(2);
         assertThat(a.goodChildren()).isEqualTo(1);
         assertThat(a.allRoundChildren()).isZero();
         assertThat(b.diligentChildren()).isEqualTo(1);
@@ -377,7 +379,10 @@ class AssessmentHistoryIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions = role == CareNestRole.PRINCIPAL
+                ? Set.of(Permission.ASSESSMENT_VIEW)
+                : Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD);
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
     }
 
     private long insertId(String sql) {

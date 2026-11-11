@@ -1,0 +1,677 @@
+{
+  "pdfSha256": "146c1f23b3515d46f2e2e97afcfc0a1d871ef28b6700c7db4fbacfeb56e8572f",
+  "candidates": [
+    {
+      "page": 14,
+      "congBaoPage": 26,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Tập bò, trườn:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 15,
+      "congBaoPage": 27,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Tập tung, ném, bắt:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 16,
+      "congBaoPage": 28,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Tập tự phục vụ:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 16,
+      "congBaoPage": 28,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Nhận biết một số vật dụng nguy hiểm, những nơi nguy hiểm không được phép sờ vào hoặc đến gần.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 16,
+      "congBaoPage": 28,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Nhận biết một số hành động nguy hiểm và phòng tránh.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 20,
+      "congBaoPage": 32,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Nghe lời nói với sắc thái tình cảm khác nhau.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 20,
+      "congBaoPage": 32,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Nghe các từ chỉ tên gọi đồ vật, sự vật, hành động quen thuộc.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 20,
+      "congBaoPage": 32,
+      "table": 0,
+      "age": "ag-2",
+      "text": "Phát âm các âm khác nhau.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 40,
+      "congBaoPage": 52,
+      "table": 0,
+      "age": "ag-3",
+      "text": "Lưng, bụng, lườn:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 40,
+      "congBaoPage": 52,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Hô hấp: Hít vào, thở ra.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 40,
+      "congBaoPage": 52,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Lưng, bụng, lườn:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 40,
+      "congBaoPage": 52,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Hô hấp: Hít vào, thở ra.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 40,
+      "congBaoPage": 52,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Lưng, bụng, lườn:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-3",
+      "text": "Bò, trườn, trèo:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-3",
+      "text": "Tung, ném, bắt:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Bò, trườn, trèo:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Tung, ném, bắt:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Bò, trườn, trèo:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 41,
+      "congBaoPage": 53,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Tung, ném, bắt:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Nhận biết các bữa ăn trong ngày và ích lợi của ăn uống đủ lượng và đủ chất.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Nhận biết sự liên quan giữa ăn uống với bệnh tật (ỉa chảy, sâu răng, suy dinh dưỡng, béo phì…).",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Tập luyện một số thói quen tốt về giữ gìn sức khỏe.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Lợi ích của việc giữ gìn vệ sinh thân thể, vệ sinh môi trường đối với sức khỏe con người.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Nhận biết và phòng tránh những hành động nguy hiểm, những nơi không an toàn, những vật dụng nguy hiểm đến tính mạng.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Nhận biết một số trường hợp khẩn cấp và gọi người giúp đỡ.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nhận biết các bữa ăn trong ngày và ích lợi của ăn uống đủ lượng và đủ chất.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nhận biết sự liên quan giữa ăn uống với bệnh tật (ỉa chảy, sâu răng, suy dinh dưỡng, béo phì…).",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Tập luyện một số thói quen tốt về giữ gìn sức khỏe.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Lợi ích của việc giữ gìn vệ sinh thân thể, vệ sinh môi trường đối với sức khỏe con người.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nhận biết và phòng tránh những hành động nguy hiểm, những nơi không an toàn, những vật dụng nguy hiểm đến tính mạng.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 43,
+      "congBaoPage": 55,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nhận biết một số trường hợp khẩn cấp và gọi người giúp đỡ.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 44,
+      "congBaoPage": 56,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Chức năng các giác quan và các bộ phận khác của cơ thể.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 44,
+      "congBaoPage": 56,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Đặc điểm, công dụng và cách sử dụng đồ dùng, đồ chơi.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 44,
+      "congBaoPage": 56,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Một số mối liên hệ đơn giản giữa đặc điểm cấu tạo với cách sử dụng của đồ dùng, đồ chơi quen thuộc.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 45,
+      "congBaoPage": 57,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Quan sát, phán đoán mối liên hệ đơn giản giữa con vật, cây với môi trường sống.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 45,
+      "congBaoPage": 57,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Cách chăm sóc và bảo vệ con vật, cây.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 45,
+      "congBaoPage": 57,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Các nguồn nước trong môi trường sống.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 45,
+      "congBaoPage": 57,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Ích lợi của nước với đời sống con người, con vật và cây.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 46,
+      "congBaoPage": 58,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Một số đặc điểm, tính chất của nước.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 46,
+      "congBaoPage": 58,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nguyên nhân gây ô nhiễm nguồn nước và cách bảo vệ nguồn nước. Không khí, các nguồn ánh sáng và sự cần thiết của nó với cuộc sống con người, con vật và cây. Một vài đặc điểm, tính chất của đất, đá, cát, sỏi.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 46,
+      "congBaoPage": 58,
+      "table": 1,
+      "age": "ag-4",
+      "text": "Gộp hai nhóm đối tượng và đếm.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 46,
+      "congBaoPage": 58,
+      "table": 1,
+      "age": "ag-4",
+      "text": "Tách một nhóm đối tượng thành các nhóm nhỏ hơn.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 47,
+      "congBaoPage": 59,
+      "table": 0,
+      "age": "ag-5",
+      "text": "So sánh, phát hiện quy tắc sắp xếp và sắp xếp theo quy tắc.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 47,
+      "congBaoPage": 59,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Chắp ghép các hình hình học để tạo thành các hình mới theo ý thích và theo yêu cầu.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 48,
+      "congBaoPage": 60,
+      "table": 1,
+      "age": "ag-5",
+      "text": "tính, đặc điểm bên ngoài, sở thích của bản thân và vị trí của trẻ trong gia đình. đình. Địa chỉ gia đình. cô bác trong trường. của trẻ ở trường.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 49,
+      "congBaoPage": 61,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Tên gọi, công cụ, sản phẩm, các hoạt động và ý nghĩa của các nghề phổ biến, nghề truyền thống của địa phương. Đặc điểm nổi bật của một số di tích, danh lam, thắng cảnh, ngày lễ hội, sự kiện văn hóa của quê hương, đất nước.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Nghe hiểu nội dung truyện kể, truyện đọc phù hợp với độ tuổi.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Nghe các bài hát, bài thơ, ca dao, đồng dao, tục ngữ, câu đố, hò, vè phù hợp với độ tuổi.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Nói và thể hiện cử chỉ, điệu bộ, nét mặt phù hợp với yêu cầu, hoàn cảnh giao tiếp.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Đọc thơ, ca dao, đồng dao, tục ngữ, hò vè.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nghe hiểu nội dung các câu đơn, câu mở rộng, câu phức.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nghe hiểu nội dung truyện kể, truyện đọc phù hợp với độ tuổi.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nghe các bài hát, bài thơ, ca dao, đồng dao, tục ngữ, câu đố, hò, vè phù hợp với độ tuổi.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nói và thể hiện cử chỉ, điệu bộ, nét mặt phù hợp với yêu cầu, hoàn cảnh giao tiếp.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 50,
+      "congBaoPage": 62,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Đọc thơ, ca dao, đồng dao, tục ngữ, hò vè.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-3",
+      "text": "Làm quen với cách đọc và viết tiếng Việt:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Làm quen với một số ký hiệu thông thường trong cuộc sống (nhà vệ sinh, lối ra, nơi nguy hiểm, biển báo giao thông: đường cho người đi bộ,...)",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Xem và nghe đọc các loại sách khác nhau.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Làm quen với cách đọc và viết tiếng Việt:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Hướng đọc, viết: từ trái sang phải, từ dòng trên xuống dòng dưới.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Hướng viết của các nét chữ; đọc ngắt nghỉ sau các dấu.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Tập tô, tập đồ các nét chữ.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Xem và nghe đọc các loại sách khác nhau.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Làm quen với cách đọc và viết tiếng Việt:",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Hướng đọc, viết: từ trái sang phải, từ dòng trên xuống dòng dưới.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Hướng viết của các nét chữ; đọc ngắt nghỉ sau các dấu.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Phân biệt phần mở đầu, kết thúc của sách.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "“Đọc” truyện qua các tranh vẽ.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 51,
+      "congBaoPage": 63,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Giữ gìn, bảo vệ sách.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 52,
+      "congBaoPage": 64,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Kính yêu Bác Hồ.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 52,
+      "congBaoPage": 64,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Quan tâm đến di tích lịch sử, cảnh đẹp, lễ hội của quê hương, đất nước.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Quan tâm, chia sẻ, giúp",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Tiết kiệm điện, nước.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Giữ gìn vệ sinh môi trường.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Bảo vệ chăm sóc con vật và cây cối.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Một số quy định ở lớp, gia đình và nơi công cộng (để đồ dùng, đồ chơi đúng chỗ; trật tự khi ăn, khi ngủ; đi bên phải lề đường).",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Yêu mến, quan tâm đến người thân trong gia đình. đỡ bạn.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Tiết kiệm điện, nước.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Giữ gìn vệ sinh môi trường.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 53,
+      "congBaoPage": 65,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Bảo vệ chăm sóc con vật và cây cối.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 54,
+      "congBaoPage": 66,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Hát đúng giai điệu, lời ca và thể hiện sắc thái, tình cảm của bài hát.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 55,
+      "congBaoPage": 67,
+      "table": 0,
+      "age": "ag-4",
+      "text": "Đặt tên cho sản phẩm của mình.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 55,
+      "congBaoPage": 67,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Nói lên ý tưởng tạo hình của mình.",
+      "status": "requires_visual_review"
+    },
+    {
+      "page": 55,
+      "congBaoPage": 67,
+      "table": 0,
+      "age": "ag-5",
+      "text": "Đặt tên cho sản phẩm của mình.",
+      "status": "requires_visual_review"
+    }
+  ]
+}

@@ -18,7 +18,7 @@ import java.util.List;
 
 /**
  * Một lần ghi nhận sức khỏe; requestId do FE sinh cho mỗi lần bấm lưu (gửi lặp trả lại bản đã lưu).
- * Thân nhiệt tùy chọn, hai chữ số và tối đa một số thập phân.
+ * Thân nhiệt tùy chọn, 20,0–45,0 °C, tối đa một số thập phân.
  */
 public record DailyHealthRequest(
         @NotBlank @Size(max = 64) String requestId,
@@ -26,7 +26,10 @@ public record DailyHealthRequest(
         @NotNull Long childId,
         @NotNull LocalDate date,
 
-        @DecimalMin("10.0") @DecimalMax("99.9") @Digits(integer = 2, fraction = 1)
+        // Cần chốt 11/11/2026: thân nhiệt hợp lệ 20,0–45,0 °C (chặn gõ nhầm như 83,5)
+        @DecimalMin(value = "20.0", message = "Thân nhiệt phải từ 20,0 đến 45,0 °C")
+        @DecimalMax(value = "45.0", message = "Thân nhiệt phải từ 20,0 đến 45,0 °C")
+        @Digits(integer = 2, fraction = 1)
         BigDecimal temperature,
 
         @NotNull HealthObservation observation,

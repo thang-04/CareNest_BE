@@ -16,5 +16,10 @@ public record AgeGroupRequest(
         @NotNull @Min(0) @Max(72) Integer ageFromMonths,
         @NotNull @Min(1) @Max(72) Integer ageToMonths,
         @NotEmpty List<@NotNull MealSession> mealSessions,
-        @NotNull @Min(1) @Max(Short.MAX_VALUE) Integer maxClassSize,
+        // Cần chốt 11/11/2026: sĩ số tối đa / lớp 1–60
+        @NotNull
+        @Min(value = 1, message = "Sĩ số tối đa / lớp từ 1 đến 60")
+        @Max(value = 60, message = "Sĩ số tối đa / lớp từ 1 đến 60")
+        Integer maxClassSize,
+
         @Size(max = 500) String nutritionNote) {}

@@ -25,6 +25,22 @@ import org.junit.jupiter.api.Test;
 
 class AccountServiceImplTest {
 
+    @Test
+    @DisplayName("EDU-54: lọc ACTIVE bằng batch, bỏ ID thiếu và trùng, không đọc khi input rỗng")
+    void activeUserIdsExcludeMissingAndInactive() {
+        assertThat(accountService.findActiveUserIds(List.of())).isEmpty();
+        verifyNoInteractions(userAccountRepository);
+        var active = mock(com.carenest.entity.account.UserAccount.class);
+        var inactive = mock(com.carenest.entity.account.UserAccount.class);
+        given(active.getId()).willReturn(11L);
+        given(active.getStatus()).willReturn(com.carenest.utils.enums.UserStatus.ACTIVE);
+        given(inactive.getStatus()).willReturn(com.carenest.utils.enums.UserStatus.INACTIVE);
+        given(userAccountRepository.findAllById(Set.of(11L, 12L, 13L))).willReturn(List.of(active, inactive));
+        assertThat(accountService.findActiveUserIds(List.of(11L, 11L, 12L, 13L)))
+                .containsExactly(11L);
+        org.mockito.Mockito.verify(userAccountRepository).findAllById(Set.of(11L, 12L, 13L));
+    }
+
     private static final LocalDate TODAY = LocalDate.of(2026, 10, 5);
     private static final Clock FIXED_CLOCK =
             Clock.fixed(Instant.parse("2026-10-05T03:00:00Z"), ZoneId.of("Asia/Ho_Chi_Minh"));

@@ -13,6 +13,10 @@ import org.springframework.data.repository.query.Param;
 /** Mọi query lọc theo ngày: chỉ phân công có hiệu lực tại {@code date} mới tạo phạm vi. */
 public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment, Long> {
 
+    @Query("select a from StaffAssignment a where a.staffRole in :roles and a.validFrom <= :date"
+            + " and (a.validTo is null or a.validTo >= :date) order by a.userId, a.id")
+    List<StaffAssignment> findActiveByRoles(@Param("roles") Collection<StaffRole> roles, @Param("date") LocalDate date);
+
     // AUTH-24: khóa phân công GV của lớp / của GV trong năm học tới hết transaction (mọi đường phân công dùng chung)
     @Query(
             value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(concat('carenest:class-teachers:',"
@@ -108,6 +112,13 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " and (a.validTo is null or a.validTo >= :date)")
     List<Long> findCurrentTeacherClassroomIds(@Param("userId") Long userId, @Param("date") LocalDate date);
 
+    // Nhóm tuổi Tổ trưởng phụ trách trong một năm học (kể cả năm sắp diễn ra), phân công chưa kết thúc tính tới :date
+    @Query("select distinct a.ageGroupId from StaffAssignment a where a.userId = :userId"
+            + " and a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER"
+            + " and a.schoolYearId = :schoolYearId and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findYearTeamLeaderAgeGroupIds(
+            @Param("userId") Long userId, @Param("schoolYearId") Long schoolYearId, @Param("date") LocalDate date);
+
     @Query("select distinct a.userId from StaffAssignment a"
             + " where a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER"
             + " and a.ageGroupId = :ageGroupId and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
@@ -119,6 +130,24 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
     List<Long> findActiveLeaderIds(
             @Param("role") StaffRole role, @Param("campusId") Long campusId, @Param("date") LocalDate date);
+
+    // Dạy thay: người được thay đang dạy chính lớp này vào ngày bắt đầu dạy thay
+    @Query("select case when count(a) > 0 then true else false end from StaffAssignment a"
+            + " where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER and a.substitute = false"
+            + " and a.classroomId = :classroomId and a.userId = :userId"
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    boolean existsMainTeacherOn(
+            @Param("classroomId") Long classroomId, @Param("userId") Long userId, @Param("date") LocalDate date);
+
+    // Dạy thay: đã có người dạy thay cho cùng GV ở lớp này trùng khoảng [from, to]
+    @Query("select case when count(a) > 0 then true else false end from StaffAssignment a"
+            + " where a.substitute = true and a.classroomId = :classroomId and a.replacedUserId = :replacedUserId"
+            + " and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)")
+    boolean existsSubstituteFor(
+            @Param("classroomId") Long classroomId,
+            @Param("replacedUserId") Long replacedUserId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
 
     // GV hiện tại của lớp: phân công chưa kết thúc tính tới ngày :date (gồm phân công bắt đầu sau, cho năm sắp tới)
     @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"

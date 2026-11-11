@@ -25,6 +25,7 @@ import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.TemperatureLevel;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
@@ -166,13 +167,41 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("HT thu hồi quyền Xem điểm danh: GV có quyền ghi vẫn thấy và ghi lớp đang dạy, không thấy lớp khác")
+    void teacherWithoutViewPermissionStillRecordsOwnClass() {
+        CurrentUser recordOnly = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of(Permission.ATTENDANCE_RECORD, Permission.DAILY_HEALTH_RECORD));
+        assertThat(service.getClasses(recordOnly, null))
+                .extracting(AttendanceClassResponse::id)
+                .containsExactly(classA);
+        assertThat(service.getClassAttendance(recordOnly, classA, TODAY)).isNotNull();
+        service.saveClassAttendance(recordOnly, classA, request(TODAY, present(child1)));
+
+        CurrentUser nothing = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of());
+        assertThat(service.getClasses(nothing, null)).isEmpty();
+    }
+
+    @Test
     void teacherSeesOwnClassesAndRecordsTodayBeforeCutoff() {
         List<AttendanceClassResponse> classes = service.getClasses(teacherA, null);
         assertThat(classes).extracting(AttendanceClassResponse::id).containsExactly(classA);
         assertThat(classes.getFirst().canRecord()).isTrue();
         assertThat(classes.getFirst().canUnlock()).isFalse();
-        // AUTH-20: PHT thấy lớp mọi cơ sở, chỉ mở lại được lớp cơ sở mình (ATT-08)
-        assertThat(service.getClasses(vpA, null))
+        // Scope SCHOOL: PHT thấy lớp mọi cơ sở nhưng quyền mở lại vẫn theo ATTENDANCE_UNLOCK riêng.
+        assertThat(service.getClasses(withSchoolWide(vpA, Permission.ATTENDANCE_VIEW), null))
                 .extracting(AttendanceClassResponse::id, AttendanceClassResponse::canUnlock)
                 .containsExactly(tuple(classA, true), tuple(classB, false));
         assertThat(service.getClasses(principal, null)).hasSize(2);
@@ -350,8 +379,9 @@ class AttendanceIntegrationTest {
         DayUnlockRequest unlockRequest =
                 new DayUnlockRequest(classA, TODAY, AFTER_CUTOFF.plus(Duration.ofHours(1)), "  GV quên lưu  ");
         expectError(() -> unlockService.unlockDay(vpB, unlockRequest), ApiCode.FORBIDDEN);
-        // AUTH-20: PHT cơ sở B xem được điểm danh cơ sở A nhưng không mở lại được (ATT-08)
-        ClassAttendanceResponse otherCampus = service.getClassAttendance(vpB, classA, TODAY);
+        // HT cấp ATTENDANCE_VIEW phạm vi SCHOOL nhưng ATTENDANCE_UNLOCK vẫn chỉ ở campus B.
+        ClassAttendanceResponse otherCampus =
+                service.getClassAttendance(withSchoolWide(vpB, Permission.ATTENDANCE_VIEW), classA, TODAY);
         assertThat(otherCampus.classId()).isEqualTo(classA);
         assertThat(otherCampus.canRecord()).isFalse();
         DayUnlockResponse unlock = unlockService.unlockDay(vpA, unlockRequest);
@@ -421,8 +451,9 @@ class AttendanceIntegrationTest {
         AttendanceSummaryResponse.MultiSummary all = service.getSummary(principal, null, null, TODAY, TODAY);
         assertThat(all.size()).isEqualTo(3);
         assertThat(all.days().getFirst().missing()).isEqualTo(1);
-        // AUTH-20: PHT xem tổng hợp mọi cơ sở như HT
-        assertThat(service.getSummary(vpB, null, null, TODAY, TODAY).classes())
+        // PHT chỉ xem toàn trường khi ATTENDANCE_VIEW được cấp scope SCHOOL.
+        assertThat(service.getSummary(withSchoolWide(vpB, Permission.ATTENDANCE_VIEW), null, null, TODAY, TODAY)
+                        .classes())
                 .extracting(AttendanceSummaryResponse.ClassTotal::classId)
                 .containsExactlyElementsOf(all.classes().stream()
                         .map(AttendanceSummaryResponse.ClassTotal::classId)
@@ -559,20 +590,30 @@ class AttendanceIntegrationTest {
                 .extracting(DailyHealthResponse.Attention::childName)
                 .containsExactly("Bình");
         assertThat(all.classes()).hasSize(2);
-        // AUTH-20: PHT cơ sở B xem sức khỏe trong ngày của mọi cơ sở, chỉ xem
-        assertThat(healthService.getOverview(vpB, TODAY, null, null, null, null).classes())
+        CurrentUser schoolViewer = withSchoolWide(vpB, Permission.ATTENDANCE_VIEW);
+        // PHT cơ sở B xem sức khỏe toàn trường khi ATTENDANCE_VIEW được cấp scope SCHOOL.
+        assertThat(healthService
+                        .getOverview(schoolViewer, TODAY, null, null, null, null)
+                        .classes())
                 .extracting(DailyHealthResponse.ClassRow::classId)
                 .containsExactlyElementsOf(all.classes().stream()
                         .map(DailyHealthResponse.ClassRow::classId)
                         .toList());
         assertThat(healthService
-                        .getOverview(vpB, TODAY, null, all.classes().getFirst().campusId(), null, null)
+                        .getOverview(
+                                schoolViewer,
+                                TODAY,
+                                null,
+                                all.classes().getFirst().campusId(),
+                                null,
+                                null)
                         .classes())
                 .isNotEmpty();
         expectError(() -> healthService.getOverview(teacherA, TODAY, null, null, null, null), ApiCode.FORBIDDEN);
 
         assertThat(healthService.getChildHistory(vpA, child2, TODAY).entries()).hasSize(1);
-        assertThat(healthService.getChildHistory(vpB, child2, TODAY).entries()).hasSize(1);
+        assertThat(healthService.getChildHistory(schoolViewer, child2, TODAY).entries())
+                .hasSize(1);
     }
 
     @Test
@@ -673,7 +714,30 @@ class AttendanceIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case PRINCIPAL, VICE_PRINCIPAL -> Set.of(Permission.ATTENDANCE_VIEW, Permission.ATTENDANCE_UNLOCK);
+                    case TEACHER, TEAM_LEADER ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_RECORD,
+                                Permission.DAILY_HEALTH_RECORD,
+                                Permission.PICKUP_RECORD);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
+    }
+
+    private static CurrentUser withSchoolWide(CurrentUser user, Permission... permissions) {
+        return new CurrentUser(
+                user.userId(),
+                user.keycloakUserId(),
+                user.username(),
+                user.fullName(),
+                user.email(),
+                user.roles(),
+                user.permissions(),
+                Set.of(permissions));
     }
 
     private void campusRole(CurrentUser user, long campusId) {

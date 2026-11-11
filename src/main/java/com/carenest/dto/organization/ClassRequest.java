@@ -17,4 +17,8 @@ public record ClassRequest(
         @NotNull Long campusId,
         @NotNull Long ageGroupId,
         @NotNull @JsonAlias("roomId") Long locationId,
-        @NotNull @Min(1) @Max(Short.MAX_VALUE) Integer capacity) {}
+
+        @NotNull
+        @Min(value = 1, message = "Sĩ số tối đa của lớp từ 1 đến 60")
+        @Max(value = 60, message = "Sĩ số tối đa của lớp từ 1 đến 60")
+        Integer capacity) {}

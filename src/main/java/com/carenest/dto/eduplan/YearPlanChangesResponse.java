@@ -22,6 +22,7 @@ public record YearPlanChangesResponse(
         ADDED
     }
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "YearPlanGoalChange")
     public record Goal(
             Long lineageId,
             Long id,
@@ -33,6 +34,7 @@ public record YearPlanChangesResponse(
             String text,
             String fromText) {}
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "YearPlanContentChange")
     public record Content(
             Long lineageId,
             Long id,
@@ -42,6 +44,7 @@ public record YearPlanChangesResponse(
             List<String> fields,
             String text) {}
 
+    @io.swagger.v3.oas.annotations.media.Schema(name = "YearPlanThemeChange")
     public record Theme(
             Long lineageId, Long id, Long fromId, Change change, List<String> fields, String name, String fromName) {}
 }

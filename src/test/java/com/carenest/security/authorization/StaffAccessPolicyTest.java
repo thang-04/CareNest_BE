@@ -16,6 +16,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
@@ -117,6 +118,20 @@ class StaffAccessPolicyTest {
         assertThatCode(() -> policy.checkCanAssign(PRINCIPAL, StaffRole.VICE_PRINCIPAL, CAMPUS_B))
                 .doesNotThrowAnyException();
         assertDenied(() -> policy.checkCanAssign(PRINCIPAL, StaffRole.PRINCIPAL, null));
+        // Phân quyền động (Cần chốt 10/11/2026): STAFF_ASSIGNMENT_MANAGE toàn trường ⇒ PHT phân công GV/bếp cơ sở khác,
+        // vẫn không phân công PHT
+        CurrentUser schoolWide = new CurrentUser(
+                3L,
+                "kc-3",
+                "u3",
+                "U",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
+        assertThatCode(() -> policy.checkCanAssign(schoolWide, StaffRole.TEACHER, CAMPUS_B))
+                .doesNotThrowAnyException();
+        assertDenied(() -> policy.checkCanAssign(schoolWide, StaffRole.VICE_PRINCIPAL, CAMPUS_B));
     }
 
     @Test

@@ -12,6 +12,11 @@ import org.springframework.data.repository.query.Param;
 
 public interface SchoolYearRepository extends JpaRepository<SchoolYear, Long> {
 
+    // Khóa năm học khi đổi tổ trưởng: hai yêu cầu đồng thời không cùng tạo 2 tổ trưởng cho một nhóm tuổi
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select y from SchoolYear y where y.id = :id")
+    Optional<SchoolYear> findForUpdate(@Param("id") Long id);
+
     List<SchoolYear> findAllByOrderByStartDateDesc();
 
     Optional<SchoolYear> findFirstByStatus(SchoolYearStatus status);

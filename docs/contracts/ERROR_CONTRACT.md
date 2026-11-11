@@ -110,6 +110,7 @@ Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và 
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
 | Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |
 | Ghi tài liệu lớp trên phiên bản đã thay thế / gửi bản chép còn ô đỏ | `YEAR_PLAN_SUPERSEDED` (7122, 409) / `CLASS_DOC_VERSION_FIX_REQUIRED` (7121, 409) | EDU-26 |
-| Kế hoạch điều chỉnh sai ngày / quá dài | `CLASS_DOC_ADJUSTMENT_INVALID` (7123, 400) | EDU-27 |
+| Gửi hồ sơ chủ đề còn mục giáo án ngày trống (`data.details = [{date, section}]`) | `DAY_PLAN_SECTION_EMPTY` (7390, 400) | spec 005 FR-007a |
+| Gửi gói học kỳ còn thiếu phần (`data.details` = mục thiếu) | `SEMESTER_PACKAGE_INCOMPLETE` (7387, 400) | spec 004 FR-003 |
 
 Không trả stack trace, tên class, SQL. Lỗi từ Spring Security ghi cùng format (guide 8.5, `docs/contracts/AUTH_CONTRACT.md`): 401 `UNAUTHENTICATED` (1002, kèm `WWW-Authenticate: Bearer`), 403 `FORBIDDEN` (1101), 503 `AUTH_SERVICE_UNAVAILABLE` (1013, không lấy được key kiểm token từ Keycloak).

@@ -196,7 +196,9 @@ class SchoolYearControllerTest {
                 null,
                 null,
                 null,
-                null);
+                null,
+                LocalDate.of(2026, 8, 1),
+                false);
     }
 
     private CurrentUser authenticateAs(CareNestRole role) {

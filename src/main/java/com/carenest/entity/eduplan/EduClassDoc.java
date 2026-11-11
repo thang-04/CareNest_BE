@@ -32,6 +32,20 @@ public class EduClassDoc {
     public static final String BRANCH = "branch";
     public static final String THEME = "theme";
     public static final String WEEK = "week";
+    // Spec 003: gốc gói học kỳ, gốc hồ sơ chủ đề, giáo án ngày (tách khỏi giáo án tuần)
+    public static final String SEMESTER = "semester";
+    public static final String DOSSIER = "dossier";
+    public static final String DAY = "day";
+
+    /** Loại chuỗi duyệt cấu hình: gói học kỳ theo "chủ đề nhánh", còn lại theo "hồ sơ chủ đề" (EDU-18, Q6). */
+    public static String policyType(String kind) {
+        return BRANCH.equals(kind) || SEMESTER.equals(kind) ? BRANCH : THEME;
+    }
+
+    /** Gốc giữ trạng thái duyệt của cả gói/hồ sơ. */
+    public static boolean isRoot(String kind) {
+        return SEMESTER.equals(kind) || DOSSIER.equals(kind);
+    }
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -46,11 +60,15 @@ public class EduClassDoc {
     @Column(name = "classroom_id", nullable = false)
     private Long classroomId;
 
-    @Column(name = "year_plan_id", nullable = false)
+    @Column(name = "team_plan_id", nullable = false)
     private Long yearPlanId;
 
     @Column(name = "theme_id")
     private Long themeId;
+
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Column(name = "semester_no")
+    private Integer semesterNo;
 
     @Column(name = "week_start")
     private LocalDate weekStart;
@@ -75,11 +93,6 @@ public class EduClassDoc {
     @Column(name = "source_doc_id")
     private Long sourceDocId;
 
-    // "Kế hoạch điều chỉnh và bổ sung" theo ngày của giáo án tuần; tách khỏi nội dung để sửa được sau khi duyệt
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false, columnDefinition = "jsonb")
-    private String adjustments;
-
     // EDU-18: chuỗi role duyệt chụp lúc gửi; null = hồ sơ gửi trước khi có cột
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "sign_chain", columnDefinition = "jsonb")
@@ -102,6 +115,46 @@ public class EduClassDoc {
     @Version
     private Long version;
 
+    @Column(name = "review_round", nullable = false)
+    private int reviewRound = 0;
+
+    @Column(name = "applied_policy_revision")
+    private Long appliedPolicyRevision;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "completion_policy", columnDefinition = "jsonb")
+    private String completionPolicy;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "print_snapshot", columnDefinition = "jsonb")
+    private String printSnapshot;
+
+    @Column(name = "completion_mode", length = 50)
+    private String completionMode;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "duration_policy_snapshot", columnDefinition = "jsonb")
+    private String durationPolicySnapshot;
+
+    public void assignDurationPolicySnapshot(String snapshot) {
+        if (this.durationPolicySnapshot == null) {
+            this.durationPolicySnapshot = snapshot;
+        }
+    }
+
+    public void setDurationPolicySnapshot(String snapshot) {
+        this.durationPolicySnapshot = snapshot;
+    }
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    @Column(name = "author_tracking_since", nullable = false)
+    private Instant authorTrackingSince;
+
+    @Column(name = "author_coverage", nullable = false, length = 50)
+    private String authorCoverage = "COMPLETE";
+
     public static EduClassDoc create(
             String docKey,
             String kind,
@@ -121,15 +174,78 @@ public class EduClassDoc {
         doc.content = "{}";
         doc.approvals = "[]";
         doc.history = "[]";
-        doc.adjustments = "{}";
         doc.createdBy = userId;
         doc.updatedBy = userId;
+        doc.reviewRound = 0;
+        doc.authorTrackingSince = Instant.now();
+        doc.authorCoverage = "COMPLETE";
         return doc;
+    }
+
+    public EduClassDocStatus publicStatus() {
+        return this.status != null ? this.status : EduClassDocStatus.DRAFT;
+    }
+
+    public void submit(int reviewRound) {
+        this.status = EduClassDocStatus.REVIEW;
+        this.reviewRound = reviewRound;
+        this.approvals = "[]";
+    }
+
+    public void advanceReview(String approvals, Instant now) {
+        this.status = EduClassDocStatus.REVIEW;
+        this.approvals = approvals != null ? approvals : "[]";
+        this.updatedAt = now;
+    }
+
+    public void publish(
+            Long userId,
+            String approvals,
+            Long appliedPolicyRevision,
+            String completionPolicy,
+            String printSnapshot,
+            Instant completedAt) {
+        this.status = EduClassDocStatus.APPROVED;
+        this.approvals = approvals != null ? approvals : "[]";
+        this.appliedPolicyRevision = appliedPolicyRevision;
+        this.completionPolicy = completionPolicy;
+        this.printSnapshot = printSnapshot;
+        this.completionMode = "MANUAL";
+        this.completedAt = completedAt;
+        this.updatedBy = userId;
+    }
+
+    public void returnToDraft(String history, Long userId) {
+        this.status = EduClassDocStatus.DRAFT;
+        this.history = history != null ? history : "[]";
+        this.updatedBy = userId;
     }
 
     public void changeContent(String content, Long userId) {
         this.content = content;
         this.updatedBy = userId;
+    }
+
+    public static EduClassDoc createSemester(Long classroomId, Long yearPlanId, int semesterNo, Long userId) {
+        EduClassDoc doc = create(
+                "sp_" + classroomId + "_" + yearPlanId + "_" + semesterNo,
+                SEMESTER,
+                classroomId,
+                yearPlanId,
+                null,
+                null,
+                userId);
+        doc.semesterNo = semesterNo;
+        return doc;
+    }
+
+    public void changeHistory(String history, Long userId) {
+        this.history = history;
+        this.updatedBy = userId;
+    }
+
+    public void touchDossier(Instant now) {
+        this.updatedAt = updatedAt == null || now.isAfter(updatedAt) ? now : updatedAt.plusNanos(1000);
     }
 
     public void changeStatus(EduClassDocStatus status, String approvals, String history, Long userId) {
@@ -147,9 +263,36 @@ public class EduClassDoc {
         this.sourceDocId = sourceDocId;
     }
 
-    public void changeAdjustments(String adjustments, String history, Long userId) {
-        this.adjustments = adjustments;
-        this.history = history;
+    public void updateWorkflowState(
+            EduClassDocStatus status,
+            int reviewRound,
+            String approvals,
+            String history,
+            Long appliedPolicyRevision,
+            String completionPolicy,
+            String printSnapshot,
+            String completionMode,
+            Instant completedAt,
+            Long userId) {
+        this.status = status;
+        this.reviewRound = reviewRound;
+        this.approvals = approvals != null ? approvals : "[]";
+        this.history = history != null ? history : "[]";
+        this.appliedPolicyRevision = appliedPolicyRevision;
+        this.completionPolicy = completionPolicy;
+        this.printSnapshot = printSnapshot;
+        this.completionMode = completionMode;
+        this.completedAt = completedAt;
+        this.updatedBy = userId;
+    }
+
+    public void backfillLegacySnapshot(String printSnapshot, String authorCoverage, Long userId) {
+        if (this.printSnapshot == null || this.printSnapshot.isBlank()) {
+            this.printSnapshot = printSnapshot;
+        }
+        if (this.authorCoverage == null) {
+            this.authorCoverage = authorCoverage;
+        }
         this.updatedBy = userId;
     }
 }

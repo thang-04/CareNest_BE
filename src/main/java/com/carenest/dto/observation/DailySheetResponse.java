@@ -17,6 +17,7 @@ import java.util.Map;
 /**
  * Phiếu đánh giá một lớp trong ngày cho hai view (Hoạt động chung, Kiến thức kỹ năng). rows chỉ gồm trẻ đã điểm danh Có mặt;
  * lớp chưa điểm danh thì rows rỗng và attendanceTaken = false. lesson null = chưa có giáo án duyệt (khóa Kiến thức kỹ năng).
+ * absentChildren = trẻ còn lại của lớp (vắng / chưa điểm danh, status null) chỉ để hiện, không đánh giá được (Cần chốt 10/11/2026).
  */
 public record DailySheetResponse(
         Long classId,
@@ -33,7 +34,10 @@ public record DailySheetResponse(
         List<MealSession> mealSessions,
         ApprovedDayLessonResponse lesson,
         List<Row> rows,
+        List<AbsentChild> absentChildren,
         ClassCommentResponse classComment) {
+
+    public record AbsentChild(Long childId, String fullName, AttendanceStatus attendanceStatus) {}
 
     public record Row(
             Long childId,

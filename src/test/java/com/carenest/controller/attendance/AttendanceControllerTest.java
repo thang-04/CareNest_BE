@@ -21,6 +21,7 @@ import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Set;
@@ -108,7 +109,10 @@ class AttendanceControllerTest {
     }
 
     private CurrentUser authenticateAs(CareNestRole role) {
-        CurrentUser user = new CurrentUser(7L, "kc-7", "demo.user", "Demo", null, Set.of(role));
+        Set<Permission> permissions = role == CareNestRole.TEACHER
+                ? Set.of(Permission.ATTENDANCE_VIEW, Permission.ATTENDANCE_RECORD)
+                : Set.of();
+        CurrentUser user = new CurrentUser(7L, "kc-7", "demo.user", "Demo", null, Set.of(role), permissions);
         given(currentUserService.getCurrentUser()).willReturn(user);
         return user;
     }

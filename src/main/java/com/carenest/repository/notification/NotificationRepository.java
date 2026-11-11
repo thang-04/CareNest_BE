@@ -15,4 +15,6 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     List<Notification> findByUserIdAndReadAtIsNull(Long userId);
 
     Optional<Notification> findByIdAndUserId(Long id, Long userId);
+
+    boolean existsByUserIdAndTypeAndLink(Long userId, com.carenest.utils.enums.NotificationType type, String link);
 }

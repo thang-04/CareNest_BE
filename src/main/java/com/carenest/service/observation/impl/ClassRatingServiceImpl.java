@@ -18,8 +18,10 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ClassRatingLevel;
 import com.carenest.utils.enums.ClassRatingPeriod;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -206,7 +208,9 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                                 r.ratedAt(),
                                 false))
                         .toList();
-        return new ClassRatingResponse(period, yearId, openFrom, campusIds, result);
+        List<String> principals = accountService.findActiveFullNamesByRole(CareNestRole.PRINCIPAL);
+        return new ClassRatingResponse(
+                period, yearId, openFrom, campusIds, result, principals.size() == 1 ? principals.getFirst() : null);
     }
 
     private ClassRatingRow rowOf(CurrentUser user, ClassroomInfoResponse cls, ClassRating r, Map<Long, String> names) {
@@ -246,7 +250,8 @@ public class ClassRatingServiceImpl implements ClassRatingService {
 
     // Chấm: HT mọi lớp, PHT lớp điểm trường mình (AUTH-01, AUTH-02)
     private boolean canRate(CurrentUser user, ClassroomInfoResponse cls) {
-        return rules.leadsCampus(user, cls.campusId());
+        return user.hasPermission(Permission.ASSESSMENT_CLASS_REVIEW)
+                && rules.leadsCampus(user, Permission.ASSESSMENT_CLASS_REVIEW, cls.campusId());
     }
 
     // Xem: HT, PHT mọi điểm trường (AUTH-20); GV lớp đang dạy hoặc từng dạy ở năm đã kết thúc; tổ trưởng thêm các lớp

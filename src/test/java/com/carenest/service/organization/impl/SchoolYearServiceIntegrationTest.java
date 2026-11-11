@@ -18,6 +18,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -88,6 +89,83 @@ class SchoolYearServiceIntegrationTest {
 
         List<SchoolYearDetailResponse> years = service.getSchoolYears(principal, null);
         assertThat(years).extracting(SchoolYearDetailResponse::name).containsExactly("2027-2028", "2026-2027");
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05: ngày mở chuẩn bị mặc định 1 tháng trước ngày bắt đầu, kẹp vào khoảng hợp lệ")
+    void prepDateDefaultsIntoValidRange() {
+        // Hôm nay 30/08/2027: 1 tháng trước 05/09/2027 là 05/08 đã qua ⇒ kẹp về hôm nay
+        SchoolYearDetailResponse next = service.createSchoolYear(
+                principal, new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 5), LocalDate.of(2028, 5, 31)));
+        assertThat(next.prepDate()).isEqualTo(LocalDate.of(2027, 8, 30));
+        assertThat(next.preparing()).isTrue();
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05: ngày mở chuẩn bị phải trước ngày bắt đầu, sau năm trước, không trước hôm nay")
+    void prepDateIsValidated() {
+        SchoolYearDetailResponse next = service.createSchoolYear(
+                principal, new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 5), LocalDate.of(2028, 5, 31)));
+        assertThatThrownBy(() -> service.updateSchoolYear(principal, next.id(), request(LocalDate.of(2027, 9, 5))))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_PREP_AFTER_START.format());
+        assertThatThrownBy(() -> service.updateSchoolYear(principal, next.id(), request(LocalDate.of(2027, 5, 31))))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_PREP_BEFORE_PREVIOUS_END.format("2026-2027", "31/05/2027"));
+        assertThatThrownBy(() -> service.updateSchoolYear(principal, next.id(), request(LocalDate.of(2027, 8, 20))))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_PREP_IN_PAST.format());
+        SchoolYearDetailResponse later =
+                service.updateSchoolYear(principal, next.id(), request(LocalDate.of(2027, 9, 1)));
+        assertThat(later.prepDate()).isEqualTo(LocalDate.of(2027, 9, 1));
+        assertThat(later.preparing()).isFalse();
+        // Đổi ngày bắt đầu sớm lại làm ngày mở chuẩn bị đang có không còn hợp lệ ⇒ báo lỗi ngày mở chuẩn bị
+        assertThatThrownBy(() -> service.updateSchoolYear(
+                        principal,
+                        next.id(),
+                        new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 1), LocalDate.of(2028, 5, 31), null)))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_PREP_AFTER_START.format());
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05: năm đã bắt đầu không đổi được ngày mở chuẩn bị")
+    void prepDateLockedAfterYearStarted() {
+        jdbc.update("UPDATE school_years SET prep_date = '2026-08-01' WHERE id = ?", currentYear);
+        SchoolYearRequest changed = new SchoolYearRequest(
+                "2026-2027", LocalDate.of(2026, 9, 1), LocalDate.of(2027, 9, 1), LocalDate.of(2026, 8, 15));
+        assertThatThrownBy(() -> service.updateSchoolYear(principal, currentYear, changed))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_PREP_LOCKED.format());
+        // Gửi lại đúng ngày cũ (đã qua) vẫn lưu được
+        SchoolYearDetailResponse same = service.updateSchoolYear(
+                principal,
+                currentYear,
+                new SchoolYearRequest(
+                        "2026-2027", LocalDate.of(2026, 9, 1), LocalDate.of(2027, 9, 1), LocalDate.of(2026, 8, 1)));
+        assertThat(same.prepDate()).isEqualTo(LocalDate.of(2026, 8, 1));
+    }
+
+    @Test
+    @DisplayName("CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị; HT thấy mọi năm")
+    void teacherSeesPlannedYearOnlyFromPrepDate() {
+        SchoolYearDetailResponse next = service.createSchoolYear(principal, request(LocalDate.of(2027, 9, 1)));
+        CurrentUser teacher = new CurrentUser(99L, "kc-t", "t", "T", null, Set.of(CareNestRole.TEACHER));
+
+        assertThat(service.getSchoolYears(teacher, null))
+                .extracting(SchoolYearDetailResponse::name)
+                .containsExactly("2026-2027");
+        assertThat(service.getSchoolYears(principal, null)).hasSize(2);
+        assertThatThrownBy(() -> service.getSchoolYear(teacher, next.id()))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
+
+        service.updateSchoolYear(principal, next.id(), request(LocalDate.of(2027, 8, 30)));
+        assertThat(service.getSchoolYears(teacher, null)).hasSize(2);
+    }
+
+    private static SchoolYearRequest request(LocalDate prepDate) {
+        return new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 5), LocalDate.of(2028, 5, 31), prepDate);
     }
 
     @Test

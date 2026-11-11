@@ -16,6 +16,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -338,8 +339,20 @@ class LeaveRequestIntegrationTest {
         expectError(
                 () -> service.searchLeaveRequests(teacherB, classA, null, TODAY, FRI, null),
                 ApiCode.CLASS_ACCESS_DENIED);
-        // AUTH-20: PHT xem đơn nghỉ mọi điểm trường
+        // PHT mặc định chỉ xem campus được phân công.
         assertThat(service.searchLeaveRequests(vpB, null, campusA, TODAY, FRI, null))
+                .isEmpty();
+        // Khi HT cấp ATTENDANCE_VIEW phạm vi toàn trường thì PHT xem được campus khác.
+        CurrentUser vpBSchoolWide = new CurrentUser(
+                vpB.userId(),
+                vpB.keycloakUserId(),
+                vpB.username(),
+                vpB.fullName(),
+                vpB.email(),
+                vpB.roles(),
+                vpB.permissions(),
+                Set.of(Permission.ATTENDANCE_VIEW));
+        assertThat(service.searchLeaveRequests(vpBSchoolWide, null, campusA, TODAY, FRI, null))
                 .hasSize(1);
 
         // Trẻ đã rời lớp trước hôm nay vẫn thấy đơn trong khoảng trẻ còn học lớp (OBS-23)
@@ -359,7 +372,13 @@ class LeaveRequestIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case TEACHER, TEAM_LEADER -> Set.of(Permission.ATTENDANCE_VIEW, Permission.ATTENDANCE_RECORD);
+                    case PRINCIPAL, VICE_PRINCIPAL -> Set.of(Permission.ATTENDANCE_VIEW);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
     }
 
     private void campusRole(CurrentUser user, long campusId) {

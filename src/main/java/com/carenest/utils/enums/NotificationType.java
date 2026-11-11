@@ -23,5 +23,14 @@ public enum NotificationType {
     /** Mở hoặc mở lại đợt khám / kỳ cân đo, báo GV lớp và PHT điểm trường. */
     HEALTH_CHECK_OPENED,
     /** Trẻ được xếp / chuyển vào lớp (tiếp nhận có lớp, xếp lớp), báo GV lớp mới (CHD-10, plan tiếp nhận mục 6.2). */
-    CHILD_PLACED
+    CHILD_PLACED,
+    /** Ngày điểm danh của lớp được mở lại (ATT-08, kể cả trả lại từ sổ suất ăn): giáo viên lớp kiểm tra, sửa. */
+    ATTENDANCE_DAY_UNLOCKED,
+    // Kế hoạch giáo dục (spec 003): gửi duyệt, duyệt bước giữa, ban hành, trả lại, mở hạn, gần đến hạn
+    EDU_SUBMITTED,
+    EDU_STEP_APPROVED,
+    EDU_RELEASED,
+    EDU_RETURNED,
+    EDU_DEADLINE_EXTENDED,
+    EDU_DEADLINE_NEAR
 }
