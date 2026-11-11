@@ -167,6 +167,34 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("HT thu hồi quyền Xem điểm danh: GV có quyền ghi vẫn thấy và ghi lớp đang dạy, không thấy lớp khác")
+    void teacherWithoutViewPermissionStillRecordsOwnClass() {
+        CurrentUser recordOnly = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of(Permission.ATTENDANCE_RECORD, Permission.DAILY_HEALTH_RECORD));
+        assertThat(service.getClasses(recordOnly, null))
+                .extracting(AttendanceClassResponse::id)
+                .containsExactly(classA);
+        assertThat(service.getClassAttendance(recordOnly, classA, TODAY)).isNotNull();
+        service.saveClassAttendance(recordOnly, classA, request(TODAY, present(child1)));
+
+        CurrentUser nothing = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                teacherA.roles(),
+                Set.of());
+        assertThat(service.getClasses(nothing, null)).isEmpty();
+    }
+
+    @Test
     void teacherSeesOwnClassesAndRecordsTodayBeforeCutoff() {
         List<AttendanceClassResponse> classes = service.getClasses(teacherA, null);
         assertThat(classes).extracting(AttendanceClassResponse::id).containsExactly(classA);

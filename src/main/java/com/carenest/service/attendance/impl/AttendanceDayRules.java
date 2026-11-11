@@ -104,6 +104,12 @@ class AttendanceDayRules {
 
     // Quyền xem của BGH theo đúng scope HT cấp; GV/tổ trưởng vẫn theo lớp/nhóm tuổi được phân công.
     boolean canView(CurrentUser user, ClassroomInfoResponse cls) {
+        // GV có quyền ghi điểm danh / sức khỏe luôn xem được lớp đang dạy, kể cả khi HT thu hồi quyền Xem (chỉ bớt xem
+        // tổng hợp), để quyền ghi không bị mất theo
+        if ((user.hasPermission(Permission.ATTENDANCE_RECORD) || user.hasPermission(Permission.DAILY_HEALTH_RECORD))
+                && canRecord(user, cls)) {
+            return true;
+        }
         if (!user.hasPermission(Permission.ATTENDANCE_VIEW)) {
             return false;
         }
