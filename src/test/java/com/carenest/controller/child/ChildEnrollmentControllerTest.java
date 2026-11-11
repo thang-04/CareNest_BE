@@ -173,6 +173,46 @@ class ChildEnrollmentControllerTest {
     @MockitoBean
     private com.carenest.service.account.ChildProfileEditService childProfileEditService;
 
+    @MockitoBean
+    private com.carenest.service.account.GuardianPhoneChangeService guardianPhoneChangeService;
+
+    @Test
+    @DisplayName("G94-180/AUTH-21 (sửa 11/11): gửi yêu cầu đổi SĐT phụ huynh cần CHILD_PROFILE_EDIT ⇒ 201")
+    void profileEditorRequestsGuardianPhoneChange() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);
+        com.carenest.dto.account.GuardianPhoneChangeResponse response =
+                org.mockito.Mockito.mock(com.carenest.dto.account.GuardianPhoneChangeResponse.class);
+        given(guardianPhoneChangeService.request(
+                        eq(actor),
+                        eq(301L),
+                        eq(41L),
+                        eq(new com.carenest.dto.account.GuardianPhoneChangeCreateRequest("0987654321", "Đổi số"))))
+                .willReturn(response);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                                "/api/children/301/guardians/41/phone-change-requests")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPhone\":\"0987654321\",\"reason\":\"Đổi số\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.desc").value("Request guardian phone change success"));
+    }
+
+    @Test
+    @DisplayName("G94-180/AUTH-21: thiếu CHILD_PROFILE_EDIT ⇒ 403, không tạo yêu cầu")
+    void requestGuardianPhoneChangeNeedsProfileEdit() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                                "/api/children/301/guardians/41/phone-change-requests")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPhone\":\"0987654321\",\"reason\":\"Đổi số\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(guardianPhoneChangeService);
+    }
+
     @Test
     @DisplayName("G94-180/CHD-03: cho nghỉ học cần quyền CHILD_PLACEMENT ⇒ 200 trả hồ sơ")
     void placementManagerWithdrawsChild() throws Exception {

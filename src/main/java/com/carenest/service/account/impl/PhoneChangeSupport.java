@@ -2,6 +2,7 @@ package com.carenest.service.account.impl;
 
 import com.carenest.dto.account.GuardianPhoneChangeResponse;
 import com.carenest.dto.child.GuardianChildSummary;
+import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.entity.account.GuardianPhoneChangeRequest;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.repository.account.GuardianPhoneChangeRequestRepository;
@@ -12,6 +13,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EffectivePermissionResolver;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
@@ -33,7 +35,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
- * Dùng chung cho Sửa hồ sơ và màn duyệt đổi SĐT (G94-180/AUTH-21): mở yêu cầu + báo người duyệt, phạm vi người duyệt,
+ * Dùng chung cho gửi và duyệt yêu cầu đổi SĐT (G94-180/AUTH-21): mở yêu cầu + báo người duyệt, phạm vi người duyệt,
  * chuyển yêu cầu thành response. Chạy trong giao dịch của người gọi.
  */
 @Component
@@ -45,49 +47,53 @@ class PhoneChangeSupport {
     private final RolePermissionRepository rolePermissionRepository;
     private final UserPermissionOverrideRepository overrideRepository;
     private final ChildIntakeService childIntakeService;
+    private final ChildRecordService childRecordService;
     private final StaffAssignmentService staffAssignmentService;
     private final StaffAccessPolicy staffAccessPolicy;
     private final NotificationService notificationService;
     private final Clock clock;
 
     /**
-     * Yêu cầu mới thay yêu cầu đang chờ của cùng tài khoản (Sửa hồ sơ lần sau sang số khác); báo người duyệt ở điểm
-     * trường của trẻ, trừ người gửi.
+     * Yêu cầu mới thay yêu cầu đang chờ của cùng phụ huynh (và cùng tài khoản); báo người duyệt ở điểm trường của trẻ,
+     * trừ người gửi. {@code account} null ⇒ phụ huynh chưa có tài khoản, số cũ là SĐT trên hồ sơ.
      */
     GuardianPhoneChangeRequest open(
-            CurrentUser actor,
-            Long childId,
-            Long campusId,
-            String childName,
-            Long guardianId,
-            UserAccount account,
-            String newPhone,
-            String reason) {
+            CurrentUser actor, GuardianPhoneTarget target, UserAccount account, String newPhone, String reason) {
         requestRepository
-                .findByUserIdAndStatus(account.getId(), PhoneChangeStatus.PENDING)
-                .ifPresent(pending -> {
-                    pending.cancel();
-                    requestRepository.saveAndFlush(pending);
-                });
+                .findByGuardianIdAndStatus(target.guardianId(), PhoneChangeStatus.PENDING)
+                .ifPresent(this::cancel);
+        if (account != null) {
+            requestRepository
+                    .findByUserIdAndStatus(account.getId(), PhoneChangeStatus.PENDING)
+                    .ifPresent(this::cancel);
+        }
         GuardianPhoneChangeRequest request = requestRepository.save(GuardianPhoneChangeRequest.open(
-                account.getId(),
-                childId,
-                guardianId,
-                account.getUsername(),
+                account == null ? null : account.getId(),
+                target.childId(),
+                target.guardianId(),
+                account == null ? target.phone() : account.getUsername(),
                 newPhone,
                 reason,
                 actor.userId(),
                 clock.instant()));
-        Set<Long> approvers = new HashSet<>(approverIds(campusId));
+        Set<Long> approvers = new HashSet<>(approverIds(target.campusId()));
         approvers.remove(actor.userId());
+        String whose = account == null
+                ? "số điện thoại của " + target.fullName()
+                : "số điện thoại đăng nhập của " + account.getFullName();
         notificationService.notifyUsers(
                 approvers,
                 NotificationType.GUARDIAN_PHONE_CHANGE_REQUESTED,
                 "Yêu cầu đổi số điện thoại phụ huynh",
-                actor.fullName() + " đề nghị đổi số điện thoại đăng nhập của " + account.getFullName()
-                        + " (phụ huynh của " + childName + "). Duyệt ở màn Tài khoản phụ huynh.",
-                childId);
+                actor.fullName() + " đề nghị đổi " + whose + " (phụ huynh của " + target.childName()
+                        + "). Duyệt ở màn Tài khoản phụ huynh.",
+                target.childId());
         return request;
+    }
+
+    private void cancel(GuardianPhoneChangeRequest pending) {
+        pending.cancel();
+        requestRepository.saveAndFlush(pending);
     }
 
     /**
@@ -139,15 +145,18 @@ class PhoneChangeSupport {
                 ? Map.of()
                 : userAccountRepository.findAllById(userIds).stream()
                         .collect(Collectors.toMap(UserAccount::getId, UserAccount::getFullName));
+        // Phụ huynh chưa có tài khoản: họ tên trên hồ sơ (dòng đã bỏ khỏi hồ sơ ⇒ null)
+        Map<Long, String> guardianNames = childRecordService.findGuardianNames(requests.stream()
+                .filter(r -> r.getUserId() == null && r.getGuardianId() != null)
+                .map(GuardianPhoneChangeRequest::getGuardianId)
+                .collect(Collectors.toSet()));
         boolean canManage = viewer.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
         return requests.stream()
                 .map(r -> {
                     GuardianChildSummary child = children.get(r.getChildId());
                     Long campusId = child == null ? null : child.campusId();
-                    boolean canDecide = r.isPending()
-                            && canManage
-                            && !viewer.userId().equals(r.getRequestedBy())
-                            && inScope(viewer, campusId);
+                    // AUTH-21 (sửa 2026-11-11): người gửi có quyền duyệt thì tự duyệt được
+                    boolean canDecide = r.isPending() && canManage && inScope(viewer, campusId);
                     return new GuardianPhoneChangeResponse(
                             r.getId(),
                             r.getChildId(),
@@ -156,7 +165,7 @@ class PhoneChangeSupport {
                             campusId,
                             r.getGuardianId(),
                             r.getUserId(),
-                            names.get(r.getUserId()),
+                            r.getUserId() == null ? guardianNames.get(r.getGuardianId()) : names.get(r.getUserId()),
                             r.getOldPhone(),
                             r.getNewPhone(),
                             r.getStatus(),

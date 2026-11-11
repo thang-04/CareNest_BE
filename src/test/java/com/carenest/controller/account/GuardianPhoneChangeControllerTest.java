@@ -67,12 +67,12 @@ class GuardianPhoneChangeControllerTest {
     }
 
     @Test
-    @DisplayName("G94-180/AUTH-21: duyệt ⇒ 200 kèm trạng thái SMS; người gửi tự duyệt ⇒ 403")
-    void approveAndSelfApproval() throws Exception {
+    @DisplayName("G94-180/AUTH-21: duyệt ⇒ 200 kèm trạng thái SMS; yêu cầu đã xử lý ⇒ 409")
+    void approveAndAlreadyDecided() throws Exception {
         CurrentUser vice = authenticate(CareNestRole.VICE_PRINCIPAL);
         given(guardianPhoneChangeService.approve(vice, 70L)).willReturn(response());
         given(guardianPhoneChangeService.approve(vice, 71L))
-                .willThrow(GlobalException.of(ApiCode.PHONE_CHANGE_SELF_DECISION));
+                .willThrow(GlobalException.of(ApiCode.PHONE_CHANGE_REQUEST_NOT_PENDING));
 
         mockMvc.perform(post("/api/parent-accounts/phone-change-requests/70/approve")
                         .with(token(CareNestRole.VICE_PRINCIPAL)))
@@ -80,8 +80,8 @@ class GuardianPhoneChangeControllerTest {
                 .andExpect(jsonPath("$.data.smsStatus").value("SENT"));
         mockMvc.perform(post("/api/parent-accounts/phone-change-requests/71/approve")
                         .with(token(CareNestRole.VICE_PRINCIPAL)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value(ApiCode.PHONE_CHANGE_SELF_DECISION.getErrorCode()));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value(ApiCode.PHONE_CHANGE_REQUEST_NOT_PENDING.getErrorCode()));
     }
 
     @Test

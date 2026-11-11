@@ -1,5 +1,7 @@
 package com.carenest.controller.child;
 
+import com.carenest.dto.account.GuardianPhoneChangeCreateRequest;
+import com.carenest.dto.account.GuardianPhoneChangeResponse;
 import com.carenest.dto.child.ChildEnrollmentResponse;
 import com.carenest.dto.child.ChildUpdateResponse;
 import com.carenest.dto.child.ChildViewResponse;
@@ -17,6 +19,7 @@ import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.ChildEnrollmentService;
 import com.carenest.service.account.ChildProfileEditService;
+import com.carenest.service.account.GuardianPhoneChangeService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
@@ -55,6 +58,26 @@ public class ChildEnrollmentController {
     private final ChildEnrollmentService childEnrollmentService;
     private final ChildRecordService childRecordService;
     private final ChildProfileEditService childProfileEditService;
+    private final GuardianPhoneChangeService guardianPhoneChangeService;
+
+    // G94-180/AUTH-21 (sửa 2026-11-11): Sửa hồ sơ không đổi SĐT phụ huynh đã lưu; gửi yêu cầu ở đây, HT hoặc PHT có
+    // quyền duyệt ở /parent-accounts/phone-change-requests. Phạm vi như Sửa hồ sơ (service).
+    @PostMapping("/{childId}/guardians/{guardianId}/phone-change-requests")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_EDIT')")
+    public ResponseEntity<ResponseJson<GuardianPhoneChangeResponse>> requestGuardianPhoneChange(
+            @PathVariable Long childId,
+            @PathVariable Long guardianId,
+            @RequestBody GuardianPhoneChangeCreateRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|requestGuardianPhoneChange|userId=" + currentUser.userId() + "|childId="
+                + childId + "|guardianId=" + guardianId;
+        log.info("{}|START", logPrefix);
+        GuardianPhoneChangeResponse response =
+                guardianPhoneChangeService.request(currentUser, childId, guardianId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Request guardian phone change success", response);
+    }
 
     @GetMapping("/duplicate-check")
     @PreAuthorize("@permissionGuard.has('CHILD_ENROLL')")

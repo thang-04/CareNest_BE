@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -18,7 +17,6 @@ import com.carenest.dto.child.ChildUpdateResponse;
 import com.carenest.dto.child.GuardianDraft;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
-import com.carenest.entity.account.GuardianPhoneChangeRequest;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.IdentityProviderClient;
@@ -59,14 +57,12 @@ class ChildProfileEditServiceImplTest {
     private final ChildIntakeService intake = mock(ChildIntakeService.class);
     private final UserAccountRepository accounts = mock(UserAccountRepository.class);
     private final IdentityProviderClient identity = mock(IdentityProviderClient.class);
-    private final PhoneChangeSupport support = mock(PhoneChangeSupport.class);
     private final TransactionTemplate tx = new TransactionTemplate(mock(PlatformTransactionManager.class));
     private final ChildProfileEditServiceImpl service = new ChildProfileEditServiceImpl(
             records,
             intake,
             accounts,
             new AccountLifecycleOperations(accounts, identity, mock(AuthStateStore.class), tx),
-            support,
             tx);
 
     private UserAccount account;
@@ -79,34 +75,50 @@ class ChildProfileEditServiceImplTest {
         given(accounts.findById(50L)).willReturn(Optional.of(account));
         given(accounts.findAllByCitizenIdIn(anyCollection())).willReturn(List.of(account));
         given(accounts.findAllByUsernameIn(anyCollection())).willReturn(List.of());
-        given(support.toResponses(any(), anyList(), any())).willReturn(List.of());
     }
 
     @Test
-    @DisplayName(
-            "G94-180/AUTH-21 (2026-11-10): đổi SĐT phụ huynh có tài khoản ⇒ hồ sơ giữ số cũ, tạo yêu cầu chờ duyệt")
-    void phoneChangeOfAccountHolderBecomesRequest() {
+    @DisplayName("G94-180/AUTH-21 (sửa 2026-11-11): đổi SĐT phụ huynh có tài khoản ở Sửa hồ sơ ⇒ 400 ô SĐT, không ghi")
+    void phoneChangeOfAccountHolderRejected() {
         given(records.prepareEdit(PRINCIPAL, CHILD_ID, REQUEST)).willReturn(draft("Mẹ An", NEW_PHONE, CITIZEN));
-        given(support.open(any(), any(), any(), any(), any(), any(), any(), any()))
-                .willReturn(mock(GuardianPhoneChangeRequest.class));
 
-        ChildUpdateResponse response = service.update(PRINCIPAL, CHILD_ID, REQUEST);
+        assertThatThrownBy(() -> service.update(PRINCIPAL, CHILD_ID, REQUEST))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                    assertThat(ex.getFieldErrors())
+                            .extracting(FieldErrorResponse::field)
+                            .containsExactly("guardians.0.phone");
+                });
+        verify(records, never()).applyEdit(any(), any());
+        verify(identity, never()).updateUsername(any(), any());
+    }
+
+    @Test
+    @DisplayName("G94-180/AUTH-21 (sửa 2026-11-11): phụ huynh chưa có tài khoản cũng không đổi SĐT ở Sửa hồ sơ")
+    void phoneChangeOfGuardianWithoutAccountRejected() {
+        given(records.prepareEdit(PRINCIPAL, CHILD_ID, REQUEST))
+                .willReturn(withoutAccount(guardian("Bố An", NEW_PHONE, CITIZEN)));
+
+        assertThatThrownBy(() -> service.update(PRINCIPAL, CHILD_ID, REQUEST))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getFieldErrors())
+                                .extracting(FieldErrorResponse::field)
+                                .containsExactly("guardians.0.phone"));
+        verify(records, never()).applyEdit(any(), any());
+    }
+
+    @Test
+    @DisplayName("Thay người khác vào vị trí phụ huynh chưa có tài khoản (CCCD khác) ⇒ nhập SĐT mới được")
+    void replacingGuardianWithoutAccountKeepsNewPhone() {
+        given(records.prepareEdit(PRINCIPAL, CHILD_ID, REQUEST))
+                .willReturn(withoutAccount(guardian("Bà An", NEW_PHONE, "001234567899")));
+
+        service.update(PRINCIPAL, CHILD_ID, REQUEST);
 
         ArgumentCaptor<ChildEditDraft> applied = ArgumentCaptor.forClass(ChildEditDraft.class);
         verify(records).applyEdit(eq(PRINCIPAL), applied.capture());
-        assertThat(applied.getValue().guardians().getFirst().draft().phone()).isEqualTo(OLD_PHONE);
-        verify(support)
-                .open(
-                        eq(PRINCIPAL),
-                        eq(CHILD_ID),
-                        eq(CAMPUS_ID),
-                        any(),
-                        eq(31L),
-                        eq(account),
-                        eq(NEW_PHONE),
-                        eq("Sửa"));
-        verify(identity, never()).updateUsername(any(), any());
-        assertThat(response.accountChanges()).isEmpty();
+        assertThat(applied.getValue().guardians().getFirst().draft().phone()).isEqualTo(NEW_PHONE);
     }
 
     @Test
@@ -120,7 +132,7 @@ class ChildProfileEditServiceImplTest {
         assertThat(account.getFullName()).isEqualTo("Mẹ Bình");
         verify(records).syncGuardianAccountInfo(50L, "Mẹ Bình", null, CITIZEN);
         verify(identity).replaceProfile("kc-50", "Mẹ Bình", null);
-        verify(support, never()).open(any(), any(), any(), any(), any(), any(), any(), any());
+        assertThat(response.phoneChangeRequests()).isEmpty();
         assertThat(response.accountChanges())
                 .singleElement()
                 .satisfies(c -> assertThat(c.phoneChanged()).isFalse());
@@ -155,26 +167,20 @@ class ChildProfileEditServiceImplTest {
                                 .containsExactly("guardians.0.idNumber"));
     }
 
-    @Test
-    @DisplayName("AUTH-18: SĐT mới đã là tên đăng nhập của tài khoản khác ⇒ 409 ô SĐT")
-    void newPhoneOfAnotherAccountConflicts() {
-        UserAccount other = UserAccount.create("kc-60", NEW_PHONE, null, "GV", CareNestRole.TEACHER);
-        ReflectionTestUtils.setField(other, "id", 60L);
-        given(accounts.findAllByUsernameIn(anyCollection())).willReturn(List.of(other));
-        given(records.prepareEdit(PRINCIPAL, CHILD_ID, REQUEST)).willReturn(draft("Mẹ An", NEW_PHONE, CITIZEN));
-
-        assertThatThrownBy(() -> service.update(PRINCIPAL, CHILD_ID, REQUEST))
-                .isInstanceOfSatisfying(GlobalException.class, ex -> {
-                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.GUARDIAN_IDENTITY_CONFLICT);
-                    assertThat(ex.getFieldErrors())
-                            .extracting(FieldErrorResponse::field)
-                            .containsExactly("guardians.0.phone");
-                });
+    private static ChildEditDraft draft(String guardianName, String phone, String citizenId) {
+        return editDraft(new GuardianEdit(guardian(guardianName, phone, citizenId), 31L, 50L, OLD_PHONE, CITIZEN));
     }
 
-    private static ChildEditDraft draft(String guardianName, String phone, String citizenId) {
-        GuardianDraft guardian =
-                new GuardianDraft(0, guardianName, GuardianRelationship.MOTHER, phone, citizenId, null, true);
+    // Dòng phụ huynh có sẵn (id 32) chưa liên kết tài khoản, đang lưu OLD_PHONE + CITIZEN
+    private static ChildEditDraft withoutAccount(GuardianDraft edited) {
+        return editDraft(new GuardianEdit(edited, 32L, null, OLD_PHONE, CITIZEN));
+    }
+
+    private static GuardianDraft guardian(String fullName, String phone, String citizenId) {
+        return new GuardianDraft(0, fullName, GuardianRelationship.MOTHER, phone, citizenId, null, true);
+    }
+
+    private static ChildEditDraft editDraft(GuardianEdit guardian) {
         ChildProfileDraft profile =
                 new ChildProfileDraft(null, YesNo.NO, (short) 39, "Kinh", "Không", null, "Hà Nội", "Phường A", "Số 1");
         return new ChildEditDraft(
@@ -185,6 +191,6 @@ class ChildProfileEditServiceImplTest {
                 LocalDate.of(2022, 3, 1),
                 Gender.FEMALE,
                 profile,
-                List.of(new GuardianEdit(guardian, 31L, 50L, OLD_PHONE)));
+                List.of(guardian));
     }
 }

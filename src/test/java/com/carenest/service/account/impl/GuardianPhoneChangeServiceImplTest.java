@@ -136,16 +136,17 @@ class GuardianPhoneChangeServiceImplTest {
     }
 
     @Test
-    @DisplayName("G94-180/AUTH-21: người gửi không tự duyệt yêu cầu của mình")
-    void requesterCannotApprove() {
+    @DisplayName("G94-180/AUTH-21 (sửa 2026-11-11): người gửi có quyền duyệt thì tự duyệt được, không tự báo mình")
+    void requesterMayApproveOwnRequest() {
         CurrentUser requester = TestPermissions.userWithDefaults(REQUESTER, CareNestRole.VICE_PRINCIPAL);
         given(support.inScope(requester, CAMPUS_ID)).willReturn(true);
 
-        assertThatThrownBy(() -> service.approve(requester, REQUEST_ID))
-                .isInstanceOfSatisfying(
-                        GlobalException.class,
-                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.PHONE_CHANGE_SELF_DECISION));
-        verify(identity, never()).updateUsername(any(), any());
+        service.approve(requester, REQUEST_ID);
+
+        assertThat(request.getStatus()).isEqualTo(PhoneChangeStatus.APPROVED);
+        verify(identity).updateUsername("kc-50", "0987654321");
+        verify(notifications, never())
+                .notifyUsers(any(), eq(NotificationType.GUARDIAN_PHONE_CHANGE_DECIDED), any(), any(), any());
     }
 
     @Test

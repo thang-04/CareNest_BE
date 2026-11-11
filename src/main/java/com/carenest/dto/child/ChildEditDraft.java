@@ -32,11 +32,13 @@ public record ChildEditDraft(
 
     /**
      * Một phụ huynh sau khi sửa. {@code guardianId} = dòng có sẵn trên hồ sơ (null = thêm mới); {@code accountId} = tài
-     * khoản đang liên kết với trẻ (null = chưa kích hoạt); {@code currentPhone} = SĐT đang lưu của dòng có sẵn.
+     * khoản đang liên kết với trẻ (null = chưa kích hoạt); {@code currentPhone}, {@code currentCitizenId} = SĐT, CCCD đang
+     * lưu của dòng có sẵn (cùng CCCD = cùng người ⇒ không đổi SĐT ở Sửa hồ sơ, AUTH-21 sửa 2026-11-11).
      */
-    public record GuardianEdit(GuardianDraft draft, Long guardianId, Long accountId, String currentPhone) {
+    public record GuardianEdit(
+            GuardianDraft draft, Long guardianId, Long accountId, String currentPhone, String currentCitizenId) {
         public GuardianEdit withDraft(GuardianDraft replaced) {
-            return new GuardianEdit(replaced, guardianId, accountId, currentPhone);
+            return new GuardianEdit(replaced, guardianId, accountId, currentPhone, currentCitizenId);
         }
 
         @Override

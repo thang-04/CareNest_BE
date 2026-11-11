@@ -108,7 +108,7 @@ public enum ApiCode {
     // 10/11/2026 là 1133–1137 (dev đã dùng 1133–1135 cho tài khoản nhân sự)
     PHONE_CHANGE_REQUEST_NOT_FOUND(1136, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu đổi số điện thoại"),
     PHONE_CHANGE_REQUEST_NOT_PENDING(1137, HttpStatus.CONFLICT, "Yêu cầu đổi số điện thoại đã được xử lý"),
-    PHONE_CHANGE_SELF_DECISION(1138, HttpStatus.FORBIDDEN, "Không tự duyệt yêu cầu đổi số điện thoại do chính bạn gửi"),
+    // 1138 (không tự duyệt) bỏ 2026-11-11: người gửi có quyền duyệt thì tự duyệt được (AUTH-21); không dùng lại số
     // Lúc duyệt: số mới đã thuộc người khác hoặc tài khoản đã đổi theo đường khác từ khi gửi yêu cầu
     PHONE_CHANGE_REQUEST_STALE(1139, HttpStatus.CONFLICT, "{0}"),
     // Realm Keycloak chưa bật sửa username cho admin (docs/system/KEYCLOAK.md mục 7) ⇒ không đổi gì
@@ -285,6 +285,8 @@ public enum ApiCode {
     CHILD_NOT_LEFT(3010, HttpStatus.CONFLICT, "Trẻ chưa nghỉ học, không cần mở lại hồ sơ"),
     // G94-180/CHD-03: trẻ đã nghỉ học chỉ mở lại hồ sơ, không sửa, không cho nghỉ lần nữa
     CHILD_ALREADY_LEFT(3011, HttpStatus.CONFLICT, "Trẻ đã nghỉ học. Mở lại hồ sơ trước khi thay đổi."),
+    // G94-180/AUTH-21 (2026-11-11): yêu cầu đổi SĐT cho phụ huynh không có trên hồ sơ trẻ này
+    CHILD_GUARDIAN_NOT_FOUND(3012, HttpStatus.NOT_FOUND, "Không tìm thấy phụ huynh trên hồ sơ trẻ. Tải lại hồ sơ."),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),

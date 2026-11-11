@@ -18,9 +18,10 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 /**
- * Yêu cầu đổi SĐT (= tên đăng nhập) của phụ huynh đã có tài khoản, tạo khi Sửa hồ sơ trẻ (G94-180/AUTH-21, user chốt
- * 2026-11-10). Hồ sơ giữ số cũ tới khi PHT có quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ (hoặc HT) duyệt.
- * Không lưu mật khẩu.
+ * Yêu cầu đổi SĐT của một phụ huynh trên hồ sơ trẻ (G94-180/AUTH-21, user chốt 2026-11-10, sửa 2026-11-11): có tài
+ * khoản ⇒ {@code userId}, SĐT = tên đăng nhập; chưa có ⇒ {@code userId} null. Hồ sơ giữ số cũ tới khi HT, hoặc PHT có
+ * quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ, duyệt. {@code guardianId} null khi phụ huynh đã bị bỏ khỏi
+ * hồ sơ (V88). Không lưu mật khẩu.
  */
 @Getter
 @Entity
@@ -32,13 +33,13 @@ public class GuardianPhoneChangeRequest {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "user_id", nullable = false, updatable = false)
+    @Column(name = "user_id", updatable = false)
     private Long userId;
 
     @Column(name = "child_id", nullable = false, updatable = false)
     private Long childId;
 
-    @Column(name = "guardian_id", nullable = false, updatable = false)
+    @Column(name = "guardian_id", updatable = false)
     private Long guardianId;
 
     @Column(name = "old_phone", nullable = false, updatable = false, length = 10)

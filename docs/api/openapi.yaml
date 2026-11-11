@@ -2369,6 +2369,37 @@ paths:
           description: OK
       tags:
       - selected-parent-account-controller
+  /api/children/{childId}/guardians/{guardianId}/phone-change-requests:
+    post:
+      operationId: requestGuardianPhoneChange
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: guardianId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuardianPhoneChangeCreateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGuardianPhoneChangeResponse"
+          description: Created
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/guardians/{userId}:
     delete:
       operationId: removeGuardian
@@ -11831,6 +11862,13 @@ components:
         phone:
           type: string
         relation:
+          type: string
+    GuardianPhoneChangeCreateRequest:
+      type: object
+      properties:
+        newPhone:
+          type: string
+        reason:
           type: string
     GuardianPhoneChangeResponse:
       type: object

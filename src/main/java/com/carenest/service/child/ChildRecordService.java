@@ -4,13 +4,17 @@ import com.carenest.dto.child.ChildClassResponse;
 import com.carenest.dto.child.ChildEditDraft;
 import com.carenest.dto.child.ChildPlacementResponse;
 import com.carenest.dto.child.ChildViewResponse;
+import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.security.CurrentUser;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * Thay đổi hồ sơ trẻ sau tiếp nhận (G94-180): cho nghỉ học, Sửa hồ sơ. Phần tài khoản phụ huynh (sửa tài khoản, yêu cầu
@@ -33,7 +37,7 @@ public interface ChildRecordService {
 
     /**
      * Ghi bản đã kiểm (trẻ, hành chính, phụ huynh, lịch sử UPDATED kèm từng ô đổi); chạy trong giao dịch của người gọi.
-     * SĐT ghi theo {@code draft} — người gọi giữ số cũ cho phụ huynh đang chờ duyệt đổi SĐT.
+     * Người gọi đã chặn đổi SĐT của phụ huynh đã lưu (đổi qua yêu cầu, AUTH-21 sửa 2026-11-11).
      */
     void applyEdit(CurrentUser actor, ChildEditDraft draft);
 
@@ -42,6 +46,24 @@ public interface ChildRecordService {
 
     /** Đổi SĐT trên mọi dòng phụ huynh đã liên kết tài khoản (yêu cầu đổi SĐT được duyệt); chạy trong giao dịch người gọi. */
     void changeGuardianPhone(Long accountId, String newPhone);
+
+    /**
+     * Phụ huynh để gửi yêu cầu đổi SĐT (AUTH-21 sửa 2026-11-11): phạm vi như Sửa hồ sơ (403), trẻ đã nghỉ 409 3011,
+     * phụ huynh không thuộc trẻ 404 3012. Không ghi gì.
+     */
+    GuardianPhoneTarget findPhoneChangeTarget(CurrentUser actor, Long childId, Long guardianId);
+
+    /** Như {@link #findPhoneChangeTarget} không kiểm phạm vi (duyệt yêu cầu — người duyệt đã được kiểm); không có ⇒ rỗng. */
+    Optional<GuardianPhoneTarget> findGuardian(Long guardianId);
+
+    /**
+     * Đổi SĐT một dòng phụ huynh chưa có tài khoản nếu còn số cũ (yêu cầu đổi SĐT được duyệt); trả số dòng đã đổi (0 ⇒
+     * hồ sơ đã đổi từ lúc gửi). Chạy trong giao dịch người gọi.
+     */
+    int changeGuardianRecordPhone(Long guardianId, String oldPhone, String newPhone);
+
+    /** Họ tên phụ huynh trên hồ sơ theo id dòng (yêu cầu đổi SĐT của người chưa có tài khoản); dòng đã xóa không có khóa. */
+    Map<Long, String> findGuardianNames(Collection<Long> guardianIds);
 
     /** Khai báo sức khỏe kèm lịch sử (mục 4.6 plan tiếp nhận); null khi trẻ chưa có khai báo. Người gọi đã kiểm phạm vi. */
     HealthDeclarationResponse findDeclaration(Long childId);

@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.carenest.dto.account.GuardianPhoneChangeCreateRequest;
 import com.carenest.dto.account.GuardianPhoneChangeResponse;
 import com.carenest.dto.account.PhoneChangeDecisionRequest;
 import com.carenest.dto.child.ChildAddressInput;
@@ -183,52 +184,48 @@ class ChildRecordIntegrationTest {
     }
 
     @Test
-    @DisplayName(
-            "G94-180/AUTH-21: Sửa hồ sơ ⇒ đổi SĐT người có tài khoản thành yêu cầu, người chưa có đổi ngay, lịch sử JSONB")
-    void editKeepsAccountPhoneUntilApproved() {
+    @DisplayName("G94-180/AUTH-21 (sửa 11/11): Sửa hồ sơ không đổi SĐT phụ huynh đã lưu, có hay chưa có tài khoản")
+    void editRejectsPhoneChangeOfSavedGuardian() {
+        expectField(
+                () -> editService.update(principal, childA, edit("Trần Bé An", NEW_PHONE, "0902000002")),
+                ApiCode.INVALID_REQUEST_DATA,
+                "guardians.0.phone");
+        expectField(
+                () -> editService.update(principal, childA, edit("Trần Bé An", OLD_PHONE, "0902000003")),
+                ApiCode.INVALID_REQUEST_DATA,
+                "guardians.1.phone");
+
         ChildUpdateResponse updated =
-                editService.update(principal, childA, edit("Trần Bé An Nhiên", NEW_PHONE, "0902000003"));
+                editService.update(principal, childA, edit("Trần Bé An Nhiên", OLD_PHONE, "0902000002"));
         entityManager.flush();
 
         assertThat(updated.child().fullName()).isEqualTo("Trần Bé An Nhiên");
-        assertThat(updated.phoneChangeRequests()).singleElement().satisfies(r -> {
-            assertThat(r.status()).isEqualTo(PhoneChangeStatus.PENDING);
-            assertThat(r.oldPhone()).isEqualTo(OLD_PHONE);
-            assertThat(r.newPhone()).isEqualTo(NEW_PHONE);
-            assertThat(r.canDecide()).isFalse();
-        });
-        assertThat(phones(childA)).containsExactly(OLD_PHONE, "0902000003");
-        assertThat(jdbc.queryForObject("SELECT username FROM user_accounts WHERE id = ?", String.class, parent))
-                .isEqualTo(OLD_PHONE);
-        String changes = jdbc.queryForObject(
-                "SELECT changes::text FROM child_history WHERE child_id = ? AND action = 'UPDATED'",
-                String.class,
-                childA);
-        assertThat(changes).contains("fullName").contains("guardians.1.phone").doesNotContain("guardians.0.phone");
-        assertThat(count(
-                        "SELECT count(*) FROM notifications WHERE user_id = ? AND type = 'GUARDIAN_PHONE_CHANGE_REQUESTED'",
-                        vicePrincipalId))
-                .isEqualTo(1);
-        verify(identityProviderClient, never()).updateUsername(anyString(), anyString());
+        assertThat(updated.phoneChangeRequests()).isEmpty();
+        assertThat(phones(childA)).containsExactly(OLD_PHONE, "0902000002");
+        assertThat(count("SELECT count(*) FROM guardian_phone_change_requests WHERE child_id = ?", childA))
+                .isZero();
     }
 
     @Test
-    @DisplayName("G94-180/AUTH-21: PHT duyệt ⇒ tên đăng nhập, SĐT mọi hồ sơ đổi, SMS số mới; người gửi không tự duyệt")
-    void approveChangesUsernameEverywhere() {
-        ChildUpdateResponse updated =
-                editService.update(principal, childA, edit("Trần Bé An", NEW_PHONE, "0902000002"));
-        Long requestId = updated.phoneChangeRequests().getFirst().id();
+    @DisplayName("G94-180/AUTH-21: HT gửi yêu cầu cho phụ huynh có tài khoản rồi tự duyệt ⇒ tên đăng nhập, SĐT mọi hồ"
+            + " sơ đổi, SMS số mới; báo PHT khi gửi, không tự báo mình khi duyệt")
+    void principalRequestsAndApprovesOwnRequest() {
+        GuardianPhoneChangeResponse requested = phoneChangeService.request(
+                principal, childA, guardianId(childA, 0), new GuardianPhoneChangeCreateRequest(NEW_PHONE, "Mẹ đổi số"));
+        entityManager.flush();
 
-        assertThatThrownBy(() -> phoneChangeService.approve(principal, requestId))
-                .isInstanceOfSatisfying(
-                        GlobalException.class,
-                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.PHONE_CHANGE_SELF_DECISION));
-        List<GuardianPhoneChangeResponse> pending = phoneChangeService.list(vicePrincipal, PhoneChangeStatus.PENDING);
-        assertThat(pending)
-                .singleElement()
-                .satisfies(r -> assertThat(r.canDecide()).isTrue());
+        assertThat(requested.status()).isEqualTo(PhoneChangeStatus.PENDING);
+        assertThat(requested.userId()).isEqualTo(parent);
+        assertThat(requested.oldPhone()).isEqualTo(OLD_PHONE);
+        assertThat(requested.newPhone()).isEqualTo(NEW_PHONE);
+        assertThat(requested.canDecide()).isTrue();
+        assertThat(phones(childA).getFirst()).isEqualTo(OLD_PHONE);
+        assertThat(notifications(vicePrincipalId, "GUARDIAN_PHONE_CHANGE_REQUESTED"))
+                .isEqualTo(1);
+        assertThat(notifications(principalId, "GUARDIAN_PHONE_CHANGE_REQUESTED"))
+                .isZero();
 
-        GuardianPhoneChangeResponse approved = phoneChangeService.approve(vicePrincipal, requestId);
+        GuardianPhoneChangeResponse approved = phoneChangeService.approve(principal, requested.id());
         entityManager.flush();
 
         assertThat(approved.status()).isEqualTo(PhoneChangeStatus.APPROVED);
@@ -240,25 +237,48 @@ class ChildRecordIntegrationTest {
         verify(identityProviderClient).updateUsername("kc-parent-rc", NEW_PHONE);
         verify(identityProviderClient).resetTemporaryPassword(eq("kc-parent-rc"), anyString());
         verify(smsGateway).send(eq(NEW_PHONE), anyString());
-        assertThat(count(
-                        "SELECT count(*) FROM notifications WHERE user_id = ? AND type = 'GUARDIAN_PHONE_CHANGE_DECIDED'",
-                        principalId))
+        assertThat(notifications(principalId, "GUARDIAN_PHONE_CHANGE_DECIDED")).isZero();
+    }
+
+    @Test
+    @DisplayName("G94-180/AUTH-21: phụ huynh chưa có tài khoản cũng qua duyệt; duyệt ⇒ chỉ đổi SĐT dòng đó, không SMS")
+    void requestForGuardianWithoutAccountChangesOnlyThatRecord() {
+        GuardianPhoneChangeResponse requested = phoneChangeService.request(
+                vicePrincipal,
+                childA,
+                guardianId(childA, 1),
+                new GuardianPhoneChangeCreateRequest("0902 000 003", "Bố đổi số"));
+        entityManager.flush();
+
+        assertThat(requested.userId()).isNull();
+        assertThat(requested.guardianName()).isEqualTo("Trần Văn Bố");
+        assertThat(requested.oldPhone()).isEqualTo("0902000002");
+        assertThat(requested.newPhone()).isEqualTo("0902000003");
+        assertThat(phones(childA)).containsExactly(OLD_PHONE, "0902000002");
+
+        GuardianPhoneChangeResponse approved = phoneChangeService.approve(principal, requested.id());
+        entityManager.flush();
+
+        assertThat(approved.status()).isEqualTo(PhoneChangeStatus.APPROVED);
+        assertThat(approved.smsStatus()).isNull();
+        assertThat(phones(childA)).containsExactly(OLD_PHONE, "0902000003");
+        verify(identityProviderClient, never()).updateUsername(anyString(), anyString());
+        verify(smsGateway, never()).send(anyString(), anyString());
+        assertThat(notifications(vicePrincipalId, "GUARDIAN_PHONE_CHANGE_DECIDED"))
                 .isEqualTo(1);
     }
 
     @Test
-    @DisplayName("G94-180/AUTH-21: sửa lại sang số khác ⇒ yêu cầu cũ CANCELLED; từ chối ⇒ giữ số cũ")
+    @DisplayName("G94-180/AUTH-21: gửi lại sang số khác ⇒ yêu cầu cũ CANCELLED; từ chối ⇒ giữ số cũ")
     void newRequestCancelsOldAndRejectKeepsPhone() {
-        Long first = editService
-                .update(principal, childA, edit("Trần Bé An", NEW_PHONE, "0902000002"))
-                .phoneChangeRequests()
-                .getFirst()
+        long mother = guardianId(childA, 0);
+        Long first = phoneChangeService
+                .request(principal, childA, mother, new GuardianPhoneChangeCreateRequest(NEW_PHONE, "Đổi số"))
                 .id();
-        Long second = editService
-                .update(principal, childA, edit("Trần Bé An", "0902000098", "0902000002"))
-                .phoneChangeRequests()
-                .getFirst()
+        Long second = phoneChangeService
+                .request(principal, childA, mother, new GuardianPhoneChangeCreateRequest("0902000098", "Gõ nhầm số"))
                 .id();
+        entityManager.flush();
 
         assertThat(jdbc.queryForObject(
                         "SELECT status FROM guardian_phone_change_requests WHERE id = ?", String.class, first))
@@ -270,6 +290,59 @@ class ChildRecordIntegrationTest {
                 .isEqualTo("REJECTED");
         assertThat(jdbc.queryForObject("SELECT username FROM user_accounts WHERE id = ?", String.class, parent))
                 .isEqualTo(OLD_PHONE);
+    }
+
+    @Test
+    @DisplayName("G94-180/AUTH-21: kiểm yêu cầu — trùng số đang lưu, thiếu lý do, số của phụ huynh khác, phụ huynh lạ")
+    void requestValidation() {
+        long father = guardianId(childA, 1);
+        expectField(
+                () -> phoneChangeService.request(
+                        principal, childA, father, new GuardianPhoneChangeCreateRequest("0902000002", "Đổi")),
+                ApiCode.INVALID_REQUEST_DATA,
+                "newPhone");
+        expectField(
+                () -> phoneChangeService.request(
+                        principal, childA, father, new GuardianPhoneChangeCreateRequest("0902000003", "  ")),
+                ApiCode.INVALID_REQUEST_DATA,
+                "reason");
+        expectField(
+                () -> phoneChangeService.request(
+                        principal, childA, father, new GuardianPhoneChangeCreateRequest(OLD_PHONE, "Đổi")),
+                ApiCode.GUARDIAN_IDENTITY_CONFLICT,
+                "newPhone");
+        assertThatThrownBy(() -> phoneChangeService.request(
+                        principal,
+                        childA,
+                        guardianId(sibling, 0),
+                        new GuardianPhoneChangeCreateRequest("0902000003", "Đổi")))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.CHILD_GUARDIAN_NOT_FOUND));
+        assertThat(count("SELECT count(*) FROM guardian_phone_change_requests WHERE child_id = ?", childA))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("G94-180/AUTH-21: bỏ phụ huynh đang có yêu cầu ở Sửa hồ sơ được; duyệt sau đó ⇒ 409 stale")
+    void removingGuardianLeavesStaleRequest() {
+        Long requestId = phoneChangeService
+                .request(
+                        principal,
+                        childA,
+                        guardianId(childA, 1),
+                        new GuardianPhoneChangeCreateRequest("0902000003", "Bố đổi số"))
+                .id();
+        entityManager.flush();
+
+        editService.update(principal, childA, onlyMother());
+        entityManager.flush();
+
+        assertThat(phones(childA)).containsExactly(OLD_PHONE);
+        assertThatThrownBy(() -> phoneChangeService.approve(principal, requestId))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.PHONE_CHANGE_REQUEST_STALE));
     }
 
     @Test
@@ -317,6 +390,34 @@ class ChildRecordIntegrationTest {
                                         "Trần Văn Bố", "FATHER", fatherPhone, "001190000102", null, null, null)),
                         profile()),
                 "Cập nhật hồ sơ");
+    }
+
+    private static UpdateChildRequest onlyMother() {
+        return new UpdateChildRequest(
+                new EnrollmentChildInput(
+                        "Trần Bé An",
+                        "2022-03-01",
+                        "MALE",
+                        List.of(new GuardianInput("Trần Thị Mẹ", "MOTHER", OLD_PHONE, CITIZEN, null, null, null)),
+                        profile()),
+                "Bỏ phụ huynh");
+    }
+
+    private long guardianId(long childId, int position) {
+        return jdbc.queryForObject(
+                "SELECT id FROM child_guardians WHERE child_id = ? AND position = ?", Long.class, childId, position);
+    }
+
+    private long notifications(long userId, String type) {
+        entityManager.flush();
+        return count("SELECT count(*) FROM notifications WHERE user_id = ? AND type = ?", userId, type);
+    }
+
+    private static void expectField(Runnable call, ApiCode code, String field) {
+        assertThatThrownBy(call::run).isInstanceOfSatisfying(GlobalException.class, ex -> {
+            assertThat(ex.getApiCode()).isEqualTo(code);
+            assertThat(ex.getFieldErrors()).extracting(e -> e.field()).contains(field);
+        });
     }
 
     private static ChildProfileInput profile() {

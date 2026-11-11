@@ -19,6 +19,8 @@ public interface GuardianPhoneChangeRequestRepository extends JpaRepository<Guar
 
     Optional<GuardianPhoneChangeRequest> findByUserIdAndStatus(Long userId, PhoneChangeStatus status);
 
+    Optional<GuardianPhoneChangeRequest> findByGuardianIdAndStatus(Long guardianId, PhoneChangeStatus status);
+
     List<GuardianPhoneChangeRequest> findAllByStatusOrderByRequestedAtDescIdDesc(PhoneChangeStatus status);
 
     List<GuardianPhoneChangeRequest> findAllByOrderByRequestedAtDescIdDesc();

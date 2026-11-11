@@ -1,6 +1,5 @@
 package com.carenest.service.account.impl;
 
-import com.carenest.dto.account.GuardianPhoneChangeResponse;
 import com.carenest.dto.child.ChildEditDraft;
 import com.carenest.dto.child.ChildEditDraft.GuardianEdit;
 import com.carenest.dto.child.ChildUpdateResponse;
@@ -9,7 +8,6 @@ import com.carenest.dto.child.GuardianDraft;
 import com.carenest.dto.child.GuardianRecord;
 import com.carenest.dto.child.UpdateChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
-import com.carenest.entity.account.GuardianPhoneChangeRequest;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.account.UserAccountRepository;
@@ -35,15 +33,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Sửa hồ sơ trẻ kèm tài khoản phụ huynh (mục 4.2, 5.2, 5.4 plan tiếp nhận; G94-180/AUTH-21 sửa 2026-11-10). Thứ tự: kiểm
- * hết (không ghi) → một giao dịch ghi hồ sơ + tài khoản + yêu cầu đổi SĐT + thông báo → sau commit đồng bộ họ tên/email
- * sang Keycloak. Không log SĐT/CCCD/họ tên — chỉ id, số lượng.
+ * Sửa hồ sơ trẻ kèm tài khoản phụ huynh (mục 4.2, 5.2, 5.4 plan tiếp nhận; G94-180/AUTH-21 sửa 2026-11-10, 2026-11-11).
+ * Không đổi SĐT phụ huynh đã lưu — đổi qua yêu cầu ({@code GuardianPhoneChangeService.request}). Thứ tự: kiểm hết
+ * (không ghi) → một giao dịch ghi hồ sơ + tài khoản → sau commit đồng bộ họ tên/email sang Keycloak. Không log
+ * SĐT/CCCD/họ tên — chỉ id, số lượng.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChildProfileEditServiceImpl implements ChildProfileEditService {
     private static final String LOG_PREFIX = "[ChildProfileEditServiceImpl]";
+    static final String PHONE_VIA_REQUEST =
+            "Không đổi số điện thoại ở Sửa hồ sơ. Dùng nút Yêu cầu đổi số điện thoại để Hiệu trưởng hoặc Phó hiệu trưởng"
+                    + " duyệt.";
     static final String BOTH_CHANGED =
             "Phụ huynh đã có tài khoản: không đổi cùng lúc CCCD và số điện thoại. Đổi từng thông tin, hoặc gỡ phụ huynh ở"
                     + " màn Tài khoản phụ huynh rồi thêm người mới.";
@@ -57,7 +59,6 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
     private final ChildIntakeService childIntakeService;
     private final UserAccountRepository userAccountRepository;
     private final AccountLifecycleOperations accountLifecycle;
-    private final PhoneChangeSupport phoneChanges;
     private final TransactionTemplate transactionTemplate;
 
     @Override
@@ -77,28 +78,30 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
 
             List<FieldErrorResponse> errors = new ArrayList<>();
             List<AccountEdit> accountEdits = new ArrayList<>();
-            List<GuardianEdit> finalGuardians = new ArrayList<>();
             for (int i = 0; i < draft.guardians().size(); i++) {
                 GuardianEdit edit = draft.guardians().get(i);
+                String prefix = "guardians." + i + ".";
+                // AUTH-21 (sửa 2026-11-11): cùng người (CCCD không đổi) thì đổi SĐT chỉ qua yêu cầu, có hay chưa có
+                // tài khoản; đổi cả CCCD của người chưa có tài khoản = thay người khác vào vị trí đó
+                boolean phoneChanged = edit.guardianId() != null
+                        && !Objects.equals(edit.currentPhone(), edit.draft().phone());
+                if (phoneChanged
+                        && Objects.equals(edit.currentCitizenId(), edit.draft().citizenId())) {
+                    errors.add(new FieldErrorResponse(prefix + "phone", PHONE_VIA_REQUEST));
+                    continue;
+                }
                 UserAccount account = edit.accountId() == null ? null : accounts.get(edit.accountId());
                 if (account == null) {
-                    finalGuardians.add(edit);
                     continue;
                 }
                 AccountEdit change = AccountEdit.of(i, edit, account);
-                String prefix = "guardians." + i + ".";
-                if (change.phoneChanged() && change.citizenChanged()) {
+                if (phoneChanged && change.citizenChanged()) {
                     errors.add(new FieldErrorResponse(prefix + "idNumber", BOTH_CHANGED));
-                } else if (change.phoneChanged() && account.getPrimaryRole() != CareNestRole.PARENT) {
-                    errors.add(new FieldErrorResponse(prefix + "phone", STAFF_PHONE));
                 }
                 if (change.infoChanged() && !manageAccounts) {
                     errors.add(new FieldErrorResponse(prefix + change.firstInfoField(), NEED_ACCOUNT_PERMISSION));
                 }
                 accountEdits.add(change);
-                // AUTH-21 (2026-11-10): SĐT mới chờ duyệt, hồ sơ giữ số đang lưu
-                finalGuardians.add(
-                        change.phoneChanged() ? edit.withDraft(withPhone(edit.draft(), edit.currentPhone())) : edit);
             }
             if (!errors.isEmpty()) {
                 throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
@@ -108,12 +111,9 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
                 throw GlobalException.withFieldErrors(ApiCode.GUARDIAN_IDENTITY_CONFLICT, conflicts);
             }
 
-            ChildEditDraft resolved = draft.withGuardians(finalGuardians);
-            String childName = draft.fullName();
-            Saved saved = transactionTemplate.execute(status -> {
-                childRecordService.applyEdit(actor, resolved);
-                List<UserAccount> updated = new ArrayList<>();
-                List<GuardianPhoneChangeRequest> opened = new ArrayList<>();
+            List<UserAccount> updated = transactionTemplate.execute(status -> {
+                childRecordService.applyEdit(actor, draft);
+                List<UserAccount> changed = new ArrayList<>();
                 for (AccountEdit change : accountEdits) {
                     UserAccount account = userAccountRepository
                             .findById(change.account().getId())
@@ -125,36 +125,23 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
                         userAccountRepository.saveAndFlush(account);
                         childRecordService.syncGuardianAccountInfo(
                                 account.getId(), g.fullName(), g.email(), g.citizenId());
-                        if (change.infoChanged()) updated.add(account);
-                    }
-                    if (change.phoneChanged()) {
-                        opened.add(phoneChanges.open(
-                                actor,
-                                childId,
-                                draft.campusId(),
-                                childName,
-                                change.edit().guardianId(),
-                                account,
-                                g.phone(),
-                                draft.reason()));
+                        if (change.infoChanged()) changed.add(account);
                     }
                 }
-                return new Saved(updated, opened);
+                return changed;
             });
 
-            for (UserAccount account : saved.updated()) {
+            for (UserAccount account : updated) {
                 accountLifecycle.syncProfileQuietly(logPrefix, account);
             }
-            List<GuardianAccountChangeResponse> accountChanges = saved.updated().stream()
+            List<GuardianAccountChangeResponse> accountChanges = updated.stream()
                     .map(a ->
                             new GuardianAccountChangeResponse(a.getId(), a.getFullName(), a.getUsername(), false, null))
                     .toList();
-            List<GuardianPhoneChangeResponse> requests = saved.opened().isEmpty()
-                    ? List.of()
-                    : phoneChanges.toResponses(actor, saved.opened(), phoneChanges.childrenOf(saved.opened()));
+            // phoneChangeRequests luôn rỗng từ 2026-11-11 (gửi yêu cầu riêng); giữ trường cho FE đang đọc
             ChildUpdateResponse response =
-                    new ChildUpdateResponse(childIntakeService.getChildView(childId), accountChanges, requests);
-            log.info("{}|accountsUpdated={}|phoneRequests={}|END", logPrefix, accountChanges.size(), requests.size());
+                    new ChildUpdateResponse(childIntakeService.getChildView(childId), accountChanges, List.of());
+            log.info("{}|accountsUpdated={}|END", logPrefix, accountChanges.size());
             return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -164,8 +151,7 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
 
     /**
      * Một người một tài khoản (mục 5.2, như tiếp nhận): so với mọi tài khoản và phụ huynh trên hồ sơ trẻ khác, bỏ dòng của
-     * chính trẻ này và bản ghi của chính tài khoản. Đổi SĐT của người đã có tài khoản: số mới không được là tên đăng nhập
-     * của tài khoản khác (kể cả nhân sự).
+     * chính trẻ này và bản ghi của chính tài khoản. Đổi SĐT của người đã lưu bị chặn trước đó (đổi qua yêu cầu).
      */
     private List<FieldErrorResponse> identityConflicts(
             Long childId, List<GuardianEdit> guardians, Map<Long, UserAccount> linked) {
@@ -215,24 +201,12 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
                             && r.citizenId() != null
                             && !g.citizenId().equals(r.citizenId()))) {
                 errors.add(new FieldErrorResponse(prefix + "phone", ChildEnrollmentServiceImpl.PHONE_HAS_OTHER_ID));
-            } else if (edit.accountId() != null && same != null && !g.phone().equals(edit.currentPhone())) {
-                UserAccount owner = byUsername.get(g.phone());
-                if (owner != null && !owner.getId().equals(same.getId())) {
-                    errors.add(new FieldErrorResponse(prefix + "phone", USERNAME_TAKEN));
-                }
             }
         }
         return errors;
     }
 
-    private static GuardianDraft withPhone(GuardianDraft g, String phone) {
-        return new GuardianDraft(
-                g.position(), g.fullName(), g.relationship(), phone, g.citizenId(), g.email(), g.accountRecipient());
-    }
-
     private record Identity(Long accountId, String phone, String citizenId) {}
-
-    private record Saved(List<UserAccount> updated, List<GuardianPhoneChangeRequest> opened) {}
 
     /** So phụ huynh đã sửa với tài khoản đang liên kết (email so không phân biệt hoa thường). */
     private record AccountEdit(
@@ -241,8 +215,7 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
             UserAccount account,
             boolean nameChanged,
             boolean emailChanged,
-            boolean citizenChanged,
-            boolean phoneChanged) {
+            boolean citizenChanged) {
 
         static AccountEdit of(int index, GuardianEdit edit, UserAccount account) {
             GuardianDraft g = edit.draft();
@@ -253,9 +226,7 @@ public class ChildProfileEditServiceImpl implements ChildProfileEditService {
                     account,
                     !Objects.equals(account.getFullName(), g.fullName()),
                     !(email == null ? g.email() == null : email.equalsIgnoreCase(g.email())),
-                    account.getCitizenId() != null && !account.getCitizenId().equals(g.citizenId()),
-                    // So với SĐT đang lưu trên hồ sơ: tài khoản demo cũ có tên đăng nhập không phải SĐT (module card)
-                    !Objects.equals(edit.currentPhone(), g.phone()));
+                    account.getCitizenId() != null && !account.getCitizenId().equals(g.citizenId()));
         }
 
         boolean infoChanged() {

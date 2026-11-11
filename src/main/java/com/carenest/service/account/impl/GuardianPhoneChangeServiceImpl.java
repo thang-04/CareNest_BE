@@ -1,8 +1,10 @@
 package com.carenest.service.account.impl;
 
+import com.carenest.dto.account.GuardianPhoneChangeCreateRequest;
 import com.carenest.dto.account.GuardianPhoneChangeResponse;
 import com.carenest.dto.account.PhoneChangeDecisionRequest;
 import com.carenest.dto.child.GuardianChildSummary;
+import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.dto.child.GuardianRecord;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.entity.account.GuardianPhoneChangeRequest;
@@ -17,13 +19,17 @@ import com.carenest.service.child.ChildRecordService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.PhoneNumbers;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.PhoneChangeStatus;
 import com.carenest.utils.enums.SmsStatus;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -82,13 +88,68 @@ public class GuardianPhoneChangeServiceImpl implements GuardianPhoneChangeServic
     }
 
     @Override
+    @Transactional
+    public GuardianPhoneChangeResponse request(
+            CurrentUser actor, Long childId, Long guardianId, GuardianPhoneChangeCreateRequest body) {
+        String logPrefix =
+                LOG_PREFIX + "|request|userId=" + actor.userId() + "|childId=" + childId + "|guardianId=" + guardianId;
+        log.info("{}|START", logPrefix);
+        try {
+            GuardianPhoneTarget target = childRecordService.findPhoneChangeTarget(actor, childId, guardianId);
+            UserAccount account = target.accountId() == null
+                    ? null
+                    : userAccountRepository.findById(target.accountId()).orElse(null);
+
+            List<FieldErrorResponse> errors = new ArrayList<>();
+            String raw = body == null || body.newPhone() == null
+                    ? ""
+                    : body.newPhone().strip();
+            String newPhone = PhoneNumbers.normalize(raw).orElse(null);
+            if (raw.isEmpty()) {
+                errors.add(new FieldErrorResponse("newPhone", "Nhập số điện thoại mới"));
+            } else if (newPhone == null) {
+                errors.add(new FieldErrorResponse("newPhone", "Nhập số điện thoại hợp lệ, ví dụ 0912 345 678"));
+            } else if (newPhone.equals(target.phone())) {
+                errors.add(new FieldErrorResponse("newPhone", "Số mới trùng số đang dùng"));
+            } else if (account != null && account.getPrimaryRole() != CareNestRole.PARENT) {
+                errors.add(new FieldErrorResponse("newPhone", ChildProfileEditServiceImpl.STAFF_PHONE));
+            }
+            String reason =
+                    body == null || body.reason() == null ? "" : body.reason().strip();
+            if (reason.isEmpty()) {
+                errors.add(new FieldErrorResponse("reason", "Nhập lý do đổi số điện thoại"));
+            } else if (reason.length() > MAX_NOTE) {
+                errors.add(new FieldErrorResponse("reason", "Lý do tối đa " + MAX_NOTE + " ký tự"));
+            }
+            if (!errors.isEmpty()) {
+                throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
+            }
+            String conflict = phoneConflict(target, account, newPhone);
+            if (conflict != null) {
+                throw GlobalException.withFieldErrors(
+                        ApiCode.GUARDIAN_IDENTITY_CONFLICT, List.of(new FieldErrorResponse("newPhone", conflict)));
+            }
+
+            GuardianPhoneChangeRequest opened = phoneChanges.open(actor, target, account, newPhone, reason);
+            GuardianPhoneChangeResponse response = toResponse(actor, opened);
+            log.info("{}|requestId={}|withAccount={}|END", logPrefix, opened.getId(), account != null);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public GuardianPhoneChangeResponse approve(CurrentUser actor, Long requestId) {
         String logPrefix = LOG_PREFIX + "|approve|userId=" + actor.userId() + "|requestId=" + requestId;
         log.info("{}|START", logPrefix);
         try {
             GuardianPhoneChangeRequest request = loadForDecision(actor, requestId);
-            if (actor.userId().equals(request.getRequestedBy())) {
-                throw GlobalException.of(ApiCode.PHONE_CHANGE_SELF_DECISION);
+            if (request.getUserId() == null) {
+                GuardianPhoneChangeResponse response = approveRecordOnly(actor, request);
+                log.info("{}|withAccount=false|END", logPrefix);
+                return response;
             }
             UserAccount account = userAccountRepository
                     .findById(request.getUserId())
@@ -110,13 +171,12 @@ public class GuardianPhoneChangeServiceImpl implements GuardianPhoneChangeServic
                 childRecordService.changeGuardianPhone(account.getId(), locked.getNewPhone());
                 locked.approve(actor.userId(), clock.instant());
                 requestRepository.save(locked);
-                notificationService.notifyUsers(
-                        Set.of(locked.getRequestedBy()),
-                        NotificationType.GUARDIAN_PHONE_CHANGE_DECIDED,
+                notifyRequester(
+                        actor,
+                        locked,
                         "Đã duyệt đổi số điện thoại phụ huynh",
                         actor.fullName() + " đã duyệt đổi số điện thoại đăng nhập của " + account.getFullName()
-                                + ". Tài khoản mới đã gửi qua SMS tới số mới.",
-                        locked.getChildId());
+                                + ". Tài khoản mới đã gửi qua SMS tới số mới.");
                 return null;
             });
 
@@ -167,19 +227,12 @@ public class GuardianPhoneChangeServiceImpl implements GuardianPhoneChangeServic
             }
             locked.reject(actor.userId(), note, clock.instant());
             requestRepository.save(locked);
-            if (!actor.userId().equals(locked.getRequestedBy())) {
-                String guardianName = userAccountRepository
-                        .findById(locked.getUserId())
-                        .map(UserAccount::getFullName)
-                        .orElse("phụ huynh");
-                notificationService.notifyUsers(
-                        Set.of(locked.getRequestedBy()),
-                        NotificationType.GUARDIAN_PHONE_CHANGE_DECIDED,
-                        "Không duyệt đổi số điện thoại phụ huynh",
-                        actor.fullName() + " không duyệt đổi số điện thoại đăng nhập của " + guardianName
-                                + (note == null ? "." : ": " + note),
-                        locked.getChildId());
-            }
+            notifyRequester(
+                    actor,
+                    locked,
+                    "Không duyệt đổi số điện thoại phụ huynh",
+                    actor.fullName() + " không duyệt đổi số điện thoại của " + guardianName(locked)
+                            + (note == null ? "." : ": " + note));
             GuardianPhoneChangeResponse response = toResponse(actor, locked);
             log.info("{}|END", logPrefix);
             return response;
@@ -227,6 +280,107 @@ public class GuardianPhoneChangeServiceImpl implements GuardianPhoneChangeServic
         if (takenByOther) {
             throw stale("Số điện thoại mới đã thuộc phụ huynh khác trên hồ sơ trẻ. Từ chối yêu cầu này.");
         }
+    }
+
+    /**
+     * Phụ huynh chưa có tài khoản: chỉ đổi SĐT dòng phụ huynh trên hồ sơ (không Keycloak, không SMS). Kiểm lại như lúc
+     * gửi: phụ huynh còn trên hồ sơ, vẫn chưa có tài khoản, hồ sơ còn số cũ, số mới chưa thuộc người khác.
+     */
+    private GuardianPhoneChangeResponse approveRecordOnly(CurrentUser actor, GuardianPhoneChangeRequest request) {
+        GuardianPhoneTarget target = request.getGuardianId() == null
+                ? null
+                : childRecordService
+                        .findGuardian(request.getGuardianId())
+                        .filter(t -> t.childId().equals(request.getChildId()))
+                        .orElse(null);
+        if (target == null) {
+            throw stale("Phụ huynh không còn trên hồ sơ trẻ. Từ chối yêu cầu này.");
+        }
+        if (target.accountId() != null) {
+            throw stale("Phụ huynh đã có tài khoản sau khi gửi yêu cầu. Từ chối rồi gửi lại yêu cầu.");
+        }
+        if (!target.phone().equals(request.getOldPhone())) {
+            throw stale("Số điện thoại trên hồ sơ đã đổi sau khi gửi yêu cầu. Từ chối yêu cầu này.");
+        }
+        if (phoneConflict(target, null, request.getNewPhone()) != null) {
+            throw stale("Số điện thoại mới đã thuộc người khác. Từ chối yêu cầu này.");
+        }
+        GuardianPhoneChangeRequest approved = transactionTemplate.execute(status -> {
+            GuardianPhoneChangeRequest locked = requestRepository
+                    .lockById(request.getId())
+                    .orElseThrow(() -> GlobalException.of(ApiCode.PHONE_CHANGE_REQUEST_NOT_FOUND));
+            if (!locked.isPending()) {
+                throw GlobalException.of(ApiCode.PHONE_CHANGE_REQUEST_NOT_PENDING);
+            }
+            if (childRecordService.changeGuardianRecordPhone(
+                            target.guardianId(), locked.getOldPhone(), locked.getNewPhone())
+                    != 1) {
+                throw stale("Số điện thoại trên hồ sơ đã đổi sau khi gửi yêu cầu. Từ chối yêu cầu này.");
+            }
+            locked.approve(actor.userId(), clock.instant());
+            GuardianPhoneChangeRequest saved = requestRepository.save(locked);
+            notifyRequester(
+                    actor,
+                    saved,
+                    "Đã duyệt đổi số điện thoại phụ huynh",
+                    actor.fullName() + " đã duyệt đổi số điện thoại của " + target.fullName() + ".");
+            return saved;
+        });
+        return toResponse(actor, approved);
+    }
+
+    /**
+     * Số mới không được thuộc người khác (AUTH-18): phụ huynh khác của cùng trẻ; tên đăng nhập của tài khoản khác (trừ
+     * chính tài khoản của phụ huynh, hoặc tài khoản cùng CCCD khi phụ huynh chưa liên kết); phụ huynh khác CCCD trên hồ sơ
+     * trẻ khác. Trả câu lỗi, null khi hợp lệ.
+     */
+    private String phoneConflict(GuardianPhoneTarget target, UserAccount account, String newPhone) {
+        if (target.otherGuardianPhones().contains(newPhone)) {
+            return "Số này đang là của phụ huynh khác của trẻ.";
+        }
+        Optional<UserAccount> owner = userAccountRepository.findByUsername(newPhone);
+        if (owner.isPresent()) {
+            UserAccount o = owner.get();
+            boolean same = account != null
+                    ? o.getId().equals(account.getId())
+                    : o.getCitizenId() != null && o.getCitizenId().equals(target.citizenId());
+            if (!same) {
+                return ChildProfileEditServiceImpl.USERNAME_TAKEN;
+            }
+        }
+        boolean takenByOther = childIntakeService.findGuardianRecords(List.of(newPhone), List.of("-")).stream()
+                .anyMatch(r -> !target.childId().equals(r.childId())
+                        && r.citizenId() != null
+                        && !r.citizenId().equals(target.citizenId())
+                        && (account == null || !account.getId().equals(r.userId())));
+        return takenByOther ? ChildEnrollmentServiceImpl.PHONE_HAS_OTHER_ID : null;
+    }
+
+    // Người gửi tự quyết định (AUTH-21 sửa 2026-11-11) thì không tự báo mình
+    private void notifyRequester(CurrentUser actor, GuardianPhoneChangeRequest request, String title, String body) {
+        if (actor.userId().equals(request.getRequestedBy())) {
+            return;
+        }
+        notificationService.notifyUsers(
+                Set.of(request.getRequestedBy()),
+                NotificationType.GUARDIAN_PHONE_CHANGE_DECIDED,
+                title,
+                body,
+                request.getChildId());
+    }
+
+    private String guardianName(GuardianPhoneChangeRequest request) {
+        if (request.getUserId() != null) {
+            return userAccountRepository
+                    .findById(request.getUserId())
+                    .map(UserAccount::getFullName)
+                    .orElse("phụ huynh");
+        }
+        return request.getGuardianId() == null
+                ? "phụ huynh"
+                : childRecordService
+                        .findGuardianNames(List.of(request.getGuardianId()))
+                        .getOrDefault(request.getGuardianId(), "phụ huynh");
     }
 
     private GuardianPhoneChangeResponse toResponse(CurrentUser actor, GuardianPhoneChangeRequest request) {

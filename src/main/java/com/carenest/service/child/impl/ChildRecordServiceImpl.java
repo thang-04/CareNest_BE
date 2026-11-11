@@ -11,6 +11,7 @@ import com.carenest.dto.child.EnrollmentDraft;
 import com.carenest.dto.child.GuardianDraft;
 import com.carenest.dto.child.GuardianInput;
 import com.carenest.dto.child.GuardianLinkResponse;
+import com.carenest.dto.child.GuardianPhoneTarget;
 import com.carenest.dto.child.HealthDeclarationDraft;
 import com.carenest.dto.child.HealthDeclarationRequest;
 import com.carenest.dto.child.HealthDeclarationResponse;
@@ -60,6 +61,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -719,6 +721,95 @@ public class ChildRecordServiceImpl implements ChildRecordService {
         }
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public GuardianPhoneTarget findPhoneChangeTarget(CurrentUser actor, Long childId, Long guardianId) {
+        String logPrefix = LOG_PREFIX + "|findPhoneChangeTarget|userId=" + actor.userId() + "|childId=" + childId
+                + "|guardianId=" + guardianId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = LocalDate.now(clock);
+            Child child = loadInScope(actor, childId, today);
+            if (child.getStatus() == ChildStatus.LEFT) {
+                throw GlobalException.of(ApiCode.CHILD_ALREADY_LEFT);
+            }
+            GuardianPhoneTarget target = phoneTarget(child, guardianId, today)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_GUARDIAN_NOT_FOUND));
+            log.info("{}|END", logPrefix);
+            return target;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<GuardianPhoneTarget> findGuardian(Long guardianId) {
+        return childGuardianRepository
+                .findById(guardianId)
+                .flatMap(g -> childRepository.findById(g.getChildId()))
+                .flatMap(child -> phoneTarget(child, guardianId, LocalDate.now(clock)));
+    }
+
+    @Override
+    @Transactional
+    public int changeGuardianRecordPhone(Long guardianId, String oldPhone, String newPhone) {
+        String logPrefix = LOG_PREFIX + "|changeGuardianRecordPhone|guardianId=" + guardianId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<ChildGuardian> row = childGuardianRepository
+                    .findById(guardianId)
+                    .filter(g -> g.getPhone().equals(oldPhone));
+            row.ifPresent(g -> {
+                g.changePhone(newPhone);
+                childGuardianRepository.save(g);
+            });
+            log.info("{}|changed={}|END", logPrefix, row.isPresent());
+            return row.isPresent() ? 1 : 0;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, String> findGuardianNames(Collection<Long> guardianIds) {
+        return guardianIds.isEmpty()
+                ? Map.of()
+                : childGuardianRepository.findAllById(guardianIds).stream()
+                        .collect(Collectors.toMap(ChildGuardian::getId, ChildGuardian::getFullName));
+    }
+
+    // Phụ huynh của đúng trẻ này; tài khoản chỉ tính khi còn liên kết với trẻ (như Sửa hồ sơ)
+    private Optional<GuardianPhoneTarget> phoneTarget(Child child, Long guardianId, LocalDate today) {
+        List<ChildGuardian> guardians = childGuardianRepository.findAllByChildIdOrderByPositionAsc(child.getId());
+        Optional<ChildGuardian> found =
+                guardians.stream().filter(g -> g.getId().equals(guardianId)).findFirst();
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        ChildGuardian g = found.get();
+        Long accountId = g.getUserId() != null && guardianChildLinkService.isGuardianOf(g.getUserId(), child.getId())
+                ? g.getUserId()
+                : null;
+        List<String> others = guardians.stream()
+                .filter(o -> !o.getId().equals(guardianId))
+                .map(ChildGuardian::getPhone)
+                .toList();
+        return Optional.of(new GuardianPhoneTarget(
+                child.getId(),
+                child.getFullName(),
+                campusOf(child, today),
+                g.getId(),
+                g.getFullName(),
+                g.getCitizenId(),
+                g.getPhone(),
+                accountId,
+                others));
+    }
+
     /**
      * Ghép phụ huynh gửi lên với dòng có sẵn: theo {@code id}, rồi CCCD, rồi cùng vị trí (đổi CCCD của người đã có — mục
      * 5.1). Dòng còn lại mà đang liên kết tài khoản với trẻ ⇒ không bỏ ở hồ sơ (gỡ ở màn Tài khoản phụ huynh — AUTH-19).
@@ -789,7 +880,11 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             Long accountId =
                     g != null && g.getUserId() != null && linkedAccounts.contains(g.getUserId()) ? g.getUserId() : null;
             result.add(new GuardianEdit(
-                    drafts.get(i), g == null ? null : g.getId(), accountId, g == null ? null : g.getPhone()));
+                    drafts.get(i),
+                    g == null ? null : g.getId(),
+                    accountId,
+                    g == null ? null : g.getPhone(),
+                    g == null ? null : g.getCitizenId()));
         }
         return result;
     }

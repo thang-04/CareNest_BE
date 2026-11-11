@@ -652,22 +652,22 @@ Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V63.
 Index: `idx_child_history_child_id` (`child_id`, `created_at`).
 
 ## guardian_phone_change_requests  (module: identity-access, scope: ACCOUNT)
-Mục đích: yêu cầu đổi SĐT (= tên đăng nhập) của phụ huynh đã có tài khoản, tạo khi Sửa hồ sơ trẻ; PHT có quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ hoặc HT duyệt. Không lưu mật khẩu. Migration: V84.
+Mục đích: yêu cầu đổi SĐT của một phụ huynh trên hồ sơ trẻ (có tài khoản: SĐT = tên đăng nhập); gửi riêng bằng `POST /children/{id}/guardians/{guardianId}/phone-change-requests` (Sửa hồ sơ không đổi SĐT đã lưu — 2026-11-11). HT, hoặc PHT có quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ, duyệt; người gửi có quyền thì tự duyệt được. Không lưu mật khẩu. Migration: V84, V88.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh đổi SĐT | AUTH-21 |
-| child_id | BIGINT FK children | không | Hồ sơ trẻ nơi sửa (người duyệt theo điểm trường hiện tại của trẻ) | AUTH-21 |
-| guardian_id | BIGINT FK child_guardians | không | Dòng phụ huynh trên hồ sơ đó | — |
-| old_phone, new_phone | VARCHAR(10) | không | Tên đăng nhập lúc gửi, SĐT mới (khác nhau) | AUTH-21 |
-| status | VARCHAR(20) | không | `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED` (yêu cầu mới cùng tài khoản thay thế) | AUTH-21 |
-| reason | VARCHAR(300) | không | Lý do Sửa hồ sơ | — |
-| requested_by, requested_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người gửi (không tự duyệt), lúc gửi | AUTH-21 |
+| user_id | BIGINT FK user_accounts | có | Tài khoản phụ huynh đổi SĐT; NULL = phụ huynh chưa có tài khoản (V88), duyệt chỉ đổi SĐT dòng phụ huynh, không SMS | AUTH-21 |
+| child_id | BIGINT FK children | không | Hồ sơ trẻ nơi gửi (người duyệt theo điểm trường hiện tại của trẻ) | AUTH-21 |
+| guardian_id | BIGINT FK child_guardians ON DELETE SET NULL | có | Dòng phụ huynh trên hồ sơ đó; NULL khi phụ huynh bị bỏ ở Sửa hồ sơ (V88; duyệt sau đó ⇒ 409) | — |
+| old_phone, new_phone | VARCHAR(10) | không | SĐT lúc gửi (có tài khoản: tên đăng nhập), SĐT mới (khác nhau) | AUTH-21 |
+| status | VARCHAR(20) | không | `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED` (yêu cầu mới cùng phụ huynh/tài khoản thay thế) | AUTH-21 |
+| reason | VARCHAR(300) | không | Lý do đổi số | — |
+| requested_by, requested_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người gửi (có quyền duyệt thì tự duyệt được), lúc gửi | AUTH-21 |
 | decided_by, decided_at | BIGINT FK user_accounts, TIMESTAMPTZ | có | Có khi và chỉ khi `APPROVED`/`REJECTED` | AUTH-21 |
 | decision_note | VARCHAR(300) | có | Ghi chú khi từ chối | — |
 | sms_status | VARCHAR(10) | có | `SENT` / `FAILED` — SMS tên đăng nhập mới sau khi duyệt | L-15 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Index: `uq_phone_change_pending_user` (UNIQUE `user_id` khi `PENDING` — mỗi tài khoản tối đa một yêu cầu chờ), `child_id`, `status`.
+Index: `uq_phone_change_pending_user` (UNIQUE `user_id` khi `PENDING` — mỗi tài khoản tối đa một yêu cầu chờ), `uq_phone_change_pending_guardian` (UNIQUE `guardian_id` khi `PENDING`, V88), `child_id`, `status`.
 
 ## parent_sms_logs  (module: identity-access, scope: ACCOUNT)
 Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V63.
