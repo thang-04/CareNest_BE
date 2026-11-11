@@ -77,8 +77,5 @@
         ]
       }
     ]
-  },
-  "enabledPlugins": {
-    "evon@evondevkit": true
   }
 }

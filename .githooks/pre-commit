@@ -79,5 +79,20 @@ if printf '%s\n' $staged | grep -Eq '^(AGENTS\.md|CLAUDE\.md|\.ai/|\.claude/|\.a
   fi
 fi
 
+# 4b. openapi.yaml đổi ⇒ bảng tra endpoint → controller (docs/api/API_INDEX.md) phải được sinh lại
+if printf '%s\n' $staged | grep -Eq '^docs/api/openapi\.yaml$'; then
+  if command -v node >/dev/null 2>&1 && [ -f scripts/ai-layer/api-index.mjs ]; then
+    node scripts/ai-layer/api-index.mjs --check >&2
+    [ $? -ne 1 ] || cn_err "API_INDEX.md lệch openapi.yaml — chạy: node scripts/ai-layer/api-index.mjs rồi git add docs/api/API_INDEX.md"
+  fi
+fi
+
+# 5. Sửa file harness dùng chung ⇒ nhắc đồng bộ 3 repo (BE là nguồn). Chỉ cảnh báo: repo sibling có thể đang ở nhánh khác
+if printf '%s\n' $staged | grep -Eq '^(AGENTS\.md|\.claude/(settings\.json|hooks/)|\.githooks/|scripts/(check-ai-layer\.mjs|ai-layer/))'; then
+  if command -v node >/dev/null 2>&1 && [ -f scripts/ai-layer/sync-shared.mjs ]; then
+    node scripts/ai-layer/sync-shared.mjs --check >&2 || cn_warn "harness dùng chung lệch giữa các repo (xem trên)"
+  fi
+fi
+
 [ "$CN_ERRORS" -eq 0 ] || { echo "[CareNest] Commit bị chặn ($CN_ERRORS lỗi). Sửa nguyên nhân, không dùng --no-verify." >&2; exit 1; }
 exit 0
