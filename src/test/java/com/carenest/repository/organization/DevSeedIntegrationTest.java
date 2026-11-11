@@ -229,6 +229,26 @@ class DevSeedIntegrationTest {
         assertThat(opsSnapshot(schema)).isEqualTo(snapshot);
     }
 
+    @Test
+    @DisplayName("Seed Thượng Hồng: username nhân sự đã có với keycloak_user_id khác ⇒ bỏ qua, không lỗi trùng khóa")
+    void thuongHongSeedSkipsStaffUsernameAlreadyProvisioned() {
+        String schema = "dev_seed_th_existing_user";
+        flyway(schema, "classpath:db/migration").migrate();
+        jdbc.update(
+                "insert into " + schema + ".user_accounts(keycloak_user_id, username, email, full_name, primary_role)"
+                        + " values ('11111111-1111-4111-8111-111111111111', 'th.gv.a02', 'th.gv.a02@carenest.test',"
+                        + " 'Giáo viên đã cấp', 'TEACHER')");
+
+        flyway(schema, "classpath:db/migration", "classpath:db/dev").migrate();
+
+        assertThat(jdbc.queryForObject(
+                        "select keycloak_user_id from " + schema + ".user_accounts where username = 'th.gv.a02'",
+                        String.class))
+                .isEqualTo("11111111-1111-4111-8111-111111111111");
+        assertThat(count(schema, "select count(*) from %s.user_accounts where username like 'th.gv.%%'"))
+                .isEqualTo(18);
+    }
+
     private String opsSnapshot(String schema) {
         return String.join(
                 ",",

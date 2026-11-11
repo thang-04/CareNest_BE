@@ -86,7 +86,8 @@ FROM (VALUES (1, 'th.gv.a01', 'Nguyễn Thị Lan Anh', 'TEACHER'),
              (18, 'th.gv.b09', 'Tạ Thị Kim Oanh', 'TEACHER'),
              (19, 'th.pht.b', 'Cao Thị Bích Ngọc', 'VICE_PRINCIPAL'),
              (20, 'th.bep.b', 'Nhà bếp Cơ sở 2', 'KITCHEN_STAFF')) AS v (n, username, full_name, role)
-ON CONFLICT (keycloak_user_id) DO NOTHING;
+-- Không chỉ định cột: DB dev có thể đã có username này với keycloak_user_id khác (tài khoản cấp thật) ⇒ bỏ qua
+ON CONFLICT DO NOTHING;
 
 -- Mỗi lớp 2 GV cố định, 1 chủ nhiệm (SCH-04, AUTH-24); A1/B1 đã có teacher1/teacher2 nên chỉ thêm 1 GV chủ nhiệm
 INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom)
