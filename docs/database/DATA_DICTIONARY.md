@@ -56,7 +56,7 @@ Mục đích: năm học; lớp gắn với 1 năm học. Migration: V2.
 | start_date, end_date | DATE | không | CHECK `end_date > start_date`; service chặn chồng khoảng ngày với năm khác | — |
 | status | VARCHAR(20) | không | `PLANNED` / `ACTIVE` / `CLOSED` (V13, mặc định `PLANNED`); CLOSED chỉ đọc | — |
 | semester1_start, semester1_end, semester2_start, semester2_end | DATE | có | Thời gian HK I, HK II do Hiệu trưởng chọn (V44 semester1_end, V48 3 cột còn lại); CHECK `ck_school_years_semesters`: cả 4 NULL, hoặc start_date ≤ HK I bắt đầu ≤ HK I kết thúc < HK II bắt đầu ≤ HK II kết thúc ≤ end_date | — |
-| prep_date | DATE | có | Ngày mở chuẩn bị (V90): từ ngày này năm PLANNED mở cho GV xem lớp, trẻ đã xếp, soạn giáo án; NULL (dòng tạo ngoài service) ⇒ 1 tháng trước start_date; CHECK `ck_school_years_prep_date` prep_date ≤ start_date | CFG-YR-05 |
+| prep_date | DATE | có | Ngày mở chuẩn bị (V113): từ ngày này năm PLANNED mở cho GV xem lớp, trẻ đã xếp, soạn giáo án; NULL (dòng tạo ngoài service) ⇒ 1 tháng trước start_date; CHECK `ck_school_years_prep_date` prep_date ≤ start_date | CFG-YR-05 |
 | activated_at, activated_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lúc/người kích hoạt (V13) | AUTH-01 |
 | closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lúc/người kết thúc; kích hoạt năm mới tự đóng năm ACTIVE cũ (V13) | AUTH-01 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
