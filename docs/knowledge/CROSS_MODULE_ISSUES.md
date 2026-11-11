@@ -33,3 +33,7 @@ Dùng làm checklist khi implement/review. Khi xảy ra thật ⇒ tạo inciden
 ## Feature012 FE-first compatibility — 07/11/2026
 
 [BUG-261107-edu-required-future-endpoint](incidents/BUG-261107-edu-required-future-endpoint.md): duration endpoint chưa có làm provider FE lỗi404 toàn module. Đã sửa fallback chỉ404/giữ contract legacy và không trộn mock vào dữ liệu API;409 regression tests pass. User xác nhận runtime còn pending.
+
+| BUG-261105-health-pickup-context | BE → FE sức khỏe | Đồng bộ canRecord/giờ trả và liên hệ hồ sơ, giữ POST guard | [Incident](incidents/BUG-261105-health-pickup-context.md) |
+
+| GAP-261110-fe-inspection-contract | BE → FE/APP nutrition | Biên bản kiểm thực, chữ ký ảnh, ghi chú Mẫu 5 đã có API (10/11) nhưng FE Web chạy dữ liệu mẫu (`kitchen-inspection`, `signatures` = `demo`) và App bếp chưa có ô ba trường. Khác mock FE: `{tab}` chữ hoa; lưu nháp gửi `expectedVersion` (lệch ⇒ 6082); M2/M3 một dòng cho mỗi (bữa, khối, món) với `block`, không `{nursery, kindergarten}`; khóa dòng M1 `food:{id}`/`lot:{id}`; ảnh chữ ký trên biên bản tải theo `imageKey`; ghi cần `FOOD_SAFETY_APPROVE` (PHT mặc định chưa có); kiểm nhận hàng tươi gửi `supplierId` | [Plan BE](../plans/active/2026-11-10-inspection-records-signatures.md), [Plan FE](../../../CareNest_FE/docs/plans/active/2026-11-09-food-sample-records-signatures.md) |

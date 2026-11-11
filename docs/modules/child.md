@@ -33,7 +33,7 @@ AUTH-04, AUTH-18, CHD-01..05, HLT-06, NUT-09, NUT-23. Luồng tiếp nhận (nh�
 Nghiệp vụ tiếp nhận trẻ chốt theo danh sách lệch BE–FE của nhánh G94-180 (`FE:docs/integration/CHILD_ENROLLMENT_BE_GAPS.md`); FE đang chạy bằng BE giả, contract đề xuất ở `FE:src/services/children/api/childrenApi.js` (PROPOSED). **Plan làm BE (đặc tả đủ dữ liệu, quyền, API, lỗi): `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md`.**
 Đã làm (Phase 1, 2026-10-28): mã quyền `CHILD_ENROLL`, `CHILD_PROFILE_EDIT`, `CHILD_PLACEMENT` trong enum `Permission` + seed ma trận PHT (CHD-01); enum `GuardianRelationship` 6 loại, CHECK V63 (AUTH-18); migration V63 cho mọi bảng/cột dưới đây; seed dev nhập đủ thông tin (CHD-08). Đã làm (Phase 2–3, 2026-10-29): kiểm trùng hồ sơ, kiểm phụ huynh, tra tài khoản theo CCCD, lớp tiếp nhận, `POST /children/enrollments` (tạo/liên kết tài khoản, SMS qua cổng giả), mở lại hồ sơ — mục "API & bảng". Còn lại:
 - Quan hệ phụ huynh 6 loại cho hồ sơ lẫn liên kết, tối đa 3 phụ huynh mỗi trẻ (AUTH-18 — DB đã chặn); hồ sơ luôn đủ thông tin (CHD-08).
-- Theo năm học: danh sách trẻ theo lớp của năm đó (CHD-09); tiếp nhận/xếp lớp chỉ vào lớp năm đang hoạt động (CHD-10); đợt khám, phiếu theo dõi (HLT-08); đón trẻ (ATT-09).
+- Theo năm học: danh sách trẻ theo lớp của năm đó (CHD-09); tiếp nhận/xếp lớp chỉ vào lớp năm đang hoạt động (CHD-10); đợt khám (HLT-08; phiếu theo dõi đã bỏ 2026-11-04 — HLT-16); đón trẻ (ATT-09).
 - Bỏ `POST /children/{childId}/guardians` (AUTH-20, C-4): phụ huynh nhập ở hồ sơ trẻ rồi kích hoạt.
 - Dữ liệu trẻ: mã trẻ, giới tính, điểm trường tiếp nhận cho trẻ chưa có lớp (CHD-02), trạng thái Đang học / Chờ xếp lớp / Đã nghỉ học, ngày tiếp nhận, ngày + lý do nghỉ (CHD-03); bảng hành chính (CHD-05); khai báo sức khỏe khi tiếp nhận (CHD-06).
 - Phụ huynh: thông tin phụ huynh trên hồ sơ trẻ trước khi có tài khoản (AUTH-20), CCCD phụ huynh làm khóa nhận diện (AUTH-18), sửa thông tin phụ huynh cập nhật tài khoản, đổi SĐT đổi tên đăng nhập (AUTH-21 — xem `docs/modules/identity-access.md`).
@@ -41,16 +41,18 @@ Nghiệp vụ tiếp nhận trẻ chốt theo danh sách lệch BE–FE của nh
 - Thông báo tiếp xúc người bệnh lao (CHD-07) khi có module notification.
 
 ## PENDING
-P-28 (một trẻ cần mấy tài khoản phụ huynh). Đã đóng 28/10: P-17 (khai báo dị ứng — HLT-06); G94-180/P-17 (CHD-06), G94-180/P-18 (AUTH-20: người lưu không có quyền quản lý tài khoản phụ huynh vẫn lưu, phụ huynh chờ kích hoạt).
+P-28 đã đóng 05/11/2026 theo Spec013: một recipient cho tiếp nhận mới, giữ nguyên historical links. Đã đóng 28/10: P-17 (khai báo dị ứng — HLT-06); G94-180/P-17 (CHD-06), G94-180/P-18 (AUTH-20: người lưu không có quyền quản lý tài khoản phụ huynh vẫn lưu, phụ huynh chờ kích hoạt).
 
 ## Known pitfalls
-- Danh sách trẻ cho PHT lọc theo enrollment **hôm nay**: trẻ chưa có lớp hoặc đã rời lớp không hiện với PHT (chỉ HT thấy mọi trẻ). Lệch CHD-02 (2026-10-28): trẻ chờ xếp lớp phải hiện với PHT của điểm trường tiếp nhận. API tiếp nhận (Phase 2–3) đã tính điểm trường tiếp nhận; `GET /children`, `ChildAccessPolicy`, `StaffAccessPolicy.checkCanManageChildGuardians` chưa sửa (làm cùng D-4 `GET /children`, Phase 8).
+- Danh sách cấp tài khoản đã bao gồm trẻ chờ xếp lớp trong điểm trường tiếp nhận. Các API recipient dùng SelectedParentAccountService để kiểm scope; không dùng enrollment-only của policy cũ để bỏ sót trẻ chưa có lớp. PHT không được mở rộng quyền sang trẻ đã nghỉ.
 - Lưu form tiếp nhận: phụ huynh khớp tài khoản có sẵn ⇒ hồ sơ ghi họ tên, SĐT, email của tài khoản, không sửa tài khoản (như C-2), `phoneChanged` luôn false — sửa tài khoản theo hồ sơ và đổi tên đăng nhập làm ở Phase 4 (AUTH-21). SMS gửi sau khi giao dịch DB commit, không outbox: gửi lỗi ⇒ `smsStatus = FAILED`, mật khẩu tạm không lưu nên phải cấp lại. Gỡ liên kết phụ huynh không xóa tài khoản.
 - Campus của trẻ suy từ Enrollment tại ngày cụ thể; trẻ chuyển lớp giữa năm ⇒ dữ liệu lịch sử phải theo enrollment tại ngày đó. CHD-03 của `dev`: không chuyển cơ sở; xếp lớp G94-180 cho chuyển điểm trường — lệch, chờ team chốt.
 - Thôi học: phụ huynh mất quyền xem trẻ đó ngay, dữ liệu giữ nguyên, không xóa (CHD-04).
 - Số định danh/CCCD và tiền sử bệnh là dữ liệu nhạy cảm (CHD-02).
 - DB chưa chặn enrollment chồng thời gian (V63 chỉ chặn 2 enrollment đang mở); khi viết API ghi enrollment phải kiểm ở service.
 - V63 có ràng buộc NOT VALID (`ck_children_complete`, `ck_child_guardians_citizen_id_required`): dòng có trước V63 được giữ, nhưng **mọi UPDATE** dòng đó phải nhập đủ (giới tính; CCCD phụ huynh) nếu không DB trả lỗi CHECK.
+- Tuần thai khi sinh bắt buộc với mọi trẻ khi tiếp nhận, khớp "Sinh non" (dưới 37 tuần là sinh non) — G94-180/CHD-05, user chốt 2026-11-04; kiểm ở `EnrollmentFormValidator` (lỗi ô `profile.gestationWeeks`), lưu cả khi không sinh non. DB vẫn cho NULL (hồ sơ cũ, seed dev); CHECK V63 chỉ bắt khi `premature = YES` ⇒ đọc hồ sơ phải chịu `gestationWeeks` null.
+- Ngày sinh không sau ngày vào lớp đầu tiên: module health dựa vào điều này (ngày đo/ngày khám hệ thống ghi không kiểm ngày sinh — 2026-11-04). Khi làm Sửa hồ sơ đổi ngày sinh phải chặn ngày sinh sau ngày vào lớp đầu tiên và sau lần đo/khám sớm nhất.
 - UNIQUE của `child_guardians` theo trẻ là DEFERRABLE INITIALLY DEFERRED: trùng SĐT/CCCD/vị trí chỉ lỗi lúc commit, không lỗi lúc flush ⇒ service phải tự kiểm (422/409 theo ô) trước khi lưu, DB chỉ là chốt chặn cuối.
 - Seed dev: `parent.a`, `parent.b` có tên đăng nhập kiểu cũ (không phải SĐT) nên SĐT của họ trên hồ sơ trẻ (`0900000006`, `0900000007`) khác tên đăng nhập; phụ huynh khác của trẻ demo chờ kích hoạt.
 - Dữ liệu trẻ là nhạy cảm: không đưa vào log/test fixture thật.
@@ -60,3 +62,13 @@ Chưa có.
 
 ## Đọc thêm khi
 Thay đổi enrollment ảnh hưởng điểm danh/suất ăn ⇒ `docs/business/flows/attendance.md`.
+
+## Ảnh tiếp nhận — 05/11/2026
+
+User duyệt thêm ảnh tùy chọn của trẻ và từng ChildGuardian trong cùng request tiếp nhận; không ghi đè ảnh tài khoản. POST /children/enrollments giữ JSON, nhận thêm multipart payload JSON + childPhoto/guardianPhoto0..2 (JPEG/PNG/WEBP ≤2 MiB). V68 lưu metadata nullable, tệp private S3 qua ChildPhotoStorage. GET /children/{id}/photo và /children/{id}/guardian-photos/{guardianId} kiểm phạm vi đọc; PHT còn phân công đọc mọi campus theo AUTH-20 kể cả trẻ chờ xếp lớp. GET /children/{id}/profile trả child view để Web mở lại hồ sơ; thông tin quản trị tài khoản/SMS chỉ có khi người đọc quản lý tài khoản ở đúng campus. Không bổ sung PUT sửa hồ sơ trong task này. Chi tiết: specs/012-child-enrollment-photos/contracts/enrollment-photos.md.
+
+## Thiết kế chọn người nhận tài khoản — 05/11/2026
+
+User yêu cầu chọn một guardian làm người nhận tài khoản, form kích hoạt ngay khi lưu, Excel sau nhập ở màn quản lý tài khoản. Không lọc bỏ guardian gốc hoặc ảnh/người đón. Đây là thiết kế chưa implement, plan `docs/plans/completed/2026-11-05-selected-parent-account.md`, Spec013; luồng source hiện tại vẫn tạo/kích hoạt cả danh sách. Các endpoint import/pending/activation FE hiện khai nhưng BE chưa có phải được triển khai/kiểm scope nếu duyệt thay đổi.
+
+Known pitfall: recipient backfill trên guardian legacy có CHECK NOT VALID cần kiểm UPDATE dữ liệu cũ; xem [incident](../knowledge/incidents/BUG-261105-recipient-backfill-not-valid-check.md).

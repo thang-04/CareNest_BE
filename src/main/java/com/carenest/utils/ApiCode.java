@@ -100,6 +100,13 @@ public enum ApiCode {
     PHONE_OF_STAFF_ACCOUNT(1130, HttpStatus.CONFLICT, "Số điện thoại này là tên đăng nhập của tài khoản nhân sự"),
     ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP, tối đa 2 MB"),
     ACCOUNT_PHOTO_NOT_FOUND(1132, HttpStatus.NOT_FOUND, "Chưa có ảnh hoặc bạn không có quyền xem ảnh này"),
+    STAFF_ROLE_NOT_CHANGEABLE(
+            1133, HttpStatus.BAD_REQUEST, "Chỉ đổi vai trò giữa Phó hiệu trưởng, giáo viên và nhân viên bếp"),
+    STAFF_ROLE_UNCHANGED(1134, HttpStatus.BAD_REQUEST, "Tài khoản đang có vai trò này"),
+    ACCOUNT_PROFILE_NOT_EDITABLE(1135, HttpStatus.BAD_REQUEST, "Chỉ sửa hồ sơ tài khoản nhân sự tại đây"),
+    SIGNATURE_INVALID(1140, HttpStatus.BAD_REQUEST, "Chọn ảnh chữ ký PNG hoặc JPG, tối đa 2 MB"),
+    SIGNATURE_LIMIT_REACHED(1141, HttpStatus.CONFLICT, "Mỗi tài khoản lưu tối đa {0} chữ ký, hãy xóa bớt chữ ký cũ"),
+    SIGNATURE_NOT_FOUND(1142, HttpStatus.NOT_FOUND, "Không tìm thấy chữ ký"),
 
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
@@ -226,6 +233,11 @@ public enum ApiCode {
             HttpStatus.BAD_REQUEST,
             "Thay hoặc gỡ giáo viên của lớp tại màn Phân công giáo viên (năm đang học lớp phải còn giáo viên)"),
     ASSIGNMENT_END_IN_PAST(2325, HttpStatus.BAD_REQUEST, "Không kết thúc phân công lùi về trước hôm qua"),
+    STAFF_ACCOUNT_LOCKED(2326, HttpStatus.CONFLICT, "Tài khoản nhân sự đã bị khóa"),
+    VICE_PRINCIPAL_CAMPUS_TAKEN(
+            2327,
+            HttpStatus.CONFLICT,
+            "Điểm trường này đã có Phó hiệu trưởng phụ trách. Đổi người đó sang điểm trường khác trước"),
 
     // ========== 24xx XẾP LỚP & CHUYỂN NĂM ==========
     PLACEMENT_ACCESS_DENIED(2401, HttpStatus.FORBIDDEN, "Bạn không có quyền xếp lớp"),
@@ -339,9 +351,10 @@ public enum ApiCode {
     HEALTH_ROUND_NOT_OPEN(
             5018, HttpStatus.CONFLICT, "Kỳ cân đo chưa bắt đầu, đã đóng hoặc đã hủy; không nhập hay sửa được số đo"),
     HEALTH_MEASUREMENT_EXISTS(5019, HttpStatus.CONFLICT, "Trẻ đã có số đo trong kỳ này. Sửa lần đo đã có"),
-    HEALTH_MEASUREMENT_DATE_TAKEN(5020, HttpStatus.CONFLICT, "Ngày này trẻ đã có kết quả đo"),
-    HEALTH_MEASUREMENT_DATE_OUTSIDE(
-            5021, HttpStatus.BAD_REQUEST, "Chọn ngày đo trong khoảng ngày của kỳ cân đo, không chọn ngày tương lai"),
+    // Ngày đo do hệ thống ghi, GV không chọn được ngày khác (HLT-01, 2026-11-04)
+    HEALTH_MEASUREMENT_DATE_TAKEN(
+            5020, HttpStatus.CONFLICT, "Ngày đo {0} trẻ đã có kết quả đo khác. Báo Hiệu trưởng hoặc Phó hiệu trưởng"),
+    // 5021 (ngày đo ngoài kỳ) đã bỏ 2026-11-04: ngày đo hệ thống ghi luôn trong kỳ; không dùng lại mã
     HEALTH_MEASUREMENT_NOT_FOUND(5022, HttpStatus.NOT_FOUND, "Không tìm thấy lần đo"),
     HEALTH_MEASUREMENT_ACCESS_DENIED(
             5023, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được nhập hoặc sửa số đo"),
@@ -360,20 +373,10 @@ public enum ApiCode {
     HEALTH_EXAM_CONCLUDED(
             5031, HttpStatus.CONFLICT, "Phiếu đã có kết luận. Lưu lại kết luận kèm lý do sửa thay vì lưu nháp"),
     HEALTH_EXAM_MODE_CHANGED(
-            5032,
-            HttpStatus.CONFLICT,
-            "Phiếu theo dõi của trẻ vừa thay đổi nên mẫu kết luận đã đổi. Tải lại phiếu khám rồi lưu lại"),
+            5032, HttpStatus.CONFLICT, "Mẫu kết luận của phiếu khám đã thay đổi. Tải lại phiếu khám rồi lưu lại"),
     HEALTH_EXAM_INCOMPLETE(5033, HttpStatus.BAD_REQUEST, "Phiếu chưa đủ thông tin. Kiểm tra các ô được đánh dấu"),
     HEALTH_MEASUREMENT_IS_EXAM(5034, HttpStatus.CONFLICT, "Kết quả này là phiếu khám. Sửa ở trang phiếu khám của đợt"),
-    HEALTH_FOLLOW_UP_NOT_FOUND(5035, HttpStatus.NOT_FOUND, "Không tìm thấy phiếu theo dõi"),
-    HEALTH_FOLLOW_UP_ACCESS_DENIED(
-            5036, HttpStatus.FORBIDDEN, "Chỉ giáo viên phụ trách lớp của trẻ được cập nhật phiếu theo dõi"),
-    HEALTH_FOLLOW_UP_CLOSED(5037, HttpStatus.CONFLICT, "Phiếu theo dõi đã đóng"),
-    HEALTH_FOLLOW_UP_CONTACT_FIRST(
-            5038,
-            HttpStatus.CONFLICT,
-            "Ghi trao đổi với phụ huynh về kết quả khám mới nhất trước khi ghi kết quả khám bên ngoài"),
-    HEALTH_FOLLOW_UP_IMAGE_NOT_FOUND(5039, HttpStatus.NOT_FOUND, "Không tìm thấy ảnh kết quả khám"),
+    // 5035–5039 của phiếu theo dõi sức khỏe đã bỏ (HLT-16, 2026-11-04); không dùng lại mã
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),
@@ -461,6 +464,23 @@ public enum ApiCode {
     FOOD_SAMPLE_STATE_INVALID(6070, HttpStatus.CONFLICT, "Bản lưu mẫu đang ở trạng thái không cho phép thao tác này"),
     FOOD_SAMPLE_DISH_INVALID(6071, HttpStatus.BAD_REQUEST, "Cần chọn ít nhất một món, các món phải còn trong danh mục"),
     MEAL_PHOTO_WINDOW_FORBIDDEN(6072, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được cấu hình khung giờ đăng ảnh bữa ăn"),
+    // INS-01..04: biên bản kiểm thực
+    INSPECTION_ACCESS_DENIED(6080, HttpStatus.FORBIDDEN, "Bạn không có quyền ghi biên bản kiểm thực ở điểm trường này"),
+    INSPECTION_SIGNED(6081, HttpStatus.CONFLICT, "Biên bản đã ký, hãy bấm Sửa lại trước khi chỉnh sửa"),
+    INSPECTION_STALE(6082, HttpStatus.CONFLICT, "Biên bản vừa được người khác lưu, hãy tải lại rồi sửa tiếp"),
+    INSPECTION_NOT_SAVED(6083, HttpStatus.UNPROCESSABLE_ENTITY, "Hãy lưu biên bản trước khi ký"),
+    INSPECTION_SENSORY_MISSING(
+            6084, HttpStatus.UNPROCESSABLE_ENTITY, "Còn {0} dòng chưa chọn Đạt hoặc Không đạt, hãy chọn đủ rồi ký"),
+    INSPECTION_SIGNATURE_REQUIRED(
+            6085, HttpStatus.UNPROCESSABLE_ENTITY, "Hãy tải ảnh chữ ký ở mục Chữ ký của tôi rồi ký lại"),
+    INSPECTION_REASON_REQUIRED(6086, HttpStatus.UNPROCESSABLE_ENTITY, "Nhập lý do sửa lại, ít nhất 3 ký tự"),
+    INSPECTION_NOT_SIGNED(6087, HttpStatus.CONFLICT, "Biên bản chưa ký nên không cần sửa lại"),
+    INSPECTION_DATE_FUTURE(6088, HttpStatus.BAD_REQUEST, "Không ghi biên bản cho ngày chưa tới"),
+    INSPECTION_ROW_INVALID(6089, HttpStatus.BAD_REQUEST, "Dòng biên bản không hợp lệ: {0}"),
+    INSPECTION_ACTION_MISSING(
+            6090,
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "Còn {0} dòng Không đạt chưa ghi biện pháp xử lý (loại bỏ, trả lại, tiêu hủy...)"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

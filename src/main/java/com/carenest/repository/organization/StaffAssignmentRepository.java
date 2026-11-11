@@ -187,6 +187,25 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " and a.userId = :userId and (a.validTo is null or a.validTo >= :from) order by a.validFrom, a.id")
     List<StaffAssignment> findOpenVicePrincipalAssignments(@Param("userId") Long userId, @Param("from") LocalDate from);
 
+    // AUTH-26: PHT khác đã phụ trách điểm trường trong khoảng [from, to] ⇒ không xếp thêm người
+    @Query("""
+            select case when count(a) > 0 then true else false end from StaffAssignment a
+            where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL
+              and a.campusId = :campusId and a.userId <> :userId
+              and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)
+            """)
+    boolean existsOtherVicePrincipalAtCampus(
+            @Param("campusId") Long campusId,
+            @Param("userId") Long userId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    // Phân công không ngày kết thúc ⇒ so tới ngày xa nhất PostgreSQL date nhận được, tránh tham số null trong query
+    default boolean existsOtherVicePrincipalAtCampusOpenEnded(
+            Long campusId, Long userId, LocalDate from, LocalDate to) {
+        return existsOtherVicePrincipalAtCampus(campusId, userId, from, to == null ? LocalDate.of(9999, 12, 31) : to);
+    }
+
     // Tài khoản bị khóa / ngừng (đọc bảng user_accounts của module tài khoản, chỉ đọc)
     @Query(value = "select u.id from user_accounts u where u.id in :ids and u.status <> 'ACTIVE'", nativeQuery = true)
     List<Long> findInactiveUserIds(@Param("ids") Collection<Long> ids);

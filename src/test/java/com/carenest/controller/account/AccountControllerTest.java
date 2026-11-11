@@ -11,15 +11,20 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
+import com.carenest.dto.account.AccountDetailResponse;
 import com.carenest.dto.account.AccountResponse;
+import com.carenest.dto.account.ChangeStaffRoleRequest;
 import com.carenest.dto.account.CreateAccountResponse;
 import com.carenest.dto.account.MyAccountResponse;
+import com.carenest.dto.account.StaffAssignmentScopeRequest;
+import com.carenest.dto.account.UpdateAccountProfileRequest;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.exception.GlobalException;
@@ -316,5 +321,62 @@ class AccountControllerTest {
         mockMvc.perform(post("/api/accounts/42/staff-role/revoke")
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("AUTH-25: HT đổi vai trò nhân sự; thiếu role ⇒ 400; GV không có ACCOUNT_MANAGE ⇒ 403")
+    void principalChangesStaffRole() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        ChangeStaffRoleRequest request =
+                new ChangeStaffRoleRequest(CareNestRole.KITCHEN_STAFF, new StaffAssignmentScopeRequest(3L, null));
+        given(accountProvisioningService.changeStaffRole(principal, 42L, request))
+                .willReturn(new AccountDetailResponse(
+                        42L, "0912345678", "GV A", null, CareNestRole.KITCHEN_STAFF, UserStatus.ACTIVE, List.of()));
+
+        mockMvc.perform(put("/api/accounts/42/staff-role")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"KITCHEN_STAFF\",\"assignment\":{\"campusId\":3}}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.role").value("KITCHEN_STAFF"));
+        mockMvc.perform(put("/api/accounts/42/staff-role")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.data[?(@.field == 'role')]").exists());
+
+        authenticateAs(CareNestRole.TEACHER);
+        mockMvc.perform(put("/api/accounts/42/staff-role")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"KITCHEN_STAFF\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("AUTH-25: HT sửa họ tên/email nhân sự; họ tên trống hoặc email sai ⇒ 400")
+    void principalUpdatesStaffProfile() throws Exception {
+        CurrentUser principal = authenticateAs(CareNestRole.PRINCIPAL);
+        UpdateAccountProfileRequest request = new UpdateAccountProfileRequest("GV B", "b@example.test");
+        given(accountProvisioningService.updateProfile(principal, 42L, request))
+                .willReturn(new AccountResponse(42L, "0912345678", "GV B", "b@example.test", UserStatus.ACTIVE));
+
+        mockMvc.perform(patch("/api/accounts/42/profile")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"GV B\",\"email\":\"b@example.test\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.fullName").value("GV B"));
+        mockMvc.perform(patch("/api/accounts/42/profile")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PRINCIPAL")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\" \",\"email\":\"not-an-email\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.data[?(@.field == 'fullName')]").exists())
+                .andExpect(jsonPath("$.data[?(@.field == 'email')]").exists());
+        verify(accountProvisioningService, never())
+                .updateProfile(any(), any(), eq(new UpdateAccountProfileRequest(" ", "not-an-email")));
     }
 }

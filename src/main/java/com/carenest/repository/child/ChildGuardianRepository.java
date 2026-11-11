@@ -9,6 +9,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface ChildGuardianRepository extends JpaRepository<ChildGuardian, Long> {
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select g from ChildGuardian g where g.childId = :childId order by g.position")
+    List<ChildGuardian> lockByChildId(@Param("childId") Long childId);
+
     List<ChildGuardian> findAllByChildIdOrderByPositionAsc(Long childId);
 
     /** Phụ huynh trên mọi hồ sơ trẻ có SĐT hoặc CCCD trong danh sách (kiểm một người một tài khoản, AUTH-18). */

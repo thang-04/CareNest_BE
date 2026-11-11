@@ -142,7 +142,7 @@ Nguồn: `CareNest_CODE/plans/reports/final-261101-1407-carenest-e2e-business-fl
 | Vắng có phép (D6, ATT-09) | **Đã làm:** `EXCUSED` mới ⇒ 400 `4018`; gửi lại `EXCUSED` đang có được | Ẩn lựa chọn; hiện câu lỗi `4018` | Ẩn lựa chọn |
 | Sửa suất (D2, D10, NUT-02) | **Đã làm:** `normal` null = giữ, khác ⇒ 409 `6008`; `substitute` không bị điểm danh xóa; xác nhận theo cơ sở–ngày (một lần cho mọi bữa, gọi lại bữa đã xác nhận ⇒ 200); còn trẻ chưa điểm danh ⇒ 409 `6009` kèm tên lớp | Gửi `normal: null`, bỏ ô sửa suất thường; nút xác nhận từng bữa nay xác nhận cả ngày (đổi câu chữ); hiện câu lỗi `6009` | — |
 | Phân công GV (D3, AUTH-24) | **Đã làm:** `/staff-assignments` GV áp cùng luật `PUT /classes/{id}/teachers` (409 `2306`, 400 `2304`, 409 `2305`, 409 `2003`); dạy thay = cờ `substitute: true` trong `POST /staff-assignments` (chỉ GV ⇒ 400 `2320`, bắt buộc `validTo` ⇒ 400 `2321`), response có `substitute`; dạy chính `validTo` trống/sau hết năm bị cắt về hết năm; ghi `assigned_by` | Màn Nhân sự (khi nối API): ô "Dạy thay" + ngày kết thúc bắt buộc; hiện câu lỗi BE | — |
-| Đổi vai trò, sửa hồ sơ nhân sự (D4, AUTH-25) | API mới (đổi contract) | Màn Nhân sự nối API thật | — |
+| Đổi vai trò, sửa hồ sơ nhân sự (D4, AUTH-25) | **Đã làm (02/11, nhánh G94-60):** `PUT /accounts/{id}/staff-role` `{ role, assignment? }` ⇒ chi tiết tài khoản (lỗi 1133/1134/2326); `PATCH /accounts/{id}/profile` `{ fullName, email? }` (lỗi 1135); `GET /accounts` của HT chỉ còn PHT/GV/bếp; `POST /staff-assignments` PHT/bếp khóa ⇒ 409 `2326` — `docs/contracts/AUTH_CONTRACT.md` | Màn Nhân sự `/school/staff` (`staffAccountApi.js`): thay revoke + phân công mới bằng đổi vai trò, form sửa họ tên/email (SĐT chỉ đọc), báo người dùng phiên của người bị đổi vai trò bị đăng xuất | — |
 | Hold khung chờ (D9) | — | Bỏ giữ tới 700ms khi đã có dữ liệu/lỗi, giữ trễ hiện 300ms; không progress bar (`src/hooks/loadingTiming.js`, `DESIGN.md` §9) | — |
 | Màn demo trái rule REMOVED (D11) | — | Ẩn riêng các màn REMOVED (bàn giao suất, trạng thái nấu…); màn demo khác giữ | — |
 
@@ -161,3 +161,7 @@ Feature013 delivery08/11/2026: Web GoalTables/CSS đổi nền header nguồn/re
 ## Delta giáo dục 09/11/2026 — feature015
 
 EDU-62: [spec](../../specs/015-separate-year-team-plans/spec.md), [hiện trạng/đích DB](../../specs/015-separate-year-team-plans/database-context.md). Web ảnh hưởng list/form/detail kế hoạch (GoalListPage, GoalFormPage, GoalDetailPage), danh sách chờ duyệt/dashboard, service/mapper năm-tổ và rà soát thay đổi. Đích: trang lập tổ trực tiếp không modal, tên riêng, chọn nguồn năm đã ban hành, năm cột danh sách, phiên bản chỉ hiện ở năm. Chỉ đạo tách bảng còn ảnh hưởng server mapping/FK và consumers tài liệu lớp/đánh giá trẻ; chưa xác định contract mới. Mobile phải kiểm consumer trong bước plan nếu contract đổi, chưa khẳng định không ảnh hưởng. Lượt này chỉ đọc source Web có liên quan; không sửa FE/APP hoặc triển khai DB/API.
+
+## Sức khỏe trong ngày — 05/11/2026
+
+GET ChildDay thêm `handedOverAt` và `contacts[{fullName,relationship,phone}]`, giữ mọi field cũ. FE `createDailyHealthBeApi.getDailyHealth/getChildDailyHealthHistory` map field; `DailyHealthPanel` khóa nhập khi đã trả và hiện liên hệ hồ sơ. GET lịch sử vẫn chỉ xem. APP chưa triển khai, cần dùng canRecord/handedOverAt khi nối, POST đã chặn HEALTH_CHILD_PICKED_UP. Không thay quyền hoặc tạo thông báo.

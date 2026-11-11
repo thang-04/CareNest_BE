@@ -1,25 +1,25 @@
 package com.carenest.entity.meals;
 
+import com.carenest.entity.attendance.EnumListConverter;
+import com.carenest.utils.enums.Allergen;
 import com.carenest.utils.enums.CatalogStatus;
 import com.carenest.utils.enums.FoodGroup;
 import com.carenest.utils.enums.FoodOrigin;
 import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.FoodUnit;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Collection;
+import java.util.List;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -118,12 +118,10 @@ public class Food {
     @Column(nullable = false, length = 10)
     private CatalogStatus status = CatalogStatus.ACTIVE;
 
-    @ManyToMany
-    @JoinTable(
-            name = "food_allergens",
-            joinColumns = @JoinColumn(name = "food_id"),
-            inverseJoinColumns = @JoinColumn(name = "allergen_id"))
-    private Set<Allergen> allergens = new HashSet<>();
+    // Danh mục dị ứng cố định nên lưu mã ngay trên thực phẩm, không cần bảng nối
+    @Convert(converter = EnumListConverter.Allergens.class)
+    @Column(name = "allergen_codes", nullable = false, length = 200)
+    private List<Allergen> allergens = List.of();
 
     @Column(name = "created_by")
     private Long createdBy;
@@ -147,7 +145,7 @@ public class Food {
     }
 
     public void changeInfo(
-            Info info, Nutrients nutrients, Micronutrients micro, Set<Allergen> allergens, Long updatedBy) {
+            Info info, Nutrients nutrients, Micronutrients micro, Collection<Allergen> allergens, Long updatedBy) {
         this.code = info.code();
         this.name = info.name();
         this.foodGroup = info.foodGroup();
@@ -173,7 +171,7 @@ public class Food {
         this.vitaminB2 = micro.vitaminB2();
         this.vitaminPp = micro.vitaminPp();
         this.vitaminC = micro.vitaminC();
-        this.allergens = new HashSet<>(allergens);
+        this.allergens = allergens.stream().distinct().sorted().toList();
         this.updatedBy = updatedBy;
     }
 

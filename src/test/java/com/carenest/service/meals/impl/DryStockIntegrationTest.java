@@ -96,10 +96,16 @@ class DryStockIntegrationTest {
         long week = insertId("INSERT INTO meal_plan_weeks (week_start, status, published_at) "
                 + "VALUES ('2026-11-09', 'PUBLISHED', now()) RETURNING id");
         for (int i = 0; i < 5; i++) {
-            long day = insertId("INSERT INTO meal_plan_days (week_id, menu_date) VALUES (" + week + ", '"
-                    + MONDAY.plusDays(i) + "') RETURNING id");
+            LocalDate day = MONDAY.plusDays(i);
             jdbc.update(
-                    "INSERT INTO meal_plan_items (day_id, session, menu_block, dish_id) VALUES (?, 'LUNCH', 'KINDERGARTEN', ?)",
+                    "UPDATE meal_plan_weeks SET days = days || jsonb_build_array("
+                            + "jsonb_build_object('date', ?::date, 'off', false, 'note', '')) WHERE id = ?",
+                    day,
+                    week);
+            jdbc.update(
+                    "INSERT INTO meal_plan_items (week_id, menu_date, session, menu_block, dish_id)"
+                            + " VALUES (?, ?, 'LUNCH', 'KINDERGARTEN', ?)",
+                    week,
                     day,
                     dish);
         }

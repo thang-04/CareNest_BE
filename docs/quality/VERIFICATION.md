@@ -419,6 +419,46 @@ Kết quả convergence: T059–T078 đã được đối chiếu và hoàn thà
 - User đã chọn theo vai trò, áp dụng năm/lớp, cấm tự duyệt; quyền tạo gồm soạn/sửa/gửi đúng phạm vi; bước thiếu người được bỏ qua khi còn bước sau, bước cuối giữ chờ. Checklist vòng 1: 12/16; vòng 2 sau đáp án: 16/16, sẵn sàng plan, chưa triển khai. Nguồn: [feature011](../../specs/011-plan-creator-reviewer/spec.md).
 - Kiểm chứng vòng 1: `node scripts/check-ai-layer.mjs` → 0 lỗi, 12 cảnh báo có sẵn; `node scripts/verify.mjs --quick` → 14 test, 0 fail/error/skip, ArchUnit/Spotless đạt, snapshot không chạy, 32s. Sau bổ sung bằng chứng này chạy lại cổng; kết quả cuối báo trong bàn giao và `target/verify.log`. Đây là kiểm tra cho delta tài liệu, không phải test chức năng tạo/duyệt mới; chưa chạy full/E2E và chưa triển khai.
 
+## Chọn một phụ huynh nhận tài khoản — 05/11/2026
+
+- User đã duyệt Spec013/plan liên repo; triển khai flag recipient, V70/index/backfill, form chỉ tạo/liên kết người được chọn, import CSV/XLSX/XLS lưu hồ sơ trước, API recipient/pending/activation có scope và chặn raw bypass/stale selection. Giữ liên hệ/ảnh/người đón và mọi historical link cũ.
+- Sau clean và source/test cuối: VERIFY PASS full | tests1087 fail0 err0 skip0 | archunit ok | snapshot ok | spotless ok | 586s | log target/verify.log. Intentional OpenAPI snapshot + FE route cache đồng bộ; không thêm dependency. Test PostgreSQL gồm selected-only account, deferred import, idempotency, claim CCCD atomic, batch CHD-04, pending/left-campus scopes, projection theo userId, migration legacy và partial unique.
+- FE full808tests đạt; Chromium app/mock1440/375 đạt form/chọn người thứ2/ảnh/save/reload, CSV selection, import zero accounts và kích hoạt sau. 0 lỗi JS, 12/12 URL ảnh thu hồi mỗi viewport. Chưa kiểm browser nối BE, Keycloak/SMS/S3 thật; module source hiện có giữ nguyên.
+- Review độc lập và kiểm lại blocker cuối đã hoàn tất, không còn blocker trực tiếp. Incident CHECK NOT VALID được ghi và có regression. Check-ai-layer cuối 0 lỗi, các cảnh báo cũ không đổi. Không commit/push/deploy; kế hoạch và evidence tại Spec013 quickstart.
+
+## Ảnh tiếp nhận trẻ và phụ huynh — 05/11/2026
+
+- User duyệt plan 2026-11-05-child-enrollment-photos, Spec012. Migration V68; private S3 metadata trên trẻ và từng phụ huynh; JSON/multipart tiếp nhận tương thích; đọc ảnh/hồ sơ theo scope, metadata quản trị tài khoản được chiếu riêng; pickup dùng ảnh hồ sơ rồi fallback ảnh APP.
+- Targeted clean build 95/95 đạt với PostgreSQL Testcontainers, S3/Keycloak/SMS mock; thêm regressions review và OpenAPI snapshot đã đạt sau sửa. Full gate sau source/test cuối: VERIFY PASS full | tests 1073 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 516s | log target/verify.log. Không tuyên bố đã kiểm S3 thật hoặc browser nối BE thật.
+- FE full gate đạt 799 tests; actual Chromium mock 1440/375 chọn/bỏ/chọn lại/đổi người/chuyển bước/lưu/mở lại/reload đúng ảnh, 0 lỗi JS, không tràn ngang, 9/9 object URL được giải phóng mỗi viewport. Review độc lập và review lại không còn blocker; chi tiết Specs012 quickstart.
+- Trước commit theo yêu cầu user: đã sửa liên kết incident FE bị hỏng sang URL blob tại commit994002c (tệp được xác minh trong Git); check-ai-layer BE đạt 0 lỗi/12 cảnh báo. Không sửa mã giáo dục hoặc nội dung lỗi cũ.
+
+
+## Báo cáo tổng hợp tăng trưởng theo tháng, mẫu 5.1 (HLT-20) — 2026-11-04
+
+- Nguồn user 2026-11-04: HT (mọi điểm trường), PHT (điểm trường được phân công) xem bảng 5.1 theo tháng; quy tắc đếm theo brief người điều phối cùng ngày. Plan `docs/plans/active/2026-11-04-health-growth-report.md`, bằng chứng chi tiết `specs/011-health-growth-report/quickstart.md`.
+- Sau sửa source/test cuối: `VERIFY PASS full | tests 1055 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 477s | log target/verify.log`. Snapshot OpenAPI chỉ thêm path `/api/health-checks/growth-report` và schema `HealthGrowth*`; không đổi API cũ, không migration. Consumer FE: agent FE làm màn báo cáo với BE giả; APP không gọi.
+- Testcontainers chạy thật (skip 0): phạm vi HT/PHT, 403/404, tháng không có đợt/kỳ, phiếu khám kết luận tính, nháp/vắng không tính, `unclassified`, thứ tự lớp, tổng MG/NT/điểm trường/toàn trường, trẻ chuyển lớp, điểm trường ngừng hoạt động. Review độc lập 1 lượt (subagent, chỉ đọc): không P1/P2, P3 đã sửa trừ hiệu năng (chấp nhận). Chưa chạy Web nối BE thật; không commit/push.
+
+## Kỳ cân đo tự đóng như đợt khám (HLT-17) — 2026-11-04
+
+- Nguồn user 2026-11-04: "Kỳ cân đo cũng sẽ tự đóng khi qua ngày kết thúc". Job tự đóng mọi loại, lý do lịch sử theo loại, mở lại kỳ hết hạn bắt buộc ngày kết thúc mới; plan `docs/plans/active/2026-11-04-intake-weeks-round-dates.md` (phần 2).
+- Sau sửa source/test cuối: `VERIFY PASS full | tests 1014 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 557s | log target/verify.log`. Snapshot OpenAPI không đổi; không migration, không đổi mã/câu lỗi.
+- Testcontainers chạy thật: 5 test HLT-17 chạy cho cả EXAM và MEASUREMENT (tự đóng một lần, kết thúc hôm nay chưa đóng, không đụng đợt đã hủy/đóng tay, mở lại rồi tự đóng lại, mở lại cần ngày từ hôm nay); kỳ cân đo tự đóng ⇒ vắng, nhập/sửa 5018; kết thúc hôm nay vẫn nhập tới 00:00. Chưa chạy Web nối BE thật; không commit/push.
+
+## Tuần thai bắt buộc, kỳ cân đo bỏ vòng đầu, ngày đo/ngày khám do hệ thống ghi — 2026-11-04
+
+- Nguồn user 2026-11-04 (G94-180/CHD-05, HLT-01, HLT-08, HLT-13) và điều chỉnh của người điều phối cùng ngày (kỳ cân đo chưa đóng mà đã qua ngày kết thúc ⇒ ngày đo = ngày kết thúc, chờ user soát). Plan `docs/plans/active/2026-11-04-intake-weeks-round-dates.md`.
+- Sau sửa source/test cuối: `VERIFY PASS full | tests 1007 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 461s | log target/verify.log`. Snapshot OpenAPI đổi có chủ đích 3 schema (`HealthMeasurementRequest` bỏ `date`, `headCircumferenceCm`; `HealthExamRequest` bỏ `date`; `ChildHealthRecordResponse` bỏ `headCircumferenceUntil`); bỏ mã 5021, đổi câu 5020 và lỗi ô `date` của phiếu khám (`docs/system/CROSS_REPO_MAP.md` mục 04/11). Consumer FE: agent FE làm song song; APP không gọi.
+- Testcontainers chạy thật (skip 0): tuần thai lưu cho trẻ không sinh non, ngày đo kẹp trong kỳ, sửa giữ ngày đo và vòng đầu cũ, ngày khám chốt ở lần lưu đầu, trùng ngày báo HT/PHT; WebMvc: client cũ gửi `date`/`headCircumferenceCm` vẫn được nhận. Review độc lập 2 lượt (subagent, chỉ đọc): không P1/P2. Chưa chạy Web nối BE thật; không migration, không commit/push.
+
+## Cảnh báo ở sổ sức khỏe, mức BMI kỳ cân đo, bỏ phiếu theo dõi — 2026-11-04
+
+- Nguồn user 2026-11-04: đợt khám = kết luận bác sĩ, kỳ cân đo = cảnh báo BMI, bỏ phiếu theo dõi, cảnh báo lưu ở sổ sức khỏe (HLT-16 REMOVED, HLT-18, HLT-19, P-40). Plan `docs/plans/active/2026-11-04-health-warnings-book.md`, bằng chứng chi tiết `specs/010-health-warnings-book/quickstart.md`.
+- Sau sửa source cuối: `VERIFY PASS full | tests 999 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 471s | log target/verify.log`. Snapshot OpenAPI đổi có chủ đích (bỏ `/health-follow-ups/**`, thêm trường cảnh báo); consumer FE cập nhật cùng ngày (BE giả), APP chưa gọi API.
+- Review độc lập: P1 nguồn "vấn đề đã biết" đã sửa và có test; không migration, không xóa dữ liệu phiếu cũ, không commit/push. Chưa chạy Web nối BE thật.
+- Bỏ câu "vấn đề mới hay đã biết" (user yêu cầu cùng ngày): validator không bắt `issueKind`, phiếu cũ đã trả lời giữ khi sửa, bỏ `knownCondition` (snapshot OpenAPI bỏ 2 trường). Sau sửa source cuối: `VERIFY PASS full | tests 999 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 522s | log target/verify.log`.
+
 ## Tự đóng đợt khám và mở lại với hạn nhập bù — 2026-11-01
 
 - Nguồn user 2026-11-01 (HLT-17): EXAM tự đóng khi qua ngày kết thúc theo giờ trường, chạy lúc 00:00 và khi ứng dụng khởi động để xử lý thời gian tắt máy. Tái sử dụng đóng tay cho vắng/chưa kết luận/khóa kết quả; phiếu theo dõi vẫn mở; lịch sử đóng tự động ghi actor hệ thống. Kỳ cân đo giữ nguyên.
@@ -653,3 +693,10 @@ Chi tiết lệnh và AC: báo cáo workspace `huong_dan_nghiep_vu/ket_qua_trien
 - FE giáo dục/menu: 328 test thành công; lint source thay đổi exit0 (một warning availableCreators), build exit0. Chưa browser/E2E/restart.
 - User đã yêu cầu commit/push hai repo; BE dùng G94-326, FE user xác nhận G94-278. File docs/TAI_KHOAN_DEMO.md chỉ ghi tài khoản giả local được user yêu cầu; không đưa dump/token/.env vào commit.
 - DB test đã reset theo phạm vi user chọn; 89 bảng khác giữ nguyên. Đã kiểm 34 tài khoản qua Keycloak/accounts/me; gateway login runtime trả401, không khẳng định đã sửa gateway.
+
+
+## ChildDay sức khỏe sau trả và liên hệ — 05/11/2026
+- RED `PickupIntegrationTest.teacherHandsOverPresentChildAndParentIsNotified`: canRecord true sau trả; GREEN 3/3, POST mới vẫn 5008, nguồn liên hệ hồ sơ và scope chéo lớp được kiểm trên PostgreSQL thật.
+- `node scripts/verify.mjs` → `VERIFY PASS full | tests 1039 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 672s | log target/verify.log`.
+- Snapshot diff chỉ thêm ChildDay.contacts/handedOverAt và DailyHealthContact; không đổi request/endpoint/API code. FE adapter/panel đã map; App chưa triển khai và không sửa.
+- FE full 840 tests fail/skip 0, browser export và chuẩn hóa nhập đạt; chưa browser E2E với runtime BE khởi động lại. User chọn chờ loại nhiệt kế nên giữ dải nhập hiện tại. Không migration, commit hoặc push.

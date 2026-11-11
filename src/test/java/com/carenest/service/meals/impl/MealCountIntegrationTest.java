@@ -7,6 +7,7 @@ import static org.assertj.core.api.Assertions.tuple;
 import com.carenest.dto.attendance.DayUnlockRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest;
 import com.carenest.dto.attendance.SaveAttendanceRequest.Entry;
+import com.carenest.dto.meals.ClassMealCountResponse;
 import com.carenest.dto.meals.MealAdjustRequest;
 import com.carenest.dto.meals.MealCountDayResponse;
 import com.carenest.dto.meals.MealCountResponse;
@@ -199,6 +200,45 @@ class MealCountIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "SELECT count(*) FROM meal_count_history WHERE action = 'CONFIRMED'", Long.class))
                 .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("NUT-02, ATT-02: giáo viên xem suất ăn lớp mình theo bữa; lớp không được phân công ⇒ 403")
+    void teacherSeesClassMealCountOfOwnClassOnly() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
+        // Trước giờ chốt: tạm tính từ điểm danh, không lập sổ
+        ClassMealCountResponse open = service.getClassMealCount(teacherA, classA, TODAY);
+        assertThat(open.className()).isEqualTo("Lớp A");
+        assertThat(open.meals())
+                .extracting(
+                        ClassMealCountResponse.Meal::session,
+                        ClassMealCountResponse.Meal::normal,
+                        ClassMealCountResponse.Meal::status)
+                .containsExactly(tuple(MealSession.LUNCH, 1, "OPEN"), tuple(MealSession.AFTERNOON, 1, "OPEN"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_counts", Long.class))
+                .isZero();
+
+        // Qua giờ chốt, PHT mở sổ rồi xác nhận ⇒ giáo viên thấy trạng thái và giờ xác nhận
+        clock.now = AFTER_CUTOFF;
+        MealCountResponse lunch = lunch(service.getMealCounts(vpA, TODAY, null));
+        assertThat(service.getClassMealCount(teacherA, classA, TODAY)
+                        .meals()
+                        .getFirst()
+                        .status())
+                .isEqualTo("PENDING_CONFIRMATION");
+        service.confirm(vpA, lunch.id());
+        ClassMealCountResponse.Meal confirmed =
+                service.getClassMealCount(teacherA, classA, TODAY).meals().getFirst();
+        assertThat(confirmed)
+                .extracting(
+                        ClassMealCountResponse.Meal::normal,
+                        ClassMealCountResponse.Meal::status,
+                        ClassMealCountResponse.Meal::needsReconfirmation)
+                .containsExactly(1, "CONFIRMED", false);
+        assertThat(confirmed.confirmedAt()).isNotNull();
+
+        CurrentUser otherTeacher = user("teacherb", CareNestRole.TEACHER);
+        expectCode(() -> service.getClassMealCount(otherTeacher, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
     }
 
     @Test

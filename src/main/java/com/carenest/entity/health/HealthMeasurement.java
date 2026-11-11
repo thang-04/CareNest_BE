@@ -87,6 +87,7 @@ public class HealthMeasurement {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /** Số đo của kỳ cân đo: không có vòng đầu (chỉ đo ở phiếu khám — HLT-01, user chốt 2026-11-04). */
     @Builder
     private HealthMeasurement(
             Long childId,
@@ -95,7 +96,6 @@ public class HealthMeasurement {
             LocalDate date,
             BigDecimal heightCm,
             BigDecimal weightKg,
-            BigDecimal headCircumferenceCm,
             String note,
             Long measuredBy,
             Instant createdAt) {
@@ -105,7 +105,6 @@ public class HealthMeasurement {
         this.date = date;
         this.heightCm = heightCm;
         this.weightKg = weightKg;
-        this.headCircumferenceCm = headCircumferenceCm;
         this.note = note;
         this.measuredBy = measuredBy;
         this.publishedAt = createdAt;
@@ -127,18 +126,10 @@ public class HealthMeasurement {
         return m;
     }
 
-    /** Sửa số đo: công bố lại bản mới. */
-    public void update(
-            LocalDate date,
-            BigDecimal heightCm,
-            BigDecimal weightKg,
-            BigDecimal headCircumferenceCm,
-            String note,
-            Instant at) {
-        this.date = date;
+    /** Sửa số đo kỳ cân đo: giữ ngày đo và vòng đầu cũ (HLT-13), công bố lại bản mới. */
+    public void update(BigDecimal heightCm, BigDecimal weightKg, String note, Instant at) {
         this.heightCm = heightCm;
         this.weightKg = weightKg;
-        this.headCircumferenceCm = headCircumferenceCm;
         this.note = note;
         this.publishedAt = at;
         this.updatedAt = at;

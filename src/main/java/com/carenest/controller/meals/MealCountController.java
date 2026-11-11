@@ -1,5 +1,6 @@
 package com.carenest.controller.meals;
 
+import com.carenest.dto.meals.ClassMealCountResponse;
 import com.carenest.dto.meals.MealAdjustRequest;
 import com.carenest.dto.meals.MealCountDayResponse;
 import com.carenest.dto.meals.MealCountResponse;
@@ -42,6 +43,19 @@ public class MealCountController {
         MealCountDayResponse day = mealCountService.getMealCounts(currentUser, date, schoolYearId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get meal counts success", day);
+    }
+
+    @GetMapping("/meal-counts/class")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<ClassMealCountResponse>> getClassMealCount(
+            @RequestParam Long classId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getClassMealCount|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        ClassMealCountResponse count = mealCountService.getClassMealCount(currentUser, classId, date);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class meal count success", count);
     }
 
     @PostMapping("/meal-counts/{mealCountId}/confirm")

@@ -1,7 +1,6 @@
 package com.carenest.repository.health;
 
 import com.carenest.entity.health.HealthCheckCampaign;
-import com.carenest.utils.enums.HealthCheckKind;
 import jakarta.persistence.LockModeType;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -19,7 +18,7 @@ public interface HealthCheckCampaignRepository extends JpaRepository<HealthCheck
 
     List<HealthCheckCampaign> findByCampusIdAndCancelledAtIsNull(Long campusId);
 
+    /** Đợt khám và kỳ cân đo chưa đóng, chưa hủy đã qua ngày kết thúc: hệ thống tự đóng (HLT-17). */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    List<HealthCheckCampaign> findByKindAndClosedAtIsNullAndCancelledAtIsNullAndEndDateBefore(
-            HealthCheckKind kind, LocalDate date);
+    List<HealthCheckCampaign> findByClosedAtIsNullAndCancelledAtIsNullAndEndDateBefore(LocalDate date);
 }

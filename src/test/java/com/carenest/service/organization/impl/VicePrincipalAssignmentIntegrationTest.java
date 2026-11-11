@@ -159,6 +159,26 @@ class VicePrincipalAssignmentIntegrationTest {
     }
 
     @Test
+    void campusHoldsAtMostOneVicePrincipal() {
+        // AUTH-26: A đang có vp1 ⇒ không xếp thêm vp2, dữ liệu giữ nguyên
+        assertCode(
+                () -> service.assign(principal, activeYear, vp2, new VicePrincipalAssignmentRequest(campusA)),
+                ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
+        assertThat(count(vp2)).isEqualTo(1);
+
+        // B chỉ có phân công cũ đã kết thúc của chính vp2 ⇒ được
+        assertThat(campusByUser(service.assign(principal, activeYear, vp2, new VicePrincipalAssignmentRequest(campusB)))
+                        .get(vp2))
+                .isEqualTo(campusB);
+
+        // vp1 chuyển đi thì A trống từ hôm nay ⇒ vp2 chuyển sang A được
+        service.assign(principal, activeYear, vp1, new VicePrincipalAssignmentRequest(campusC));
+        assertThat(campusByUser(service.assign(principal, activeYear, vp2, new VicePrincipalAssignmentRequest(campusA)))
+                        .get(vp2))
+                .isEqualTo(campusA);
+    }
+
+    @Test
     void vicePrincipalCannotAssignVicePrincipalsEvenInOwnCampus() {
         CurrentUser vice = new CurrentUser(vp1, "kc-vp1", "vp1", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
 

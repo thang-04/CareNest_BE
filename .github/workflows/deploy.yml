@@ -1,10 +1,10 @@
 name: Deploy VPS
 
-# Chỉ main chạy CI: push main = verify + deploy, PR vào main = chỉ verify.
+# main = production, dev = môi trường dev (compose.dev.yaml): push = verify + deploy, PR vào main/dev = chỉ verify.
 # Pattern xét theo thứ tự: bỏ tài liệu, nhưng giữ docs/api/openapi.yaml (OpenApiSnapshotTest đọc docs/api/openapi.yaml)
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - '**'
       - '!docs/**'
@@ -16,7 +16,7 @@ on:
       - '!.githooks/**'
       - 'docs/api/openapi.yaml'
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     paths:
       - '**'
       - '!docs/**'
@@ -40,11 +40,12 @@ env:
   DOCKERHUB_USER: thangnd04
   # Repo private duy nhất của tài khoản free: api và Keycloak phân biệt bằng tiền tố tag
   IMAGE: thangnd04/carenest-be
-  # Chỉ main được push image và deploy; PR hoặc chạy tay trên nhánh khác chỉ verify
-  IS_MAIN: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+  # Chỉ main/dev được push image (sau verify) và deploy; PR hoặc chạy tay trên nhánh khác chỉ verify.
+  # Image đẩy từ dev đã verify ⇒ release cùng nội dung vào main dùng lại tag, không verify/build lại
+  IS_DEPLOY_BRANCH: ${{ github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev') }}
 
 jobs:
-  # Tag image = hash nội dung đầu vào. Tag đã có trên Docker Hub ⇒ nội dung đó đã verify + build trên main ⇒ bỏ qua;
+  # Tag image = hash nội dung đầu vào. Tag đã có trên Docker Hub ⇒ nội dung đó đã verify + build trên main/dev ⇒ bỏ qua;
   # tag không đổi ⇒ compose không recreate container (Keycloak không restart khi không đổi)
   plan:
     runs-on: ubuntu-latest
@@ -112,15 +113,15 @@ jobs:
       - if: failure()
         run: tail -n 200 target/verify.log
 
-      - if: env.IS_MAIN == 'true'
+      - if: env.IS_DEPLOY_BRANCH == 'true'
         uses: docker/setup-buildx-action@v3
-      - if: env.IS_MAIN == 'true'
+      - if: env.IS_DEPLOY_BRANCH == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push api image
-        if: env.IS_MAIN == 'true'
+        if: env.IS_DEPLOY_BRANCH == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -148,15 +149,15 @@ jobs:
       - run: ./mvnw -B -f docker/keycloak/extensions/carenest-auth/pom.xml verify
       - run: node --test docker/keycloak/auth/*.test.mjs
 
-      - if: env.IS_MAIN == 'true'
+      - if: env.IS_DEPLOY_BRANCH == 'true'
         uses: docker/setup-buildx-action@v3
-      - if: env.IS_MAIN == 'true'
+      - if: env.IS_DEPLOY_BRANCH == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKERHUB_USER }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push Keycloak image
-        if: env.IS_MAIN == 'true'
+        if: env.IS_DEPLOY_BRANCH == 'true'
         uses: docker/build-push-action@v6
         with:
           context: docker/keycloak
@@ -242,8 +243,15 @@ jobs:
             docker compose -f compose.vps.yaml logs --tail 80 api keycloak
             exit 1
           fi
-          docker images "${API_IMAGE%:*}" --format '{{.Repository}}:{{.Tag}}' \
-            | grep -vxF -e "$API_IMAGE" -e "$KEYCLOAK_IMAGE" | xargs -r docker rmi
+          # So sánh image ID để giữ cả tag được container production hoặc dev dùng.
+          used_images=$(mktemp)
+          docker ps -aq | xargs -r docker inspect --format '{{.Image}}' > "$used_images"
+          while IFS= read -r tag; do
+            if [ "$tag" = "$API_IMAGE" ] || [ "$tag" = "$KEYCLOAK_IMAGE" ] || [ "${tag##*:}" = '<none>' ]; then continue; fi
+            image_id=$(docker image inspect --format '{{.Id}}' "$tag")
+            if ! grep -Fxq "$image_id" "$used_images"; then docker rmi "$tag"; fi
+          done < <(docker images "${API_IMAGE%:*}" --format '{{.Repository}}:{{.Tag}}')
+          rm -f "$used_images"
           docker image prune -f
           EOF
 
@@ -274,3 +282,115 @@ jobs:
         run: |
           curl -fsS --retry 5 --retry-delay 3 --retry-all-errors "$AUTH_DISCOVERY_URL" \
             | grep -F '"issuer":"https://auth.carenest.edu.vn/realms/carenest"'
+
+  # Môi trường dev (compose.dev.yaml): Keycloak + api riêng, dùng chung Postgres/Mailpit của production.
+  # .env dev và DB/role carenest_dev, keycloak_dev tạo tay một lần (docs/system/DEPLOYMENT.md mục Môi trường dev)
+  deploy-dev:
+    needs: [plan, api, keycloak]
+    if: ${{ !failure() && !cancelled() && github.event_name != 'pull_request' && github.ref == 'refs/heads/dev' }}
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      APP_DIR: /data/thangnd/CAPSTONE/CareNest_BE-dev
+      CADDY_DIR: /data/thangnd/CAPSTONE/caddy
+      SITE_FILE: carenest-auth-dev.caddy
+      AUTH_DISCOVERY_URL: https://auth-dev.carenest.edu.vn/realms/carenest/.well-known/openid-configuration
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepare Keycloak realm
+        run: node docker/keycloak/auth/prepare.mjs
+
+      - name: Setup SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "$VPS_PORT" -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload compose and mounted files
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "mkdir -p '$APP_DIR'"
+          rsync -azR -e "ssh -p $VPS_PORT" \
+            compose.dev.yaml \
+            docker/keycloak/auth/generated/carenest-realm.json \
+            docker/keycloak/vps/carenest-users-0.json \
+            "$VPS_USER@$VPS_HOST:$APP_DIR/"
+
+      - name: Upload Caddy site
+        run: |
+          rsync -z -e "ssh -p $VPS_PORT" "deploy/caddy/$SITE_FILE" \
+            "$VPS_USER@$VPS_HOST:$CADDY_DIR/$SITE_FILE.new"
+
+      # Postgres thuộc stack production: không chạy thì báo rõ thay vì chờ health hết giờ
+      - name: Pull and restart on VPS
+        env:
+          API_IMAGE: ${{ env.IMAGE }}:${{ needs.plan.outputs.api_tag }}
+          KEYCLOAK_IMAGE: ${{ env.IMAGE }}:${{ needs.plan.outputs.keycloak_tag }}
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
+            "cd '$APP_DIR' && API_IMAGE='$API_IMAGE' KEYCLOAK_IMAGE='$KEYCLOAK_IMAGE' bash -s" <<'EOF'
+          set -e
+          test -f .env || { echo ".env missing in $PWD (template: deploy/dev.env.example)" >&2; exit 1; }
+          test -n "$(docker ps -qf name=carenest-be-postgres)" || { echo "Postgres of the production stack is not running" >&2; exit 1; }
+          docker pull "$API_IMAGE"
+          docker pull "$KEYCLOAK_IMAGE"
+          docker compose -f compose.dev.yaml up -d --no-build --remove-orphans
+          healthy=
+          for i in $(seq 1 60); do
+            if curl -fsS -o /dev/null http://127.0.0.1:18311/actuator/health \
+              && curl -fsS -o /dev/null http://127.0.0.1:18323/health/ready; then
+              healthy=1
+              break
+            fi
+            sleep 3
+          done
+          if [ -z "$healthy" ]; then
+            docker compose -f compose.dev.yaml ps
+            docker compose -f compose.dev.yaml logs --tail 80 api keycloak
+            exit 1
+          fi
+          # So sánh image ID để giữ cả tag được container production hoặc dev dùng.
+          used_images=$(mktemp)
+          docker ps -aq | xargs -r docker inspect --format '{{.Image}}' > "$used_images"
+          while IFS= read -r tag; do
+            if [ "$tag" = "$API_IMAGE" ] || [ "$tag" = "$KEYCLOAK_IMAGE" ] || [ "${tag##*:}" = '<none>' ]; then continue; fi
+            image_id=$(docker image inspect --format '{{.Id}}' "$tag")
+            if ! grep -Fxq "$image_id" "$used_images"; then docker rmi "$tag"; fi
+          done < <(docker images "${API_IMAGE%:*}" --format '{{.Repository}}:{{.Tag}}')
+          rm -f "$used_images"
+          docker image prune -f
+          EOF
+
+      # Giống production: reload lỗi ⇒ khôi phục file cũ để Caddy vẫn lên sau reboot
+      - name: Apply Caddy site
+        run: |
+          ssh -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" "cd '$CADDY_DIR' && SITE_FILE='$SITE_FILE' bash -s" <<'EOF'
+          set -e
+          rm -f "$SITE_FILE.bak"
+          if cmp -s "$SITE_FILE.new" "$SITE_FILE"; then
+            rm "$SITE_FILE.new"
+            echo "Caddy site unchanged"
+            exit 0
+          fi
+          if [ -f "$SITE_FILE" ]; then cp -p "$SITE_FILE" "$SITE_FILE.bak"; fi
+          mv "$SITE_FILE.new" "$SITE_FILE"
+          if ! sudo -n systemctl reload caddy; then
+            if [ -f "$SITE_FILE.bak" ]; then mv "$SITE_FILE.bak" "$SITE_FILE"; else rm "$SITE_FILE"; fi
+            sudo -n systemctl reload caddy || true
+            echo "Caddy reload failed, previous site file restored" >&2
+            exit 1
+          fi
+          EOF
+
+      # Lần đầu Caddy cần thời gian xin chứng chỉ cho auth-dev
+      - name: Smoke test HTTPS
+        run: |
+          curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "$AUTH_DISCOVERY_URL" \
+            | grep -F '"issuer":"https://auth-dev.carenest.edu.vn/realms/carenest"'
