@@ -1,6 +1,9 @@
 package com.carenest.controller.meals;
 
 import com.carenest.dto.meals.MealPlanResponse;
+import com.carenest.dto.meals.MenuAiDraftCandidatesResponse;
+import com.carenest.dto.meals.MenuAiDraftEvaluationResponse;
+import com.carenest.dto.meals.MenuAiDraftGridRequest;
 import com.carenest.dto.meals.MenuAiDraftRequest;
 import com.carenest.dto.meals.MenuAiDraftResponse;
 import com.carenest.security.CurrentUser;
@@ -80,11 +83,36 @@ public class MenuAiDraftController {
 
     @PostMapping("/{id}/apply")
     @PreAuthorize("@permissionGuard.has('MENU_MANAGE')")
-    public ResponseEntity<ResponseJson<MealPlanResponse>> applyDraft(@PathVariable Long id, CurrentUser currentUser) {
+    public ResponseEntity<ResponseJson<MealPlanResponse>> applyDraft(
+            @PathVariable Long id,
+            @Valid @RequestBody(required = false) MenuAiDraftGridRequest edited,
+            CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|applyDraft|userId=" + currentUser.userId() + "|draftId=" + id;
         log.info("{}|START", logPrefix);
-        MealPlanResponse plan = menuAiDraftService.applyDraft(currentUser, id);
+        MealPlanResponse plan = menuAiDraftService.applyDraft(currentUser, id, edited);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Apply menu AI draft success", plan);
+    }
+
+    @GetMapping("/{id}/candidates")
+    @PreAuthorize("@permissionGuard.has('MENU_MANAGE')")
+    public ResponseEntity<ResponseJson<MenuAiDraftCandidatesResponse>> getCandidates(
+            @PathVariable Long id, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getCandidates|userId=" + currentUser.userId() + "|draftId=" + id;
+        log.info("{}|START", logPrefix);
+        MenuAiDraftCandidatesResponse candidates = menuAiDraftService.getCandidates(currentUser, id);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get menu AI draft candidates success", candidates);
+    }
+
+    @PostMapping("/{id}/evaluate")
+    @PreAuthorize("@permissionGuard.has('MENU_MANAGE')")
+    public ResponseEntity<ResponseJson<MenuAiDraftEvaluationResponse>> evaluateDraft(
+            @PathVariable Long id, @Valid @RequestBody MenuAiDraftGridRequest grid, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|evaluateDraft|userId=" + currentUser.userId() + "|draftId=" + id;
+        log.info("{}|START", logPrefix);
+        MenuAiDraftEvaluationResponse evaluation = menuAiDraftService.evaluateDraft(currentUser, id, grid);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Evaluate menu AI draft success", evaluation);
     }
 }

@@ -19,8 +19,9 @@ Migration mới `V82__create_menu_ai_drafts.sql` (số lấy sau V81 của `dev`
 | `request_json` | jsonb | mùa, mong muốn đã cắt độ dài |
 | `output_json` | jsonb | ô → `dishId` thật, lý do đã làm sạch; không đổi sau khi tạo |
 | `score_json` | jsonb | `{ai, baseline, breakdown}` |
-| `issues_json` | jsonb | issue evaluator của phương án được chọn hoặc nguyên nhân `NO_FEASIBLE` |
+| `issues_json` | jsonb | issue evaluator của phương án được chọn hoặc nguyên nhân `NO_FEASIBLE`; còn `BLOCKING` ở nháp `PENDING_REVIEW` ⇒ response `feasible=false` (suy ra, không có cột) |
 | `input_fingerprint` | varchar(64) | SHA-256 của món ứng viên (id + `updated_at`), định mức, cấu hình bữa dùng lúc tạo |
+| `edited_cells` | int, mặc định 0 | V84: số ô người duyệt đã sửa so với `output_json` lúc dùng; `output_json` không đổi |
 | `created_by`, `created_at` | bigint, timestamptz | |
 | `decided_by`, `decided_at` | bigint, timestamptz | khi apply/dismiss |
 

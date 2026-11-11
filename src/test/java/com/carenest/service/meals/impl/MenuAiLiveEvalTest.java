@@ -96,6 +96,7 @@ class MenuAiLiveEvalTest {
         List<Map<String, Object>> valid = records.stream()
                 .filter(r -> !"provider-loi".equals(r.get("case")))
                 .filter(r -> !"NO_FEASIBLE".equals(r.get("status")))
+                .filter(r -> !Boolean.TRUE.equals(r.get("unmet")))
                 .toList();
         long aiWins = valid.stream().filter(r -> "AI".equals(r.get("source"))).count();
         log.info(
@@ -127,6 +128,10 @@ class MenuAiLiveEvalTest {
                 "blockingLeak",
                 outcome.source() == MenuAiDraftSource.AI
                         && outcome.status() == MenuAiDraftStatus.PENDING_REVIEW
+                        && outcome.issues().stream().anyMatch(i -> MealPlanEvaluator.BLOCKING.equals(i.severity())));
+        record.put(
+                "unmet",
+                outcome.status() == MenuAiDraftStatus.PENDING_REVIEW
                         && outcome.issues().stream().anyMatch(i -> MealPlanEvaluator.BLOCKING.equals(i.severity())));
         record.put(
                 "checks",

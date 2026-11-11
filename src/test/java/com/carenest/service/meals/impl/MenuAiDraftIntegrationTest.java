@@ -7,6 +7,9 @@ import static org.mockito.BDDMockito.given;
 
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
+import com.carenest.dto.meals.MenuAiDraftCandidatesResponse;
+import com.carenest.dto.meals.MenuAiDraftEvaluationResponse;
+import com.carenest.dto.meals.MenuAiDraftGridRequest;
 import com.carenest.dto.meals.MenuAiDraftRequest;
 import com.carenest.dto.meals.MenuAiDraftResponse;
 import com.carenest.exception.GlobalException;
@@ -157,7 +160,41 @@ class MenuAiDraftIntegrationTest {
                     .hasSize(2);
         });
         assertThat(draft.issues()).noneMatch(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()));
+        assertThat(draft.feasible()).isTrue();
         assertThat(draftService.getDraft(principal, draft.id())).isEqualTo(draft);
+    }
+
+    @Test
+    @DisplayName(
+            "AC-4: danh mục không ghép được tuần đạt định mức ⇒ vẫn có lưới món, feasible=false; dùng được, không công bố được")
+    void unmetPlanStillOffersDishesButCannotBePublished() {
+        String setKcal = "UPDATE age_group_meal_configs SET kcal_min = ?, kcal_max = ?"
+                + " WHERE age_group_id = ? AND effective_from = '2026-09-01'";
+        jdbc.update(setKcal, 1500, 1800, ag3);
+        try {
+            MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
+
+            assertThat(draft.status()).isEqualTo(MenuAiDraftStatus.PENDING_REVIEW);
+            assertThat(draft.source()).isEqualTo(MenuAiDraftSource.RULE_BASED);
+            assertThat(draft.feasible()).isFalse();
+            assertThat(draft.days())
+                    .hasSize(5)
+                    .allSatisfy(d -> assertThat(d.items()).hasSize(3));
+            assertThat(draft.issues()).anyMatch(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()));
+            assertThat(draft.checks())
+                    .filteredOn(c -> "NORM_BALANCE".equals(c.code()))
+                    .singleElement()
+                    .satisfies(c -> assertThat(c.status()).isEqualTo("FAIL"));
+
+            MealPlanResponse applied = draftService.applyDraft(principal, draft.id(), null);
+
+            assertThat(applied.status()).isEqualTo("DRAFT");
+            assertThat(applied.days()).allSatisfy(d -> assertThat(d.items()).hasSize(3));
+            // NUT-09: thực đơn chưa đạt định mức vẫn không công bố được
+            expectCode(() -> mealPlanService.publishMealPlan(principal, MONDAY), ApiCode.MEAL_PLAN_NOT_PUBLISHABLE);
+        } finally {
+            jdbc.update(setKcal, 300, 600, ag3);
+        }
     }
 
     @Test
@@ -199,7 +236,7 @@ class MenuAiDraftIntegrationTest {
         mealPlanService.saveMealPlan(principal, MONDAY, nurseryLunchOnMonday());
         MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
 
-        MealPlanResponse applied = draftService.applyDraft(principal, draft.id());
+        MealPlanResponse applied = draftService.applyDraft(principal, draft.id(), null);
 
         assertThat(applied.status()).isEqualTo("DRAFT");
         assertThat(applied.days().getFirst().items())
@@ -213,7 +250,7 @@ class MenuAiDraftIntegrationTest {
         assertThat(draftService.getDraft(principal, draft.id()).status()).isEqualTo(MenuAiDraftStatus.APPLIED);
         Long itemsBefore = jdbc.queryForObject("SELECT count(*) FROM meal_plan_items", Long.class);
 
-        MealPlanResponse again = draftService.applyDraft(principal, draft.id());
+        MealPlanResponse again = draftService.applyDraft(principal, draft.id(), null);
 
         assertThat(again.days()).isEqualTo(applied.days());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_plan_items", Long.class))
@@ -224,12 +261,12 @@ class MenuAiDraftIntegrationTest {
     @DisplayName("AC-6: tuần đã công bố ⇒ không tạo, không dùng nháp (409)")
     void publishedWeekRejectsDrafts() {
         MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
-        draftService.applyDraft(principal, draft.id());
+        draftService.applyDraft(principal, draft.id(), null);
         MenuAiDraftResponse second = draftService.createDraft(principal, weekly(MONDAY));
         mealPlanService.publishMealPlan(principal, MONDAY);
 
         expectCode(() -> draftService.createDraft(principal, weekly(MONDAY)), ApiCode.MEAL_PLAN_PUBLISHED);
-        expectCode(() -> draftService.applyDraft(principal, second.id()), ApiCode.MEAL_PLAN_PUBLISHED);
+        expectCode(() -> draftService.applyDraft(principal, second.id(), null), ApiCode.MEAL_PLAN_PUBLISHED);
     }
 
     @Test
@@ -238,7 +275,7 @@ class MenuAiDraftIntegrationTest {
         MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
         jdbc.update("UPDATE foods SET kcal = 2500, updated_at = now() + interval '1 minute' WHERE id = ?", pork);
 
-        assertThatThrownBy(() -> draftService.applyDraft(principal, draft.id()))
+        assertThatThrownBy(() -> draftService.applyDraft(principal, draft.id(), null))
                 .isInstanceOf(GlobalException.class)
                 .satisfies(ex -> {
                     GlobalException ge = (GlobalException) ex;
@@ -256,7 +293,7 @@ class MenuAiDraftIntegrationTest {
 
         assertThat(draftService.dismissDraft(principal, draft.id()).status()).isEqualTo(MenuAiDraftStatus.DISMISSED);
         expectCode(() -> draftService.dismissDraft(principal, draft.id()), ApiCode.MENU_AI_DRAFT_NOT_PENDING);
-        expectCode(() -> draftService.applyDraft(principal, draft.id()), ApiCode.MENU_AI_DRAFT_NOT_PENDING);
+        expectCode(() -> draftService.applyDraft(principal, draft.id(), null), ApiCode.MENU_AI_DRAFT_NOT_PENDING);
         expectCode(() -> draftService.getDraft(principal, -1L), ApiCode.MENU_AI_DRAFT_NOT_FOUND);
     }
 
@@ -316,7 +353,7 @@ class MenuAiDraftIntegrationTest {
             assertThat(d.date()).isNull();
             assertThat(d.items()).hasSize(3);
         });
-        expectCode(() -> draftService.applyDraft(principal, daily.id()), ApiCode.MENU_AI_DRAFT_KIND_INVALID);
+        expectCode(() -> draftService.applyDraft(principal, daily.id(), null), ApiCode.MENU_AI_DRAFT_KIND_INVALID);
 
         assertThat(draftService.markDailyUsed(principal, daily.id()).status()).isEqualTo(MenuAiDraftStatus.APPLIED);
         assertThat(draftService.markDailyUsed(principal, daily.id()).status()).isEqualTo(MenuAiDraftStatus.APPLIED);
@@ -331,7 +368,7 @@ class MenuAiDraftIntegrationTest {
     void dayFixReplacesOnlyTargetCell() {
         mealPlanService.saveMealPlan(principal, MONDAY, nurseryLunchOnMonday());
         draftService.applyDraft(
-                principal, draftService.createDraft(principal, weekly(MONDAY)).id());
+                principal, draftService.createDraft(principal, weekly(MONDAY)).id(), null);
         MealPlanResponse before = mealPlanService.getMealPlan(principal, MONDAY);
         long mondayMain = mainOf(before, MONDAY);
 
@@ -344,7 +381,7 @@ class MenuAiDraftIntegrationTest {
         assertThat(to.dishId()).isNotEqualTo(mondayMain);
         assertThat(to.dishType()).isEqualTo(DishType.MAIN);
 
-        MealPlanResponse after = draftService.applyDraft(principal, fix.id());
+        MealPlanResponse after = draftService.applyDraft(principal, fix.id(), null);
 
         assertThat(mainOf(after, MONDAY)).isEqualTo(to.dishId());
         assertThat(after.days().subList(1, 5)).isEqualTo(before.days().subList(1, 5));
@@ -353,7 +390,7 @@ class MenuAiDraftIntegrationTest {
                 .singleElement()
                 .satisfies(i -> assertThat(i.dishId()).isEqualTo(com));
         // Dùng lần hai không ghi lại: cùng tập món mỗi ngày (thứ tự đọc lại từ DB có thể khác thứ tự vừa lưu)
-        assertThat(cellsOf(draftService.applyDraft(principal, fix.id()))).isEqualTo(cellsOf(after));
+        assertThat(cellsOf(draftService.applyDraft(principal, fix.id(), null))).isEqualTo(cellsOf(after));
     }
 
     private static List<Set<String>> cellsOf(MealPlanResponse plan) {
@@ -362,6 +399,204 @@ class MenuAiDraftIntegrationTest {
                         .map(i -> i.session() + "|" + i.block() + "|" + i.dishId())
                         .collect(Collectors.toSet()))
                 .toList();
+    }
+
+    @Test
+    @DisplayName("Bảng gợi ý: món mang khóa ô, hàng theo bữa rồi thứ tự ô; ứng viên theo ô chỉ có món đúng loại")
+    void draftExposesSlotsAndCandidates() {
+        MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
+
+        assertThat(draft.slots())
+                .extracting(MenuAiDraftResponse.Slot::key)
+                .containsExactly("LUNCH.1", "LUNCH.2", "AFTERNOON.1");
+        assertThat(draft.slots().get(1).dishTypes()).containsExactly(DishType.MAIN);
+        assertThat(draft.days())
+                .allSatisfy(d -> assertThat(d.items())
+                        .extracting(MenuAiDraftResponse.Item::slot)
+                        .containsExactlyInAnyOrder("LUNCH.1", "LUNCH.2", "AFTERNOON.1"));
+        assertThat(draft.editedCells()).isZero();
+
+        MenuAiDraftCandidatesResponse candidates = draftService.getCandidates(principal, draft.id());
+
+        assertThat(candidates.slots())
+                .extracting(MenuAiDraftCandidatesResponse.Slot::key)
+                .containsExactly("LUNCH.1", "LUNCH.2", "AFTERNOON.1");
+        assertThat(mainCandidates(candidates))
+                .hasSize(3)
+                .allSatisfy(d -> assertThat(d.dishType()).isEqualTo(DishType.MAIN))
+                .extracting(MenuAiDraftCandidatesResponse.Dish::dishId)
+                .contains(thit);
+        expectCode(() -> draftService.getCandidates(vp, draft.id()), ApiCode.FORBIDDEN);
+        MenuAiDraftResponse daily = draftService.createDraft(principal, daily());
+        expectCode(() -> draftService.getCandidates(principal, daily.id()), ApiCode.MENU_AI_DRAFT_KIND_INVALID);
+    }
+
+    @Test
+    @DisplayName(
+            "Chấm thử: lưới gốc trùng nháp; đổi một ô ⇒ editedCells=1, bảng kiểm ghi người duyệt đã sửa; không lưu")
+    void evaluateScoresEditedGridWithoutSaving() {
+        MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
+        MenuAiDraftGridRequest original = gridOf(draft);
+
+        MenuAiDraftEvaluationResponse same = draftService.evaluateDraft(principal, draft.id(), original);
+
+        assertThat(same.editedCells()).isZero();
+        assertThat(same.feasible()).isTrue();
+        assertThat(same.score().total()).isEqualTo(draft.score().baseline());
+        assertThat(same.issues()).isEqualTo(draft.issues());
+        assertThat(same.checks()).isEqualTo(draft.checks());
+        assertThat(same.evaluations())
+                .isNotEmpty()
+                .allSatisfy(e -> assertThat(e.block()).isEqualTo(MenuBlock.KINDERGARTEN));
+
+        long other = otherMain(draft, MONDAY);
+        MenuAiDraftEvaluationResponse edited =
+                draftService.evaluateDraft(principal, draft.id(), withDish(original, MONDAY, "LUNCH.2", other));
+
+        assertThat(edited.editedCells()).isEqualTo(1);
+        assertThat(edited.checks())
+                .filteredOn(c -> "VALUE_GATE".equals(c.code()))
+                .singleElement()
+                .satisfies(c -> assertThat(c.detail()).contains("đã sửa 1 ô"));
+        assertThat(draftService.getDraft(principal, draft.id())).isEqualTo(draft);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_plan_weeks", Long.class))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("Chấm thử lưới sai: món khác loại ô, thiếu ngày, thiếu ô, lặp món trong bữa ⇒ 400; nháp đã bỏ ⇒ 409")
+    void evaluateRejectsInvalidGrid() {
+        MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
+        MenuAiDraftGridRequest original = gridOf(draft);
+
+        expectCode(
+                () -> draftService.evaluateDraft(principal, draft.id(), withDish(original, MONDAY, "LUNCH.2", com)),
+                ApiCode.INVALID_REQUEST_DATA);
+        expectCode(
+                () -> draftService.evaluateDraft(
+                        principal,
+                        draft.id(),
+                        new MenuAiDraftGridRequest(original.days().subList(1, 5))),
+                ApiCode.INVALID_REQUEST_DATA);
+        List<MenuAiDraftGridRequest.Day> missingCell = new ArrayList<>(original.days());
+        MenuAiDraftGridRequest.Day monday = missingCell.getFirst();
+        missingCell.set(
+                0, new MenuAiDraftGridRequest.Day(monday.date(), monday.items().subList(0, 2)));
+        expectCode(
+                () -> draftService.evaluateDraft(principal, draft.id(), new MenuAiDraftGridRequest(missingCell)),
+                ApiCode.INVALID_REQUEST_DATA);
+        expectCode(
+                () -> draftService.evaluateDraft(principal, draft.id(), withDish(original, MONDAY, "LUNCH.9", thit)),
+                ApiCode.INVALID_REQUEST_DATA);
+        expectCode(() -> draftService.evaluateDraft(vp, draft.id(), original), ApiCode.FORBIDDEN);
+
+        draftService.dismissDraft(principal, draft.id());
+        expectCode(
+                () -> draftService.evaluateDraft(principal, draft.id(), original), ApiCode.MENU_AI_DRAFT_NOT_PENDING);
+    }
+
+    @Test
+    @DisplayName(
+            "AI-02: dùng nháp kèm lưới đã sửa ⇒ tuần lưu đúng món đã sửa, khối khác giữ, lưu số ô đã sửa; gọi lại không ghi")
+    void applyWithEditedGridSavesEditsAndCountsThem() {
+        mealPlanService.saveMealPlan(principal, MONDAY, nurseryLunchOnMonday());
+        MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
+        long other = otherMain(draft, MONDAY);
+        MenuAiDraftGridRequest edited = withDish(gridOf(draft), MONDAY, "LUNCH.2", other);
+
+        MealPlanResponse applied = draftService.applyDraft(principal, draft.id(), edited);
+
+        assertThat(applied.status()).isEqualTo("DRAFT");
+        assertThat(mainOf(applied, MONDAY)).isEqualTo(other);
+        assertThat(applied.days().getFirst().items())
+                .filteredOn(i -> i.block() == MenuBlock.NURSERY)
+                .singleElement()
+                .satisfies(i -> assertThat(i.dishId()).isEqualTo(com));
+        MenuAiDraftResponse stored = draftService.getDraft(principal, draft.id());
+        assertThat(stored.status()).isEqualTo(MenuAiDraftStatus.APPLIED);
+        assertThat(stored.editedCells()).isEqualTo(1);
+        // Lưới gợi ý gốc không đổi (đo giá trị AI)
+        assertThat(stored.days()).isEqualTo(draft.days());
+        Long itemsBefore = jdbc.queryForObject("SELECT count(*) FROM meal_plan_items", Long.class);
+
+        draftService.applyDraft(principal, draft.id(), edited);
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM meal_plan_items", Long.class))
+                .isEqualTo(itemsBefore);
+    }
+
+    @Test
+    @DisplayName(
+            "NUT-09: lưới đã sửa còn lỗi chặn vẫn ghi vào tuần nháp nhưng không công bố được; thay một món không nhận lưới")
+    void applyEditedGridWithBlockingStaysUnpublishable() {
+        MenuAiDraftResponse draft = draftService.createDraft(principal, weekly(MONDAY));
+        MenuAiDraftGridRequest edited = gridOf(draft);
+        String setKcal = "UPDATE age_group_meal_configs SET kcal_min = ?, kcal_max = ?"
+                + " WHERE age_group_id = ? AND effective_from = '2026-09-01'";
+        jdbc.update(setKcal, 1500, 1800, ag3);
+        try {
+            assertThat(draftService.evaluateDraft(principal, draft.id(), edited).feasible())
+                    .isFalse();
+
+            MealPlanResponse applied = draftService.applyDraft(principal, draft.id(), edited);
+
+            assertThat(applied.days()).allSatisfy(d -> assertThat(d.items()).hasSize(3));
+            expectCode(() -> mealPlanService.publishMealPlan(principal, MONDAY), ApiCode.MEAL_PLAN_NOT_PUBLISHABLE);
+        } finally {
+            jdbc.update(setKcal, 300, 600, ag3);
+        }
+    }
+
+    private static MenuAiDraftGridRequest gridOf(MenuAiDraftResponse draft) {
+        return new MenuAiDraftGridRequest(draft.days().stream()
+                .filter(d -> !d.off())
+                .map(d -> new MenuAiDraftGridRequest.Day(
+                        d.date(),
+                        d.items().stream()
+                                .map(i -> new MenuAiDraftGridRequest.Item(i.slot(), i.dishId()))
+                                .toList()))
+                .toList());
+    }
+
+    private static MenuAiDraftGridRequest withDish(
+            MenuAiDraftGridRequest grid, LocalDate date, String slot, long dishId) {
+        return new MenuAiDraftGridRequest(grid.days().stream()
+                .map(d -> !d.date().equals(date)
+                        ? d
+                        : new MenuAiDraftGridRequest.Day(
+                                d.date(),
+                                d.items().stream()
+                                        .map(i -> i.slot().equals(slot)
+                                                        || slot.equals("LUNCH.9")
+                                                                && i.slot().equals("LUNCH.2")
+                                                ? new MenuAiDraftGridRequest.Item(slot, dishId)
+                                                : i)
+                                        .toList()))
+                .toList());
+    }
+
+    private List<MenuAiDraftCandidatesResponse.Dish> mainCandidates(MenuAiDraftCandidatesResponse candidates) {
+        return candidates.slots().stream()
+                .filter(s -> s.key().equals("LUNCH.2"))
+                .findFirst()
+                .orElseThrow()
+                .dishes();
+    }
+
+    // Một món mặn ứng viên khác món gợi ý của ngày đó
+    private long otherMain(MenuAiDraftResponse draft, LocalDate date) {
+        long suggested = draft.days().stream()
+                .filter(d -> date.equals(d.date()))
+                .flatMap(d -> d.items().stream())
+                .filter(i -> i.slot().equals("LUNCH.2"))
+                .findFirst()
+                .orElseThrow()
+                .dishId();
+        return mainCandidates(draftService.getCandidates(principal, draft.id())).stream()
+                .map(MenuAiDraftCandidatesResponse.Dish::dishId)
+                .filter(id -> id != suggested)
+                .findFirst()
+                .orElseThrow();
     }
 
     @Test
@@ -389,7 +624,7 @@ class MenuAiDraftIntegrationTest {
         long otherMain = fix.days().getFirst().items().getFirst().dishId();
         mealPlanService.saveMealPlan(principal, MONDAY, kindergartenMonday(otherMain));
 
-        expectCode(() -> draftService.applyDraft(principal, fix.id()), ApiCode.MENU_AI_DRAFT_STALE);
+        expectCode(() -> draftService.applyDraft(principal, fix.id(), null), ApiCode.MENU_AI_DRAFT_STALE);
         assertThat(mainOf(mealPlanService.getMealPlan(principal, MONDAY), MONDAY))
                 .isEqualTo(otherMain);
     }

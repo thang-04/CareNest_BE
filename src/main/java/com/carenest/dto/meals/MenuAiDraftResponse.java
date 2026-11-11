@@ -13,7 +13,9 @@ import java.util.List;
 
 /**
  * Nháp gợi ý thực đơn: lưới món, nguồn ({@code AI} hoặc {@code RULE_BASED} kèm {@code fallbackReason}), điểm AI và
- * phương án theo quy tắc, issue của evaluator cho phương án được chọn (hoặc nguyên nhân khi {@code NO_FEASIBLE}). Số
+ * phương án theo quy tắc, issue của evaluator cho phương án được chọn (hoặc nguyên nhân khi {@code NO_FEASIBLE}).
+ * {@code feasible=false} với nháp có lưới món = phương án theo quy tắc còn lỗi chặn (NUT-09): dùng được làm điểm bắt
+ * đầu để sửa tay, tuần chưa công bố được. {@code editedCells}: số ô người duyệt đã sửa so với gợi ý lúc dùng. Số
  * liệu dinh dưỡng chỉ có trong issue/evaluator, không lấy từ model.
  */
 public record MenuAiDraftResponse(
@@ -25,19 +27,25 @@ public record MenuAiDraftResponse(
         MealSession targetSession,
         Long fromDishId,
         MenuAiDraftStatus status,
+        boolean feasible,
         MenuAiDraftSource source,
         MenuAiFallbackReason fallbackReason,
         String model,
         String promptVersion,
         Instant createdAt,
         Score score,
+        List<Slot> slots,
         List<Day> days,
         List<MealPlanResponse.Issue> issues,
-        List<Check> checks) {
+        List<Check> checks,
+        int editedCells) {
+
+    /** Một hàng của bảng gợi ý: ô {@code key} (vd. {@code LUNCH.2}) của bữa, nhận món thuộc {@code dishTypes}. */
+    public record Slot(String key, MealSession session, int index, List<DishType> dishTypes) {}
 
     /**
      * Một tiêu chí đo bằng code trên phương án được chọn. {@code status}: PASS (đạt), WARN (cảnh báo, không chặn), INFO
-     * (thông tin), FAIL (không đạt — chỉ khi NO_FEASIBLE); {@code rules}: rule ID căn cứ.
+     * (thông tin), FAIL (không đạt — nháp {@code feasible=false}); {@code rules}: rule ID căn cứ.
      */
     public record Check(String code, String status, String label, String detail, List<String> rules) {}
 
@@ -49,5 +57,6 @@ public record MenuAiDraftResponse(
     /** {@code reason}: lý do của model đã làm sạch (không chữ số, không thuật ngữ y khoa); null với phương án quy tắc. */
     public record Day(LocalDate date, boolean off, String reason, List<Item> items) {}
 
-    public record Item(MealSession session, Long dishId, String dishName, DishType dishType) {}
+    /** {@code slot}: khóa ô của món trong bữa, khớp {@link Slot#key()}. */
+    public record Item(String slot, MealSession session, Long dishId, String dishName, DishType dishType) {}
 }

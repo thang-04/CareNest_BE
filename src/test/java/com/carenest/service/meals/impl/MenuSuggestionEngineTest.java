@@ -169,16 +169,47 @@ class MenuSuggestionEngineTest {
     }
 
     @Test
-    @DisplayName("AC-4: cả AI và phương án quy tắc không đạt định mức ⇒ NO_FEASIBLE kèm lỗi chặn theo ngày")
-    void bothFailingIsNoFeasible() {
+    @DisplayName("AC-4: cả AI và phương án quy tắc không đạt định mức ⇒ vẫn trả lưới theo quy tắc kèm lỗi chặn")
+    void bothFailingKeepsRuleBasedGridWithBlockingIssues() {
         MenuContext ctx = MenuFixtures.ctx(DISHES, MenuFixtures.norm("1500", "1800"), Set.of(), Set.of(), Map.of());
         gateway.respond(r -> week(ctx, new long[] {THIT, CA, DAU, CA, THIT}, new long[] {SUA, SUA, SUA, SUA, SUA}, ""));
 
         MenuSuggestionEngine.Outcome outcome = engine.suggestWeek(ctx);
 
-        assertThat(outcome.status()).isEqualTo(MenuAiDraftStatus.NO_FEASIBLE);
+        assertThat(outcome.status()).isEqualTo(MenuAiDraftStatus.PENDING_REVIEW);
+        assertThat(outcome.source()).isEqualTo(MenuAiDraftSource.RULE_BASED);
         assertThat(outcome.fallbackReason()).isEqualTo(MenuAiFallbackReason.AI_INVALID);
-        assertThat(outcome.issues()).isNotEmpty().allMatch(MenuSuggestionEngineTest::blocking);
+        assertThat(outcome.issues()).anyMatch(MenuSuggestionEngineTest::blocking);
+        assertThat(outcome.grid().cells()).hasSize(5);
+        assertThat(outcome.checks())
+                .anySatisfy(c -> assertThat(c.code() + "=" + c.status()).isEqualTo("NORM_BALANCE=FAIL"));
+        // Món nhiều năng lượng nhất mỗi ô: cơm 210 + thịt 100 + bánh 700 = 1010 < 1500 ⇒ nói rõ lỗi do dữ liệu
+        assertThat(outcome.checks())
+                .filteredOn(c -> MenuCriteriaReport.KCAL_REACH.equals(c.code()))
+                .singleElement()
+                .satisfies(c -> {
+                    assertThat(c.status()).isEqualTo(MenuCriteriaReport.FAIL);
+                    assertThat(c.detail()).contains("1010 kcal").contains("tối thiểu 1500 kcal");
+                });
+    }
+
+    @Test
+    @DisplayName("Giới hạn năng lượng của món ứng viên: chỉ báo khi không cách chọn món nào tới được khoảng định mức")
+    void kcalReachOnlyReportsProvableDataLimits() {
+        assertThat(MenuCriteriaReport.kcalReach(MenuFixtures.ctx())).isNull();
+        // Món ít năng lượng nhất mỗi ô: cơm 210 + cá 60 + chuối 90 = 360 > 200
+        MenuContext tooRich = MenuFixtures.ctx(DISHES, MenuFixtures.norm("100", "200"), Set.of(), Set.of(), Map.of());
+        assertThat(MenuCriteriaReport.kcalReach(tooRich).detail())
+                .contains("360 kcal")
+                .contains("tối đa 200 kcal");
+        // Ô không có món ứng viên ⇒ không đủ căn cứ để kết luận
+        MenuContext noSnack = withCandidates(
+                tooRich,
+                Map.of(
+                        MenuFixtures.LUNCH_CARB.key(), List.of(COM),
+                        MenuFixtures.LUNCH_MAIN.key(), List.of(CA),
+                        MenuFixtures.AFTERNOON.key(), List.of()));
+        assertThat(MenuCriteriaReport.kcalReach(noSnack)).isNull();
     }
 
     @Test

@@ -24,6 +24,7 @@ Mức ép: **Chặn** = không đạt thì không thể là phương án đượ
 | Năng lượng, cơ cấu đạm–béo–bột đường (% năng lượng), đạm/béo động vật–thực vật (g) theo định mức nhóm tuổi | NUT-18 (nhu cầu dinh dưỡng của Chương trình GDMN, Bộ GD&ĐT), NUT-24; số định mức do PHT nhập (NUT-17) | Chặn | `NORM_BALANCE` |
 | Món có đủ định lượng cho mọi nhóm tuổi, thực phẩm có số liệu dinh dưỡng có nguồn | NUT-05 (cột `nutrient_source` bắt buộc), NUT-18 (thành phần theo Viện Dinh dưỡng), NUT-09 | Chặn (lọc ứng viên) | `CATALOG` |
 | Mỗi bữa khối phục vụ đều có món, đúng khung bữa (cơm–mặn–canh–rau…) | NUT-08, NUT-13 | Chặn | `NORM_BALANCE` |
+| Món ứng viên có tới được khoảng định mức năng lượng: mỗi ô lấy món nhiều (ít) năng lượng nhất mà tổng ngày vẫn dưới mức tối thiểu (trên mức tối đa) ⇒ lỗi do định lượng/danh mục, đổi món không sửa được. Chỉ có dòng này khi còn ngày chưa đạt và chứng minh được | NUT-18, NUT-24; số tính như evaluator | Hiển thị (`FAIL`) | `KCAL_REACH` |
 | Món đang dùng, thực phẩm đang dùng (không gợi ý món trường đã ngừng hoặc nguyên liệu không còn mua) | Danh mục `CatalogStatus` | Chặn (lọc ứng viên) | `CATALOG` |
 | Tỷ lệ năng lượng từng bữa so nhu cầu cả ngày | NUT-25 | Điểm + Hiển thị | `SESSION_KCAL_OFF` |
 | Vi chất (canxi, sắt, vitamin A, B1, B2, PP, C, photpho) | NUT-26 (Bảng thành phần thực phẩm VN, Viện Dinh dưỡng) | Điểm + Hiển thị | `MICRONUTRIENT_OFF` |
@@ -58,7 +59,7 @@ Mỗi nháp trả `checks` (bảng kiểm trên) cho đúng phương án đượ
 ## 5. Câu hỏi hội đồng hay gặp
 
 - **"Làm sao biết AI không bịa món, bịa số?"** AI chỉ trả bí danh món trong danh sách ứng viên của từng ô; bí danh lạ, sai ô, thiếu ô ⇒ loại cả output (`MenuAiOutputParserTest`). Số liệu hiển thị do evaluator tính; lý do của model bị xóa chữ số.
-- **"Nếu AI tệ thì người dùng có bị ảnh hưởng?"** Không: phương án theo quy tắc luôn được tính trước; AI chỉ được chọn khi đạt mọi kiểm tra chặn và điểm không thấp hơn (`MenuSuggestionEngineTest`). AI tắt, hết hạn mức, quá thời gian ⇒ vẫn có phương án hoặc thông báo không có phương án kèm nguyên nhân (AI-03).
+- **"Nếu AI tệ thì người dùng có bị ảnh hưởng?"** Không: phương án theo quy tắc luôn được tính trước; AI chỉ được chọn khi đạt mọi kiểm tra chặn và điểm không thấp hơn (`MenuSuggestionEngineTest`). AI tắt, hết hạn mức, quá thời gian ⇒ vẫn có phương án hoặc thông báo không có phương án kèm nguyên nhân (AI-03). Danh mục chưa ghép được thực đơn đạt định mức ⇒ vẫn hiện phương án theo quy tắc gắn nhãn chưa đạt kèm lỗi từng ngày; không bao giờ gắn nhãn AI và không công bố được cho tới khi PHT sửa đạt (NUT-09, `unmetPlanStillOffersDishesButCannotBePublished`).
 - **"Vì sao tin điểm số?"** Công thức tất định, có unit test (`MenuScoreTest`), áp cho cả AI và phương án quy tắc: sát định mức 45, giá 20, đa dạng 25, cảnh báo 10. Trọng số trong cấu hình, chỉ chỉnh khi có kết quả eval.
 - **"AI có thấy dữ liệu trẻ không?"** Không. Task thực đơn khai `PUBLIC_CATALOG`; prompt chỉ có món, định mức nhóm tuổi, giá suất (`AiPropertiesTest`, `MenuSuggestionEngineTest` kiểm prompt không chứa id thật).
 - **"Đo giá trị khi dùng thật thế nào?"** Bảng `menu_ai_drafts` lưu nguồn, điểm AI và quy tắc, lý do dự phòng, trạng thái dùng/bỏ: tính tỉ lệ `source=AI`, tỉ lệ PHT dùng, điểm chênh trung bình.

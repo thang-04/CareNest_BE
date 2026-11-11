@@ -107,6 +107,9 @@ public class MenuAiDraft {
     @Column(name = "input_fingerprint", nullable = false, length = 64)
     private String inputFingerprint;
 
+    @Column(name = "edited_cells", nullable = false)
+    private int editedCells;
+
     @Column(name = "created_by", nullable = false)
     private Long createdBy;
 
@@ -176,6 +179,12 @@ public class MenuAiDraft {
 
     public void apply(Long userId, Instant at) {
         decide(MenuAiDraftStatus.APPLIED, userId, at);
+    }
+
+    /** Dùng nháp sau khi người duyệt sửa {@code editedCells} ô; lưới gốc giữ nguyên để đo giá trị AI. */
+    public void applyEdited(Long userId, Instant at, int editedCells) {
+        decide(MenuAiDraftStatus.APPLIED, userId, at);
+        this.editedCells = editedCells;
     }
 
     public void dismiss(Long userId, Instant at) {

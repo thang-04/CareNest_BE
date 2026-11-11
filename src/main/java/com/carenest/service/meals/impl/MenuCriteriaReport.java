@@ -2,10 +2,14 @@ package com.carenest.service.meals.impl;
 
 import com.carenest.dto.meals.MealPlanResponse.Issue;
 import com.carenest.dto.meals.MenuAiDraftResponse.Check;
+import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
 import com.carenest.service.meals.impl.MealPlanEvaluator.DishInfo;
+import com.carenest.service.meals.impl.MealPlanEvaluator.Norm;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Portion;
 import com.carenest.utils.enums.MenuAiDraftSource;
 import com.carenest.utils.enums.MenuAiFallbackReason;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -26,6 +30,8 @@ final class MenuCriteriaReport {
     static final String INFO = "INFO";
     static final String FAIL = "FAIL";
     static final String DRY_STOCK_OUT = "DRY_STOCK_OUT";
+    static final String KCAL_REACH = "KCAL_REACH";
+    private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd/MM");
 
     private MenuCriteriaReport() {}
@@ -86,6 +92,12 @@ final class MenuCriteriaReport {
                         + " ngày đạt định mức mọi nhóm tuổi của khối; số liệu tính từ định lượng món và bảng thành phần"
                         + " thực phẩm",
                 List.of("NUT-06", "NUT-18", "NUT-24")));
+        if (!blockedDays.isEmpty()) {
+            Check reach = kcalReach(ctx);
+            if (reach != null) {
+                checks.add(reach);
+            }
+        }
         checks.add(countCheck(
                 issues, "SESSION_KCAL_OFF", "Tỷ lệ năng lượng từng bữa so nhu cầu cả ngày", List.of("NUT-25")));
         checks.add(countCheck(
@@ -148,6 +160,91 @@ final class MenuCriteriaReport {
                 gateDetail(source, fallback, aiScore, baselineScore),
                 List.of("AI-03", "AI-07")));
         return checks;
+    }
+
+    /**
+     * Giới hạn năng lượng của món ứng viên: mỗi ô lấy món nhiều (ít) năng lượng nhất mà tổng ngày vẫn dưới mức tối thiểu
+     * (trên mức tối đa) thì không cách chọn món nào đạt định mức — lỗi nằm ở định lượng/danh mục, không ở việc chọn món.
+     * Trả null khi không chứng minh được (ô không có ứng viên, chưa đặt định mức, hoặc khoảng định mức với tới được).
+     */
+    static Check kcalReach(MenuContext ctx) {
+        List<String> findings = new ArrayList<>();
+        for (AgeGroupInfo group : ctx.groups()) {
+            BigDecimal highest = BigDecimal.ZERO;
+            BigDecimal lowest = BigDecimal.ZERO;
+            for (MenuSlot slot : ctx.slots()) {
+                if (!group.sessions().contains(slot.session())) {
+                    continue;
+                }
+                List<BigDecimal> kcals = ctx.candidatesOf(slot).stream()
+                        .map(id -> dishKcal(ctx.dishes().get(id), group.id()))
+                        .toList();
+                if (kcals.isEmpty()) {
+                    return null;
+                }
+                highest = highest.add(kcals.stream().max(BigDecimal::compareTo).orElseThrow());
+                lowest = lowest.add(kcals.stream().min(BigDecimal::compareTo).orElseThrow());
+            }
+            for (LocalDate date : ctx.servedDates()) {
+                Norm norm = ctx.normOf().apply(group.id(), date);
+                if (norm == null || !norm.kcal().set()) {
+                    continue;
+                }
+                if (highest.compareTo(norm.kcal().min()) < 0) {
+                    findings.add(group.name() + ": chọn món nhiều năng lượng nhất ở mọi ô cũng chỉ đạt "
+                            + whole(highest) + " kcal/ngày, dưới mức tối thiểu "
+                            + whole(norm.kcal().min()) + " kcal");
+                    break;
+                }
+                if (lowest.compareTo(norm.kcal().max()) > 0) {
+                    findings.add(group.name() + ": chọn món ít năng lượng nhất ở mọi ô vẫn " + whole(lowest)
+                            + " kcal/ngày, vượt mức tối đa " + whole(norm.kcal().max()) + " kcal");
+                    break;
+                }
+            }
+        }
+        if (findings.isEmpty()) {
+            return null;
+        }
+        return new Check(
+                KCAL_REACH,
+                FAIL,
+                "Món ứng viên có đạt được định mức năng lượng",
+                String.join("; ", findings)
+                        + ". Đổi món không khắc phục được: cần chỉnh định lượng món, bổ sung món phù hợp vào danh mục"
+                        + " hoặc kiểm tra lại định mức đã nhập",
+                List.of("NUT-18", "NUT-24"));
+    }
+
+    // Cùng cách tính với evaluator: năng lượng trên 100 g × gam/100, làm tròn 0,1 theo món
+    private static BigDecimal dishKcal(DishInfo dish, Long groupId) {
+        BigDecimal kcal = BigDecimal.ZERO;
+        for (Portion p : dish.byAgeGroup().getOrDefault(groupId, List.of())) {
+            kcal = kcal.add(p.food().kcal().multiply(p.grams()).divide(HUNDRED, 10, RoundingMode.HALF_UP));
+        }
+        return kcal.setScale(1, RoundingMode.HALF_UP);
+    }
+
+    private static String whole(BigDecimal value) {
+        return value.setScale(0, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    /** Lưới đã bị người duyệt sửa: dòng cổng giá trị nói rõ phần nào là của người (AI-01, AI-02). */
+    static List<Check> withEdits(List<Check> checks, int editedCells) {
+        if (editedCells == 0) {
+            return checks;
+        }
+        return checks.stream()
+                .map(c -> "VALUE_GATE".equals(c.code())
+                        ? new Check(
+                                c.code(),
+                                INFO,
+                                c.label(),
+                                "Người duyệt đã sửa " + editedCells + " ô so với gợi ý; điểm và bảng kiểm tính trên"
+                                        + " bản đã sửa",
+                                c.rules())
+                        : c)
+                .toList();
     }
 
     private static Check countCheck(List<Issue> issues, String code, String label, List<String> rules) {

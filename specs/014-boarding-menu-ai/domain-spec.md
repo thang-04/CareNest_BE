@@ -25,6 +25,7 @@ Nháp → tuần (`week_start` + khối) hoặc mẫu ngày (khối) hoặc mộ
 - UR-1: PHT bấm "AI gợi ý" cho tuần/khối, nhận lưới năm ngày kèm nguồn (AI/Theo quy tắc), điểm, cảnh báo, lý do theo ngày.
 - UR-2: PHT dùng nháp vào tuần DRAFT (chỉ khối đã chọn) hoặc bỏ.
 - UR-3: AI tắt/lỗi vẫn nhận phương án theo quy tắc hoặc thông báo không có phương án kèm nguyên nhân.
+- UR-5 (user, 10/11/2026: "gợi ý món ăn mà"): danh mục chưa ghép được tuần/ngày đạt định mức vẫn hiện lưới món theo quy tắc kèm lỗi theo ngày, nhãn chưa đạt; PHT dùng làm điểm bắt đầu rồi sửa tay. Công bố vẫn theo NUT-09.
 - UR-4: Gợi ý mẫu ngày và thay một món dùng cùng cách.
 
 ## 7. Business Rules
@@ -34,7 +35,7 @@ AI-01 (nháp, `source`, model, thời điểm), AI-02 (người duyệt công b�
 `[S]` PHT chọn tuần + khối, nhập mùa, mong muốn → `[S]` dựng ứng viên, baseline, gọi AI, kiểm, sửa, chấm, quyết định → `[S]` lưu nháp, hiển thị → `[S]` PHT dùng (ghi vào tuần DRAFT) | bỏ → `[S]` PHT sửa tiếp, công bố qua luồng hiện có.
 
 ## 9. State / Lifecycle
-`PENDING_REVIEW` → `APPLIED` | `DISMISSED`. `NO_FEASIBLE` là trạng thái cuối (không dùng được). Không quay lại.
+`PENDING_REVIEW` → `APPLIED` | `DISMISSED`. `NO_FEASIBLE` là trạng thái cuối (không dựng được lưới món, không dùng được). Nháp chưa đạt định mức (`feasible=false`) vẫn là `PENDING_REVIEW`. Không quay lại.
 
 ## 10. Business Constraints
 - Dị ứng: thực đơn chung không loại món có chất dị ứng (NUT-23 xử lý bằng món thay thế); hiển thị chất dị ứng như evaluator (`ALLERGENS`, mức INFO), không trừ điểm.

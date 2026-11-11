@@ -5380,12 +5380,36 @@ paths:
         schema:
           type: integer
           format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuAiDraftGridRequest"
       responses:
         "200":
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonMealPlanResponse"
+          description: OK
+      tags:
+      - menu-ai-draft-controller
+  /api/nutrition/menu-ai-drafts/{id}/candidates:
+    get:
+      operationId: getCandidates
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuAiDraftCandidatesResponse"
           description: OK
       tags:
       - menu-ai-draft-controller
@@ -5405,6 +5429,31 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonMenuAiDraftResponse"
+          description: OK
+      tags:
+      - menu-ai-draft-controller
+  /api/nutrition/menu-ai-drafts/{id}/evaluate:
+    post:
+      operationId: evaluateDraft
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MenuAiDraftGridRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMenuAiDraftEvaluationResponse"
           description: OK
       tags:
       - menu-ai-draft-controller
@@ -13311,6 +13360,44 @@ components:
           $ref: "#/components/schemas/DeclarationAnswerInput"
         tbContact:
           $ref: "#/components/schemas/TbContactInput"
+    MenuAiDraftCandidatesResponse:
+      type: object
+      properties:
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/Slot"
+    MenuAiDraftEvaluationResponse:
+      type: object
+      properties:
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Check"
+        editedCells:
+          type: integer
+          format: int32
+        evaluations:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evaluation"
+        feasible:
+          type: boolean
+        issues:
+          type: array
+          items:
+            $ref: "#/components/schemas/Issue"
+        score:
+          $ref: "#/components/schemas/Score"
+    MenuAiDraftGridRequest:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/Day"
+      required:
+      - days
     MenuAiDraftRequest:
       type: object
       properties:
@@ -13370,6 +13457,9 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Day"
+        editedCells:
+          type: integer
+          format: int32
         fallbackReason:
           type: string
           enum:
@@ -13378,6 +13468,8 @@ components:
           - AI_TIMEOUT
           - AI_INVALID
           - AI_NOT_BETTER
+        feasible:
+          type: boolean
         fromDishId:
           type: integer
           format: int64
@@ -13400,6 +13492,10 @@ components:
           type: string
         score:
           $ref: "#/components/schemas/Score"
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/Slot"
         source:
           type: string
           enum:
@@ -16368,6 +16464,32 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonMenuAiDraftCandidatesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MenuAiDraftCandidatesResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonMenuAiDraftEvaluationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MenuAiDraftEvaluationResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonMenuAiDraftResponse:
       type: object
       properties:
@@ -17789,6 +17911,31 @@ components:
           - SEMESTER
         reason:
           type: string
+    Slot:
+      type: object
+      properties:
+        dishTypes:
+          type: array
+          items:
+            type: string
+            enum:
+            - CARB
+            - MAIN
+            - SOUP
+            - VEGETABLE
+            - SNACK
+            - DESSERT
+        index:
+          type: integer
+          format: int32
+        key:
+          type: string
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
     SourceClass:
       type: object
       properties:

@@ -35,7 +35,8 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * Cổng giá trị gợi ý thực đơn tuần (bước 3–8, AI-07, NUT-09): phương án theo quy tắc luôn có; phương án AI chỉ được
  * chọn khi qua cổng cứng (guard cấu trúc + không lỗi chặn của evaluator) và điểm không thấp hơn phương án theo quy tắc.
- * Không I/O DB; lỗi provider không làm hỏng nghiệp vụ (AI-03).
+ * Tuần/mẫu ngày không phương án nào qua cổng cứng ⇒ vẫn trả phương án theo quy tắc kèm lỗi chặn để PHT sửa tay; công
+ * bố vẫn bị chặn ở kế hoạch tuần (NUT-09). Không I/O DB; lỗi provider không làm hỏng nghiệp vụ (AI-03).
  */
 @Slf4j
 @Component
@@ -57,7 +58,10 @@ class MenuSuggestionEngine {
     private final MenuAiProperties properties;
     private final Clock clock;
 
-    /** Kết quả cổng giá trị; {@code grid} rỗng và {@code source} null khi {@code NO_FEASIBLE}. */
+    /**
+     * Kết quả cổng giá trị; {@code grid} rỗng và {@code source} null khi {@code NO_FEASIBLE}. {@code PENDING_REVIEW} mà
+     * {@code issues} còn lỗi chặn = phương án theo quy tắc chưa đạt định mức, chỉ để làm điểm bắt đầu.
+     */
     record Outcome(
             MenuAiDraftStatus status,
             MenuAiDraftSource source,
@@ -96,7 +100,7 @@ class MenuSuggestionEngine {
             return noFeasible(ctx, causes, null, null, null, ModelCall.NONE);
         }
         Candidate baseline = judge(MenuPlanRepairer.repair(RuleBasedMenuPlanner.plan(ctx), ctx), ctx);
-        return decide(ctx, baseline, attemptAi(ctx, task, firstPrompt));
+        return decide(ctx, baseline, attemptAi(ctx, task, firstPrompt), true);
     }
 
     /**
@@ -127,7 +131,7 @@ class MenuSuggestionEngine {
                 baseline = trial;
             }
         }
-        return decide(dayView, baseline, attemptDayFix(ctx, current, date, slot));
+        return decide(dayView, baseline, attemptDayFix(ctx, current, date, slot), false);
     }
 
     /**
@@ -147,8 +151,9 @@ class MenuSuggestionEngine {
         return new Candidate(grid, result, MenuScore.score(grid, result, ctx, properties.weights()));
     }
 
-    // Bước 8: AI chỉ được chọn khi qua cổng cứng và không thua phương án theo quy tắc
-    private static Outcome decide(MenuContext ctx, Candidate baseline, AiAttempt ai) {
+    // Bước 8: AI chỉ được chọn khi qua cổng cứng và không thua phương án theo quy tắc. keepUnmet: không phương án nào
+    // qua cổng cứng thì vẫn đưa phương án theo quy tắc (thay một món thì không: đổi sang món vẫn lỗi là vô ích)
+    private static Outcome decide(MenuContext ctx, Candidate baseline, AiAttempt ai, boolean keepUnmet) {
         Candidate aiCandidate = ai.candidate();
         Integer aiScore = aiCandidate == null ? null : aiCandidate.score().total();
         int baseScore = baseline.score().total();
@@ -157,7 +162,7 @@ class MenuSuggestionEngine {
         }
         MenuAiFallbackReason reason =
                 aiCandidate != null && aiCandidate.passes() ? MenuAiFallbackReason.AI_NOT_BETTER : ai.failure();
-        if (!baseline.passes()) {
+        if (!baseline.passes() && !keepUnmet) {
             return noFeasible(ctx, blocking(baseline.result()), reason, aiScore, baseScore, ai.call());
         }
         return chosen(ctx, baseline, MenuAiDraftSource.RULE_BASED, reason, aiScore, baseScore, ai.call());
@@ -183,6 +188,14 @@ class MenuSuggestionEngine {
                 candidate.score(),
                 call,
                 MenuCriteriaReport.build(candidate.grid(), issues, ctx, source, reason, aiScore, baseScore));
+    }
+
+    /** Kết quả chấm một lưới bất kỳ (vd. lưới người duyệt đã sửa) bằng đúng cách chấm của cổng giá trị. */
+    record Assessment(MealPlanEvaluator.Result result, MenuScore.Breakdown score) {}
+
+    Assessment assess(MenuContext ctx, MenuGrid grid) {
+        Candidate judged = judge(grid, ctx);
+        return new Assessment(judged.result(), judged.score());
     }
 
     private record AiAttempt(Candidate candidate, MenuAiFallbackReason failure, ModelCall call) {}

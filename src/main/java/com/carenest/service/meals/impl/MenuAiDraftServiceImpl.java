@@ -3,6 +3,9 @@ package com.carenest.service.meals.impl;
 import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
+import com.carenest.dto.meals.MenuAiDraftCandidatesResponse;
+import com.carenest.dto.meals.MenuAiDraftEvaluationResponse;
+import com.carenest.dto.meals.MenuAiDraftGridRequest;
 import com.carenest.dto.meals.MenuAiDraftRequest;
 import com.carenest.dto.meals.MenuAiDraftResponse;
 import com.carenest.entity.meals.AgeGroupMealConfig;
@@ -24,6 +27,7 @@ import com.carenest.service.meals.impl.MealPlanEvaluator.DayPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.ItemPlan;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CatalogStatus;
+import com.carenest.utils.enums.DishType;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuAiDraftKind;
 import com.carenest.utils.enums.MenuAiDraftStatus;
@@ -39,11 +43,14 @@ import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -161,8 +168,9 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
     }
 
     @Override
-    public MealPlanResponse applyDraft(CurrentUser currentUser, Long id) {
-        String logPrefix = LOG_PREFIX + "|applyDraft|userId=" + currentUser.userId() + "|draftId=" + id;
+    public MealPlanResponse applyDraft(CurrentUser currentUser, Long id, MenuAiDraftGridRequest edited) {
+        String logPrefix = LOG_PREFIX + "|applyDraft|userId=" + currentUser.userId() + "|draftId=" + id + "|edited="
+                + (edited != null);
         log.info("{}|START", logPrefix);
         try {
             checkCanManage(currentUser);
@@ -187,11 +195,21 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                 throw GlobalException.of(ApiCode.MEAL_PLAN_PUBLISHED);
             }
             StoredOutput output = objectMapper.readValue(draft.getOutputJson(), StoredOutput.class);
-            MealPlanRequest request = draft.getKind() == MenuAiDraftKind.MENU_DAY_FIX
-                    ? replacedDish(draft, week, output)
-                    : mergedWeek(weekStart, week, draft, output);
+            int editedCells = 0;
+            MealPlanRequest request;
+            if (edited != null) {
+                // Người duyệt đã sửa món trên nháp (AI-02): ghi lưới đã sửa, lưới gốc giữ để đo giá trị AI
+                MenuContext ctx = pendingWeeklyContext(currentUser, draft);
+                MenuGrid grid = editedGrid(ctx, output, edited);
+                editedCells = editedCells(output, grid);
+                request = mergedWeek(weekStart, week, draft, gridOutput(ctx, grid), true);
+            } else {
+                request = draft.getKind() == MenuAiDraftKind.MENU_DAY_FIX
+                        ? replacedDish(draft, week, output)
+                        : mergedWeek(weekStart, week, draft, output, false);
+            }
             MealPlanResponse response = mealPlanService.saveMealPlan(currentUser, weekStart, request);
-            draft.apply(currentUser.userId(), now());
+            draft.applyEdited(currentUser.userId(), now(), editedCells);
             draftRepository.saveAndFlush(draft);
             log.info("{}|END", logPrefix);
             return response;
@@ -224,6 +242,169 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MenuAiDraftCandidatesResponse getCandidates(CurrentUser currentUser, Long id) {
+        String logPrefix = LOG_PREFIX + "|getCandidates|userId=" + currentUser.userId() + "|draftId=" + id;
+        log.info("{}|START", logPrefix);
+        try {
+            checkCanManage(currentUser);
+            MenuContext ctx = pendingWeeklyContext(currentUser, findDraft(id));
+            MenuContext.Signals signals = ctx.signals();
+            List<MenuAiDraftCandidatesResponse.Slot> slots = ctx.slots().stream()
+                    .map(slot -> new MenuAiDraftCandidatesResponse.Slot(
+                            slot.key(),
+                            slot.session(),
+                            slot.index(),
+                            slot.types().stream().sorted().toList(),
+                            ctx.candidatesOf(slot).stream()
+                                    .map(dishId -> new MenuAiDraftCandidatesResponse.Dish(
+                                            dishId,
+                                            ctx.dishes().get(dishId).name(),
+                                            ctx.dishes().get(dishId).type(),
+                                            signals.seasonal().contains(dishId),
+                                            signals.familiar().contains(dishId),
+                                            signals.outOfStock().contains(dishId)))
+                                    .toList()))
+                    .toList();
+            log.info("{}|END|slots={}", logPrefix, slots.size());
+            return new MenuAiDraftCandidatesResponse(slots);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MenuAiDraftEvaluationResponse evaluateDraft(CurrentUser currentUser, Long id, MenuAiDraftGridRequest grid) {
+        String logPrefix = LOG_PREFIX + "|evaluateDraft|userId=" + currentUser.userId() + "|draftId=" + id;
+        log.info("{}|START", logPrefix);
+        try {
+            checkCanManage(currentUser);
+            MenuAiDraft draft = findDraft(id);
+            MenuContext ctx = pendingWeeklyContext(currentUser, draft);
+            StoredOutput output = objectMapper.readValue(draft.getOutputJson(), StoredOutput.class);
+            MenuGrid edited = editedGrid(ctx, output, grid);
+            int editedCells = editedCells(output, edited);
+            // Cùng cách chấm với lúc tạo nháp (evaluator + cảnh báo kho khô + điểm): số liệu chỉ do code tính (NUT-05)
+            MenuSuggestionEngine.Assessment assessment = engine.assess(ctx, edited);
+            List<MealPlanResponse.Issue> issues = assessment.result().issues();
+            StoredScore stored = objectMapper.readValue(draft.getScoreJson(), StoredScore.class);
+            MenuScore.Breakdown b = assessment.score();
+            MenuAiDraftEvaluationResponse response = new MenuAiDraftEvaluationResponse(
+                    assessment.result().publishable(),
+                    editedCells,
+                    new MenuAiDraftEvaluationResponse.Score(
+                            b.total(),
+                            new MenuAiDraftResponse.Breakdown(b.norm(), b.cost(), b.variety(), b.warnings())),
+                    assessment.result().evaluations(),
+                    issues,
+                    MenuCriteriaReport.withEdits(
+                            MenuCriteriaReport.build(
+                                    edited,
+                                    issues,
+                                    ctx,
+                                    draft.getSource(),
+                                    draft.getFallbackReason(),
+                                    stored.ai(),
+                                    stored.baseline()),
+                            editedCells));
+            log.info("{}|END|editedCells={}|feasible={}", logPrefix, editedCells, response.feasible());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // Sửa món chỉ có ở gợi ý tuần đang chờ duyệt; ngữ cảnh đọc lại trên dữ liệu hiện tại (tuần đã công bố ⇒ 409)
+    private MenuContext pendingWeeklyContext(CurrentUser user, MenuAiDraft draft) {
+        if (draft.getKind() != MenuAiDraftKind.MENU_WEEKLY) {
+            throw GlobalException.of(ApiCode.MENU_AI_DRAFT_KIND_INVALID);
+        }
+        if (!draft.isPending()) {
+            throw GlobalException.of(ApiCode.MENU_AI_DRAFT_NOT_PENDING);
+        }
+        StoredRequest stored = objectMapper.readValue(draft.getRequestJson(), StoredRequest.class);
+        return contextLoader.weekly(user, draft.getMenuBlock(), draft.getWeekStart(), stored.season(), stored.wishes());
+    }
+
+    private static Map<LocalDate, Map<String, Long>> cellsOf(StoredOutput output) {
+        Map<LocalDate, Map<String, Long>> cells = new TreeMap<>();
+        for (StoredDay day : output.days()) {
+            Map<String, Long> bySlot = new LinkedHashMap<>();
+            day.items().forEach(item -> bySlot.put(item.slot(), item.dishId()));
+            cells.put(day.date(), bySlot);
+        }
+        return cells;
+    }
+
+    /**
+     * Lưới người duyệt gửi lên (NUT-05, NUT-09): đủ đúng các ngày phục vụ, mỗi ô của khung đúng một món, món thuộc ứng
+     * viên của ô (hoặc là món gợi ý gốc của chính ô đó), không lặp món trong một bữa. Sai ⇒ 400 kèm lỗi theo ô.
+     */
+    private static MenuGrid editedGrid(MenuContext ctx, StoredOutput output, MenuAiDraftGridRequest request) {
+        Map<LocalDate, Map<String, Long>> original = cellsOf(output);
+        Map<String, MenuSlot> slots = new LinkedHashMap<>();
+        ctx.slots().forEach(slot -> slots.put(slot.key(), slot));
+        List<LocalDate> served = ctx.servedDates();
+        List<FieldErrorResponse> errors = new ArrayList<>();
+        Map<LocalDate, Map<String, Long>> cells = new TreeMap<>();
+        for (MenuAiDraftGridRequest.Day day : request.days()) {
+            String field = "days[" + day.date() + "]";
+            if (!served.contains(day.date()) || cells.containsKey(day.date())) {
+                errors.add(new FieldErrorResponse(field, "Ngày không thuộc các ngày phục vụ của tuần hoặc bị lặp"));
+                continue;
+            }
+            Map<String, Long> bySlot = new LinkedHashMap<>();
+            Map<MealSession, Set<Long>> usedBySession = new HashMap<>();
+            for (MenuAiDraftGridRequest.Item item : day.items()) {
+                MenuSlot slot = slots.get(item.slot());
+                String cell = field + "." + item.slot();
+                if (slot == null || bySlot.containsKey(item.slot())) {
+                    errors.add(new FieldErrorResponse(cell, "Ô không thuộc khung thực đơn hoặc bị lặp"));
+                    continue;
+                }
+                Long suggested = original.getOrDefault(day.date(), Map.of()).get(item.slot());
+                if (!ctx.candidatesOf(slot).contains(item.dishId())
+                        && !item.dishId().equals(suggested)) {
+                    errors.add(new FieldErrorResponse(cell, "Món không thuộc danh sách chọn được của ô này"));
+                } else if (!usedBySession
+                        .computeIfAbsent(slot.session(), s -> new TreeSet<>())
+                        .add(item.dishId())) {
+                    errors.add(new FieldErrorResponse(cell, "Món đã có ở ô khác của cùng bữa"));
+                }
+                bySlot.put(item.slot(), item.dishId());
+            }
+            if (bySlot.size() != slots.size()) {
+                errors.add(new FieldErrorResponse(field, "Mỗi ô của ngày cần đúng một món"));
+            }
+            cells.put(day.date(), bySlot);
+        }
+        if (cells.size() != served.size()) {
+            errors.add(new FieldErrorResponse("days", "Cần đủ mọi ngày phục vụ của tuần"));
+        }
+        if (!errors.isEmpty()) {
+            throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
+        }
+        return new MenuGrid(cells, Map.of());
+    }
+
+    private static int editedCells(StoredOutput output, MenuGrid grid) {
+        Map<LocalDate, Map<String, Long>> original = cellsOf(output);
+        int edited = 0;
+        for (Map.Entry<LocalDate, Map<String, Long>> day : grid.cells().entrySet()) {
+            Map<String, Long> suggested = original.getOrDefault(day.getKey(), Map.of());
+            for (Map.Entry<String, Long> cell : day.getValue().entrySet()) {
+                if (!cell.getValue().equals(suggested.get(cell.getKey()))) {
+                    edited++;
+                }
+            }
+        }
+        return edited;
     }
 
     // Postgres lưu tới micro giây: cắt sẵn để giá trị trả ngay sau khi lưu trùng giá trị đọc lại
@@ -422,8 +603,10 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
     /**
      * Kiểm lại trên dữ liệu mới trước khi ghi (NUT-08, NUT-09): món ngừng dùng, bữa không còn phục vụ hoặc phát sinh lỗi
      * chặn ở {@code checkedDates} ⇒ 409 kèm danh sách lỗi theo ngày. {@code plans}: lưới của khối sẽ được ghi.
+     * {@code blockingAllowed}: nháp vốn chưa đạt định mức lúc tạo nên không kiểm lại lỗi chặn (công bố vẫn chặn).
      */
-    private void checkStillValid(MenuAiDraft draft, List<DayPlan> plans, Set<LocalDate> checkedDates) {
+    private void checkStillValid(
+            MenuAiDraft draft, List<DayPlan> plans, Set<LocalDate> checkedDates, boolean blockingAllowed) {
         List<AgeGroupInfo> groups = contextLoader.blockGroups(draft.getMenuBlock());
         Set<MealSession> served =
                 groups.stream().flatMap(g -> g.sessions().stream()).collect(Collectors.toSet());
@@ -450,7 +633,7 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                 }
             }
         }
-        if (errors.isEmpty()) {
+        if (errors.isEmpty() && !blockingAllowed) {
             MealPlanEvaluator.Result result = MealPlanEvaluator.evaluate(
                     plans,
                     groups,
@@ -471,9 +654,12 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
      * Tuần hiện có (giữ ngày nghỉ, ghi chú, món khối khác) + món của khối trong nháp thay cho món cũ của khối đó. Dữ
      * liệu đổi từ lúc tạo nháp (fingerprint khác) ⇒ kiểm lại cả tuần của khối.
      */
-    private MealPlanRequest mergedWeek(LocalDate weekStart, MealPlanWeek week, MenuAiDraft draft, StoredOutput output) {
-        if (!fingerprint(draft.getMenuBlock(), weekStart.plusDays(DAYS - 1L), dishIdsOf(output))
-                .equals(draft.getInputFingerprint())) {
+    private MealPlanRequest mergedWeek(
+            LocalDate weekStart, MealPlanWeek week, MenuAiDraft draft, StoredOutput output, boolean edited) {
+        // Lưới đã sửa: món đã được đối chiếu với ứng viên hiện tại, lỗi chặn được phép (công bố vẫn chặn — NUT-09)
+        if (edited
+                || !fingerprint(draft.getMenuBlock(), weekStart.plusDays(DAYS - 1L), dishIdsOf(output))
+                        .equals(draft.getInputFingerprint())) {
             List<DayPlan> plans = output.days().stream()
                     .map(d -> new DayPlan(
                             d.date(),
@@ -483,7 +669,11 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                                     .distinct()
                                     .toList()))
                     .toList();
-            checkStillValid(draft, plans, plans.stream().map(DayPlan::date).collect(Collectors.toSet()));
+            checkStillValid(
+                    draft,
+                    plans,
+                    plans.stream().map(DayPlan::date).collect(Collectors.toSet()),
+                    edited || !feasible(draft));
         }
         Map<LocalDate, StoredDay> drafted =
                 output.days().stream().collect(Collectors.toMap(StoredDay::date, Function.identity()));
@@ -549,8 +739,45 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
             days.add(new MealPlanRequest.DayInput(existing.getMenuDate(), existing.isOff(), existing.getNote(), items));
             blockPlans.add(new DayPlan(existing.getMenuDate(), existing.isOff(), blockItems));
         }
-        checkStillValid(draft, blockPlans, Set.of(date));
+        checkStillValid(draft, blockPlans, Set.of(date), false);
         return new MealPlanRequest(days);
+    }
+
+    // Hàng của bảng gợi ý suy từ chính lưới đã lưu (khóa ô + loại món đang nằm ở ô): nháp cũ vẫn đúng hàng dù khung ô
+    // của bộ mẫu đã đổi sau đó
+    private static List<MenuAiDraftResponse.Slot> slotsOf(StoredOutput output, Map<Long, Dish> dishes) {
+        Map<String, MealSession> sessions = new LinkedHashMap<>();
+        Map<String, Set<DishType>> types = new HashMap<>();
+        for (StoredDay day : output.days()) {
+            for (StoredItem item : day.items()) {
+                sessions.putIfAbsent(item.slot(), item.session());
+                Dish dish = dishes.get(item.dishId());
+                if (dish != null) {
+                    types.computeIfAbsent(item.slot(), k -> new TreeSet<>()).add(dish.getDishType());
+                }
+            }
+        }
+        return sessions.entrySet().stream()
+                .map(e -> new MenuAiDraftResponse.Slot(
+                        e.getKey(),
+                        e.getValue(),
+                        slotIndex(e.getKey()),
+                        List.copyOf(types.getOrDefault(e.getKey(), Set.of()))))
+                .sorted(Comparator.comparing(MenuAiDraftResponse.Slot::session)
+                        .thenComparingInt(MenuAiDraftResponse.Slot::index))
+                .toList();
+    }
+
+    // Khóa ô dạng "LUNCH.2" ⇒ chỉ số 1 (xem MenuSlot.key)
+    private static int slotIndex(String key) {
+        return Integer.parseInt(key.substring(key.lastIndexOf('.') + 1)) - 1;
+    }
+
+    // Có lưới món và không còn lỗi chặn của evaluator lúc tạo (NUT-09)
+    private boolean feasible(MenuAiDraft draft) {
+        return draft.getStatus() != MenuAiDraftStatus.NO_FEASIBLE
+                && List.of(objectMapper.readValue(draft.getIssuesJson(), MealPlanResponse.Issue[].class)).stream()
+                        .noneMatch(i -> MealPlanEvaluator.BLOCKING.equals(i.severity()));
     }
 
     private MenuAiDraftResponse toResponse(MenuAiDraft draft) {
@@ -570,6 +797,7 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                                 .map(i -> {
                                     Dish dish = dishes.get(i.dishId());
                                     return new MenuAiDraftResponse.Item(
+                                            i.slot(),
                                             i.session(),
                                             i.dishId(),
                                             dish == null ? null : dish.getName(),
@@ -586,14 +814,17 @@ public class MenuAiDraftServiceImpl implements MenuAiDraftService {
                 draft.getTargetSession(),
                 draft.getFromDishId(),
                 draft.getStatus(),
+                feasible(draft),
                 draft.getSource(),
                 draft.getFallbackReason(),
                 draft.getModel(),
                 draft.getPromptVersion(),
                 draft.getCreatedAt(),
                 new MenuAiDraftResponse.Score(score.ai(), score.baseline(), score.breakdown()),
+                slotsOf(output, dishes),
                 days,
                 issues,
-                score.checks() == null ? List.of() : score.checks());
+                score.checks() == null ? List.of() : score.checks(),
+                draft.getEditedCells());
     }
 }
