@@ -468,6 +468,20 @@ class MealCountIntegrationTest {
     }
 
     @Test
+    @DisplayName("Tổng hợp điểm danh lấy suất thay thế của sổ báo ăn đã lập, không tính lại theo hồ sơ dị ứng hiện tại")
+    void attendanceSummaryUsesSubstituteFromMealBook() {
+        attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), present(child2)));
+        clock.now = AFTER_CUTOFF;
+        service.getMealCounts(vpA, TODAY, null);
+        service.adjust(vpA, new MealAdjustRequest(campusA, TODAY, null, classA, null, 1, "Trẻ dị ứng nặng"));
+
+        var summary = attendanceService.getClassSummary(vpA, classA, TODAY, TODAY);
+        assertThat(summary.days())
+                .singleElement()
+                .satisfies(d -> assertThat(d.substitute()).isEqualTo(1));
+    }
+
+    @Test
     @DisplayName("Chưa điều chỉnh tay: đổi điểm danh tính lại suất thay thế theo hồ sơ, không bật cờ kiểm tra lại")
     void attendanceChangeRecomputesSubstituteWhenNotAdjusted() {
         attendanceService.saveClassAttendance(teacherA, classA, request(present(child1), absent(child2)));
