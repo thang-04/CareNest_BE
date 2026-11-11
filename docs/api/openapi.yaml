@@ -1238,6 +1238,66 @@ paths:
           description: OK
       tags:
       - reward-list-controller
+  /api/assessment/semester-evaluations:
+    get:
+      operationId: getSemesterAssessment
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: semester
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
+          description: OK
+      tags:
+      - semester-assessment-controller
+    put:
+      operationId: saveSemesterAssessment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SemesterAssessmentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
+          description: OK
+      tags:
+      - semester-assessment-controller
+  /api/assessment/semester-evaluations/confirm:
+    post:
+      operationId: confirmSemesterAssessment
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SemesterAssessmentRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
+          description: OK
+      tags:
+      - semester-assessment-controller
   /api/assessment/theme-evaluations:
     get:
       operationId: getEvaluation
@@ -6903,6 +6963,25 @@ paths:
           description: OK
       tags:
       - year-transition-controller
+  /api/school-years/{schoolYearId}/prep-classes:
+    get:
+      operationId: getPrepClasses
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPrepClassesResponse"
+          description: OK
+      tags:
+      - year-transition-controller
   /api/school-years/{schoolYearId}/readiness:
     get:
       operationId: getReadiness
@@ -7232,6 +7311,20 @@ paths:
       - teacher-assignment-controller
 components:
   schemas:
+    AbsentChild:
+      type: object
+      properties:
+        attendanceStatus:
+          type: string
+          enum:
+          - PRESENT
+          - EXCUSED
+          - UNEXCUSED
+        childId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
     AccessToken:
       type: object
       properties:
@@ -7891,7 +7984,7 @@ components:
         maxClassSize:
           type: integer
           format: int32
-          maximum: 32767
+          maximum: 60
           minimum: 1
         mealSessions:
           type: array
@@ -9288,6 +9381,8 @@ components:
           - SEMESTER_1
           - SEMESTER_2
           - YEAR
+        principalName:
+          type: string
         rows:
           type: array
           items:
@@ -9365,7 +9460,7 @@ components:
         capacity:
           type: integer
           format: int32
-          maximum: 32767
+          maximum: 60
           minimum: 1
         locationId:
           type: integer
@@ -9746,6 +9841,9 @@ components:
         classroomId:
           type: integer
           format: int64
+        replacedTeacherId:
+          type: integer
+          format: int64
         substitute:
           type: boolean
         userId:
@@ -10015,8 +10113,8 @@ components:
             - OTHER
         temperature:
           type: number
-          maximum: 99.9
-          minimum: 10.0
+          maximum: 45.0
+          minimum: 20.0
       required:
       - childId
       - classId
@@ -10026,6 +10124,10 @@ components:
     DailySheetResponse:
       type: object
       properties:
+        absentChildren:
+          type: array
+          items:
+            $ref: "#/components/schemas/AbsentChild"
         attendanceTaken:
           type: boolean
         campusId:
@@ -10408,9 +10510,16 @@ components:
         id:
           type: integer
           format: int64
+        teaches:
+          type: boolean
     DevelopmentResponse:
       type: object
       properties:
+        absentDays:
+          type: array
+          items:
+            type: string
+            format: date
         child:
           $ref: "#/components/schemas/ChildRef"
         cls:
@@ -13272,6 +13381,7 @@ components:
           - FORWARDED
           - RETURNED
           - APPROVED
+          - DIRECT_APPROVED
         at:
           type: string
           format: date-time
@@ -13753,59 +13863,59 @@ components:
         environment:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         health:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         overall:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         parents:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         program:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         records:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         routine:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
         theme:
           type: string
           enum:
+          - XUAT_SAC
           - TOT
           - KHA
-          - DAT
-          - CHUA_DAT
+          - TRUNG_BINH
     Limits:
       type: object
       properties:
@@ -13826,6 +13936,8 @@ components:
         ageGroupId:
           type: integer
           format: int64
+        attendanceChanged:
+          type: boolean
         classId:
           type: integer
           format: int64
@@ -13849,6 +13961,8 @@ components:
         substitute:
           type: integer
           format: int32
+        substituteAdjusted:
+          type: boolean
     LinkedChildResponse:
       type: object
       properties:
@@ -14383,7 +14497,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -14419,7 +14546,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -14504,6 +14644,7 @@ components:
           enum:
           - CHILD_PICKED_UP
           - MEAL_COUNT_RECONFIRM
+          - ATTENDANCE_DAY_UNLOCKED
           - EDU_SUBMITTED
           - EDU_STEP_APPROVED
           - EDU_RELEASED
@@ -14594,7 +14735,20 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - YEAR_PLACEMENT_MANAGE
+          - ROOM_MANAGE
+          - ATTENDANCE_VIEW
+          - ATTENDANCE_RECORD
+          - DAILY_HEALTH_RECORD
+          - PICKUP_RECORD
+          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
+          - ASSESSMENT_VIEW
+          - ASSESSMENT_RECORD
+          - ASSESSMENT_CONFIRM
+          - ASSESSMENT_UNLOCK
+          - ASSESSMENT_CLASS_REVIEW
+          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -14850,7 +15004,20 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - YEAR_PLACEMENT_MANAGE
+          - ROOM_MANAGE
+          - ATTENDANCE_VIEW
+          - ATTENDANCE_RECORD
+          - DAILY_HEALTH_RECORD
+          - PICKUP_RECORD
+          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
+          - ASSESSMENT_VIEW
+          - ASSESSMENT_RECORD
+          - ASSESSMENT_CONFIRM
+          - ASSESSMENT_UNLOCK
+          - ASSESSMENT_CLASS_REVIEW
+          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -14886,7 +15053,20 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
+          - YEAR_PLACEMENT_MANAGE
+          - ROOM_MANAGE
+          - ATTENDANCE_VIEW
+          - ATTENDANCE_RECORD
+          - DAILY_HEALTH_RECORD
+          - PICKUP_RECORD
+          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
+          - ASSESSMENT_VIEW
+          - ASSESSMENT_RECORD
+          - ASSESSMENT_CONFIRM
+          - ASSESSMENT_UNLOCK
+          - ASSESSMENT_CLASS_REVIEW
+          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -15229,6 +15409,60 @@ components:
           type: array
           items:
             type: string
+    PrepChild:
+      type: object
+      properties:
+        dateOfBirth:
+          type: string
+          format: date
+        fullName:
+          type: string
+        gender:
+          type: string
+          enum:
+          - MALE
+          - FEMALE
+        id:
+          type: integer
+          format: int64
+    PrepClass:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrepChild"
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        teaches:
+          type: boolean
+    PrepClassesResponse:
+      type: object
+      properties:
+        classes:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrepClass"
+        prepDate:
+          type: string
+          format: date
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
+        startDate:
+          type: string
+          format: date
     Preview:
       type: object
       properties:
@@ -17529,6 +17763,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonPrepClassesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PrepClassesResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonPreview:
       type: object
       properties:
@@ -17667,6 +17914,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/SchoolYearDetailResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonSemesterAssessmentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/SemesterAssessmentResponse"
         desc:
           type: string
         errorCode:
@@ -18146,7 +18406,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -18168,7 +18441,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -18463,6 +18749,11 @@ components:
           format: int64
         name:
           type: string
+        prepDate:
+          type: string
+          format: date
+        preparing:
+          type: boolean
         semester1End:
           type: string
           format: date
@@ -18497,6 +18788,9 @@ components:
           type: string
           minLength: 1
           pattern: "\\s*\\d{4}-\\d{4}\\s*"
+        prepDate:
+          type: string
+          format: date
         startDate:
           type: string
           format: date
@@ -18533,6 +18827,122 @@ components:
         semester2Start:
           type: string
           format: date
+    SemesterAssessmentChild:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemesterAssessmentDomain"
+        fullName:
+          type: string
+    SemesterAssessmentDomain:
+      type: object
+      properties:
+        domainId:
+          type: integer
+          format: int64
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemesterAssessmentGoal"
+        met:
+          type: boolean
+        metCount:
+          type: integer
+          format: int32
+        missingCount:
+          type: integer
+          format: int32
+        name:
+          type: string
+        notMetCount:
+          type: integer
+          format: int32
+    SemesterAssessmentGoal:
+      type: object
+      properties:
+        assessedActivities:
+          type: integer
+          format: int32
+        goalId:
+          type: integer
+          format: int64
+        goalNo:
+          type: integer
+          format: int32
+        met:
+          type: boolean
+        metActivities:
+          type: integer
+          format: int32
+        text:
+          type: string
+    SemesterAssessmentRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        note:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        semester:
+          type: integer
+          format: int32
+          maximum: 2
+          minimum: 1
+      required:
+      - classId
+    SemesterAssessmentResponse:
+      type: object
+      properties:
+        canConfirm:
+          type: boolean
+        canEdit:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        confirmedAt:
+          type: string
+          format: date-time
+        confirmedByName:
+          type: string
+        domains:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemesterAssessmentDomain"
+        endDate:
+          type: string
+          format: date
+        note:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/SemesterAssessmentChild"
+        schoolYearId:
+          type: integer
+          format: int64
+        semester:
+          type: integer
+          format: int32
+        signers:
+          $ref: "#/components/schemas/ThemeSigners"
+        startDate:
+          type: string
+          format: date
+        status:
+          type: string
+        yearName:
+          type: string
     SemesterLockResponse:
       type: object
       properties:
@@ -18618,6 +19028,8 @@ components:
     SheetDomain:
       type: object
       properties:
+        comment:
+          type: string
         domainId:
           type: integer
           format: int64
@@ -18782,6 +19194,9 @@ components:
           type: integer
           format: int64
         id:
+          type: integer
+          format: int64
+        replacedTeacherId:
           type: integer
           format: int64
         staffRole:
@@ -19695,7 +20110,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -19725,7 +20153,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -19745,7 +20186,20 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
+            - YEAR_PLACEMENT_MANAGE
+            - ROOM_MANAGE
+            - ATTENDANCE_VIEW
+            - ATTENDANCE_RECORD
+            - DAILY_HEALTH_RECORD
+            - PICKUP_RECORD
+            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
+            - ASSESSMENT_VIEW
+            - ASSESSMENT_RECORD
+            - ASSESSMENT_CONFIRM
+            - ASSESSMENT_UNLOCK
+            - ASSESSMENT_CLASS_REVIEW
+            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -20002,6 +20456,10 @@ components:
     YearEndSheetRequest:
       type: object
       properties:
+        domainComments:
+          type: object
+          additionalProperties:
+            type: string
         forChild:
           type: string
         forParent:
@@ -20046,6 +20504,8 @@ components:
           format: int32
         notes:
           $ref: "#/components/schemas/SheetNotes"
+        principal:
+          type: string
         status:
           type: string
           enum:
