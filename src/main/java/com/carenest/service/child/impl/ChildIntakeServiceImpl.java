@@ -228,7 +228,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             childRepository.save(child);
             childHistoryRepository.save(ChildHistory.record(
                     childId, ChildHistoryAction.READMITTED, actor.userId(), reason, clock.instant()));
-            // Feature account mở lại tài khoản phụ huynh hệ thống đã khóa khi trẻ nghỉ (sau commit; CHD-04, V87)
+            // Feature account mở lại tài khoản phụ huynh hệ thống đã khóa khi trẻ nghỉ (sau commit; CHD-04, V90)
             eventPublisher.publishEvent(new ChildReadmittedEvent(childId));
             ChildViewResponse view = getChildView(childId);
             log.info("{}|campusId={}|END", logPrefix, campusId);

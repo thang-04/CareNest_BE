@@ -23,7 +23,7 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | email | VARCHAR(255) | có | Nhân sự: email đăng nhập/khôi phục mật khẩu (có trên Keycloak). Phụ huynh: email liên hệ, có thể null, chỉ lưu ở đây (không gửi Keycloak, không dùng đăng nhập/khôi phục). Không UNIQUE: phụ huynh được trùng email nhân sự | AUTH-18 |
 | full_name | VARCHAR(150) | không | Họ tên đầy đủ (= `firstName` bên Keycloak) | — |
 | status | VARCHAR(20) | không | `ACTIVE` / `INACTIVE`; INACTIVE bị chặn mọi request | — |
-| locked_by_system | BOOLEAN | không | `TRUE` khi hệ thống khóa vì phụ huynh không còn con đang học (`ParentAccountLeftSchoolListener`); mở lại hồ sơ một con thì tự mở (`ParentAccountReadmitListener`). HT/PHT khóa/mở tay ⇒ `FALSE`. Mặc định `FALSE`, tài khoản khóa trước V87 cũng `FALSE` (mở tay) (V87, user chốt 2026-11-11) | CHD-03, CHD-04 |
+| locked_by_system | BOOLEAN | không | `TRUE` khi hệ thống khóa vì phụ huynh không còn con đang học (`ParentAccountLeftSchoolListener`); mở lại hồ sơ một con thì tự mở (`ParentAccountReadmitListener`). HT/PHT khóa/mở tay ⇒ `FALSE`. Mặc định `FALSE`, tài khoản khóa trước V90 cũng `FALSE` (mở tay) (V90, user chốt 2026-11-11) | CHD-03, CHD-04 |
 | primary_role | VARCHAR(20) | có | Bản sao role Keycloak khi CareNest tạo tài khoản (V8); lọc danh sách + kiểm phạm vi quản lý nhân sự; quyền người gọi vẫn theo token. NULL = chưa rõ (chỉ Admin quản lý) | AUTH-15..17 |
 | citizen_id | VARCHAR(12) | có | CCCD phụ huynh, khóa nhận diện phụ huynh; UNIQUE, CHECK 12 chữ số (V63). Nhân sự NULL; tài khoản phụ huynh cũ bổ sung khi hồ sơ trẻ ghi CCCD | AUTH-18 |
 | photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(36), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, bắt buộc; GV đối chiếu người đón). Tệp private S3 theo key UUID; JPG/PNG/WEBP ≤ 2 MB (V66) | PCK-02 |
@@ -221,14 +221,14 @@ Mục đích: trẻ học lớp nào theo thời gian; campus của trẻ suy t�
 | classroom_id | BIGINT FK classrooms | không | | — |
 | valid_from | DATE | không | Tính cả ngày này | — |
 | valid_to | DATE | có | Tính cả ngày này; NULL = đang học | — |
-| reason | VARCHAR(300) | có | Chưa dùng (entity không ánh xạ): lý do xếp/chuyển lớp ghi ở `child_placements` (V86) | — |
+| reason | VARCHAR(300) | có | Chưa dùng (entity không ánh xạ): lý do xếp/chuyển lớp ghi ở `child_placements` (V89) | — |
 | created_by | BIGINT FK user_accounts | có | Người xếp/chuyển lớp (V63); NULL ở dữ liệu cũ | — |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 Xếp lớp mở enrollment mới; chuyển lớp đóng enrollment đang mở rồi mở enrollment mới. `uk_enrollments_child_open` (V63, partial unique `valid_to IS NULL`): mỗi trẻ tối đa 1 enrollment đang mở; chồng thời gian giữa các enrollment đã đóng vẫn do service kiểm.
 Index: `child_id`, `classroom_id`, `uk_enrollments_child_open`.
 
 ## child_placements  (module: child, scope: CHILD)
-Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-10, G94-180/CHD-02): ghi khi tiếp nhận có lớp (form, Excel) và khi `POST /children/{id}/placement`; chuyển năm học không ghi. Lớp tại một ngày vẫn đọc từ `enrollments`. Migration: V86.
+Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-10, G94-180/CHD-02): ghi khi tiếp nhận có lớp (form, Excel) và khi `POST /children/{id}/placement`; chuyển năm học không ghi. Lớp tại một ngày vẫn đọc từ `enrollments`. Migration: V89.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -321,7 +321,7 @@ Mục đích: thông báo theo người nhận để App hiện danh sách; đ�
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V84), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V85), `CHILD_PLACED` (V86). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | created_at | TIMESTAMPTZ | không | | — |
@@ -476,7 +476,7 @@ Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
 Index: `(measurement_id, created_at)`.
 
 ## health_interpretations  (module: health, scope: CHILD)
-Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V85.
+Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V88.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
@@ -652,13 +652,13 @@ Mục đích: lịch sử hồ sơ trẻ, chỉ thêm. Migration: V63.
 Index: `idx_child_history_child_id` (`child_id`, `created_at`).
 
 ## guardian_phone_change_requests  (module: identity-access, scope: ACCOUNT)
-Mục đích: yêu cầu đổi SĐT của một phụ huynh trên hồ sơ trẻ (có tài khoản: SĐT = tên đăng nhập); gửi riêng bằng `POST /children/{id}/guardians/{guardianId}/phone-change-requests` (Sửa hồ sơ không đổi SĐT đã lưu — 2026-11-11). HT, hoặc PHT có quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ, duyệt; người gửi có quyền thì tự duyệt được. Không lưu mật khẩu. Migration: V84, V88.
+Mục đích: yêu cầu đổi SĐT của một phụ huynh trên hồ sơ trẻ (có tài khoản: SĐT = tên đăng nhập); gửi riêng bằng `POST /children/{id}/guardians/{guardianId}/phone-change-requests` (Sửa hồ sơ không đổi SĐT đã lưu — 2026-11-11). HT, hoặc PHT có quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ, duyệt; người gửi có quyền thì tự duyệt được. Không lưu mật khẩu. Migration: V87, V91.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| user_id | BIGINT FK user_accounts | có | Tài khoản phụ huynh đổi SĐT; NULL = phụ huynh chưa có tài khoản (V88), duyệt chỉ đổi SĐT dòng phụ huynh, không SMS | AUTH-21 |
+| user_id | BIGINT FK user_accounts | có | Tài khoản phụ huynh đổi SĐT; NULL = phụ huynh chưa có tài khoản (V91), duyệt chỉ đổi SĐT dòng phụ huynh, không SMS | AUTH-21 |
 | child_id | BIGINT FK children | không | Hồ sơ trẻ nơi gửi (người duyệt theo điểm trường hiện tại của trẻ) | AUTH-21 |
-| guardian_id | BIGINT FK child_guardians ON DELETE SET NULL | có | Dòng phụ huynh trên hồ sơ đó; NULL khi phụ huynh bị bỏ ở Sửa hồ sơ (V88; duyệt sau đó ⇒ 409) | — |
+| guardian_id | BIGINT FK child_guardians ON DELETE SET NULL | có | Dòng phụ huynh trên hồ sơ đó; NULL khi phụ huynh bị bỏ ở Sửa hồ sơ (V91; duyệt sau đó ⇒ 409) | — |
 | old_phone, new_phone | VARCHAR(10) | không | SĐT lúc gửi (có tài khoản: tên đăng nhập), SĐT mới (khác nhau) | AUTH-21 |
 | status | VARCHAR(20) | không | `PENDING` / `APPROVED` / `REJECTED` / `CANCELLED` (yêu cầu mới cùng phụ huynh/tài khoản thay thế) | AUTH-21 |
 | reason | VARCHAR(300) | không | Lý do đổi số | — |
@@ -667,7 +667,7 @@ Mục đích: yêu cầu đổi SĐT của một phụ huynh trên hồ sơ tr�
 | decision_note | VARCHAR(300) | có | Ghi chú khi từ chối | — |
 | sms_status | VARCHAR(10) | có | `SENT` / `FAILED` — SMS tên đăng nhập mới sau khi duyệt | L-15 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Index: `uq_phone_change_pending_user` (UNIQUE `user_id` khi `PENDING` — mỗi tài khoản tối đa một yêu cầu chờ), `uq_phone_change_pending_guardian` (UNIQUE `guardian_id` khi `PENDING`, V88), `child_id`, `status`.
+Index: `uq_phone_change_pending_user` (UNIQUE `user_id` khi `PENDING` — mỗi tài khoản tối đa một yêu cầu chờ), `uq_phone_change_pending_guardian` (UNIQUE `guardian_id` khi `PENDING`, V91), `child_id`, `status`.
 
 ## parent_sms_logs  (module: identity-access, scope: ACCOUNT)
 Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi gần nhất của từng phụ huynh (`smsStatus`, `smsAt`). Không lưu nội dung, mật khẩu. Migration: V63.

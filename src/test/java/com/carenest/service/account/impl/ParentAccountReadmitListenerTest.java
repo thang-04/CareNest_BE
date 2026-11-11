@@ -28,7 +28,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Mở lại hồ sơ trẻ ⇒ chỉ mở lại tài khoản phụ huynh do hệ thống khóa khi trẻ nghỉ (CHD-04, V87). */
+/** Mở lại hồ sơ trẻ ⇒ chỉ mở lại tài khoản phụ huynh do hệ thống khóa khi trẻ nghỉ (CHD-04, V90). */
 class ParentAccountReadmitListenerTest {
 
     private static final Long CHILD = 301L;

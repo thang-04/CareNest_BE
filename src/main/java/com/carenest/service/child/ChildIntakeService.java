@@ -27,7 +27,7 @@ import java.util.Optional;
 public interface ChildIntakeService {
     /**
      * Phát sau khi mở lại hồ sơ trẻ đã nghỉ (CHD-03): feature account tự mở lại tài khoản phụ huynh do hệ thống khóa
-     * khi trẻ nghỉ (CHD-04, V87). Feature child không gọi account nên báo qua sự kiện.
+     * khi trẻ nghỉ (CHD-04, V90). Feature child không gọi account nên báo qua sự kiện.
      */
     record ChildReadmittedEvent(Long childId) {}
 

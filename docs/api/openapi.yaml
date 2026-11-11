@@ -4332,6 +4332,181 @@ paths:
           description: OK
       tags:
       - health-check-controller
+  /api/inspections/day:
+    get:
+      operationId: getDay
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionDayResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}:
+    put:
+      operationId: saveSheet
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionSaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}/reopen:
+    post:
+      operationId: reopenSheet
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionReopenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}/sign:
+    post:
+      operationId: signSheet
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionSignRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/signatures/{imageKey}:
+    get:
+      operationId: getSignatureImage
+      parameters:
+      - in: path
+        name: imageKey
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+          description: OK
+      tags:
+      - inspection-controller
   /api/leave-requests:
     get:
       operationId: searchLeaveRequests
@@ -4877,6 +5052,31 @@ paths:
           description: OK
       tags:
       - meal-plan-controller
+  /api/nutrition/day-market:
+    get:
+      operationId: getDayMarket
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayMarketResponse"
+          description: OK
+      tags:
+      - day-market-controller
   /api/nutrition/dishes:
     get:
       operationId: getDishes
@@ -7017,6 +7217,105 @@ paths:
           description: OK
       tags:
       - vice-principal-assignment-controller
+  /api/signatures/me:
+    get:
+      operationId: listSignatures
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListUserSignatureResponse"
+          description: OK
+      tags:
+      - user-signature-controller
+    post:
+      operationId: uploadSignature
+      parameters:
+      - in: query
+        name: isDefault
+        required: false
+        schema:
+          type: boolean
+          default: false
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonUserSignatureResponse"
+          description: OK
+      tags:
+      - user-signature-controller
+  /api/signatures/me/{signatureId}:
+    delete:
+      operationId: deleteSignature
+      parameters:
+      - in: path
+        name: signatureId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - user-signature-controller
+  /api/signatures/me/{signatureId}/content:
+    get:
+      operationId: getSignatureContent
+      parameters:
+      - in: path
+        name: signatureId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+          description: OK
+      tags:
+      - user-signature-controller
+  /api/signatures/me/{signatureId}/default:
+    patch:
+      operationId: setDefaultSignature
+      parameters:
+      - in: path
+        name: signatureId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonUserSignatureResponse"
+          description: OK
+      tags:
+      - user-signature-controller
   /api/staff-assignments:
     post:
       operationId: assignStaff
@@ -10169,6 +10468,131 @@ components:
       required:
       - date
       - items
+    DayMarketGroup:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        mealPrice:
+          type: number
+        name:
+          type: string
+        revenue:
+          type: number
+        servings:
+          type: integer
+          format: int32
+    DayMarketGroupCost:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        cost:
+          type: number
+    DayMarketGroupDishes:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        dishes:
+          type: array
+          items:
+            type: string
+    DayMarketGroupShare:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        cost:
+          type: number
+        quantity:
+          type: number
+    DayMarketLine:
+      type: object
+      properties:
+        cost:
+          type: number
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupShare"
+        orderQuantity:
+          type: number
+        quantity:
+          type: number
+        storage:
+          type: string
+        unitPrice:
+          type: number
+    DayMarketResponse:
+      type: object
+      properties:
+        basis:
+          type: string
+        campusId:
+          type: integer
+          format: int64
+        confirmedAt:
+          type: string
+          format: date-time
+        date:
+          type: string
+          format: date
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroup"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketLine"
+        menu:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketSessionMenu"
+        status:
+          type: string
+        totals:
+          $ref: "#/components/schemas/DayMarketTotals"
+    DayMarketSessionMenu:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupDishes"
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+    DayMarketTotals:
+      type: object
+      properties:
+        balance:
+          type: number
+        cost:
+          type: number
+        dryCost:
+          type: number
+        freshCost:
+          type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupCost"
+        revenue:
+          type: number
+        servings:
+          type: integer
+          format: int32
     DayRow:
       type: object
       properties:
@@ -10482,6 +10906,26 @@ components:
           minLength: 0
       required:
       - name
+    DishDetailInput:
+      type: object
+      properties:
+        container:
+          type: string
+          maxLength: 100
+          minLength: 0
+        dishId:
+          type: integer
+          format: int64
+        temperature:
+          type: string
+          maxLength: 50
+          minLength: 0
+        weight:
+          type: string
+          maxLength: 50
+          minLength: 0
+      required:
+      - dishId
     DishDetailResponse:
       type: object
       properties:
@@ -10980,6 +11424,20 @@ components:
           enum:
           - AWAITING_REVIEW
           - CONFIRMED
+    Event:
+      type: object
+      properties:
+        action:
+          type: string
+        actorName:
+          type: string
+        at:
+          type: string
+          format: date-time
+        imageKey:
+          type: string
+        note:
+          type: string
     EventRow:
       type: object
       properties:
@@ -11252,6 +11710,12 @@ components:
         date:
           type: string
           format: date
+        dishDetails:
+          type: array
+          items:
+            $ref: "#/components/schemas/DishDetailInput"
+          maxItems: 50
+          minItems: 0
         dishIds:
           type: array
           items:
@@ -11399,6 +11863,9 @@ components:
           type: string
           maxLength: 500
           minLength: 0
+        supplierId:
+          type: integer
+          format: int64
       required:
       - lines
     FreshCheckResponse:
@@ -11446,6 +11913,8 @@ components:
           enum:
           - FORECAST
           - CONFIRMED_SERVINGS
+        supplier:
+          $ref: "#/components/schemas/SupplierInfo"
         unavailableReason:
           type: string
     FreshForecastCount:
@@ -13325,6 +13794,91 @@ components:
       - ageGroupId
       - foodId
       - gramsPerChild
+    InspectionDayResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canEdit:
+          type: boolean
+        date:
+          type: string
+          format: date
+        sheets:
+          type: array
+          items:
+            $ref: "#/components/schemas/InspectionSheetResponse"
+    InspectionReopenRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+    InspectionSaveRequest:
+      type: object
+      properties:
+        expectedVersion:
+          type: integer
+          format: int32
+        header:
+          type: object
+          additionalProperties: {}
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          maxItems: 400
+          minItems: 0
+      required:
+      - expectedVersion
+      - rows
+    InspectionSheetResponse:
+      type: object
+      properties:
+        header:
+          type: object
+          additionalProperties: {}
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        saved:
+          type: boolean
+        signature:
+          $ref: "#/components/schemas/Signature"
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - SIGNED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int32
+    InspectionSignRequest:
+      type: object
+      properties:
+        signatureId:
+          type: integer
+          format: int64
     Issue:
       type: object
       properties:
@@ -16096,6 +16650,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonDayMarketResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayMarketResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonDayUnlockResponse:
       type: object
       properties:
@@ -16442,6 +17009,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ImportResult"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonInspectionDayResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/InspectionDayResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonInspectionSheetResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/InspectionSheetResponse"
         desc:
           type: string
         errorCode:
@@ -17191,6 +17784,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListUserSignatureResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserSignatureResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonLoginData:
       type: object
       properties:
@@ -17844,6 +18452,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonUserSignatureResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/UserSignatureResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonVicePrincipalAssignmentResponse:
       type: object
       properties:
@@ -18271,10 +18892,16 @@ components:
       properties:
         code:
           type: string
+        container:
+          type: string
         id:
           type: integer
           format: int64
         name:
+          type: string
+        temperature:
+          type: string
+        weight:
           type: string
     SaveAttendanceRequest:
       type: object
@@ -18641,6 +19268,22 @@ components:
         forSchool:
           type: string
         forTeacher:
+          type: string
+    Signature:
+      type: object
+      properties:
+        documentVersion:
+          type: integer
+          format: int32
+        imageKey:
+          type: string
+        signedAt:
+          type: string
+          format: date-time
+        signedBy:
+          type: integer
+          format: int64
+        signedByName:
           type: string
     SignerNames:
       type: object
@@ -19047,6 +19690,20 @@ components:
           format: int32
         structured:
           $ref: "#/components/schemas/StructuredSummary"
+    SupplierInfo:
+      type: object
+      properties:
+        address:
+          type: string
+        deliveryPerson:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        phone:
+          type: string
     SupplierRequest:
       type: object
       properties:
@@ -19723,6 +20380,22 @@ components:
         userId:
           type: integer
           format: int64
+    UserSignatureResponse:
+      type: object
+      properties:
+        contentType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        isDefault:
+          type: boolean
+        sizeBytes:
+          type: integer
+          format: int32
     VerifyOtp:
       type: object
       properties:

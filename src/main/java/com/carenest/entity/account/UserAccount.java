@@ -47,7 +47,7 @@ public class UserAccount {
     @Column(nullable = false, length = 20)
     private UserStatus status;
 
-    // Hệ thống khóa vì không còn con đang học (CHD-04, V87): mở lại hồ sơ một con thì tự mở; khóa/mở tay ⇒ false
+    // Hệ thống khóa vì không còn con đang học (CHD-04, V90): mở lại hồ sơ một con thì tự mở; khóa/mở tay ⇒ false
     @Column(name = "locked_by_system", nullable = false)
     private boolean lockedBySystem;
 

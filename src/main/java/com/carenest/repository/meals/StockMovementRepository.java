@@ -20,6 +20,9 @@ public interface StockMovementRepository extends JpaRepository<StockMovement, Lo
             + " where m.lotId in :lotIds group by m.lotId")
     List<LotBalance> sumByLotIds(@Param("lotIds") Collection<Long> lotIds);
 
+    /** Mọi bút toán theo suất của một ngày ăn ở điểm trường (M1 khô: lô đã dùng trong ngày). */
+    List<StockMovement> findByCampusIdAndMealDate(Long campusId, LocalDate mealDate);
+
     /** Bút toán theo suất của một ngày ăn, mới nhất trước (trả lại lô khi suất giảm). */
     List<StockMovement> findByCampusIdAndMealDateAndFoodIdOrderByIdDesc(Long campusId, LocalDate mealDate, Long foodId);
 

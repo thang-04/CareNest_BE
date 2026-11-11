@@ -28,7 +28,11 @@ public record FreshCheckResponse(Long campusId, LocalDate date, boolean canManag
             Instant checkedAt,
             Long checkedBy,
             String note,
-            List<FreshCheckLine> lines) {}
+            List<FreshCheckLine> lines,
+            SupplierInfo supplier) {}
+
+    /** Nhà cung cấp của lần giao; không có số CCCD (dữ liệu cá nhân). Null khi chưa ghi hoặc chưa chọn. */
+    public record SupplierInfo(Long id, String name, String phone, String address, String deliveryPerson) {}
 
     public record FreshCheckLine(
             StockFoodRef food, BigDecimal expectedQty, BigDecimal receivedQty, FreshCheckResult result, String note) {}

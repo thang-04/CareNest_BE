@@ -15,7 +15,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Cờ "hệ thống khóa" (V87): khóa tự động ghi cờ, khóa/mở tay xóa cờ để mở lại hồ sơ không mở nhầm. */
+/** Cờ "hệ thống khóa" (V90): khóa tự động ghi cờ, khóa/mở tay xóa cờ để mở lại hồ sơ không mở nhầm. */
 class AccountLifecycleOperationsLockTest {
 
     private final AccountLifecycleOperations operations = new AccountLifecycleOperations(

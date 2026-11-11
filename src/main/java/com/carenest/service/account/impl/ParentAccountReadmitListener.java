@@ -15,7 +15,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
  * Mở lại hồ sơ trẻ (CHD-03) ⇒ mở lại tài khoản phụ huynh của trẻ mà hệ thống đã khóa khi trẻ nghỉ (CHD-04, user chốt
- * 2026-11-11; cờ {@code locked_by_system}, V87). Tài khoản HT/PHT khóa tay giữ nguyên. Giữ mật khẩu cũ, không gửi SMS.
+ * 2026-11-11; cờ {@code locked_by_system}, V90). Tài khoản HT/PHT khóa tay giữ nguyên. Giữ mật khẩu cũ, không gửi SMS.
  * Lỗi ở đây chỉ làm tài khoản còn khóa (HT/PHT mở tay được), không mở thêm dữ liệu.
  */
 @Slf4j

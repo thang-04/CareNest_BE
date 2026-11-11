@@ -43,6 +43,10 @@ public class FreshCheck {
     @Column(name = "checked_by")
     private Long checkedBy;
 
+    // Nhà cung cấp của lần giao (INS-01: biên bản kiểm thực M1 tươi điền sẵn); null với dữ liệu trước khi có cột này
+    @Column(name = "supplier_id")
+    private Long supplierId;
+
     @Column(name = "checked_at", nullable = false)
     private Instant checkedAt;
 
@@ -65,8 +69,10 @@ public class FreshCheck {
      * Ghi (hoặc ghi đè) kết quả kiểm. Dòng cùng thực phẩm sửa tại chỗ, dòng không còn thì bỏ, dòng mới thì thêm — không
      * xóa rồi chèn lại cùng khóa (kiểm, thực phẩm) trong một lần flush vì Hibernate chèn trước khi xóa.
      */
-    public void record(Long forecastId, Long userId, Instant at, String note, List<FreshCheckLine> incoming) {
+    public void record(
+            Long forecastId, Long supplierId, Long userId, Instant at, String note, List<FreshCheckLine> incoming) {
         this.forecastId = forecastId;
+        this.supplierId = supplierId;
         this.checkedBy = userId;
         this.checkedAt = at;
         this.note = note;

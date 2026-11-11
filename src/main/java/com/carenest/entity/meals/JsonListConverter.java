@@ -48,6 +48,13 @@ public abstract class JsonListConverter<T> implements AttributeConverter<List<T>
     }
 
     @Converter
+    public static class SampleDishDetails extends JsonListConverter<FoodSampleDishDetail> {
+        public SampleDishDetails() {
+            super(new TypeReference<>() {});
+        }
+    }
+
+    @Converter
     public static class PlanDays extends JsonListConverter<MealPlanDay.Info> {
         public PlanDays() {
             super(new TypeReference<>() {});

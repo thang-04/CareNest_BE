@@ -104,6 +104,9 @@ public enum ApiCode {
             1133, HttpStatus.BAD_REQUEST, "Chỉ đổi vai trò giữa Phó hiệu trưởng, giáo viên và nhân viên bếp"),
     STAFF_ROLE_UNCHANGED(1134, HttpStatus.BAD_REQUEST, "Tài khoản đang có vai trò này"),
     ACCOUNT_PROFILE_NOT_EDITABLE(1135, HttpStatus.BAD_REQUEST, "Chỉ sửa hồ sơ tài khoản nhân sự tại đây"),
+    SIGNATURE_INVALID(1140, HttpStatus.BAD_REQUEST, "Chọn ảnh chữ ký PNG hoặc JPG, tối đa 2 MB"),
+    SIGNATURE_LIMIT_REACHED(1141, HttpStatus.CONFLICT, "Mỗi tài khoản lưu tối đa {0} chữ ký, hãy xóa bớt chữ ký cũ"),
+    SIGNATURE_NOT_FOUND(1142, HttpStatus.NOT_FOUND, "Không tìm thấy chữ ký"),
     // G94-180/AUTH-21 (user chốt 2026-11-10): đổi SĐT phụ huynh có tài khoản phải qua duyệt. Trước khi gộp dev
     // 10/11/2026 là 1133–1137 (dev đã dùng 1133–1135 cho tài khoản nhân sự)
     PHONE_CHANGE_REQUEST_NOT_FOUND(1136, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu đổi số điện thoại"),
@@ -111,9 +114,10 @@ public enum ApiCode {
     // 1138 (không tự duyệt) bỏ 2026-11-11: người gửi có quyền duyệt thì tự duyệt được (AUTH-21); không dùng lại số
     // Lúc duyệt: số mới đã thuộc người khác hoặc tài khoản đã đổi theo đường khác từ khi gửi yêu cầu
     PHONE_CHANGE_REQUEST_STALE(1139, HttpStatus.CONFLICT, "{0}"),
+    // Trước khi gộp dev 11/11/2026 là 1140 (dev dùng 1140–1142 cho chữ ký).
     // Realm Keycloak chưa bật sửa username cho admin (docs/system/KEYCLOAK.md mục 7) ⇒ không đổi gì
     USERNAME_CHANGE_NOT_ALLOWED(
-            1140,
+            1143,
             HttpStatus.SERVICE_UNAVAILABLE,
             "Hệ thống đăng nhập chưa cho đổi tên đăng nhập. Báo quản trị viên, chưa đổi số điện thoại."),
 
@@ -478,6 +482,23 @@ public enum ApiCode {
     FOOD_SAMPLE_STATE_INVALID(6070, HttpStatus.CONFLICT, "Bản lưu mẫu đang ở trạng thái không cho phép thao tác này"),
     FOOD_SAMPLE_DISH_INVALID(6071, HttpStatus.BAD_REQUEST, "Cần chọn ít nhất một món, các món phải còn trong danh mục"),
     MEAL_PHOTO_WINDOW_FORBIDDEN(6072, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được cấu hình khung giờ đăng ảnh bữa ăn"),
+    // INS-01..04: biên bản kiểm thực
+    INSPECTION_ACCESS_DENIED(6080, HttpStatus.FORBIDDEN, "Bạn không có quyền ghi biên bản kiểm thực ở điểm trường này"),
+    INSPECTION_SIGNED(6081, HttpStatus.CONFLICT, "Biên bản đã ký, hãy bấm Sửa lại trước khi chỉnh sửa"),
+    INSPECTION_STALE(6082, HttpStatus.CONFLICT, "Biên bản vừa được người khác lưu, hãy tải lại rồi sửa tiếp"),
+    INSPECTION_NOT_SAVED(6083, HttpStatus.UNPROCESSABLE_ENTITY, "Hãy lưu biên bản trước khi ký"),
+    INSPECTION_SENSORY_MISSING(
+            6084, HttpStatus.UNPROCESSABLE_ENTITY, "Còn {0} dòng chưa chọn Đạt hoặc Không đạt, hãy chọn đủ rồi ký"),
+    INSPECTION_SIGNATURE_REQUIRED(
+            6085, HttpStatus.UNPROCESSABLE_ENTITY, "Hãy tải ảnh chữ ký ở mục Chữ ký của tôi rồi ký lại"),
+    INSPECTION_REASON_REQUIRED(6086, HttpStatus.UNPROCESSABLE_ENTITY, "Nhập lý do sửa lại, ít nhất 3 ký tự"),
+    INSPECTION_NOT_SIGNED(6087, HttpStatus.CONFLICT, "Biên bản chưa ký nên không cần sửa lại"),
+    INSPECTION_DATE_FUTURE(6088, HttpStatus.BAD_REQUEST, "Không ghi biên bản cho ngày chưa tới"),
+    INSPECTION_ROW_INVALID(6089, HttpStatus.BAD_REQUEST, "Dòng biên bản không hợp lệ: {0}"),
+    INSPECTION_ACTION_MISSING(
+            6090,
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "Còn {0} dòng Không đạt chưa ghi biện pháp xử lý (loại bỏ, trả lại, tiêu hủy...)"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),

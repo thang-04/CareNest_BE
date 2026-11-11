@@ -21,7 +21,7 @@ import org.hibernate.annotations.UpdateTimestamp;
  * Yêu cầu đổi SĐT của một phụ huynh trên hồ sơ trẻ (G94-180/AUTH-21, user chốt 2026-11-10, sửa 2026-11-11): có tài
  * khoản ⇒ {@code userId}, SĐT = tên đăng nhập; chưa có ⇒ {@code userId} null. Hồ sơ giữ số cũ tới khi HT, hoặc PHT có
  * quyền quản lý tài khoản phụ huynh ở điểm trường của trẻ, duyệt. {@code guardianId} null khi phụ huynh đã bị bỏ khỏi
- * hồ sơ (V88). Không lưu mật khẩu.
+ * hồ sơ (V91). Không lưu mật khẩu.
  */
 @Getter
 @Entity

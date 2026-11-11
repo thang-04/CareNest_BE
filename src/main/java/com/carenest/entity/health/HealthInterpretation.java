@@ -19,7 +19,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.type.SqlTypes;
 
 /**
- * Giải thích xu hướng sức khỏe (HLT-04, HLT-05; V85): AI viết nháp {@code source=AI} kèm model, thời điểm (AI-01); nhân
+ * Giải thích xu hướng sức khỏe (HLT-04, HLT-05; V88): AI viết nháp {@code source=AI} kèm model, thời điểm (AI-01); nhân
  * sự duyệt (sửa câu chữ thì {@code source=HUMAN}) mới thành chính thức (AI-02). Cảnh báo xu hướng tính xác định (HLT-02)
  * lưu kèm. Dữ liệu sức khỏe: không log.
  */
