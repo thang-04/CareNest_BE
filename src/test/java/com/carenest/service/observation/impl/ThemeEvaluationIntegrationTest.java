@@ -316,6 +316,25 @@ class ThemeEvaluationIntegrationTest {
         var req = new com.carenest.dto.observation.SemesterAssessmentDtos.Request(classA, 1, "Lưu ý lớp");
         expectCode(() -> semesters.save(principal, req), ApiCode.EVALUATION_EDIT_FORBIDDEN);
         expectCode(() -> semesters.get(otherTeacher, classA, 1), ApiCode.EVALUATION_VIEW_FORBIDDEN);
+        // Phân quyền động: HT thu hồi quyền Ghi / Xác nhận đánh giá ⇒ GV gọi thẳng API cũng bị chặn
+        CurrentUser noRecord = new CurrentUser(
+                teacher.userId(),
+                teacher.keycloakUserId(),
+                teacher.username(),
+                teacher.fullName(),
+                null,
+                teacher.roles(),
+                Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_CONFIRM));
+        CurrentUser noConfirm = new CurrentUser(
+                teacher.userId(),
+                teacher.keycloakUserId(),
+                teacher.username(),
+                teacher.fullName(),
+                null,
+                teacher.roles(),
+                Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD));
+        expectCode(() -> semesters.save(noRecord, req), ApiCode.EVALUATION_EDIT_FORBIDDEN);
+        expectCode(() -> semesters.confirm(noConfirm, req), ApiCode.EVALUATION_EDIT_FORBIDDEN);
         result(kid2, classA, "2026-09-21", "second-goal", "", String.valueOf(goal2));
         var saved = semesters.save(teacher, req);
         assertThat(saved.status()).isEqualTo("DRAFT");
