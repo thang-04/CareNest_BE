@@ -29,13 +29,13 @@
 | Giáo án duyệt → đánh giá trẻ/lineage | Có EduLessonQueryService và consumer observation | Chưa smoke runtime trong lượt tài liệu |
 | Nhãn chờ duyệt đúng loại/tên và ẩn phiên bản tổ | Còn gap FE | Theo EDU-62/spec015 |
 | Tự chuyển nguồn/tạo bản cập nhật/rà soát tổ | Chưa đủ luồng | Theo EDU-62/spec015, giữ bản cũ cho lớp |
-| Hai bảng vật lý năm/tổ | Entity còn chung edu_year_plans, V89 local chuẩn bị | Chưa cutover/V90; không chạy migration lượt này |
+| Hai bảng vật lý năm/tổ | Entity còn chung edu_year_plans, V96 local chuẩn bị | Chưa cutover/V97; không chạy migration lượt này |
 | TT duyệt năm/tổ; nguồn hồ sơ lớp TEAM; preview annual; bất biến JSON nội dung lớp | Có gap tĩnh ở controller/service | Cần sửa/test BE theo biên bản, không đổi rule theo code |
 | AI backend | Chưa hoàn tất | Mock/proposed không phải tích hợp thật |
 
 ## Delta và chi tiết kỹ thuật theo thời điểm
 
-Lịch sử đặc tả trước bộ xác nhận09/11 — EDU-62, [feature015](../../specs/015-separate-year-team-plans/spec.md): chờ duyệt phải đúng tên/loại năm và tổ; chỉ năm hiện phiên bản, tổ giữ lịch sử nội bộ. Năm mới ban hành mới rà soát tổ, giữ bản tổ cũ cho lớp tới khi cập nhật được duyệt. Chỉ đạo cuối giữ nút lập tổ, vào trang soạn trực tiếp không modal, chọn một nguồn năm đã ban hành hiện hành cùng năm/tuổi và nhập tên riêng; list có tên tổ/nhóm tuổi/ngày gửi/người soạn/trạng thái. User yêu cầu tách bảng nghiệp vụ năm/tổ; source hiện vẫn chung `edu_year_plans`, xem [DB hiện tại/đích](../../specs/015-separate-year-team-plans/database-context.md). Đây là delta chưa hoàn tất source/cutover; V89 local chuẩn bị không là bằng chứng đã migrate; user09/11 đã chốt hai ca: tổ đang làm chuyển nguồn mới nhất giữ phần nhập, bản chờ về nháp/gửi lại; chủ đề đã kết thúc không đỏ. Spec sẵn sàng plan làn L, chưa có plan được duyệt. Không dùng phương án modal hoặc tự lập tổ đã bị user thay thế. Lỗi nhãn user báo được ghi [incident](../knowledge/incidents/BUG-261109-year-team-approval-identity.md), chưa xác minh nguyên nhân.
+Lịch sử đặc tả trước bộ xác nhận09/11 — EDU-62, [feature015](../../specs/015-separate-year-team-plans/spec.md): chờ duyệt phải đúng tên/loại năm và tổ; chỉ năm hiện phiên bản, tổ giữ lịch sử nội bộ. Năm mới ban hành mới rà soát tổ, giữ bản tổ cũ cho lớp tới khi cập nhật được duyệt. Chỉ đạo cuối giữ nút lập tổ, vào trang soạn trực tiếp không modal, chọn một nguồn năm đã ban hành hiện hành cùng năm/tuổi và nhập tên riêng; list có tên tổ/nhóm tuổi/ngày gửi/người soạn/trạng thái. User yêu cầu tách bảng nghiệp vụ năm/tổ; source hiện vẫn chung `edu_year_plans`, xem [DB hiện tại/đích](../../specs/015-separate-year-team-plans/database-context.md). Đây là delta chưa hoàn tất source/cutover; V96 local chuẩn bị không là bằng chứng đã migrate; user09/11 đã chốt hai ca: tổ đang làm chuyển nguồn mới nhất giữ phần nhập, bản chờ về nháp/gửi lại; chủ đề đã kết thúc không đỏ. Spec sẵn sàng plan làn L, chưa có plan được duyệt. Không dùng phương án modal hoặc tự lập tổ đã bị user thay thế. Lỗi nhãn user báo được ghi [incident](../knowledge/incidents/BUG-261109-year-team-approval-identity.md), chưa xác minh nguyên nhân.
 
 User 08/11/2026 yêu cầu cảnh báo thời lượng chủ đề và nhánh ngay khi nhập lịch, trước khi gửi duyệt; dùng giới hạn snapshot và giữ lưu nháp. [Incident](../knowledge/incidents/BUG-261108-duration-feedback-late.md).
 
@@ -82,7 +82,7 @@ EDU-01..28, EDU-39..43, EDU-46..64 (các ID có trong BUSINESS_RULES; lịch ch�
 - PUT kế hoạch năm gửi cả cây: dòng/nội dung/chủ đề có id thì cập nhật, không id thì thêm, vắng thì xóa; nội dung tích chủ đề qua `themeKeys` trỏ `themes[].key` (chủ đề mới chưa có id).
 - Bảng `edu_*`: `docs/database/DATA_DICTIONARY.md`.
 
-- Đã xong: EDU-54 (06/11/2026): Cấu hình người tạo/duyệt theo loại hồ sơ cho giáo dục (`GET/PUT /education-plans/workflow-policy`), chỉ Hiệu trưởng cấu hình; tách soạn/duyệt theo loại; 3 trạng thái duy nhất `DRAFT` → `REVIEW` → `APPROVED`; `REVIEW` cấm sửa/cấm lease; duyệt bước cuối tự Ban hành và đóng băng `print_snapshot` (ô ký, vai trò, tên người); Flyway V80 expand và V81 contract siết trạng thái. Đã kiểm chứng toàn diện 1,104 test BE PASS, 199 test FE PASS, Spotless GREEN, 0 lỗi AI layer.
+- Đã xong: EDU-54 (06/11/2026): Cấu hình người tạo/duyệt theo loại hồ sơ cho giáo dục (`GET/PUT /education-plans/workflow-policy`), chỉ Hiệu trưởng cấu hình; tách soạn/duyệt theo loại; 3 trạng thái duy nhất `DRAFT` → `REVIEW` → `APPROVED`; `REVIEW` cấm sửa/cấm lease; duyệt bước cuối tự Ban hành và đóng băng `print_snapshot` (ô ký, vai trò, tên người); Flyway V87 expand và V88 contract siết trạng thái. Đã kiểm chứng toàn diện 1,104 test BE PASS, 199 test FE PASS, Spotless GREEN, 0 lỗi AI layer.
 
 ## PENDING — triển khai, không phải câu hỏi nghiệp vụ đã trả lời
 
@@ -147,7 +147,7 @@ Mọi lỗi của module ném `GlobalException.of(ApiCode.X)`; response có `err
 
 ## Phiên bản kế hoạch năm, kế hoạch điều chỉnh (Tiền chốt 28/10/2026)
 
-EDU-25/26/27: mỗi phiên bản là một dòng `edu_year_plans` (`version_no`, `source_plan_id`); dòng con chép giữ `lineage_id` (NULL = chính id). `POST /goals/{id}/versions` tạo phiên bản n+1, `GET /goals/{id}/changes?fromPlanId=` so sánh theo lineage (`YearPlanVersionDiff`). Tài liệu lớp tách theo `year_plan_id`; khóa tuần phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<id kế hoạch>`; bản chép nhớ `source_doc_id`, chặn gửi 7121 khi còn ô đỏ, ghi trên phiên bản cũ 7122. Ô "Kế hoạch điều chỉnh và bổ sung" (cột `adjustments`, V32) đã bỏ hẳn ở spec 005 (V99). Chi tiết: [feature004](../../specs/004-year-plan-versioning/spec.md).
+EDU-25/26/27: mỗi phiên bản là một dòng `edu_year_plans` (`version_no`, `source_plan_id`); dòng con chép giữ `lineage_id` (NULL = chính id). `POST /goals/{id}/versions` tạo phiên bản n+1, `GET /goals/{id}/changes?fromPlanId=` so sánh theo lineage (`YearPlanVersionDiff`). Tài liệu lớp tách theo `year_plan_id`; khóa tuần phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<id kế hoạch>`; bản chép nhớ `source_doc_id`, chặn gửi 7121 khi còn ô đỏ, ghi trên phiên bản cũ 7122. Ô "Kế hoạch điều chỉnh và bổ sung" (cột `adjustments`, V32) đã bỏ hẳn ở spec 005 (V106). Chi tiết: [feature004](../../specs/004-year-plan-versioning/spec.md).
 
 ## Lấy mục tiêu từ kế hoạch có sẵn (user chốt 28/10/2026)
 
@@ -164,7 +164,7 @@ Lịch sử parser cũ: .doc nhị phân chưa đọc được; source hiện đ
 
 ## Delta nhãn mục tiêu — 07/11/2026
 
-EDU-58 theo yêu cầu user đã duyệt: domains[].rows[].displayLabel cho goal, max100; null/omitted giữ nhãn, blank clear về MTn. Giữ goalNo/ID; V86 additive; clone/version/annual→TEAM giữ nhãn và server chặn đổi nhãn TEAM. Web annual nhập/kéo tăng số, tổ chỉ xem và tick nội dung; in/export giữ nhãn. Native BE64/64/FE248/248, runtime V86/healthUP; chi tiết VERIFICATION. Schema Domain/Row/Content OpenAPI dùng tên riêng, xem incident BUG-261107-year-plan-openapi-row-collision.
+EDU-58 theo yêu cầu user đã duyệt: domains[].rows[].displayLabel cho goal, max100; null/omitted giữ nhãn, blank clear về MTn. Giữ goalNo/ID; V93 additive; clone/version/annual→TEAM giữ nhãn và server chặn đổi nhãn TEAM. Web annual nhập/kéo tăng số, tổ chỉ xem và tick nội dung; in/export giữ nhãn. Native BE64/64/FE248/248, runtime V93/healthUP; chi tiết VERIFICATION. Schema Domain/Row/Content OpenAPI dùng tên riêng, xem incident BUG-261107-year-plan-openapi-row-collision.
 
 EDU-59/FR021 (user07/11/2026): mẫu nhánh có khoảng ngày đầy đủ phải Thứ Hai–Thứ Sáu và không overlap inclusive sibling cùng themeId. Server kiểm chung submit/publication bằng EDUCATION_CALENDAR_INVALID; draft/name-only và bounds/duration giữ nguyên. Web luôn hai DatePickerCell compact dd/mm/yy - dd/mm/yy, taken/warnings, bỏ nhãn và thu gọn. BE71/71, FE254/254; xem VERIFICATION.
 
@@ -188,13 +188,13 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 
 ## Mốc duyệt theo thời gian dạy (spec 003 — 10/11/2026, EDU-74)
 
-- Gốc gửi/duyệt mới trong `edu_class_docs` (V96): `semester` (gói học kỳ, `sp_<lớp>_<kế hoạch tổ>_<1|2>`, chuỗi duyệt policy `branch`) và `dossier` (hồ sơ chủ đề, `ds_<lớp>_<chủ đề>`, policy `theme`); `EduClassDoc.policyType/isRoot`. Thành viên (`theme`, `week`, `day`) mang cùng trạng thái gốc. Lịch nhánh (`branch`) không mang trạng thái duyệt; bản ban hành gói học kỳ chụp tên nhánh các tuần của kỳ.
+- Gốc gửi/duyệt mới trong `edu_class_docs` (V103): `semester` (gói học kỳ, `sp_<lớp>_<kế hoạch tổ>_<1|2>`, chuỗi duyệt policy `branch`) và `dossier` (hồ sơ chủ đề, `ds_<lớp>_<chủ đề>`, policy `theme`); `EduClassDoc.policyType/isRoot`. Thành viên (`theme`, `week`, `day`) mang cùng trạng thái gốc. Lịch nhánh (`branch`) không mang trạng thái duyệt; bản ban hành gói học kỳ chụp tên nhánh các tuần của kỳ.
 - Giáo án ngày tách khỏi giáo án tuần: kind `day` (`dd_` + hậu tố của `wp_`) giữ `days`, `dayGoals`; `week` từ chối `days`/`dayGoals`. ~~`PUT /class-docs/{day,week}/{key}/adjustments` (EDU-27)~~ — bỏ ở spec 005.
 - ~~Cách gửi của chủ đề `theme.content.submitMode`~~ — bỏ ở spec 004 (EDU-75), BE bỏ qua nếu nhận được.
 - Hạn tính khi đọc (`EduDeadline`, `EduSemesters`): gói = `semesterN_start`, hồ sơ = ngày bắt đầu chủ đề (lịch lớp, không có thì kế hoạch tổ); mở hạn = sự kiện `extend` trong `history`. `deadlineState`: NORMAL/NEAR (≤7 ngày)/OVERDUE/ON_TIME/LATE; hạn trước ngày mở lớp (`ClassroomService.findOpenedDates`) không quá hạn.
 - `actOnClassDoc`: chỉ nhận `semester`/`dossier`; `submit` quá hạn ⇒ 7385 `CLASS_DOC_DEADLINE_PASSED`; hồ sơ khi gói học kỳ chưa từng ban hành ⇒ 7386 `SEMESTER_PACKAGE_NOT_RELEASED`; `extend` (spec 005: chỉ HT, `note` + `deadline` > hôm nay, chỉ gốc chưa ban hành đã quá hạn). `ClassDocActionRequest.deadline`.
 - `GET /class-docs` thêm `semesterPackages`, `themeDossiers`, `dayPlans`, `semesterConfigMissing`; gốc có `deadline, extendedTo, daysLeft, deadlineState, everReleased, themeIds, semesterNo, branchNames, blockedReason, canExtend`; thành viên có `containerKey`, `containerStatus`. Người không soạn: `branch.names` ghép từ bản ban hành gói từng kỳ + `branchUnreleasedSemesters`.
-- Thông báo (V97, `notifications.link`): `EDU_SUBMITTED`, `EDU_STEP_APPROVED` (người duyệt bước đang chờ), `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED` (GVCN / người gửi kế hoạch năm, tổ), `EDU_DEADLINE_NEAR` (job `remindNearDeadlines` 06:00, một lần mỗi người + đường dẫn). Email: hoãn (chưa duyệt dependency).
+- Thông báo (V104, `notifications.link`): `EDU_SUBMITTED`, `EDU_STEP_APPROVED` (người duyệt bước đang chờ), `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED` (GVCN / người gửi kế hoạch năm, tổ), `EDU_DEADLINE_NEAR` (job `remindNearDeadlines` 06:00, một lần mỗi người + đường dẫn). Email: hoãn (chưa duyệt dependency).
 - Known pitfalls: gói học kỳ đang Chờ duyệt khóa sửa/nhập lịch nhánh; thêm gói/hồ sơ mới được tạo khi lưu tài liệu của lớp (`ensureRoots`), không tạo khi chỉ đọc.
 
 ## Cách duyệt cố định, phiên bản và khóa theo thời gian (spec 004 — Tiền 11/11/2026, EDU-75/76/77)
@@ -219,11 +219,11 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
   `PLAN_TIME_LOCKED` (bản cập nhật tổ tự động thì bỏ qua); REVIEW vẫn duyệt/trả lại. `GET /goals/{id}` có
   `timeLock {deadline, extendedTo, deadlineState, timeLocked, canUnlock}`.
 - **Mới** `POST /api/v1/education-plans/goals/{planId}/unlock` body `{note, deadline}` — chỉ Hiệu trưởng; thiếu lý do ⇒ 400
-  `RETURN_REASON_REQUIRED`; hạn ≤ hôm nay ⇒ 400 `INVALID_VALUE`; khác HT ⇒ 403; chuỗi đã có bản ban hành ⇒ 400 `INVALID_VALUE` (spec 005). Ghi `edu_plan_events(action='unlock', deadline)` (V98),
+  `RETURN_REASON_REQUIRED`; hạn ≤ hôm nay ⇒ 400 `INVALID_VALUE`; khác HT ⇒ 403; chuỗi đã có bản ban hành ⇒ 400 `INVALID_VALUE` (spec 005). Ghi `edu_plan_events(action='unlock', deadline)` (V105),
   thông báo người soạn `EDU_DEADLINE_EXTENDED`.
 - Web: `/education/theme-plans/:classId?hk=1|2` (gói học kỳ), `/education/day-plans/:classId?week=|theme=` (hồ sơ chủ đề); đường dẫn cũ
   `/education/class/:id`, `/class/:id/semesters/:no`, `/class/:id/weeks/:ws/days` chuyển hướng.
-- Dữ liệu thử tài liệu lớp trên DB dev `carenest_merge` đã xóa 11/11/2026 (Q8, không có migration V99); sao lưu
+- Dữ liệu thử tài liệu lớp trên DB dev `carenest_merge` đã xóa 11/11/2026 (Q8, không có migration V106); sao lưu
   `local-backups/carenest_merge_class_docs_20261111.sql`.
 - Known pitfalls: sửa kế hoạch chủ đề/tuần đã ban hành phải `revise` gói học kỳ trước (lưu thẳng ⇒ 409); khóa theo thời gian chặn cả
   lưu lẫn gửi, chỉ mở khóa mới làm tiếp; `missing` chỉ tính tuần học (bỏ tuần nghỉ cả tuần, EDU-41).
@@ -232,7 +232,7 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 
 - Bỏ hẳn "Kế hoạch điều chỉnh và bổ sung" (FR-012): xóa `PUT /class-docs/{day,week}/{docKey}/adjustments`,
   `ClassDocAdjustmentsRequest`, trường `adjustments` và cờ `permissions.canAdjust`/`canEditAdjustments` trong response, mã 7123
-  `CLASS_DOC_ADJUSTMENT_INVALID`; cột `edu_class_docs.adjustments` xóa ở V99 (DB-F). Client cũ còn gửi khóa `adjustments` trong
+  `CLASS_DOC_ADJUSTMENT_INVALID`; cột `edu_class_docs.adjustments` xóa ở V106 (DB-F). Client cũ còn gửi khóa `adjustments` trong
   `content` thì BE bỏ qua (META_FIELDS).
 - Nội dung `day`: `content.days[i] = { date, sections: { hoc|ngoai_troi|goc|chieu: { aims, prep, rows: [{ id, title, teacher, child, note }] } }, review?, pulled?, aiSteps? }`;
   ngày bố cục cũ (`aims`, `prep`, `steps`) Web chuẩn hóa khi mở/lưu. `review` chỉ giao diện (Web API không gửi). Nội dung `week`
@@ -251,7 +251,7 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 - Ban giám hiệu xem gốc chưa ban hành (`boardRootNode`): `history` chỉ giữ sự kiện `extend` (hạn mới, người mở, lý do) cho màn
   Kế hoạch quá hạn, ẩn ghi chú gửi/trả lại. HT thấy được kế hoạch năm/tổ Nháp chưa từng ban hành khi đã quá hạn hoặc đã mở hạn
   (để mở hạn) — chờ Tiền xác nhận.
-- V99 xóa ràng buộc `ck_edu_class_docs_adjustments_day` (V96 đã thay `_week` bằng `_day`) cùng `ck_edu_class_docs_adjustments`.
+- V106 xóa ràng buộc `ck_edu_class_docs_adjustments_day` (V103 đã thay `_week` bằng `_day`) cùng `ck_edu_class_docs_adjustments`.
 - Lỗi có cấu trúc: `GlobalException.withData(code, data, args)` ⇒ `ResponseJson.data` = `data` (vd. `{ details }`).
 - Kiểm chứng: `EduClassDocServiceIntegrationTest` (`adjustmentsRemoved`, `dossierSubmitRequiresEveryDaySection`,
   `newPackageVersionResetsOnlyChangedWeekDays`, `overdueSemesterPackageNeedsExtension`, `releasedPackageLocksAfterSemesterStartUntilUnlocked`),

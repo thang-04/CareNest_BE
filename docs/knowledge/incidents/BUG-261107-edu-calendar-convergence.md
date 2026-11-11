@@ -14,7 +14,7 @@ Ngày 07/11/2026, feature012. Nguồn: review code theo spec/plan/contracts, kh�
 - Preview calendar thiếu quyền soạn/version/state/snapshot. Bổ sung server guards; rejection không ghi DB.
 - Save branch chụp lại policy trên mỗi lần ghi. Dùng snapshot service lúc tạo; hồ sơ cũ giữ LEGACY_UNBOUNDED/snapshot cũ; không tin snapshot client.
 - Lịch submit/week/dossier/import vẫn dùng TEAM. Resolve đúng class + exact TEAM; chỉ dùng branch APPROVED cho theme/week; không đổi key/di chuyển tài liệu cũ.
-- Đánh giá chưa đọc calendar query, V85 mới ghi origin. Nối projection lớp, capture full presentation khi confirm, frozen-first list/get/results; migration chưa commit backfill goals/children của baseline.
+- Đánh giá chưa đọc calendar query, V92 mới ghi origin. Nối projection lớp, capture full presentation khi confirm, frozen-first list/get/results; migration chưa commit backfill goals/children của baseline.
 - TEAM guard mới khóa rows/content. Khóa thêm theme/break/template và domain; create có cây khác nguồn phải từ chối.
 - Full native Maven 1148 tests phát hiện 1 fixture clone version thiếu legacy flag. Sửa fixture theo nguồn, không nới constraint.
 

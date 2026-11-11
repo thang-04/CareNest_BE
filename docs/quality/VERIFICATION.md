@@ -161,20 +161,20 @@
 
 ## Delta nhãn mục tiêu / tách UI năm học–tổ — 07/11/2026
 
-- User duyệt plan và sửa BE liên quan, sau đó duyệt toàn bộ không hỏi lại từng phase. FR019/020, AC13, EDU-58 theo nguồn user; giữ goalNo/ID, field nhãn riêng displayLabel. V86 mới nullable varchar100, không sửa V85. DTO additive, null/omitted giữ nhãn; blank clear; clone/version giữ, TEAM không đổi nhãn nguồn. FE nhập/kéo tăng số, bàn phím/hủy, adapter/mock/in và bảng chủ đề dùng nhãn.
+- User duyệt plan và sửa BE liên quan, sau đó duyệt toàn bộ không hỏi lại từng phase. FR019/020, AC13, EDU-58 theo nguồn user; giữ goalNo/ID, field nhãn riêng displayLabel. V93 mới nullable varchar100, không sửa V92. DTO additive, null/omitted giữ nhãn; blank clear; clone/version giữ, TEAM không đổi nhãn nguồn. FE nhập/kéo tăng số, bàn phím/hủy, adapter/mock/in và bảng chủ đề dùng nhãn.
 - RED: `mvnw -DskipTests test-compile` thiếu constructor/accessor displayLabel như dự kiến; đồng thời phát hiện test sẵn có EduDocumentAuthorIntegrationTest thiếu import LocalDate. Chỉ bổ sung import và format file đó để test compile, không đổi assertion/hook. Log `target/goal-label-red.log`.
-- GREEN: `.\mvnw.cmd -Dtest=SchoolYearTeamPlanIntegrationTest,EduPlanLevelMigrationIntegrationTest,EduYearPlanServiceIntegrationTest,EduYearPlanControllerTest test`: **64 test, fail0/error0/skip0**, BUILD SUCCESS. PostgreSQL Testcontainers thật; có upgrade V85→V86 giữ goal cũ, giới hạn100 ở DB/Bean Validation, roundtrip/null/clear/ID/goalNo, clone annual→TEAM/version và từ chối sửa nhãn tổ. Log `target/goal-label-regression.log`.
+- GREEN: `.\mvnw.cmd -Dtest=SchoolYearTeamPlanIntegrationTest,EduPlanLevelMigrationIntegrationTest,EduYearPlanServiceIntegrationTest,EduYearPlanControllerTest test`: **64 test, fail0/error0/skip0**, BUILD SUCCESS. PostgreSQL Testcontainers thật; có upgrade V92→V93 giữ goal cũ, giới hạn100 ở DB/Bean Validation, roundtrip/null/clear/ID/goalNo, clone annual→TEAM/version và từ chối sửa nhãn tổ. Log `target/goal-label-regression.log`.
 - Format native Spotless apply đúng10 file Java liên quan; `mvnw -DspotlessFiles=.*[\\/]YearPlan.*[.]java spotless:check`: BUILD SUCCESS,5 file sạch. Log `target/goal-label-format.log`, `target/goal-label-final-format-check.log`.
-- Runtime: `mvnw -DskipTests -Dspring-boot.run.profiles=dev -Dspring-boot.run.arguments=--server.port=8089 spring-boot:run`: validate90 migrations, migrate V86 thành công trên DB local, Started CareNestApplication; `/actuator/health` UP. `target/goal-label-runtime.log`. Phiên thử đã dừng; process BE8080 của user giữ nguyên, cần restart để nạp code API mới.
+- Runtime: `mvnw -DskipTests -Dspring-boot.run.profiles=dev -Dspring-boot.run.arguments=--server.port=8089 spring-boot:run`: validate90 migrations, migrate V93 thành công trên DB local, Started CareNestApplication; `/actuator/health` UP. `target/goal-label-runtime.log`. Phiên thử đã dừng; process BE8080 của user giữ nguyên, cần restart để nạp code API mới.
 - OpenAPI runtime `/v3/api-docs`: kiểm label max100, goalNo integer và content themeKeys/themeIds đúng hướng. Sửa collision schema Row/Domain/Content bằng6 tên riêng; cập nhật8 schema kế hoạch từ runtime, Python/YAML assert paths và mọi schema ngoài8 không đổi. `target/goal-label-openapi-runtime.json`; incident BUG-261107-year-plan-openapi-row-collision fixed.
 - FE native `node --import ./scripts/register-auth-test-loader.mjs --test tests/education-plan/*.test.mjs`: **248/248**, fail/skip0. Có kiểm callback pointer capture/preview/commit/cancel, bàn phím, BigInt/padding/reverse/overflow, API old client/clear, mock TEAM, in escape HTML, khóa bảng tổ và giữ ticks. ESLint/Prettier file sửa exit0; Vite build exit0 (2.04s). Review độc lập phát hiện2 P2 capture/mock property-order, đã sửa và agent kiểm lại mock4/4, không còn finding trong phạm vi review.
 - Analyze trước code và converge theo artifact/source trực tiếp: delta FR019/020 đủ coverage T093–96; không kết luận sạch các gap feature012 cũ T083–89/T091. Chưa full BE suite, browser/E2E hoặc thiết bị touch thật; không sửa APP (sibling không có), không harness, commit/push/deploy.
 
-## Backend local — Flyway V85 checksum, 07/11/2026
+## Backend local — Flyway V92 checksum, 07/11/2026
 
-- Incident: `docs/knowledge/incidents/ENV-261107-v85-local-checksum.md`; index và `TROUBLESHOOTING.md` đã cập nhật. DB local `carenest_merge`, V85 success=true nhưng checksum -449248398 khác source -969916. Cột snapshot jsonb đã tồn tại, bảng đánh giá có 0 dòng.
-- Trước xử lý: `.\mvnw.cmd -DskipTests -Dspring-boot.run.profiles=dev spring-boot:run` exit 1, checksum mismatch V85; log `target/flyway-v85-before.log`.
-- Sao lưu riêng metadata V85 tại `target/flyway-v85-history-before.json`. Transaction SQL có khóa bảng, chỉ cập nhật checksum khi khớp version/script/checksum cũ/success và bảng đánh giá rỗng. Commit thành công. Không đổi source/schema/migration hoặc tắt validation.
+- Incident: `docs/knowledge/incidents/ENV-261107-v85-local-checksum.md`; index và `TROUBLESHOOTING.md` đã cập nhật. DB local `carenest_merge`, V92 success=true nhưng checksum -449248398 khác source -969916. Cột snapshot jsonb đã tồn tại, bảng đánh giá có 0 dòng.
+- Trước xử lý: `.\mvnw.cmd -DskipTests -Dspring-boot.run.profiles=dev spring-boot:run` exit 1, checksum mismatch V92; log `target/flyway-v85-before.log`.
+- Sao lưu riêng metadata V92 tại `target/flyway-v85-history-before.json`. Transaction SQL có khóa bảng, chỉ cập nhật checksum khi khớp version/script/checksum cũ/success và bảng đánh giá rỗng. Commit thành công. Không đổi source/schema/migration hoặc tắt validation.
 - Sau xử lý: cùng lệnh Maven, `Successfully validated 89 migrations`, schema up to date, Tomcat 8080, `Started CareNestApplication`. `Invoke-RestMethod http://localhost:8080/actuator/health` trả `status=UP`; log `target/flyway-v85-after.log`. Dừng process chạy thử sau kiểm chứng để nhường IDE.
 - Không chạy unit/integration suite (chỉ sửa trạng thái môi trường local), không chạy harness theo chỉ đạo user 07/11/2026. Không commit/push hoặc sửa FE/APP. Cách xử lý không tự áp dụng cho DB khác chưa đối chiếu schema/dữ liệu.
 
@@ -193,7 +193,7 @@
 ### Speckit-plan cập nhật delta Q4=A/Q5=A — 07/11/2026
 
 - Chạy setup-plan.ps1 -Json: reuse plan hiện có, không copy đè template. FEATURE_SPEC/IMPL_PLAN/SPECS_DIR thuộc feature012, helper BRANCH là feature slug; Git thực vẫn feature/G94-326-BE-FEAT-09-school-year-goals-backup. Constitution1.0.0 tái sử dụng; design gates trước/sau cập nhật đạt, implementation gate đóng chờ duyệt plan/API/migration và quyền FE riêng. Không tạo task/feature/branch mới.
-- Hai research agent read-only rà backend/calendar và FE/consumer; root kiểm source. Bổ sung research delta, data-model mục4.1, contracts calendar-preview/orderedThemeIds và import operation RENAME/CREATE_CUSTOM từ form rỗng, clients manual-save/identity/formRevision, quickstart Q01–Q19/R1–R8, plan/ADR0025 cùng source map. Không thêm bảng/migration/dependency ngoài thiết kế V83–V85 đã đề xuất; chỉ mở rộng JSON và DTO/endpoint dự kiến, chưa thực thi.
+- Hai research agent read-only rà backend/calendar và FE/consumer; root kiểm source. Bổ sung research delta, data-model mục4.1, contracts calendar-preview/orderedThemeIds và import operation RENAME/CREATE_CUSTOM từ form rỗng, clients manual-save/identity/formRevision, quickstart Q01–Q19/R1–R8, plan/ADR0025 cùng source map. Không thêm bảng/migration/dependency ngoài thiết kế V90–V92 đã đề xuất; chỉ mở rộng JSON và DTO/endpoint dự kiến, chưa thực thi.
 - Quyết định kỹ thuật: nhánh lấy mẫu có UUID/source riêng, tùy chọn không lấy/rename local; reorder dùng axis các Monday học đang được sử dụng và offset nhánh, giữ counts/identity, không swap range2/4tuần. Preview thuần không ghi, PUT command dùng cùng helper, khác resize FR-010. Gaps không biểu diễn được bằng ranges/counts giữ nguyên thì trả lỗi, không tự pack/nén/lấp; đây là giới hạn kỹ thuật được nêu trong data-model/research/Key decisions/Q18/R4, không tự thêm quy tắc phủ kín năm học.
 - Source FE BranchPlanPage:587/classPlanDoc:223 dùng notes[Monday]; để note không ở lại ngày cũ, v2 branch.weekNotes theo offset tuần học, names/notes root chỉ là projections. Adapter v1 giữ từng note vào offset0 của nhánh tuần, không gộp hoặc ghi DB khi GET. Đã sửa mô tả docKey trong thiết kế theo source EduClassDocServiceImpl:725: version>1 có suffix TEAM planId, không để hai version va khóa.
 - Independent design review delta PASS, re-review bổ sung weekNotes/adapter/serializer/R1/management/ADR không còn blocker cụ thể; chỉ rà thiết kế tĩnh, không test implementation. Management plan146 dòng, status draft; ADR PROPOSED, không tự approve. Research hoàn tất không unknown NEEDS CLARIFICATION; spec/checklist nghiệp vụ vẫn17FR/11AC/6SC,16/16 chất lượng, không đổi câu trả lời user.
@@ -231,7 +231,7 @@
 - Chạy `.specify/scripts/powershell/setup-plan.ps1 -Json`, resolver trỏ feature012; template được điền Technical Context/Constitution/Project Structure/Complexity Tracking. Branch Git thực giữ `feature/G94-326-BE-FEAT-09-school-year-goals-backup`, không tạo/chuyển nhánh dù helper trả feature slug. Constitution 1.0.0 tái sử dụng, design gates đạt; implementation gate vẫn đóng chờ user duyệt làn L.
 - Tạo `specs/012-school-year-team-plans/plan.md`, `research.md`, `data-model.md`, `contracts/education-plans.md`, `contracts/clients.md`, `quickstart.md`; plan quản trị `docs/plans/active/2026-11-07-school-year-team-plans.md` status draft, ADR0025 PROPOSED. Tác động module card giáo dục/observation và CROSS_REPO_MAP đã ghi, không đổi rule user thành team-confirmed.
 - Research hai agent read-only persistence/workflow và FE/consumer, root calendar/downstream; dùng Codebase Memory trace và kiểm source đối chiếu, không tin cạnh graph nhập nhằng. Independent reviewer phát hiện hai gap High: không có đường TEAM chọn annual version mới, và current-only projection làm theme đã chốt biến khỏi view khi bị bỏ. Đã sửa explicit-source createVersion/remap lineage/warnings/Q17, confirmed-first union/history lookup/presentation snapshot/Q14. Re-review không còn blocker cụ thể; minor fallback lịch TEAM cho branch chưa APPROVED đã đồng bộ contract/data-model.
-- Thiết kế chia3phase: nền schema/quyền/config; curriculum guard/lịch lớp/downstream; FE/E2E/converge. Đề xuất migration V83/V84/V85 mới, API fields/endpoint duration và source-version lựa chọn tường minh; chưa tạo migration/DTO/controller/source mới. Snapshot legacy presentation là baseline có nguồn, không giả tái dựng metadata vốn chưa lưu. Chưa tasks/analyze/implement/converge; không tự coi review plan là analyze hoặc test sản phẩm.
+- Thiết kế chia3phase: nền schema/quyền/config; curriculum guard/lịch lớp/downstream; FE/E2E/converge. Đề xuất migration V90/V91/V92 mới, API fields/endpoint duration và source-version lựa chọn tường minh; chưa tạo migration/DTO/controller/source mới. Snapshot legacy presentation là baseline có nguồn, không giả tái dựng metadata vốn chưa lưu. Chưa tasks/analyze/implement/converge; không tự coi review plan là analyze hoặc test sản phẩm.
 - `node scripts/verify.mjs --quick` PASS: 14 test, fail/error/skip0, ArchUnit/Spotless ok, snapshot không chạy; `target/verify.log`. `node scripts/check-ai-layer.mjs` exit0, 0 lỗi/12 cảnh báo cũ; `git diff --check` không lỗi whitespace. Không full/snapshot/nghiệm thu chức năng mới vì chỉ sửa tài liệu. Cổng chạy lại sau cập nhật bằng chứng cuối; không báo tests trong quickstart đã thực thi.
 - Không có `.specify/extensions.yml` trước/kết thúc plan nên không có before/after hooks để dispatch. Git diff `src/main`, `src/test`, `pom.xml` rỗng; không sửa FE/APP, không commit/push/deploy. Giữ các thay đổi spec/tri thức trước lượt này; không xóa chúng.
 
@@ -283,7 +283,7 @@ User yêu cầu lặp implement/verify/converge tới khi không còn gap; cho p
 
 Kết quả convergence: T059–T078 đã được đối chiếu và hoàn thành bằng source, regression và/hoặc documentation phù hợp. Các đoạn “58/58” và các blocker cũ bên dưới là nhật ký lịch sử trước convergence; bằng chứng hiện hành nằm ở phần này và log cuối nói trên.
 
-## Spec011 — Hoàn thành toàn diện Feature 011 (BE + FE + Cutover V81), 06/11/2026
+## Spec011 — Hoàn thành toàn diện Feature 011 (BE + FE + Cutover V88), 06/11/2026
 
 - Đã hoàn thành 58/58 tasks của Feature 011 theo đúng spec, plan và các quyết định nghiệp vụ của User:
   - **3 trạng thái chính thức**: `DRAFT` (Nháp) → `REVIEW` (Duyệt / Đang duyệt) → `APPROVED` (Ban hành).
@@ -292,7 +292,7 @@ Kết quả convergence: T059–T078 đã được đối chiếu và hoàn thà
   - **Snapshot bản in**: Bản đã ban hành đóng băng `print_snapshot` (ô ký, vai trò, tên người) bất biến, cấu hình sau này không làm thay đổi bản in cũ.
   - **Ngăn tự duyệt**: Sổ cái `edu_document_authors` ghi nhận tác giả thực tế, cấm người soạn duyệt nội dung mình soạn; ưu tiên vai trò reviewer (reviewer precedence) ngăn người duyệt soạn cùng loại tài liệu.
   - **Chỉ Hiệu trưởng cấu hình**: Chỉ HT có phân công hiệu lực được cấu hình `workflow-policy`.
-  - **Cutover V81**: Đã xóa toàn bộ constants cũ (`EDITING`, `PENDING_*`, `REJECTED`) khỏi `EduPlanStatus.java` và `EduClassDocStatus.java`. Migration contract `V81__contract_edu_workflow_policy.sql` siết CHECK chỉ còn đúng 3 trạng thái.
+  - **Cutover V88**: Đã xóa toàn bộ constants cũ (`EDITING`, `PENDING_*`, `REJECTED`) khỏi `EduPlanStatus.java` và `EduClassDocStatus.java`. Migration contract `V81__contract_edu_workflow_policy.sql` siết CHECK chỉ còn đúng 3 trạng thái.
   - **Producer compatibility**: `EduYearPlan.java`, `EduYearPlanMapper.java` ghi nhận publisher thật tại `published_by`/`completed_at`, `issued_by` legacy chỉ lưu actual VP approval hoặc null.
 - **Bằng chứng kiểm thử Backend (CareNest_BE)**:
   - `node CareNest_BE/scripts/verify.mjs`:
@@ -303,7 +303,7 @@ Kết quả convergence: T059–T078 đã được đối chiếu và hoàn thà
   - Các bộ test trọng yếu mới:
     - `EduWorkflowPolicyTest`: 7/7 tests GREEN.
     - `EduWorkflowControllerTest`: 12/12 tests GREEN.
-    - `EduWorkflowMigrationIntegrationTest`: GREEN cả mốc V80 expand và V81 contract.
+    - `EduWorkflowMigrationIntegrationTest`: GREEN cả mốc V87 expand và V88 contract.
     - `EduWorkflowAccessPolicyTest`: 4/4 tests GREEN.
     - `EduWorkflowCandidatesIntegrationTest`: GREEN.
     - `EduWorkflowPublicationTest`: 3/3 tests GREEN.
@@ -352,7 +352,7 @@ Kết quả convergence: T059–T078 đã được đối chiếu và hoàn thà
 
 - Đã hoàn thành toàn bộ mã nguồn và kiểm thử cho các foundational primitives T004..T014:
   - `EduWorkflowPolicyTest`: 7/7 tests GREEN (FR-003/006/009/011/012, AC-02/06/07).
-  - `EduWorkflowMigrationIntegrationTest`: Testcontainers PostgreSQL 17 kiểm thử mốc Flyway V80 expand schema/seeds/constraints, bảo toàn legacy compatibility.
+  - `EduWorkflowMigrationIntegrationTest`: Testcontainers PostgreSQL 17 kiểm thử mốc Flyway V87 expand schema/seeds/constraints, bảo toàn legacy compatibility.
   - `AccountServiceImplTest`: 5/5 tests GREEN cho helper `findActiveUserIds`.
   - `EducationReviewerAssignmentsIntegrationTest` & `EduWorkflowCandidatesIntegrationTest`: GREEN cho helper `findActiveEducationReviewerAssignments` và candidate resolution.
   - `EduWorkflowAccessPolicyTest`: 4/4 tests GREEN cho identity-role predicates và reviewer-precedence.
@@ -360,7 +360,7 @@ Kết quả convergence: T059–T078 đã được đối chiếu và hoàn thà
   - `EduWorkflowServiceIntegrationTest`: 2/2 tests GREEN cho lock order, author ledger, version validation.
   - `OpenApiSnapshotTest`: Cập nhật snapshot `docs/api/openapi.yaml` bổ sung enum `REVIEW` trong `EduPlanStatus`.
 - Cổng tài liệu: `node scripts/check-ai-layer.mjs` đạt (0 lỗi, 12 cảnh báo cũ).
-- Cổng verify làn S: `node scripts/verify.mjs --quick` (chuyển full do có migration V80) xác nhận 1064 tests đạt (0 fail, 0 err, 0 skip, archunit ok, snapshot ok). Định dạng code chuẩn hóa qua `mvnw spotless:apply` (spotless:check đạt).
+- Cổng verify làn S: `node scripts/verify.mjs --quick` (chuyển full do có migration V87) xác nhận 1064 tests đạt (0 fail, 0 err, 0 skip, archunit ok, snapshot ok). Định dạng code chuẩn hóa qua `mvnw spotless:apply` (spotless:check đạt).
 - Dừng lại tại Checkpoint Phase 1 / T014 để chờ User review theo đúng quy trình; không tự ý commit/push/deploy/tạo PR.
 
 ## Spec011 — cập nhật tasks sau analyze, 06/11/2026
@@ -488,18 +488,18 @@ Auth React Phase2 (2026-10-12): `VERIFY PASS full | tests 196 fail 0 err 0 skip 
 
 ### Feature014 — kiểm chứng tiếp ngày 08/11/2026
 
-- Sau user gọi implement tiếp, thêm V87 và cập nhật seed mock: 33 dấu hai chấm, nối câu ag-2/27; không sửa V34. Test RED FE tái hiện câu bị cắt, sau sửa targeted đạt; test cũ dò câu trước khi thêm dấu được cập nhật theo dữ liệu nguồn mới.
-- PostgreSQL17 Testcontainers: `MinistrySourceCorrectionMigrationTest` 2/2, gồm đúng nội dung/ID và rollback khi preflight không khớp; `EduGoalHierarchyMigrationTest` 5/5, gồm nội dung/ticks/ID kế hoạch cũ khi nâng cấp qua V87. Fixture JDBC lượt đầu lỗi chọn schema do URL đã có query; đã sửa fixture và chạy lại. Không có test bị skip.
+- Sau user gọi implement tiếp, thêm V94 và cập nhật seed mock: 33 dấu hai chấm, nối câu ag-2/27; không sửa V34. Test RED FE tái hiện câu bị cắt, sau sửa targeted đạt; test cũ dò câu trước khi thêm dấu được cập nhật theo dữ liệu nguồn mới.
+- PostgreSQL17 Testcontainers: `MinistrySourceCorrectionMigrationTest` 2/2, gồm đúng nội dung/ID và rollback khi preflight không khớp; `EduGoalHierarchyMigrationTest` 5/5, gồm nội dung/ticks/ID kế hoạch cũ khi nâng cấp qua V94. Fixture JDBC lượt đầu lỗi chọn schema do URL đã có query; đã sửa fixture và chạy lại. Không có test bị skip.
 - `EduCurriculumControllerTest,EduCurriculumServiceIntegrationTest` chạy lại exit 0 sau cập nhật assertion cũ thiếu dấu hai chấm; lượt đầu có 1 assertion thất bại đúng vì dữ liệu nguồn đã thay đổi.
-- PostgreSQL thử nghiệm sau V87 so với seed mock: 327 mục tiêu và 100 nội dung D khớp từng ký tự. Node education suite 286/286, ESLint file liên quan exit 0, Vite build exit 0, browser fixture 12 nhóm tình huống đạt.
-- Live Playwright với BE8089/Keycloak/PostgreSQL riêng sau V87: 3/3, kiểm import/lọc, chọn lại gợi ý mục tiêu inline, lưu/reload, phiên bản và TEAM readonly. Đã dừng BE8089 và xóa DB thử nghiệm riêng. Lựa chọn inline cả ba cấp có browser fixture riêng; live E2E chỉ chọn ô mục tiêu.
+- PostgreSQL thử nghiệm sau V94 so với seed mock: 327 mục tiêu và 100 nội dung D khớp từng ký tự. Node education suite 286/286, ESLint file liên quan exit 0, Vite build exit 0, browser fixture 12 nhóm tình huống đạt.
+- Live Playwright với BE8089/Keycloak/PostgreSQL riêng sau V94: 3/3, kiểm import/lọc, chọn lại gợi ý mục tiêu inline, lưu/reload, phiên bản và TEAM readonly. Đã dừng BE8089 và xóa DB thử nghiệm riêng. Lựa chọn inline cả ba cấp có browser fixture riêng; live E2E chỉ chọn ô mục tiêu.
 - Audit T032/T035 còn mở: kết quả cột tuổi 851 chuỗi cũ không chứng minh văn bản Bộ đã được nhập đủ hoặc mọi ranh giới/quan hệ đều đúng. Chưa khẳng định catalog chính xác toàn bộ từng chữ.
 - Đối chiếu ngược mục C: xem trực tiếp các trang liệt kê trong báo cáo, xác nhận 62 cặp câu–tuổi bị thiếu tại các ô gộp; seed mock và V34 khớp chính xác 423 chuỗi mục C theo tuổi và số lần xuất hiện. `python specs/014-curriculum-cascade-suggestions/audit/reverse-coverage.py` tạo 84 đoạn cần review, không được hiểu là số lỗi; [bằng chứng và giới hạn](../../specs/014-curriculum-cascade-suggestions/audit/reverse-coverage-review.md). T032/T035 chưa hoàn thành, chưa thay catalog cho các mục thiếu mới.
 - Tiếp tục kiểm các đoạn nối: `merged-fragments-review.py` đối chiếu 13 cặp, xác nhận thêm 7 cặp mục C thiếu (tổng 69). `reverse-goals-candidates.py` tạo 6 ứng viên mục D; xem trang thật xác nhận 4 mục tiêu 5–6 tuổi thiếu, 2 ứng viên là trích nhầm cột. Hai công cụ không chứng minh độ bao phủ toàn văn; T032/T035 vẫn mở.
 - Sau khi trình kế hoạch 73 cặp, user gọi implement. `prepare-addition-review.py` xác nhận 73 mục và 7 trường hợp cần xác minh cha; `plan-addition-placement.py` ghi 59 trường hợp chưa tìm được dòng kề cùng nhóm; `check-pdf-placement.py` tìm điểm tựa cùng trang cho 63/69 nội dung, sáu trường hợp chưa có, không phát hiện xung đột thứ tự trong các điểm tựa. Đây là bằng chứng chuẩn bị, chưa phải kiểm chứng migration hoặc thứ tự đầy đủ. [Chi tiết](../../specs/014-curriculum-cascade-suggestions/audit/placement-refinement.md).
-- V88 thêm 71 nội dung C và 4 mục tiêu D: 73 cặp đã review cùng 2 cặp hô hấp xác nhận sau đó; mock đồng bộ. Test RED trước sửa tái hiện thiếu câu 24–36 tháng. Sau sửa FE education 288/288, lint exit 0, Vite build và browser fixture đạt; PostgreSQL Testcontainers migration/rollback 5/5, hierarchy 5/5, service 7/7 và controller 3/3, skip 0. So 494 nội dung C và 331 mục tiêu D giữa PostgreSQL V88 và mock: từng câu, tuổi, cha, thứ tự, section và nội dung con khớp. T032/T035/T038 vẫn mở vì đối chiếu ngược không chứng minh toàn văn đã đủ; không áp dụng V88 vào DB user.
-- Sau cập nhật cuối V88: E2E thật riêng 3/3 (lọc/inline/lưu/reload, phiên bản, TEAM readonly); `mvnw.cmd spotless:check` exit 0 sau format đúng một file test Java, sau đó migration test 5/5 chạy lại. Vite build có cảnh báo công cụ hiện có. DB và backend thử nghiệm đã dừng/xóa; không chạy hook/harness hay thay DB user.
-- V88 tiếp tục thu hẹp preflight sort vào đúng nguồn Bộ, bổ sung regression nguồn khác có sort_order 5000: migration test 6/6, skip 0; `mvnw.cmd spotless:check` exit 0. Sau V88, phép dò ngược mục C còn 17 mảnh: 15 là label đã có, 2 là lỗi trích cột; mục D còn 2 mảnh trích nhầm cột. Kết quả này không chứng minh toàn văn vì detector không đọc được mọi ô/trang/ranh giới.
+- V95 thêm 71 nội dung C và 4 mục tiêu D: 73 cặp đã review cùng 2 cặp hô hấp xác nhận sau đó; mock đồng bộ. Test RED trước sửa tái hiện thiếu câu 24–36 tháng. Sau sửa FE education 288/288, lint exit 0, Vite build và browser fixture đạt; PostgreSQL Testcontainers migration/rollback 5/5, hierarchy 5/5, service 7/7 và controller 3/3, skip 0. So 494 nội dung C và 331 mục tiêu D giữa PostgreSQL V95 và mock: từng câu, tuổi, cha, thứ tự, section và nội dung con khớp. T032/T035/T038 vẫn mở vì đối chiếu ngược không chứng minh toàn văn đã đủ; không áp dụng V95 vào DB user.
+- Sau cập nhật cuối V95: E2E thật riêng 3/3 (lọc/inline/lưu/reload, phiên bản, TEAM readonly); `mvnw.cmd spotless:check` exit 0 sau format đúng một file test Java, sau đó migration test 5/5 chạy lại. Vite build có cảnh báo công cụ hiện có. DB và backend thử nghiệm đã dừng/xóa; không chạy hook/harness hay thay DB user.
+- V95 tiếp tục thu hẹp preflight sort vào đúng nguồn Bộ, bổ sung regression nguồn khác có sort_order 5000: migration test 6/6, skip 0; `mvnw.cmd spotless:check` exit 0. Sau V95, phép dò ngược mục C còn 17 mảnh: 15 là label đã có, 2 là lỗi trích cột; mục D còn 2 mảnh trích nhầm cột. Kết quả này không chứng minh toàn văn vì detector không đọc được mọi ô/trang/ranh giới.
 - E2E thật chạy lại sau thay đổi preflight cuối: 3/3; FE `npm run build`, ESLint source/test và browser fixture 12 nhóm đều exit 0; `git diff --check` các file tracked liên quan exit 0. DB thử nghiệm riêng và backend8089 đã dọn; không áp dụng migration vào DB user.
 - FE sau lần sửa source cuối: `node --import ./scripts/register-auth-test-loader.mjs --test tests/education-plan/*.test.mjs` đạt 285/285, không fail/skip; ESLint các file JSX/JS thay đổi exit 0; `npm run build` exit 0, còn cảnh báo Vite/Rolldown hiện có.
 - `node tests/education-plan/curriculum-cascade-browser.mjs` đạt 12 nhóm tình huống: lọc phân cấp, xóa lựa chọn không phù hợp, gợi ý, giữ ngữ cảnh khi gõ, bàn phím/cảm ứng, tải lỗi/thử lại, đổi tuổi và catalog rỗng.
@@ -572,7 +572,7 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
   - Full Education Suite: 246/246 tests PASS (0 failures, 0 errors, 0 skipped).
   - `EduYearPlanServiceIntegrationTest`: 38/38 PASS.
   - `SchoolYearTeamPlanIntegrationTest`: 6/6 PASS.
-  - `EduGoalHierarchyMigrationTest`: 5/5 PASS (V83/V84/V85 multi-schema migration isolation).
+  - `EduGoalHierarchyMigrationTest`: 5/5 PASS (V90/V91/V92 multi-schema migration isolation).
   - `ArchitectureRulesTest`: 14/14 PASS (ArchUnit rules).
   - `OpenApiSnapshotTest`: 3/3 PASS, `docs/api/openapi.yaml` đồng bộ với code thật.
   - `spotless:check`: BUILD SUCCESS (0 lint errors).
@@ -589,7 +589,7 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 
 
 ## Hoàn tác delta bỏ ghi chú chủ đề — 07/11/2026
-- Theo yêu cầu user: khôi phục field note trong DTO/entity/mapper/lưu/guard/clone/import và các constructor/test; FE khôi phục cột, API mapper, import/export/history/backup và test. Giữ các thay đổi UI trước yêu cầu bỏ ghi chú. Xóa source và bản build V87 chưa áp dụng; không sửa DB runtime.
+- Theo yêu cầu user: khôi phục field note trong DTO/entity/mapper/lưu/guard/clone/import và các constructor/test; FE khôi phục cột, API mapper, import/export/history/backup và test. Giữ các thay đổi UI trước yêu cầu bỏ ghi chú. Xóa source và bản build V94 chưa áp dụng; không sửa DB runtime.
 - Native `./mvnw.cmd -q -DskipTests test-compile`: exit 0 (log `%TEMP%/carenest-restore-note-compile.log`); chưa chạy BE integration tests. FE `node --import ./scripts/register-auth-test-loader.mjs --test tests/education-plan/*.test.mjs`: 256/256 đạt, fail/skip 0 (log `%TEMP%/carenest-restore-note-fe.log`). Kiểm diff ghi nhận các file trước đó sạch như EduTheme, GoalFilePreviewResponse, YearPlanFileTable, importThemes, planHistory, yearPlanAutosave đã hết diff nội dung.
 - Không harness, browser, migration runtime hoặc commit/push. Lint/build FE được kiểm sau bước khôi phục.
 
@@ -606,7 +606,7 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 ## Spec015 — remediation artifact và kiểm coverage, 09/11/2026
 
 - User yêu cầu đối chiếu context/business rules và “fix” bộ artifact trước kiểm coverage lại. Sửa spec/domain/plan/research/model/contract/tasks/quickstart/database-context/checklist; báo cáo [analysis015](../../specs/015-separate-year-team-plans/analysis.md). Không đổi nghiệp vụ nguồn hoặc constitution.
-- Bổ sung FR-016/017, regression cây nguồn API/import, task FE riêng, shared header sequence và transaction cập nhật nguồn đồng bộ là thiết kế đề xuất chờ duyệt; sửa thứ tự rehearsal trước cutover. Đối chiếu V35/V80/V83/V84: unique INDEX, authors class_doc_id không ép owner header, giữ FK ghép cây/theme/templates; không sửa migration local.
+- Bổ sung FR-016/017, regression cây nguồn API/import, task FE riêng, shared header sequence và transaction cập nhật nguồn đồng bộ là thiết kế đề xuất chờ duyệt; sửa thứ tự rehearsal trước cutover. Đối chiếu V35/V87/V90/V91: unique INDEX, authors class_doc_id không ép owner header, giữ FK ghép cây/theme/templates; không sửa migration local.
 - Native Python assert trực tiếp qua PowerShell stdin: `DOC CHECK PASS: 11 Markdown files, 17 FR + 6 SC, 47 unique tasks, 23/23 mapped requirements, links/fences/whitespace valid.` Đã kiểm ID liên tục/refs/coverage table, UTF-8/fences/local links, 9 owner/ngoại lệ authors, NULL legacy/partial index, shared sequence/transaction, query không dùng bảng/cột đã drop.
 - `git diff --check` exit0; Git có cảnh báo CRLF→LF trên các file đã thay đổi trước đó, không lỗi whitespace. Artifact spec015 đang untracked nên kiểm riêng trailing whitespace bằng Python, không dựa riêng git diff.
 - Coverage 23/23 là coverage tài liệu yêu cầu→task/check, không implementation/test coverage. T001–T037 giữ ID và trạng thái chưa hoàn thành; thêm T038–T047. Chưa chạy Maven/FE/browser/SQL/Flyway; SQL quickstart cần rehearsal thật ở T030. Không commit/push/deploy, không sửa FE/APP. Gate plan/API/DDL/quyền client và APP impact còn phải có bằng chứng trước thực thi theo scope.
@@ -623,7 +623,7 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 
 - Thêm kiểm gửi năm (9 chủ đề, ngày/giới hạn, mục tiêu/nội dung), phân bổ tổ, sửa nội dung tổ và giữ chỉnh sửa khi nguồn năm đổi; FE thêm kiểm tra, dấu bắt buộc và khôi phục nháp. Chưa hoàn thành bỏ lease/heartbeat, thứ bậc duyệt và toàn bộ ca tích hợp.
 - `mvn -Dtest=InheritedCurriculumGuardTest,EduTeamContentMergeTest,EduTeamAllocationTest,YearPlanPublicationValidatorTest,EduTeachingCalendarTest test`: 16 test đạt. FE: `node --test tests/education-plan/submit-requirements.test.mjs tests/education-plan/team-plan-ui.test.mjs`: 10 đạt; `node --import ./scripts/register-auth-test-loader.mjs --test tests/education-plan/school-year-team-mock.test.mjs`: 5 đạt; ESLint file sửa và `npm run build` đạt, Vite có cảnh báo phụ thuộc.
-- Docker daemon không kết nối được; chưa chạy integration PostgreSQL, kiểm snapshot reload, toàn bộ test hoặc rehearsal Flyway. V91 mới chỉ là migration trong source, có thể tự chạy khi BE khởi động với Flyway; chưa áp dụng hay xác minh trên database đang dùng. Không xác nhận tính năng hoàn tất.
+- Docker daemon không kết nối được; chưa chạy integration PostgreSQL, kiểm snapshot reload, toàn bộ test hoặc rehearsal Flyway. V98 mới chỉ là migration trong source, có thể tự chạy khi BE khởi động với Flyway; chưa áp dụng hay xác minh trên database đang dùng. Không xác nhận tính năng hoàn tất.
 
 ### Tiếp tục bỏ khóa phiên
 
@@ -633,7 +633,7 @@ Làn L:            ghi đủ vào Progress log của plan; chat chỉ tóm tắt
 
 ## Đối chiếu task giáo dục — 10/11/2026
 
-BE chọn lọc 44/44 (PostgreSQL Testcontainers); FE giáo dục 320/320; ESLint source sửa và build FE exit0. Đã kiểm chuỗi PHT-only/TT→PHT, thiếu ứng viên giữa/cuối, policy reconcile, reorder save/preview, snapshot unknown và năm xóa mềm. BE mở rộng trước đó còn 5 failure/25 error trên 49 ca do fixture/lease/schema chưa đồng bộ; không coi full BE đạt. Chưa browser/E2E hoặc áp dụng migration V94 lên DB người dùng. Chi tiết ở workspace root: `huong_dan_nghiep_vu/ket_qua_trien_khai_task_ke_hoach_giao_duc_2026-11-10.md`; tasks T002/T006/T015/T019/T020 còn mở.
+BE chọn lọc 44/44 (PostgreSQL Testcontainers); FE giáo dục 320/320; ESLint source sửa và build FE exit0. Đã kiểm chuỗi PHT-only/TT→PHT, thiếu ứng viên giữa/cuối, policy reconcile, reorder save/preview, snapshot unknown và năm xóa mềm. BE mở rộng trước đó còn 5 failure/25 error trên 49 ca do fixture/lease/schema chưa đồng bộ; không coi full BE đạt. Chưa browser/E2E hoặc áp dụng migration V101 lên DB người dùng. Chi tiết ở workspace root: `huong_dan_nghiep_vu/ket_qua_trien_khai_task_ke_hoach_giao_duc_2026-11-10.md`; tasks T002/T006/T015/T019/T020 còn mở.
 
 
 ## Tiếp tục EDU-64 và cấm xóa tổ — 10/11/2026

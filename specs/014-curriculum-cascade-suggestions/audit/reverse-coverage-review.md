@@ -1,6 +1,6 @@
 # Đối chiếu ngược nguồn Bộ → catalog, 08/11/2026
 
-Nguồn: [Công báo, VBHN 01/VBHN-BGDĐT](https://congbao.chinhphu.vn/van-ban/van-ban-hop-nhat-so-01-vbhn-bgddt-33656/35646.htm), PDF SHA-256 `146c1f23b3515d46f2e2e97afcfc0a1d871ef28b6700c7db4fbacfeb56e8572f`. Đây là báo cáo lịch sử so seed V87; V88 và mock đã bổ sung các cặp xác nhận. Chưa đối chiếu hết mục D hoặc toàn bộ ô gộp.
+Nguồn: [Công báo, VBHN 01/VBHN-BGDĐT](https://congbao.chinhphu.vn/van-ban/van-ban-hop-nhat-so-01-vbhn-bgddt-33656/35646.htm), PDF SHA-256 `146c1f23b3515d46f2e2e97afcfc0a1d871ef28b6700c7db4fbacfeb56e8572f`. Đây là báo cáo lịch sử so seed V94; V95 và mock đã bổ sung các cặp xác nhận. Chưa đối chiếu hết mục D hoặc toàn bộ ô gộp.
 
 ## Đã xác nhận bằng ảnh trang gốc
 
@@ -56,12 +56,12 @@ Hai ứng viên mục D còn lại là lỗi trích nhầm cột: PDF69 mục 2.
 
 ## Rà lại sau khi bổ sung 73 cặp
 
-Chạy phép dò mục C trên seed mới trong thư mục tạm cho 19 mảnh cần xem, không ghi đè danh sách lịch sử. Xem PDF40/Công báo52 xác nhận thêm câu “Hô hấp: Hít vào, thở ra.” là ô gộp cho 4–5 và 5–6 tuổi; hai cặp này cũng được bổ sung vào V88. Các mảnh còn lại gồm tiêu đề con và mảnh trích lệch/qua cột, chưa dùng số lượng mảnh làm bằng chứng bao phủ đầy đủ.
+Chạy phép dò mục C trên seed mới trong thư mục tạm cho 19 mảnh cần xem, không ghi đè danh sách lịch sử. Xem PDF40/Công báo52 xác nhận thêm câu “Hô hấp: Hít vào, thở ra.” là ô gộp cho 4–5 và 5–6 tuổi; hai cặp này cũng được bổ sung vào V95. Các mảnh còn lại gồm tiêu đề con và mảnh trích lệch/qua cột, chưa dùng số lượng mảnh làm bằng chứng bao phủ đầy đủ.
 
-Sau V88, cùng phép dò cho 17 mảnh còn lại: 15 được biểu diễn bằng `label` trên các nội dung con (giao diện hiển thị dấu hai chấm), 2 là mảnh trích sai cột/ghép dòng tại PDF48 và PDF53; [kết quả và hash seed](reverse-content-post-v88-review.json). Phép dò mục D còn 2 ứng viên đã xác nhận là trích nhầm cột. Các phép này không phủ toàn bộ ô PDF không được nhận diện hoặc mọi ranh giới câu.
+Sau V95, cùng phép dò cho 17 mảnh còn lại: 15 được biểu diễn bằng `label` trên các nội dung con (giao diện hiển thị dấu hai chấm), 2 là mảnh trích sai cột/ghép dòng tại PDF48 và PDF53; [kết quả và hash seed](reverse-content-post-v88-review.json). Phép dò mục D còn 2 ứng viên đã xác nhận là trích nhầm cột. Các phép này không phủ toàn bộ ô PDF không được nhận diện hoặc mọi ranh giới câu.
 
 ## Còn cần làm
 
 `reverse-coverage.py` tạo `reverse-content-candidates.json`: 84 đoạn nghi vấn khi chạy trên snapshot này, **không phải 84 lỗi**. Danh sách gồm các đoạn đã xác nhận, tiêu đề, đoạn gãy trang hoặc nối/tách không đúng. Cần xem từng trang, xác minh ô tuổi/cấp và kiểm thêm mục D cùng cây lĩnh vực/nhóm; sau đó tổng hợp một delta cập nhật nguồn có kiểm thử, bảo toàn ID và bản kế hoạch đã sao chép. Không sửa migration đã commit hoặc DB người dùng.
 
-Tái lập lượt lịch sử cần PDF đúng hash, `age-cell-extract.json` tại `%TEMP%/carenest014-source-audit` và seed FE trước V88; chạy `reverse-coverage.py` với seed hiện hành sẽ tạo kết quả khác và ghi đè JSON lịch sử. Trích xuất và phân tách tự động chỉ tạo ứng viên, không thay thế đọc trang gốc.
+Tái lập lượt lịch sử cần PDF đúng hash, `age-cell-extract.json` tại `%TEMP%/carenest014-source-audit` và seed FE trước V95; chạy `reverse-coverage.py` với seed hiện hành sẽ tạo kết quả khác và ghi đè JSON lịch sử. Trích xuất và phân tách tự động chỉ tạo ứng viên, không thay thế đọc trang gốc.

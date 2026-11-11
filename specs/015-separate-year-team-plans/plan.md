@@ -32,13 +32,13 @@ Bắt buộc đối chiếu [PROJECT_CONTEXT](../../docs/context/PROJECT_CONTEXT
 ## Phases và gates
 
 1. **Thiết kế/phê duyệt**: T001/T002/T033/T034/T047. Trình plan làn L, DDL/sequence/baseline/cutover và contract cùng impact FE/APP. T047 ghi phê duyệt riêng theo phạm vi; task FE chỉ là kế hoạch, không cấp quyền sửa client.
-2. **Expand + rehearsal dữ liệu**: T003/T029/T030 và phần DB T021. V89 local là đầu vào review, không bằng chứng đã migrate. Snapshot trước expand/cutover; kiểm thử schema đích/V90 trên scratch trước cutover thật. Không chuyển app sang bảng TEAM rỗng trong giai đoạn expand.
+2. **Expand + rehearsal dữ liệu**: T003/T029/T030 và phần DB T021. V96 local là đầu vào review, không bằng chứng đã migrate. Snapshot trước expand/cutover; kiểm thử schema đích/V97 trên scratch trước cutover thật. Không chuyển app sang bảng TEAM rỗng trong giai đoạn expand.
 3. **BE trên schema đích scratch**: T004–T008/T010–T028 và T038–T042/T048–T050 theo dependency tasks; bảo vệ nguồn, cấm xóa, quyền TT, mapping/baseline, consumer hồ sơ lớp/nguồn đánh giá sau tách bảng, legacy NULL không tự gán nguồn, phiên cũ conflict và transaction lỗi/lặp/concurrent. T009 chưa chạy production ở phase này.
 4. **FE được phê duyệt riêng**: T043–T046. Nhãn/form/list/versions/review UI dùng nhà component hiện có; test thực tế UI + API. APP chỉ đánh giá nếu có consumer; nếu có thay đổi phải có task/quyền riêng trước cutover.
 5. **Kiểm chứng trước cutover**: T031/T032/T035/T036/T037 trên scratch; đối chiếu đủ payload/ownership/FK/lineage/nguồn lớp/legacy và sequence; API snapshot/check chọn theo impact, regression feature012/013 liên quan. Không đánh hoàn thành khi thiếu FE hoặc E2E skip chưa giải quyết.
 6. **Cutover T009**: sau mọi gate trên, maintenance dừng writers/jobs, backup/restore rehearsal, transaction copy TEAM/chuyển FK/sequence/bỏ cột cũ theo data-model §2; đối chiếu trước xóa và sau chuyển, mở app mới sau kiểm smoke. Không tự chạy migration/deploy trong lượt tài liệu.
 
-V89/V90 là slot dự kiến phải kiểm tra lại. Nếu V89 đã commit/applied, sửa thiết kế bằng migration mới; không chỉnh checksum. Không dùng app boot tự apply V90 lên DB đang dùng để kiểm thử. Mỗi phase làn L cần review theo plan được duyệt.
+V96/V97 là slot dự kiến phải kiểm tra lại. Nếu V96 đã commit/applied, sửa thiết kế bằng migration mới; không chỉnh checksum. Không dùng app boot tự apply V97 lên DB đang dùng để kiểm thử. Mỗi phase làn L cần review theo plan được duyệt.
 
 ## Constitution Check — thiết kế, chưa chứng nhận runtime
 

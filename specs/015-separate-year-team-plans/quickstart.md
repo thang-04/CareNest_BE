@@ -1,12 +1,12 @@
 # Quickstart — kiểm chứng spec015
 
-Đây là kịch bản tương lai, **chưa chạy trong lượt fix tài liệu**. Dùng dữ liệu tổng hợp, DB scratch riêng, native Maven/SQL/Node/browser; không harness/hook hoặc dữ liệu thật. Thiết kế/API/DDL/code/client cần gate T001/T047 theo phạm vi trước thực thi. T031/T035/T037 chạy trên scratch **trước T009 production**. Không boot app tự apply V90 lên DB đang dùng để thử.
+Đây là kịch bản tương lai, **chưa chạy trong lượt fix tài liệu**. Dùng dữ liệu tổng hợp, DB scratch riêng, native Maven/SQL/Node/browser; không harness/hook hoặc dữ liệu thật. Thiết kế/API/DDL/code/client cần gate T001/T047 theo phạm vi trước thực thi. T031/T035/T037 chạy trên scratch **trước T009 production**. Không boot app tự apply V97 lên DB đang dùng để thử.
 
 ## 0. Chuẩn bị, snapshot và rehearsal expand/contract
 
-1. Kiểm migration history/slot V89/V90 và trạng thái Git: đã commit/applied thì không sửa checksum, dùng migration mới. Seed schema trước expand có năm/tổ nhiều version, owner/coauthor, approvals/print_snapshot, lease/revision, legacy không nguồn, cây/tick/mẫu nhánh/class docs và nguồn đánh giá. T029 lưu seed tổng hợp trong src/test/resources/eduplan/.
+1. Kiểm migration history/slot V96/V97 và trạng thái Git: đã commit/applied thì không sửa checksum, dùng migration mới. Seed schema trước expand có năm/tổ nhiều version, owner/coauthor, approvals/print_snapshot, lease/revision, legacy không nguồn, cây/tick/mẫu nhánh/class docs và nguồn đánh giá. T029 lưu seed tổng hợp trong src/test/resources/eduplan/.
 2. Snapshot trước expand. Apply expand riêng trên scratch bằng công cụ Flyway/native đã có, ghi chính xác command/target/version. Mô phỏng app cũ tạo/sửa thêm sau expand; refresh snapshot ngay trước contract để kiểm backfill cập nhật lần cuối. Không bật app mới ghi hai bảng trong khoảng expand.
-3. T030 chuẩn bị candidate V90 và test integration với schema đích. Trước contract dừng writer/job scratch, backup, snapshot; sau contract kiểm đối chiếu §4 trước mở app mới. Diễn tập lỗi giữa migration/restore, ghi kết quả.
+3. T030 chuẩn bị candidate V97 và test integration với schema đích. Trước contract dừng writer/job scratch, backup, snapshot; sau contract kiểm đối chiếu §4 trước mở app mới. Diễn tập lỗi giữa migration/restore, ghi kết quả.
 
 Mẫu snapshot SQL **chỉ cho scratch**, chạy cùng database và giữ schema qa_spec015 qua rehearsal. Không phải migration ứng dụng:
 

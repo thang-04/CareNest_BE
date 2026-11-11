@@ -4,7 +4,7 @@
 
 **Quy ước**: `BE:` là `CareNest_BE/`, `FE:` là `CareNest_FE/`, `APP:` là `CareNest_APP/`. Mọi task đều chưa thực hiện. Test hành vi là bắt buộc theo constitution, bao gồm regression cho lỗi snapshot và bảo toàn dữ liệu.
 
-**Cổng triển khai**: Plan lane L đang **draft**. Phải chạy analyze và được user duyệt plan trước khi sửa source/migration; review từng phase theo plan quản trị. Không tự chạy migration trên DB thực, sửa repo APP, commit/push/deploy. Số migration mới phải xác nhận chưa được dùng; không sửa V90.
+**Cổng triển khai**: Plan lane L đang **draft**. Phải chạy analyze và được user duyệt plan trước khi sửa source/migration; review từng phase theo plan quản trị. Không tự chạy migration trên DB thực, sửa repo APP, commit/push/deploy. Số migration mới phải xác nhận chưa được dùng; không sửa V97.
 
 ## Phase 1: Setup
 
@@ -77,7 +77,7 @@
 
 Các ID giữ nguyên để không mất truy vết; T036–T042 được thêm sau T035 về số nhưng có cổng và thứ tự thực thi riêng, không mặc định làm cuối.
 
-- [ ] T036 [US1] Kiểm kê hồ sơ annual mất snapshot, phân biệt legacy thực sự với lỗi V90 theo bằng chứng có thể kiểm chứng; ghi id, nguồn bằng chứng, giá trị, mức tin cậy, trạng thái và trường hợp chưa xác định vào `BE:specs/016-education-submit-validation/quickstart.md`, dùng dữ liệu thử/đã ẩn thông tin, không ghi DB thực.
+- [ ] T036 [US1] Kiểm kê hồ sơ annual mất snapshot, phân biệt legacy thực sự với lỗi V97 theo bằng chứng có thể kiểm chứng; ghi id, nguồn bằng chứng, giá trị, mức tin cậy, trạng thái và trường hợp chưa xác định vào `BE:specs/016-education-submit-validation/quickstart.md`, dùng dữ liệu thử/đã ẩn thông tin, không ghi DB thực.
 - [ ] T037 [US1] Chuẩn bị và thử quy trình khôi phục snapshot có bằng chứng, backup, so sánh trước/sau, rollback, giữ nguyên trạng thái/revision và báo hồ sơ chưa đủ bằng chứng trong `BE:specs/016-education-submit-validation/quickstart.md` và test `BE:src/test/java/com/carenest/service/eduplan/impl/EduYearPlanServiceIntegrationTest.java`; chỉ thực hiện trên DB thực sau phê duyệt riêng.
 - [ ] T038 Hoàn thiện ma trận EDU-70 đã dự thảo trước duyệt plan: phân công duy nhất, PHT/TT/GV soạn và thứ bậc duyệt năm/tổ/hồ sơ lớp, REVIEW không sửa, tự duyệt/cấp dưới bị chặn, revision và hành vi phiên cũ trong `BE:specs/016-education-submit-validation/contracts/submit-validation.md`; đối chiếu endpoint/DTO/header/FE/APP ở `BE:docs/system/CROSS_REPO_MAP.md`, trình duyệt thay đổi contract trước code.
 - [ ] T039 [P] Viết regression thứ bậc, một người soạn, tự duyệt/cấp dưới, REVIEW, ghi đồng thời và request lặp trong `BE:src/test/java/com/carenest/service/eduplan/impl/EduWorkflowConcurrencyIntegrationTest.java` và `BE:src/test/java/com/carenest/service/eduplan/impl/EduYearPlanServiceIntegrationTest.java`; mô phỏng thời gian hơn 90 giây, kiểm người được phân công vẫn lưu không cần lease hay heartbeat và không phát sinh trạng thái Đang sửa; test các quyền theo ma trận T038.

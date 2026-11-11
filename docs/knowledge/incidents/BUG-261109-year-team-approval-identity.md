@@ -23,7 +23,7 @@ Theo báo cáo user: PHT lập/gửi năm theo nhóm tuổi → HT mở chờ du
 
 | # | Cách thử | Kết quả | Bài học |
 | --- | --- | --- | --- |
-| 1 | Đọc entity, V83, service tạo/chọn nguồn và mapper list | Cả năm/tổ chung bảng, phân biệt level; có title và nguồn riêng | Chung bảng chưa đủ chứng minh nguyên nhân nhãn sai |
+| 1 | Đọc entity, V90, service tạo/chọn nguồn và mapper list | Cả năm/tổ chung bảng, phân biệt level; có title và nguồn riêng | Chung bảng chưa đủ chứng minh nguyên nhân nhãn sai |
 | 2 | Đối chiếu yêu cầu/ảnh và đọc logic versionFlags của Web | Changed/removed cần xử lý, mục mới có nhãn riêng; có ngoại lệ chủ đề kết thúc | Không áp màu đỏ toàn bộ một cách máy móc; cần chốt delta cho tổ |
 
 ## Root cause

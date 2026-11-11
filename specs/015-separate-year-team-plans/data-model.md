@@ -1,6 +1,6 @@
 # Data Model — tách bảng năm/tổ (spec015)
 
-Thiết kế sửa ngày 09/11/2026 theo lệnh user “fix”; chưa duyệt DDL/API/triển khai. V89 local đã tồn tại; không chứng nhận đã apply, không sửa SQL trong lượt tài liệu. Trước implement kiểm tra Flyway history/commit; migration đã commit/applied phải được bổ sung bằng migration mới, không đổi checksum. V89/V90 là tên dự kiến, phải kiểm tra slot thực tế trước tạo.
+Thiết kế sửa ngày 09/11/2026 theo lệnh user “fix”; chưa duyệt DDL/API/triển khai. V96 local đã tồn tại; không chứng nhận đã apply, không sửa SQL trong lượt tài liệu. Trước implement kiểm tra Flyway history/commit; migration đã commit/applied phải được bổ sung bằng migration mới, không đổi checksum. V96/V97 là tên dự kiến, phải kiểm tra slot thực tế trước tạo.
 
 ## 1. Bảng chính và định danh
 
@@ -8,7 +8,7 @@ Thiết kế sửa ngày 09/11/2026 theo lệnh user “fix”; chưa duyệt DD
 
 Chỉ giữ SCHOOL_YEAR sau cutover. Giữ nguyên ID, title, năm/tuổi, version_no, lineage, workflow/approvals/print_snapshot, authors, lease/revision và request chống lặp. Chỉ bỏ plan_level và các cột dành riêng TEAM sau khi code/consumer đã chuyển. source_plan_id của năm vẫn self-FK tới năm.
 
-Hai unique cũ của V83 là INDEX, không phải table constraint. Mẫu sau chỉ là fragment thiết kế, không phải migration có thể chạy độc lập:
+Hai unique cũ của V90 là INDEX, không phải table constraint. Mẫu sau chỉ là fragment thiết kế, không phải migration có thể chạy độc lập:
 
 ```sql
 DROP INDEX uq_edu_plan_level_version;
@@ -67,23 +67,23 @@ Dữ liệu cũ xuất phát từ một bảng nên ID hai tập phải rời nh
 
 Mỗi bảng nhận school_year_plan_id/team_plan_id nullable khi expand; sau contract 8 bảng phải đúng một owner năm/tổ, có FK tới bảng tương ứng và index theo truy vấn; edu_document_authors có ngoại lệ hồ sơ lớp bên dưới. EduGoalRow là mapped superclass; không có bảng edu_goal_rows (drop V35) hoặc entity/bảng approvals riêng (approvals JSONB, bảng cũ drop V23).
 
-**Ngoại lệ tác giả (V80):** edu_document_authors có cả class_doc_id. CHECK đích phải là `num_nonnulls(school_year_plan_id, team_plan_id, class_doc_id) = 1`; tác giả class doc giữ class_doc_id và hai owner header NULL, không suy/gán owner trực tiếp theo nguồn lớp. Giữ FK/unique (class_doc_id,user_id), tách unique partial (school_year_plan_id,user_id)/(team_plan_id,user_id) cho tác giả header và giữ origin/timestamps/coverage. Snapshot không được INNER JOIN làm mất tác giả lớp.
+**Ngoại lệ tác giả (V87):** edu_document_authors có cả class_doc_id. CHECK đích phải là `num_nonnulls(school_year_plan_id, team_plan_id, class_doc_id) = 1`; tác giả class doc giữ class_doc_id và hai owner header NULL, không suy/gán owner trực tiếp theo nguồn lớp. Giữ FK/unique (class_doc_id,user_id), tách unique partial (school_year_plan_id,user_id)/(team_plan_id,user_id) cho tác giả header và giữ origin/timestamps/coverage. Snapshot không được INNER JOIN làm mất tác giả lớp.
 
-**FK ghép (V35/V84):** inventory mọi FK/index dùng year_plan_id trước DROP. Tái tạo bộ unique/FK ghép theo owner năm/tổ riêng cho subdomain→expected_result→goal (giữ domain/sub_domain_key và deferred semantics), theme→branch_template; kiểm không cross-owner. Không chỉ thay FK header rồi bỏ cột khiến mất ràng buộc cây. Không dùng DROP CASCADE bỏ âm thầm FK/unique.
+**FK ghép (V35/V91):** inventory mọi FK/index dùng year_plan_id trước DROP. Tái tạo bộ unique/FK ghép theo owner năm/tổ riêng cho subdomain→expected_result→goal (giữ domain/sub_domain_key và deferred semantics), theme→branch_template; kiểm không cross-owner. Không chỉ thay FK header rồi bỏ cột khiến mất ràng buộc cây. Không dùng DROP CASCADE bỏ âm thầm FK/unique.
 
 edu_goal_contents suy qua goal_id; edu_content_theme_ticks suy qua content/theme; không thêm owner dư. Server kiểm hai đầu mapping/cây cùng owner. theme_evaluations giữ tham chiếu theme/snapshot, không đổi ID theme. Hồ sơ lớp trong luồng mới chỉ nhận TEAM APPROVED hiện hành; dữ liệu legacy bất thường phải được inventory và chặn cutover để xử lý có nguồn, không gán sang năm tùy ý.
 
 ### Trình tự triển khai được đề xuất
 
 1. T001 duyệt thiết kế/DDL/plan và ghi bằng chứng; xác nhận chưa có migration tương ứng đã applied/commit.
-2. T003 expand: thêm bảng và cột nullable, giữ year_plan_id/plan_level; không chuyển app sang hai bảng đang rỗng. V89 local chỉ là đầu vào review.
+2. T003 expand: thêm bảng và cột nullable, giữ year_plan_id/plan_level; không chuyển app sang hai bảng đang rỗng. V96 local chỉ là đầu vào review.
 3. T029/T030 chuẩn bị bộ seed, snapshot và test cả expand/contract trên DB scratch. Kiểm tất cả 9 owner, children, legacy, class docs, approvals, lineage, sequence. Không cho ghi mới vào bảng team mở rộng trước cutover.
 4. Hoàn thiện code/consumer và kiểm thử schema đích trên scratch. T009 production cutover chỉ sau các gate T001/T030/T031/T034/T035/T037/T047; dừng writer/job, backup và rehearsed restore.
 5. Trong cutover: refresh owner từ year_plan_id để bao gồm dữ liệu phát sinh sau expand; chép toàn bộ TEAM giữ ID (OVERRIDING SYSTEM VALUE nếu identity cũ còn tồn tại), giữ source_plan_id self-FK theo thứ tự/deferred FK; thay defaults sequence chung. Đối chiếu **trước xóa**.
 6. Chuyển tất cả FK trỏ header/cây: hai owner có CHECK đúng một cột; gỡ FK year_plan_id và bỏ cột cũ, xử lý self-FK TEAM trước xóa TEAM khỏi năm để không cascade mất dữ liệu. Chỉ sau đó bỏ plan_level/cột TEAM và thay unique index năm. Xác nhận không còn FK/consumer tham chiếu header TEAM cũ.
 7. Kiểm đối chiếu toàn vẹn sau contract trước mở writer/job bằng code mới. Lỗi trong migration transaction phải rollback; nếu đã commit, giữ maintenance và restore backup đã diễn tập hoặc migration tiến có duyệt. Không hứa đảo DDL bằng app cũ, không sửa migration đã commit.
 
-Không ship app hai bảng giữa expand và cutover. V90 không được auto-apply chỉ để “thử chạy app” trên DB đang dùng. Test expand và contract là prerequisite của cutover, không là việc hoàn thiện migration sau khi đã deploy.
+Không ship app hai bảng giữa expand và cutover. V97 không được auto-apply chỉ để “thử chạy app” trên DB đang dùng. Test expand và contract là prerequisite của cutover, không là việc hoàn thiện migration sau khi đã deploy.
 
 ## 3. Tiến độ rà soát
 

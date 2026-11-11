@@ -35,7 +35,7 @@ description: "Dependency-ordered tasks for school-year and team education plans"
 
 ### Regression trước implementation
 
-- [x] T004 [P] Tạo `src/test/java/com/carenest/repository/eduplan/EduPlanLevelMigrationIntegrationTest.java` với fixture V82: legacy→TEAM giữ ID/source predecessor/status/approvals/history/print snapshot; hai level cùng year/age/version tồn tại được, mỗi level chỉ một open version; source/legacy flag không thể tự giả qua API. Chạy RED trước V83, giữ case migration V35/V41/V80/V81/V82 lịch sử không bị thay nghĩa (FR13/14, Q12/13).
+- [x] T004 [P] Tạo `src/test/java/com/carenest/repository/eduplan/EduPlanLevelMigrationIntegrationTest.java` với fixture V89: legacy→TEAM giữ ID/source predecessor/status/approvals/history/print snapshot; hai level cùng year/age/version tồn tại được, mỗi level chỉ một open version; source/legacy flag không thể tự giả qua API. Chạy RED trước V90, giữ case migration V35/V41/V87/V88/V89 lịch sử không bị thay nghĩa (FR13/14, Q12/13).
 - [x] T005 [P] Bổ sung regression trong `src/test/java/com/carenest/service/eduplan/impl/EduWorkflowAccessPolicyTest.java` và `src/test/java/com/carenest/service/eduplan/impl/EduWorkflowServiceIntegrationTest.java`: year vẫn TEAM, schoolYear PHT→HT; assignment/creator/reviewer precedence, no-self-approval theo target, PUT3key giữ key4, reconcile chỉ loại đổi và snapshot cũ bất biến. RED trước đổi resolver (FR6/7, Q12/16).
 - [x] T006 [P] Bổ sung `src/test/java/com/carenest/service/eduplan/impl/EduTeachingCalendarTest.java` cho predicate tuần học/union nhiều break/partial break và `src/test/java/com/carenest/service/eduplan/impl/EduConfigServiceIntegrationTest.java` cho HT-only duration policy, revision stale, limits nguyên dương/min≤max, snapshot old/new/legacy không hồi tố. RED trước T009/T010 (FR11/15, Q07–09/R2).
 
@@ -115,7 +115,7 @@ description: "Dependency-ordered tasks for school-year and team education plans"
 - [x] T039 [P] [US3] Mở rộng RED trong `src/test/java/com/carenest/service/eduplan/impl/EduTeachingCalendarTest.java` cho reorderThemeBlocks: permutation đúng/thiếu/trùng/foreign, A2/B4 giữ counts+branch offsets+weekNotes, full-break union/partial break, idempotent/non-mutating input, out-of-year/overlap và gap không biểu diễn thì reject không pack/nén (FR10/12/15/17, R1–R6).
 - [x] T040 [P] [US3] Tạo `src/test/java/com/carenest/service/eduplan/impl/EduBranchRangeIntegrationTest.java`: optional none/some/all mẫu, rename giữ UUID/source, không auto-add mẫu đã bỏ, v1 adapter không ghi GET/không gộp tên, branch2tuần hai week docs, v1 write không flatten v2; preview -1/new/version-stale/scope/state không side effects, PUT reorder khác resize và notes offsets (FR9–15/17, Q06–11/18/19/R7).
 - [x] T041 [P] [US3] Bổ sung RED trong `src/test/java/com/carenest/service/eduplan/impl/BranchFileImportTest.java`: RENAME một branch2tuần trả hai Monday cùng key, CREATE_CUSTOM từ branches rỗng và tuần trống, cảnh báo thiếu/trùng target/minWeeks>1, không lấy ngày/số tuần/file-source hoặc tự chọn templates; preview draftCalendar không persist (Q15/19/R8).
-- [x] T042 [P] [US3] Bổ sung RED trong `src/test/java/com/carenest/service/observation/impl/ThemeEvaluationIntegrationTest.java` và `src/test/java/com/carenest/service/observation/impl/EvaluationLockOrderTest.java`: class effective dates cho list/enrollment/daily results/confirm/signers/childThemeResults từng lớp; confirmed-first khi TEAM mới bỏ theme, frozen metadata/cells/goal columns/membership không mất, full/partial-break và tuần2 có MT; migration V85 không tính lại cells hoặc giả metadata lịch sử chính xác (FR10/12/13, Q14).
+- [x] T042 [P] [US3] Bổ sung RED trong `src/test/java/com/carenest/service/observation/impl/ThemeEvaluationIntegrationTest.java` và `src/test/java/com/carenest/service/observation/impl/EvaluationLockOrderTest.java`: class effective dates cho list/enrollment/daily results/confirm/signers/childThemeResults từng lớp; confirmed-first khi TEAM mới bỏ theme, frozen metadata/cells/goal columns/membership không mất, full/partial-break và tuần2 có MT; migration V92 không tính lại cells hoặc giả metadata lịch sử chính xác (FR10/12/13, Q14).
 
 ### Backend calendar/preview/import/downstream
 
@@ -192,7 +192,7 @@ Các test FE [P] T020/T033/T052/T053 có thể viết RED sớm cùng batch sau 
 | P2 — cây/lịch/downstream | T028/T029/T031 → T039–T042 → T043–T050 → T051 | Regression BE trực tiếp/calendar/preview/source/frozen tests, dừng review P2 |
 | P3 — Web/E2E/converge | Quyền FE → T020 → T021–T024 → T033–T037 → T052–T059 → T038/T060 → T061–T064 → T065 → T066–T068 | Kiểm trực tiếp FE/BE/source cuối/browser/Q01–Q19+R vectors, review P3, convergence cuối |
 
-T025/T026 được viết RED khi P1 ready; T026 source-check phải GREEN nhờ T027, phần full class source-list/integration T029 hoàn thành P2. T027 version copy dùng V84/models T015 và metadata T011; T030 không đòi guard P2 đã có để prove legacy/source version. T032 không chờ FE hoặc T028 P2. Không đánh test RED chưa implement là cổng kiểm chứng trực tiếp PASS.
+T025/T026 được viết RED khi P1 ready; T026 source-check phải GREEN nhờ T027, phần full class source-list/integration T029 hoàn thành P2. T027 version copy dùng V91/models T015 và metadata T011; T030 không đòi guard P2 đã có để prove legacy/source version. T032 không chờ FE hoặc T028 P2. Không đánh test RED chưa implement là cổng kiểm chứng trực tiếp PASS.
 
 ### Phụ thuộc kỹ thuật trong từng phần
 
@@ -277,7 +277,7 @@ User cho phép FE-first, bỏ phụ thuộc BE/review P2 đối với bản revi
 
 ## Phase 14: Convergence — đối chiếu code thực tế, không suy từ checkbox
 
-- [ ] T084 Nối `src/main/java/com/carenest/service/eduplan/impl/EduPlanCalendarQueryServiceImpl.java` vào `src/main/java/com/carenest/service/observation/impl/ThemeEvaluationServiceImpl.java`; capture/read presentation_snapshot metadata goals/child membership/theme dates khi confirm, confirmed-first list/get/history không mất theme đã bỏ và backfill legacy có metadata thay vì chỉ origin. Sửa migration V85 chỉ nếu chưa commit (nếu đã commit tạo migration mới); regression observation theo FR012/013, plan frozen-metadata (missing, HIGH). Hiện service chưa dùng projection/snapshot, V85 chỉ ghi origin.
+- [ ] T084 Nối `src/main/java/com/carenest/service/eduplan/impl/EduPlanCalendarQueryServiceImpl.java` vào `src/main/java/com/carenest/service/observation/impl/ThemeEvaluationServiceImpl.java`; capture/read presentation_snapshot metadata goals/child membership/theme dates khi confirm, confirmed-first list/get/history không mất theme đã bỏ và backfill legacy có metadata thay vì chỉ origin. Sửa migration V92 chỉ nếu chưa commit (nếu đã commit tạo migration mới); regression observation theo FR012/013, plan frozen-metadata (missing, HIGH). Hiện service chưa dùng projection/snapshot, V92 chỉ ghi origin.
 - [ ] T085 Tạo và chạy nghiệm thu phối hợp theo Q01–Q19 tại `../CareNest_FE/tests/e2e/system/school-year-team-plans.spec.mjs` trên môi trường synthetic có BE cuối; task T063 đã tick nhưng file này chưa tồn tại. Không đánh full-feature done chỉ từ unit/service tests, ghi fail/skip thật và không mở browser hiển thị theo yêu cầu user (missing, HIGH).
 
 ## Phase 15: Convergence — fixture migration
@@ -307,14 +307,14 @@ User chỉ đạo mới: đây là UI/style, không test lại BE cho lượt UI
 
 ## Phase 19: User approved — nhãn tùy chỉnh và hai cấp, 07/11/2026
 
-- [x] T093 [FR019/AC13] V86 + entity/request/response/mapper/save/clone/guard nhãn; native migration/integration/validation tests.
+- [x] T093 [FR019/AC13] V93 + entity/request/response/mapper/save/clone/guard nhãn; native migration/integration/validation tests.
 - [x] T094 [FR019/AC13] Web label input, helper autofill + pointer/keyboard/cancel, mapper/mock/export/legacy fallback; native Node tests.
 - [x] T095 [FR020] Shared branch calendar, info→goals→themes, TEAM fixed/delete-free/gray + yellow subdomains; giữ ticks; native render tests/lint/build.
 - [x] T096 Analyze/converge delta, review độc lập, công bố evidence/giới hạn; không gộp các gap feature012 cũ vào kết quả delta này.
 
 ### Evidence delta FR019/020 — 07/11/2026
 
-T093 native Maven4classes64/64 fail0/error0/skip0, PostgreSQL thật và V85→V86; runtime local migrate86/healthUP, OpenAPI schema verify. T094/T095 final FE248/248 + lint/format/Vite exit0, pointer/keyboard/cancel/capture và mock old-client có test. T096 review độc lập2P2 đã sửa, mock4/4 kiểm lại; converge trực tiếp source/artifact không còn gap triển khai của delta nhãn/UI. Chưa browser/E2E/fullBE/touch thiết bị thật; không coi pending gaps feature012 cũ là đã xong. Không harness/Git/deploy. Chi tiết VERIFICATION.
+T093 native Maven4classes64/64 fail0/error0/skip0, PostgreSQL thật và V92→V93; runtime local migrate86/healthUP, OpenAPI schema verify. T094/T095 final FE248/248 + lint/format/Vite exit0, pointer/keyboard/cancel/capture và mock old-client có test. T096 review độc lập2P2 đã sửa, mock4/4 kiểm lại; converge trực tiếp source/artifact không còn gap triển khai của delta nhãn/UI. Chưa browser/E2E/fullBE/touch thiết bị thật; không coi pending gaps feature012 cũ là đã xong. Không harness/Git/deploy. Chi tiết VERIFICATION.
 
 ## Phase 20 — user07/11 lịch nhánh
 - [x] T097 [FR021/AC14] Hai endpoint compact luôn hiện, chỉnh độc lập, red sibling/weekday warnings, submit/mock validation; tests native.

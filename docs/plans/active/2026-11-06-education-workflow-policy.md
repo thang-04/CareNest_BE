@@ -188,10 +188,10 @@ Thiết kế cho EDU-54 còn PROPOSED, chưa tuyên bố yêu cầu đã đượ
   - T042: Viết test `EduReviewRoundIntegrationTest` (7/7 tests GREEN): quản lý `review_round`, reset round khi sửa/gửi lại sau trả lại hoặc tạo phiên bản mới, bảo toàn lịch sử duyệt, tự động hoàn tất `APPROVED` khi đổi policy (`completionMode=POLICY_CHANGE`).
   - T044 & T045: Tích hợp `recordAuthor` và quản lý `review_round` trong year & class service.
   - T046: Triển khai hook startup `EduWorkflowActivationConfig` với phương thức idempotent `activateLegacyPending`.
-  - T047: Atomic cutover V81:
+  - T047: Atomic cutover V88:
     - Loại bỏ hoàn toàn các enum constants cũ (`EDITING`, `PENDING_*`, `REJECTED`) khỏi `EduPlanStatus.java` và `EduClassDocStatus.java`.
     - Tạo migration contract `V81__contract_edu_workflow_policy.sql` chuẩn hóa dữ liệu legacy và siết CHECK constraints chỉ còn đúng 3 trạng thái: `DRAFT`, `REVIEW`, `APPROVED`.
-    - `EduWorkflowMigrationIntegrationTest` kiểm thử Testcontainers PostgreSQL 17 GREEN cả 2 mốc expand (V80) và contract (V81).
+    - `EduWorkflowMigrationIntegrationTest` kiểm thử Testcontainers PostgreSQL 17 GREEN cả 2 mốc expand (V87) và contract (V88).
   - T048: Producer compatibility: `EduYearPlan.java`, `EduYearPlanMapper.java` ghi nhận publisher thật tại `published_by`/`completed_at`, `issued_by` legacy chỉ lưu actual VP approval hoặc null; kiểm thử `EduWorkflowCompatibilityIntegrationTest` (3/3 tests GREEN).
   - T049 & T050: Phía Frontend đọc và in ấn ô ký bất biến từ `review.printSnapshot` (`yearPlanDoc.js`, `classPlanDoc.js`, `GoalDetailPage.jsx`).
   - T051 & T052: Verification toàn diện:
@@ -226,8 +226,8 @@ Thiết kế cho EDU-54 còn PROPOSED, chưa tuyên bố yêu cầu đã đượ
 - User cho phép riêng sửa một fixture SQL tại DailyAssessmentIntegrationTest: PENDING_VP → REVIEW theo enum giáo dục mới, giữ nguyên assertion và nghiệp vụ quan sát. Cổng full cần chạy lại sau thay đổi này.
 
 ### 2026-11-06 — Final verification và remediation convergence
-- BE `node scripts/verify.mjs`: `VERIFY PASS full | tests 1129 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 800s`; log `target/verify.log`. Lần này bao gồm source cuối, migration V82, fixture observation đã được user cho phép đổi sang REVIEW và benchmark danh sách lớp.
+- BE `node scripts/verify.mjs`: `VERIFY PASS full | tests 1129 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 800s`; log `target/verify.log`. Lần này bao gồm source cuối, migration V89, fixture observation đã được user cho phép đổi sang REVIEW và benchmark danh sách lớp.
 - T077: PostgreSQL GET danh sách 24 hồ sơ ghi 23 câu SQL (baseline 258); regression bảo đảm bản DRAFT không bị đánh superseded nếu chưa có APPROVED version cao hơn. Metadata `canReject`/`canEditAdjustments` đồng giá trị với `canReturn`/`canAdjust`, giữ tương thích Web.
 - FE `npm run verify`: 207/207 test giáo dục, lint/format/design/API/build đạt; log `CareNest_FE/node_modules/feature011-fe-final-verify.log`. Browser WF-01/02/03 chạy lại trên BE source cuối + Keycloak + PostgreSQL fixture riêng: 3/3, log `CareNest_FE/node_modules/feature011-browser-final.log`.
-- T076 media storage transaction barrier, retry/idempotency và cleanup: regression 3/3 PASS (`target/feature011-media-lock-green-2.log`). T073: V82 bỏ status-normalization triggers sau cutover; migration integration xác nhận legacy writes bị CHECK từ chối. T059–T078 đã được rà; status cuối cập nhật trong tasks.md.
+- T076 media storage transaction barrier, retry/idempotency và cleanup: regression 3/3 PASS (`target/feature011-media-lock-green-2.log`). T073: V89 bỏ status-normalization triggers sau cutover; migration integration xác nhận legacy writes bị CHECK từ chối. T059–T078 đã được rà; status cuối cập nhật trong tasks.md.
 - `node scripts/check-ai-layer.mjs`: 0 lỗi, 12 cảnh báo link cũ ngoài phạm vi feature. User xác nhận APP chưa tích hợp kế hoạch giáo dục; không sửa APP. Không có line coverage report nên không báo tỷ lệ coverage. Không commit/push/PR/deploy.

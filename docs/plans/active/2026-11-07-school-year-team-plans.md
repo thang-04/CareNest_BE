@@ -216,7 +216,7 @@ Các đề xuất chưa phải quyết định user đã duyệt triển khai. [
 
 ### Phase 1 — Nền hai cấp, schema, scope/policy/config
 
-- Files: M EduYearPlan/EduSettings/EduYearPlanRepository/EduYearPlanServiceImpl/EduYearPlanMapper/EduWorkflowServiceImpl/EduPlanAccessPolicy và DTO/controller liên quan; C EduPlanLevel, EduPlanBranchTemplate/Repository, EduDurationPolicyController/Service/Impl/DTOs, migration V83/V84. Paths đầy đủ tại plan kỹ thuật.
+- Files: M EduYearPlan/EduSettings/EduYearPlanRepository/EduYearPlanServiceImpl/EduYearPlanMapper/EduWorkflowServiceImpl/EduPlanAccessPolicy và DTO/controller liên quan; C EduPlanLevel, EduPlanBranchTemplate/Repository, EduDurationPolicyController/Service/Impl/DTOs, migration V90/V91. Paths đầy đủ tại plan kỹ thuật.
 - Steps: test migration/source/level/policy RED → additive schema/backfill preserving legacy → create/copy/version by level + HT config → snapshot/API regression GREEN.
 - Tests: AC2/6→EduPlanLevelMigrationIntegrationTest/EduWorkflowServiceIntegrationTest/EduWorkflowAccessPolicyTest/EduYearPlanServiceIntegrationTest/EduConfigServiceIntegrationTest, DisplayName nền EDU-25/26/54 + FR delta.
 - Exit: Maven regression P1/ArchUnit/Spotless trực tiếp, kiểm OpenAPI snapshot và diff tài liệu; công bố fail/skip; checksum legacy giữ nguyên. **Dừng user review.**
@@ -224,7 +224,7 @@ Các đề xuất chưa phải quyết định user đã duyệt triển khai. [
 ### Phase 2 — Cây cố định, lịch lớp/nhánh và consumers BE
 
 - Files: C InheritedCurriculumGuard/EduTeachingCalendar/EduPlanCalendarQueryService+Impl, ClassCalendarPreviewRequest/Response, V85__snapshot_theme_evaluation_presentation.sql; M EduClassDocService/Controller/Impl, YearPlanPublicationValidator/EduGoalFileServiceImpl/BranchFileTable/DTOs; M ThemeEvaluationRepository/ThemeEvaluationServiceImpl/ThemeEvaluation (chỉ source/ngày/frozen presentation). Giữ EduLessonQueryService contract.
-- Steps: RED frozen-tree/tick/range → guard trước mutate → optional templates/local rename, v2/retime preview+command, notes theo branch offset, empty-import/dossier → TEAM filters + class-date/frozen snapshot → GREEN concurrency/downstream. Delta không thêm migration/dependency ngoài V83–V85 đã đề xuất.
+- Steps: RED frozen-tree/tick/range → guard trước mutate → optional templates/local rename, v2/retime preview+command, notes theo branch offset, empty-import/dossier → TEAM filters + class-date/frozen snapshot → GREEN concurrency/downstream. Delta không thêm migration/dependency ngoài V90–V92 đã đề xuất.
 - Tests: AC3/4/5/6→EduTeachingCalendarTest/EduBranchRangeIntegrationTest/EduClassDocServiceIntegrationTest/BranchFileImportTest/ThemeEvaluationIntegrationTest/EvaluationLockOrderTest; Q06/18/19+R1–R8 cho none/some/all, rename, A2/B4, gaps/full-break union, notes, stale preview, suffix version>1 và giữ week/media đã có.
 - Exit: kiểm chứng trực tiếp như P1, Q03–Q19 BE theo quickstart đạt, không fake coverage/skip; không đổi công thức đánh giá, không N+1. **Dừng user review.**
 
@@ -285,7 +285,7 @@ Không down-migration/drop schema sau writes. Backup restore/deploy là công vi
 
 ### 07/11/2026 — Cập nhật thiết kế sau Q4=A/Q5=A
 
-- Research delta hai agent read-only, root đối chiếu source. Cập nhật research/data-model/contracts/quickstart/plan/ADR: mẫu tùy chọn và rename local, preview reorder/PUT command giữ tuần+nhánh, empty-import CREATE_CUSTOM/RENAME, formRevision, weekNotes theo offset, docKey suffix phiên bản giữ nguyên; không thêm migration/dependency so với V83–V85 đề xuất trước.
+- Research delta hai agent read-only, root đối chiếu source. Cập nhật research/data-model/contracts/quickstart/plan/ADR: mẫu tùy chọn và rename local, preview reorder/PUT command giữ tuần+nhánh, empty-import CREATE_CUSTOM/RENAME, formRevision, weekNotes theo offset, docKey suffix phiên bản giữ nguyên; không thêm migration/dependency so với V90–V92 đề xuất trước.
 - Quyết định kỹ thuật: slot axis hiện có, gap không biểu diễn được thì preview lỗi không mutate; không tự pack/nén/lấp hoặc tạo break. Reviewer độc lập và lượt re-review notes không còn blocker cụ thể. Q01–Q19/R1–R8 là ca dự kiến, chưa chạy tính năng.
 - Kiểm chứng tài liệu/quick sau lần sửa cuối ghi VERIFICATION; full/snapshot/E2E feature chưa chạy vì chưa code. Status draft, chưa tasks/analyze/implement/converge; tiếp theo user duyệt plan/API/migration, cấp quyền FE riêng nếu muốn làm phase3, rồi tasks/analyze. Không tự approve/commit/push/deploy.
 
@@ -330,12 +330,12 @@ Không down-migration/drop schema sau writes. Backup restore/deploy là công vi
 
 ### Delta nhãn và UI — user duyệt toàn bộ07/11/2026
 - User duyệt plan nhãn ở FE và cho phép sửa BE liên quan, sau đó “duyệt hết k cần hỏi nữa”: thực hiện liên tục toàn bộ delta, không dừng xin duyệt lại từng phase; không cấp quyền Git/deploy.
-- FR019/020 AC13 đã bổ sung domain/spec/research/data-model/contracts/tasks T093–96. Cột display_label nullable100, V86 mới; goalNo/ID giữ nguyên, null/omitted no-op, blank clear. Clone/version/TEAM readonly bảo toàn; FE autofill số cuối có padding và bàn phím, xuất/in.
+- FR019/020 AC13 đã bổ sung domain/spec/research/data-model/contracts/tasks T093–96. Cột display_label nullable100, V93 mới; goalNo/ID giữ nguyên, null/omitted no-op, blank clear. Clone/version/TEAM readonly bảo toàn; FE autofill số cuối có padding và bàn phím, xuất/in.
 - Plan client được duyệt: sibling `CareNest_FE/docs/plans/completed/2026-11-07-year-plan-goal-labels.md`; scope chỉ delta nhãn/UI, giữ pending gaps feature012 cũ.
 - Analyze trước code: domain/spec/contract/data-model/tasks khớp; constitution2.0.0 phù hợp và tái sử dụng. Không blocker nghiệp vụ của delta; semantics client cũ đã xác định. Không chạy script orchestrator/harness.
 
 ### Hoàn tất delta nhãn/UI — 07/11/2026
-- T093–96 hoàn thành theo evidence: BE64/64, FE248/248; migration V86 giữ V85, DB local migrate và app thử healthUP; OpenAPI cập nhật từ runtime, schema collision đã sửa.
+- T093–96 hoàn thành theo evidence: BE64/64, FE248/248; migration V93 giữ V92, DB local migrate và app thử healthUP; OpenAPI cập nhật từ runtime, schema collision đã sửa.
 - Review độc lập2P2: pointer capture touch và JSON property-order trong mock; đã sửa, test final pass, review lại không còn finding. Converge delta FR019/020 sạch theo source/tests; không đóng gap feature012 cũ hoặc tuyên bố full-feature sạch.
 - Native lint/format/build đạt; không browser/E2E/fullBE/touch thật, APP sibling vắng. Không dừng process8080 của user; cần restart để nạp API mới. Không hỏi duyệt từng phase theo chỉ đạo mới của user; không commit/push/deploy.
 
@@ -349,7 +349,7 @@ T097–99 xong, BE71/71/FE254/254, lint/format/build đạt, review độc lập
 
 
 ### Hủy delta bỏ ghi chú chủ đề — 07/11/2026
-- User yêu cầu hoàn tác phần bỏ ghi chú, giữ chức năng hiện tại. Đã đảo riêng các thay đổi FE/BE của delta, giữ các thay đổi trước đó; xóa migration V87 chưa áp dụng và bản copy build. Không thay đổi DB runtime, không Git reset/restore/commit/push.
+- User yêu cầu hoàn tác phần bỏ ghi chú, giữ chức năng hiện tại. Đã đảo riêng các thay đổi FE/BE của delta, giữ các thay đổi trước đó; xóa migration V94 chưa áp dụng và bản copy build. Không thay đổi DB runtime, không Git reset/restore/commit/push.
 
 ### Feature013 — user yêu cầu implement/converge tới sạch,08/11/2026
 - Nguồn user hiện tại: thực hiện UI trước FR008–010 rồi toàn bộ vòng implement/converge; đây là approval triển khai delta BE/FE, thay gate dừng xin duyệt từng phase của013. Không Git/deploy/dependency mới. Tự review/verify từng increment, giữ dữ liệu workspace cũ.
@@ -369,7 +369,7 @@ T097–99 xong, BE71/71/FE254/254, lint/format/build đạt, review độc lập
 
 ### Context và phạm vi
 
-User báo cấu hình chủ đề tối đa4 tuần nhưng chủ đề5 tuần vẫn gửi duyệt thành công. DB local xác nhận annual345 REVIEW, theme658 07/09–09/10/2026 (5 tuần, không có đợt nghỉ), cấu hình revision1 theme2–4. V90 dòng106 bỏ duration_policy_snapshot của annual; EduPlan dòng44–45 dùng @Transient/default LEGACY_UNBOUNDED; EduYearPlan chưa map thuộc tính. Snapshot khi tạo không tồn tại qua reload. SubmitYearPlan gọi requireReadyForReview (dòng379) nhưng giới hạn thời lượng chỉ nằm ở validateForPublication của YearPlanPublicationValidator. Xem incident BUG-261108-duration-feedback-late được tái mở.
+User báo cấu hình chủ đề tối đa4 tuần nhưng chủ đề5 tuần vẫn gửi duyệt thành công. DB local xác nhận annual345 REVIEW, theme658 07/09–09/10/2026 (5 tuần, không có đợt nghỉ), cấu hình revision1 theme2–4. V97 dòng106 bỏ duration_policy_snapshot của annual; EduPlan dòng44–45 dùng @Transient/default LEGACY_UNBOUNDED; EduYearPlan chưa map thuộc tính. Snapshot khi tạo không tồn tại qua reload. SubmitYearPlan gọi requireReadyForReview (dòng379) nhưng giới hạn thời lượng chỉ nằm ở validateForPublication của YearPlanPublicationValidator. Xem incident BUG-261108-duration-feedback-late được tái mở.
 
 ### Hành vi cần giữ
 
@@ -379,7 +379,7 @@ User báo cấu hình chủ đề tối đa4 tuần nhưng chủ đề5 tuần v
 
 ### Thay đổi đề xuất để review
 
-1. Migration Flyway mới (số tiếp theo chưa dùng): thêm lại snapshot JSONB cho edu_year_plans, mặc định legacy cho dữ liệu cũ; không sửa V90 đã chạy, không xóa dữ liệu. Map EduYearPlan.getDurationPolicySnapshot tương tự EduTeamPlan.
+1. Migration Flyway mới (số tiếp theo chưa dùng): thêm lại snapshot JSONB cho edu_year_plans, mặc định legacy cho dữ liệu cũ; không sửa V97 đã chạy, không xóa dữ liệu. Map EduYearPlan.getDurationPolicySnapshot tương tự EduTeamPlan.
 2. Tách phần kiểm giới hạn hiện có từ YearPlanPublicationValidator thành method dùng chung với requireReadyForReview. Giữ cách tính tuần nghỉ trọn/tuần học, kiểm snapshot, tái dùng ApiCode hiện có; submit không ép các trường chỉ bắt buộc khi ban hành.
 3. FE kiểm response sau reload vẫn nhận BOUNDED qua mapper sẵn có; chỉ sửa FE nếu test phát hiện consumer làm mất snapshot. Không đổi endpoint/DTO/dependency hay quyền.
 4. Test DB thật: tạo→save→clear persistence context→reload vẫn có snapshot; quá4 tuần bị từ chối submit, đủ4 được gửi; lưu nháp5 được giữ; phiên bản/cấu hình mới không đổi snapshot; legacy không tự áp giới hạn mới. Kiểm trừ nghỉ trọn tuần và nhánh theo policy.

@@ -19,7 +19,7 @@ class EduPlanLevelMigrationIntegrationTest {
     @Test
     void keepsLegacyRecordsAndSeparatesOpenVersionsByLevel() {
         String schema = "levels_" + UUID.randomUUID().toString().replace("-", "");
-        flyway(schema, "82").migrate();
+        flyway(schema, "89").migrate();
         String url =
                 postgres.getJdbcUrl() + (postgres.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=" + schema;
         var jdbc = new JdbcTemplate(new DriverManagerDataSource(url, postgres.getUsername(), postgres.getPassword()));
@@ -47,7 +47,7 @@ class EduPlanLevelMigrationIntegrationTest {
                 "SELECT jsonb_agg(to_jsonb(p) ORDER BY id)::text FROM edu_year_plans p", String.class);
         String policy =
                 jdbc.queryForObject("SELECT workflow_policy->'year' FROM edu_settings WHERE id=1", String.class);
-        flyway(schema, "84").migrate();
+        flyway(schema, "91").migrate();
         String after = jdbc.queryForObject(
                 "SELECT jsonb_agg(to_jsonb(p)-ARRAY['plan_level','curriculum_source_plan_id','legacy_team_without_source','duration_policy_snapshot'] ORDER BY id)::text FROM edu_year_plans p",
                 String.class);
@@ -94,7 +94,7 @@ class EduPlanLevelMigrationIntegrationTest {
                 theme,
                 "[{\"c\":" + child + ",\"g\":" + goal + ",\"m\":true,\"x\":false}]",
                 owner);
-        flyway(schema, "85").migrate();
+        flyway(schema, "92").migrate();
         assertThat(jdbc.queryForObject(
                         "SELECT presentation_snapshot->'goals'->0->>'text' FROM theme_evaluations", String.class))
                 .isEqualTo("Original goal");
@@ -119,7 +119,7 @@ class EduPlanLevelMigrationIntegrationTest {
                         age,
                         owner))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
-        flyway(schema, "86").migrate();
+        flyway(schema, "93").migrate();
         assertThat(jdbc.queryForObject("SELECT display_label FROM edu_plan_goals WHERE id=?", String.class, goal))
                 .isNull();
         assertThat(jdbc.queryForObject("SELECT text FROM edu_plan_goals WHERE id=?", String.class, goal))

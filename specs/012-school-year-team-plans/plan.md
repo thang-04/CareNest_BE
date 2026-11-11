@@ -34,7 +34,7 @@ Delta Q4/Q5 không thêm schema/migration: chọn mẫu là tạo bản nhánh l
 
 **Primary Dependencies**: Spring MVC, Spring Data JPA, Resource Server/Keycloak, Flyway, springdoc, Jackson; JUnit/Testcontainers/ArchUnit/Spotless hiện có. Không chọn library mới.
 
-**Storage**: PostgreSQL17; ba migration mới sau V82, giữ bảng cây ADR-0021, JSONB class docs, metadata nhánh mẫu relational. Không binary DB, không đổi S3 học liệu.
+**Storage**: PostgreSQL17; ba migration mới sau V89, giữ bảng cây ADR-0021, JSONB class docs, metadata nhánh mẫu relational. Không binary DB, không đổi S3 học liệu.
 
 **Testing**: regression unit/service/controller/migration chạy trực tiếp Maven, kiểm OpenAPI snapshot; FE test/build/lint trực tiếp bằng công cụ gốc và browser E2E trên BE thật + synthetic fixture. Kết quả mong đợi trong [quickstart](quickstart.md), chưa phải test đã chạy.
 
@@ -127,12 +127,12 @@ Không có vi phạm constitution cần miễn trừ. Thêm một bảng mẫu n
 
 ## Delta nhãn mục tiêu — approved by user07/11/2026
 
-Bổ sung displayLabel nullable varchar100 trên edu_plan_goals bằng V86 mới (không đổi V85); request Row @Size100, response Row field additive, copyFor bảo toàn nhãn. Null/absent giữ nguyên, blank clear. Guard từ chối đổi nhãn TEAM; goalNo/ID không đổi. FE adapter, input + drag-fill/keyboard, mock/export giữ nhãn và fallback MTn. Hai loại bảng tách fixed mode; reorder sections và shared date picker. Xem plan client `../CareNest_FE/docs/plans/completed/2026-11-07-year-plan-goal-labels.md` (tính từ repo root: sibling FE).
+Bổ sung displayLabel nullable varchar100 trên edu_plan_goals bằng V93 mới (không đổi V92); request Row @Size100, response Row field additive, copyFor bảo toàn nhãn. Null/absent giữ nguyên, blank clear. Guard từ chối đổi nhãn TEAM; goalNo/ID không đổi. FE adapter, input + drag-fill/keyboard, mock/export giữ nhãn và fallback MTn. Hai loại bảng tách fixed mode; reorder sections và shared date picker. Xem plan client `../CareNest_FE/docs/plans/completed/2026-11-07-year-plan-goal-labels.md` (tính từ repo root: sibling FE).
 Domain/spec/data-model/contract/tasks đã bổ sung delta FR019/020, AC13; constitution2.0.0 tái sử dụng, không đổi. User duyệt toàn bộ liên tục; thay bước dừng review mỗi phase trong các plan cũ. Verify native Maven/Node/ESLint/Prettier/Vite, không harness.
 
 ### Kết quả delta nhãn/UI07/11/2026
 
-BE64/64 native4classes, fail/error/skip0; PostgreSQL V85→V86 upgrade + label roundtrip/compatibility/clone/guard/size. Runtime migrate86/start/healthUP, OpenAPI schemas đúng và đã cập nhật. FE248/248 + ESLint/Prettier/Vite exit0, input/pointer/keyboard/cancel/capture + API/mock/in tests. Independent review2P2 đã sửa; convergence delta FR019/020 không còn gap triển khai phát hiện; chưa browser/E2E/fullBE/touch thật. Giữ pending gaps feature012 cũ. Xem docs/quality/VERIFICATION.md; không harness/Git/deploy.
+BE64/64 native4classes, fail/error/skip0; PostgreSQL V92→V93 upgrade + label roundtrip/compatibility/clone/guard/size. Runtime migrate86/start/healthUP, OpenAPI schemas đúng và đã cập nhật. FE248/248 + ESLint/Prettier/Vite exit0, input/pointer/keyboard/cancel/capture + API/mock/in tests. Independent review2P2 đã sửa; convergence delta FR019/020 không còn gap triển khai phát hiện; chưa browser/E2E/fullBE/touch thật. Giữ pending gaps feature012 cũ. Xem docs/quality/VERIFICATION.md; không harness/Git/deploy.
 
 ## Delta FR021 — thực hiện theo chỉ đạo user07/11/2026
 DatePickerCell có mode compact tùy chọn (default giữ cũ), branch dùng hai trigger riêng. Dùng helper validation Web cho cảnh báo/submit/mock và validator BE dùng chung submit/publication để kiểm weekday/overlap sibling; API transport giữ nguyên, dùng EDUCATION_CALENDAR_INVALID. Test pure/helper/render/DatePicker + native Maven validator/integration; không harness/browser.

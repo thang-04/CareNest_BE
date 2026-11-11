@@ -20,4 +20,4 @@ Audit 327 mục tiêu D, 101 nội dung D và 423 mục C: 842/851 chuỗi khớ
 
 [SQL thử nghiệm chỉ đọc hiệu ứng sau rollback](contracts/ministry-source-correction-draft.sql) là bản đề xuất, không nằm trong Flyway. Đã chạy trên DB014 cô lập, kết quả `INSERT 33; DO; UPDATE 33; DELETE 1; UPDATE 1; ROLLBACK`, exit0. Đây là kiểm điều kiện/transaction, chưa phải triển khai. Kiểm đúng cột tuổi được ghi riêng trong báo cáo T032.
 
-Đã tạo V87 và đồng bộ mock theo delta; test PostgreSQL và các kiểm chứng tiếp theo được ghi tại `docs/quality/VERIFICATION.md`. Việc đối chiếu chiều PDF→catalog và nghiệm thu đầy đủ vẫn theo T032/T035.
+Đã tạo V94 và đồng bộ mock theo delta; test PostgreSQL và các kiểm chứng tiếp theo được ghi tại `docs/quality/VERIFICATION.md`. Việc đối chiếu chiều PDF→catalog và nghiệm thu đầy đủ vẫn theo T032/T035.

@@ -9,7 +9,7 @@
 
 **Ghi chú định dạng**: `- [ ] T### [P?] [US#] Mô tả + đường dẫn file`. `[P]` = chạy song song được (khác file, không phụ thuộc task chưa xong). Setup/Foundational/Polish không có label [US]. **Chỉ 2 loại hồ sơ: kế hoạch năm học (year) + kế hoạch giáo dục tổ (team)** — không có loại "môn học".
 
-**⚠️ Chốt trước khi code**: T001/T047 duyệt thiết kế/API/DDL và quyền repo theo scope. V89 local đã tồn tại, phải kiểm history trước sửa; không chạy SQL trong lượt tài liệu. T009 production là mốc cuối sau rehearsal/BE/FE, không phải prerequisite để viết US trên scratch.
+**⚠️ Chốt trước khi code**: T001/T047 duyệt thiết kế/API/DDL và quyền repo theo scope. V96 local đã tồn tại, phải kiểm history trước sửa; không chạy SQL trong lượt tài liệu. T009 production là mốc cuối sau rehearsal/BE/FE, không phải prerequisite để viết US trên scratch.
 
 ---
 
@@ -26,13 +26,13 @@
 
 **Purpose**: Chuẩn bị schema đích/code trên scratch; cutover production T009 được hoãn tới sau mọi gate, không chặn việc viết/test US trên scratch.
 
-- [ ] T003 [DUYET] Review/hoàn thiện bản expand src/main/resources/db/migration/V89__separate_team_plans.sql sau T001: 9 bảng owner, header TEAM/review-items/baseline nullable; giữ year_plan_id/plan_level, app cũ tiếp tục là writer duy nhất. Kiểm history trước sửa: đã commit/applied thì migration mới. Ghi nhận lịch sử task cũ nói “V89 đã tạo + validate DB scratch V86”; đây là evidence cũ chưa chạy lại, không chứng nhận thiết kế sửa.
+- [ ] T003 [DUYET] Review/hoàn thiện bản expand src/main/resources/db/migration/V89__separate_team_plans.sql sau T001: 9 bảng owner, header TEAM/review-items/baseline nullable; giữ year_plan_id/plan_level, app cũ tiếp tục là writer duy nhất. Kiểm history trước sửa: đã commit/applied thì migration mới. Ghi nhận lịch sử task cũ nói “V96 đã tạo + validate DB scratch V93”; đây là evidence cũ chưa chạy lại, không chứng nhận thiết kế sửa.
 - [ ] T004 Tạo entity `src/main/java/com/carenest/entity/eduplan/EduTeamPlan.java` (cột workflow/lock/approvals/print_snapshot theo data-model §1.2, self-FK `source_plan_id`)
 - [ ] T005 Sửa entity src/main/java/com/carenest/entity/eduplan/EduYearPlan.java cho schema đích chỉ năm; giữ version/self-source/approvals/lease; cấu hình ID theo sequence chung cùng EduTeamPlan. Chỉ chạy code mới với schema đích scratch hoặc cutover đồng bộ, không dùng placeholder ownership trên header.
-- [ ] T006 Sửa 9 entity owner trong src/main/java/com/carenest/entity/eduplan/: EduPlanGoal, EduPlanSubDomain, EduPlanExpectedResult, EduTheme, EduBreak, EduPlanEvent, EduDocumentAuthor, EduPlanBranchTemplate, EduClassDoc. EduGoalRow mapped superclass chỉ sửa nếu mapping kế thừa cần; không EduPlanApproval/bảng approvals riêng. goal_contents/ticks suy owner qua cha; test không cross-owner; authors class_doc_id giữ owner header NULL, CHECK chọn đúng một trong ba target và unique tương ứng (V80); tái tạo FK/unique ghép cây/theme/templates V35/V84.
+- [ ] T006 Sửa 9 entity owner trong src/main/java/com/carenest/entity/eduplan/: EduPlanGoal, EduPlanSubDomain, EduPlanExpectedResult, EduTheme, EduBreak, EduPlanEvent, EduDocumentAuthor, EduPlanBranchTemplate, EduClassDoc. EduGoalRow mapped superclass chỉ sửa nếu mapping kế thừa cần; không EduPlanApproval/bảng approvals riêng. goal_contents/ticks suy owner qua cha; test không cross-owner; authors class_doc_id giữ owner header NULL, CHECK chọn đúng một trong ba target và unique tương ứng (V87); tái tạo FK/unique ghép cây/theme/templates V35/V91.
 - [ ] T007 Tạo repository/eduplan/EduTeamPlanRepository.java và cập nhật EduYearPlanRepository + repository 9 owner theo data-model §2; unique/version theo bảng riêng, truy vấn scope đúng; bỏ truy vấn planLevel ở code schema đích, không query cột đã drop.
 - [ ] T008 Tách service: tạo interface `src/main/java/com/carenest/service/eduplan/EduTeamPlanService.java` + `impl/EduTeamPlanServiceImpl.java` (hành vi tổ: lập/soạn/submit/update, dùng `EduTeamPlan`); sửa `impl/EduYearPlanServiceImpl.java` chỉ giữ hành vi năm; dispatch toàn bộ detail/PUT/DELETE/actions/lease/version/copy ở controller theo ID chung, TEAM DELETE luôn chặn server (FR-016), không hard-code role thay policy (ADR-0014, giữ log `LOG_PREFIX`)
-- [ ] T009 [DUYET] Review và thực hiện cutover production V90 (hoặc version mới theo history) CHỈ sau T001/T030/T031/T034/T035/T037/T047: maintenance dừng writer/job, backup/restore rehearsal, refresh owner/copy TEAM giữ ID, sequence chung, kiểm trước xóa, chuyển mọi FK rồi contract theo data-model §2; kiểm sau chuyển trước mở app mới. Candidate SQL được chuẩn bị/test bởi T030 trên scratch; không tạo cutover sau khi đã ship.
+- [ ] T009 [DUYET] Review và thực hiện cutover production V97 (hoặc version mới theo history) CHỈ sau T001/T030/T031/T034/T035/T037/T047: maintenance dừng writer/job, backup/restore rehearsal, refresh owner/copy TEAM giữ ID, sequence chung, kiểm trước xóa, chuyển mọi FK rồi contract theo data-model §2; kiểm sau chuyển trước mở app mới. Candidate SQL được chuẩn bị/test bởi T030 trên scratch; không tạo cutover sau khi đã ship.
 - [ ] T010 Unit/integration test src/test/java/com/carenest/service/eduplan/impl/: tách năm/tổ, unique một bản mở/chuỗi, owner/coauthor không tự duyệt, giữ workflow/lease/revision/print_snapshot và trạng thái REVIEW cấm sửa (FR-012). Chạy trước hoàn thiện implementation tương ứng; test guard TT riêng T039; FR-016 kiểm DELETE TEAM bị chặn cho owner/HT/PHT/TT ở DRAFT/REVIEW/APPROVED, không đổi children; DELETE annual giữ EDU-07.
 
 **Checkpoint**: Schema đích rehearsal và code nền tảng sẵn sàng trên scratch; T009 là mốc production cuối, không phải prerequisite để viết/test các US.
@@ -99,12 +99,12 @@
 
 **Goal**: Hai bảng riêng, chuyển đổi giữ dữ liệu legacy, không tạo năm giả (FR-011/SC-006).
 
-**Independent Test**: Trên data tổng hợp có team legacy không nguồn: chạy V89/V90, đối chiếu trước/sau (tên, tick, lineage, snapshot, approvals, class docs) giữ nguyên.
+**Independent Test**: Trên data tổng hợp có team legacy không nguồn: chạy V96/V97, đối chiếu trước/sau (tên, tick, lineage, snapshot, approvals, class docs) giữ nguyên.
 
 ### Implementation for US4
-- [ ] T029 [US4] TRƯỚC T009: inventory và hoàn thiện backfill trong expand/candidate cutover theo data-model §2; legacy nguồn NULL, không năm giả, giữ mọi payload/ID/owner/lineage/class docs/approvals/print_snapshot. Sau commit/applied không sửa V89, dùng migration mới; bộ seed/snapshot tổng hợp đặt src/test/resources/eduplan/.
-- [ ] T030 [US4] TRƯỚC T009: chuẩn bị candidate contract migration V90 (hoặc slot mới) và DB integration tests trong src/test/java/com/carenest/service/eduplan/; rehearsal V89→V90 trên scratch có dữ liệu legacy/nhiều version/ghi sau expand. Kiểm FK/unique/sequence/không cascade mất dữ liệu, toàn payload EXCEPT hai chiều trước xóa và sau cutover, lỗi rollback/restore; không chỉnh migration đã commit/applied.
-- [ ] T031 [US4] TRƯỚC T009: chạy quickstart §0/§4 trên DB scratch với candidate SQL T030; snapshot 9 owner/cây/ticks/docs, payload/checksum và ID hai chiều, gồm authors class_doc_id không mất qua JOIN và FK ghép cây/theme/templates không cross-owner. Ghi lệnh/kết quả thật trong quickstart, fail/skip chặn cutover, không lấy evidence V89 cũ làm pass.
+- [ ] T029 [US4] TRƯỚC T009: inventory và hoàn thiện backfill trong expand/candidate cutover theo data-model §2; legacy nguồn NULL, không năm giả, giữ mọi payload/ID/owner/lineage/class docs/approvals/print_snapshot. Sau commit/applied không sửa V96, dùng migration mới; bộ seed/snapshot tổng hợp đặt src/test/resources/eduplan/.
+- [ ] T030 [US4] TRƯỚC T009: chuẩn bị candidate contract migration V97 (hoặc slot mới) và DB integration tests trong src/test/java/com/carenest/service/eduplan/; rehearsal V96→V97 trên scratch có dữ liệu legacy/nhiều version/ghi sau expand. Kiểm FK/unique/sequence/không cascade mất dữ liệu, toàn payload EXCEPT hai chiều trước xóa và sau cutover, lỗi rollback/restore; không chỉnh migration đã commit/applied.
+- [ ] T031 [US4] TRƯỚC T009: chạy quickstart §0/§4 trên DB scratch với candidate SQL T030; snapshot 9 owner/cây/ticks/docs, payload/checksum và ID hai chiều, gồm authors class_doc_id không mất qua JOIN và FK ghép cây/theme/templates không cross-owner. Ghi lệnh/kết quả thật trong quickstart, fail/skip chặn cutover, không lấy evidence V96 cũ làm pass.
 - [ ] T032 [P] [US4] Cập nhật `docs/database/DATA_DICTIONARY.md` + `docs/database/ERD.md` (bảng mới `edu_team_plans`, `edu_team_review_items`, 2 cột sở hữu, bỏ `plan_level`) theo rule `.claude/rules/database.md`
 
 **Checkpoint**: US4 xong — tách DB + bảo toàn dữ liệu đạt SC-006.
@@ -149,7 +149,7 @@ Các task sau là kế hoạch, chưa thực thi. T047 phê duyệt phạm vi ph
 5. T020 (test trước) → T021/T022 → T023 → T024/T025/T026/T027 → T028/T041/T042; T023 cần có T008 và schema T030; T049 lọc legacy và T050 vô hiệu phiên là phần hoàn thiện generator T023/T024, tests tương ứng viết trước. T048 sau T006/T007/T008 và schema T030, trước T035/T009. Tests cùng suite/file thực hiện tuần tự, không ép [P].
 6. Sau gate FE và contract: T043 → T044 → T045/T050 (phần FE) → T046; T049/T050 phần BE hoàn thiện trước T042/T035; T033 chỉ impact không thay các task này. APP impact nếu có phải được xử lý trước production.
 7. T031/T032/T036 → T035 → T037 trước T009. T031 rehearsal bảo toàn; T035 full scratch E2E; T037 native tests/API snapshot, không phải yêu cầu production đã cutover.
-8. T009 production cuối cùng, kiểm smoke/bảo toàn sau chuyển trước mở writers theo quickstart §4. Không có task sửa V89/V90 sau đã commit/applied.
+8. T009 production cuối cùng, kiểm smoke/bảo toàn sau chuyển trước mở writers theo quickstart §4. Không có task sửa V96/V97 sau đã commit/applied.
 
 ## Parallel opportunities
 
@@ -187,7 +187,7 @@ US1+US2 là demo increment trên scratch có FE, chưa hoàn thành feature ho�
 
 - T001/T047 phê duyệt thiết kế/DDL/API/quyền repo trước thực thi theo scope; không tự commit/push/PR/deploy.
 - Giữ 37 ID task cũ, không đánh hoàn thành từ việc sửa tài liệu; bổ sung T038–T047. Các mô tả cũ được tinh chỉnh theo user “fix”, không phải lượt converge tự viết lại lịch sử.
-- Không sửa migration đã commit/applied. V89 local được ghi lịch sử nhưng cần kiểm lại trước triển khai; không khẳng định DB scratch cũ chứng minh thiết kế hiện tại.
+- Không sửa migration đã commit/applied. V96 local được ghi lịch sử nhưng cần kiểm lại trước triển khai; không khẳng định DB scratch cũ chứng minh thiết kế hiện tại.
 - Mọi claim pass phải có bằng chứng mới; task coverage không là implementation/test coverage. [analysis.md](analysis.md) ghi lần đối chiếu tài liệu sau sửa.
 
 - Lần fix sau analyze tiếp theo: giữ nguyên T001–T047 và trạng thái; bổ sung T048–T050 cho consumer hồ sơ lớp, legacy NULL và phiên soạn cũ. Tổng 50 task, không chạy lại speckit-tasks hoặc tái sinh/đổi số danh sách cũ. Analyze chỉ đọc; sửa task trong lượt này được user cho phép bằng “ok fix”.

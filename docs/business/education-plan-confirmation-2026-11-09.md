@@ -50,7 +50,7 @@ Tài liệu mô tả **nghiệp vụ đích**. Chỗ code chưa đáp ứng là 
 | Hai cấp năm/tổ, cây tổ readonly/tick, ba trạng thái, policy, lease/revision, lịch lớp v2, nguồn giáo án duyệt cho đánh giá | Có trong source; không chứng nhận toàn bộ runtime |
 | Tên loại/tên riêng tại chờ duyệt, ẩn phiên bản tổ | Còn gap FE theo đối chiếu 09/11 |
 | Tự chuyển nguồn, tạo bản cập nhật tổ và kiểm rà soát/giữ bản ban hành cũ | Chưa có luồng đầy đủ theo spec015 |
-| Tách bảng vật lý năm/tổ | Hiện entity vẫn dùng chung bảng; V89 local chuẩn bị, chưa đủ cutover |
+| Tách bảng vật lý năm/tổ | Hiện entity vẫn dùng chung bảng; V96 local chuẩn bị, chưa đủ cutover |
 | Tổ trưởng duyệt năm/tổ | Policy hỗ trợ nhưng controller issue/return còn chặn TEACHER; cần sửa và regression |
 | Hồ sơ lớp chỉ nhận nguồn TEAM | Hàm requireIssuedPlan còn thiếu guard cấp; cần server regression |
 | Preview nhập file annual | Còn kiểm workflow year (TEAM), cần đồng bộ quyền annual |

@@ -4,7 +4,7 @@
 
 ## Điều kiện
 
-- User đã cấp quyền sửa giáo dục FE014 và yêu cầu implement→converge ngày 08/11/2026. Sau khi delta sửa nguồn được trình, user gọi implement các task còn lại; V87 và mock đã được triển khai và đang kiểm chứng.
+- User đã cấp quyền sửa giáo dục FE014 và yêu cầu implement→converge ngày 08/11/2026. Sau khi delta sửa nguồn được trình, user gọi implement các task còn lại; V94 và mock đã được triển khai và đang kiểm chứng.
 - Node/node_modules của Web hiện có; không tự install/upgrade dependency. BE cần JDK21/Maven wrapper; integration Testcontainers cần Docker/PostgreSQL17.
 - E2E cần môi trường test được phép, config/credential qua env ignored, tài khoản có phân công hợp lệ; không in secret hoặc dùng dữ liệu trẻ thật.
 - Không tự restart user server hoặc migrate DB thật; nếu cần môi trường riêng thì chỉ tạo khi đã được phép theo phạm vi triển khai. Không sửa auth/test để bỏ qua lỗi setup.
@@ -59,7 +59,7 @@ Lệnh BE thứ hai chỉ cần khi có thay đổi/lo ngại save/provenance/im
 
 ## Bằng chứng source Bộ bổ sung
 
-[Audit cột tuổi 851 chuỗi](audit/age-column-review.md) và [delta sửa nguồn](source-correction-plan.md) tách rõ 842 ca tự động, 9 ca xem render, 33 dấu hai chấm và câu 5 - 7 bị tách sai. V87 và mock đã sửa các sai lệch này; T032/T035 tiếp tục kiểm chiều PDF→catalog và cấu trúc. Evidence hiện hành xem `docs/quality/VERIFICATION.md`.
+[Audit cột tuổi 851 chuỗi](audit/age-column-review.md) và [delta sửa nguồn](source-correction-plan.md) tách rõ 842 ca tự động, 9 ca xem render, 33 dấu hai chấm và câu 5 - 7 bị tách sai. V94 và mock đã sửa các sai lệch này; T032/T035 tiếp tục kiểm chiều PDF→catalog và cấu trúc. Evidence hiện hành xem `docs/quality/VERIFICATION.md`.
 
 ## Bằng chứng cần ghi
 

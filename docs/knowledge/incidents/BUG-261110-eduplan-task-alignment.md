@@ -16,7 +16,7 @@ FE còn gọi lease sau khi BE bỏ khóa; reorder được thực hiện sau gu
 
 ## Sửa
 
-Bỏ gọi lease và polling FE, giữ revision/recovery. Validate source identity sau reorder cả save/preview. Không tự điền snapshot cũ; kiểm lại khi publication. Repository loại disabled; V94 unique index chỉ giữ bản active. Mock giữ bước cuối và lọc ứng viên thực tế. Config yêu cầu một creator role và reviewer cao hơn.
+Bỏ gọi lease và polling FE, giữ revision/recovery. Validate source identity sau reorder cả save/preview. Không tự điền snapshot cũ; kiểm lại khi publication. Repository loại disabled; V101 unique index chỉ giữ bản active. Mock giữ bước cuối và lọc ứng viên thực tế. Config yêu cầu một creator role và reviewer cao hơn.
 
 ## Regression và giới hạn
 

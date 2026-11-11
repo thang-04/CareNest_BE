@@ -175,5 +175,5 @@ Execution08/11: user duyệt vòng lặp đến sạch; các checkpoint vẫn t�
 
 ## Phase 9: Bổ sung catalog sau đối chiếu nguồn
 
-- [x] T037 Bổ sung 69 nội dung C và 4 mục tiêu D được xác nhận trong báo cáo, cùng hai nội dung hô hấp phát hiện sau đó; giữ ID cũ, thứ tự nguồn, mock parity và preflight V88, kiểm PostgreSQL và FE theo FR-002/008/010.
+- [x] T037 Bổ sung 69 nội dung C và 4 mục tiêu D được xác nhận trong báo cáo, cùng hai nội dung hô hấp phát hiện sau đó; giữ ID cũ, thứ tự nguồn, mock parity và preflight V95, kiểm PostgreSQL và FE theo FR-002/008/010.
 - [ ] T038 Tiếp tục T032/T035: đối chiếu ngược toàn bộ ô gộp, mục C/D, câu gãy trang và quan hệ cha theo văn bản Bộ; xử lý các sai lệch còn lại sau khi xác minh, không coi số ứng viên tự động là chứng nhận đầy đủ.

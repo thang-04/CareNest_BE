@@ -6,7 +6,7 @@ Phạm vi: sửa artifact theo lệnh user “fix”, rồi đối chiếu lại
 
 [PROJECT_CONTEXT](../../docs/context/PROJECT_CONTEXT.md) §Context kế hoạch giáo dục, [module card](../../docs/modules/education-plan.md), [flow](../../docs/business/flows/education-plan.md), [BUSINESS_RULES](../../docs/business/BUSINESS_RULES.md) EDU-01/07/10/25/26/54/55/57/60/62, [bộ xác nhận](../../docs/business/education-plan-confirmation-2026-11-09.md), [constitution](../../.specify/memory/constitution.md). Quyết định mới nhất có nguồn áp dụng trong đúng phạm vi; nghiệp vụ đích tách source/delivery. Không nâng mọi chi tiết EDU-56/60 thành CONFIRMED bằng câu trả lời khác phạm vi.
 
-Đọc thêm migration V35/V80/V83/V84 và entity EduDocumentAuthor để kiểm schema, ADR-0004 để không coi event PROPOSED là bắt buộc; chỉ đọc đường dẫn consumer FE để xác định task, không sửa FE.
+Đọc thêm migration V35/V87/V90/V91 và entity EduDocumentAuthor để kiểm schema, ADR-0004 để không coi event PROPOSED là bắt buộc; chỉ đọc đường dẫn consumer FE để xác định task, không sửa FE.
 
 ## Findings trước → remediation trong tài liệu
 
@@ -15,7 +15,7 @@ Phạm vi: sửa artifact theo lệnh user “fix”, rồi đối chiếu lại
 | G1 FE thiếu | Plan đích gồm BE+FE, không coi đánh giá impact là implementation | T043–T046, gate T047; SC-001..005 |
 | G2 cấm xóa tổ | FR-016, US4.3, AC-17, contract DELETE rõ TEAM mọi trạng thái | T008/T010/T044/T046; quickstart §1/§4 |
 | G3 TT duyệt | FR-017, US1.5, AC-15, policy tuổi/lượt/coauthor | T039/T044/T046; §1 |
-| I1 DDL legacy/index | Nguồn nullable + CHECK legacy; partial UNIQUE INDEX ngoài CREATE TABLE; DROP INDEX cho unique V83 | T029/T030; §0/§4 |
+| I1 DDL legacy/index | Nguồn nullable + CHECK legacy; partial UNIQUE INDEX ngoài CREATE TABLE; DROP INDEX cho unique V90 | T029/T030; §0/§4 |
 | I2 schema drift | 9 entity thật; không entity approval, EduGoalRow superclass | T006/T007/T030; data-model §2 |
 | I3 thứ tự cutover | Candidate SQL/scratch trước, T009 production cuối; không ship app hai bảng giữa expand/contract | T029–T031/T035/T037 trước T009 |
 | U1 ID API | Shared sequence hai header, giữ ID/route, fail khi inventory trùng | T040; data-model §1.3, §4 quickstart |
@@ -24,7 +24,7 @@ Phạm vi: sửa artifact theo lệnh user “fix”, rồi đối chiếu lại
 | I4 SQL kiểm chứng | Bỏ query bảng/cột đã drop; snapshot + EXCEPT hai chiều toàn payload/owner, trước xóa/sau chuyển | T030/T031; §0/§4 |
 | G4 cây nguồn/import | FR-004/US2.7/AC-16 kiểm server kể cả request giả/import | T038/T043/T046; §2 |
 | G5 performance | Bỏ cam kết không tăng query thiếu baseline; giữ convention tránh N+1 | Không thêm benchmark/SLA không được yêu cầu |
-| Bổ sung từ source | V80 authors chọn header hoặc class_doc_id; FK ghép V35/V84 giữ scope cây/theme | T006/T030/T031, snapshot LEFT JOIN và check 3 target |
+| Bổ sung từ source | V87 authors chọn header hoặc class_doc_id; FK ghép V35/V91 giữ scope cây/theme | T006/T030/T031, snapshot LEFT JOIN và check 3 target |
 
 Các finding trên đã có cách xử lý nhất quán trong artifact; không có nghĩa implementation/test runtime đã đạt. Thiết kế shared sequence và transaction đồng bộ là đề xuất mới cần duyệt cùng plan/API/DDL, không ghi như user đã duyệt chi tiết kỹ thuật.
 

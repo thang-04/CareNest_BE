@@ -1,6 +1,6 @@
 # Data model — Education workflow policy
 
-Thiết kế khởi tạo ngày 06/11/2026; được triển khai và kiểm chứng qua migrations V80–V82 cùng source education hiện hành. Chi tiết migration/caller/test ban đầu bên dưới là kế hoạch lịch sử; kết quả cuối ở [quickstart](quickstart.md). Tất cả FK tài khoản dùng ID, không lưu token/secret. Giữ bảng hiện có, không tạo workflow subsystem dùng chung toàn trường.
+Thiết kế khởi tạo ngày 06/11/2026; được triển khai và kiểm chứng qua migrations V87–V89 cùng source education hiện hành. Chi tiết migration/caller/test ban đầu bên dưới là kế hoạch lịch sử; kết quả cuối ở [quickstart](quickstart.md). Tất cả FK tài khoản dùng ID, không lưu token/secret. Giữ bảng hiện có, không tạo workflow subsystem dùng chung toàn trường.
 
 ## 1. EduSettings singleton
 

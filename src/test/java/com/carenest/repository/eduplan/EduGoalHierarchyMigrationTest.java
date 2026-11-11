@@ -132,7 +132,7 @@ class EduGoalHierarchyMigrationTest {
     @DisplayName("EDU-09: FK cha chặn plan/sub khác; ID mới dùng chung sequence")
     void enforcesParentOwnershipAndSharedIdentity() {
         flyway("latest").migrate();
-        // V90 tách bảng: kế hoạch cũ (cấp tổ) nằm ở edu_team_plans, bảng con dùng team_plan_id
+        // V97 tách bảng: kế hoạch cũ (cấp tổ) nằm ở edu_team_plans, bảng con dùng team_plan_id
         long owner = id("SELECT owner_id FROM edu_team_plans WHERE id=?", plan);
         long year = id("SELECT school_year_id FROM edu_team_plans WHERE id=?", plan);
         long age = id("SELECT id FROM age_groups WHERE code='ag-4'");

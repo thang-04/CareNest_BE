@@ -102,9 +102,9 @@ Migration mới backfill CONFIRMED legacy origin `LEGACY_BASELINE`: giữ name/d
 
 ## 8. Migration và rollout
 
-Đề xuất ba migration mới sau V82: `V83__split_education_plan_levels.sql` (level/source/legacy/index/workflow key và limits/snapshot), `V84__add_education_branch_templates.sql` (templates), `V85__snapshot_theme_evaluation_presentation.sql` (metadata frozen phục vụ tương thích lịch/source, không tính lại cells). Số được kiểm tra lại ngay trước implement nếu branch có migration mới; không sửa file đã commit hoặc có trong môi trường dùng chung.
+Đề xuất ba migration mới sau V89: `V83__split_education_plan_levels.sql` (level/source/legacy/index/workflow key và limits/snapshot), `V84__add_education_branch_templates.sql` (templates), `V85__snapshot_theme_evaluation_presentation.sql` (metadata frozen phục vụ tương thích lịch/source, không tính lại cells). Số được kiểm tra lại ngay trước implement nếu branch có migration mới; không sửa file đã commit hoặc có trong môi trường dùng chung.
 
-1. Backup/test trên DB synthetic từ V82. Thêm cột, backfill toàn bộ plans=TEAM, legacy=true, snapshot LEGACY_UNBOUNDED. Không sửa status/review_round/approvals/history/print_snapshot/goal IDs hoặc source_plan_id.
+1. Backup/test trên DB synthetic từ V89. Thêm cột, backfill toàn bộ plans=TEAM, legacy=true, snapshot LEGACY_UNBOUNDED. Không sửa status/review_round/approvals/history/print_snapshot/goal IDs hoặc source_plan_id.
 2. Đổi unique/version/open indexes gồm level, thêm source constraints, thêm schoolYear policy nếu chưa có; không reset policies cũ. Seed duration mặc định cho hồ sơ mới.
 3. Tạo bảng mẫu rỗng, không suy nhánh mẫu annual từ tên từng tuần cũ. Legacy branch JSON giữ nguyên trong DB; adapter đọc ra v2 theo từng Monday với key ổn định sinh từ docKey+Monday, không gom theo tên. Không flush chuyển đổi khi chỉ GET.
 4. Khi user thực sự lưu legacy branch còn DRAFT bằng client v2, chuyển sang shape v2 trong transaction/version guard, giữ từng tuần và snapshot legacy của hồ sơ đó. REVIEW/APPROVED đọc tương thích, không rewrite.
@@ -118,7 +118,7 @@ Rollback không drop schema/dữ liệu sau khi có annual hoặc v2 writes; rol
 
 ## Delta displayLabel — 07/11/2026
 
-EduPlanGoal.displayLabel: nullable VARCHAR(100), migration V86 additive. Chỉ GOAL có field; sub/group trả null. Không unique vì nhãn không làm khóa. Dữ liệu cũ null dùng MT + goalNo; không backfill. Null/omitted giữ nhãn trên update, empty/whitespace clear. Clone annual→TEAM và version giữ label. Quyền sửa/lease/status cũ giữ; TEAM từ chối mutation nhãn. Không đổi quan hệ hoặc goalNo.
+EduPlanGoal.displayLabel: nullable VARCHAR(100), migration V93 additive. Chỉ GOAL có field; sub/group trả null. Không unique vì nhãn không làm khóa. Dữ liệu cũ null dùng MT + goalNo; không backfill. Null/omitted giữ nhãn trên update, empty/whitespace clear. Clone annual→TEAM và version giữ label. Quyền sửa/lease/status cũ giữ; TEAM từ chối mutation nhãn. Không đổi quan hệ hoặc goalNo.
 
 ## FR021 — không đổi schema
 Dùng lại edu_plan_branch_templates.theme_id/start_date/end_date. So overlap trong mỗi themeId, không thêm index/constraint hoặc đổi dữ liệu legacy tự động.

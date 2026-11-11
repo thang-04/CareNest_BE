@@ -19,7 +19,7 @@ Nguyên nhân: FE đã kiểm trùng và thứ trong tuần tại ô, nhưng ch�
 ## Tái mở — user báo gửi duyệt vẫn thành công, 09/11/2026
 
 - DB local carenest_merge: kế hoạch năm 345 đang REVIEW; chủ đề 658 từ 2026-09-07 đến 2026-10-09 = 5 tuần học, không có đợt nghỉ của kế hoạch. edu_settings revision1 vẫn theme2–4/branch1–2.
-- V90 loại duration_policy_snapshot khỏi edu_year_plans. EduPlan.durationPolicySnapshot là @Transient mặc định LEGACY_UNBOUNDED; EduTeamPlan có mapping riêng nhưng EduYearPlan không có. Snapshot BOUNDED lúc tạo chỉ tồn tại trong memory, mất sau load lại. FE form/chi tiết bỏ kiểm giới hạn khi không có BOUNDED, nên đây là lỗi persistence, không phải chính sách cho phép gửi chủ đề 5 tuần.
+- V97 loại duration_policy_snapshot khỏi edu_year_plans. EduPlan.durationPolicySnapshot là @Transient mặc định LEGACY_UNBOUNDED; EduTeamPlan có mapping riêng nhưng EduYearPlan không có. Snapshot BOUNDED lúc tạo chỉ tồn tại trong memory, mất sau load lại. FE form/chi tiết bỏ kiểm giới hạn khi không có BOUNDED, nên đây là lỗi persistence, không phải chính sách cho phép gửi chủ đề 5 tuần.
 - requireReadyForReview chỉ kiểm trùng lịch/tuần/nhánh và nội dung; duration bound hiện ở YearPlanPublicationValidator khi ban hành. Vì vậy sửa persistence vẫn cần bổ sung kiểm server trước submit.
 - Chưa sửa code/migration hay dữ liệu thực; delta sửa cần duyệt theo workflow làn L. Kế hoạch sửa bổ sung tại docs/plans/active/2026-11-07-school-year-team-plans.md, delta khôi phục snapshot thời lượng09/11.
 - User làm rõ tiếp 09/11 theo EDU-71 PROPOSED: hồ sơ mất snapshot hoặc chưa phân biệt được legacy thật bị chặn gửi và báo kiểm tra/khôi phục; chỉ khôi phục theo bằng chứng, giữ trạng thái. Legacy thật được xác minh giữ ngoại lệ cũ. Chưa chứng minh fix đã triển khai.

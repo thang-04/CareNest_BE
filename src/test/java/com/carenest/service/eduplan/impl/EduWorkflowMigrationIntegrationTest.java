@@ -22,7 +22,7 @@ class EduWorkflowMigrationIntegrationTest {
     @DisplayName("EDU-54: expand giữ completed/legacy, seed policy tách biệt và baseline chỉ creator")
     void expandsLegacyWithoutChangingWorkflow() {
         String schema = "wf_" + UUID.randomUUID().toString().replace("-", "");
-        flyway(schema, "79").migrate();
+        flyway(schema, "86").migrate();
         var jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 postgres.getJdbcUrl() + (postgres.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=" + schema,
                 postgres.getUsername(),
@@ -45,7 +45,7 @@ class EduWorkflowMigrationIntegrationTest {
                 owner,
                 reviewer);
         String signers = jdbc.queryForObject("SELECT signers FROM edu_settings WHERE id=1", String.class);
-        flyway(schema, "80").migrate();
+        flyway(schema, "87").migrate();
         assertThat(jdbc.queryForObject("SELECT status FROM edu_year_plans WHERE id=?", String.class, plan))
                 .isEqualTo("APPROVED");
         assertThat(jdbc.queryForObject("SELECT issued_by FROM edu_year_plans WHERE id=?", Long.class, plan))
@@ -77,7 +77,7 @@ class EduWorkflowMigrationIntegrationTest {
                         plan,
                         -123L))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
-        flyway(schema, "82").migrate();
+        flyway(schema, "89").migrate();
         String snapshot =
                 jdbc.queryForObject("SELECT print_snapshot::text FROM edu_year_plans WHERE id=?", String.class, plan);
         assertThat(snapshot).contains("CREATOR", "Tác giả thử", "Người duyệt thử");
@@ -85,7 +85,7 @@ class EduWorkflowMigrationIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "SELECT print_snapshot::text FROM edu_year_plans WHERE id=?", String.class, plan))
                 .isEqualTo(snapshot);
-        flyway(schema, "82").migrate();
+        flyway(schema, "89").migrate();
         assertThat(jdbc.queryForObject(
                         "SELECT print_snapshot::text FROM edu_year_plans WHERE id=?", String.class, plan))
                 .isEqualTo(snapshot);
@@ -95,7 +95,7 @@ class EduWorkflowMigrationIntegrationTest {
     @DisplayName("EDU-54: contract chuẩn hóa 3 trạng thái DRAFT/REVIEW/APPROVED và siết CHECK constraints")
     void contractsToThreeStatesAndNormalizesLegacy() {
         String schema = "wf_c_" + UUID.randomUUID().toString().replace("-", "");
-        flyway(schema, "80").migrate();
+        flyway(schema, "87").migrate();
         var jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 postgres.getJdbcUrl() + (postgres.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=" + schema,
                 postgres.getUsername(),
@@ -195,7 +195,7 @@ class EduWorkflowMigrationIntegrationTest {
                 legacyApproval,
                 docHt);
         // Migrate to 81 (contract)
-        flyway(schema, "82").migrate();
+        flyway(schema, "89").migrate();
 
         assertThat(jdbc.queryForObject("SELECT status FROM edu_year_plans WHERE id=?", String.class, planPending))
                 .isEqualTo("REVIEW");
@@ -240,10 +240,10 @@ class EduWorkflowMigrationIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-54: nâng cấp trực tiếp từ V79 lên V81 (contract) thành công")
+    @DisplayName("EDU-54: nâng cấp trực tiếp từ V86 lên V88 (contract) thành công")
     void upgradesDirectlyFromLegacy79ToContract81() {
         String schema = "wf_dir_" + UUID.randomUUID().toString().replace("-", "");
-        flyway(schema, "79").migrate();
+        flyway(schema, "86").migrate();
         var jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 postgres.getJdbcUrl() + (postgres.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=" + schema,
                 postgres.getUsername(),
@@ -263,7 +263,7 @@ class EduWorkflowMigrationIntegrationTest {
                 age,
                 owner);
 
-        flyway(schema, "82").migrate();
+        flyway(schema, "89").migrate();
 
         assertThat(jdbc.queryForObject("SELECT status FROM edu_year_plans WHERE id=?", String.class, plan))
                 .isEqualTo("REVIEW");

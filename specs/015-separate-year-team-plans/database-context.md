@@ -21,7 +21,7 @@ Ngày 09/11/2026. Đối chiếu source entity/service và Flyway; chưa truy v�
 | Ban hành và dấu vết | `issued_by/issued_at`, `published_by/completed_at`, `approvals`, `print_snapshot`, `edu_plan_events` |
 | Khóa/lưu đồng thời | session sửa, revision, request chống lặp |
 
-V83 đặt unique `(plan_level, school_year_id, age_group_id, version_no)` và tối đa một bản chưa APPROVED cho mỗi loại/năm/tuổi. Tên riêng không tạo thêm chuỗi kế hoạch cùng nhóm tuổi. Tổ cũ không có nguồn được đánh dấu `legacy_team_without_source`; không suy diễn nguồn cho các dòng đó.
+V90 đặt unique `(plan_level, school_year_id, age_group_id, version_no)` và tối đa một bản chưa APPROVED cho mỗi loại/năm/tuổi. Tên riêng không tạo thêm chuỗi kế hoạch cùng nhóm tuổi. Tổ cũ không có nguồn được đánh dấu `legacy_team_without_source`; không suy diễn nguồn cho các dòng đó.
 
 ## Nội dung con và mapping hiện tại
 
@@ -55,7 +55,7 @@ Chưa kết luận chỉ tách bảng header là đủ. Plan phải chọn cách
 
 ## Chuyển đổi phải thiết kế trong plan làn L
 
-- Tạo migration mới; không sửa V83 hoặc migration đã commit.
+- Tạo migration mới; không sửa V90 hoặc migration đã commit.
 - Phân loại dữ liệu theo level; bảo toàn tên riêng, lịch sử, ticks và snapshot. Không ghép hồ sơ theo tên.
 - Có bảng ánh xạ ID nếu đổi ID; cập nhật toàn bộ FK/consumer tương ứng, không làm lớp trỏ sang năm vì trùng số ID.
 - Giữ đọc tổ legacy không nguồn; không tự tạo năm giả.
@@ -64,10 +64,10 @@ Chưa kết luận chỉ tách bảng header là đủ. Plan phải chọn cách
 
 ## Bằng chứng source
 
-- [Entity chính](../../src/main/java/com/carenest/entity/eduplan/EduYearPlan.java), [tách level V83](../../src/main/resources/db/migration/V83__split_education_plan_levels.sql), [phiên bản V32](../../src/main/resources/db/migration/V32__add_edu_plan_versions.sql).
+- [Entity chính](../../src/main/java/com/carenest/entity/eduplan/EduYearPlan.java), [tách level V90](../../src/main/resources/db/migration/V83__split_education_plan_levels.sql), [phiên bản V32](../../src/main/resources/db/migration/V32__add_edu_plan_versions.sql).
 - [Service tạo/chọn nguồn/chép](../../src/main/java/com/carenest/service/eduplan/impl/EduYearPlanServiceImpl.java), [list response](../../src/main/java/com/carenest/dto/eduplan/YearPlanSummaryResponse.java), [mapper ngày gửi](../../src/main/java/com/carenest/mapper/eduplan/EduYearPlanMapper.java).
-- [Cây ba tầng V35](../../src/main/resources/db/migration/V35__split_edu_goal_hierarchy.sql), [mẫu nhánh V84](../../src/main/resources/db/migration/V84__add_education_branch_templates.sql).
+- [Cây ba tầng V35](../../src/main/resources/db/migration/V35__split_edu_goal_hierarchy.sql), [mẫu nhánh V91](../../src/main/resources/db/migration/V84__add_education_branch_templates.sql).
 
 ## Thiết kế refinement 09/11/2026 — chưa triển khai
 
-Plan/data-model hiện đề xuất 9 bảng nhận owner, shared sequence cho hai header và cập nhật tổ đồng bộ cùng transaction ban hành. Trạng thái source ở trên không đổi do sửa tài liệu. V80 cho edu_document_authors trỏ year_plan_id **hoặc class_doc_id**: tác giả lớp phải giữ class_doc_id, không ép owner header. V35/V84 có FK/unique ghép chứa year_plan_id ở cây và theme/templates; cutover phải tái tạo ràng buộc tương đương theo owner, không chỉ thay FK header. Chi tiết và gate tại [data-model](data-model.md), [tasks](tasks.md), [quickstart](quickstart.md).
+Plan/data-model hiện đề xuất 9 bảng nhận owner, shared sequence cho hai header và cập nhật tổ đồng bộ cùng transaction ban hành. Trạng thái source ở trên không đổi do sửa tài liệu. V87 cho edu_document_authors trỏ year_plan_id **hoặc class_doc_id**: tác giả lớp phải giữ class_doc_id, không ép owner header. V35/V91 có FK/unique ghép chứa year_plan_id ở cây và theme/templates; cutover phải tái tạo ràng buộc tương đương theo owner, không chỉ thay FK header. Chi tiết và gate tại [data-model](data-model.md), [tasks](tasks.md), [quickstart](quickstart.md).

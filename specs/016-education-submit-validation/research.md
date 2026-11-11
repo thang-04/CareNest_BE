@@ -2,9 +2,9 @@
 
 ## Thời lượng và dữ liệu cũ
 
-**Bằng chứng**: V90 bỏ `edu_year_plans.duration_policy_snapshot`; `EduPlan.durationPolicySnapshot` là transient; `EduYearPlan` chưa map trong khi `EduTeamPlan` đã map. Snapshot khi tạo bị mất sau reload. `requireReadyForReview` chưa kiểm khoảng tuần; `YearPlanPublicationValidator` kiểm lúc ban hành. Nhánh thiếu cả hai ngày hiện lọt kiểm tra ở validator.
+**Bằng chứng**: V97 bỏ `edu_year_plans.duration_policy_snapshot`; `EduPlan.durationPolicySnapshot` là transient; `EduYearPlan` chưa map trong khi `EduTeamPlan` đã map. Snapshot khi tạo bị mất sau reload. `requireReadyForReview` chưa kiểm khoảng tuần; `YearPlanPublicationValidator` kiểm lúc ban hành. Nhánh thiếu cả hai ngày hiện lọt kiểm tra ở validator.
 
-**Phương án**: migration mới bổ sung lại snapshot cho năm, map như tổ; dùng lại `EduTeachingCalendar` kiểm ở submit và ban hành. Tách kiểm đủ ngày khỏi kiểm BOUNDED để xử lý cả legacy. Không sửa V90, không đoán snapshot lịch sử hoặc tự đổi trạng thái hồ sơ.
+**Phương án**: migration mới bổ sung lại snapshot cho năm, map như tổ; dùng lại `EduTeachingCalendar` kiểm ở submit và ban hành. Tách kiểm đủ ngày khỏi kiểm BOUNDED để xử lý cả legacy. Không sửa V97, không đoán snapshot lịch sử hoặc tự đổi trạng thái hồ sơ.
 
 **Quyết định user 09/11**: hồ sơ mất snapshot chỉ khôi phục khi có bằng chứng, giữ trạng thái; phiên bản điều chỉnh dùng cấu hình hiện tại lúc tạo. Không tự sửa dữ liệu đang dùng ở bước plan.
 

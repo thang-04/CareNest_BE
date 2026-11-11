@@ -4,7 +4,7 @@ Nguồn: spec/domain, PROJECT_CONTEXT, BUSINESS_RULES và [bộ xác nhận](../
 
 ## R-1 — Một bộ bảng con, hai cột sở hữu
 
-Giữ D1, giữ ID. **9 bảng trực tiếp** trong data-model §2; goal_contents/ticks suy qua cha, EduGoalRow là superclass, approvals JSONB. Không nhân đôi bảng con hoặc chỉ dùng cờ loại chung header. CHECK đúng một owner sau cutover (authors chọn đúng một trong hai header/class_doc_id theo V80); giữ FK ghép V35/V84 thay vì chỉ FK header; nullable tạm chỉ trong expand.
+Giữ D1, giữ ID. **9 bảng trực tiếp** trong data-model §2; goal_contents/ticks suy qua cha, EduGoalRow là superclass, approvals JSONB. Không nhân đôi bảng con hoặc chỉ dùng cờ loại chung header. CHECK đúng một owner sau cutover (authors chọn đúng một trong hai header/class_doc_id theo V87); giữ FK ghép V35/V91 thay vì chỉ FK header; nullable tạm chỉ trong expand.
 
 ## R-2 — Tự cập nhật tổ đã tồn tại, không tự lập lần đầu
 
@@ -16,7 +16,7 @@ Loại lấy từ bảng vật lý, không từ title/code. DTO dùng planType/p
 
 ## R-4 — Expand, rehearsal, cutover
 
-V89 local đã có nhưng chưa chứng nhận applied; inventory migration trước triển khai. Expand giữ cột cũ và app cũ; code/schema đích chỉ chạy scratch đến lúc cutover. T029/T030/T031 kiểm bảo toàn trước T009 production. T009 dừng writer/job, refresh backfill, copy nguyên TEAM, đổi FK/sequence, kiểm trước xóa, rồi contract trong transaction. Sau commit không hứa rollback app cũ: cần restore backup hoặc migration tiến được duyệt. Không sửa migration đã commit/applied; slot V89/V90 kiểm lại.
+V96 local đã có nhưng chưa chứng nhận applied; inventory migration trước triển khai. Expand giữ cột cũ và app cũ; code/schema đích chỉ chạy scratch đến lúc cutover. T029/T030/T031 kiểm bảo toàn trước T009 production. T009 dừng writer/job, refresh backfill, copy nguyên TEAM, đổi FK/sequence, kiểm trước xóa, rồi contract trong transaction. Sau commit không hứa rollback app cũ: cần restore backup hoặc migration tiến được duyệt. Không sửa migration đã commit/applied; slot V96/V97 kiểm lại.
 
 ## R-5 — Rà soát và baseline
 

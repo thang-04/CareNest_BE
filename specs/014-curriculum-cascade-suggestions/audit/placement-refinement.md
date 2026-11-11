@@ -13,4 +13,4 @@ User gọi implement sau khi kế hoạch bổ sung 73 cặp đã được trìn
 
 Sáu mục chưa có điểm tựa cùng trang gồm bốn mục tuổi 5–6 trên PDF46 về nước/không khí/đất và hai mục tuổi 5–6 trên PDF49 về nghề/di tích. Ảnh PDF45–46 và PDF48–49 cho thấy chúng nằm tương ứng sau phần hiện tượng ngày/đêm và sau các dòng về bản thân, trường lớp. Tuy nhiên cần xây và kiểm tra quy tắc chèn cho cả nhóm, kể cả các mục mới cùng khoảng, đối chiếu thứ tự thật với ảnh, bảo đảm unique `(source_id, age_group_id, sort_order)` khi cập nhật và không thay ID. Không được gán cuối catalog chỉ vì thiếu điểm tựa.
 
-V88 và mock đã được tạo sau lượt chuẩn bị này; kiểm thử PostgreSQL/FE/E2E và giới hạn ghi trong `docs/quality/VERIFICATION.md`. T032/T035 vẫn mở do audit ngược chưa bao phủ toàn bộ văn bản.
+V95 và mock đã được tạo sau lượt chuẩn bị này; kiểm thử PostgreSQL/FE/E2E và giới hạn ghi trong `docs/quality/VERIFICATION.md`. T032/T035 vẫn mở do audit ngược chưa bao phủ toàn bộ văn bản.

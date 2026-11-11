@@ -9,7 +9,7 @@
 - User duyệt plan làn L, migration/API delta và cấp quyền sửa FE riêng trước client phase. Có tasks/analyze không blocker theo feature-spec-loop; lệnh plan không tạo tasks thay bước đó.
 - Java21, Maven wrapper repo, Node22, Docker/Testcontainers PostgreSQL17 theo README. Không cài/thay dependency/version.
 - Dữ liệu synthetic: một năm học, hai campus, hai nhóm tuổi/lớp, HT/PHT/TL/GV có phân công hiệu lực, người ngoài scope và người assignment hết hạn. Nạp credential thử qua biến môi trường, không đưa vào chat/log/docs. Không dùng DB thật.
-- Migration test có DB trước V83 (V82 đầy đủ fixtures) và DB migrate mới; giữ IDs/checksum các bảng legacy và publication JSON trước/sau. Reuse Testcontainers fixtures/config của suite hiện có.
+- Migration test có DB trước V90 (V89 đầy đủ fixtures) và DB migrate mới; giữ IDs/checksum các bảng legacy và publication JSON trước/sau. Reuse Testcontainers fixtures/config của suite hiện có.
 
 ## Lệnh kiểm chứng từng phase
 
@@ -109,7 +109,7 @@ User mở trang báo404 module-wide. Active mode dùng API thật, duration-poli
 
 ### Kết quả delta nhãn/UI07/11/2026
 
-BE64/64 native4classes, fail/error/skip0; PostgreSQL V85→V86 upgrade + label roundtrip/compatibility/clone/guard/size. Runtime migrate86/start/healthUP, OpenAPI schemas đúng và đã cập nhật. FE248/248 + ESLint/Prettier/Vite exit0, input/pointer/keyboard/cancel/capture + API/mock/in tests. Independent review2P2 đã sửa; convergence delta FR019/020 không còn gap triển khai phát hiện; chưa browser/E2E/fullBE/touch thật. Giữ pending gaps feature012 cũ. Xem docs/quality/VERIFICATION.md; không harness/Git/deploy.
+BE64/64 native4classes, fail/error/skip0; PostgreSQL V92→V93 upgrade + label roundtrip/compatibility/clone/guard/size. Runtime migrate86/start/healthUP, OpenAPI schemas đúng và đã cập nhật. FE248/248 + ESLint/Prettier/Vite exit0, input/pointer/keyboard/cancel/capture + API/mock/in tests. Independent review2P2 đã sửa; convergence delta FR019/020 không còn gap triển khai phát hiện; chưa browser/E2E/fullBE/touch thật. Giữ pending gaps feature012 cũ. Xem docs/quality/VERIFICATION.md; không harness/Git/deploy.
 
 ### FR021 — kết quả07/11/2026
 BE71/71 native4classes, PostgreSQL; FE254/254, lint/format/Vite exit0; review độc lập không blocker. Kiểm hai endpoint compact/default, sửa đầu riêng, warnings/taken, sibling overlap/weekday và mock/server draft-vs-submit. Converge delta không gap theo source/tests; chưa browser/E2E/fullBE/touch thật, không harness/Git/deploy.
