@@ -10,6 +10,7 @@ import com.carenest.repository.observation.ThemeEvaluationRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.eduplan.EduPlanCalendarQueryService;
 import com.carenest.service.observation.SemesterAssessmentService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.organization.SchoolYearService;
@@ -37,6 +38,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
     private final AccountService accounts;
     private final ObjectMapper mapper;
     private final ThemeEvaluationService themeEvaluationService;
+    private final EduPlanCalendarQueryService calendar;
 
     @Override
     @Transactional(readOnly = true)
@@ -168,10 +170,13 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         LocalDate to = end.isAfter(rules.today()) ? rules.today() : end;
         Set<Long> selected = new HashSet<>();
         if (cls.ageGroupId() != null)
-            for (var t : themes.findApprovedThemes(cls.schoolYearId(), cls.ageGroupId())) {
+            // Lịch chủ đề theo lớp (lịch lớp đã duyệt, chưa có thì lịch tổ) như bảng đánh giá chủ đề
+            for (var t : calendar.findApprovedThemes(classId)) {
                 // OBS-25 (Cần chốt 10/11/2026): chủ đề thuộc học kỳ = ngày kết thúc chủ đề nằm trong học kỳ
-                if (!t.getEndDate().isBefore(from) && !t.getEndDate().isAfter(end))
-                    themes.findThemeGoals(t.getId()).forEach(g -> selected.add(g.getLineage()));
+                if (t.endDate() != null
+                        && !t.endDate().isBefore(from)
+                        && !t.endDate().isAfter(end))
+                    themes.findThemeGoals(t.themeId()).forEach(g -> selected.add(g.getLineage()));
             }
         var goals = cls.ageGroupId() == null
                 ? List.<ThemeEvaluationRepository.YearGoalRow>of()

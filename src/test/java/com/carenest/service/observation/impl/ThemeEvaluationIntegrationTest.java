@@ -793,6 +793,26 @@ class ThemeEvaluationIntegrationTest {
     }
 
     @Test
+    void semesterGoalsFollowClassCalendar() {
+        // OBS-25: chủ đề thuộc học kỳ xét theo lịch chủ đề của lớp (Tiền: lịch lớp đã duyệt), không theo lịch tổ
+        jdbc.update(
+                "UPDATE school_years SET semester1_start='2026-09-01', semester1_end='2026-10-02',"
+                        + " semester2_start='2026-10-03', semester2_end='2027-05-31'"
+                        + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        assertThat(semesters.get(teacher, classA, 1).domains()).isNotEmpty();
+        jdbc.update(
+                "UPDATE edu_class_docs SET team_plan_id = 9002, status = 'APPROVED', content = ?::jsonb WHERE id = ?",
+                "{\"schemaVersion\":2,\"themeSchedules\":[{\"themeId\":9201,\"startDate\":\"2026-10-05\","
+                        + "\"endDate\":\"2026-10-16\"}]}",
+                doc);
+        entityManager.clear();
+        // Lớp A dời chủ đề sang HK II: HK I không còn MT; lớp B vẫn theo lịch tổ (kết thúc 02/10, thuộc HK I)
+        assertThat(semesters.get(teacher, classA, 1).domains()).isEmpty();
+        assertThat(semesters.get(principal, classB, 1).domains()).isNotEmpty();
+    }
+
+    @Test
     void scopeAndRulesAreEnforced() {
         // Mọi nhóm tuổi đều có đánh giá cuối chủ đề (Cần chốt 04/11/2026): nhà trẻ chưa có kế hoạch năm thì chưa có chủ
         // đề
