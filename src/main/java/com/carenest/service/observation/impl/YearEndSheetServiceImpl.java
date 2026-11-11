@@ -61,6 +61,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
+    private final com.carenest.service.organization.SchoolYearService schoolYearService;
 
     /** Ô lưu trong JSON: g = dòng gốc MT, m = đạt, x = GV sửa tay. */
     record StoredGoal(Long g, Boolean m, boolean x, Short n, String t, Long d, String dn, String s) {
@@ -305,7 +306,8 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         boolean canEdit = !ev.isConfirmed()
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
                 && rules.canRecord(user, cls)
-                && cls.yearStatus() == SchoolYearStatus.ACTIVE;
+                && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                && !rules.today().isBefore(yearEndOpensOn(user, cls));
         return new YearEndSheetResponse(
                 ev.getId(),
                 cls.id(),
@@ -386,7 +388,17 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         if (ev.isConfirmed()) {
             throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
         }
+        // OBS-06 (Cần chốt 10/11/2026): phiếu chỉ sửa từ ngày kết thúc HK II (chưa đặt HK II thì ngày kết thúc năm học)
+        if (rules.today().isBefore(yearEndOpensOn(user, cls))) {
+            throw GlobalException.of(ApiCode.YEAR_END_NOT_OPEN);
+        }
         return cls;
+    }
+
+    private LocalDate yearEndOpensOn(CurrentUser user, ClassroomInfoResponse cls) {
+        LocalDate semester2End =
+                schoolYearService.getSchoolYear(user, cls.schoolYearId()).semester2End();
+        return semester2End == null || semester2End.isAfter(cls.yearEnd()) ? cls.yearEnd() : semester2End;
     }
 
     // Nhận xét theo lĩnh vực: chỉ lĩnh vực có trên phiếu; chuỗi trống = xóa; lĩnh vực không gửi giữ nguyên

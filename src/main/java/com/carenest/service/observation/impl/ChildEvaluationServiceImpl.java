@@ -821,6 +821,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         if (ev.isConfirmed()) {
             throw GlobalException.of(ApiCode.EVALUATION_ALREADY_CONFIRMED);
         }
+        // OBS-06 (Cần chốt 10/11/2026): cuối năm chỉ sửa / xác nhận từ ngày kết thúc HK II; trước đó chỉ xem
+        if (ev.getPeriodType() == EvaluationPeriodType.YEAR && !yearEndOpen(user, cls)) {
+            throw GlobalException.of(ApiCode.YEAR_END_NOT_OPEN);
+        }
         return cls;
     }
 

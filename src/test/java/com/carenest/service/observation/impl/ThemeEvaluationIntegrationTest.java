@@ -493,6 +493,20 @@ class ThemeEvaluationIntegrationTest {
                 classA,
                 teacher.userId());
 
+        // OBS-06 (Cần chốt 10/11/2026): trước ngày kết thúc HK II phiếu chỉ xem, mọi thao tác sửa bị chặn
+        assertThat(sheetService.get(teacher, yearEval).canEdit()).isFalse();
+        expectCode(
+                () -> sheetService.save(teacher, yearEval, new YearEndSheetRequest(List.of(), "Sớm", null, null, null)),
+                ApiCode.YEAR_END_NOT_OPEN);
+        expectCode(
+                () -> evaluationService.saveContent(teacher, yearEval, "Nhận xét cuối năm viết sớm trước khi mở."),
+                ApiCode.YEAR_END_NOT_OPEN);
+        expectCode(
+                () -> evaluationService.confirm(
+                        teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động."),
+                ApiCode.YEAR_END_NOT_OPEN);
+        endSemesterTwo();
+
         // MT lấy từ kế hoạch năm theo lĩnh vực; kết quả tổng hợp từng chủ đề có gắn MT; chủ đề chưa bắt đầu để trống
         YearEndSheetResponse sheet = sheetService.get(teacher, yearEval);
         assertThat(sheet.domains()).extracting(d -> d.name()).containsExactly("TEST lĩnh vực chủ đề");
@@ -581,12 +595,6 @@ class ThemeEvaluationIntegrationTest {
                 + " now(), now() FROM classrooms c WHERE c.id = " + classA + " RETURNING id");
         expectCode(() -> sheetService.get(teacher, monthEval), ApiCode.YEAR_SHEET_ONLY_YEAR_END);
 
-        // OBS-06 (Cần chốt 10/11/2026): học kỳ II chưa kết thúc thì chưa xác nhận cuối năm
-        expectCode(
-                () -> evaluationService.confirm(
-                        teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động."),
-                ApiCode.YEAR_END_NOT_OPEN);
-        endSemesterTwo();
         // Xác nhận đánh giá cuối năm: chốt cả phiếu; kết quả ngày đổi sau đó không đổi phiếu
         evaluationService.confirm(teacher, yearEval, "Trẻ phát triển bình thường, tham gia tích cực các hoạt động.");
         result(kid1, classA, "2026-10-20", "k8", "", String.valueOf(goal2));
