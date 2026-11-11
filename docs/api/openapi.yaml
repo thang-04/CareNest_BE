@@ -4721,6 +4721,31 @@ paths:
           description: OK
       tags:
       - meal-plan-controller
+  /api/nutrition/day-market:
+    get:
+      operationId: getDayMarket
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayMarketResponse"
+          description: OK
+      tags:
+      - day-market-controller
   /api/nutrition/dishes:
     get:
       operationId: getDishes
@@ -9884,6 +9909,131 @@ components:
       required:
       - date
       - items
+    DayMarketGroup:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        mealPrice:
+          type: number
+        name:
+          type: string
+        revenue:
+          type: number
+        servings:
+          type: integer
+          format: int32
+    DayMarketGroupCost:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        cost:
+          type: number
+    DayMarketGroupDishes:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        dishes:
+          type: array
+          items:
+            type: string
+    DayMarketGroupShare:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        cost:
+          type: number
+        quantity:
+          type: number
+    DayMarketLine:
+      type: object
+      properties:
+        cost:
+          type: number
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupShare"
+        orderQuantity:
+          type: number
+        quantity:
+          type: number
+        storage:
+          type: string
+        unitPrice:
+          type: number
+    DayMarketResponse:
+      type: object
+      properties:
+        basis:
+          type: string
+        campusId:
+          type: integer
+          format: int64
+        confirmedAt:
+          type: string
+          format: date-time
+        date:
+          type: string
+          format: date
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroup"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketLine"
+        menu:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketSessionMenu"
+        status:
+          type: string
+        totals:
+          $ref: "#/components/schemas/DayMarketTotals"
+    DayMarketSessionMenu:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupDishes"
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+    DayMarketTotals:
+      type: object
+      properties:
+        balance:
+          type: number
+        cost:
+          type: number
+        dryCost:
+          type: number
+        freshCost:
+          type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupCost"
+        revenue:
+          type: number
+        servings:
+          type: integer
+          format: int32
     DayRow:
       type: object
       properties:
@@ -15511,6 +15661,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/DayInfoResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonDayMarketResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayMarketResponse"
         desc:
           type: string
         errorCode:
