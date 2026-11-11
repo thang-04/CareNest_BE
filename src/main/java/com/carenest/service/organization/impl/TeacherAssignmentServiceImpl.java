@@ -229,6 +229,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 throw GlobalException.of(ApiCode.TEAM_LEADER_INVALID);
             }
             LocalDate start = effectiveStart(year);
+            schoolYearRepository.findForUpdate(year.getId());
             // 1 tổ trưởng/nhóm tuổi/năm cho cả trường; 1 giáo viên làm tổ trưởng tối đa 1 nhóm tuổi trong năm
             for (StaffAssignment leader : currentLeaders(year)) {
                 boolean sameGroup = leader.getAgeGroupId().equals(request.ageGroupId());
