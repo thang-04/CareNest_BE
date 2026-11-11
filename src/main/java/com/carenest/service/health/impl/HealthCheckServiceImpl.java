@@ -74,6 +74,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
     private final SchoolStructureService schoolStructureService;
     private final ChildService childService;
     private final AccountService accountService;
+    private final HealthNotifier healthNotifier;
 
     @Override
     @Transactional(readOnly = true)
@@ -259,6 +260,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
                     .createdAt(rules.now())
                     .build());
             record(campaign, HealthCheckAction.CREATED, currentUser, null);
+            healthNotifier.campaignOpened(campaign, false);
             HealthCheckResponse created = toView(currentUser, campaign, results(List.of(campaign.getId())));
             log.info("{}|END", logPrefix);
             return created;
@@ -433,6 +435,7 @@ public class HealthCheckServiceImpl implements HealthCheckService {
             absenceRepository.deleteByCampaignId(campaign.getId());
             campaign.reopen(rules.now());
             record(campaign, HealthCheckAction.REOPENED, currentUser, reason);
+            healthNotifier.campaignOpened(campaign, true);
             HealthCheckResponse reopened = toView(currentUser, campaign, results(List.of(campaign.getId())));
             log.info("{}|END", logPrefix);
             return reopened;

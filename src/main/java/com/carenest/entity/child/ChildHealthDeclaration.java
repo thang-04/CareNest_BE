@@ -104,6 +104,27 @@ public class ChildHealthDeclaration {
         return declaration;
     }
 
+    /** Sửa khai báo (CHD-06, mục 4.5): mọi mục; người khai, lúc khai = lần sửa này. */
+    public void update(
+            DeclarationState allergiesState,
+            Answer diet,
+            Answer otherNotes,
+            Answer selfHistory,
+            Answer familyHistory,
+            DeclarationState tbContactState,
+            LocalDate tbContactDate,
+            Long declaredBy,
+            Instant declaredAt) {
+        this.allergiesState = allergiesState;
+        this.dietState = diet.state();
+        this.dietText = diet.text();
+        this.otherNotesState = otherNotes.state();
+        this.otherNotesText = otherNotes.text();
+        updateMedicalHistory(selfHistory, familyHistory, tbContactState, tbContactDate);
+        this.declaredBy = declaredBy;
+        this.declaredAt = declaredAt;
+    }
+
     /** Cập nhật tiền sử (từ phiếu khám; HLT-06); các mục khác, người khai, lúc khai giữ nguyên. */
     public void updateMedicalHistory(
             Answer selfHistory, Answer familyHistory, DeclarationState tbContactState, LocalDate tbContactDate) {

@@ -66,6 +66,23 @@ public class ChildGuardian {
         this.userId = accountId;
     }
 
+    /**
+     * Sửa phụ huynh trên hồ sơ (G94-180/AUTH-21). SĐT của phụ huynh đã có tài khoản không đổi ở đây mà qua yêu cầu
+     * đổi SĐT được duyệt ({@link #changePhone}).
+     */
+    public void update(
+            int position, String fullName, GuardianRelationship relationship, String citizenId, String email) {
+        this.position = (short) position;
+        this.fullName = fullName;
+        this.relationship = relationship;
+        this.citizenId = citizenId;
+        this.email = email;
+    }
+
+    public void changePhone(String phone) {
+        this.phone = phone;
+    }
+
     @Column(name = "photo_key", length = 36)
     private String photoKey;
 

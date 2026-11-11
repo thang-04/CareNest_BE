@@ -1804,7 +1804,19 @@ paths:
       operationId: searchChildren
       parameters:
       - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
         name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
         required: false
         schema:
           type: integer
@@ -1815,6 +1827,25 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+            enum:
+            - ACTIVE
+            - PENDING_PLACEMENT
+            - LEFT
+          uniqueItems: true
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 0
       - in: query
         name: q
         required: false
@@ -1844,7 +1875,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResponseJsonPageResponseChildSummaryResponse"
+                $ref: "#/components/schemas/ResponseJsonPageResponseChildListItemResponse"
           description: OK
       tags:
       - child-controller
@@ -1973,6 +2004,90 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/guardian-overview:
+    get:
+      operationId: guardianOverview
+      parameters:
+      - in: query
+        name: schoolYear
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 0
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+          minimum: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+          maximum: 100
+          minimum: 1
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponseChildGuardianOverviewResponse"
+          description: OK
+      tags:
+      - guardian-controller
+  /api/children/parent-accounts:
+    get:
+      operationId: listParentAccounts
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - NOT_ACTIVATED
+          - ACTIVE
+          - INACTIVE
+      - in: query
+        name: keyword
+        required: false
+        schema:
+          type: string
+          maxLength: 100
+          minLength: 0
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListParentAccountRowResponse"
+          description: OK
+      tags:
+      - child-controller
   /api/children/parent-accounts/by-citizen-id:
     get:
       operationId: findParentAccount
@@ -2024,6 +2139,30 @@ paths:
           description: OK
       tags:
       - child-controller
+    put:
+      operationId: update
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateChildRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildUpdateResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/account-recipient:
     get:
       operationId: candidates
@@ -2230,6 +2369,37 @@ paths:
           description: OK
       tags:
       - selected-parent-account-controller
+  /api/children/{childId}/guardians/{guardianId}/phone-change-requests:
+    post:
+      operationId: requestGuardianPhoneChange
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: guardianId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GuardianPhoneChangeCreateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGuardianPhoneChangeResponse"
+          description: Created
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/guardians/{userId}:
     delete:
       operationId: removeGuardian
@@ -2300,6 +2470,31 @@ paths:
           description: OK
       tags:
       - health-measurement-controller
+  /api/children/{childId}/health-declaration:
+    put:
+      operationId: saveDeclaration
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthDeclarationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthDeclarationResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/health/measurements:
     post:
       operationId: createMeasurement
@@ -2356,6 +2551,92 @@ paths:
           description: OK
       tags:
       - health-measurement-controller
+  /api/children/{childId}/health/published:
+    get:
+      operationId: getPublishedHealth
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPublishedHealthResponse"
+          description: OK
+      tags:
+      - health-measurement-controller
+  /api/children/{childId}/health/trend-analysis:
+    get:
+      operationId: latestTrend
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthTrendAnalysisResponse"
+          description: OK
+      tags:
+      - health-trend-controller
+    post:
+      operationId: analyzeTrend
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthTrendAnalysisResponse"
+          description: OK
+      tags:
+      - health-trend-controller
+  /api/children/{childId}/health/trend-analysis/{interpretationId}/approve:
+    post:
+      operationId: approveTrend
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: interpretationId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HealthTrendApproveRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonHealthTrendAnalysisResponse"
+          description: OK
+      tags:
+      - health-trend-controller
   /api/children/{childId}/photo:
     get:
       operationId: getChildPhoto
@@ -2376,6 +2657,31 @@ paths:
           description: OK
       tags:
       - child-photo-controller
+  /api/children/{childId}/placement:
+    post:
+      operationId: placeChild
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaceChildRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
   /api/children/{childId}/profile:
     get:
       operationId: getProfile
@@ -2410,6 +2716,31 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/ReadmitChildRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonChildViewResponse"
+          description: OK
+      tags:
+      - child-enrollment-controller
+  /api/children/{childId}/withdraw:
+    post:
+      operationId: withdraw
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WithdrawChildRequest"
         required: true
       responses:
         "200":
@@ -6100,6 +6431,72 @@ paths:
           description: OK
       tags:
       - supplier-controller
+  /api/parent-accounts/phone-change-requests:
+    get:
+      operationId: listPhoneChangeRequests
+      parameters:
+      - in: query
+        name: status
+        required: false
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListGuardianPhoneChangeResponse"
+          description: OK
+      tags:
+      - guardian-phone-change-controller
+  /api/parent-accounts/phone-change-requests/{requestId}/approve:
+    post:
+      operationId: approve
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGuardianPhoneChangeResponse"
+          description: OK
+      tags:
+      - guardian-phone-change-controller
+  /api/parent-accounts/phone-change-requests/{requestId}/reject:
+    post:
+      operationId: reject
+      parameters:
+      - in: path
+        name: requestId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhoneChangeDecisionRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonGuardianPhoneChangeResponse"
+          description: OK
+      tags:
+      - guardian-phone-change-controller
   /api/parent-accounts/{userId}/status:
     patch:
       operationId: updateParentStatus
@@ -7777,6 +8174,21 @@ components:
         weekStart:
           type: string
           format: date
+    ApprovedInterpretation:
+      type: object
+      properties:
+        approvedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        summary:
+          type: string
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendWarning"
     AssessmentClassRow:
       type: object
       properties:
@@ -8348,6 +8760,39 @@ components:
         id:
           type: integer
           format: int64
+    ChildClassResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        capacity:
+          type: integer
+          format: int32
+        homeroomTeacherId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - CLOSED
+        teacherIds:
+          type: array
+          items:
+            type: integer
+            format: int64
     ChildDay:
       type: object
       properties:
@@ -8448,6 +8893,24 @@ components:
           - ACTIVE
           - PENDING_PLACEMENT
           - LEFT
+    ChildFieldChange:
+      type: object
+      properties:
+        field:
+          type: string
+        from:
+          type: string
+        label:
+          type: string
+        to:
+          type: string
+    ChildGuardianOverviewResponse:
+      type: object
+      properties:
+        account:
+          $ref: "#/components/schemas/GuardianResponse"
+        child:
+          $ref: "#/components/schemas/ChildListItemResponse"
     ChildGuardianResponse:
       type: object
       properties:
@@ -8521,6 +8984,10 @@ components:
         at:
           type: string
           format: date-time
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildFieldChange"
         note:
           type: string
         userFullName:
@@ -8528,11 +8995,86 @@ components:
         userId:
           type: integer
           format: int64
+    ChildListItemResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        allergies:
+          type: array
+          items:
+            type: string
+        campusId:
+          type: integer
+          format: int64
+        canManage:
+          type: boolean
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        classroomId:
+          type: integer
+          format: int64
+        code:
+          type: string
+        dateOfBirth:
+          type: string
+          format: date
+        enrolledAt:
+          type: string
+          format: date
+        fullName:
+          type: string
+        gender:
+          type: string
+          enum:
+          - MALE
+          - FEMALE
+        guardianCount:
+          type: integer
+          format: int64
+        guardians:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildGuardianResponse"
+        hasDeclaration:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        leftAt:
+          type: string
+          format: date
+        photoUrl:
+          type: string
+        readmittedAt:
+          type: string
+          format: date
+        schoolYearId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum:
+          - ACTIVE
+          - PENDING_PLACEMENT
+          - LEFT
     ChildPhotoProfileResponse:
       type: object
       properties:
         child:
           $ref: "#/components/schemas/ChildViewResponse"
+        cls:
+          $ref: "#/components/schemas/ChildClassResponse"
+        declaration:
+          $ref: "#/components/schemas/HealthDeclarationResponse"
+        placements:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildPlacementResponse"
     ChildPlacement:
       type: object
       properties:
@@ -8552,6 +9094,32 @@ components:
           $ref: "#/components/schemas/Placement"
         programCompleted:
           type: boolean
+    ChildPlacementResponse:
+      type: object
+      properties:
+        at:
+          type: string
+          format: date-time
+        fromClassId:
+          type: integer
+          format: int64
+        fromClassName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        toClassId:
+          type: integer
+          format: int64
+        toClassName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
     ChildProfileDetailResponse:
       type: object
       properties:
@@ -8644,28 +9212,6 @@ components:
         rate:
           type: integer
           format: int32
-    ChildSummaryResponse:
-      type: object
-      properties:
-        campusId:
-          type: integer
-          format: int64
-        classroomId:
-          type: integer
-          format: int64
-        dateOfBirth:
-          type: string
-          format: date
-        fullName:
-          type: string
-        guardianCount:
-          type: integer
-          format: int64
-        id:
-          type: integer
-          format: int64
-        photoUrl:
-          type: string
     ChildTotal:
       type: object
       properties:
@@ -8683,6 +9229,19 @@ components:
         unexcused:
           type: integer
           format: int32
+    ChildUpdateResponse:
+      type: object
+      properties:
+        accountChanges:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianAccountChangeResponse"
+        child:
+          $ref: "#/components/schemas/ChildViewResponse"
+        phoneChangeRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianPhoneChangeResponse"
     ChildViewResponse:
       type: object
       properties:
@@ -10122,6 +10681,37 @@ components:
         validUntil:
           type: string
           format: date-time
+    DeclarationAllergies:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: string
+        state:
+          type: string
+          enum:
+          - REPORTED
+          - NONE_REPORTED
+          - NOT_PROVIDED
+    DeclarationAllergyChange:
+      type: object
+      properties:
+        from:
+          $ref: "#/components/schemas/DeclarationAllergies"
+        to:
+          $ref: "#/components/schemas/DeclarationAllergies"
+    DeclarationAnswer:
+      type: object
+      properties:
+        state:
+          type: string
+          enum:
+          - REPORTED
+          - NONE_REPORTED
+          - NOT_PROVIDED
+        text:
+          type: string
     DeclarationAnswerInput:
       type: object
       properties:
@@ -10129,6 +10719,58 @@ components:
           type: string
         text:
           type: string
+    DeclarationHistoryChange:
+      type: object
+      properties:
+        from:
+          $ref: "#/components/schemas/DeclarationMedicalHistory"
+        to:
+          $ref: "#/components/schemas/DeclarationMedicalHistory"
+    DeclarationHistoryEntry:
+      type: object
+      properties:
+        action:
+          type: string
+          enum:
+          - DECLARED
+          - UPDATED
+          - UPDATED_FROM_FOLLOW_UP
+          - UPDATED_FROM_EXAM
+        allergyChange:
+          $ref: "#/components/schemas/DeclarationAllergyChange"
+        at:
+          type: string
+          format: date-time
+        historyChange:
+          $ref: "#/components/schemas/DeclarationHistoryChange"
+        note:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        userName:
+          type: string
+    DeclarationMedicalHistory:
+      type: object
+      properties:
+        family:
+          $ref: "#/components/schemas/DeclarationAnswer"
+        self:
+          $ref: "#/components/schemas/DeclarationAnswer"
+        tbContact:
+          $ref: "#/components/schemas/DeclarationTbContact"
+    DeclarationTbContact:
+      type: object
+      properties:
+        contactDate:
+          type: string
+          format: date
+        state:
+          type: string
+          enum:
+          - REPORTED
+          - NONE_REPORTED
+          - NOT_PROVIDED
     DevelopmentChildRow:
       type: object
       properties:
@@ -11585,6 +12227,47 @@ components:
         planned:
           type: integer
           format: int64
+    GrowthPoint:
+      type: object
+      properties:
+        ageMonths:
+          type: integer
+          format: int32
+        bmi:
+          type: number
+        bmiZScore:
+          type: number
+        date:
+          type: string
+          format: date
+        heightCm:
+          type: number
+        heightForAgeZ:
+          type: number
+        measurementId:
+          type: integer
+          format: int64
+        weightForAgeZ:
+          type: number
+        weightKg:
+          type: number
+    GuardianAccountChangeResponse:
+      type: object
+      properties:
+        fullName:
+          type: string
+        phone:
+          type: string
+        phoneChanged:
+          type: boolean
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+        userId:
+          type: integer
+          format: int64
     GuardianAccountResultResponse:
       type: object
       properties:
@@ -11640,12 +12323,84 @@ components:
           type: string
         fullName:
           type: string
+        id:
+          type: integer
+          format: int64
         idNumber:
           type: string
         phone:
           type: string
         relation:
           type: string
+    GuardianPhoneChangeCreateRequest:
+      type: object
+      properties:
+        newPhone:
+          type: string
+        reason:
+          type: string
+    GuardianPhoneChangeResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canDecide:
+          type: boolean
+        childCode:
+          type: string
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        decidedAt:
+          type: string
+          format: date-time
+        decidedBy:
+          type: integer
+          format: int64
+        decidedByName:
+          type: string
+        decisionNote:
+          type: string
+        guardianId:
+          type: integer
+          format: int64
+        guardianName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        newPhone:
+          type: string
+        oldPhone:
+          type: string
+        reason:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        requestedBy:
+          type: integer
+          format: int64
+        requestedByName:
+          type: string
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+        userId:
+          type: integer
+          format: int64
     GuardianResponse:
       type: object
       properties:
@@ -12044,6 +12799,39 @@ components:
           $ref: "#/components/schemas/MedicalHistoryInput"
         otherNotes:
           $ref: "#/components/schemas/DeclarationAnswerInput"
+    HealthDeclarationRequest:
+      type: object
+      properties:
+        declaration:
+          $ref: "#/components/schemas/HealthDeclarationInput"
+        reason:
+          type: string
+    HealthDeclarationResponse:
+      type: object
+      properties:
+        allergies:
+          $ref: "#/components/schemas/DeclarationAllergies"
+        childId:
+          type: integer
+          format: int64
+        declaredAt:
+          type: string
+          format: date-time
+        declaredBy:
+          type: integer
+          format: int64
+        declaredByName:
+          type: string
+        diet:
+          $ref: "#/components/schemas/DeclarationAnswer"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeclarationHistoryEntry"
+        medicalHistory:
+          $ref: "#/components/schemas/DeclarationMedicalHistory"
+        otherNotes:
+          $ref: "#/components/schemas/DeclarationAnswer"
     HealthExamAddress:
       type: object
       properties:
@@ -12880,6 +13668,42 @@ components:
           - MODERATE
           - HIGH
           - VERY_HIGH
+    HealthTrendAnalysisResponse:
+      type: object
+      properties:
+        approvedAt:
+          type: string
+          format: date-time
+        approvedBy:
+          type: integer
+          format: int64
+        approvedByName:
+          type: string
+        draft:
+          type: boolean
+        generatedAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        model:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+        summary:
+          type: string
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrendWarning"
+    HealthTrendApproveRequest:
+      type: object
+      properties:
+        summary:
+          type: string
     History:
       type: object
       properties:
@@ -14122,6 +14946,15 @@ components:
           enum:
           - CHILD_PICKED_UP
           - MEAL_COUNT_RECONFIRM
+          - CHILD_WITHDRAWN
+          - GUARDIAN_PHONE_CHANGE_REQUESTED
+          - GUARDIAN_PHONE_CHANGE_DECIDED
+          - CHILD_TB_CONTACT
+          - CHILD_TB_CONTACT_DATE_CHANGED
+          - HEALTH_RESULT_PUBLISHED
+          - HEALTH_RESULT_UPDATED
+          - HEALTH_CHECK_OPENED
+          - CHILD_PLACED
     NutritionTotals:
       type: object
       properties:
@@ -14263,13 +15096,32 @@ components:
         totalPages:
           type: integer
           format: int32
-    PageResponseChildSummaryResponse:
+    PageResponseChildGuardianOverviewResponse:
       type: object
       properties:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/ChildSummaryResponse"
+            $ref: "#/components/schemas/ChildGuardianOverviewResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseChildListItemResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChildListItemResponse"
         page:
           type: integer
           format: int32
@@ -14375,6 +15227,28 @@ components:
           enum:
           - ACTIVE
           - INACTIVE
+    ParentAccountRowResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        childCode:
+          type: string
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        className:
+          type: string
+        guardian:
+          $ref: "#/components/schemas/ChildGuardianResponse"
+        guardianIndex:
+          type: integer
+          format: int32
+        username:
+          type: string
     ParentPasswordResponse:
       type: object
       properties:
@@ -14548,6 +15422,11 @@ components:
           type: boolean
         canSubmit:
           type: boolean
+    PhoneChangeDecisionRequest:
+      type: object
+      properties:
+        note:
+          type: string
     PhoneLookupRequest:
       type: object
       properties:
@@ -14736,6 +15615,14 @@ components:
           - PICKED_UP
           - ABSENT
           - UNMARKED
+    PlaceChildRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        reason:
+          type: string
     Placement:
       type: object
       properties:
@@ -14924,6 +15811,90 @@ components:
         unmarked:
           type: integer
           format: int32
+    PublishedHealthResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        growth:
+          type: array
+          items:
+            $ref: "#/components/schemas/GrowthPoint"
+        interpretation:
+          $ref: "#/components/schemas/ApprovedInterpretation"
+        latestBmi:
+          $ref: "#/components/schemas/HealthLatestBmi"
+        latestExam:
+          $ref: "#/components/schemas/HealthLatestExam"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublishedHealthResult"
+    PublishedHealthResult:
+      type: object
+      properties:
+        ageMonths:
+          type: integer
+          format: int32
+        bmi:
+          type: number
+        bmiStatus:
+          type: string
+          enum:
+          - SEVERE_THINNESS
+          - THINNESS
+          - NORMAL
+          - OVERWEIGHT_RISK
+          - OVERWEIGHT
+          - OBESE
+        bmiZScore:
+          type: number
+        campaignKind:
+          type: string
+          enum:
+          - EXAM
+          - MEASUREMENT
+        campaignName:
+          type: string
+        conclusion:
+          $ref: "#/components/schemas/HealthConclusionBrief"
+        conclusionCategory:
+          type: string
+          enum:
+          - NORMAL
+          - ISSUE
+          - REFERRAL
+          - TB_RISK
+          - FOLLOWING_NO_NEW
+          - FOLLOWING_NEW
+        date:
+          type: string
+          format: date
+        followUpLevel:
+          type: string
+          enum:
+          - UNAVAILABLE
+          - NONE
+          - WATCH
+          - CLOSE_WATCH
+          - KNOWN_STABLE
+        headCircumferenceCm:
+          type: number
+        heightCm:
+          type: number
+        id:
+          type: integer
+          format: int64
+        note:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+        source:
+          type: string
+        weightKg:
+          type: number
     QualityReportResponse:
       type: object
       properties:
@@ -15432,6 +16403,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonChildUpdateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ChildUpdateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonChildViewResponse:
       type: object
       properties:
@@ -15861,6 +16845,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonGuardianPhoneChangeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/GuardianPhoneChangeResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonHealthCheckClassResponse:
       type: object
       properties:
@@ -15908,6 +16905,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/HealthCheckResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthDeclarationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthDeclarationResponse"
         desc:
           type: string
         errorCode:
@@ -15973,6 +16983,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/HealthScheduleWarningResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonHealthTrendAnalysisResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/HealthTrendAnalysisResponse"
         desc:
           type: string
         errorCode:
@@ -16386,6 +17409,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListGuardianPhoneChangeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/GuardianPhoneChangeResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListGuardianResponse:
       type: object
       properties:
@@ -16531,6 +17569,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MenuTemplateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListParentAccountRowResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentAccountRowResponse"
         desc:
           type: string
         errorCode:
@@ -16944,14 +17997,27 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonPageResponseChildSummaryResponse:
+    ResponseJsonPageResponseChildGuardianOverviewResponse:
       type: object
       properties:
         code:
           type: integer
           format: int32
         data:
-          $ref: "#/components/schemas/PageResponseChildSummaryResponse"
+          $ref: "#/components/schemas/PageResponseChildGuardianOverviewResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPageResponseChildListItemResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponseChildListItemResponse"
         desc:
           type: string
         errorCode:
@@ -17095,6 +18161,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ProgramCompletionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPublishedHealthResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PublishedHealthResponse"
         desc:
           type: string
         errorCode:
@@ -19149,6 +20228,13 @@ components:
         substitute:
           type: integer
           format: int32
+    TrendWarning:
+      type: object
+      properties:
+        level:
+          type: string
+        text:
+          type: string
     Unplaced:
       type: object
       properties:
@@ -19181,6 +20267,13 @@ components:
           - INACTIVE
       required:
       - status
+    UpdateChildRequest:
+      type: object
+      properties:
+        child:
+          $ref: "#/components/schemas/EnrollmentChildInput"
+        reason:
+          type: string
     UpdatePermissionOverridesRequest:
       type: object
       properties:
@@ -19433,6 +20526,13 @@ components:
       - endTime
       - session
       - startTime
+    WithdrawChildRequest:
+      type: object
+      properties:
+        leftAt:
+          type: string
+        reason:
+          type: string
     Year:
       type: object
       properties:

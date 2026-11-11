@@ -350,3 +350,16 @@ WHERE ag.code = v.code
   AND num_nonnulls(c.calcium_min, c.calcium_max, c.phosphorus_min, c.phosphorus_max, c.iron_min, c.iron_max,
                    c.vitamin_a_min, c.vitamin_a_max, c.vitamin_b1_min, c.vitamin_b1_max, c.vitamin_b2_min,
                    c.vitamin_b2_max, c.vitamin_pp_min, c.vitamin_pp_max, c.vitamin_c_min, c.vitamin_c_max) = 0;
+
+-- Người nhận tài khoản (AUTH-18): mỗi trẻ có phụ huynh đúng một người nhận, như tiếp nhận/nhập Excel. Ưu tiên người
+-- đã liên kết tài khoản (như V81), không ai thì người đầu trên hồ sơ. DB mới: seed chạy sau V81 nên V81 không chọn được.
+-- Chỉ đụng trẻ chưa có người nhận nên chạy lại không đổi gì.
+UPDATE child_guardians g SET account_recipient = TRUE
+FROM (SELECT DISTINCT ON (x.child_id) x.id
+      FROM child_guardians x
+      WHERE NOT EXISTS (SELECT 1 FROM child_guardians r WHERE r.child_id = x.child_id AND r.account_recipient)
+      ORDER BY x.child_id,
+               EXISTS (SELECT 1 FROM guardian_child_links l
+                       WHERE l.child_id = x.child_id AND l.user_id = x.user_id) DESC,
+               x.position) c
+WHERE g.id = c.id;
