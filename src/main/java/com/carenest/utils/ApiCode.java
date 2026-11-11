@@ -107,6 +107,19 @@ public enum ApiCode {
     SIGNATURE_INVALID(1140, HttpStatus.BAD_REQUEST, "Chọn ảnh chữ ký PNG hoặc JPG, tối đa 2 MB"),
     SIGNATURE_LIMIT_REACHED(1141, HttpStatus.CONFLICT, "Mỗi tài khoản lưu tối đa {0} chữ ký, hãy xóa bớt chữ ký cũ"),
     SIGNATURE_NOT_FOUND(1142, HttpStatus.NOT_FOUND, "Không tìm thấy chữ ký"),
+    // G94-180/AUTH-21 (user chốt 2026-11-10): đổi SĐT phụ huynh có tài khoản phải qua duyệt. Trước khi gộp dev
+    // 10/11/2026 là 1133–1137 (dev đã dùng 1133–1135 cho tài khoản nhân sự)
+    PHONE_CHANGE_REQUEST_NOT_FOUND(1136, HttpStatus.NOT_FOUND, "Không tìm thấy yêu cầu đổi số điện thoại"),
+    PHONE_CHANGE_REQUEST_NOT_PENDING(1137, HttpStatus.CONFLICT, "Yêu cầu đổi số điện thoại đã được xử lý"),
+    // 1138 (không tự duyệt) bỏ 2026-11-11: người gửi có quyền duyệt thì tự duyệt được (AUTH-21); không dùng lại số
+    // Lúc duyệt: số mới đã thuộc người khác hoặc tài khoản đã đổi theo đường khác từ khi gửi yêu cầu
+    PHONE_CHANGE_REQUEST_STALE(1139, HttpStatus.CONFLICT, "{0}"),
+    // Trước khi gộp dev 11/11/2026 là 1140 (dev dùng 1140–1142 cho chữ ký).
+    // Realm Keycloak chưa bật sửa username cho admin (docs/system/KEYCLOAK.md mục 7) ⇒ không đổi gì
+    USERNAME_CHANGE_NOT_ALLOWED(
+            1143,
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Hệ thống đăng nhập chưa cho đổi tên đăng nhập. Báo quản trị viên, chưa đổi số điện thoại."),
 
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
@@ -290,6 +303,10 @@ public enum ApiCode {
             HttpStatus.CONFLICT,
             "Số CCCD hoặc số điện thoại đã thuộc phụ huynh khác. Kiểm tra các ô được đánh dấu."),
     CHILD_NOT_LEFT(3010, HttpStatus.CONFLICT, "Trẻ chưa nghỉ học, không cần mở lại hồ sơ"),
+    // G94-180/CHD-03: trẻ đã nghỉ học chỉ mở lại hồ sơ, không sửa, không cho nghỉ lần nữa
+    CHILD_ALREADY_LEFT(3011, HttpStatus.CONFLICT, "Trẻ đã nghỉ học. Mở lại hồ sơ trước khi thay đổi."),
+    // G94-180/AUTH-21 (2026-11-11): yêu cầu đổi SĐT cho phụ huynh không có trên hồ sơ trẻ này
+    CHILD_GUARDIAN_NOT_FOUND(3012, HttpStatus.NOT_FOUND, "Không tìm thấy phụ huynh trên hồ sơ trẻ. Tải lại hồ sơ."),
 
     // ========== 40xx ĐIỂM DANH ==========
     CUTOFF_DATE_OUT_OF_YEAR(4001, HttpStatus.BAD_REQUEST, "Ngày áp dụng phải nằm trong năm học {0}"),
@@ -393,6 +410,7 @@ public enum ApiCode {
     HEALTH_EXAM_INCOMPLETE(5033, HttpStatus.BAD_REQUEST, "Phiếu chưa đủ thông tin. Kiểm tra các ô được đánh dấu"),
     HEALTH_MEASUREMENT_IS_EXAM(5034, HttpStatus.CONFLICT, "Kết quả này là phiếu khám. Sửa ở trang phiếu khám của đợt"),
     // 5035–5039 của phiếu theo dõi sức khỏe đã bỏ (HLT-16, 2026-11-04); không dùng lại mã
+    HEALTH_INTERPRETATION_NOT_FOUND(5040, HttpStatus.NOT_FOUND, "Không tìm thấy bản giải thích xu hướng sức khỏe"),
 
     // ========== 60xx DINH DƯỠNG (BÁO ĂN & SỔ BÁO ĂN) ==========
     MEAL_SESSION_NOT_SERVED(6001, HttpStatus.BAD_REQUEST, "Bữa ăn không thuộc nhóm tuổi của lớp, chọn lại bữa ăn"),

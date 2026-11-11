@@ -285,6 +285,36 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Set<Long> findCampusVicePrincipalIds(Long campusId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findCampusVicePrincipalIds|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> result =
+                    Set.copyOf(staffAssignmentRepository.findActiveLeaderIds(StaffRole.VICE_PRINCIPAL, campusId, date));
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findPrincipalIds(LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findPrincipalIds";
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> result =
+                    Set.copyOf(staffAssignmentRepository.findActiveLeaderIds(StaffRole.PRINCIPAL, null, date));
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findActiveCampusIds(Long userId, StaffRole staffRole, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveCampusIds|userId=" + userId + "|role=" + staffRole;
         log.info("{}|START", logPrefix);
