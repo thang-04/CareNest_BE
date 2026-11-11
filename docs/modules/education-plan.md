@@ -147,7 +147,7 @@ Mọi lỗi của module ném `GlobalException.of(ApiCode.X)`; response có `err
 
 ## Phiên bản kế hoạch năm, kế hoạch điều chỉnh (Tiền chốt 28/10/2026)
 
-EDU-25/26/27: mỗi phiên bản là một dòng `edu_year_plans` (`version_no`, `source_plan_id`); dòng con chép giữ `lineage_id` (NULL = chính id). `POST /goals/{id}/versions` tạo phiên bản n+1, `GET /goals/{id}/changes?fromPlanId=` so sánh theo lineage (`YearPlanVersionDiff`). Tài liệu lớp tách theo `year_plan_id`; khóa tuần phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<id kế hoạch>`; bản chép nhớ `source_doc_id`, chặn gửi 7121 khi còn ô đỏ, ghi trên phiên bản cũ 7122. Ô "Kế hoạch điều chỉnh và bổ sung" ở cột `adjustments`, `PUT /class-docs/week/{key}/adjustments`. V32. Chi tiết: [feature004](../../specs/004-year-plan-versioning/spec.md).
+EDU-25/26/27: mỗi phiên bản là một dòng `edu_year_plans` (`version_no`, `source_plan_id`); dòng con chép giữ `lineage_id` (NULL = chính id). `POST /goals/{id}/versions` tạo phiên bản n+1, `GET /goals/{id}/changes?fromPlanId=` so sánh theo lineage (`YearPlanVersionDiff`). Tài liệu lớp tách theo `year_plan_id`; khóa tuần phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<id kế hoạch>`; bản chép nhớ `source_doc_id`, chặn gửi 7121 khi còn ô đỏ, ghi trên phiên bản cũ 7122. Ô "Kế hoạch điều chỉnh và bổ sung" (cột `adjustments`, V32) đã bỏ hẳn ở spec 005 (V99). Chi tiết: [feature004](../../specs/004-year-plan-versioning/spec.md).
 
 ## Lấy mục tiêu từ kế hoạch có sẵn (user chốt 28/10/2026)
 
@@ -189,10 +189,10 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 ## Mốc duyệt theo thời gian dạy (spec 003 — 10/11/2026, EDU-74)
 
 - Gốc gửi/duyệt mới trong `edu_class_docs` (V96): `semester` (gói học kỳ, `sp_<lớp>_<kế hoạch tổ>_<1|2>`, chuỗi duyệt policy `branch`) và `dossier` (hồ sơ chủ đề, `ds_<lớp>_<chủ đề>`, policy `theme`); `EduClassDoc.policyType/isRoot`. Thành viên (`theme`, `week`, `day`) mang cùng trạng thái gốc. Lịch nhánh (`branch`) không mang trạng thái duyệt; bản ban hành gói học kỳ chụp tên nhánh các tuần của kỳ.
-- Giáo án ngày tách khỏi giáo án tuần: kind `day` (`dd_` + hậu tố của `wp_`) giữ `days`, `dayGoals`, `adjustments` (EDU-27); `week` từ chối `days`/`dayGoals`. `PUT /class-docs/day/{key}/adjustments` (giữ `/week/{key}/adjustments`, khóa `wp_` đổi sang `dd_`).
+- Giáo án ngày tách khỏi giáo án tuần: kind `day` (`dd_` + hậu tố của `wp_`) giữ `days`, `dayGoals`; `week` từ chối `days`/`dayGoals`. ~~`PUT /class-docs/{day,week}/{key}/adjustments` (EDU-27)~~ — bỏ ở spec 005.
 - ~~Cách gửi của chủ đề `theme.content.submitMode`~~ — bỏ ở spec 004 (EDU-75), BE bỏ qua nếu nhận được.
 - Hạn tính khi đọc (`EduDeadline`, `EduSemesters`): gói = `semesterN_start`, hồ sơ = ngày bắt đầu chủ đề (lịch lớp, không có thì kế hoạch tổ); mở hạn = sự kiện `extend` trong `history`. `deadlineState`: NORMAL/NEAR (≤7 ngày)/OVERDUE/ON_TIME/LATE; hạn trước ngày mở lớp (`ClassroomService.findOpenedDates`) không quá hạn.
-- `actOnClassDoc`: chỉ nhận `semester`/`dossier`; `submit` quá hạn ⇒ 7385 `CLASS_DOC_DEADLINE_PASSED`; hồ sơ khi gói học kỳ chưa từng ban hành ⇒ 7386 `SEMESTER_PACKAGE_NOT_RELEASED`; `extend` (HT/PHT mọi điểm trường, `note` + `deadline` > hôm nay, chỉ khi OVERDUE và DRAFT). `ClassDocActionRequest.deadline`.
+- `actOnClassDoc`: chỉ nhận `semester`/`dossier`; `submit` quá hạn ⇒ 7385 `CLASS_DOC_DEADLINE_PASSED`; hồ sơ khi gói học kỳ chưa từng ban hành ⇒ 7386 `SEMESTER_PACKAGE_NOT_RELEASED`; `extend` (spec 005: chỉ HT, `note` + `deadline` > hôm nay, chỉ gốc chưa ban hành đã quá hạn). `ClassDocActionRequest.deadline`.
 - `GET /class-docs` thêm `semesterPackages`, `themeDossiers`, `dayPlans`, `semesterConfigMissing`; gốc có `deadline, extendedTo, daysLeft, deadlineState, everReleased, themeIds, semesterNo, branchNames, blockedReason, canExtend`; thành viên có `containerKey`, `containerStatus`. Người không soạn: `branch.names` ghép từ bản ban hành gói từng kỳ + `branchUnreleasedSemesters`.
 - Thông báo (V97, `notifications.link`): `EDU_SUBMITTED`, `EDU_STEP_APPROVED` (người duyệt bước đang chờ), `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED` (GVCN / người gửi kế hoạch năm, tổ), `EDU_DEADLINE_NEAR` (job `remindNearDeadlines` 06:00, một lần mỗi người + đường dẫn). Email: hoãn (chưa duyệt dependency).
 - Known pitfalls: gói học kỳ đang Chờ duyệt khóa sửa/nhập lịch nhánh; thêm gói/hồ sơ mới được tạo khi lưu tài liệu của lớp (`ensureRoots`), không tạo khi chỉ đọc.
@@ -202,24 +202,24 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 - Thành phần cố định: `semester` (`sp_…`) = tên nhánh kỳ + **mọi** `theme`, `week` của chủ đề thuộc kỳ; `dossier` (`ds_…`) = chỉ `day`.
   `classThemePlans[]`/`weekPlans[]` có `containerKey` = khóa gói học kỳ; `dayPlans[]` = khóa hồ sơ chủ đề. Bỏ `submitMode`.
 - `GET /class-docs`: `semesterPackages[]` thêm `missing: [{kind: theme|branch|week, themeId, weekStart}]` (rỗng ⇒ đủ gửi),
-  `timeLocked`, `canRevise`; `themeDossiers[]` thêm `timeLocked`, `canRevise`; `canExtend` đúng cả khi gốc APPROVED đã `timeLocked`.
+  `timeLocked`, `canRevise`; `themeDossiers[]` thêm `timeLocked`, `canRevise`; `canExtend` (spec 005) chỉ đúng với HT trên gốc chưa ban hành, không Chờ duyệt, đã `timeLocked`.
 - `POST /class-docs/{kind}/{docKey}/actions`:
-  - `submit` gói thiếu phần ⇒ 400 **7387** `SEMESTER_PACKAGE_INCOMPLETE` + `details` (danh sách mục thiếu).
+  - `submit` gói thiếu phần ⇒ 400 **7387** `SEMESTER_PACKAGE_INCOMPLETE`, `data.details` = danh sách mục thiếu (cùng dạng `missing`).
   - `revise` (**mới**, GVCN, `semester`/`dossier` APPROVED, trước hạn hiệu lực, chưa có phiên bản dở): ghi sự kiện `revise`
     (kèm `previousApprovals`, `previousPrintSnapshot`), thành viên về DRAFT, bản ban hành cũ vẫn hiệu lực tới khi bản mới ban hành.
     Qua hạn ⇒ 409 **7388** `CLASS_DOC_TIME_LOCKED`; không APPROVED / đã có phiên bản dở ⇒ 409 `CLASS_DOC_LOCKED`.
-  - `extend` (HT/PHT, nhãn UI "Mở khóa"): nhận gốc DRAFT quá hạn **hoặc** APPROVED `timeLocked`; `note` + `deadline` > hôm nay.
+  - `extend`: xem spec 005 bên dưới (chỉ HT, chỉ gốc chưa ban hành).
 - `PUT /class-docs/{kind}/{docKey}`: thành viên của gốc APPROVED chưa `revise` ⇒ 409 `CLASS_DOC_LOCKED` (bỏ tự mở lại khi lưu);
   qua hạn hiệu lực ⇒ 409 7388. Hạn hiệu lực = `max(mốc, extendedTo)`; mốc gói = `semesterN_start`, hồ sơ = ngày bắt đầu chủ đề.
   `day` lưu được khi gói chưa ban hành (Q1), chỉ `submit` hồ sơ bị chặn (7386).
-- Q7: gói học kỳ phiên bản mới ban hành ⇒ so `week` với `print_snapshot` bản trước; tuần đổi ⇒ `day` cùng `weekStart` (nếu APPROVED)
+- Q7: gói học kỳ phiên bản mới ban hành ⇒ so `week` với `print_snapshot` bản trước (spec 005: chỉ các khóa `grid`, `picks`, `unlinked`, `corners`); tuần đổi ⇒ `day` cùng `weekStart` (nếu APPROVED)
   và `dossier` chứa nó về DRAFT, sự kiện `week_changed {weeks:[…]}`, thông báo GVCN.
 - Kế hoạch năm/tổ (`EduPlanTimeLock`): mốc = `school_years.start_date`; hạn hiệu lực = `max(start_date, deadline` của sự kiện `unlock` mới nhất).
   Từ hạn: `submit`/`issue` bản chưa từng ban hành, `POST /goals/{id}/versions`, tạo/nhận bản cập nhật tổ (EDU-62/72) ⇒ 409 **7389**
   `PLAN_TIME_LOCKED` (bản cập nhật tổ tự động thì bỏ qua); REVIEW vẫn duyệt/trả lại. `GET /goals/{id}` có
   `timeLock {deadline, extendedTo, deadlineState, timeLocked, canUnlock}`.
 - **Mới** `POST /api/v1/education-plans/goals/{planId}/unlock` body `{note, deadline}` — chỉ Hiệu trưởng; thiếu lý do ⇒ 400
-  `RETURN_REASON_REQUIRED`; hạn ≤ hôm nay ⇒ 400 `INVALID_VALUE`; khác HT ⇒ 403. Ghi `edu_plan_events(action='unlock', deadline)` (V98),
+  `RETURN_REASON_REQUIRED`; hạn ≤ hôm nay ⇒ 400 `INVALID_VALUE`; khác HT ⇒ 403; chuỗi đã có bản ban hành ⇒ 400 `INVALID_VALUE` (spec 005). Ghi `edu_plan_events(action='unlock', deadline)` (V98),
   thông báo người soạn `EDU_DEADLINE_EXTENDED`.
 - Web: `/education/theme-plans/:classId?hk=1|2` (gói học kỳ), `/education/day-plans/:classId?week=|theme=` (hồ sơ chủ đề); đường dẫn cũ
   `/education/class/:id`, `/class/:id/semesters/:no`, `/class/:id/weeks/:ws/days` chuyển hướng.
@@ -227,3 +227,32 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
   `local-backups/carenest_merge_class_docs_20261111.sql`.
 - Known pitfalls: sửa kế hoạch chủ đề/tuần đã ban hành phải `revise` gói học kỳ trước (lưu thẳng ⇒ 409); khóa theo thời gian chặn cả
   lưu lẫn gửi, chỉ mở khóa mới làm tiếp; `missing` chỉ tính tuần học (bỏ tuần nghỉ cả tuần, EDU-41).
+
+## Mẫu chung giáo án ngày, mở hạn chỉ HT (spec 005 — Tiền 11/11/2026)
+
+- Bỏ hẳn "Kế hoạch điều chỉnh và bổ sung" (FR-012): xóa `PUT /class-docs/{day,week}/{docKey}/adjustments`,
+  `ClassDocAdjustmentsRequest`, trường `adjustments` và cờ `permissions.canAdjust`/`canEditAdjustments` trong response, mã 7123
+  `CLASS_DOC_ADJUSTMENT_INVALID`; cột `edu_class_docs.adjustments` xóa ở V99 (DB-F). Client cũ còn gửi khóa `adjustments` trong
+  `content` thì BE bỏ qua (META_FIELDS).
+- Nội dung `day`: `content.days[i] = { date, sections: { hoc|ngoai_troi|goc|chieu: { aims, prep, rows: [{ id, title, teacher, child, note }] } }, review?, pulled?, aiSteps? }`;
+  ngày bố cục cũ (`aims`, `prep`, `steps`) Web chuẩn hóa khi mở/lưu. `review` chỉ giao diện (Web API không gửi). Nội dung `week`
+  thêm `prep: { teacher, child, parent }`, `corners: [{ id, name, content, aims, prep, steps }]`, `picks['goc.all'][].cornerId`.
+- Gửi hồ sơ chủ đề (FR-007a): mỗi ngày dạy có `sections` (bỏ ngày nghỉ trong `edu_breaks` của kế hoạch), mỗi mục phải có chữ ở
+  `aims`, `prep` hoặc `teacher/child/note` của một dòng (`title` không tính) ⇒ thiếu: 400 **7390** `DAY_PLAN_SECTION_EMPTY`,
+  `desc` liệt kê "Thứ n dd/MM: <tên mục>", `data.details = [{ date: 'yyyy-mm-dd', section: 'hoc'|'ngoai_troi'|'goc'|'chieu' }]`.
+  Ngày chưa có `sections` (bố cục cũ chưa lưu lại) không bị chặn.
+- FR-017a: phiên bản gói học kỳ ban hành đổi `grid`/`picks`/`unlinked`/`corners` của tuần ⇒ giáo án ngày tuần đó về Nháp; đổi
+  `aims`/`prep` thì giữ.
+- FR-021 (Q-P2): `extend` chỉ Hiệu trưởng (PHT/GV ⇒ 403 `NOT_YOUR_REVIEW_STEP`), chỉ gốc chưa ban hành (`status != APPROVED`,
+  không REVIEW, `timeLocked`); gốc APPROVED ⇒ 400 `INVALID_VALUE` "tài liệu đã ban hành không mở khóa". Sự kiện `role` = "Hiệu trưởng".
+  Năm/tổ: `unlock` bị chặn khi chuỗi phiên bản đã có bản ban hành; `timeLock.canUnlock` = HT && khóa && chưa ban hành.
+- FR-021a: `GET /goals` (`YearPlanSummaryResponse`) thêm `timeLock {deadline, extendedTo, deadlineState, timeLocked, canUnlock}` cho
+  màn Kế hoạch quá hạn (FE/APP chỉ thêm trường).
+- Ban giám hiệu xem gốc chưa ban hành (`boardRootNode`): `history` chỉ giữ sự kiện `extend` (hạn mới, người mở, lý do) cho màn
+  Kế hoạch quá hạn, ẩn ghi chú gửi/trả lại. HT thấy được kế hoạch năm/tổ Nháp chưa từng ban hành khi đã quá hạn hoặc đã mở hạn
+  (để mở hạn) — chờ Tiền xác nhận.
+- V99 xóa ràng buộc `ck_edu_class_docs_adjustments_day` (V96 đã thay `_week` bằng `_day`) cùng `ck_edu_class_docs_adjustments`.
+- Lỗi có cấu trúc: `GlobalException.withData(code, data, args)` ⇒ `ResponseJson.data` = `data` (vd. `{ details }`).
+- Kiểm chứng: `EduClassDocServiceIntegrationTest` (`adjustmentsRemoved`, `dossierSubmitRequiresEveryDaySection`,
+  `newPackageVersionResetsOnlyChangedWeekDays`, `overdueSemesterPackageNeedsExtension`, `releasedPackageLocksAfterSemesterStartUntilUnlocked`),
+  `EduYearPlanUnlockIntegrationTest`.

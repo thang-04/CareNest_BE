@@ -216,11 +216,12 @@ class EduWorkflowConcurrencyIntegrationTest {
         assertThat(listing.branchPlans().getFirst().path("superseded").asBoolean())
                 .isFalse();
         assertThat(permissions.has("canReject")).isTrue();
-        assertThat(permissions.has("canEditAdjustments")).isTrue();
+        // Spec 005 FR-012: đã bỏ ô "Kế hoạch điều chỉnh và bổ sung"
+        assertThat(permissions.has("canEditAdjustments")).isFalse();
+        assertThat(permissions.has("canAdjust")).isFalse();
+        assertThat(listing.branchPlans().getFirst().has("adjustments")).isFalse();
         assertThat(permissions.path("canReject").asBoolean())
                 .isEqualTo(permissions.path("canReturn").asBoolean());
-        assertThat(permissions.path("canEditAdjustments").asBoolean())
-                .isEqualTo(permissions.path("canAdjust").asBoolean());
         assertThat(listingStatements).isLessThan(100);
         statistics.clear();
         clearInvocations(assignments, accounts);

@@ -70,6 +70,16 @@ class EduPlanTimeLock {
         return EduDeadline.of(start, unlockedTo, today, plan.publicStatus() == EduPlanStatus.APPROVED, issued, null);
     }
 
+    /** Spec 005 FR-021: chuỗi phiên bản đã có bản ban hành ⇒ không mở khóa nữa. */
+    boolean released(EduPlan plan) {
+        return plan.publicStatus() == EduPlanStatus.APPROVED
+                || planRepository
+                        .findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
+                                plan.getPlanLevel(), plan.getSchoolYearId(), plan.getAgeGroupId())
+                        .stream()
+                        .anyMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED);
+    }
+
     boolean locked(EduPlan plan) {
         if (!enabled) return false;
         LocalDate effective = info(plan).effective();

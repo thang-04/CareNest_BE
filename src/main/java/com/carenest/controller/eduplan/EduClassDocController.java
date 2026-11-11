@@ -4,7 +4,6 @@ import com.carenest.dto.eduplan.BranchFilePreviewResponse;
 import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
 import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
-import com.carenest.dto.eduplan.ClassDocAdjustmentsRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
@@ -94,25 +93,6 @@ public class EduClassDocController {
                 classDocService.saveClassDoc(currentUser, kind, docKey, doc, expectedVersion, expectedRootVersion);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save class document success", saved);
-    }
-
-    // EDU-27: ô "Kế hoạch điều chỉnh và bổ sung" của kế hoạch ngày, ghi riêng để sửa được cả sau khi duyệt
-    // ponytail: giữ đường /week cũ (khóa wp_ chuyển sang dd_) một đợt cho Web cũ; bỏ ở spec sau
-    @PutMapping({"/day/{docKey}/adjustments", "/week/{docKey}/adjustments"})
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
-    public ResponseEntity<ResponseJson<ObjectNode>> saveAdjustments(
-            @PathVariable String docKey,
-            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Class-Doc-Version") Long expectedVersion,
-            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Dossier-Version", required = false)
-                    Long expectedRootVersion,
-            @Valid @RequestBody ClassDocAdjustmentsRequest request,
-            CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|saveAdjustments|userId=" + currentUser.userId() + "|docKey=" + docKey;
-        log.info("{}|START", logPrefix);
-        ObjectNode saved = classDocService.saveAdjustments(
-                currentUser, docKey, request.adjustments(), expectedVersion, expectedRootVersion);
-        log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save lesson adjustments success", saved);
     }
 
     /** Spec 002 FR-018: xem lại một bản hồ sơ chủ đề đã ban hành trước đây. */

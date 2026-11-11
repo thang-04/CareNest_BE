@@ -196,6 +196,10 @@ class DailyAssessmentIntegrationTest {
                 + "week_start, status, content, created_by, updated_by) VALUES ('w-a', 'week', " + classA + ", "
                 + plan + ", " + theme + ", '2026-10-26', 'APPROVED', '" + content + "'::jsonb, "
                 + principal.userId() + ", " + principal.userId() + ") RETURNING id");
+        // Spec 003 FR-008: chỉ chấm theo tuần có cả giáo án ngày đã ban hành (hồ sơ chủ đề)
+        jdbc.update("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
+                + "created_by, updated_by) SELECT 'd-a', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "
+                + "created_by, updated_by FROM edu_class_docs WHERE id = " + weekDoc);
     }
 
     @Test
@@ -581,6 +585,9 @@ class DailyAssessmentIntegrationTest {
                 + "SELECT 'w-a-v2', kind, classroom_id, " + nextPlan + ", " + nextTheme
                 + ", week_start, status, '" + content + "'::jsonb, created_by, updated_by, id "
                 + "FROM edu_class_docs WHERE id = " + weekDoc + " RETURNING id");
+        jdbc.update("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
+                + "created_by, updated_by) SELECT 'd-a-v2', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "
+                + "created_by, updated_by FROM edu_class_docs WHERE id = " + nextDoc);
         entityManager.clear();
 
         DailySheetResponse sheet = service.getDailySheet(teacherA, classA, TODAY);

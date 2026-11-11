@@ -541,8 +541,6 @@ public enum ApiCode {
             7121, HttpStatus.CONFLICT, "Còn {0} mục đổi theo kế hoạch năm mới chưa sửa (ô đỏ). Sửa hết rồi mới gửi"),
     YEAR_PLAN_SUPERSEDED(
             7122, HttpStatus.CONFLICT, "Kế hoạch năm đã có phiên bản mới. Tạo tài liệu trên phiên bản hiện hành"),
-    CLASS_DOC_ADJUSTMENT_INVALID(
-            7123, HttpStatus.BAD_REQUEST, "Kế hoạch điều chỉnh chỉ ghi cho ngày Thứ 2–6 của tuần, tối đa 4000 ký tự"),
     BRANCH_FILE_UNSUPPORTED(
             7124,
             HttpStatus.BAD_REQUEST,
@@ -683,7 +681,7 @@ public enum ApiCode {
     YEAR_SHEET_NOTE_TOO_LONG(7383, HttpStatus.BAD_REQUEST, "Mỗi lưu ý tối đa {0} ký tự"),
     EDU_PLAN_NOT_RELEASED(7384, HttpStatus.FORBIDDEN, "Bản này chưa ban hành"),
     // Spec 003: mốc duyệt theo thời gian dạy
-    CLASS_DOC_DEADLINE_PASSED(7385, HttpStatus.CONFLICT, "Đã quá hạn gửi, cần Hiệu trưởng/Phó HT mở hạn"),
+    CLASS_DOC_DEADLINE_PASSED(7385, HttpStatus.CONFLICT, "Đã quá hạn gửi, cần Hiệu trưởng mở hạn"),
     SEMESTER_PACKAGE_NOT_RELEASED(7386, HttpStatus.CONFLICT, "Lịch chủ đề nhánh học kỳ chưa duyệt"),
     // Spec 004: cách duyệt cố định, phiên bản và khóa theo thời gian
     SEMESTER_PACKAGE_INCOMPLETE(
@@ -691,8 +689,10 @@ public enum ApiCode {
     CLASS_DOC_TIME_LOCKED(
             7388,
             HttpStatus.CONFLICT,
-            "Đã tới ngày bắt đầu, không đổi được nữa. Cần Hiệu trưởng hoặc Phó hiệu trưởng mở khóa"),
+            "Đã tới hạn, tài liệu đã khóa. Bản chưa ban hành cần Hiệu trưởng mở hạn"),
     PLAN_TIME_LOCKED(7389, HttpStatus.CONFLICT, "Năm học đã bắt đầu, kế hoạch đã khóa. Cần Hiệu trưởng mở khóa"),
+    // Spec 005 FR-007a: data.details = [{ date, section }] để Web ghi chữ đỏ đúng mục
+    DAY_PLAN_SECTION_EMPTY(7390, HttpStatus.BAD_REQUEST, "Giáo án ngày còn mục chưa có nội dung: {0}"),
     CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,

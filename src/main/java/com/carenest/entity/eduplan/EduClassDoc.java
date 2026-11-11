@@ -93,11 +93,6 @@ public class EduClassDoc {
     @Column(name = "source_doc_id")
     private Long sourceDocId;
 
-    // "Kế hoạch điều chỉnh và bổ sung" theo ngày của giáo án tuần; tách khỏi nội dung để sửa được sau khi duyệt
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(nullable = false, columnDefinition = "jsonb")
-    private String adjustments;
-
     // EDU-18: chuỗi role duyệt chụp lúc gửi; null = hồ sơ gửi trước khi có cột
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "sign_chain", columnDefinition = "jsonb")
@@ -179,7 +174,6 @@ public class EduClassDoc {
         doc.content = "{}";
         doc.approvals = "[]";
         doc.history = "[]";
-        doc.adjustments = "{}";
         doc.createdBy = userId;
         doc.updatedBy = userId;
         doc.reviewRound = 0;
@@ -268,12 +262,6 @@ public class EduClassDoc {
 
     public void linkSource(Long sourceDocId) {
         this.sourceDocId = sourceDocId;
-    }
-
-    public void changeAdjustments(String adjustments, String history, Long userId) {
-        this.adjustments = adjustments;
-        this.history = history;
-        this.updatedBy = userId;
     }
 
     public void updateWorkflowState(

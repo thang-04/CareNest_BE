@@ -6,7 +6,6 @@ import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.security.CurrentUser;
-import java.util.Map;
 import org.springframework.web.multipart.MultipartFile;
 import tools.jackson.databind.node.ObjectNode;
 
@@ -42,11 +41,4 @@ public interface EduClassDocService {
     /** Spec 003 FR-013: nhắc một lần khi gói học kỳ / hồ sơ chủ đề chưa ban hành vào "Gần đến hạn"; trả số gốc đã nhắc. */
     int remindNearDeadlines();
 
-    /** EDU-27: "Kế hoạch điều chỉnh và bổ sung" của giáo án tuần; giáo viên lớp sửa ở mọi trạng thái. */
-    ObjectNode saveAdjustments(
-            CurrentUser currentUser,
-            String docKey,
-            Map<String, String> adjustments,
-            Long expectedVersion,
-            Long expectedRootVersion);
 }

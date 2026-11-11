@@ -146,6 +146,17 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         try {
             requirePermission(currentUser, EduPermission.GOALS_VIEW);
             EduPlanAccessPolicy.ViewScope scope = listScope(currentUser, level);
+            // Spec 005 FR-021a: HT cần thấy bản Nháp quá hạn chưa ban hành để mở hạn ở màn Kế hoạch quá hạn
+            boolean principal = accessPolicy.isPrincipal(currentUser);
+            if (principal) {
+                Set<EduPlanStatus> statuses = new HashSet<>(scope.schoolWideStatuses());
+                statuses.add(EduPlanStatus.DRAFT);
+                scope = new EduPlanAccessPolicy.ViewScope(
+                        Set.copyOf(statuses),
+                        scope.fullAgeGroupIds(),
+                        scope.approvedAgeGroupIds(),
+                        scope.reviewAgeGroupIds());
+            }
             String pattern = keyword == null || keyword.isBlank()
                     ? null
                     : "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
@@ -159,6 +170,12 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     scope.reviewAgeGroupIds(),
                     pattern,
                     pageable);
+            if (principal) {
+                // ponytail: lọc sau truy vấn (tổng số lệch khi có bản Nháp chưa quá hạn); mỗi năm chỉ vài kế hoạch
+                List<EduPlan> visible = page.getContent().stream().filter(p -> canView(currentUser, p)).toList();
+                page = new org.springframework.data.domain.PageImpl<>(
+                        visible, pageable, page.getTotalElements() - (page.getContent().size() - visible.size()));
+            }
             PageResponse<YearPlanSummaryResponse> response =
                     PageResponse.from(page, summaryMapper(currentUser, page.getContent()));
             log.info("{}|END", logPrefix);
@@ -229,7 +246,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 null,
                 currentIds.contains(plan.getId()),
                 buildReviewState(plan),
-                permissionsOf(currentUser, plan, List.of(plan), null));
+                permissionsOf(currentUser, plan, List.of(plan), null),
+                timeLockOf(currentUser, plan));
     }
 
     @Override
@@ -443,6 +461,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
             if (deadline == null || !deadline.isAfter(today)) throw GlobalException.of(ApiCode.INVALID_VALUE, "hạn mới");
             if (!timeLock.locked(plan)) throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở khóa khi đã khóa");
+            if (timeLock.released(plan))
+                throw GlobalException.of(ApiCode.INVALID_VALUE, "kế hoạch đã ban hành không mở khóa");
             Instant now = clock.instant();
             EduPlanEvent event = EduPlanEvent.of(plan.getId(), EduPlanTimeLock.ACTION_UNLOCK,
                             "Mở khóa tới " + deadline.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")),
@@ -996,6 +1016,9 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private boolean canView(CurrentUser user, EduPlan plan) {
         if (isAuthor(user, plan)) return true;
         EduPlanStatus status = plan.publicStatus();
+        // Spec 005 FR-021a: HT xem (chỉ đọc) và mở hạn bản Nháp quá hạn hoặc đã được mở hạn, chưa từng ban hành
+        if (status == EduPlanStatus.DRAFT && accessPolicy.isPrincipal(user))
+            return (timeLock.locked(plan) || timeLock.info(plan).extendedTo() != null) && !timeLock.released(plan);
         if (status == EduPlanStatus.APPROVED)
             return listScope(user, plan.getPlanLevel()).allows(plan.getAgeGroupId(), EduPlanStatus.APPROVED);
         return status == EduPlanStatus.REVIEW && isCurrentApprover(user, plan);
@@ -1891,7 +1914,11 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         EduDeadline.Info info = timeLock.info(plan);
         boolean locked = timeLock.locked(plan);
         return new YearPlanDetailResponse.TimeLock(
-                info.deadline(), info.extendedTo(), info.state(), locked, locked && accessPolicy.isPrincipal(user));
+                info.deadline(),
+                info.extendedTo(),
+                info.state(),
+                locked,
+                locked && accessPolicy.isPrincipal(user) && !timeLock.released(plan));
     }
 
     private YearPlanDetailResponse.Permissions permissionsOf(

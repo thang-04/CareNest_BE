@@ -31,7 +31,9 @@ public record YearPlanSummaryResponse(
         com.carenest.utils.enums.EduPlanLevel planLevel,
         Long curriculumSourcePlanId,
         String sourceMode,
-        @com.fasterxml.jackson.annotation.JsonRawValue String durationPolicySnapshot) {
+        @com.fasterxml.jackson.annotation.JsonRawValue String durationPolicySnapshot,
+        // Spec 005 FR-021a: màn Kế hoạch quá hạn đọc hạn/khóa từ danh sách
+        YearPlanDetailResponse.TimeLock timeLock) {
 
     @com.fasterxml.jackson.annotation.JsonProperty
     public com.carenest.utils.enums.EduPlanLevel planType() { return planLevel; }
@@ -95,6 +97,7 @@ public record YearPlanSummaryResponse(
                 com.carenest.utils.enums.EduPlanLevel.TEAM,
                 null,
                 "LEGACY",
-                "{\"mode\":\"LEGACY_UNBOUNDED\"}");
+                "{\"mode\":\"LEGACY_UNBOUNDED\"}",
+                null);
     }
 }

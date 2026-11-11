@@ -2637,39 +2637,6 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
-  /api/education-plans/class-docs/day/{docKey}/adjustments:
-    put:
-      operationId: saveAdjustments
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      - in: header
-        name: X-Class-Doc-Version
-        required: true
-        schema:
-          type: integer
-          format: int64
-      - in: header
-        name: X-Dossier-Version
-        required: false
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClassDocAdjustmentsRequest"
-        required: true
-      responses:
-        "200":
-          content: {}
-          description: OK
-      tags:
-      - edu-class-doc-controller
   /api/education-plans/class-docs/releases/{releaseId}:
     get:
       operationId: getClassDocRelease
@@ -2826,39 +2793,6 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/week/{docKey}/adjustments:
-    put:
-      operationId: saveAdjustments_1
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      - in: header
-        name: X-Class-Doc-Version
-        required: true
-        schema:
-          type: integer
-          format: int64
-      - in: header
-        name: X-Dossier-Version
-        required: false
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClassDocAdjustmentsRequest"
-        required: true
-      responses:
-        "200":
-          content: {}
-          description: OK
-      tags:
-      - edu-class-doc-controller
   /api/education-plans/class-docs/{kind}/{docKey}:
     put:
       operationId: saveClassDoc
@@ -8739,15 +8673,6 @@ components:
           minLength: 0
       required:
       - action
-    ClassDocAdjustmentsRequest:
-      type: object
-      properties:
-        adjustments:
-          type: object
-          additionalProperties:
-            type: string
-      required:
-      - adjustments
     ClassItem:
       type: object
       properties:
@@ -19735,6 +19660,8 @@ components:
         themeCount:
           type: integer
           format: int64
+        timeLock:
+          $ref: "#/components/schemas/TimeLock"
         title:
           type: string
         updatedAt:
