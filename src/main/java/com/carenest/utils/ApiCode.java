@@ -104,6 +104,9 @@ public enum ApiCode {
             1133, HttpStatus.BAD_REQUEST, "Chỉ đổi vai trò giữa Phó hiệu trưởng, giáo viên và nhân viên bếp"),
     STAFF_ROLE_UNCHANGED(1134, HttpStatus.BAD_REQUEST, "Tài khoản đang có vai trò này"),
     ACCOUNT_PROFILE_NOT_EDITABLE(1135, HttpStatus.BAD_REQUEST, "Chỉ sửa hồ sơ tài khoản nhân sự tại đây"),
+    SIGNATURE_INVALID(1140, HttpStatus.BAD_REQUEST, "Chọn ảnh chữ ký PNG hoặc JPG, tối đa 2 MB"),
+    SIGNATURE_LIMIT_REACHED(1141, HttpStatus.CONFLICT, "Mỗi tài khoản lưu tối đa {0} chữ ký, hãy xóa bớt chữ ký cũ"),
+    SIGNATURE_NOT_FOUND(1142, HttpStatus.NOT_FOUND, "Không tìm thấy chữ ký"),
 
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
@@ -477,6 +480,23 @@ public enum ApiCode {
     FOOD_SAMPLE_STATE_INVALID(6070, HttpStatus.CONFLICT, "Bản lưu mẫu đang ở trạng thái không cho phép thao tác này"),
     FOOD_SAMPLE_DISH_INVALID(6071, HttpStatus.BAD_REQUEST, "Cần chọn ít nhất một món, các món phải còn trong danh mục"),
     MEAL_PHOTO_WINDOW_FORBIDDEN(6072, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng được cấu hình khung giờ đăng ảnh bữa ăn"),
+    // INS-01..04: biên bản kiểm thực
+    INSPECTION_ACCESS_DENIED(6080, HttpStatus.FORBIDDEN, "Bạn không có quyền ghi biên bản kiểm thực ở điểm trường này"),
+    INSPECTION_SIGNED(6081, HttpStatus.CONFLICT, "Biên bản đã ký, hãy bấm Sửa lại trước khi chỉnh sửa"),
+    INSPECTION_STALE(6082, HttpStatus.CONFLICT, "Biên bản vừa được người khác lưu, hãy tải lại rồi sửa tiếp"),
+    INSPECTION_NOT_SAVED(6083, HttpStatus.UNPROCESSABLE_ENTITY, "Hãy lưu biên bản trước khi ký"),
+    INSPECTION_SENSORY_MISSING(
+            6084, HttpStatus.UNPROCESSABLE_ENTITY, "Còn {0} dòng chưa chọn Đạt hoặc Không đạt, hãy chọn đủ rồi ký"),
+    INSPECTION_SIGNATURE_REQUIRED(
+            6085, HttpStatus.UNPROCESSABLE_ENTITY, "Hãy tải ảnh chữ ký ở mục Chữ ký của tôi rồi ký lại"),
+    INSPECTION_REASON_REQUIRED(6086, HttpStatus.UNPROCESSABLE_ENTITY, "Nhập lý do sửa lại, ít nhất 3 ký tự"),
+    INSPECTION_NOT_SIGNED(6087, HttpStatus.CONFLICT, "Biên bản chưa ký nên không cần sửa lại"),
+    INSPECTION_DATE_FUTURE(6088, HttpStatus.BAD_REQUEST, "Không ghi biên bản cho ngày chưa tới"),
+    INSPECTION_ROW_INVALID(6089, HttpStatus.BAD_REQUEST, "Dòng biên bản không hợp lệ: {0}"),
+    INSPECTION_ACTION_MISSING(
+            6090,
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "Còn {0} dòng Không đạt chưa ghi biện pháp xử lý (loại bỏ, trả lại, tiêu hủy...)"),
 
     // ========== 70xx KẾ HOẠCH NĂM HỌC (module Tiền) ==========
     YEAR_PLAN_NOT_FOUND(7001, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch năm học"),
@@ -528,6 +548,7 @@ public enum ApiCode {
             7038,
             HttpStatus.BAD_REQUEST,
             "Lĩnh vực đã có lĩnh vực con thì mọi mục tiêu phải thuộc một lĩnh vực con: {0}"),
+    THEME_DATES_GAP(7039, HttpStatus.BAD_REQUEST, "Bị trống ngày chưa tạo chủ đề ({0})"),
 
     // ========== 71xx TÀI LIỆU LỚP (KẾ HOẠCH CHỦ ĐỀ, GIÁO ÁN) (module Tiền) ==========
     CLASS_DOC_NOT_FOUND(7101, HttpStatus.NOT_FOUND, "Không tìm thấy tài liệu. Lưu bản nháp trước khi gửi"),
@@ -556,8 +577,6 @@ public enum ApiCode {
             7121, HttpStatus.CONFLICT, "Còn {0} mục đổi theo kế hoạch năm mới chưa sửa (ô đỏ). Sửa hết rồi mới gửi"),
     YEAR_PLAN_SUPERSEDED(
             7122, HttpStatus.CONFLICT, "Kế hoạch năm đã có phiên bản mới. Tạo tài liệu trên phiên bản hiện hành"),
-    CLASS_DOC_ADJUSTMENT_INVALID(
-            7123, HttpStatus.BAD_REQUEST, "Kế hoạch điều chỉnh chỉ ghi cho ngày Thứ 2–6 của tuần, tối đa 4000 ký tự"),
     BRANCH_FILE_UNSUPPORTED(
             7124,
             HttpStatus.BAD_REQUEST,
@@ -569,10 +588,17 @@ public enum ApiCode {
     BRANCH_FILE_TOO_LARGE(7126, HttpStatus.BAD_REQUEST, "File chủ đề nhánh quá lớn: tối đa 2 MB và 2.000 dòng"),
 
     // ========== 72xx CẤU HÌNH KẾ HOẠCH GIÁO DỤC (module Tiền) ==========
-    EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Chỉ Hiệu trưởng hoặc Phó Hiệu trưởng sửa được cấu hình"),
-    SIGNERS_INVALID(7202, HttpStatus.BAD_REQUEST, "Người ký phải là các vai trò hợp lệ, không trùng nhau"),
+    DURATION_POLICY_INVALID(7210, HttpStatus.BAD_REQUEST, "Giới hạn tuần học không hợp lệ"),
+    DURATION_POLICY_STALE(7211, HttpStatus.CONFLICT, "Cấu hình thời lượng đã thay đổi, hãy tải lại"),
+    CURRICULUM_SOURCE_INVALID(7212, HttpStatus.BAD_REQUEST, "Nguồn kế hoạch năm học không hợp lệ"),
+    INHERITED_CURRICULUM_READ_ONLY(7213, HttpStatus.FORBIDDEN, "Nội dung kế thừa không được biên soạn lại"),
+    EDUCATION_CALENDAR_INVALID(7214, HttpStatus.BAD_REQUEST, "Lịch chủ đề không hợp lệ: {0}"),
+    CLASS_CALENDAR_VERSION_CONFLICT(7215, HttpStatus.CONFLICT, "Tải lại hồ sơ để giữ lịch nhiều tuần"),
+    EDU_CONFIG_FORBIDDEN(7201, HttpStatus.FORBIDDEN, "Bạn không có quyền sửa cấu hình phần này"),
+    SIGNERS_INVALID(7202, HttpStatus.BAD_REQUEST, "Vai trò người soạn hoặc người duyệt không hợp lệ"),
+    @Deprecated
     YEAR_PLAN_SIGNER_REQUIRED(7203, HttpStatus.BAD_REQUEST, "Kế hoạch năm học phải có Phó Hiệu trưởng ký"),
-    CLASS_DOC_APPROVER_REQUIRED(7204, HttpStatus.BAD_REQUEST, "Mỗi loại tài liệu lớp cần ít nhất một người duyệt"),
+    CLASS_DOC_APPROVER_REQUIRED(7204, HttpStatus.BAD_REQUEST, "Mỗi loại kế hoạch cần ít nhất một người duyệt"),
     WEEK_ROW_KEY_DUPLICATE(7205, HttpStatus.BAD_REQUEST, "Mã dòng của bảng tuần không được trùng"),
     LESSON_ROW_REQUIRED(7206, HttpStatus.BAD_REQUEST, "Không bỏ được dòng giờ học"),
     DOMAIN_NAME_EXISTS(7207, HttpStatus.CONFLICT, "Tên lĩnh vực {0} đã tồn tại"),
@@ -689,11 +715,24 @@ public enum ApiCode {
     YEAR_SHEET_ONLY_YEAR_END(7381, HttpStatus.BAD_REQUEST, "Phiếu đánh giá sự phát triển chỉ có ở đánh giá cuối năm"),
     YEAR_SHEET_GOAL_INVALID(7382, HttpStatus.BAD_REQUEST, "Có mục tiêu không thuộc phiếu đánh giá, tải lại trang"),
     YEAR_SHEET_NOTE_TOO_LONG(7383, HttpStatus.BAD_REQUEST, "Mỗi lưu ý tối đa {0} ký tự"),
+    EDU_PLAN_NOT_RELEASED(7384, HttpStatus.FORBIDDEN, "Bản này chưa ban hành"),
+    // Spec 003: mốc duyệt theo thời gian dạy
+    CLASS_DOC_DEADLINE_PASSED(7385, HttpStatus.CONFLICT, "Đã quá hạn gửi, cần Hiệu trưởng mở hạn"),
+    SEMESTER_PACKAGE_NOT_RELEASED(7386, HttpStatus.CONFLICT, "Lịch chủ đề nhánh học kỳ chưa duyệt"),
+    // Spec 004: cách duyệt cố định, phiên bản và khóa theo thời gian
+    SEMESTER_PACKAGE_INCOMPLETE(
+            7387, HttpStatus.BAD_REQUEST, "Học kỳ còn thiếu chủ đề nhánh, kế hoạch chủ đề hoặc kế hoạch tuần"),
+    CLASS_DOC_TIME_LOCKED(
+            7388, HttpStatus.CONFLICT, "Đã tới hạn, tài liệu đã khóa. Bản chưa ban hành cần Hiệu trưởng mở hạn"),
+    PLAN_TIME_LOCKED(7389, HttpStatus.CONFLICT, "Năm học đã bắt đầu, kế hoạch đã khóa. Cần Hiệu trưởng mở khóa"),
+    // Spec 005 FR-007a: data.details = [{ date, section }] để Web ghi chữ đỏ đúng mục
+    DAY_PLAN_SECTION_EMPTY(7390, HttpStatus.BAD_REQUEST, "Giáo án ngày còn mục chưa có nội dung: {0}"),
+    // Đánh giá học kỳ / cuối năm (Cần): dời từ 7384–7387 sang 7391–7394 khi gộp nhánh kế hoạch giáo dục (trùng số)
     SEMESTER_ASSESSMENT_INCOMPLETE(
-            7384, HttpStatus.CONFLICT, "Còn mục tiêu chưa được đánh giá, bổ sung trước khi xác nhận"),
-    SEMESTER_ASSESSMENT_NOT_ENDED(7385, HttpStatus.CONFLICT, "Học kỳ chưa kết thúc, chưa xác nhận được"),
-    YEAR_SHEET_DOMAIN_INVALID(7386, HttpStatus.BAD_REQUEST, "Có lĩnh vực không thuộc phiếu đánh giá, tải lại trang"),
-    YEAR_END_NOT_OPEN(7387, HttpStatus.CONFLICT, "Học kỳ II chưa kết thúc, chưa xác nhận được đánh giá cuối năm"),
+            7391, HttpStatus.CONFLICT, "Còn mục tiêu chưa được đánh giá, bổ sung trước khi xác nhận"),
+    SEMESTER_ASSESSMENT_NOT_ENDED(7392, HttpStatus.CONFLICT, "Học kỳ chưa kết thúc, chưa xác nhận được"),
+    YEAR_SHEET_DOMAIN_INVALID(7393, HttpStatus.BAD_REQUEST, "Có lĩnh vực không thuộc phiếu đánh giá, tải lại trang"),
+    YEAR_END_NOT_OPEN(7394, HttpStatus.CONFLICT, "Học kỳ II chưa kết thúc, chưa xác nhận được đánh giá cuối năm"),
     CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,

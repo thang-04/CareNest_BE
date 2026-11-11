@@ -13,10 +13,20 @@ public record ClassDocsResponse(
         List<ObjectNode> classThemePlans,
         List<ObjectNode> weekPlans,
         List<ClassItem> classes,
-        List<StaffItem> staff) {
+        List<StaffItem> staff,
+        List<CreationCapability> creationCapabilities,
+        // Spec 003: gói học kỳ, hồ sơ chủ đề (kèm hạn), giáo án ngày; năm học chưa cấu hình học kỳ
+        List<ObjectNode> semesterPackages,
+        List<ObjectNode> themeDossiers,
+        List<ObjectNode> dayPlans,
+        boolean semesterConfigMissing) {
+
+    public record CreationCapability(
+            Long classId, String kind, boolean canCreate, String requires, String reasonCode) {}
 
     /** id dạng chuỗi như id lớp trên đường dẫn của Web; ageGroupId = mã nhóm tuổi (vd. ag-3). */
-    public record ClassItem(String id, String name, String ageGroupId, Long campusId, List<Long> teacherIds) {}
+    public record ClassItem(
+            String id, String name, String ageGroupId, Long campusId, List<Long> teacherIds, Long homeroomTeacherId) {}
 
     /** role: TEACHER hoặc TEAM_LEADER (tổ trưởng của ageGroupId). */
     public record StaffItem(Long id, String fullName, String role, String ageGroupId) {}

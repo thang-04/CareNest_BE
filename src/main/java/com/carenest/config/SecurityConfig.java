@@ -177,6 +177,10 @@ public class SecurityConfig {
                 "X-Edit-Session",
                 "X-Plan-Revision",
                 "Idempotency-Key",
+                // Khóa lạc quan tài liệu lớp: thiếu ở đây thì trình duyệt chặn preflight, lưu chủ đề nhánh báo mất kết
+                // nối
+                "X-Class-Doc-Version",
+                "X-Dossier-Version",
                 HttpHeaders.RANGE));
         config.setExposedHeaders(
                 List.of(HttpHeaders.CONTENT_DISPOSITION, HttpHeaders.CONTENT_RANGE, HttpHeaders.ACCEPT_RANGES));

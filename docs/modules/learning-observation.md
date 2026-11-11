@@ -33,6 +33,8 @@ OBS-01..22 (OBS-08 REMOVED), EDU-19, AI-01..08, AI-10, PAR-03. Flow: `docs/busin
 - Đọc giáo án đã duyệt qua `EduLessonQueryService` (education-plan); điểm danh / sức khỏe qua `AttendanceService.findDayStatuses`, `DailyHealthService.findLatestDaySigns`.
 
 ## PENDING
+
+- Thiết kế feature012 (07/11/2026) chờ duyệt, chưa triển khai: [plan làn L](../plans/active/2026-11-07-school-year-team-plans.md) cần filter TEAM trong ba query nguồn của ThemeEvaluationRepository, dùng projection lịch hiệu lực theo lớp từ eduplan và giữ frozen view khi current plan bỏ theme. Đề xuất presentation_snapshot bổ sung để bản confirmed không phụ thuộc live goals/membership; legacy chỉ baseline có nguồn, không bịa metadata lịch sử chưa từng lưu. Không đổi công thức/endpoint đánh giá. [Data model](../../specs/012-school-year-team-plans/data-model.md), [client/downstream contract](../../specs/012-school-year-team-plans/contracts/clients.md).
 P-11 (tiêu chí cố định theo Bộ hay trường cấu hình; tạm dùng enum theo danh sách FE đã chốt với Cần, lệch OBS-02 cho tới khi có màn cấu hình), P-30 (mẫu nhận xét định kỳ của trường), P-31 (làm cả phiếu bé ngoan và khen cuối năm).
 
 ## Known pitfalls

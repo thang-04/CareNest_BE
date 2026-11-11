@@ -36,6 +36,28 @@ import org.springframework.transaction.annotation.Transactional;
 public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     private static final String LOG_PREFIX = "[StaffAssignmentServiceImpl]";
 
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, List<StaffAssignmentSummaryResponse>> findActiveEducationReviewerAssignments(LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveEducationReviewerAssignments";
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, List<StaffAssignmentSummaryResponse>> result = staffAssignmentRepository
+                    .findActiveByRoles(
+                            List.of(StaffRole.PRINCIPAL, StaffRole.VICE_PRINCIPAL, StaffRole.AGE_GROUP_TEAM_LEADER),
+                            date)
+                    .stream()
+                    .collect(Collectors.groupingBy(
+                            StaffAssignment::getUserId,
+                            Collectors.mapping(staffAssignmentMapper::toSummaryResponse, Collectors.toList())));
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private final StaffAssignmentRepository staffAssignmentRepository;
     private final StaffAssignmentMapper staffAssignmentMapper;
     private final ClassroomRepository classroomRepository;

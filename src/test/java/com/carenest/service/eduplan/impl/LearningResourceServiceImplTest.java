@@ -32,6 +32,9 @@ class LearningResourceServiceImplTest {
         var resources = mock(EduLearningResourceRepository.class);
         var goals = mock(EduPlanGoalRepository.class);
         var storage = mock(StorageService.class);
+        var transactions = mock(org.springframework.transaction.PlatformTransactionManager.class);
+        when(transactions.getTransaction(any()))
+                .thenReturn(mock(org.springframework.transaction.TransactionStatus.class));
         var service = new LearningResourceServiceImpl(
                 docs,
                 resources,
@@ -39,7 +42,10 @@ class LearningResourceServiceImplTest {
                 mock(StaffAssignmentService.class),
                 storage,
                 new ObjectMapper(),
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                mock(com.carenest.service.eduplan.EduWorkflowService.class),
+                mock(com.carenest.service.organization.ClassroomService.class),
+                transactions);
         var user = new CurrentUser(7L, "kc-7", "demo", "Demo", null, Set.of(CareNestRole.TEACHER));
         EduClassDoc doc = EduClassDoc.create("tp_1_2", "theme", 1L, 3L, 2L, null, 7L);
         ReflectionTestUtils.setField(doc, "id", 8L);

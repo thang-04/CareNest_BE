@@ -137,35 +137,35 @@ class ThemeEvaluationIntegrationTest {
                 "INSERT INTO edu_domains (id, name, sort_order) OVERRIDING SYSTEM VALUE VALUES (9100, 'TEST lĩnh vực chủ đề', 99)");
         long owner = teacher.userId();
         jdbc.update(
-                "INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id, version_no)"
-                        + " OVERRIDING SYSTEM VALUE VALUES (9001, 'KH-T1', ?, ?, 'KH 3-4 tuổi', 'APPROVED', ?, 1)",
+                "INSERT INTO edu_team_plans (legacy_team_without_source, id, code, school_year_id, age_group_id, title, status, owner_id, version_no)"
+                        + " OVERRIDING SYSTEM VALUE VALUES (true, 9001, 'KH-T1', ?, ?, 'KH 3-4 tuổi', 'APPROVED', ?, 1)",
                 year,
                 ag3,
                 owner);
         jdbc.update(
-                "INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id, version_no,"
+                "INSERT INTO edu_team_plans (legacy_team_without_source, id, code, school_year_id, age_group_id, title, status, owner_id, version_no,"
                         + " source_plan_id)"
-                        + " OVERRIDING SYSTEM VALUE VALUES (9002, 'KH-T2', ?, ?, 'KH 3-4 tuổi', 'APPROVED', ?, 2, 9001)",
+                        + " OVERRIDING SYSTEM VALUE VALUES (true, 9002, 'KH-T2', ?, ?, 'KH 3-4 tuổi', 'APPROVED', ?, 2, 9001)",
                 year,
                 ag3,
                 owner);
-        oldGoal1 = insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no)"
+        oldGoal1 = insertId("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no)"
                 + " OVERRIDING SYSTEM VALUE VALUES (9001, 9100, 1, 'Trẻ chạy được 15m', 1) RETURNING id");
-        goal1 = insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no, lineage_id)"
+        goal1 = insertId("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no, lineage_id)"
                 + " VALUES (9002, 9100, 1, 'Trẻ chạy được 15m', 1, " + oldGoal1 + ") RETURNING id");
-        goal2 = insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no)"
+        goal2 = insertId("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no)"
                 + " VALUES (9002, 9100, 2, 'Trẻ biết tên trường', 3) RETURNING id");
-        long goal3 = insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no)"
+        long goal3 = insertId("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no)"
                 + " VALUES (9002, 9100, 3, 'MT chủ đề sau', 4) RETURNING id");
         jdbc.update(
-                "INSERT INTO edu_themes (id, year_plan_id, sort_order, name, start_date, end_date)"
+                "INSERT INTO edu_themes (id, team_plan_id, sort_order, name, start_date, end_date)"
                         + " OVERRIDING SYSTEM VALUE VALUES (9201, 9002, 1, 'Trường mầm non thân yêu', '2026-09-07', '2026-10-02')");
-        jdbc.update("INSERT INTO edu_themes (id, year_plan_id, sort_order, name, start_date, end_date)"
+        jdbc.update("INSERT INTO edu_themes (id, team_plan_id, sort_order, name, start_date, end_date)"
                 + " OVERRIDING SYSTEM VALUE VALUES (9202, 9002, 2, 'Gia đình', '2026-11-02', '2026-11-27')");
         tick(9301, goal1, 9201);
         tick(9302, goal2, 9201);
         tick(9303, goal3, 9202);
-        doc = insertId("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, year_plan_id, created_by, updated_by)"
+        doc = insertId("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, created_by, updated_by)"
                 + " VALUES ('branch-t', 'branch', " + classA + ", 9001, " + owner + ", " + owner + ") RETURNING id");
 
         kid1 = child("An");
@@ -387,7 +387,7 @@ class ThemeEvaluationIntegrationTest {
         assertThat(half.met()).isTrue();
 
         // Chủ đề 3 cũng Chưa đạt: 1/3 dưới 50% nên MT cuối năm Chưa đạt.
-        jdbc.update("INSERT INTO edu_themes (id, year_plan_id, sort_order, name, start_date, end_date)"
+        jdbc.update("INSERT INTO edu_themes (id, team_plan_id, sort_order, name, start_date, end_date)"
                 + " OVERRIDING SYSTEM VALUE VALUES (9203, 9002, 3, 'Bản thân', '2026-10-11', '2026-10-20')");
         tick(9391, goal1, 9203);
         result(kid1, classA, "2026-10-15", "theme-3-fail", "", String.valueOf(oldGoal1));
@@ -398,7 +398,7 @@ class ThemeEvaluationIntegrationTest {
         assertThat(belowHalf.met()).isFalse();
 
         // Chủ đề đang dạy (chưa tới ngày kết thúc) không tính, dù đã có lần Đạt
-        jdbc.update("INSERT INTO edu_themes (id, year_plan_id, sort_order, name, start_date, end_date)"
+        jdbc.update("INSERT INTO edu_themes (id, team_plan_id, sort_order, name, start_date, end_date)"
                 + " OVERRIDING SYSTEM VALUE VALUES (9204, 9002, 4, 'Nghề nghiệp', '2026-10-21', '2026-10-31')");
         tick(9392, goal1, 9204);
         result(kid1, classA, "2026-10-21", "theme-4-pass", String.valueOf(oldGoal1), "");
@@ -619,12 +619,13 @@ class ThemeEvaluationIntegrationTest {
         assertThat(old.canEdit()).isFalse();
         assertThat(old.domains().getFirst().goals().getFirst().met()).isTrue();
         // Kế hoạch năm có bản mới (đổi câu MT, thêm MT): phiếu đã xác nhận giữ nguyên danh sách và câu MT đã chốt
-        jdbc.update("INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
-                + " version_no, source_plan_id) OVERRIDING SYSTEM VALUE SELECT 9004, 'KH-T4', school_year_id,"
-                + " age_group_id, title, 'APPROVED', owner_id, 4, 9002 FROM edu_year_plans WHERE id = 9002");
-        jdbc.update("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no, lineage_id)"
+        jdbc.update(
+                "INSERT INTO edu_team_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
+                        + " version_no, source_plan_id, legacy_team_without_source) OVERRIDING SYSTEM VALUE SELECT 9004, 'KH-T4', school_year_id,"
+                        + " age_group_id, title, 'APPROVED', owner_id, 4, 9002, legacy_team_without_source FROM edu_team_plans WHERE id = 9002");
+        jdbc.update("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no, lineage_id)"
                 + " VALUES (9004, 9100, 1, 'Câu MT đã sửa', 1, " + oldGoal1 + ")");
-        jdbc.update("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no)"
+        jdbc.update("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no)"
                 + " VALUES (9004, 9100, 2, 'MT mới thêm', 9)");
         List<SheetGoal> afterNewPlan =
                 sheetService.get(principal, yearEval).domains().getFirst().goals();
@@ -736,13 +737,14 @@ class ThemeEvaluationIntegrationTest {
                 new ThemeEvaluationRequest(classA, 9201L, "Lưu ý", List.of(new CellInput(kid1, oldGoal1, false))));
         service.confirm(teacher, new ThemeEvaluationRequest(classA, 9201L, "Lưu ý", List.of()));
         // PHT ban hành bản 3: chủ đề được chép với id mới, giữ dòng gốc
-        jdbc.update("INSERT INTO edu_year_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
-                + " version_no, source_plan_id) OVERRIDING SYSTEM VALUE SELECT 9003, 'KH-T3', school_year_id,"
-                + " age_group_id, title, 'APPROVED', owner_id, 3, 9002 FROM edu_year_plans WHERE id = 9002");
-        jdbc.update("INSERT INTO edu_themes (id, year_plan_id, sort_order, name, start_date, end_date, lineage_id)"
+        jdbc.update(
+                "INSERT INTO edu_team_plans (id, code, school_year_id, age_group_id, title, status, owner_id,"
+                        + " version_no, source_plan_id, legacy_team_without_source) OVERRIDING SYSTEM VALUE SELECT 9003, 'KH-T3', school_year_id,"
+                        + " age_group_id, title, 'APPROVED', owner_id, 3, 9002, legacy_team_without_source FROM edu_team_plans WHERE id = 9002");
+        jdbc.update("INSERT INTO edu_themes (id, team_plan_id, sort_order, name, start_date, end_date, lineage_id)"
                 + " OVERRIDING SYSTEM VALUE VALUES (9211, 9003, 1, 'Trường mầm non thân yêu', '2026-09-07',"
                 + " '2026-10-02', 9201)");
-        long copiedGoal = insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no,"
+        long copiedGoal = insertId("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no,"
                 + " lineage_id) VALUES (9003, 9100, 1, 'Trẻ chạy được 15m', 1, " + oldGoal1 + ") RETURNING id");
         tick(9311, copiedGoal, 9211);
 
@@ -757,6 +759,37 @@ class ThemeEvaluationIntegrationTest {
         expectCode(
                 () -> service.save(teacher, new ThemeEvaluationRequest(classA, 9211L, null, List.of())),
                 ApiCode.EVALUATION_ALREADY_CONFIRMED);
+    }
+
+    @Test
+    void frozenPresentationSurvivesRemovedThemeAndChangedRosterAndGoals() {
+        ThemeEvaluationResponse frozen = service.confirm(
+                teacher,
+                new ThemeEvaluationRequest(classA, 9201L, "Lịch sử", List.of(new CellInput(kid1, oldGoal1, true))));
+        jdbc.update("UPDATE edu_team_plans SET status = 'DRAFT' WHERE id = 9002");
+        jdbc.update("UPDATE edu_plan_goals SET text = 'Đã thay đổi' WHERE id = ?", goal1);
+        assertThat(service.get(teacher, classA, 9201L)).isEqualTo(frozen);
+        assertThat(service.listThemes(teacher, classA))
+                .anyMatch(t -> t.themeId().equals(9201L)
+                        && t.name().equals(frozen.themeName())
+                        && t.status().equals("CONFIRMED"));
+        assertThat(service.childThemeResults(classA, kid1).get(oldGoal1).themeNames())
+                .contains(frozen.themeName());
+    }
+
+    @Test
+    void approvedClassCalendarControlsEvaluationDatesWithoutChangingOtherClass() {
+        jdbc.update(
+                "UPDATE edu_class_docs SET team_plan_id = 9002, status = 'APPROVED', content = ?::jsonb WHERE id = ?",
+                "{\"schemaVersion\":2,\"themeSchedules\":[{\"themeId\":9201,\"startDate\":\"2026-10-26\",\"endDate\":\"2026-11-06\"}]}",
+                doc);
+        assertThat(service.listThemes(teacher, classA).getFirst().startDate())
+                .isEqualTo(java.time.LocalDate.of(2026, 10, 26));
+        assertThat(service.listThemes(principal, classB).getFirst().startDate())
+                .isEqualTo(java.time.LocalDate.of(2026, 9, 7));
+        expectCode(
+                () -> service.save(teacher, new ThemeEvaluationRequest(classA, 9201L, null, List.of())),
+                ApiCode.THEME_EVALUATION_NOT_STARTED);
     }
 
     @Test
@@ -803,7 +836,7 @@ class ThemeEvaluationIntegrationTest {
         assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
                 .isNull();
         CurrentUser vp = user("vp-t", CareNestRole.VICE_PRINCIPAL);
-        jdbc.update("UPDATE edu_year_plans SET issued_by = ? WHERE status = 'APPROVED'", vp.userId());
+        jdbc.update("UPDATE edu_team_plans SET issued_by = ? WHERE status = 'APPROVED'", vp.userId());
         assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
                 .isEqualTo("vp-t");
     }

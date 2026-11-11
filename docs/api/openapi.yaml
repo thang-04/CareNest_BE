@@ -833,7 +833,7 @@ paths:
       - child-evaluation-controller
   /api/assessment/evaluations/{id}:
     get:
-      operationId: get
+      operationId: get_1
       parameters:
       - in: path
         name: id
@@ -1159,7 +1159,7 @@ paths:
       tags:
       - reward-list-controller
     put:
-      operationId: save
+      operationId: save_1
       parameters:
       - in: path
         name: classId
@@ -1238,66 +1238,6 @@ paths:
           description: OK
       tags:
       - reward-list-controller
-  /api/assessment/semester-evaluations:
-    get:
-      operationId: getSemesterAssessment
-      parameters:
-      - in: query
-        name: classId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      - in: query
-        name: semester
-        required: true
-        schema:
-          type: integer
-          format: int32
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
-          description: OK
-      tags:
-      - semester-assessment-controller
-    put:
-      operationId: saveSemesterAssessment
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SemesterAssessmentRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
-          description: OK
-      tags:
-      - semester-assessment-controller
-  /api/assessment/semester-evaluations/confirm:
-    post:
-      operationId: confirmSemesterAssessment
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/SemesterAssessmentRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonSemesterAssessmentResponse"
-          description: OK
-      tags:
-      - semester-assessment-controller
   /api/assessment/theme-evaluations:
     get:
       operationId: getEvaluation
@@ -2892,6 +2832,24 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
+  /api/education-plans/class-docs/branch/calendar-preview:
+    post:
+      operationId: previewClassCalendar
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ClassCalendarPreviewRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonClassCalendarPreviewResponse"
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/branch/file-preview:
     post:
       operationId: previewBranchFile
@@ -2925,6 +2883,22 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonBranchFilePreviewResponse"
+          description: OK
+      tags:
+      - edu-class-doc-controller
+  /api/education-plans/class-docs/releases/{releaseId}:
+    get:
+      operationId: getClassDocRelease
+      parameters:
+      - in: path
+        name: releaseId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content: {}
           description: OK
       tags:
       - edu-class-doc-controller
@@ -3068,27 +3042,6 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/week/{docKey}/adjustments:
-    put:
-      operationId: saveAdjustments
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClassDocAdjustmentsRequest"
-        required: true
-      responses:
-        "200":
-          content: {}
-          description: OK
-      tags:
-      - edu-class-doc-controller
   /api/education-plans/class-docs/{kind}/{docKey}:
     put:
       operationId: saveClassDoc
@@ -3103,6 +3056,18 @@ paths:
         required: true
         schema:
           type: string
+      - in: header
+        name: X-Class-Doc-Version
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Dossier-Version
+        required: false
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json: {}
@@ -3127,6 +3092,12 @@ paths:
         required: true
         schema:
           type: string
+      - in: header
+        name: X-Class-Doc-Version
+        required: true
+        schema:
+          type: integer
+          format: int64
       requestBody:
         content:
           application/json:
@@ -3218,6 +3189,35 @@ paths:
           description: OK
       tags:
       - edu-curriculum-controller
+  /api/education-plans/duration-policy:
+    get:
+      operationId: get
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduDurationPolicyResponse"
+          description: OK
+      tags:
+      - edu-duration-policy-controller
+    put:
+      operationId: save
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EduDurationPolicyRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduDurationPolicyResponse"
+          description: OK
+      tags:
+      - edu-duration-policy-controller
   /api/education-plans/goals:
     get:
       operationId: getYearPlans
@@ -3239,6 +3239,22 @@ paths:
         required: false
         schema:
           type: string
+      - in: query
+        name: planLevel
+        required: false
+        schema:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+      - in: query
+        name: planType
+        required: false
+        schema:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
       - in: query
         name: page
         required: false
@@ -3270,7 +3286,7 @@ paths:
       parameters:
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3324,6 +3340,18 @@ paths:
           description: OK
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/review-queue:
+    get:
+      operationId: getReviewQueue
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListYearPlanSummaryResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}:
     delete:
       operationId: deleteYearPlan
@@ -3336,7 +3364,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3390,7 +3418,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3458,7 +3486,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3495,7 +3523,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3532,7 +3560,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3574,7 +3602,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3605,6 +3633,55 @@ paths:
           description: OK
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/review/{reviewItemId}/resolve:
+    post:
+      operationId: resolveReview
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: reviewItemId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: X-Edit-Session
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - in: header
+        name: X-Plan-Revision
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReviewResolutionRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}/start-editing:
     post:
       operationId: startEditing
@@ -3617,7 +3694,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3654,7 +3731,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3684,6 +3761,31 @@ paths:
           description: OK
       tags:
       - edu-year-plan-controller
+  /api/education-plans/goals/{planId}/unlock:
+    post:
+      operationId: unlockYearPlan
+      parameters:
+      - in: path
+        name: planId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearPlanUnlockRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonYearPlanDetailResponse"
+          description: OK
+      tags:
+      - edu-year-plan-controller
   /api/education-plans/goals/{planId}/versions:
     post:
       operationId: createVersion
@@ -3696,7 +3798,7 @@ paths:
           format: int64
       - in: header
         name: X-Edit-Session
-        required: true
+        required: false
         schema:
           type: string
           format: uuid
@@ -3712,6 +3814,11 @@ paths:
         schema:
           type: string
           format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/YearPlanVersionRequest"
       responses:
         "201":
           content:
@@ -3721,6 +3828,35 @@ paths:
           description: Created
       tags:
       - edu-year-plan-controller
+  /api/education-plans/workflow-policy:
+    get:
+      operationId: getWorkflowPolicy
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduWorkflowPolicyResponse"
+          description: OK
+      tags:
+      - edu-workflow-controller
+    put:
+      operationId: updateWorkflowPolicy
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EduWorkflowPolicyRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEduWorkflowPolicyResponse"
+          description: OK
+      tags:
+      - edu-workflow-controller
   /api/health-checks:
     get:
       operationId: listHealthChecks
@@ -4061,6 +4197,181 @@ paths:
           description: OK
       tags:
       - health-check-controller
+  /api/inspections/day:
+    get:
+      operationId: getDay
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionDayResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}:
+    put:
+      operationId: saveSheet
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionSaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}/reopen:
+    post:
+      operationId: reopenSheet
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionReopenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/day/{tab}/sign:
+    post:
+      operationId: signSheet
+      parameters:
+      - in: path
+        name: tab
+        required: true
+        schema:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: true
+        schema:
+          type: string
+          format: date
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InspectionSignRequest"
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonInspectionSheetResponse"
+          description: OK
+      tags:
+      - inspection-controller
+  /api/inspections/signatures/{imageKey}:
+    get:
+      operationId: getSignatureImage
+      parameters:
+      - in: path
+        name: imageKey
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+          description: OK
+      tags:
+      - inspection-controller
   /api/leave-requests:
     get:
       operationId: searchLeaveRequests
@@ -4606,6 +4917,31 @@ paths:
           description: OK
       tags:
       - meal-plan-controller
+  /api/nutrition/day-market:
+    get:
+      operationId: getDayMarket
+      parameters:
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: date
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonDayMarketResponse"
+          description: OK
+      tags:
+      - day-market-controller
   /api/nutrition/dishes:
     get:
       operationId: getDishes
@@ -6567,25 +6903,6 @@ paths:
           description: OK
       tags:
       - year-transition-controller
-  /api/school-years/{schoolYearId}/prep-classes:
-    get:
-      operationId: getPrepClasses
-      parameters:
-      - in: path
-        name: schoolYearId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonPrepClassesResponse"
-          description: OK
-      tags:
-      - year-transition-controller
   /api/school-years/{schoolYearId}/readiness:
     get:
       operationId: getReadiness
@@ -6699,6 +7016,105 @@ paths:
           description: OK
       tags:
       - vice-principal-assignment-controller
+  /api/signatures/me:
+    get:
+      operationId: listSignatures
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListUserSignatureResponse"
+          description: OK
+      tags:
+      - user-signature-controller
+    post:
+      operationId: uploadSignature
+      parameters:
+      - in: query
+        name: isDefault
+        required: false
+        schema:
+          type: boolean
+          default: false
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonUserSignatureResponse"
+          description: OK
+      tags:
+      - user-signature-controller
+  /api/signatures/me/{signatureId}:
+    delete:
+      operationId: deleteSignature
+      parameters:
+      - in: path
+        name: signatureId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - user-signature-controller
+  /api/signatures/me/{signatureId}/content:
+    get:
+      operationId: getSignatureContent
+      parameters:
+      - in: path
+        name: signatureId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: byte
+          description: OK
+      tags:
+      - user-signature-controller
+  /api/signatures/me/{signatureId}/default:
+    patch:
+      operationId: setDefaultSignature
+      parameters:
+      - in: path
+        name: signatureId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonUserSignatureResponse"
+          description: OK
+      tags:
+      - user-signature-controller
   /api/staff-assignments:
     post:
       operationId: assignStaff
@@ -6816,20 +7232,6 @@ paths:
       - teacher-assignment-controller
 components:
   schemas:
-    AbsentChild:
-      type: object
-      properties:
-        attendanceStatus:
-          type: string
-          enum:
-          - PRESENT
-          - EXCUSED
-          - UNEXCUSED
-        childId:
-          type: integer
-          format: int64
-        fullName:
-          type: string
     AccessToken:
       type: object
       properties:
@@ -7553,6 +7955,24 @@ components:
             type: string
         state:
           type: string
+    ApprovalItem:
+      type: object
+      properties:
+        at:
+          type: string
+          format: date-time
+        name:
+          type: string
+        note:
+          type: string
+        roleKey:
+          type: string
+        round:
+          type: integer
+          format: int32
+        userId:
+          type: integer
+          format: int64
     ApprovedDayLessonResponse:
       type: object
       properties:
@@ -7857,22 +8277,29 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Warning"
-    Break:
+    BranchSchedule:
       type: object
       properties:
         endDate:
           type: string
           format: date
-        id:
+        key:
+          type: string
+        name:
+          type: string
+        sourceTemplateId:
           type: integer
           format: int64
-        label:
-          type: string
-          maxLength: 150
-          minLength: 0
         startDate:
           type: string
           format: date
+        themeId:
+          type: integer
+          format: int64
+        weekNotes:
+          type: object
+          additionalProperties:
+            type: string
     Brief:
       type: object
       properties:
@@ -7881,6 +8308,17 @@ components:
           format: int64
         name:
           type: string
+    CalendarDraft:
+      type: object
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: "#/components/schemas/BranchSchedule"
+        themeSchedules:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThemeSchedule"
     CampusBoard:
       type: object
       properties:
@@ -8658,6 +9096,37 @@ components:
           format: int64
         name:
           type: string
+    ClassCalendarPreviewRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        draftCalendar:
+          $ref: "#/components/schemas/CalendarDraft"
+        expectedBranchVersion:
+          type: integer
+          format: int64
+        orderedThemeIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        yearPlanId:
+          type: integer
+          format: int64
+    ClassCalendarPreviewResponse:
+      type: object
+      properties:
+        calendar:
+          $ref: "#/components/schemas/CalendarDraft"
+        calendarRevision:
+          type: integer
+          format: int64
+        countsAfter:
+          $ref: "#/components/schemas/Counts"
+        countsBefore:
+          $ref: "#/components/schemas/Counts"
     ClassCommentResponse:
       type: object
       properties:
@@ -8683,21 +9152,15 @@ components:
         action:
           type: string
           minLength: 1
+        deadline:
+          type: string
+          format: date
         note:
           type: string
           maxLength: 2000
           minLength: 0
       required:
       - action
-    ClassDocAdjustmentsRequest:
-      type: object
-      properties:
-        adjustments:
-          type: object
-          additionalProperties:
-            type: string
-      required:
-      - adjustments
     ClassItem:
       type: object
       properties:
@@ -8825,8 +9288,6 @@ components:
           - SEMESTER_1
           - SEMESTER_2
           - YEAR
-        principalName:
-          type: string
         rows:
           type: array
           items:
@@ -9143,18 +9604,6 @@ components:
           format: int64
         name:
           type: string
-    Content:
-      type: object
-      properties:
-        id:
-          type: integer
-          format: int64
-        text:
-          type: string
-        themeKeys:
-          type: array
-          items:
-            type: string
     CopyClassesRequest:
       type: object
       properties:
@@ -9183,6 +9632,19 @@ components:
           type: array
           items:
             type: string
+    Counts:
+      type: object
+      properties:
+        branches:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        themes:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
     CreateAccountRequest:
       type: object
       properties:
@@ -9282,9 +9744,6 @@ components:
           type: integer
           format: int64
         classroomId:
-          type: integer
-          format: int64
-        replacedTeacherId:
           type: integer
           format: int64
         substitute:
@@ -9567,10 +10026,6 @@ components:
     DailySheetResponse:
       type: object
       properties:
-        absentChildren:
-          type: array
-          items:
-            $ref: "#/components/schemas/AbsentChild"
         attendanceTaken:
           type: boolean
         campusId:
@@ -9712,6 +10167,131 @@ components:
       required:
       - date
       - items
+    DayMarketGroup:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        mealPrice:
+          type: number
+        name:
+          type: string
+        revenue:
+          type: number
+        servings:
+          type: integer
+          format: int32
+    DayMarketGroupCost:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        cost:
+          type: number
+    DayMarketGroupDishes:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        dishes:
+          type: array
+          items:
+            type: string
+    DayMarketGroupShare:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        cost:
+          type: number
+        quantity:
+          type: number
+    DayMarketLine:
+      type: object
+      properties:
+        cost:
+          type: number
+        food:
+          $ref: "#/components/schemas/StockFoodRef"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupShare"
+        orderQuantity:
+          type: number
+        quantity:
+          type: number
+        storage:
+          type: string
+        unitPrice:
+          type: number
+    DayMarketResponse:
+      type: object
+      properties:
+        basis:
+          type: string
+        campusId:
+          type: integer
+          format: int64
+        confirmedAt:
+          type: string
+          format: date-time
+        date:
+          type: string
+          format: date
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroup"
+        lines:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketLine"
+        menu:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketSessionMenu"
+        status:
+          type: string
+        totals:
+          $ref: "#/components/schemas/DayMarketTotals"
+    DayMarketSessionMenu:
+      type: object
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupDishes"
+        session:
+          type: string
+          enum:
+          - MORNING
+          - LUNCH
+          - AFTERNOON
+    DayMarketTotals:
+      type: object
+      properties:
+        balance:
+          type: number
+        cost:
+          type: number
+        dryCost:
+          type: number
+        freshCost:
+          type: number
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/DayMarketGroupCost"
+        revenue:
+          type: number
+        servings:
+          type: integer
+          format: int32
     DayRow:
       type: object
       properties:
@@ -9828,16 +10408,9 @@ components:
         id:
           type: integer
           format: int64
-        teaches:
-          type: boolean
     DevelopmentResponse:
       type: object
       properties:
-        absentDays:
-          type: array
-          items:
-            type: string
-            format: date
         child:
           $ref: "#/components/schemas/ChildRef"
         cls:
@@ -9949,6 +10522,26 @@ components:
           minLength: 0
       required:
       - name
+    DishDetailInput:
+      type: object
+      properties:
+        container:
+          type: string
+          maxLength: 100
+          minLength: 0
+        dishId:
+          type: integer
+          format: int64
+        temperature:
+          type: string
+          maxLength: 50
+          minLength: 0
+        weight:
+          type: string
+          maxLength: 50
+          minLength: 0
+      required:
+      - dishId
     DishDetailResponse:
       type: object
       properties:
@@ -10054,18 +10647,6 @@ components:
       - dishType
       - ingredients
       - name
-    Domain:
-      type: object
-      properties:
-        domainId:
-          type: integer
-          format: int64
-        rows:
-          type: array
-          items:
-            $ref: "#/components/schemas/Row"
-      required:
-      - domainId
     Draft:
       type: object
       properties:
@@ -10130,6 +10711,23 @@ components:
           format: date
         sameCampus:
           type: boolean
+    EduConfigDomainResponse:
+      type: object
+      properties:
+        displayLabel:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        shortLabel:
+          type: string
+        sortOrder:
+          type: integer
+          format: int32
+        standard:
+          type: boolean
     EduConfigRequest:
       type: object
       properties:
@@ -10163,10 +10761,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgeGroupResponse"
+        canConfigure:
+          type: boolean
         domains:
           type: array
           items:
-            $ref: "#/components/schemas/Domain"
+            $ref: "#/components/schemas/EduConfigDomainResponse"
+        schoolYearCreationScopes:
+          type: array
+          items:
+            type: integer
+            format: int64
         schoolYears:
           type: array
           items:
@@ -10179,6 +10784,101 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WeekRow"
+        workflow:
+          $ref: "#/components/schemas/EduWorkflowPolicyResponse"
+        yearCreationScopes:
+          type: array
+          items:
+            type: integer
+            format: int64
+    EduDurationPolicyRequest:
+      type: object
+      properties:
+        branch:
+          $ref: "#/components/schemas/Limits"
+        revision:
+          type: integer
+          format: int64
+        theme:
+          $ref: "#/components/schemas/Limits"
+      required:
+      - branch
+      - revision
+      - theme
+    EduDurationPolicyResponse:
+      type: object
+      properties:
+        branch:
+          $ref: "#/components/schemas/Limits"
+        canConfigure:
+          type: boolean
+        revision:
+          type: integer
+          format: int64
+        theme:
+          $ref: "#/components/schemas/Limits"
+        updatedAt:
+          type: string
+          format: date-time
+    EduReviewStateResponse:
+      type: object
+      properties:
+        approvals:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalItem"
+        authorCoverage:
+          type: string
+        authorTrackingSince:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        completionMode:
+          type: string
+        completionPolicy: {}
+        policyRevision:
+          type: integer
+          format: int64
+        printSnapshot: {}
+        roles:
+          type: array
+          items:
+            type: string
+        round:
+          type: integer
+          format: int32
+        waitingRole:
+          type: string
+    EduWorkflowPolicyRequest:
+      type: object
+      properties:
+        policies:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PolicyEntry"
+        revision:
+          type: integer
+          format: int64
+      required:
+      - policies
+      - revision
+    EduWorkflowPolicyResponse:
+      type: object
+      properties:
+        canConfigure:
+          type: boolean
+        policies:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PolicyEntry"
+        revision:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
     EndStaffAssignmentRequest:
       type: object
       properties:
@@ -10447,6 +11147,20 @@ components:
           enum:
           - AWAITING_REVIEW
           - CONFIRMED
+    Event:
+      type: object
+      properties:
+        action:
+          type: string
+        actorName:
+          type: string
+        at:
+          type: string
+          format: date-time
+        imageKey:
+          type: string
+        note:
+          type: string
     EventRow:
       type: object
       properties:
@@ -10719,6 +11433,12 @@ components:
         date:
           type: string
           format: date
+        dishDetails:
+          type: array
+          items:
+            $ref: "#/components/schemas/DishDetailInput"
+          maxItems: 50
+          minItems: 0
         dishIds:
           type: array
           items:
@@ -10866,6 +11586,9 @@ components:
           type: string
           maxLength: 500
           minLength: 0
+        supplierId:
+          type: integer
+          format: int64
       required:
       - lines
     FreshCheckResponse:
@@ -10913,6 +11636,8 @@ components:
           enum:
           - FORECAST
           - CONFIRMED_SERVINGS
+        supplier:
+          $ref: "#/components/schemas/SupplierInfo"
         unavailableReason:
           type: string
     FreshForecastCount:
@@ -11060,39 +11785,6 @@ components:
         periodTo:
           type: string
           format: date
-    Goal:
-      type: object
-      properties:
-        change:
-          type: string
-          enum:
-          - UNCHANGED
-          - CHANGED
-          - REMOVED
-          - ADDED
-        fields:
-          type: array
-          items:
-            type: string
-        fromGoalNo:
-          type: integer
-          format: int32
-        fromId:
-          type: integer
-          format: int64
-        fromText:
-          type: string
-        goalNo:
-          type: integer
-          format: int32
-        id:
-          type: integer
-          format: int64
-        lineageId:
-          type: integer
-          format: int64
-        text:
-          type: string
     GoalColumn:
       type: object
       properties:
@@ -11138,6 +11830,24 @@ components:
         start:
           type: string
           format: date
+    GoalFileContentPreview:
+      type: object
+      properties:
+        text:
+          type: string
+        themes:
+          type: array
+          items:
+            type: string
+    GoalFileDomainPreview:
+      type: object
+      properties:
+        name:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFileRowPreview"
     GoalFileMetadata:
       type: object
       properties:
@@ -11161,7 +11871,7 @@ components:
         domains:
           type: array
           items:
-            $ref: "#/components/schemas/Domain"
+            $ref: "#/components/schemas/GoalFileDomainPreview"
         metadata:
           $ref: "#/components/schemas/GoalFileMetadata"
         themeAbbrs:
@@ -11176,6 +11886,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Warning"
+    GoalFileRowPreview:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalFileContentPreview"
+        kind:
+          type: string
+        text:
+          type: string
     GoalFileTheme:
       type: object
       properties:
@@ -12551,7 +13272,6 @@ components:
           - FORWARDED
           - RETURNED
           - APPROVED
-          - DIRECT_APPROVED
         at:
           type: string
           format: date-time
@@ -12611,6 +13331,91 @@ components:
       - ageGroupId
       - foodId
       - gramsPerChild
+    InspectionDayResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        canEdit:
+          type: boolean
+        date:
+          type: string
+          format: date
+        sheets:
+          type: array
+          items:
+            $ref: "#/components/schemas/InspectionSheetResponse"
+    InspectionReopenRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+    InspectionSaveRequest:
+      type: object
+      properties:
+        expectedVersion:
+          type: integer
+          format: int32
+        header:
+          type: object
+          additionalProperties: {}
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          maxItems: 400
+          minItems: 0
+      required:
+      - expectedVersion
+      - rows
+    InspectionSheetResponse:
+      type: object
+      properties:
+        header:
+          type: object
+          additionalProperties: {}
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        saved:
+          type: boolean
+        signature:
+          $ref: "#/components/schemas/Signature"
+        status:
+          type: string
+          enum:
+          - DRAFT
+          - SIGNED
+        tab:
+          type: string
+          enum:
+          - FRESH
+          - DRY
+          - PROCESS
+          - SERVE
+          - SAMPLE
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          format: int32
+    InspectionSignRequest:
+      type: object
+      properties:
+        signatureId:
+          type: integer
+          format: int64
     Issue:
       type: object
       properties:
@@ -12948,59 +13753,70 @@ components:
         environment:
           type: string
           enum:
-          - XUAT_SAC
           - TOT
           - KHA
-          - TRUNG_BINH
+          - DAT
+          - CHUA_DAT
         health:
           type: string
           enum:
-          - XUAT_SAC
           - TOT
           - KHA
-          - TRUNG_BINH
+          - DAT
+          - CHUA_DAT
         overall:
           type: string
           enum:
-          - XUAT_SAC
           - TOT
           - KHA
-          - TRUNG_BINH
+          - DAT
+          - CHUA_DAT
         parents:
           type: string
           enum:
-          - XUAT_SAC
           - TOT
           - KHA
-          - TRUNG_BINH
+          - DAT
+          - CHUA_DAT
         program:
           type: string
           enum:
-          - XUAT_SAC
           - TOT
           - KHA
-          - TRUNG_BINH
+          - DAT
+          - CHUA_DAT
         records:
           type: string
           enum:
-          - XUAT_SAC
           - TOT
           - KHA
-          - TRUNG_BINH
+          - DAT
+          - CHUA_DAT
         routine:
           type: string
           enum:
-          - XUAT_SAC
           - TOT
           - KHA
-          - TRUNG_BINH
+          - DAT
+          - CHUA_DAT
         theme:
           type: string
           enum:
-          - XUAT_SAC
           - TOT
           - KHA
-          - TRUNG_BINH
+          - DAT
+          - CHUA_DAT
+    Limits:
+      type: object
+      properties:
+        maxWeeks:
+          type: integer
+          format: int32
+          exclusiveMinimum: 0
+        minWeeks:
+          type: integer
+          format: int32
+          exclusiveMinimum: 0
     Line:
       type: object
       properties:
@@ -13010,8 +13826,6 @@ components:
         ageGroupId:
           type: integer
           format: int64
-        attendanceChanged:
-          type: boolean
         classId:
           type: integer
           format: int64
@@ -13035,8 +13849,6 @@ components:
         substitute:
           type: integer
           format: int32
-        substituteAdjusted:
-          type: boolean
     LinkedChildResponse:
       type: object
       properties:
@@ -13571,20 +14383,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - YEAR_PLACEMENT_MANAGE
-            - ROOM_MANAGE
-            - ATTENDANCE_VIEW
-            - ATTENDANCE_RECORD
-            - DAILY_HEALTH_RECORD
-            - PICKUP_RECORD
-            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
-            - ASSESSMENT_VIEW
-            - ASSESSMENT_RECORD
-            - ASSESSMENT_CONFIRM
-            - ASSESSMENT_UNLOCK
-            - ASSESSMENT_CLASS_REVIEW
-            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -13620,20 +14419,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - YEAR_PLACEMENT_MANAGE
-            - ROOM_MANAGE
-            - ATTENDANCE_VIEW
-            - ATTENDANCE_RECORD
-            - DAILY_HEALTH_RECORD
-            - PICKUP_RECORD
-            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
-            - ASSESSMENT_VIEW
-            - ASSESSMENT_RECORD
-            - ASSESSMENT_CONFIRM
-            - ASSESSMENT_UNLOCK
-            - ASSESSMENT_CLASS_REVIEW
-            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -13644,6 +14430,14 @@ components:
           type: integer
           format: int64
         username:
+          type: string
+    NewItem:
+      type: object
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        itemKind:
           type: string
     NormRow:
       type: object
@@ -13698,6 +14492,8 @@ components:
         id:
           type: integer
           format: int64
+        link:
+          type: string
         readAt:
           type: string
           format: date-time
@@ -13708,7 +14504,12 @@ components:
           enum:
           - CHILD_PICKED_UP
           - MEAL_COUNT_RECONFIRM
-          - ATTENDANCE_DAY_UNLOCKED
+          - EDU_SUBMITTED
+          - EDU_STEP_APPROVED
+          - EDU_RELEASED
+          - EDU_RETURNED
+          - EDU_DEADLINE_EXTENDED
+          - EDU_DEADLINE_NEAR
     NutritionTotals:
       type: object
       properties:
@@ -13793,20 +14594,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
-          - YEAR_PLACEMENT_MANAGE
-          - ROOM_MANAGE
-          - ATTENDANCE_VIEW
-          - ATTENDANCE_RECORD
-          - DAILY_HEALTH_RECORD
-          - PICKUP_RECORD
-          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
-          - ASSESSMENT_VIEW
-          - ASSESSMENT_RECORD
-          - ASSESSMENT_CONFIRM
-          - ASSESSMENT_UNLOCK
-          - ASSESSMENT_CLASS_REVIEW
-          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -14062,20 +14850,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
-          - YEAR_PLACEMENT_MANAGE
-          - ROOM_MANAGE
-          - ATTENDANCE_VIEW
-          - ATTENDANCE_RECORD
-          - DAILY_HEALTH_RECORD
-          - PICKUP_RECORD
-          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
-          - ASSESSMENT_VIEW
-          - ASSESSMENT_RECORD
-          - ASSESSMENT_CONFIRM
-          - ASSESSMENT_UNLOCK
-          - ASSESSMENT_CLASS_REVIEW
-          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -14111,20 +14886,7 @@ components:
           - ACCOUNT_STATUS_MANAGE
           - STAFF_ASSIGNMENT_MANAGE
           - PARENT_ACCOUNT_MANAGE
-          - YEAR_PLACEMENT_MANAGE
-          - ROOM_MANAGE
-          - ATTENDANCE_VIEW
-          - ATTENDANCE_RECORD
-          - DAILY_HEALTH_RECORD
-          - PICKUP_RECORD
-          - ATTENDANCE_UNLOCK
           - MEAL_COUNT_CONFIRM
-          - ASSESSMENT_VIEW
-          - ASSESSMENT_RECORD
-          - ASSESSMENT_CONFIRM
-          - ASSESSMENT_UNLOCK
-          - ASSESSMENT_CLASS_REVIEW
-          - REWARD_REVIEW
           - NUTRITION_MANAGE
           - MENU_MANAGE
           - STOCK_MANAGE
@@ -14162,6 +14924,8 @@ components:
     Permissions:
       type: object
       properties:
+        canApprove:
+          type: boolean
         canCreateVersion:
           type: boolean
         canDelete:
@@ -14454,60 +15218,17 @@ components:
         userId:
           type: integer
           format: int64
-    PrepChild:
+    PolicyEntry:
       type: object
       properties:
-        dateOfBirth:
-          type: string
-          format: date
-        fullName:
-          type: string
-        gender:
-          type: string
-          enum:
-          - MALE
-          - FEMALE
-        id:
-          type: integer
-          format: int64
-    PrepClass:
-      type: object
-      properties:
-        ageGroupId:
-          type: integer
-          format: int64
-        campusId:
-          type: integer
-          format: int64
-        children:
+        creators:
           type: array
           items:
-            $ref: "#/components/schemas/PrepChild"
-        id:
-          type: integer
-          format: int64
-        name:
-          type: string
-        teaches:
-          type: boolean
-    PrepClassesResponse:
-      type: object
-      properties:
-        classes:
+            type: string
+        reviewers:
           type: array
           items:
-            $ref: "#/components/schemas/PrepClass"
-        prepDate:
-          type: string
-          format: date
-        schoolYearId:
-          type: integer
-          format: int64
-        schoolYearName:
-          type: string
-        startDate:
-          type: string
-          format: date
+            type: string
     Preview:
       type: object
       properties:
@@ -15164,6 +15885,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonClassCalendarPreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ClassCalendarPreviewResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonClassMealCountResponse:
       type: object
       properties:
@@ -15346,6 +16080,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonDayMarketResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/DayMarketResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonDayUnlockResponse:
       type: object
       properties:
@@ -15406,6 +16153,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EduConfigResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonEduDurationPolicyResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/EduDurationPolicyResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonEduWorkflowPolicyResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/EduWorkflowPolicyResponse"
         desc:
           type: string
         errorCode:
@@ -15653,6 +16426,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ImportResult"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonInspectionDayResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/InspectionDayResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonInspectionSheetResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/InspectionSheetResponse"
         desc:
           type: string
         errorCode:
@@ -16372,6 +17171,36 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListUserSignatureResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserSignatureResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListYearPlanSummaryResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonLoginData:
       type: object
       properties:
@@ -16700,19 +17529,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonPrepClassesResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/PrepClassesResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonPreview:
       type: object
       properties:
@@ -16851,19 +17667,6 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/SchoolYearDetailResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonSemesterAssessmentResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/SemesterAssessmentResponse"
         desc:
           type: string
         errorCode:
@@ -17025,6 +17828,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonUserSignatureResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/UserSignatureResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonVicePrincipalAssignmentResponse:
       type: object
       properties:
@@ -17115,6 +17931,38 @@ components:
         errorCode:
           type: integer
           format: int32
+    ReviewItem:
+      type: object
+      properties:
+        itemId:
+          type: integer
+          format: int64
+        itemKind:
+          type: string
+        reason:
+          type: string
+        resolved:
+          type: boolean
+        resolvedAt:
+          type: string
+          format: date-time
+        resolvedBy:
+          type: integer
+          format: int64
+        reviewItemId:
+          type: integer
+          format: int64
+        sourcePlanId:
+          type: integer
+          format: int64
+    ReviewResolutionRequest:
+      type: object
+      properties:
+        expectedSourcePlanId:
+          type: integer
+          format: int64
+      required:
+      - expectedSourcePlanId
     RewardChildRow:
       type: object
       properties:
@@ -17298,20 +18146,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - YEAR_PLACEMENT_MANAGE
-            - ROOM_MANAGE
-            - ATTENDANCE_VIEW
-            - ATTENDANCE_RECORD
-            - DAILY_HEALTH_RECORD
-            - PICKUP_RECORD
-            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
-            - ASSESSMENT_VIEW
-            - ASSESSMENT_RECORD
-            - ASSESSMENT_CONFIRM
-            - ASSESSMENT_UNLOCK
-            - ASSESSMENT_CLASS_REVIEW
-            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -17333,20 +18168,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - YEAR_PLACEMENT_MANAGE
-            - ROOM_MANAGE
-            - ATTENDANCE_VIEW
-            - ATTENDANCE_RECORD
-            - DAILY_HEALTH_RECORD
-            - PICKUP_RECORD
-            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
-            - ASSESSMENT_VIEW
-            - ASSESSMENT_RECORD
-            - ASSESSMENT_CONFIRM
-            - ASSESSMENT_UNLOCK
-            - ASSESSMENT_CLASS_REVIEW
-            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -17478,10 +18300,16 @@ components:
       properties:
         code:
           type: string
+        container:
+          type: string
         id:
           type: integer
           format: int64
         name:
+          type: string
+        temperature:
+          type: string
+        weight:
           type: string
     SaveAttendanceRequest:
       type: object
@@ -17635,11 +18463,6 @@ components:
           format: int64
         name:
           type: string
-        prepDate:
-          type: string
-          format: date
-        preparing:
-          type: boolean
         semester1End:
           type: string
           format: date
@@ -17674,9 +18497,6 @@ components:
           type: string
           minLength: 1
           pattern: "\\s*\\d{4}-\\d{4}\\s*"
-        prepDate:
-          type: string
-          format: date
         startDate:
           type: string
           format: date
@@ -17713,122 +18533,6 @@ components:
         semester2Start:
           type: string
           format: date
-    SemesterAssessmentChild:
-      type: object
-      properties:
-        childId:
-          type: integer
-          format: int64
-        domains:
-          type: array
-          items:
-            $ref: "#/components/schemas/SemesterAssessmentDomain"
-        fullName:
-          type: string
-    SemesterAssessmentDomain:
-      type: object
-      properties:
-        domainId:
-          type: integer
-          format: int64
-        goals:
-          type: array
-          items:
-            $ref: "#/components/schemas/SemesterAssessmentGoal"
-        met:
-          type: boolean
-        metCount:
-          type: integer
-          format: int32
-        missingCount:
-          type: integer
-          format: int32
-        name:
-          type: string
-        notMetCount:
-          type: integer
-          format: int32
-    SemesterAssessmentGoal:
-      type: object
-      properties:
-        assessedActivities:
-          type: integer
-          format: int32
-        goalId:
-          type: integer
-          format: int64
-        goalNo:
-          type: integer
-          format: int32
-        met:
-          type: boolean
-        metActivities:
-          type: integer
-          format: int32
-        text:
-          type: string
-    SemesterAssessmentRequest:
-      type: object
-      properties:
-        classId:
-          type: integer
-          format: int64
-        note:
-          type: string
-          maxLength: 1000
-          minLength: 0
-        semester:
-          type: integer
-          format: int32
-          maximum: 2
-          minimum: 1
-      required:
-      - classId
-    SemesterAssessmentResponse:
-      type: object
-      properties:
-        canConfirm:
-          type: boolean
-        canEdit:
-          type: boolean
-        classId:
-          type: integer
-          format: int64
-        className:
-          type: string
-        confirmedAt:
-          type: string
-          format: date-time
-        confirmedByName:
-          type: string
-        domains:
-          type: array
-          items:
-            $ref: "#/components/schemas/SemesterAssessmentDomain"
-        endDate:
-          type: string
-          format: date
-        note:
-          type: string
-        rows:
-          type: array
-          items:
-            $ref: "#/components/schemas/SemesterAssessmentChild"
-        schoolYearId:
-          type: integer
-          format: int64
-        semester:
-          type: integer
-          format: int32
-        signers:
-          $ref: "#/components/schemas/ThemeSigners"
-        startDate:
-          type: string
-          format: date
-        status:
-          type: string
-        yearName:
-          type: string
     SemesterLockResponse:
       type: object
       properties:
@@ -17914,8 +18618,6 @@ components:
     SheetDomain:
       type: object
       properties:
-        comment:
-          type: string
         domainId:
           type: integer
           format: int64
@@ -17974,6 +18676,22 @@ components:
         forSchool:
           type: string
         forTeacher:
+          type: string
+    Signature:
+      type: object
+      properties:
+        documentVersion:
+          type: integer
+          format: int32
+        imageKey:
+          type: string
+        signedAt:
+          type: string
+          format: date-time
+        signedBy:
+          type: integer
+          format: int64
+        signedByName:
           type: string
     SignerNames:
       type: object
@@ -18064,9 +18782,6 @@ components:
           type: integer
           format: int64
         id:
-          type: integer
-          format: int64
-        replacedTeacherId:
           type: integer
           format: int64
         staffRole:
@@ -18383,6 +19098,20 @@ components:
           format: int32
         structured:
           $ref: "#/components/schemas/StructuredSummary"
+    SupplierInfo:
+      type: object
+      properties:
+        address:
+          type: string
+        deliveryPerson:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        phone:
+          type: string
     SupplierRequest:
       type: object
       properties:
@@ -18545,36 +19274,6 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Leader"
-    Theme:
-      type: object
-      properties:
-        abbr:
-          type: string
-          maxLength: 20
-          minLength: 0
-        endDate:
-          type: string
-          format: date
-        festivals:
-          type: string
-        id:
-          type: integer
-          format: int64
-        key:
-          type: string
-          maxLength: 60
-          minLength: 0
-        name:
-          type: string
-          maxLength: 150
-          minLength: 0
-        note:
-          type: string
-        startDate:
-          type: string
-          format: date
-      required:
-      - key
     ThemeEvaluationRequest:
       type: object
       properties:
@@ -18670,6 +19369,18 @@ components:
           format: date
         status:
           type: string
+        themeId:
+          type: integer
+          format: int64
+    ThemeSchedule:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        startDate:
+          type: string
+          format: date
         themeId:
           type: integer
           format: int64
@@ -18889,6 +19600,21 @@ components:
         weekly:
           type: integer
           format: int32
+    TimeLock:
+      type: object
+      properties:
+        canUnlock:
+          type: boolean
+        deadline:
+          type: string
+          format: date
+        deadlineState:
+          type: string
+        extendedTo:
+          type: string
+          format: date
+        timeLocked:
+          type: boolean
     Totals:
       type: object
       properties:
@@ -18969,20 +19695,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - YEAR_PLACEMENT_MANAGE
-            - ROOM_MANAGE
-            - ATTENDANCE_VIEW
-            - ATTENDANCE_RECORD
-            - DAILY_HEALTH_RECORD
-            - PICKUP_RECORD
-            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
-            - ASSESSMENT_VIEW
-            - ASSESSMENT_RECORD
-            - ASSESSMENT_CONFIRM
-            - ASSESSMENT_UNLOCK
-            - ASSESSMENT_CLASS_REVIEW
-            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -19012,20 +19725,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - YEAR_PLACEMENT_MANAGE
-            - ROOM_MANAGE
-            - ATTENDANCE_VIEW
-            - ATTENDANCE_RECORD
-            - DAILY_HEALTH_RECORD
-            - PICKUP_RECORD
-            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
-            - ASSESSMENT_VIEW
-            - ASSESSMENT_RECORD
-            - ASSESSMENT_CONFIRM
-            - ASSESSMENT_UNLOCK
-            - ASSESSMENT_CLASS_REVIEW
-            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -19045,20 +19745,7 @@ components:
             - ACCOUNT_STATUS_MANAGE
             - STAFF_ASSIGNMENT_MANAGE
             - PARENT_ACCOUNT_MANAGE
-            - YEAR_PLACEMENT_MANAGE
-            - ROOM_MANAGE
-            - ATTENDANCE_VIEW
-            - ATTENDANCE_RECORD
-            - DAILY_HEALTH_RECORD
-            - PICKUP_RECORD
-            - ATTENDANCE_UNLOCK
             - MEAL_COUNT_CONFIRM
-            - ASSESSMENT_VIEW
-            - ASSESSMENT_RECORD
-            - ASSESSMENT_CONFIRM
-            - ASSESSMENT_UNLOCK
-            - ASSESSMENT_CLASS_REVIEW
-            - REWARD_REVIEW
             - NUTRITION_MANAGE
             - MENU_MANAGE
             - STOCK_MANAGE
@@ -19084,6 +19771,22 @@ components:
         userId:
           type: integer
           format: int64
+    UserSignatureResponse:
+      type: object
+      properties:
+        contentType:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        id:
+          type: integer
+          format: int64
+        isDefault:
+          type: boolean
+        sizeBytes:
+          type: integer
+          format: int32
     VerifyOtp:
       type: object
       properties:
@@ -19116,9 +19819,7 @@ components:
           type: string
           enum:
           - DRAFT
-          - EDITING
-          - PENDING_VP
-          - REJECTED
+          - REVIEW
           - APPROVED
         versionNo:
           type: integer
@@ -19301,10 +20002,6 @@ components:
     YearEndSheetRequest:
       type: object
       properties:
-        domainComments:
-          type: object
-          additionalProperties:
-            type: string
         forChild:
           type: string
         forParent:
@@ -19349,8 +20046,6 @@ components:
           format: int32
         notes:
           $ref: "#/components/schemas/SheetNotes"
-        principal:
-          type: string
         status:
           type: string
           enum:
@@ -19360,13 +20055,89 @@ components:
           type: array
           items:
             type: string
+    YearPlanBranchTemplateRequest:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+        startDate:
+          type: string
+          format: date
+        themeKey:
+          type: string
+          minLength: 1
+      required:
+      - themeKey
+    YearPlanBranchTemplateResponse:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        sourceTemplateId:
+          type: integer
+          format: int64
+        startDate:
+          type: string
+          format: date
+        themeId:
+          type: integer
+          format: int64
+    YearPlanBreakRequest:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+          maxLength: 150
+          minLength: 0
+        startDate:
+          type: string
+          format: date
+    YearPlanBreakResponse:
+      type: object
+      properties:
+        endDate:
+          type: string
+          format: date
+        id:
+          type: integer
+          format: int64
+        label:
+          type: string
+        startDate:
+          type: string
+          format: date
     YearPlanChangesResponse:
       type: object
       properties:
         contents:
           type: array
           items:
-            $ref: "#/components/schemas/Content"
+            $ref: "#/components/schemas/YearPlanContentChange"
         fromPlanId:
           type: integer
           format: int64
@@ -19376,17 +20147,45 @@ components:
         goals:
           type: array
           items:
-            $ref: "#/components/schemas/Goal"
+            $ref: "#/components/schemas/YearPlanGoalChange"
         planId:
           type: integer
           format: int64
         themes:
           type: array
           items:
-            $ref: "#/components/schemas/Theme"
+            $ref: "#/components/schemas/YearPlanThemeChange"
         versionNo:
           type: integer
           format: int32
+    YearPlanContentChange:
+      type: object
+      properties:
+        change:
+          type: string
+          enum:
+          - UNCHANGED
+          - CHANGED
+          - REMOVED
+          - ADDED
+        fields:
+          type: array
+          items:
+            type: string
+        fromId:
+          type: integer
+          format: int64
+        goalLineageId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        text:
+          type: string
     YearPlanDetailResponse:
       type: object
       properties:
@@ -19395,23 +20194,41 @@ components:
           format: int64
         ageGroupName:
           type: string
+        branchTemplates:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanBranchTemplateResponse"
         breaks:
           type: array
           items:
-            $ref: "#/components/schemas/Break"
+            $ref: "#/components/schemas/YearPlanBreakResponse"
+        canAssignContents:
+          type: boolean
+        canEditBranchTemplates:
+          type: boolean
+        canEditCurriculum:
+          type: boolean
         code:
           type: string
+        contentRevision:
+          type: integer
+          format: int64
         createdAt:
           type: string
           format: date-time
         current:
           type: boolean
+        curriculumSourcePlanId:
+          type: integer
+          format: int64
         description:
           type: string
         domains:
           type: array
           items:
-            $ref: "#/components/schemas/Domain"
+            $ref: "#/components/schemas/YearPlanDomainResponse"
+        durationPolicySnapshot:
+          type: string
         editExpiresAt:
           type: string
           format: date-time
@@ -19428,10 +20245,39 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         lastReturnNote:
           type: string
+        newItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/NewItem"
         owner:
           $ref: "#/components/schemas/PlanActorResponse"
         permissions:
           $ref: "#/components/schemas/Permissions"
+        planLevel:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+        planType:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+        planTypeLabel:
+          type: string
+        previousSourcePlanId:
+          type: integer
+          format: int64
+        remapWarnings:
+          type: array
+          items:
+            type: string
+        review:
+          $ref: "#/components/schemas/EduReviewStateResponse"
+        reviewItems:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReviewItem"
         revision:
           type: integer
           format: int64
@@ -19440,8 +20286,13 @@ components:
           format: int64
         schoolYearName:
           type: string
+        sentAt:
+          type: string
+          format: date-time
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
+        sourceMode:
+          type: string
         sourcePlanId:
           type: integer
           format: int64
@@ -19449,14 +20300,14 @@ components:
           type: string
           enum:
           - DRAFT
-          - EDITING
-          - PENDING_VP
-          - REJECTED
+          - REVIEW
           - APPROVED
         themes:
           type: array
           items:
-            $ref: "#/components/schemas/Theme"
+            $ref: "#/components/schemas/YearPlanThemeResponse"
+        timeLock:
+          $ref: "#/components/schemas/TimeLock"
         title:
           type: string
         updatedAt:
@@ -19469,16 +20320,172 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/VersionSummary"
+    YearPlanDomainRequest:
+      type: object
+      properties:
+        domainId:
+          type: integer
+          format: int64
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanGoalRowRequest"
+      required:
+      - domainId
+    YearPlanDomainResponse:
+      type: object
+      properties:
+        domainId:
+          type: integer
+          format: int64
+        label:
+          type: string
+        name:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanGoalRowResponse"
+    YearPlanGoalChange:
+      type: object
+      properties:
+        change:
+          type: string
+          enum:
+          - UNCHANGED
+          - CHANGED
+          - REMOVED
+          - ADDED
+        fields:
+          type: array
+          items:
+            type: string
+        fromGoalNo:
+          type: integer
+          format: int32
+        fromId:
+          type: integer
+          format: int64
+        fromText:
+          type: string
+        goalNo:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        text:
+          type: string
+    YearPlanGoalContentRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        text:
+          type: string
+        themeKeys:
+          type: array
+          items:
+            type: string
+    YearPlanGoalContentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        text:
+          type: string
+        themeIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+    YearPlanGoalRowRequest:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanGoalContentRequest"
+        curriculumExpectedResultId:
+          type: integer
+          format: int64
+        curriculumGoalId:
+          type: integer
+          format: int64
+        curriculumSubDomainId:
+          type: integer
+          format: int64
+        displayLabel:
+          type: string
+          maxLength: 100
+          minLength: 0
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          minLength: 1
+          pattern: sub|group|goal
+        text:
+          type: string
+      required:
+      - kind
+    YearPlanGoalRowResponse:
+      type: object
+      properties:
+        contents:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanGoalContentResponse"
+        curriculumExpectedResultId:
+          type: integer
+          format: int64
+        curriculumGoalId:
+          type: integer
+          format: int64
+        curriculumGoalText:
+          type: string
+        curriculumSectionRef:
+          type: string
+        curriculumSubDomainId:
+          type: integer
+          format: int64
+        curriculumText:
+          type: string
+        displayLabel:
+          type: string
+        goalNo:
+          type: integer
+          format: int32
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        text:
+          type: string
     YearPlanRequest:
       type: object
       properties:
         ageGroupId:
           type: integer
           format: int64
+        branchTemplates:
+          type: array
+          items:
+            $ref: "#/components/schemas/YearPlanBranchTemplateRequest"
         breaks:
           type: array
           items:
-            $ref: "#/components/schemas/Break"
+            $ref: "#/components/schemas/YearPlanBreakRequest"
+        curriculumSourcePlanId:
+          type: integer
+          format: int64
         description:
           type: string
           maxLength: 500
@@ -19486,14 +20493,24 @@ components:
         domains:
           type: array
           items:
-            $ref: "#/components/schemas/Domain"
+            $ref: "#/components/schemas/YearPlanDomainRequest"
+        planLevel:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+        planType:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
         schoolYearId:
           type: integer
           format: int64
         themes:
           type: array
           items:
-            $ref: "#/components/schemas/Theme"
+            $ref: "#/components/schemas/YearPlanThemeRequest"
         title:
           type: string
           maxLength: 150
@@ -19515,6 +20532,11 @@ components:
           format: date-time
         current:
           type: boolean
+        curriculumSourcePlanId:
+          type: integer
+          format: int64
+        durationPolicySnapshot:
+          type: string
         editExpiresAt:
           type: string
           format: date-time
@@ -19530,6 +20552,22 @@ components:
           $ref: "#/components/schemas/PlanActorResponse"
         owner:
           $ref: "#/components/schemas/PlanActorResponse"
+        permissions:
+          $ref: "#/components/schemas/Permissions"
+        planLevel:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+        planType:
+          type: string
+          enum:
+          - SCHOOL_YEAR
+          - TEAM
+        planTypeLabel:
+          type: string
+        review:
+          $ref: "#/components/schemas/EduReviewStateResponse"
         revision:
           type: integer
           format: int64
@@ -19538,8 +20576,13 @@ components:
           format: int64
         schoolYearName:
           type: string
+        sentAt:
+          type: string
+          format: date-time
         sentBy:
           $ref: "#/components/schemas/PlanActorResponse"
+        sourceMode:
+          type: string
         sourcePlanId:
           type: integer
           format: int64
@@ -19547,13 +20590,13 @@ components:
           type: string
           enum:
           - DRAFT
-          - EDITING
-          - PENDING_VP
-          - REJECTED
+          - REVIEW
           - APPROVED
         themeCount:
           type: integer
           format: int64
+        timeLock:
+          $ref: "#/components/schemas/TimeLock"
         title:
           type: string
         updatedAt:
@@ -19562,6 +20605,97 @@ components:
         versionNo:
           type: integer
           format: int32
+    YearPlanThemeChange:
+      type: object
+      properties:
+        change:
+          type: string
+          enum:
+          - UNCHANGED
+          - CHANGED
+          - REMOVED
+          - ADDED
+        fields:
+          type: array
+          items:
+            type: string
+        fromId:
+          type: integer
+          format: int64
+        fromName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        lineageId:
+          type: integer
+          format: int64
+        name:
+          type: string
+    YearPlanThemeRequest:
+      type: object
+      properties:
+        abbr:
+          type: string
+          maxLength: 20
+          minLength: 0
+        endDate:
+          type: string
+          format: date
+        festivals:
+          type: string
+        id:
+          type: integer
+          format: int64
+        key:
+          type: string
+          maxLength: 60
+          minLength: 0
+        name:
+          type: string
+          maxLength: 150
+          minLength: 0
+        note:
+          type: string
+        startDate:
+          type: string
+          format: date
+      required:
+      - key
+    YearPlanThemeResponse:
+      type: object
+      properties:
+        abbr:
+          type: string
+        endDate:
+          type: string
+          format: date
+        festivals:
+          type: string
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        note:
+          type: string
+        startDate:
+          type: string
+          format: date
+    YearPlanUnlockRequest:
+      type: object
+      properties:
+        deadline:
+          type: string
+          format: date
+        note:
+          type: string
+    YearPlanVersionRequest:
+      type: object
+      properties:
+        curriculumSourcePlanId:
+          type: integer
+          format: int64
     YearReadinessResponse:
       type: object
       properties:

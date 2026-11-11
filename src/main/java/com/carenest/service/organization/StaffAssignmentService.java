@@ -17,6 +17,8 @@ import java.util.Set;
  */
 public interface StaffAssignmentService {
 
+    Map<Long, List<StaffAssignmentSummaryResponse>> findActiveEducationReviewerAssignments(LocalDate date);
+
     boolean hasActivePrincipalAssignment(Long userId, LocalDate date);
 
     /** Phân công tổ trưởng nhóm tuổi còn hiệu lực (AUTH-23). */

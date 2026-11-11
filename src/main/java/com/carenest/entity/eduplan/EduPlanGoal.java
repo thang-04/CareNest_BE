@@ -20,6 +20,13 @@ public class EduPlanGoal extends EduGoalRow {
     @Column(name = "goal_no", nullable = false)
     private Short goalNo;
 
+    @Column(name = "display_label", length = 100)
+    private String displayLabel;
+
+    public void label(String displayLabel) {
+        this.displayLabel = displayLabel == null || displayLabel.isBlank() ? null : displayLabel.strip();
+    }
+
     @Column(name = "curriculum_goal_id")
     private Long curriculumGoalId;
 
