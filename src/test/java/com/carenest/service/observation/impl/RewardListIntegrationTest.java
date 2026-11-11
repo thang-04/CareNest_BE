@@ -16,8 +16,10 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RewardAction;
 import com.carenest.utils.enums.RewardStatus;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
@@ -65,6 +67,9 @@ class RewardListIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private EntityManager entityManager;
+
     private CurrentUser principal;
     private CurrentUser vpA;
     private CurrentUser vpB;
@@ -79,8 +84,10 @@ class RewardListIntegrationTest {
         long campusA = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-RA', 'A', TRUE) RETURNING id");
         long campusB = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-RB', 'B', FALSE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
-                + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        // HK II kết thúc 15/05 (trước hôm nay 20/05): danh sách khen thưởng đã mở (OBS-14)
+        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status, semester1_start,"
+                + " semester1_end, semester2_start, semester2_end) VALUES ('2026-2027', '2026-09-01', '2027-05-31',"
+                + " 'ACTIVE', '2026-09-01', '2027-01-15', '2027-01-18', '2027-05-15') RETURNING id");
         classA = classroom(campusA, year, "Lớp RA", ag3);
         long classB = classroom(campusB, year, "Lớp RB", ag3);
         principal = user("principal-r", CareNestRole.PRINCIPAL);
@@ -190,6 +197,27 @@ class RewardListIntegrationTest {
                 .contains(java.time.LocalDate.of(2026, 11, 19));
         // Hôm nay là ngày học nhưng chưa tới lúc nhắc (chỉ nhắc ngày đã qua)
         assertThat(an.schoolDays()).isEqualTo(detail.unrecordedDays().size() + 1);
+    }
+
+    @Test
+    void listOpensFromSemesterTwoEnd() {
+        // OBS-14 (Cần chốt 10/11/2026): trước ngày kết thúc HK II chỉ xem, không lưu / gửi được
+        jdbc.update(
+                "UPDATE school_years SET semester2_end='2027-05-25'"
+                        + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        RewardClassDetail before = service.detail(teacherA, classA);
+        assertThat(before.canEdit()).isFalse();
+        assertThat(before.openFrom()).isEqualTo(LocalDate.parse("2027-05-25"));
+        expectCode(() -> service.save(teacherA, classA, list(item(kid1, GOOD)), false), ApiCode.REWARD_NOT_OPEN);
+
+        // Chưa đặt HK II: mở từ ngày kết thúc năm học
+        jdbc.update(
+                "UPDATE school_years SET semester2_start=NULL, semester2_end=NULL"
+                        + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        entityManager.clear();
+        assertThat(service.detail(teacherA, classA).openFrom()).isEqualTo(LocalDate.parse("2027-05-31"));
     }
 
     @Test

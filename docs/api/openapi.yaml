@@ -18296,6 +18296,9 @@ components:
         listId:
           type: integer
           format: int64
+        openFrom:
+          type: string
+          format: date
         principalDecision:
           $ref: "#/components/schemas/Step"
         programClass:

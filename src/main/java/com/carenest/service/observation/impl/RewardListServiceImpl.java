@@ -191,6 +191,10 @@ public class RewardListServiceImpl implements RewardListService {
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
             }
+            // OBS-14 (Cần chốt 10/11/2026): lập / gửi danh sách từ ngày kết thúc HK II
+            if (rules.today().isBefore(rules.yearEndOpensOn(currentUser, cls))) {
+                throw GlobalException.of(ApiCode.REWARD_NOT_OPEN);
+            }
             // Khóa lớp trước khi đọc: 2 lần lưu cùng lúc không tạo trùng danh sách của lớp
             rules.lockClassForUpdate(cls.id());
             RewardList existing = listRepository.findByClassroomId(classId).orElse(null);
@@ -340,6 +344,7 @@ public class RewardListServiceImpl implements RewardListService {
         return user.hasPermission(Permission.ASSESSMENT_RECORD)
                 && rules.canRecord(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                && !rules.today().isBefore(rules.yearEndOpensOn(user, cls))
                 && (list == null || list.isEditable());
     }
 
@@ -628,6 +633,7 @@ public class RewardListServiceImpl implements RewardListService {
                 canEdit(user, cls, list),
                 canReview(user, list),
                 canDecide(user, list),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE ? rules.yearEndOpensOn(user, cls) : null,
                 schoolDays.stream()
                         .filter(day -> day.isBefore(today)
                                 && !recorded.contains(day)

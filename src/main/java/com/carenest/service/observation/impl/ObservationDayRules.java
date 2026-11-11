@@ -53,6 +53,14 @@ class ObservationDayRules {
         return LocalDate.now(clock);
     }
 
+    // OBS-06 / OBS-14 (Cần chốt 10/11/2026): việc cuối năm mở từ ngày kết thúc HK II; chưa đặt HK II thì ngày kết
+    // thúc năm học
+    LocalDate yearEndOpensOn(CurrentUser user, ClassroomInfoResponse cls) {
+        var year = schoolYearService.getSchoolYear(user, cls.schoolYearId());
+        LocalDate semester2End = year == null ? null : year.semester2End();
+        return semester2End == null || semester2End.isAfter(cls.yearEnd()) ? cls.yearEnd() : semester2End;
+    }
+
     Instant now() {
         return clock.instant();
     }
