@@ -6,7 +6,8 @@ import static org.mockito.Mockito.*;
 
 import com.carenest.dto.eduplan.LearningResourceBinding;
 import com.carenest.entity.eduplan.EduClassDoc;
-import com.carenest.integration.storage.StorageService;
+import com.carenest.utils.enums.FileCategory;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.eduplan.EduLearningResourceRepository;
 import com.carenest.repository.eduplan.EduPlanGoalRepository;
 import com.carenest.security.CurrentUser;
@@ -31,7 +32,7 @@ class LearningResourceServiceImplTest {
         var docs = mock(EduClassDocService.class);
         var resources = mock(EduLearningResourceRepository.class);
         var goals = mock(EduPlanGoalRepository.class);
-        var storage = mock(StorageService.class);
+        var storage = mock(FileStorage.class);
         var transactions = mock(org.springframework.transaction.PlatformTransactionManager.class);
         when(transactions.getTransaction(any()))
                 .thenReturn(mock(org.springframework.transaction.TransactionStatus.class));
@@ -52,7 +53,13 @@ class LearningResourceServiceImplTest {
         doc.changeContent("{\"rows\":{\"9\":{\"activities\":\"A\"}}}", 7L);
         when(docs.requireThemeAccess(user, "tp_1_2", true)).thenReturn(doc);
         when(goals.belongsToTheme(9L, 3L, 2L)).thenReturn(true);
-        when(storage.store(any(), anyLong())).thenReturn("new-object");
+        when(storage.store(
+                        org.mockito.ArgumentMatchers.eq(FileCategory.LEARNING_RESOURCE),
+                        org.mockito.ArgumentMatchers.eq(8L),
+                        org.mockito.ArgumentMatchers.eq("demo.pdf"),
+                        any(),
+                        anyLong()))
+                .thenReturn(new FileStorage.StoredFile("hoclieu/new-object", "application/pdf", 8));
         when(resources.saveAndFlush(any())).thenThrow(new DataIntegrityViolationException("test failure"));
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -65,7 +72,7 @@ class LearningResourceServiceImplTest {
                     .isInstanceOf(DataIntegrityViolationException.class);
             TransactionSynchronizationManager.getSynchronizations()
                     .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-            verify(storage).remove("new-object");
+            verify(storage).remove(FileCategory.LEARNING_RESOURCE, "hoclieu/new-object");
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }

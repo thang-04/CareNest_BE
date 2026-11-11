@@ -155,6 +155,18 @@ paths:
           description: OK
       tags:
       - account-photo-controller
+  /api/accounts/me/photo/url:
+    get:
+      operationId: getMyPhotoUrl
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - account-photo-controller
   /api/accounts/{userId}:
     get:
       operationId: getAccountDetail
@@ -2317,6 +2329,31 @@ paths:
           description: OK
       tags:
       - child-photo-controller
+  /api/children/{childId}/guardian-photos/{guardianId}/url:
+    get:
+      operationId: getGuardianPhotoUrl_1
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: guardianId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - child-photo-controller
   /api/children/{childId}/guardians:
     get:
       operationId: listGuardians
@@ -2508,6 +2545,31 @@ paths:
               schema:
                 type: string
                 format: byte
+          description: OK
+      tags:
+      - account-photo-controller
+  /api/children/{childId}/guardians/{userId}/photo/url:
+    get:
+      operationId: getGuardianPhotoUrl
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
           description: OK
       tags:
       - account-photo-controller
@@ -2714,6 +2776,25 @@ paths:
               schema:
                 type: string
                 format: byte
+          description: OK
+      tags:
+      - child-photo-controller
+  /api/children/{childId}/photo/url:
+    get:
+      operationId: getChildPhotoUrl
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
           description: OK
       tags:
       - child-photo-controller
@@ -3354,6 +3435,60 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/confirm:
+    post:
+      operationId: confirmUpload
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningResourceConfirmRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/upload-url:
+    post:
+      operationId: uploadUrl
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LearningResourceUploadUrlRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPresignedUploadResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
   /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}:
     delete:
       operationId: detach
@@ -3430,6 +3565,30 @@ paths:
               schema:
                 type: string
                 format: binary
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/url:
+    get:
+      operationId: contentUrl
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
           description: OK
       tags:
       - learning-resource-controller
@@ -4763,6 +4922,30 @@ paths:
           description: OK
       tags:
       - inspection-controller
+  /api/inspections/signatures/{imageKey}/url:
+    get:
+      operationId: getSignatureImageUrl
+      parameters:
+      - in: path
+        name: imageKey
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: campusId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - inspection-controller
   /api/leave-requests:
     get:
       operationId: searchLeaveRequests
@@ -6055,6 +6238,25 @@ paths:
               schema:
                 type: string
                 format: binary
+          description: OK
+      tags:
+      - kitchen-records-controller
+  /api/nutrition/meal-photos/{photoId}/url:
+    get:
+      operationId: getPhotoUrl
+      parameters:
+      - in: path
+        name: photoId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
           description: OK
       tags:
       - kitchen-records-controller
@@ -7588,6 +7790,25 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonUserSignatureResponse"
+          description: OK
+      tags:
+      - user-signature-controller
+  /api/signatures/me/{signatureId}/url:
+    get:
+      operationId: getSignatureUrl
+      parameters:
+      - in: path
+        name: signatureId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
           description: OK
       tags:
       - user-signature-controller
@@ -11933,6 +12154,14 @@ components:
           format: int64
         userName:
           type: string
+    FileUrlResponse:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        url:
+          type: string
     FoodImportRequest:
       type: object
       properties:
@@ -14599,6 +14828,35 @@ components:
       - activityKey
       - activityLabel
       - activitySignature
+    LearningResourceConfirmRequest:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          maxLength: 180
+          minLength: 0
+        activityLabel:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        activitySignature:
+          type: string
+          minLength: 1
+          pattern: "[a-f0-9]{64}"
+        fileName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        uploadId:
+          type: string
+          maxLength: 120
+          minLength: 0
+      required:
+      - activityKey
+      - activityLabel
+      - activitySignature
+      - fileName
+      - uploadId
     LearningResourceResponse:
       type: object
       properties:
@@ -14628,6 +14886,24 @@ components:
         uploadedBy:
           type: integer
           format: int64
+    LearningResourceUploadUrlRequest:
+      type: object
+      properties:
+        contentType:
+          type: string
+          maxLength: 120
+          minLength: 0
+        fileName:
+          type: string
+          maxLength: 255
+          minLength: 0
+        size:
+          type: integer
+          format: int64
+          exclusiveMinimum: 0
+      required:
+      - contentType
+      - fileName
     LeaveRequestResponse:
       type: object
       properties:
@@ -16350,6 +16626,22 @@ components:
         startDate:
           type: string
           format: date
+    PresignedUploadResponse:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        method:
+          type: string
+        uploadId:
+          type: string
+        url:
+          type: string
     Preview:
       type: object
       properties:
@@ -17423,6 +17715,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/EvaluationRow"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonFileUrlResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/FileUrlResponse"
         desc:
           type: string
         errorCode:
@@ -18837,6 +19142,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/PrepClassesResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPresignedUploadResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PresignedUploadResponse"
         desc:
           type: string
         errorCode:

@@ -1,7 +1,11 @@
 package com.carenest.controller.eduplan;
 
+import com.carenest.dto.common.FileUrlResponse;
+import com.carenest.dto.common.PresignedUploadResponse;
 import com.carenest.dto.eduplan.LearningResourceBinding;
+import com.carenest.dto.eduplan.LearningResourceConfirmRequest;
 import com.carenest.dto.eduplan.LearningResourceResponse;
+import com.carenest.dto.eduplan.LearningResourceUploadUrlRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.LearningResourceService;
 import com.carenest.utils.ApiCode;
@@ -57,6 +61,41 @@ public class LearningResourceController {
                 requestId);
         log.info("{}|END", p);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Upload learning resource success", result);
+    }
+
+    /** Bước 1 tải trực tiếp (tệp lớn): xin liên kết PUT lên kho; client PUT xong thì gọi {@code /confirm}. */
+    @PostMapping("/upload-url")
+    public ResponseEntity<ResponseJson<PresignedUploadResponse>> uploadUrl(
+            @PathVariable String docKey, @Valid @RequestBody LearningResourceUploadUrlRequest request, CurrentUser user) {
+        String p = LOG_PREFIX + "|uploadUrl|userId=" + user.userId();
+        log.info("{}|START", p);
+        var result = service.uploadUrl(user, docKey, request);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Create learning resource upload url success", result);
+    }
+
+    /** Bước 2 tải trực tiếp: kiểm lại tệp đã tải và gắn vào hoạt động. */
+    @PostMapping("/confirm")
+    public ResponseEntity<ResponseJson<LearningResourceResponse>> confirmUpload(
+            @PathVariable String docKey,
+            @Valid @RequestBody LearningResourceConfirmRequest request,
+            @RequestHeader("Idempotency-Key") UUID requestId,
+            CurrentUser user) {
+        String p = LOG_PREFIX + "|confirmUpload|userId=" + user.userId();
+        log.info("{}|START", p);
+        var result = service.confirmUpload(user, docKey, request, requestId);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Confirm learning resource upload success", result);
+    }
+
+    @GetMapping("/{id}/url")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> contentUrl(
+            @PathVariable String docKey, @PathVariable Long id, CurrentUser user) {
+        String p = LOG_PREFIX + "|contentUrl|userId=" + user.userId() + "|id=" + id;
+        log.info("{}|START", p);
+        var result = service.contentUrl(user, docKey, id);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get learning resource url success", result);
     }
 
     @PatchMapping("/{id}/activity")

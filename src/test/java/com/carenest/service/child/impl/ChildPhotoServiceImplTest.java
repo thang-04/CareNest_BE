@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -14,7 +16,8 @@ import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildGuardian;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.ChildPhotoStorage;
+import com.carenest.utils.enums.FileCategory;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.child.ChildGuardianRepository;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.security.CurrentUser;
@@ -58,7 +61,7 @@ class ChildPhotoServiceImplTest {
     private ChildGuardianRepository guardians;
 
     @Mock
-    private ChildPhotoStorage storage;
+    private FileStorage storage;
 
     @Mock
     private ChildIntakeService intake;
@@ -83,6 +86,9 @@ class ChildPhotoServiceImplTest {
     void setup() {
         service = new ChildPhotoServiceImpl(
                 children, guardians, storage, intake, access, campus, staff, Clock.fixed(NOW, ZoneOffset.UTC));
+        // Giới hạn ảnh trẻ lấy từ cấu hình kho (mặc định 2 MB)
+        lenient().when(storage.maxBytes(FileCategory.CHILD_AVATAR, null)).thenReturn(2L * 1024 * 1024);
+        lenient().when(storage.maxSizeText(FileCategory.CHILD_AVATAR, null)).thenReturn("2 MB");
     }
 
     @AfterEach
@@ -99,7 +105,8 @@ class ChildPhotoServiceImplTest {
         var photos = service.validatePhotos(2, Map.of("childPhoto", List.of(image), "guardianPhoto1", List.of(image)));
         assertThat(photos.child().contentType()).isEqualTo("image/png");
         assertThat(photos.guardians()).containsOnlyKeys(1);
-        verifyNoInteractions(storage, children, guardians);
+        verifyNoInteractions(children, guardians);
+        verify(storage, never()).store(any(), any(), any(byte[].class));
     }
 
     @Test
@@ -112,7 +119,8 @@ class ChildPhotoServiceImplTest {
             assertThatThrownBy(() -> service.validatePhotos(1, Map.of("childPhoto", List.of(file))))
                     .isInstanceOf(GlobalException.class);
         }
-        verifyNoInteractions(storage, children, guardians);
+        verifyNoInteractions(children, guardians);
+        verify(storage, never()).store(any(), any(), any(byte[].class));
     }
 
     @Test
@@ -127,7 +135,8 @@ class ChildPhotoServiceImplTest {
                 Map.of("payload", List.of(image, image)))) {
             assertThatThrownBy(() -> service.validatePhotos(1, files)).isInstanceOf(GlobalException.class);
         }
-        verifyNoInteractions(storage, children, guardians);
+        verifyNoInteractions(children, guardians);
+        verify(storage, never()).store(any(), any(), any(byte[].class));
     }
 
     @Test
@@ -138,7 +147,10 @@ class ChildPhotoServiceImplTest {
         ChildGuardian first = guardian(10L, 1L, 0), second = guardian(11L, 1L, 1);
         when(children.findById(1L)).thenReturn(Optional.of(child));
         when(guardians.findAllByChildIdOrderByPositionAsc(1L)).thenReturn(List.of(first, second));
-        when(storage.store(any(), eq("image/png"))).thenReturn("child-key", "guardian-key");
+        when(storage.store(eq(FileCategory.CHILD_AVATAR), eq(1L), any(byte[].class)))
+                .thenReturn(
+                        new FileStorage.StoredFile("child-key", "image/png", 3),
+                        new FileStorage.StoredFile("guardian-key", "image/png", 3));
         ImageContent image = new ImageContent(image("childPhoto").getBytes(), "image/png");
         TransactionSynchronizationManager.initSynchronization();
         service.attachToEnrollment(1L, new EnrollmentPhotos(image, Map.of(1, image)));
@@ -148,8 +160,8 @@ class ChildPhotoServiceImplTest {
         assertThat(second.getPhotoUpdatedAt()).isEqualTo(NOW);
         TransactionSynchronizationManager.getSynchronizations()
                 .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
-        verify(storage).removeQuietly("child-key");
-        verify(storage).removeQuietly("guardian-key");
+        verify(storage).removeQuietly(FileCategory.CHILD_AVATAR, "child-key");
+        verify(storage).removeQuietly(FileCategory.CHILD_AVATAR, "guardian-key");
     }
 
     @Test
@@ -178,7 +190,7 @@ class ChildPhotoServiceImplTest {
         ChildGuardian guardian = guardian(11L, 1L, 0);
         guardian.assignEnrollmentPhoto("photo-key", "image/png", 3, NOW);
         when(guardians.findById(11L)).thenReturn(Optional.of(guardian));
-        when(storage.load("photo-key")).thenReturn(new byte[] {1, 2, 3});
+        when(storage.loadBytes(FileCategory.CHILD_AVATAR, "photo-key")).thenReturn(new byte[] {1, 2, 3});
         assertThat(service.getGuardianPhoto(vp, 1L, 11L).content()).containsExactly(1, 2, 3);
     }
 
@@ -210,7 +222,7 @@ class ChildPhotoServiceImplTest {
         var file = new MockMultipartFile("childPhoto", "header.webp", "image/webp", bytes);
         assertThatThrownBy(() -> service.validatePhotos(1, Map.of("childPhoto", List.of(file))))
                 .isInstanceOf(GlobalException.class);
-        verifyNoInteractions(storage);
+        verify(storage, never()).store(any(), any(), any(byte[].class));
     }
 
     @Test

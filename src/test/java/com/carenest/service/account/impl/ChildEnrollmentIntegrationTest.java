@@ -114,8 +114,9 @@ class ChildEnrollmentIntegrationTest {
     @MockitoBean
     private SmsGateway smsGateway;
 
-    @MockitoBean
-    private com.carenest.integration.storage.ChildPhotoStorage childPhotoStorage;
+    // Spy kho thật: giới hạn/định dạng lấy từ cấu hình, chỉ chặn phần gọi S3
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private com.carenest.integration.storage.FileStorage childPhotoStorage;
 
     @Autowired
     private com.carenest.service.child.ChildPhotoService childPhotos;
@@ -206,8 +207,10 @@ class ChildEnrollmentIntegrationTest {
         Set<Permission> permissions = new java.util.HashSet<>(principal.permissions());
         permissions.remove(Permission.PARENT_ACCOUNT_MANAGE);
         CurrentUser withoutAccounts = user(principal.userId(), CareNestRole.PRINCIPAL, permissions);
-        given(childPhotoStorage.store(any(), eq("image/png"))).willReturn("child-photo", "parent-photo");
-        given(childPhotoStorage.load("parent-photo")).willReturn(new byte[] {7, 8, 9});
+        org.mockito.Mockito.doReturn(new com.carenest.integration.storage.FileStorage.StoredFile("child-photo", "image/png", 3), new com.carenest.integration.storage.FileStorage.StoredFile("parent-photo", "image/png", 3))
+                .when(childPhotoStorage)
+                .store(eq(com.carenest.utils.enums.FileCategory.CHILD_AVATAR), any(), any(byte[].class));
+        org.mockito.Mockito.doReturn(new byte[] {7, 8, 9}).when(childPhotoStorage).loadBytes(com.carenest.utils.enums.FileCategory.CHILD_AVATAR, "parent-photo");
         var request = request("Trẻ ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000711", "999000000711"));
         var result = enrollmentService.enrollWithPhotos(
                 withoutAccounts,
@@ -250,15 +253,17 @@ class ChildEnrollmentIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "select count(*) from children where full_name = ?", Integer.class, "Trẻ ảnh lỗi giả"))
                 .isZero();
-        verifyNoInteractions(identityProviderClient, smsGateway, childPhotoStorage);
+        verifyNoInteractions(identityProviderClient, smsGateway);
+        verify(childPhotoStorage, org.mockito.Mockito.never()).store(any(), any(), any(byte[].class));
     }
 
     @Test
     @DisplayName("CHD-02: S3 lỗi giữa chừng rollback hồ sơ, dọn object ảnh mới và bù trừ Keycloak")
     void uploadFailureRollsBackEnrollment() throws Exception {
-        given(childPhotoStorage.store(any(), eq("image/png")))
-                .willReturn("new-object")
-                .willThrow(GlobalException.of(ApiCode.STORAGE_UNAVAILABLE));
+        org.mockito.Mockito.doReturn(new com.carenest.integration.storage.FileStorage.StoredFile("new-object", "image/png", 3))
+                .doThrow(GlobalException.of(ApiCode.STORAGE_UNAVAILABLE))
+                .when(childPhotoStorage)
+                .store(eq(com.carenest.utils.enums.FileCategory.CHILD_AVATAR), any(), any(byte[].class));
         var request =
                 request("Trẻ rollback ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000713", "999000000713"));
         var files = Map.<String, List<org.springframework.web.multipart.MultipartFile>>of(
@@ -270,7 +275,7 @@ class ChildEnrollmentIntegrationTest {
         assertThat(jdbc.queryForObject(
                         "select count(*) from children where full_name = ?", Integer.class, "Trẻ rollback ảnh giả"))
                 .isZero();
-        verify(childPhotoStorage).removeQuietly("new-object");
+        verify(childPhotoStorage).removeQuietly(com.carenest.utils.enums.FileCategory.CHILD_AVATAR, "new-object");
         verify(identityProviderClient).deleteUser("kc-new-1");
         verifyNoInteractions(smsGateway);
     }

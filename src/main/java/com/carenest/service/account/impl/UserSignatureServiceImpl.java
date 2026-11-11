@@ -1,20 +1,20 @@
 package com.carenest.service.account.impl;
 
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.account.UserSignatureResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.account.UserSignature;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.SignatureStorage;
+import com.carenest.utils.enums.FileCategory;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.account.UserSignatureRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.UserSignatureService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.ImageFiles;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,12 +30,10 @@ import org.springframework.web.multipart.MultipartFile;
 public class UserSignatureServiceImpl implements UserSignatureService {
     private static final String LOG_PREFIX = "[UserSignatureServiceImpl]";
     static final int MAX_SIGNATURES = 5;
-    static final int MAX_BYTES = 2 * 1024 * 1024;
     // Ảnh chữ ký nền trong suốt: PNG hoặc JPG
-    private static final Set<String> ALLOWED_TYPES = Set.of("image/png", "image/jpeg");
 
     private final UserSignatureRepository repository;
-    private final SignatureStorage storage;
+    private final FileStorage storage;
     private final Clock clock;
 
     @Override
@@ -60,15 +58,11 @@ public class UserSignatureServiceImpl implements UserSignatureService {
         String logPrefix = LOG_PREFIX + "|upload|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
-            if (file == null || file.isEmpty() || file.getSize() > MAX_BYTES) {
+            if (file == null || file.isEmpty()) {
                 throw GlobalException.of(ApiCode.SIGNATURE_INVALID);
             }
+            storage.checkSize(FileCategory.USER_SIGNATURE, null, file.getSize());
             byte[] content = readBytes(file);
-            // Loại tệp theo chữ ký đầu tệp, không tin loại khai báo
-            String contentType = ImageFiles.sniff(content);
-            if (contentType == null || !ALLOWED_TYPES.contains(contentType)) {
-                throw GlobalException.of(ApiCode.SIGNATURE_INVALID);
-            }
             Long userId = currentUser.userId();
             repository.lockUser(userId);
             long count = repository.countByUserId(userId);
@@ -76,7 +70,10 @@ public class UserSignatureServiceImpl implements UserSignatureService {
                 throw GlobalException.of(ApiCode.SIGNATURE_LIMIT_REACHED, MAX_SIGNATURES);
             }
             boolean isDefault = makeDefault || count == 0;
-            String key = storage.store(content, contentType);
+            // Loại tệp theo chữ ký đầu tệp (PNG/JPG theo cấu hình), không tin loại khai báo
+            FileStorage.StoredFile stored = storage.store(FileCategory.USER_SIGNATURE, userId, content);
+            String key = stored.key();
+            String contentType = stored.contentType();
             try {
                 if (isDefault) {
                     repository.clearDefault(userId);
@@ -86,7 +83,7 @@ public class UserSignatureServiceImpl implements UserSignatureService {
                 log.info("{}|signatureId={}|END", logPrefix, saved.getId());
                 return toResponse(saved);
             } catch (RuntimeException ex) {
-                storage.removeQuietly(key);
+                storage.removeQuietly(FileCategory.USER_SIGNATURE, key);
                 throw ex;
             }
         } catch (RuntimeException ex) {
@@ -138,7 +135,7 @@ public class UserSignatureServiceImpl implements UserSignatureService {
                 });
             }
             // Tệp chỉ xóa khi giao dịch đã commit
-            afterCommit(() -> storage.removeQuietly(key));
+            afterCommit(() -> storage.removeQuietly(FileCategory.USER_SIGNATURE, key));
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -153,9 +150,29 @@ public class UserSignatureServiceImpl implements UserSignatureService {
         log.info("{}|START", logPrefix);
         try {
             UserSignature signature = mine(currentUser.userId(), signatureId);
-            ImageContent image = new ImageContent(storage.load(signature.getStorageKey()), signature.getContentType());
+            ImageContent image = new ImageContent(
+                    storage.loadBytes(FileCategory.USER_SIGNATURE, signature.getStorageKey()), signature.getContentType());
             log.info("{}|END", logPrefix);
             return image;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FileUrlResponse getContentUrl(CurrentUser currentUser, Long signatureId) {
+        String logPrefix =
+                LOG_PREFIX + "|getContentUrl|userId=" + currentUser.userId() + "|signatureId=" + signatureId;
+        log.info("{}|START", logPrefix);
+        try {
+            UserSignature signature = mine(currentUser.userId(), signatureId);
+            var url = storage.presignGet(
+                    FileCategory.USER_SIGNATURE, signature.getStorageKey(), signature.getContentType(), null);
+            FileUrlResponse result = new FileUrlResponse(url.url(), url.expiresAt());
+            log.info("{}|END", logPrefix);
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -174,7 +191,8 @@ public class UserSignatureServiceImpl implements UserSignatureService {
                             .orElse(null)
                     : mine(currentUser.userId(), signatureId);
             Optional<ImageContent> image = Optional.ofNullable(signature)
-                    .map(s -> new ImageContent(storage.load(s.getStorageKey()), s.getContentType()));
+                    .map(s -> new ImageContent(
+                            storage.loadBytes(FileCategory.USER_SIGNATURE, s.getStorageKey()), s.getContentType()));
             log.info("{}|found={}|END", logPrefix, image.isPresent());
             return image;
         } catch (RuntimeException ex) {

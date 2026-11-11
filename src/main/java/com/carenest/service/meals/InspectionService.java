@@ -1,5 +1,6 @@
 package com.carenest.service.meals;
 
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.dto.meals.InspectionDayResponse;
 import com.carenest.dto.meals.InspectionReopenRequest;
@@ -30,4 +31,7 @@ public interface InspectionService {
 
     /** Ảnh chữ ký đang hoặc đã nằm trên biên bản của điểm trường (kể cả lần ký trong lịch sử); người đọc được điểm trường xem. */
     ImageContent getSignatureImage(CurrentUser currentUser, Long campusId, String imageKey);
+
+    /** Liên kết xem có hạn, cùng điều kiện quyền với {@link #getSignatureImage}. */
+    FileUrlResponse getSignatureImageUrl(CurrentUser currentUser, Long campusId, String imageKey);
 }

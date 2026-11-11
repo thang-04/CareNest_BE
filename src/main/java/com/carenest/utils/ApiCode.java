@@ -98,13 +98,13 @@ public enum ApiCode {
     // Form tiếp nhận trẻ (ChildEnrollmentService) chưa có bước xác nhận đúng người như thêm phụ huynh ⇒ tạm chặn SĐT
     // nhân sự
     PHONE_OF_STAFF_ACCOUNT(1130, HttpStatus.CONFLICT, "Số điện thoại này là tên đăng nhập của tài khoản nhân sự"),
-    ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP, tối đa 2 MB"),
+    ACCOUNT_PHOTO_INVALID(1131, HttpStatus.BAD_REQUEST, "Chọn ảnh chân dung JPG, PNG hoặc WEBP"),
     ACCOUNT_PHOTO_NOT_FOUND(1132, HttpStatus.NOT_FOUND, "Chưa có ảnh hoặc bạn không có quyền xem ảnh này"),
     STAFF_ROLE_NOT_CHANGEABLE(
             1133, HttpStatus.BAD_REQUEST, "Chỉ đổi vai trò giữa Phó hiệu trưởng, giáo viên và nhân viên bếp"),
     STAFF_ROLE_UNCHANGED(1134, HttpStatus.BAD_REQUEST, "Tài khoản đang có vai trò này"),
     ACCOUNT_PROFILE_NOT_EDITABLE(1135, HttpStatus.BAD_REQUEST, "Chỉ sửa hồ sơ tài khoản nhân sự tại đây"),
-    SIGNATURE_INVALID(1140, HttpStatus.BAD_REQUEST, "Chọn ảnh chữ ký PNG hoặc JPG, tối đa 2 MB"),
+    SIGNATURE_INVALID(1140, HttpStatus.BAD_REQUEST, "Chọn ảnh chữ ký PNG hoặc JPG"),
     SIGNATURE_LIMIT_REACHED(1141, HttpStatus.CONFLICT, "Mỗi tài khoản lưu tối đa {0} chữ ký, hãy xóa bớt chữ ký cũ"),
     SIGNATURE_NOT_FOUND(1142, HttpStatus.NOT_FOUND, "Không tìm thấy chữ ký"),
     // G94-180/AUTH-21 (user chốt 2026-11-10): đổi SĐT phụ huynh có tài khoản phải qua duyệt. Trước khi gộp dev
@@ -491,7 +491,7 @@ public enum ApiCode {
             6064, HttpStatus.BAD_REQUEST, "Khung giờ đăng ảnh không hợp lệ: giờ bắt đầu phải trước giờ kết thúc"),
     MEAL_PHOTO_OUT_OF_WINDOW(6065, HttpStatus.CONFLICT, "Ngoài khung giờ đăng ảnh bữa {0}"),
     MEAL_PHOTO_WINDOW_NOT_CONFIGURED(6066, HttpStatus.CONFLICT, "Chưa cấu hình khung giờ đăng ảnh bữa {0}"),
-    MEAL_PHOTO_INVALID(6067, HttpStatus.BAD_REQUEST, "Ảnh không hợp lệ: chỉ nhận JPEG, PNG, WebP tối đa 10 MB"),
+    MEAL_PHOTO_INVALID(6067, HttpStatus.BAD_REQUEST, "Ảnh không hợp lệ: chỉ nhận JPEG, PNG, WebP"),
     MEAL_PHOTO_NOT_FOUND(6068, HttpStatus.NOT_FOUND, "Không tìm thấy ảnh bữa ăn"),
     FOOD_SAFETY_ACCESS_DENIED(
             6069, HttpStatus.FORBIDDEN, "Bạn không có quyền duyệt lưu mẫu, hủy mẫu ở điểm trường này"),
@@ -763,8 +763,10 @@ public enum ApiCode {
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),
     AI_TIMEOUT(8002, HttpStatus.GATEWAY_TIMEOUT, "Trợ lý AI phản hồi quá lâu, vui lòng thử lại"),
     STORAGE_UNAVAILABLE(8003, HttpStatus.SERVICE_UNAVAILABLE, "Không lưu được tệp, vui lòng thử lại sau"),
-    UNSUPPORTED_MEDIA_TYPE(8004, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Định dạng tệp không được hỗ trợ"),
-    FILE_TOO_LARGE(8005, HttpStatus.PAYLOAD_TOO_LARGE, "Tệp vượt quá dung lượng cho phép"),
+    // {0}: phần nêu định dạng được nhận (", chỉ nhận: jpg, png") hoặc rỗng
+    UNSUPPORTED_MEDIA_TYPE(8004, HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Định dạng tệp không được hỗ trợ{0}"),
+    // {0}: phần nêu giới hạn (" (tối đa 5 MB)") hoặc rỗng
+    FILE_TOO_LARGE(8005, HttpStatus.PAYLOAD_TOO_LARGE, "Tệp vượt quá dung lượng cho phép{0}"),
     UPLOAD_REQUEST_ID_REQUIRED(8006, HttpStatus.BAD_REQUEST, "Thiếu mã lần tải"),
     FILE_UNREADABLE(8007, HttpStatus.BAD_REQUEST, "Không đọc được tệp"),
     FILE_NOT_FOUND(8008, HttpStatus.NOT_FOUND, "Không tìm thấy tệp"),

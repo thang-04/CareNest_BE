@@ -63,7 +63,7 @@ public class Child {
     @Column(name = "readmitted_on")
     private LocalDate readmittedOn;
 
-    @Column(name = "photo_key", length = 36)
+    @Column(name = "photo_key", length = 255)
     private String photoKey;
 
     @Column(name = "photo_content_type", length = 30)

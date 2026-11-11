@@ -37,7 +37,7 @@ public class EduLearningResource {
     @Column(nullable = false)
     private long byteSize;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 255)
     private String storageKey;
 
     @Column(nullable = false)

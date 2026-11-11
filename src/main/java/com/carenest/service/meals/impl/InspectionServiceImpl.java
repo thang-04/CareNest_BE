@@ -1,5 +1,6 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.dto.meals.InspectionDayResponse;
 import com.carenest.dto.meals.InspectionReopenRequest;
@@ -10,7 +11,8 @@ import com.carenest.entity.meals.InspectionEvent;
 import com.carenest.entity.meals.InspectionSheet;
 import com.carenest.entity.meals.InspectionSignature;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.InspectionSignatureStorage;
+import com.carenest.utils.enums.FileCategory;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.meals.FoodSampleRepository;
 import com.carenest.repository.meals.InspectionSheetRepository;
 import com.carenest.security.CurrentUser;
@@ -45,14 +47,16 @@ public class InspectionServiceImpl implements InspectionService {
     private static final String LOG_PREFIX = "[InspectionServiceImpl]";
     private static final int MIN_REASON = 3;
     private static final Set<String> HEADER_KEYS = Set.of("place", "checkedAt");
-    private static final Pattern IMAGE_KEY = Pattern.compile("[a-f0-9-]{36}");
+    // Mã ảnh: UUID (tệp cũ) hoặc tên tệp theo quy tắc kho (không thư mục), chỉ chữ/số/_/-/. nên an toàn khi nhúng vào JSON
+    private static final Pattern IMAGE_KEY =
+            Pattern.compile("[a-f0-9-]{36}|[a-z]+_[0-9A-Za-z-]{1,40}_\\d{8}-\\d{6}_[a-z0-9]{4}\\.[a-z]+");
 
     private final InspectionSheetRepository sheetRepository;
     private final FoodSampleRepository campusLookup;
     private final InspectionSkeleton skeleton;
     private final CampusAccessPolicy campusAccessPolicy;
     private final UserSignatureService userSignatureService;
-    private final InspectionSignatureStorage imageStorage;
+    private final FileStorage imageStorage;
     private final Clock clock;
 
     @Override
@@ -143,7 +147,10 @@ public class InspectionServiceImpl implements InspectionService {
                     .findForSigning(currentUser, request == null ? null : request.signatureId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.INSPECTION_SIGNATURE_REQUIRED));
             // INS-03: chép ảnh sang kho riêng của biên bản để đổi/xóa chữ ký tài khoản không làm mất ảnh trên chứng từ
-            String imageKey = imageStorage.store(image.content(), image.contentType());
+            // Biên bản lưu tên tệp (thư mục cố định theo loại) để mã ảnh dùng thẳng được trên URL
+            String imageKey = FileStorage.fileName(imageStorage
+                    .store(FileCategory.INSPECTION_SIGNATURE, campusId, image.content())
+                    .key());
             try {
                 InspectionSignature signature = new InspectionSignature(
                         currentUser.userId(),
@@ -158,7 +165,7 @@ public class InspectionServiceImpl implements InspectionService {
                 sheet.sign(signature, event, rows, now);
                 sheetRepository.saveAndFlush(sheet);
             } catch (RuntimeException ex) {
-                imageStorage.removeQuietly(imageKey);
+                imageStorage.removeQuietly(FileCategory.INSPECTION_SIGNATURE, imageKey);
                 throw ex;
             }
             log.info("{}|version={}|END", logPrefix, sheet.getDocVersion());
@@ -217,15 +224,8 @@ public class InspectionServiceImpl implements InspectionService {
         String logPrefix = LOG_PREFIX + "|getSignatureImage|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
         try {
-            requireCampus(campusId);
-            campusAccessPolicy.checkCanReadCampus(currentUser, campusId);
-            // Mã tệp chỉ gồm hex và gạch ngang nên nhúng thẳng vào chuỗi tìm trong lịch sử không rủi ro chèn JSON
-            if (imageKey == null
-                    || !IMAGE_KEY.matcher(imageKey).matches()
-                    || !sheetRepository.existsWithImage(campusId, imageKey, "[{\"imageKey\":\"" + imageKey + "\"}]")) {
-                throw GlobalException.of(ApiCode.SIGNATURE_NOT_FOUND);
-            }
-            byte[] content = imageStorage.load(imageKey);
+            checkSignatureImage(currentUser, campusId, imageKey);
+            byte[] content = imageStorage.loadBytes(FileCategory.INSPECTION_SIGNATURE, imageKey);
             String contentType = ImageFiles.sniff(content);
             if (contentType == null) {
                 throw GlobalException.of(ApiCode.SIGNATURE_NOT_FOUND);
@@ -235,6 +235,35 @@ public class InspectionServiceImpl implements InspectionService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public FileUrlResponse getSignatureImageUrl(CurrentUser currentUser, Long campusId, String imageKey) {
+        String logPrefix =
+                LOG_PREFIX + "|getSignatureImageUrl|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            checkSignatureImage(currentUser, campusId, imageKey);
+            var url = imageStorage.presignGet(FileCategory.INSPECTION_SIGNATURE, imageKey, null, null);
+            FileUrlResponse result = new FileUrlResponse(url.url(), url.expiresAt());
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /** Ảnh chữ ký chỉ xem được khi nằm trên biên bản của điểm trường người xem được đọc. */
+    private void checkSignatureImage(CurrentUser currentUser, Long campusId, String imageKey) {
+        requireCampus(campusId);
+        campusAccessPolicy.checkCanReadCampus(currentUser, campusId);
+        if (imageKey == null
+                || !IMAGE_KEY.matcher(imageKey).matches()
+                || !sheetRepository.existsWithImage(campusId, imageKey, "[{\"imageKey\":\"" + imageKey + "\"}]")) {
+            throw GlobalException.of(ApiCode.SIGNATURE_NOT_FOUND);
         }
     }
 

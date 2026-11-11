@@ -1,5 +1,6 @@
 package com.carenest.service.account;
 
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.account.UserSignatureResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.security.CurrentUser;
@@ -21,6 +22,9 @@ public interface UserSignatureService {
     void delete(CurrentUser currentUser, Long signatureId);
 
     ImageContent getContent(CurrentUser currentUser, Long signatureId);
+
+    /** Liên kết xem có hạn ảnh chữ ký của chính mình. */
+    FileUrlResponse getContentUrl(CurrentUser currentUser, Long signatureId);
 
     /**
      * Ảnh dùng để ký chứng từ (INS-03): ảnh {@code signatureId} của chính người ký, bỏ trống ⇒ ảnh mặc định. Chưa có ảnh

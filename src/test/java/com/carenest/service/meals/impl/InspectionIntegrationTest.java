@@ -13,8 +13,8 @@ import com.carenest.dto.meals.InspectionReopenRequest;
 import com.carenest.dto.meals.InspectionSaveRequest;
 import com.carenest.dto.meals.InspectionSheetResponse;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.InspectionSignatureStorage;
-import com.carenest.integration.storage.SignatureStorage;
+import com.carenest.utils.enums.FileCategory;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.service.meals.FoodSampleService;
@@ -77,11 +77,9 @@ class InspectionIntegrationTest {
         }
     }
 
-    @MockitoBean
-    private SignatureStorage signatureStorage;
-
-    @MockitoBean
-    private InspectionSignatureStorage inspectionStorage;
+    // Spy kho thật: chỉ chặn phần gọi S3 của ảnh chữ ký
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    private FileStorage fileStorage;
 
     @Autowired
     private InspectionService inspectionService;
@@ -132,9 +130,11 @@ class InspectionIntegrationTest {
                         + " VALUES (?, ?, 'image/png', 12, TRUE)",
                 approver.userId(),
                 SIGNATURE_KEY);
-        when(signatureStorage.load(SIGNATURE_KEY)).thenReturn(PNG);
-        when(inspectionStorage.store(any(), any())).thenReturn(COPY_KEY);
-        when(inspectionStorage.load(COPY_KEY)).thenReturn(PNG);
+        org.mockito.Mockito.doReturn(PNG).when(fileStorage).loadBytes(FileCategory.USER_SIGNATURE, SIGNATURE_KEY);
+        org.mockito.Mockito.doReturn(new FileStorage.StoredFile(COPY_KEY, "image/png", PNG.length))
+                .when(fileStorage)
+                .store(org.mockito.ArgumentMatchers.eq(FileCategory.INSPECTION_SIGNATURE), any(), any(byte[].class));
+        org.mockito.Mockito.doReturn(PNG).when(fileStorage).loadBytes(FileCategory.INSPECTION_SIGNATURE, COPY_KEY);
     }
 
     @Test

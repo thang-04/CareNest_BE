@@ -40,7 +40,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /** Tài liệu của lớp EDU-12..18 qua service + policy thật trên PostgreSQL. Mỗi test rollback. Cần Docker. */
-@SpringBootTest
+@SpringBootTest(properties = "carenest.storage.bucket=test-bucket")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class EduClassDocServiceIntegrationTest {
@@ -73,8 +73,10 @@ class EduClassDocServiceIntegrationTest {
     @Autowired
     private com.carenest.service.eduplan.LearningResourceService learningResources;
 
-    @org.springframework.test.context.bean.override.mockito.MockitoBean
-    private com.carenest.integration.storage.StorageService storage;
+    // Kho thật trên bucket giả trong bộ nhớ: học liệu đi qua đủ kiểm định dạng/giới hạn
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(
+            answers = org.mockito.Answers.CALLS_REAL_METHODS)
+    software.amazon.awssdk.services.s3.S3Client s3;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -98,22 +100,7 @@ class EduClassDocServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        java.util.Map<String, byte[]> stored = new java.util.HashMap<>();
-        org.mockito.Mockito.when(
-                        storage.store(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong()))
-                .thenAnswer(call -> {
-                    String key = java.util.UUID.randomUUID().toString();
-                    stored.put(key, ((java.io.InputStream) call.getArgument(0)).readAllBytes());
-                    return key;
-                });
-        org.mockito.Mockito.when(storage.load(org.mockito.ArgumentMatchers.anyString()))
-                .thenAnswer(call -> new org.springframework.core.io.ByteArrayResource(stored.get(call.getArgument(0))));
-        org.mockito.Mockito.doAnswer(call -> {
-                    stored.remove(call.getArgument(0));
-                    return null;
-                })
-                .when(storage)
-                .remove(org.mockito.ArgumentMatchers.anyString());
+        com.carenest.integration.storage.InMemoryS3.install(s3);
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
         schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
