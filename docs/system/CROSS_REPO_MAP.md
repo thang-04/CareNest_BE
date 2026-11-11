@@ -1,5 +1,7 @@
 # Cross-Repo Map
 
+> Tra nhanh bằng grep (file sinh tự động, mỗi dòng 1 endpoint): `docs/api/API_INDEX.md` — endpoint → controller#method; `docs/system/FE_API_CALLS.md` — file Web gọi endpoint nào → controller. File này giữ ownership, quy ước và các quyết định liên repo.
+
 ## Ownership
 
 | Hạng mục | CareNest_BE | CareNest_FE | CareNest_APP |
