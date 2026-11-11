@@ -472,6 +472,18 @@ class DailyAssessmentIntegrationTest {
                         withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), null, null, null, null, null))
                 .extracting(AssessmentDayUnlockResponse::id)
                 .containsExactly(opened.id());
+        // PHT có quyền Mở lại ở cơ sở mình nhưng bị thu hồi quyền Xem: vẫn thấy lần mở lại của cơ sở mình
+        CurrentUser unlockOnly = new CurrentUser(
+                vpA.userId(),
+                vpA.keycloakUserId(),
+                vpA.username(),
+                vpA.fullName(),
+                null,
+                vpA.roles(),
+                Set.of(Permission.ASSESSMENT_UNLOCK));
+        assertThat(unlockService.getUnlocks(unlockOnly, null, null, null, null, null))
+                .extracting(AssessmentDayUnlockResponse::id)
+                .containsExactly(opened.id());
         assertThat(unlockService.getUnlocks(principal, campusA, classA, true, YESTERDAY, YESTERDAY))
                 .extracting(AssessmentDayUnlockResponse::id)
                 .containsExactly(opened.id());

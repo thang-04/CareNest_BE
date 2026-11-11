@@ -56,10 +56,13 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             }
             Instant now = rules.now();
             Map<Long, Boolean> campusAllowed = new HashMap<>();
-            // Mới nhất trước; PHT chỉ thấy lớp điểm trường mình
+            // Mới nhất trước; thấy lần mở lại ở cơ sở trong phạm vi quyền Mở lại (để thao tác) hoặc quyền Xem (xem lịch
+            // sử)
             List<AssessmentDayUnlock> unlocks = unlockRepository.findAllByOrderByUnlockedAtDescIdDesc().stream()
-                    .filter(u ->
-                            campusAllowed.computeIfAbsent(u.getCampusId(), id -> rules.readsCampus(currentUser, id)))
+                    .filter(u -> campusAllowed.computeIfAbsent(
+                            u.getCampusId(),
+                            id -> rules.leadsCampus(currentUser, Permission.ASSESSMENT_UNLOCK, id)
+                                    || rules.readsCampus(currentUser, id)))
                     .filter(u -> campusId == null || campusId.equals(u.getCampusId()))
                     .filter(u -> classId == null || classId.equals(u.getClassroomId()))
                     .filter(u -> active == null || active == u.isActiveAt(now))
