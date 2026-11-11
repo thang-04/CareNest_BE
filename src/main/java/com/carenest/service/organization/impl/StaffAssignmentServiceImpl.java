@@ -480,8 +480,8 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         LocalDate today = LocalDate.now(clock);
         Set<Long> teacher = Set.of(assignment.userId());
         teacherClassRules.lockForAssignment(classroom, teacher);
-        // Dạy thay / phân công lẻ: GV trong điểm trường của lớp
-        teacherClassRules.checkTeachers(classroom, year, teacher, today, false);
+        // Phân công lẻ dạy chính: GV trong điểm trường của lớp; dạy thay được lấy GV cơ sở khác (Cần chốt 11/11/2026)
+        teacherClassRules.checkTeachers(classroom, year, teacher, today, assignment.substitute());
         if (!assignment.substitute()) {
             teacherClassRules.checkOneMainClass(classroom, year, teacher, today);
         } else {

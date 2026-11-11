@@ -512,6 +512,15 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("SCH-04 (Cần chốt 11/11/2026): dạy thay được lấy GV cơ sở khác; dạy chính lẻ vẫn trong cơ sở của lớp")
+    void substituteMayComeFromAnotherCampus() {
+        StaffAssignmentResponse created =
+                staffAssignmentService.createAssignment(substituteAssignment(teacherB, classA2, TODAY.plusDays(7)));
+        assertThat(created.substitute()).isTrue();
+        assertThat(created.userId()).isEqualTo(teacherB);
+    }
+
+    @Test
     @DisplayName("AUTH-16: HT xếp GV điểm trường khác vào lớp, chỉ còn chặn khi GV đang dạy chính lớp khác")
     void principalMayMoveTeacherAcrossCampuses() {
         // GV cơ sở B không bị chặn vì điểm trường; vẫn đang dạy chính lớp B1 nên bị chặn theo AUTH-24
