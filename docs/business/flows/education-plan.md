@@ -109,8 +109,8 @@ Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chư
 Kế hoạch chủ đề: MT (chỉ đọc) → nội dung (chỉ đọc) → thẻ hoạt động {loại giờ, tên, MT[], nội dung[]}   (EDU-78)
   → Kế hoạch tuần theo kỳ (gói học kỳ): ô Thứ × dòng chọn thẻ, một thẻ xếp nhiều lần; gõ tay ⇒ chưa gắn MT
     → [gói học kỳ ban hành, trước ngày bắt đầu chủ đề] sửa tuần ở trang Kế hoạch giáo dục ngày ⇒ day.content.week (EDU-79)
-      → Hồ sơ chủ đề = kế hoạch ngày (+ kế hoạch tuần nếu có sửa); gửi chặn nếu MT chủ đề chưa dạy (7391), chủ đề cuối
-        hoặc gói học kỳ cuối thiếu MT năm (7392) (EDU-80)
+      → Hồ sơ chủ đề = kế hoạch ngày (+ kế hoạch tuần nếu có sửa); gửi chặn nếu MT chủ đề chưa dạy (7396), chủ đề cuối
+        hoặc gói học kỳ cuối thiếu MT năm (7397) (EDU-80)
         → ban hành ⇒ bản tuần trong hồ sơ là bản hiệu lực cho trang ngày và đánh giá trẻ
 ```
 

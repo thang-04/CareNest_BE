@@ -40,7 +40,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /** Tài liệu của lớp EDU-12..18 qua service + policy thật trên PostgreSQL. Mỗi test rollback. Cần Docker. */
-@SpringBootTest
+@SpringBootTest(properties = "carenest.storage.bucket=test-bucket")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class EduClassDocServiceIntegrationTest {
@@ -73,8 +73,10 @@ class EduClassDocServiceIntegrationTest {
     @Autowired
     private com.carenest.service.eduplan.LearningResourceService learningResources;
 
-    @org.springframework.test.context.bean.override.mockito.MockitoBean
-    private com.carenest.integration.storage.StorageService storage;
+    // Kho thật trên bucket giả trong bộ nhớ: học liệu đi qua đủ kiểm định dạng/giới hạn
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(
+            answers = org.mockito.Answers.CALLS_REAL_METHODS)
+    software.amazon.awssdk.services.s3.S3Client s3;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -101,22 +103,7 @@ class EduClassDocServiceIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        java.util.Map<String, byte[]> stored = new java.util.HashMap<>();
-        org.mockito.Mockito.when(
-                        storage.store(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong()))
-                .thenAnswer(call -> {
-                    String key = java.util.UUID.randomUUID().toString();
-                    stored.put(key, ((java.io.InputStream) call.getArgument(0)).readAllBytes());
-                    return key;
-                });
-        org.mockito.Mockito.when(storage.load(org.mockito.ArgumentMatchers.anyString()))
-                .thenAnswer(call -> new org.springframework.core.io.ByteArrayResource(stored.get(call.getArgument(0))));
-        org.mockito.Mockito.doAnswer(call -> {
-                    stored.remove(call.getArgument(0));
-                    return null;
-                })
-                .when(storage)
-                .remove(org.mockito.ArgumentMatchers.anyString());
+        com.carenest.integration.storage.InMemoryS3.install(s3);
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
         schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
@@ -798,29 +785,50 @@ class EduClassDocServiceIntegrationTest {
     private jakarta.persistence.EntityManager entityManager;
 
     @Test
-    @DisplayName("EDU-12: ZIP đổi đuôi Office không phải học liệu hợp lệ")
-    void learningResourcesRejectRenamedZipAndInvalidGoal() throws Exception {
+    @DisplayName("EDU-81: học liệu chỉ ở kế hoạch giáo dục ngày, gắn ngày + mục; ZIP đổi đuôi Office bị từ chối")
+    void learningResourcesBelongToDayPlanSections() throws Exception {
         approveBranch();
-        String key = "tp_" + classId + "_" + theme1;
-        String goal = String.valueOf(
-                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE team_plan_id=?", Long.class, plan.id()));
-        ObjectNode doc = theme(theme1);
-        ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "A");
-        service.saveClassDoc(teacher, "theme", key, doc, versionOf(key), rootVersionOf("theme", doc));
-        var binding = new com.carenest.dto.eduplan.LearningResourceBinding(
-                goal + "#0", com.carenest.utils.LearningResourcePolicy.signature("A"), "A");
+        String dayKey = "dd_" + classId + "_2026-09-07";
+        ObjectNode day = base();
+        day.put("themeId", theme1);
+        day.put("weekStart", "2026-09-07");
+        day.putArray("days").addObject().put("date", "2026-09-07");
+        service.saveClassDoc(teacher, "day", dayKey, day, -1L, rootVersionOf("day", day));
+        var binding = new com.carenest.dto.eduplan.LearningResourceBinding("2026-09-07#hoc", "Hoạt động học");
+
+        var pdf = new org.springframework.mock.web.MockMultipartFile(
+                "file", "bai.pdf", "application/pdf", "%PDF-1.7 test".getBytes());
+        var saved = learningResources.upload(teacher, dayKey, pdf, binding, java.util.UUID.randomUUID());
+        assertThat(saved.active()).isTrue();
+        assertThat(jdbc.queryForObject(
+                        "SELECT storage_key FROM edu_learning_resources WHERE id=?", String.class, saved.id()))
+                .startsWith("hoclieu/hoclieu_");
+
+        // Ngày ngoài tuần của kế hoạch ngày, hoặc mục không có ⇒ không gắn được
+        assertApiError(
+                () -> learningResources.bind(
+                        teacher,
+                        dayKey,
+                        saved.id(),
+                        new com.carenest.dto.eduplan.LearningResourceBinding("2026-09-14#hoc", "x")),
+                ApiCode.ACTIVITY_CHANGED);
+        // Kế hoạch chủ đề không còn nhận học liệu
+        String themeKey = "tp_" + classId + "_" + theme1;
+        service.saveClassDoc(teacher, "theme", themeKey, theme(theme1), versionOf(themeKey), rootVersionOf("theme", theme(theme1)));
+        assertApiError(() -> learningResources.list(teacher, themeKey), ApiCode.RESOURCE_DAY_ONLY);
+
         var bytes = new java.io.ByteArrayOutputStream();
         try (var zip = new java.util.zip.ZipOutputStream(bytes)) {
             zip.putNextEntry(new java.util.zip.ZipEntry("random.txt"));
             zip.write("x".getBytes());
             zip.closeEntry();
         }
-        var file = new org.springframework.mock.web.MockMultipartFile(
+        var fake = new org.springframework.mock.web.MockMultipartFile(
                 "file", "fake.pptx", "application/zip", bytes.toByteArray());
         assertApiError(
-                () -> learningResources.upload(teacher, key, file, binding, java.util.UUID.randomUUID()),
+                () -> learningResources.upload(teacher, dayKey, fake, binding, java.util.UUID.randomUUID()),
                 ApiCode.UNSUPPORTED_MEDIA_TYPE);
-        assertThat(learningResources.list(teacher, key)).isEmpty();
+        assertThat(learningResources.list(teacher, dayKey)).hasSize(1);
     }
 
     @Autowired
@@ -1793,7 +1801,7 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-80 FR-030: hồ sơ chủ đề thiếu MT ⇒ 7391 kèm details; 7390 kiểm trước; gõ tay không tính MT")
+    @DisplayName("EDU-80 FR-030: hồ sơ chủ đề thiếu MT ⇒ 7396 kèm details; 7390 kiểm trước; gõ tay không tính MT")
     void dossierSubmitRequiresThemeGoalsTaught() {
         approveBranch();
         String ds = "ds_" + classId + "_" + theme1;
@@ -1829,7 +1837,7 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-80 FR-031: gói HK1 thiếu MT vẫn gửi được; gói HK2 (cuối năm) thiếu MT năm ⇒ 7392")
+    @DisplayName("EDU-80 FR-031: gói HK1 thiếu MT vẫn gửi được; gói HK2 (cuối năm) thiếu MT năm ⇒ 7397")
     void yearGoalsCheckedOnlyAtLastSemester() {
         pickGoal = ws -> false;
         String key = "bp_" + classId + "_" + plan.id();
@@ -1857,7 +1865,7 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-80 FR-031: hồ sơ của chủ đề cuối năm, bản tuần sửa bỏ MT duy nhất của năm ⇒ 7392")
+    @DisplayName("EDU-80 FR-031: hồ sơ của chủ đề cuối năm, bản tuần sửa bỏ MT duy nhất của năm ⇒ 7397")
     void lastThemeDossierChecksYearGoals() {
         String lastWeek = "2026-11-16";
         pickGoal = lastWeek::equals;

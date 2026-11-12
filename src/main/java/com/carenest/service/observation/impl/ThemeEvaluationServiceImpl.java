@@ -20,6 +20,7 @@ import com.carenest.repository.observation.ThemeEvaluationRepository.GoalRow;
 import com.carenest.repository.observation.ThemeEvaluationRepository.ThemeRow;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
+import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.eduplan.EduPlanCalendarQueryService;
@@ -27,7 +28,9 @@ import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -39,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -54,7 +58,7 @@ import tools.jackson.databind.ObjectMapper;
 public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
 
     private static final String LOG_PREFIX = "[ThemeEvaluationServiceImpl]";
-    // OBS-27 (Cần chốt 04/11/2026): trẻ đạt chủ đề khi đạt từ 70% số MT đã chấm; ngưỡng cố định
+    // OBS-27 (chốt 05/11/2026): trẻ đạt chủ đề khi đạt từ 70% số MT đã chấm; ngưỡng cố định
     static final int PASS_PERCENT = 70;
     private static final TypeReference<List<StoredCell>> CELLS = new TypeReference<>() {};
 
@@ -62,6 +66,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private final ThemeEvaluationRepository evaluationRepository;
     private final DailyActivityResultRepository resultRepository;
     private final EnrollmentService enrollmentService;
+    private final AttendanceService attendanceService;
     private final EduLessonQueryService lessonQueryService;
     private final EduPlanCalendarQueryService calendarQueryService;
     private final ClassroomService classroomService;
@@ -73,6 +78,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     record StoredCell(Long c, Long g, Boolean m, boolean x) {}
 
     private record Key(Long childId, Long goal) {}
+
+    private record ChildDay(Long childId, LocalDate date) {}
 
     @Override
     @Transactional(readOnly = true)
@@ -202,7 +209,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         try {
             ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
-            ThemeEvaluation evaluation = editable(currentUser, cls, theme);
+            ThemeEvaluation evaluation = editable(currentUser, cls, theme, Permission.ASSESSMENT_RECORD);
             Matrix matrix = matrixOf(cls, theme, evaluation);
             evaluation.save(
                     writeCells(overrides(matrix, request.cells())), note(request), currentUser.userId(), rules.now());
@@ -224,7 +231,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         try {
             ClassroomInfoResponse cls = readableClass(currentUser, request.classId());
             ThemeRow theme = findTheme(cls, request.themeId());
-            ThemeEvaluation evaluation = editable(currentUser, cls, theme);
+            ThemeEvaluation evaluation = editable(currentUser, cls, theme, Permission.ASSESSMENT_CONFIRM);
             if (rules.today().isBefore(theme.getEndDate())) {
                 throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_ENDED);
             }
@@ -249,11 +256,17 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     @Override
     @Transactional(readOnly = true)
     public Map<Long, ThemeGoalResult> childThemeResults(Long classId, Long childId) {
+        return childThemeResults(classId, childId, null, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, ThemeGoalResult> childThemeResults(Long classId, Long childId, LocalDate from, LocalDate to) {
         String logPrefix = LOG_PREFIX + "|childThemeResults|classId=" + classId + "|childId=" + childId;
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            Map<Long, ThemeGoalResult> results = new HashMap<>();
+            Map<Long, ThemeGoalResult> results = new LinkedHashMap<>();
             if (cls.ageGroupId() == null) {
                 log.info("{}|goals=0|END", logPrefix);
                 return results;
@@ -271,52 +284,109 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                             && cls.ageGroupId().equals(c.ageGroupId()))
                     .forEach(classes::add);
             classes.add(cls);
-            // Chủ đề theo ngày bắt đầu tăng dần: chủ đề sau ghi đè, nên mỗi MT giữ kết quả của chủ đề gần nhất
+            // Gộp (Cần + Tiền, 11/11/2026): lịch chủ đề theo lớp (effectiveThemes) và bảng đã xác nhận dùng snapshot
+            // (Tiền);
+            // chỉ chủ đề đã tới ngày kết thúc, lọc theo kỳ, một chủ đề tính một lần, có lớp Đạt là Đạt, MT Đạt khi ≥50%
+            // số chủ đề có kết quả (OBS-28, Cần)
+            Map<ThemeGoal, ThemeValue> byTheme = new LinkedHashMap<>();
+            java.util.function.BiFunction<ThemeValue, ThemeValue, ThemeValue> union = (a, b) -> {
+                Set<String> names = new TreeSet<>(a.classNames());
+                names.addAll(b.classNames());
+                return new ThemeValue(a.met() || b.met(), a.themeName(), Set.copyOf(names));
+            };
             for (ClassroomInfoResponse c : classes) {
                 Map<Long, ThemeEvaluation> savedByTheme = evaluationRepository.findByClassroomId(c.id()).stream()
                         .collect(Collectors.toMap(ThemeEvaluation::getThemeId, Function.identity()));
-                Map<Long, LocalDate> dates = new HashMap<>();
+                String className = c.id().equals(classId) ? null : c.name();
+                Set<String> classNames = className == null ? Set.of() : Set.of(className);
                 List<ThemeRow> themes = effectiveThemes(c);
-                themes.forEach(t -> dates.put(t.getLineage(), t.getStartDate()));
-                savedByTheme.values().stream()
-                        .filter(e -> snapshot(e) != null)
-                        .forEach(e -> dates.put(e.getThemeId(), e.getStartDate()));
-                for (Long lineage : dates.keySet().stream()
-                        .sorted(Comparator.comparing(dates::get))
-                        .toList()) {
-                    if (today.isBefore(dates.get(lineage))) continue;
-                    ThemeEvaluation saved = savedByTheme.get(lineage);
-                    String className = c.id().equals(classId) ? null : c.name();
-                    ThemeEvaluationResponse frozen = snapshot(saved);
-                    if (frozen != null) {
-                        frozen.rows().stream()
-                                .filter(r -> r.childId().equals(childId))
-                                .forEach(row -> row.cells().stream()
-                                        .filter(cell -> cell.met() != null)
-                                        .forEach(cell -> results.put(
-                                                cell.goalId(),
-                                                new ThemeGoalResult(cell.met(), frozen.themeName(), className))));
+                Set<Long> lineages = new HashSet<>();
+                for (ThemeRow theme : themes) {
+                    lineages.add(theme.getLineage());
+                    if (outsidePeriod(theme.getEndDate(), today, from, to)) {
                         continue;
                     }
-                    ThemeRow theme = themes.stream()
-                            .filter(t -> t.getLineage().equals(lineage))
-                            .findFirst()
-                            .orElseThrow();
+                    ThemeEvaluation saved = savedByTheme.get(theme.getLineage());
+                    ThemeEvaluationResponse frozen = snapshot(saved);
+                    if (frozen != null) {
+                        mergeFrozen(byTheme, theme.getLineage(), frozen, childId, classNames, union);
+                        continue;
+                    }
                     Matrix matrix = matrixOf(c, theme, saved);
                     for (GoalRow goal : matrix.goals()) {
                         Value v = matrix.cells().get(new Key(childId, goal.getLineage()));
                         if (v != null && v.met() != null) {
-                            results.put(goal.getLineage(), new ThemeGoalResult(v.met(), theme.getName(), className));
+                            byTheme.merge(
+                                    new ThemeGoal(theme.getLineage(), goal.getLineage()),
+                                    new ThemeValue(v.met(), theme.getName(), classNames),
+                                    union);
                         }
                     }
                 }
+                // Bảng đã xác nhận của chủ đề không còn trong lịch hiện tại (Tiền): vẫn tính theo snapshot đã chốt
+                for (ThemeEvaluation saved : savedByTheme.values()) {
+                    ThemeEvaluationResponse frozen = snapshot(saved);
+                    if (frozen == null
+                            || lineages.contains(saved.getThemeId())
+                            || outsidePeriod(frozen.endDate(), today, from, to)) {
+                        continue;
+                    }
+                    mergeFrozen(byTheme, saved.getThemeId(), frozen, childId, classNames, union);
+                }
             }
+            Map<Long, List<ThemeValue>> byGoal = new LinkedHashMap<>();
+            byTheme.forEach((key, value) -> byGoal.computeIfAbsent(key.goal(), ignored -> new ArrayList<>())
+                    .add(value));
+            byGoal.forEach((goal, values) -> {
+                int met = (int) values.stream().filter(ThemeValue::met).count();
+                int total = values.size();
+                String themeNames =
+                        values.stream().map(ThemeValue::themeName).distinct().collect(Collectors.joining(", "));
+                String classNames = values.stream()
+                        .flatMap(value -> value.classNames().stream())
+                        .distinct()
+                        .sorted()
+                        .collect(Collectors.joining(", "));
+                results.put(
+                        goal,
+                        new ThemeGoalResult(
+                                met * 2L >= total, met, total, themeNames, classNames.isBlank() ? null : classNames));
+            });
             log.info("{}|goals={}|END", logPrefix, results.size());
             return results;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private record ThemeGoal(Long theme, Long goal) {}
+
+    private record ThemeValue(boolean met, String themeName, Set<String> classNames) {}
+
+    // Chủ đề chưa tới ngày kết thúc (đang dạy) hoặc kết thúc ngoài kỳ [from, to] thì không tính
+    private static boolean outsidePeriod(LocalDate endDate, LocalDate today, LocalDate from, LocalDate to) {
+        return endDate == null
+                || today.isBefore(endDate)
+                || (from != null && endDate.isBefore(from))
+                || (to != null && endDate.isAfter(to));
+    }
+
+    private static void mergeFrozen(
+            Map<ThemeGoal, ThemeValue> byTheme,
+            Long theme,
+            ThemeEvaluationResponse frozen,
+            Long childId,
+            Set<String> classNames,
+            java.util.function.BiFunction<ThemeValue, ThemeValue, ThemeValue> union) {
+        frozen.rows().stream()
+                .filter(r -> r.childId().equals(childId))
+                .forEach(row -> row.cells().stream()
+                        .filter(cell -> cell.met() != null)
+                        .forEach(cell -> byTheme.merge(
+                                new ThemeGoal(theme, cell.goalId()),
+                                new ThemeValue(cell.met(), frozen.themeName(), classNames),
+                                union)));
     }
 
     // ---------- quyền, chủ đề ----------
@@ -421,8 +491,9 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     }
 
     // Sửa: GV lớp, năm học đang hoạt động, chủ đề đã bắt đầu, bảng chưa xác nhận; tạo bảng tuần tự theo lớp
-    private ThemeEvaluation editable(CurrentUser user, ClassroomInfoResponse cls, ThemeRow theme) {
-        if (!rules.canRecord(user, cls)) {
+    private ThemeEvaluation editable(
+            CurrentUser user, ClassroomInfoResponse cls, ThemeRow theme, Permission requiredPermission) {
+        if (!user.hasPermission(requiredPermission) || !rules.canRecord(user, cls)) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -517,8 +588,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         return base.withManual(stored.stream().filter(StoredCell::x).toList());
     }
 
-    // Mỗi ô = lần chấm cuối cùng của MT trong thời gian chủ đề, chỉ kết quả ghi ở lớp này (trẻ chuyển lớp không mang
-    // sang); MT trên giáo án nối với MT chủ đề qua dòng gốc (kế hoạch có bản mới vẫn khớp)
+    // OBS-27 (chốt 09/11/2026): 1 mục tiêu chỉ cần có 1 hoạt động (mọi ngày chủ đề) mà trẻ đạt → Đạt.
+    // Trẻ nghỉ / chưa chấm (không có hoạt động nào được chấm) → Chưa đạt của ngày đó. Nối MT qua dòng gốc.
     private Map<Key, Boolean> autoResults(
             ClassroomInfoResponse cls,
             List<ClassChildResponse> children,
@@ -528,13 +599,16 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         if (children.isEmpty() || lineages.isEmpty() || to.isBefore(from)) {
             return Map.of();
         }
+        Set<ChildDay> presentDays = attendanceService.findClassDays(List.of(cls.id()), from, to).stream()
+                .filter(d -> d.status() == AttendanceStatus.PRESENT)
+                .map(d -> new ChildDay(d.childId(), d.date()))
+                .collect(Collectors.toSet());
         List<DailyActivityResult> results = resultRepository
                 .findByChildIdInAndDateBetween(
                         children.stream().map(ClassChildResponse::id).toList(), from, to)
                 .stream()
                 .filter(r -> cls.id().equals(r.getClassroomId()))
-                .sorted(Comparator.comparing(DailyActivityResult::getDate)
-                        .thenComparing(r -> r.getUpdatedAt() != null ? r.getUpdatedAt() : r.getRecordedAt()))
+                .filter(r -> presentDays.contains(new ChildDay(r.getChildId(), r.getDate())))
                 .toList();
         Set<Long> goalIds = new HashSet<>();
         results.forEach(r -> {
@@ -543,13 +617,30 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             goalIds.addAll(r.getGoalsEffort());
         });
         Map<Long, Long> lineageOf = lessonQueryService.findGoalLineages(goalIds);
-        Map<Key, Boolean> latest = new HashMap<>();
+        Map<Key, Boolean> anyMet = new HashMap<>();
         for (DailyActivityResult r : results) {
-            mark(latest, r.getChildId(), r.getGoalsMet(), true, lineageOf, lineages);
-            mark(latest, r.getChildId(), r.getGoalsNotMet(), false, lineageOf, lineages);
-            mark(latest, r.getChildId(), r.getGoalsEffort(), false, lineageOf, lineages);
+            Map<Key, Boolean> activity = new HashMap<>();
+            mark(activity, r.getChildId(), r.getGoalsMet(), true, lineageOf, lineages);
+            mark(activity, r.getChildId(), r.getGoalsNotMet(), false, lineageOf, lineages);
+            mark(activity, r.getChildId(), r.getGoalsEffort(), false, lineageOf, lineages);
+            activity.forEach((key, met) -> {
+                if (met) {
+                    anyMet.put(key, true);
+                } else if (!anyMet.containsKey(key)) {
+                    anyMet.put(key, false);
+                }
+            });
         }
-        return latest;
+        // Trẻ nghỉ/chưa chấm: mọi mục tiêu còn trống của trẻ đó → Chưa đạt (không để trống)
+        for (ClassChildResponse child : children) {
+            for (Long lineage : lineages) {
+                Key key = new Key(child.id(), lineage);
+                if (!anyMet.containsKey(key)) {
+                    anyMet.put(key, false);
+                }
+            }
+        }
+        return anyMet;
     }
 
     private static void mark(
@@ -602,6 +693,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         LocalDate today = rules.today();
         boolean confirmed = saved != null && saved.isConfirmed();
         boolean canEdit = !confirmed
+                && user.hasPermission(Permission.ASSESSMENT_RECORD)
                 && rules.canRecord(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && !today.isBefore(theme.getStartDate());
@@ -682,7 +774,11 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 notPassed,
                 PASS_PERCENT,
                 canEdit,
-                canEdit && !today.isBefore(theme.getEndDate()),
+                !confirmed
+                        && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
+                        && rules.canRecord(user, cls)
+                        && cls.yearStatus() == SchoolYearStatus.ACTIVE
+                        && !today.isBefore(theme.getEndDate()),
                 confirmedByName,
                 confirmed ? saved.getConfirmedAt() : null,
                 signers(cls, theme, today));
@@ -690,7 +786,25 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
 
     // Tên tại ngày cuối chủ đề (chủ đề chưa kết thúc: hôm nay); PHT không rõ người ban hành thì lấy PHT duy nhất
     private ThemeSigners signers(ClassroomInfoResponse cls, ThemeRow theme, LocalDate today) {
-        LocalDate at = theme.getEndDate().isAfter(today) ? today : theme.getEndDate();
+        return signersOf(cls, theme.getEndDate().isAfter(today) ? today : theme.getEndDate());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ThemeSigners signersAt(Long classId, LocalDate at) {
+        String logPrefix = LOG_PREFIX + "|signersAt|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        try {
+            ThemeSigners signers = signersOf(rules.findClass(classId), at);
+            log.info("{}|END", logPrefix);
+            return signers;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private ThemeSigners signersOf(ClassroomInfoResponse cls, LocalDate at) {
         // Mẫu ký "Giáo viên chủ nhiệm": GV chủ nhiệm của lớp, lớp chưa có chủ nhiệm thì các GV lớp
         Long homeroom = staffAssignmentService
                 .findHomeroomTeacherIds(List.of(cls.id()), at)

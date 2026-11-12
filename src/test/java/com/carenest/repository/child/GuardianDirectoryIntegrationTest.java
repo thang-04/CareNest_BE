@@ -17,7 +17,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -94,15 +93,25 @@ class GuardianDirectoryIntegrationTest {
     }
 
     @Test
-    @DisplayName("AUTH-08: danh sách trẻ chỉ gồm trẻ đang học ở các lớp được phép, lọc theo tên")
-    void searchEnrolledChildren() {
-        assertThat(children.searchEnrolled(List.of(classA, classB), TODAY, "%", PageRequest.of(0, 10)))
-                .extracting("id")
+    @DisplayName(
+            "D-4, AUTH-08: danh sách trẻ theo phạm vi lớp, từ khóa họ tên hoặc mã; lớp hiển thị = lớp đang học hoặc lớp cuối")
+    void listRowsFollowScopeAndKeyword() {
+        // GV lớp A1: chỉ An (Bình đã rời A2 ⇒ lớp hiển thị A2, ngoài phạm vi)
+        assertThat(children.findListRows(
+                        null, TODAY, List.of("ACTIVE"), false, List.of(-1L), List.of(classA), null, null, ""))
+                .extracting(ChildRepository.ChildListRow::getChildId)
                 .containsExactly(childAn);
-        assertThat(children.searchEnrolled(List.of(classA), TODAY, "%bình%", PageRequest.of(0, 10)))
-                .isEmpty();
-        assertThat(children.findByFullNameContainingIgnoreCase("BÌNH", PageRequest.of(0, 10)))
-                .extracting("id")
+        // Toàn trường, từ khóa theo mã (không phân biệt hoa thường)
+        assertThat(children.findListRows(
+                        null, TODAY, List.of("ACTIVE"), true, List.of(-1L), List.of(-1L), null, null, "%hs26002%"))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.getChildId()).isEqualTo(childBinh);
+                    assertThat(row.getClassroomId()).isEqualTo(classB);
+                });
+        assertThat(children.findListRows(
+                        null, TODAY, List.of("ACTIVE"), true, List.of(-1L), List.of(-1L), null, null, "%bình%"))
+                .extracting(ChildRepository.ChildListRow::getChildId)
                 .containsExactly(childBinh);
     }
 

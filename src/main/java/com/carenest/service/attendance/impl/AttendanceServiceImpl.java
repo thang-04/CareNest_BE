@@ -29,6 +29,7 @@ import com.carenest.repository.attendance.LeaveRequestRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
+import com.carenest.service.attendance.MealSubstituteLookup;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.organization.ClassroomService;
@@ -46,6 +47,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -80,6 +82,7 @@ public class AttendanceServiceImpl implements AttendanceService {
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final List<MealSubstituteLookup> mealSubstituteLookups;
 
     @Override
     @Transactional(readOnly = true)
@@ -95,8 +98,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                             c.campusId(),
                             c.ageGroupId(),
                             c.mealSessions(),
-                            rules.canRecord(currentUser, c) || rules.taughtClosedYear(currentUser, c),
-                            c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, c),
+                            rules.canRecordAttendance(currentUser, c) || rules.taughtClosedYear(currentUser, c),
+                            c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendance(currentUser, c),
                             c.yearStatus() == SchoolYearStatus.ACTIVE && rules.canUnlock(currentUser, c.campusId())))
                     .toList();
             log.info("{}|END", logPrefix);
@@ -196,7 +199,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     cls.name(),
                     cls.campusId(),
                     cls.mealSessions(),
-                    cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls),
+                    cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendance(currentUser, cls),
                     rows);
             log.info("{}|END", logPrefix);
             return sheet;
@@ -214,7 +217,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         try {
             ClassroomInfoResponse cls = findClass(classId);
             // ATT-01, AUTH-03: chỉ giáo viên đang dạy lớp
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!rules.canRecordAttendance(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             // CFG-YR-01: lớp năm đã kết thúc (hoặc chưa kích hoạt) chỉ xem
@@ -521,8 +524,11 @@ public class AttendanceServiceImpl implements AttendanceService {
                         .collect(Collectors.toMap(r -> r.getChildId() + ":" + r.getDate(), Function.identity()));
         Map<Long, int[]> perChild = new LinkedHashMap<>();
         children.forEach(ch -> perChild.put(ch.id(), new int[4]));
-        // Trẻ có khai dị ứng trong hồ sơ ăn suất thay thế (giống Sổ báo ăn, Cần chốt 04/11/2026)
+        // Trẻ có khai dị ứng trong hồ sơ ăn suất thay thế (giống Sổ báo ăn, Cần chốt 04/11/2026); ngày đã có sổ báo ăn
+        // thì lấy số thay thế của sổ (sau giờ chốt sổ không tự đổi theo hồ sơ, HT/PHT chỉnh tay — Cần chốt 10/11/2026)
         Set<Long> allergic = childService.findChildIdsWithAllergies(childIds);
+        Map<LocalDate, Integer> bookSubstitutes = new HashMap<>();
+        mealSubstituteLookups.forEach(l -> bookSubstitutes.putAll(l.substitutes(cls.campusId(), cls.id(), from, to)));
         List<DayRow> days = new ArrayList<>();
         for (LocalDate date : schoolDays(from, to)) {
             int[] counts = new int[6]; // present, excused, unexcused, missing, mealTotal, substitute
@@ -552,7 +558,8 @@ public class AttendanceServiceImpl implements AttendanceService {
                     eaten.forEach(s -> meals.merge(s, 1, Integer::sum));
                 }
             }
-            days.add(new DayRow(date, counts[0], counts[1], counts[2], counts[3], counts[4], counts[5], meals));
+            int substitute = bookSubstitutes.getOrDefault(date, counts[5]);
+            days.add(new DayRow(date, counts[0], counts[1], counts[2], counts[3], counts[4], substitute, meals));
         }
         List<ChildTotal> childTotals = children.stream()
                 .map(ch -> {

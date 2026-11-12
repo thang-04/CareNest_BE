@@ -70,8 +70,11 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         String logPrefix = LOG_PREFIX + "|getSchoolYears|userId=" + currentUser.userId() + "|status=" + status;
         log.info("{}|START", logPrefix);
         try {
+            LocalDate today = LocalDate.now(clock);
+            boolean leader = isSchoolLeader(currentUser);
             List<SchoolYear> schoolYears = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
                     .filter(y -> status == null || y.getStatus() == status)
+                    .filter(y -> leader || isVisibleToStaff(y, today))
                     .toList();
             Map<Long, Long> classCounts = schoolYears.isEmpty()
                     ? Map.of()
@@ -83,7 +86,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                                     ClassroomRepository.SchoolYearClassCount::getSchoolYearId,
                                     ClassroomRepository.SchoolYearClassCount::getClassCount));
             List<SchoolYearDetailResponse> response = schoolYears.stream()
-                    .map(y -> schoolStructureMapper.toDetailResponse(y, classCounts.getOrDefault(y.getId(), 0L)))
+                    .map(y -> schoolStructureMapper.toDetailResponse(y, classCounts.getOrDefault(y.getId(), 0L), today))
                     .toList();
             log.info("{}|END", logPrefix);
             return response;
@@ -100,7 +103,12 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 LOG_PREFIX + "|getSchoolYear|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            SchoolYearDetailResponse response = toDetail(findSchoolYear(schoolYearId));
+            SchoolYear schoolYear = findSchoolYear(schoolYearId);
+            // CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị
+            if (!isSchoolLeader(currentUser) && !isVisibleToStaff(schoolYear, LocalDate.now(clock))) {
+                throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
+            }
+            SchoolYearDetailResponse response = toDetail(schoolYear);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -117,10 +125,11 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             checkCanManage(currentUser);
             String name = validateYearInfo(request, null);
             checkFollowsLatest(name, request);
+            LocalDate prepDate = resolvePrepDate(request, null);
             SchoolYear schoolYear =
-                    schoolYearRepository.save(SchoolYear.plan(name, request.startDate(), request.endDate()));
+                    schoolYearRepository.save(SchoolYear.plan(name, request.startDate(), request.endDate(), prepDate));
             log.info("{}|schoolYearId={}|END", logPrefix, schoolYear.getId());
-            return schoolStructureMapper.toDetailResponse(schoolYear, 0);
+            return schoolStructureMapper.toDetailResponse(schoolYear, 0, LocalDate.now(clock));
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -180,14 +189,15 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             }
             LocalDate oldStart = schoolYear.getStartDate();
             LocalDate oldEnd = schoolYear.getEndDate();
-            schoolYear.changeInfo(name, request.startDate(), request.endDate());
+            LocalDate prepDate = resolvePrepDate(request, schoolYear);
+            schoolYear.changeInfo(name, request.startDate(), request.endDate(), prepDate);
             schoolYearRepository.flush();
             // Phân công GV / tổ trưởng / PHT lưu theo ngày năm học: đổi ngày năm thì đổi theo, không để GV mất quyền
             // lớp
             staffAssignmentService.realignYearAssignments(
                     schoolYearId, oldStart, oldEnd, request.startDate(), request.endDate());
             log.info("{}|END", logPrefix);
-            return schoolStructureMapper.toDetailResponse(schoolYear, classCount);
+            return schoolStructureMapper.toDetailResponse(schoolYear, classCount, LocalDate.now(clock));
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -640,6 +650,60 @@ public class SchoolYearServiceImpl implements SchoolYearService {
 
     private SchoolYearDetailResponse toDetail(SchoolYear schoolYear) {
         return schoolStructureMapper.toDetailResponse(
-                schoolYear, classroomRepository.countBySchoolYearId(schoolYear.getId()));
+                schoolYear, classroomRepository.countBySchoolYearId(schoolYear.getId()), LocalDate.now(clock));
+    }
+
+    // HT, PHT thấy mọi năm (cấu hình, xếp lớp); người khác không thấy năm sắp diễn ra chưa tới ngày mở chuẩn bị
+    private static boolean isSchoolLeader(CurrentUser currentUser) {
+        return currentUser.hasRole(CareNestRole.PRINCIPAL) || currentUser.hasRole(CareNestRole.VICE_PRINCIPAL);
+    }
+
+    private static boolean isVisibleToStaff(SchoolYear schoolYear, LocalDate today) {
+        return schoolYear.getStatus() != SchoolYearStatus.PLANNED || schoolYear.isPreparing(today);
+    }
+
+    // CFG-YR-05: ngày mở chuẩn bị trước ngày bắt đầu, sau ngày kết thúc năm liền trước, không trước hôm nay; trống khi
+    // tạo ⇒ 1 tháng trước ngày bắt đầu, kẹp vào khoảng hợp lệ. Sửa năm: trống hoặc giữ nguyên ngày cũ (kể cả đã qua) ⇒
+    // không kiểm lại ngày quá khứ; năm đã bắt đầu / kết thúc không đổi được
+    private LocalDate resolvePrepDate(SchoolYearRequest request, SchoolYear existing) {
+        LocalDate today = LocalDate.now(clock);
+        if (existing != null && existing.getStatus() != SchoolYearStatus.PLANNED) {
+            if (request.prepDate() != null && !request.prepDate().equals(existing.getPrepDate())) {
+                throw GlobalException.of(ApiCode.SCHOOL_YEAR_PREP_LOCKED);
+            }
+            return existing.getPrepDate();
+        }
+        Long excludeId = existing == null ? null : existing.getId();
+        SchoolYear previous = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
+                .filter(y -> !y.getId().equals(excludeId) && y.getEndDate().isBefore(request.startDate()))
+                .findFirst()
+                .orElse(null);
+        LocalDate prepDate = request.prepDate();
+        if (prepDate == null && existing == null) {
+            prepDate = request.startDate().minusMonths(1);
+            if (previous != null && !prepDate.isAfter(previous.getEndDate())) {
+                prepDate = previous.getEndDate().plusDays(1);
+            }
+            if (prepDate.isBefore(today)) {
+                prepDate = today;
+            }
+            // Năm bắt đầu quá gần: không còn ngày hợp lệ trước ngày bắt đầu ⇒ báo lỗi như HT tự chọn
+        } else if (prepDate == null) {
+            prepDate = existing.getPrepDate();
+        }
+        boolean unchanged = existing != null && prepDate.equals(existing.getPrepDate());
+        if (!prepDate.isBefore(request.startDate())) {
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_PREP_AFTER_START);
+        }
+        if (previous != null && !prepDate.isAfter(previous.getEndDate())) {
+            throw GlobalException.of(
+                    ApiCode.SCHOOL_YEAR_PREP_BEFORE_PREVIOUS_END,
+                    previous.getName(),
+                    DMY.format(previous.getEndDate()));
+        }
+        if (!unchanged && prepDate.isBefore(today)) {
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_PREP_IN_PAST);
+        }
+        return prepDate;
     }
 }

@@ -17,7 +17,8 @@ import com.carenest.dto.meals.InspectionSheetResponse;
 import com.carenest.dto.meals.InspectionSignRequest;
 import com.carenest.entity.meals.InspectionSheet;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.InspectionSignatureStorage;
+import com.carenest.utils.enums.FileCategory;
+import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.meals.FoodSampleRepository;
 import com.carenest.repository.meals.InspectionSheetRepository;
 import com.carenest.security.CurrentUser;
@@ -74,7 +75,7 @@ class InspectionServiceImplTest {
     private UserSignatureService userSignatureService;
 
     @Mock
-    private InspectionSignatureStorage imageStorage;
+    private FileStorage imageStorage;
 
     private final AtomicReference<InspectionSheet> stored = new AtomicReference<>();
     private InspectionServiceImpl service;
@@ -140,7 +141,8 @@ class InspectionServiceImplTest {
         service.save(PHT, CAMPUS, DAY, InspectionTab.PROCESS, save(0, row("LUNCH:KINDERGARTEN:5", "PASS")));
         when(userSignatureService.findForSigning(PHT, null))
                 .thenReturn(Optional.of(new ImageContent(PNG, "image/png")));
-        when(imageStorage.store(PNG, "image/png")).thenReturn(IMAGE_KEY);
+        when(imageStorage.store(FileCategory.INSPECTION_SIGNATURE, CAMPUS, PNG))
+                .thenReturn(new FileStorage.StoredFile(IMAGE_KEY, "image/png", PNG.length));
     }
 
     @Test
@@ -258,7 +260,8 @@ class InspectionServiceImplTest {
         service.save(PHT, CAMPUS, DAY, InspectionTab.FRESH, save(1, failedSensory, failedRapid, blankNote));
         when(userSignatureService.findForSigning(PHT, null))
                 .thenReturn(Optional.of(new ImageContent(PNG, "image/png")));
-        when(imageStorage.store(PNG, "image/png")).thenReturn(IMAGE_KEY);
+        when(imageStorage.store(FileCategory.INSPECTION_SIGNATURE, CAMPUS, PNG))
+                .thenReturn(new FileStorage.StoredFile(IMAGE_KEY, "image/png", PNG.length));
 
         assertThat(service.sign(PHT, CAMPUS, DAY, InspectionTab.FRESH, null).status())
                 .isEqualTo(InspectionStatus.SIGNED);
@@ -283,7 +286,8 @@ class InspectionServiceImplTest {
         service.save(PHT, CAMPUS, DAY, InspectionTab.SAMPLE, save(0, row("sample:1", null)));
         when(userSignatureService.findForSigning(PHT, null))
                 .thenReturn(Optional.of(new ImageContent(PNG, "image/png")));
-        when(imageStorage.store(PNG, "image/png")).thenReturn(IMAGE_KEY);
+        when(imageStorage.store(FileCategory.INSPECTION_SIGNATURE, CAMPUS, PNG))
+                .thenReturn(new FileStorage.StoredFile(IMAGE_KEY, "image/png", PNG.length));
 
         InspectionSheetResponse signed = service.sign(PHT, CAMPUS, DAY, InspectionTab.SAMPLE, null);
 
@@ -304,7 +308,7 @@ class InspectionServiceImplTest {
         assertThat(signed.history())
                 .extracting(InspectionSheetResponse.Event::action)
                 .containsExactly("SIGNED");
-        verify(imageStorage).store(PNG, "image/png");
+        verify(imageStorage).store(FileCategory.INSPECTION_SIGNATURE, CAMPUS, PNG);
 
         // Nguồn đổi sau khi ký: biên bản vẫn trả bản chụp lúc ký
         Map<String, Object> changed = row("LUNCH:KINDERGARTEN:5", null);
@@ -370,10 +374,10 @@ class InspectionServiceImplTest {
                 .satisfies(ex -> assertApiCode(ex, ApiCode.SIGNATURE_NOT_FOUND));
         assertThatThrownBy(() -> service.getSignatureImage(PHT, CAMPUS, "../x"))
                 .satisfies(ex -> assertApiCode(ex, ApiCode.SIGNATURE_NOT_FOUND));
-        verify(imageStorage, never()).load(any());
+        verify(imageStorage, never()).loadBytes(any(), any());
 
         when(sheetRepository.existsWithImage(eq(CAMPUS), eq(IMAGE_KEY), any())).thenReturn(true);
-        when(imageStorage.load(IMAGE_KEY)).thenReturn(PNG);
+        when(imageStorage.loadBytes(FileCategory.INSPECTION_SIGNATURE, IMAGE_KEY)).thenReturn(PNG);
         assertThat(service.getSignatureImage(PHT, CAMPUS, IMAGE_KEY).contentType())
                 .isEqualTo("image/png");
     }

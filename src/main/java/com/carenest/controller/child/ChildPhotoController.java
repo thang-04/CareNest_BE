@@ -2,9 +2,11 @@ package com.carenest.controller.child;
 
 import com.carenest.dto.child.ChildPhotoProfileResponse;
 import com.carenest.dto.child.ChildViewResponse;
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.child.ChildPhotoService;
+import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ChildPhotoController {
     private static final String LOG_PREFIX = "[ChildPhotoController]";
     private final ChildPhotoService photoService;
+    private final ChildRecordService childRecordService;
 
     @GetMapping("/{childId}/photo")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
@@ -47,16 +50,43 @@ public class ChildPhotoController {
         return image(photo);
     }
 
+    @GetMapping("/{childId}/photo/url")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getChildPhotoUrl(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getChildPhotoUrl|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = photoService.getChildPhotoUrl(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child photo url success", url);
+    }
+
+    @GetMapping("/{childId}/guardian-photos/{guardianId}/url")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getGuardianPhotoUrl(
+            @PathVariable Long childId, @PathVariable Long guardianId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getGuardianPhotoUrl|childId=" + childId + "|guardianId=" + guardianId;
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = photoService.getGuardianPhotoUrl(currentUser, childId, guardianId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get guardian photo url success", url);
+    }
+
     @GetMapping("/{childId}/profile")
     @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_VIEW')")
     public ResponseEntity<ResponseJson<ChildPhotoProfileResponse>> getProfile(
             @PathVariable Long childId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getProfile|childId=" + childId;
         log.info("{}|START", logPrefix);
+        // Phạm vi trẻ kiểm ở getProfile trước khi đọc lớp, khai báo sức khỏe (CHD-06), lịch sử xếp lớp (mục 4.6)
         ChildViewResponse profile = photoService.getProfile(currentUser, childId);
+        ChildPhotoProfileResponse response = new ChildPhotoProfileResponse(
+                profile,
+                childRecordService.findClass(childId),
+                childRecordService.findDeclaration(childId),
+                childRecordService.findPlacements(childId));
         log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(
-                ApiCode.SUCCESSFUL, "Get child profile success", new ChildPhotoProfileResponse(profile));
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child profile success", response);
     }
 
     private static ResponseEntity<byte[]> image(ImageContent photo) {

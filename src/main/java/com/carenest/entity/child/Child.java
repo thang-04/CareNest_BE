@@ -63,7 +63,7 @@ public class Child {
     @Column(name = "readmitted_on")
     private LocalDate readmittedOn;
 
-    @Column(name = "photo_key", length = 36)
+    @Column(name = "photo_key", length = 255)
     private String photoKey;
 
     @Column(name = "photo_content_type", length = 30)
@@ -111,6 +111,37 @@ public class Child {
         child.intakeCampusId = placed ? null : intakeCampusId;
         child.enrolledOn = enrolledOn;
         return child;
+    }
+
+    /** Sửa hồ sơ (G94-180/CHD-08): thông tin cơ bản; mã, trạng thái, ngày tiếp nhận không đổi ở đây. */
+    public void updateBasics(String fullName, LocalDate dateOfBirth, Gender gender) {
+        this.fullName = fullName;
+        this.dateOfBirth = dateOfBirth;
+        this.gender = gender;
+    }
+
+    /**
+     * Cho nghỉ học (G94-180/CHD-03): Đã nghỉ từ ngày {@code leftOn}, không xóa dữ liệu. Điểm trường sau đó suy từ lớp
+     * cuối cùng hoặc điểm trường tiếp nhận (mở lại hồ sơ về đúng điểm trường).
+     */
+    public void withdraw(LocalDate leftOn, String reason) {
+        this.status = ChildStatus.LEFT;
+        this.leftOn = leftOn;
+        this.leftReason = reason;
+    }
+
+    /**
+     * Xếp / chuyển lớp (CHD-10): Đang học, điểm trường theo lớp (enrollment) nên bỏ điểm trường tiếp nhận như tiếp nhận có
+     * lớp — giữ lại thì trẻ nghỉ sau khi chuyển điểm trường bị suy sai điểm trường (ưu tiên điểm trường tiếp nhận).
+     */
+    public void placeInClass() {
+        this.status = ChildStatus.ACTIVE;
+        this.intakeCampusId = null;
+    }
+
+    /** Ghi điểm trường của trẻ khi bỏ lớp duy nhất (nghỉ ngay ngày vào lớp): hồ sơ đã nghỉ vẫn thuộc điểm trường đó. */
+    public void keepCampus(Long campusId) {
+        this.intakeCampusId = campusId;
     }
 
     /** Mở lại hồ sơ trẻ đã nghỉ (CHD-03): về Chờ xếp lớp ở điểm trường cũ, bỏ ngày/lý do nghỉ, giữ mã và dữ liệu. */

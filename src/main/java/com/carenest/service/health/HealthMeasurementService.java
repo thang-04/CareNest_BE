@@ -13,6 +13,12 @@ public interface HealthMeasurementService {
 
     ChildHealthRecordResponse getHealthRecord(CurrentUser currentUser, Long childId);
 
+    /**
+     * Phần phụ huynh xem (PAR-01, PAR-03): kết quả đã công bố, biểu đồ tăng trưởng, giải thích đã duyệt. Phụ huynh có
+     * liên kết với trẻ chưa nghỉ; nhân sự trong phạm vi xem trước được.
+     */
+    com.carenest.dto.health.PublishedHealthResponse getPublishedHealth(CurrentUser currentUser, Long childId);
+
     HealthMeasurementResponse createMeasurement(
             CurrentUser currentUser, Long childId, HealthMeasurementRequest request);
 

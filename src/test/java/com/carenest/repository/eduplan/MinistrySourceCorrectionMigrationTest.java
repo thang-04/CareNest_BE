@@ -34,7 +34,7 @@ class MinistrySourceCorrectionMigrationTest {
     @BeforeEach
     void prepare() {
         schema = "source_" + UUID.randomUUID().toString().replace("-", "");
-        flyway("93").migrate();
+        flyway("98").migrate();
         jdbc = new JdbcTemplate(new DriverManagerDataSource(
                 postgres.getJdbcUrl() + (postgres.getJdbcUrl().contains("?") ? "&" : "?") + "currentSchema=" + schema,
                 postgres.getUsername(),
@@ -48,7 +48,7 @@ class MinistrySourceCorrectionMigrationTest {
                 Long.class);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_curriculum_goal_contents", Long.class))
                 .isEqualTo(101);
-        flyway("94").migrate();
+        flyway("99").migrate();
         assertThat(jdbc.queryForObject("SELECT goal_text FROM edu_curriculum_goals WHERE id=?", String.class, id))
                 .isEqualTo(
                         "Nói được câu đơn, câu có 5 - 7 tiếng, có các từ thông dụng chỉ sự vật, hoạt động, đặc điểm quen thuộc.");
@@ -64,10 +64,10 @@ class MinistrySourceCorrectionMigrationTest {
 
     @Test
     void restoresMergedAgeEntriesAndPreservesExistingIds() {
-        flyway("94").migrate();
+        flyway("99").migrate();
         var oldGoals = jdbc.queryForList("SELECT id, goal_text FROM edu_curriculum_goals ORDER BY id");
         var oldContents = jdbc.queryForList("SELECT id, text FROM edu_curriculum_contents ORDER BY id");
-        flyway("95").migrate();
+        flyway("100").migrate();
         assertThat(jdbc.queryForList("SELECT id, goal_text FROM edu_curriculum_goals WHERE id <= 327 ORDER BY id"))
                 .isEqualTo(oldGoals);
         assertThat(jdbc.queryForList("SELECT id, text FROM edu_curriculum_contents WHERE id <= 423 ORDER BY id"))
@@ -92,14 +92,14 @@ class MinistrySourceCorrectionMigrationTest {
 
     @Test
     void leavesOtherCurriculumSourcesUntouched() {
-        flyway("94").migrate();
+        flyway("99").migrate();
         Long otherSource = jdbc.queryForObject(
                 "INSERT INTO edu_curriculum_sources(code,title,document_no,issued_date,issuer,official_url,retrieved_from_url,retrieved_at) SELECT 'OTHER-TEST',title,document_no,issued_date,issuer,official_url,retrieved_from_url,retrieved_at FROM edu_curriculum_sources WHERE code='VBHN-01-2021-GDMN' RETURNING id",
                 Long.class);
         jdbc.update(
                 "INSERT INTO edu_curriculum_goals(source_id,age_group_id,domain_id,expected_result_id,goal_no,goal_text,section_ref,sort_order) SELECT ?,age_group_id,domain_id,expected_result_id,goal_no,goal_text,section_ref,5000 FROM edu_curriculum_goals ORDER BY id LIMIT 1",
                 otherSource);
-        flyway("95").migrate();
+        flyway("100").migrate();
         assertThat(jdbc.queryForObject(
                         "SELECT sort_order FROM edu_curriculum_goals WHERE source_id=?", Integer.class, otherSource))
                 .isEqualTo(5000);
@@ -107,10 +107,10 @@ class MinistrySourceCorrectionMigrationTest {
 
     @Test
     void rejectsChangedBaselineTextWithoutChangingSortOrder() {
-        flyway("94").migrate();
+        flyway("99").migrate();
         jdbc.update(
                 "UPDATE edu_curriculum_contents SET text='changed' WHERE id=(SELECT min(id) FROM edu_curriculum_contents)");
-        assertThatThrownBy(() -> flyway("95").migrate())
+        assertThatThrownBy(() -> flyway("100").migrate())
                 .hasMessageContaining("Unexpected catalog baseline text or order");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_curriculum_contents", Long.class))
                 .isEqualTo(423);
@@ -120,9 +120,9 @@ class MinistrySourceCorrectionMigrationTest {
 
     @Test
     void rejectsUnexpectedMergedAgeBaselineWithoutChangingRows() {
-        flyway("94").migrate();
+        flyway("99").migrate();
         jdbc.update("DELETE FROM edu_curriculum_contents WHERE id=(SELECT min(id) FROM edu_curriculum_contents)");
-        assertThatThrownBy(() -> flyway("95").migrate()).hasMessageContaining("Unexpected catalog baseline");
+        assertThatThrownBy(() -> flyway("100").migrate()).hasMessageContaining("Unexpected catalog baseline");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_curriculum_goals", Long.class))
                 .isEqualTo(327);
         assertThat(jdbc.queryForObject("SELECT max(sort_order) FROM edu_curriculum_goals", Integer.class))
@@ -133,7 +133,7 @@ class MinistrySourceCorrectionMigrationTest {
     void rejectsUnexpectedCatalogAndRollsBack() {
         jdbc.update(
                 "UPDATE edu_curriculum_goals SET goal_text='changed' WHERE id=(SELECT g.id FROM edu_curriculum_goals g JOIN age_groups a ON a.id=g.age_group_id WHERE a.code='ag-2' AND g.sort_order=28)");
-        assertThatThrownBy(() -> flyway("94").migrate())
+        assertThatThrownBy(() -> flyway("99").migrate())
                 .hasMessageContaining("Expected 33 matching unchanged source rows");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_curriculum_goal_contents", Long.class))
                 .isEqualTo(101);

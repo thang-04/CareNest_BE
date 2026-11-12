@@ -13,10 +13,12 @@ import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
- * Lịch sử hồ sơ trẻ, chỉ thêm (mục 3.7 của plan tiếp nhận). Cột {@code changes} (JSONB, các ô đổi khi Sửa hồ sơ) chưa
- * map: tiếp nhận và mở lại hồ sơ không ghi.
+ * Lịch sử hồ sơ trẻ, chỉ thêm (mục 3.7 của plan tiếp nhận). Cột {@code changes} chỉ ghi ở Sửa hồ sơ; tiếp nhận, nghỉ
+ * học, mở lại hồ sơ để null.
  */
 @Getter
 @Entity
@@ -44,12 +46,23 @@ public class ChildHistory {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // Sửa hồ sơ: JSON [{ field, label, from, to }]; số định danh của trẻ, CCCD phụ huynh chỉ ghi 3 số cuối
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(updatable = false, columnDefinition = "jsonb")
+    private String changes;
+
     public static ChildHistory record(Long childId, ChildHistoryAction action, Long userId, String note, Instant at) {
+        return record(childId, action, userId, note, null, at);
+    }
+
+    public static ChildHistory record(
+            Long childId, ChildHistoryAction action, Long userId, String note, String changesJson, Instant at) {
         ChildHistory entry = new ChildHistory();
         entry.childId = childId;
         entry.action = action;
         entry.userId = userId;
         entry.note = note;
+        entry.changes = changesJson;
         entry.createdAt = at;
         return entry;
     }

@@ -146,6 +146,12 @@ class HealthExamIntegrationTest {
     @DisplayName("HLT-08: GV lưu nháp, kết luận đủ phiếu, sửa phiếu đã kết luận phải có lý do")
     void teacherDraftsThenConcludesAndEditsWithReason() {
         long campaign = examCampaign(campusA);
+        // HLT-11, PAR-03: phụ huynh liên kết nhận thông báo khi kết luận (công bố) và khi sửa phiếu đã kết luận
+        long parentId = user("he-parent", CareNestRole.PARENT).userId();
+        jdbc.update(
+                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                parentId,
+                child1);
         HealthExamResponse fresh = exams.getExam(teacherA, campaign, child1);
         assertThat(fresh.measurement()).isNull();
         assertThat(fresh.draft().date()).isEqualTo(LocalDate.of(2026, 11, 10));
@@ -169,6 +175,7 @@ class HealthExamIntegrationTest {
         assertThat(beforeRecord.measurements()).isEmpty();
         assertThat(beforeRecord.openCampaign().resultStatus()).isEqualTo("DRAFT");
         assertThat(beforeRecord.latestExam()).isNull();
+        assertThat(noticesOf(parentId)).isEmpty();
 
         // Kết luận thiếu sinh tồn: lỗi theo ô
         HealthExamForm missingVitals = withVitals(exam("NO", null, normal()), null);
@@ -199,6 +206,7 @@ class HealthExamIntegrationTest {
                 .isEqualTo("NONE_REPORTED");
         assertThat(declarationActions(child1)).containsExactly("UPDATED_FROM_EXAM");
         assertThat(rowOf(campaign, child1).result()).isEqualTo(HealthCheckResult.RECORDED);
+        assertThat(noticesOf(parentId)).containsExactly("HEALTH_RESULT_PUBLISHED");
         assertThat(measurements.getHealthRecord(teacherA, child1).measurements())
                 .singleElement()
                 .satisfies(m -> assertThat(m.source()).isEqualTo("EXAM"));
@@ -225,6 +233,7 @@ class HealthExamIntegrationTest {
             assertThat(e.changes()).isNotEmpty();
         });
         assertThat(edited.measurement().reviewPoints().vitals()).isNotEmpty();
+        assertThat(noticesOf(parentId)).containsExactly("HEALTH_RESULT_PUBLISHED", "HEALTH_RESULT_UPDATED");
         // Không cân đo lẻ bằng API số đo cho phiếu khám
         expectError(
                 () -> measurements.updateMeasurement(
@@ -723,6 +732,11 @@ class HealthExamIntegrationTest {
                 "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-01')",
                 childId,
                 classroomId);
+    }
+
+    private List<String> noticesOf(long userId) {
+        entityManager.flush();
+        return jdbc.queryForList("SELECT type FROM notifications WHERE user_id = ? ORDER BY id", String.class, userId);
     }
 
     private CurrentUser user(String username, CareNestRole role) {

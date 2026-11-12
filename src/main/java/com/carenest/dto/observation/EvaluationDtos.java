@@ -131,6 +131,7 @@ public final class EvaluationDtos {
 
     /** Trẻ đang học lớp trong phạm vi (GV lớp mình, PHT điểm trường, HT toàn trường). */
     /** current = trẻ còn học lớp tại hôm nay; false = đã chuyển lớp / đã nghỉ (vẫn xem được hồ sơ cũ). */
+    /** teaches = người xem đang dạy lớp (false: tổ trưởng / BGH chỉ xem). */
     public record DevelopmentChildRow(
             Long id,
             String fullName,
@@ -138,7 +139,8 @@ public final class EvaluationDtos {
             Long classId,
             String className,
             Long campusId,
-            boolean current) {}
+            boolean current,
+            boolean teaches) {}
 
     public record DateRange(LocalDate start, LocalDate end) {}
 
@@ -154,7 +156,10 @@ public final class EvaluationDtos {
 
     public record TicketRef(Long id, TicketType type, LocalDate periodStart, LocalDate periodEnd) {}
 
-    /** Chỉ dữ liệu đã ghi nhận và đánh giá đã xác nhận; range.end không quá hôm nay. */
+    /**
+     * Chỉ dữ liệu đã ghi nhận và đánh giá đã xác nhận; range.end không quá hôm nay. absentDays: ngày đã điểm danh vắng
+     * (có phép / không phép), chưa điểm danh thì không tính.
+     */
     public record DevelopmentResponse(
             ChildRef child,
             ClassRef cls,
@@ -167,5 +172,6 @@ public final class EvaluationDtos {
             List<DevelopmentWeek> weeks,
             List<EvaluationRow> evaluations,
             List<EvaluationRow> yearEnd,
-            List<TicketRef> tickets) {}
+            List<TicketRef> tickets,
+            List<LocalDate> absentDays) {}
 }

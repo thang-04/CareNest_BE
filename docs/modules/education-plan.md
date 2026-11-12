@@ -280,8 +280,8 @@ Không đổi DB, không thêm endpoint; chỉ đổi hình dạng `content` (JS
   theo hồ sơ chủ đề (`CLASS_DOC_LOCKED` / `CLASS_DOC_TIME_LOCKED`); `week.cards` kiểm như thẻ, `origin="dossier"`.
   Response `day` có `effectiveWeek: "semester" | "dossier"`; "dossier" khi giáo án ngày đã ban hành (hoặc mở lại sửa phần tương lai)
   và có `week`. Đánh giá trẻ (`EduLessonQueryServiceImpl`) dùng bản hiệu lực này (FR-029).
-- EDU-80 trong `requireCanSubmit` (sau 7387/7390): gửi `dossier` thiếu MT chủ đề ⇒ 400 **7391** `THEME_GOALS_NOT_COVERED`; gửi
-  `semester` số 2 (học kỳ cuối) hoặc `dossier` của chủ đề bắt đầu muộn nhất thiếu MT của năm ⇒ 400 **7392**
+- EDU-80 trong `requireCanSubmit` (sau 7387/7390): gửi `dossier` thiếu MT chủ đề ⇒ 400 **7396** `THEME_GOALS_NOT_COVERED`; gửi
+  `semester` số 2 (học kỳ cuối) hoặc `dossier` của chủ đề bắt đầu muộn nhất thiếu MT của năm ⇒ 400 **7397**
   `YEAR_GOALS_NOT_COVERED`. Cả hai `data.details = [{ goalId, goalNo }]`, message liệt kê "MTn". Bản tuần để tính: chủ đề đang gửi
   dùng `day.content.week` nếu có; chủ đề khác dùng bản hiệu lực. Bỏ ngày nghỉ; ô gộp cả tuần, `goc.all` tính mọi ngày học.
 - Học liệu (R9): khóa trùng `id` một thẻ ⇒ chữ ký theo `name` của thẻ; theme chưa có thẻ giữ cách khớp ô chữ cũ.

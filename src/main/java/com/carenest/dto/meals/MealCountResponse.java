@@ -31,7 +31,8 @@ public record MealCountResponse(
 
     /**
      * confirmedNormal / confirmedSubstitute: số đã chốt trước đó khi sổ đang chờ xác nhận lại (NUT-03, ADR-0005), để
-     * người duyệt so với số mới; null khi không có số chờ.
+     * người duyệt so với số mới; null khi không có số chờ. substituteAdjusted: suất thay thế đã điều chỉnh tay (NUT-02);
+     * attendanceChanged: điểm danh đổi sau lần điều chỉnh đó, cần kiểm tra lại.
      */
     public record Line(
             Long classId,
@@ -43,7 +44,9 @@ public record MealCountResponse(
             int normal,
             int substitute,
             Integer confirmedNormal,
-            Integer confirmedSubstitute) {}
+            Integer confirmedSubstitute,
+            boolean substituteAdjusted,
+            boolean attendanceChanged) {}
 
     public record Totals(int present, int absent, int missing, int normal, int substitute) {}
 

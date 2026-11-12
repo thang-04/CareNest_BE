@@ -136,13 +136,13 @@ class PermissionServiceImplTest {
             assertThat(log.getActorUserId()).isEqualTo(PRINCIPAL_ID);
             assertThat(log.getReason()).isEqualTo("Giảm quyền thử nghiệm");
         });
-        assertThat(response.permissions()).isEmpty();
+        assertThat(response.permissions()).containsExactly(Permission.ASSESSMENT_VIEW);
         assertThat(response.editable()).isTrue();
     }
 
     @Test
-    @DisplayName("AUTH-23: ma trận có cột TEAM_LEADER HT sửa được; chưa có quyền nào cấu hình được cho cột này")
-    void teamLeaderColumnIsEditableButHasNoPermissionYet() {
+    @DisplayName("AUTH-23: ma trận TEAM_LEADER có các quyền điểm danh và đánh giá được cấu hình")
+    void teamLeaderColumnExposesModulePermissions() {
         given(rolePermissionRepository.findAll()).willReturn(List.of());
 
         assertThat(permissionService.getRolePermissions())
@@ -150,8 +150,17 @@ class PermissionServiceImplTest {
                 .singleElement()
                 .satisfies(role -> {
                     assertThat(role.editable()).isTrue();
-                    assertThat(role.configurablePermissions()).isEmpty();
-                    assertThat(role.permissions()).isEmpty();
+                    assertThat(role.configurablePermissions())
+                            .contains(
+                                    Permission.ATTENDANCE_VIEW,
+                                    Permission.ATTENDANCE_RECORD,
+                                    Permission.DAILY_HEALTH_RECORD,
+                                    Permission.PICKUP_RECORD,
+                                    Permission.ASSESSMENT_RECORD,
+                                    Permission.ASSESSMENT_CONFIRM)
+                            // AUTH-20: tổ trưởng luôn xem đánh giá, không bật/tắt trong ma trận
+                            .doesNotContain(Permission.ASSESSMENT_VIEW);
+                    assertThat(role.permissions()).containsExactly(Permission.ASSESSMENT_VIEW);
                 });
         assertThatThrownBy(() -> permissionService.updateRolePermissions(
                         principal,
@@ -227,7 +236,7 @@ class PermissionServiceImplTest {
             assertThat(log.getBeforeState()).isEqualTo(PermissionState.INHERIT);
             assertThat(log.getAfterState()).isEqualTo(PermissionState.REVOKE);
         });
-        assertThat(response.effectivePermissions()).isEmpty();
+        assertThat(response.effectivePermissions()).containsExactly(Permission.ASSESSMENT_VIEW);
         assertThat(response.overrides()).hasSize(1);
     }
 

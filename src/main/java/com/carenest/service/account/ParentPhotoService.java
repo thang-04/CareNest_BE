@@ -1,6 +1,7 @@
 package com.carenest.service.account;
 
 import com.carenest.dto.account.AccountPhotoResponse;
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.security.CurrentUser;
 import java.util.Collection;
@@ -19,6 +20,12 @@ public interface ParentPhotoService {
 
     /** Ảnh của tài khoản phụ huynh {@code guardianUserId} trên hồ sơ trẻ; ngoài phạm vi hoặc chưa có ảnh ⇒ 404. */
     ImageContent getGuardianPhoto(CurrentUser currentUser, Long childId, Long guardianUserId);
+
+    /** Liên kết xem có hạn của ảnh mình, cùng điều kiện với {@link #getMyPhoto}. */
+    FileUrlResponse getMyPhotoUrl(CurrentUser currentUser);
+
+    /** Liên kết xem có hạn, cùng điều kiện quyền với {@link #getGuardianPhoto}. */
+    FileUrlResponse getGuardianPhotoUrl(CurrentUser currentUser, Long childId, Long guardianUserId);
 
     /** Tài khoản đã có ảnh trong danh sách. */
     Set<Long> findUserIdsWithPhoto(Collection<Long> userIds);

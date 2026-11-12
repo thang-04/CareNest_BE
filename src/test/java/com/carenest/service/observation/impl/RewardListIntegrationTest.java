@@ -3,6 +3,7 @@ package com.carenest.service.observation.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.carenest.dto.observation.RewardDtos;
 import com.carenest.dto.observation.RewardDtos.RewardClassDetail;
 import com.carenest.dto.observation.RewardDtos.RewardDecisionRequest;
 import com.carenest.dto.observation.RewardDtos.RewardItemRequest;
@@ -12,9 +13,13 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.RewardListService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
+import com.carenest.utils.enums.RewardAction;
 import com.carenest.utils.enums.RewardStatus;
+import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
@@ -62,6 +67,9 @@ class RewardListIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private EntityManager entityManager;
+
     private CurrentUser principal;
     private CurrentUser vpA;
     private CurrentUser vpB;
@@ -76,8 +84,10 @@ class RewardListIntegrationTest {
         long campusA = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-RA', 'A', TRUE) RETURNING id");
         long campusB = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-RB', 'B', FALSE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
-        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
-                + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
+        // HK II kết thúc 15/05 (trước hôm nay 20/05): danh sách khen thưởng đã mở (OBS-14)
+        long year = insertId("INSERT INTO school_years (name, start_date, end_date, status, semester1_start,"
+                + " semester1_end, semester2_start, semester2_end) VALUES ('2026-2027', '2026-09-01', '2027-05-31',"
+                + " 'ACTIVE', '2026-09-01', '2027-01-15', '2027-01-18', '2027-05-15') RETURNING id");
         classA = classroom(campusA, year, "Lớp RA", ag3);
         long classB = classroom(campusB, year, "Lớp RB", ag3);
         principal = user("principal-r", CareNestRole.PRINCIPAL);
@@ -136,6 +146,11 @@ class RewardListIntegrationTest {
                 .isEqualTo(RewardStatus.PENDING_PRINCIPAL);
         RewardClassDetail approved = service.decide(principal, listId, new RewardDecisionRequest("APPROVE", null));
         assertThat(approved.status()).isEqualTo(RewardStatus.APPROVED);
+        // Luồng thường (PHT đã chuyển lên): ghi "Hiệu trưởng phê duyệt", không phải duyệt trực tiếp
+        assertThat(approved.history())
+                .extracting(RewardDtos.HistoryRow::action)
+                .contains(RewardAction.APPROVED)
+                .doesNotContain(RewardAction.DIRECT_APPROVED);
         assertThat(approved.children())
                 .filteredOn(c -> c.childId() == kid1)
                 .singleElement()
@@ -146,9 +161,12 @@ class RewardListIntegrationTest {
     }
 
     @Test
-    void titlesNeedConfirmedYearEndAndOneGeneralTitle() {
-        expectCode(
-                () -> service.save(teacherA, classA, list(item(kid2, GOOD)), false), ApiCode.REWARD_YEAR_END_REQUIRED);
+    void titlesDoNotWaitForYearEndAndAllowOneGeneralTitle() {
+        // Cần chốt 10/11/2026: cô chọn danh hiệu khi trẻ chưa có đánh giá cuối năm xác nhận
+        assertThat(service.save(teacherA, classA, list(item(kid2, GOOD)), false).children())
+                .filteredOn(c -> c.childId() == kid2)
+                .singleElement()
+                .satisfies(c -> assertThat(c.titles()).containsExactly(GOOD));
         expectCode(
                 () -> service.save(teacherA, classA, list(item(kid1, GOOD, EXCELLENT)), false),
                 ApiCode.REWARD_TITLE_CONFLICT);
@@ -182,12 +200,44 @@ class RewardListIntegrationTest {
     }
 
     @Test
+    void listOpensFromSemesterTwoEnd() {
+        // OBS-14 (Cần chốt 10/11/2026): trước ngày kết thúc HK II chỉ xem, không lưu / gửi được
+        jdbc.update(
+                "UPDATE school_years SET semester2_end='2027-05-25'"
+                        + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        RewardClassDetail before = service.detail(teacherA, classA);
+        assertThat(before.canEdit()).isFalse();
+        assertThat(before.openFrom()).isEqualTo(LocalDate.parse("2027-05-25"));
+        expectCode(() -> service.save(teacherA, classA, list(item(kid1, GOOD)), false), ApiCode.REWARD_NOT_OPEN);
+
+        // Chưa đặt HK II: mở từ ngày kết thúc năm học
+        jdbc.update(
+                "UPDATE school_years SET semester2_start=NULL, semester2_end=NULL"
+                        + " WHERE id=(SELECT school_year_id FROM classrooms WHERE id=?)",
+                classA);
+        entityManager.clear();
+        assertThat(service.detail(teacherA, classA).openFrom()).isEqualTo(LocalDate.parse("2027-05-31"));
+    }
+
+    @Test
     void principalDecidesListStillWaitingForVicePrincipal() {
         long listId =
                 service.save(teacherA, classA, list(item(kid1, GOOD)), true).listId();
-        assertThat(service.decide(principal, listId, new RewardDecisionRequest("APPROVE", null))
-                        .status())
-                .isEqualTo(RewardStatus.APPROVED);
+        RewardClassDetail direct = service.decide(principal, listId, new RewardDecisionRequest("APPROVE", null));
+        assertThat(direct.status()).isEqualTo(RewardStatus.APPROVED);
+        // Cần chốt 11/11/2026: HT duyệt thẳng khi PHT chưa xét ⇒ lịch sử ghi "HT duyệt trực tiếp" (ai, lúc nào)
+        assertThat(direct.history())
+                .extracting(RewardDtos.HistoryRow::action)
+                .contains(RewardAction.DIRECT_APPROVED)
+                .doesNotContain(RewardAction.APPROVED);
+        assertThat(direct.history())
+                .filteredOn(h -> h.action() == RewardAction.DIRECT_APPROVED)
+                .singleElement()
+                .satisfies(h -> {
+                    assertThat(h.userId()).isEqualTo(principal.userId());
+                    assertThat(h.at()).isNotNull();
+                });
         // PHT không phê duyệt thay HT
         expectCode(
                 () -> service.review(vpA, listId, new RewardDecisionRequest("FORWARD", null)),
@@ -239,7 +289,14 @@ class RewardListIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case PRINCIPAL -> Set.of(Permission.ASSESSMENT_VIEW);
+                    case VICE_PRINCIPAL -> Set.of(Permission.ASSESSMENT_VIEW, Permission.REWARD_REVIEW);
+                    case TEACHER, TEAM_LEADER -> Set.of(Permission.ASSESSMENT_VIEW, Permission.ASSESSMENT_RECORD);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
     }
 
     private static void expectCode(ThrowingCallable call, ApiCode apiCode) {

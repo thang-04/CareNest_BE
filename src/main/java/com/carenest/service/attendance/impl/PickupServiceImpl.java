@@ -31,6 +31,7 @@ import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupOutcome;
 import com.carenest.utils.enums.PickupStatus;
 import com.carenest.utils.enums.PickupVerification;
@@ -88,7 +89,7 @@ public class PickupServiceImpl implements PickupService {
             ClassroomInfoResponse cls = classroomService
                     .findClassroomInfo(classId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
-            if (!rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.PICKUP_RECORD) || !rules.canRecord(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.PICKUP_ACCESS_DENIED);
             }
             checkActiveYear(cls);
@@ -210,7 +211,7 @@ public class PickupServiceImpl implements PickupService {
         String logPrefix = LOG_PREFIX + "|listResults|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
-            if (!currentUser.hasRole(CareNestRole.TEACHER)) {
+            if (!currentUser.hasRole(CareNestRole.TEACHER) || !currentUser.hasPermission(Permission.PICKUP_RECORD)) {
                 throw GlobalException.of(ApiCode.PICKUP_ACCESS_DENIED);
             }
             LocalDate today = rules.today();
@@ -243,7 +244,7 @@ public class PickupServiceImpl implements PickupService {
         ClassroomInfoResponse cls = enrollmentService.findActiveClassroomIds(childId, rules.today()).stream()
                 .findFirst()
                 .flatMap(classroomService::findClassroomInfo)
-                .filter(c -> rules.canRecord(user, c))
+                .filter(c -> user.hasPermission(Permission.PICKUP_RECORD) && rules.canRecord(user, c))
                 .orElseThrow(() -> GlobalException.of(ApiCode.PICKUP_CHILD_NOT_FOUND));
         checkActiveYear(cls);
         return cls;
