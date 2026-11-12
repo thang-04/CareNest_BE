@@ -98,10 +98,17 @@ class ObservationDayRules {
 
     /** Giáo viên xem lại (chỉ xem) lớp mình từng dạy ở năm đã kết thúc. */
     /** Nhóm tuổi người dùng đang làm tổ trưởng (AUTH-23); rỗng nếu không phải tổ trưởng. */
-    Set<Long> teamLeaderAgeGroupIds(CurrentUser user) {
+    Set<Long> teamLeaderAgeGroupIds(CurrentUser user, Long schoolYearId) {
+        // Tổ trưởng chỉ có quyền ở nhóm tuổi mình TRONG năm học được phân công (null = năm đang hoạt động)
         return user.hasRole(CareNestRole.TEACHER)
-                ? staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), today())
+                ? staffAssignmentService.findScopedTeamLeaderAgeGroupIds(user.userId(), schoolYearId, today())
                 : Set.of();
+    }
+
+    /** Người dùng là Tổ trưởng nhóm tuổi của lớp trong đúng năm học của lớp. */
+    boolean leadsClass(CurrentUser user, ClassroomInfoResponse cls) {
+        return cls.ageGroupId() != null
+                && teamLeaderAgeGroupIds(user, cls.schoolYearId()).contains(cls.ageGroupId());
     }
 
     boolean taughtClosedYear(CurrentUser user, ClassroomInfoResponse cls) {

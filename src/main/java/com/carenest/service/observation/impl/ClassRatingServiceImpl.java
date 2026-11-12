@@ -157,7 +157,7 @@ public class ClassRatingServiceImpl implements ClassRatingService {
     }
 
     private ClassRatingResponse listOf(CurrentUser user, Long schoolYearId, ClassRatingPeriod period, Long campusId) {
-        Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(user);
+        Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(user, schoolYearId);
         List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
                 .filter(c -> canRead(user, c) || ledGroups.contains(c.ageGroupId()))
                 .toList();

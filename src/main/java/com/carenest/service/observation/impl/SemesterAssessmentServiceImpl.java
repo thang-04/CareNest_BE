@@ -89,7 +89,7 @@ public class SemesterAssessmentServiceImpl implements SemesterAssessmentService 
         var cls = rules.findClass(id);
         // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem (chỉ xem) bảng học kỳ các lớp nhóm tuổi mình
         boolean leadsGroup = user.hasPermission(Permission.ASSESSMENT_VIEW)
-                && rules.teamLeaderAgeGroupIds(user).contains(cls.ageGroupId());
+                && rules.leadsClass(user, cls);
         if (!rules.canView(user, cls) && !leadsGroup) throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
         return cls;
     }

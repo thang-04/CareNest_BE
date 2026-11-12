@@ -87,7 +87,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         String logPrefix = LOG_PREFIX + "|listClasses|userId=" + currentUser.userId() + "|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
-            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             List<ClassroomInfoResponse> year = schoolYearId == null
                     ? classroomService.findActiveYearClassrooms()
                     : classroomService.findYearClassrooms(schoolYearId);
@@ -397,7 +397,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         boolean reads = rules.canRecord(user, cls)
                 || rules.taughtClosedYear(user, cls)
                 || rules.readsCampus(user, cls.campusId())
-                || rules.teamLeaderAgeGroupIds(user).contains(cls.ageGroupId());
+                || rules.leadsClass(user, cls);
         if (!reads) {
             throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
         }
@@ -816,7 +816,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                         .getOrDefault(cls.id(), List.of());
         Set<Long> leaderIds = cls.ageGroupId() == null
                 ? Set.of()
-                : staffAssignmentService.findActiveTeamLeaderIds(cls.ageGroupId(), at);
+                : staffAssignmentService.findYearTeamLeaderIds(cls.ageGroupId(), cls.schoolYearId(), at);
         Long issuer = cls.ageGroupId() == null
                 ? null
                 : evaluationRepository.findApprovedPlanIssuer(cls.schoolYearId(), cls.ageGroupId());

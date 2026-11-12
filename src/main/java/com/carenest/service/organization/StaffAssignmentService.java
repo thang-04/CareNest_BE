@@ -57,6 +57,15 @@ public interface StaffAssignmentService {
     /** Tổ trưởng đang phụ trách nhóm tuổi. */
     Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date);
 
+    /**
+     * Nhóm tuổi người dùng làm Tổ trưởng trong năm học schoolYearId (null = năm đang hoạt động): năm chưa kết thúc
+     * cần phân công còn hiệu lực tới today; năm đã kết thúc tính mọi phân công của năm đó (chỉ xem lại).
+     */
+    Set<Long> findScopedTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate today);
+
+    /** Tổ trưởng của nhóm tuổi trong đúng năm học, còn hiệu lực ngày date. */
+    Set<Long> findYearTeamLeaderIds(Long ageGroupId, Long schoolYearId, LocalDate date);
+
     /** Campus mà phân công đang hiệu lực của role đó trỏ tới (GV: campus của lớp). */
     Set<Long> findActiveCampusIds(Long userId, StaffRole staffRole, LocalDate date);
 
