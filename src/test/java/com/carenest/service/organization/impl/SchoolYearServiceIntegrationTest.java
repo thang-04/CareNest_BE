@@ -231,6 +231,45 @@ class SchoolYearServiceIntegrationTest {
         assertThat(remaining).isZero();
     }
 
+    @Test
+    @DisplayName("Đã có đề xuất khen thưởng (mở từ ngày kết thúc HK II) thì khóa ngày HK II, HK I vẫn đổi được")
+    void yearEndDataLocksSemesterTwoDates() {
+        service.updateSemester(
+                principal, currentYear, semesters("2026-09-01", "2027-01-15", "2027-01-18", "2027-05-31"));
+        long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-RW', 'Campus RW') RETURNING id");
+        long classroom = jdbc.queryForObject(
+                "INSERT INTO classrooms (campus_id, school_year_id, name) VALUES (?, ?, 'Lớp RW') RETURNING id",
+                Long.class,
+                campus,
+                currentYear);
+        jdbc.update(
+                "INSERT INTO reward_lists (classroom_id, campus_id, school_year_id, status, created_by, updated_by,"
+                        + " created_at, updated_at) VALUES (?, ?, ?, 'DRAFT', ?, ?, now(), now())",
+                classroom,
+                campus,
+                currentYear,
+                principal.userId(),
+                principal.userId());
+
+        assertThatThrownBy(() -> service.updateSemester(
+                        principal, currentYear, semesters("2026-09-01", "2027-01-15", "2027-01-18", "2027-05-20")))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SEMESTER_DATES_LOCKED);
+        assertThat(service.getSemesterLocks(principal, currentYear))
+                .isEqualTo(new com.carenest.dto.organization.SemesterLockResponse(false, true));
+
+        SchoolYearDetailResponse updated = service.updateSemester(
+                principal, currentYear, semesters("2026-09-01", "2027-01-14", "2027-01-18", "2027-05-31"));
+        assertThat(updated.semester1End()).isEqualTo(LocalDate.of(2027, 1, 14));
+    }
+
+    private static com.carenest.dto.organization.SchoolYearSemesterRequest semesters(
+            String s1Start, String s1End, String s2Start, String s2End) {
+        return new com.carenest.dto.organization.SchoolYearSemesterRequest(
+                LocalDate.parse(s1Start), LocalDate.parse(s1End), LocalDate.parse(s2Start), LocalDate.parse(s2End));
+    }
+
     private String statusOf(long schoolYearId) {
         return jdbc.queryForObject("SELECT status FROM school_years WHERE id = ?", String.class, schoolYearId);
     }
