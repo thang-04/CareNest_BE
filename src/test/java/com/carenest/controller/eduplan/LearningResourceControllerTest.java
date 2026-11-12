@@ -45,7 +45,12 @@ class LearningResourceControllerTest {
                 8,
                 7L,
                 java.time.Instant.EPOCH,
-                true);
+                true,
+                3L,
+                "FILE",
+                "demo.pdf",
+                null,
+                "MINE");
         given(service.upload(eq(user), eq("dd_1_1_2026-09-07"), any(), any(), eq(requestId)))
                 .willReturn(result);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(BASE)

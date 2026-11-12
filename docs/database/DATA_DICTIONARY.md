@@ -733,7 +733,7 @@ Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi m�
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
 
 ## Kế hoạch giáo dục năm học và tổ  (module: education-plan, scope: SCHOOL theo nhóm tuổi)
-Migration: `V11__create_edu_year_plans.sql`, `V12__relax_edu_theme_draft_constraints.sql`, `V23__drop_unused_edu_plan_tables.sql`, `V24__add_edu_year_plan_editing_lock.sql`, `V27__create_edu_settings.sql`, `V28__create_edu_class_docs.sql`, `V30__add_edu_year_plan_edit_sessions.sql`, `V31__add_edu_learning_resources.sql`, `V32__add_edu_plan_versions.sql`, `V41__edu_class_doc_sign_chain.sql`, `V80__expand_edu_workflow_policy.sql`, `V81__contract_edu_workflow_policy.sql` (EDU-54), `V89__separate_team_plans.sql` (expand), `V90__cutover_separate_education_plans.sql` (candidate contract spec015), `V95__create_edu_class_doc_releases.sql` (EDU-73), `V96__edu_semester_packages_and_day_plans.sql` (EDU-74), `V99__edu_drop_class_doc_adjustments.sql` (spec 005 DB-F).
+Migration: `V11__create_edu_year_plans.sql`, `V12__relax_edu_theme_draft_constraints.sql`, `V23__drop_unused_edu_plan_tables.sql`, `V24__add_edu_year_plan_editing_lock.sql`, `V27__create_edu_settings.sql`, `V28__create_edu_class_docs.sql`, `V30__add_edu_year_plan_edit_sessions.sql`, `V31__add_edu_learning_resources.sql`, `V32__add_edu_plan_versions.sql`, `V41__edu_class_doc_sign_chain.sql`, `V80__expand_edu_workflow_policy.sql`, `V81__contract_edu_workflow_policy.sql` (EDU-54), `V89__separate_team_plans.sql` (expand), `V90__cutover_separate_education_plans.sql` (candidate contract spec015), `V95__create_edu_class_doc_releases.sql` (EDU-73), `V96__edu_semester_packages_and_day_plans.sql` (EDU-74), `V99__edu_drop_class_doc_adjustments.sql` (spec 005 DB-F), `V125__edu_resource_library.sql` (spec 900 kho học liệu).
 
 Schema bên dưới là đích sau V97; chỉ kiểm trên scratch, chưa áp dụng DB đang dùng. App mới và V97 phải cutover đồng bộ; V96 vẫn để app cũ là writer duy nhất. Hai header dùng chung `edu_plan_id_seq` (allocationSize=1, không OWNED BY một bảng), giữ ID cũ, không lưu `plan_level`. `EduPlan` là mapped superclass, không phải bảng chung.
 
@@ -769,6 +769,12 @@ Lệch so với CAN_DB (đã chốt 22/10):
 
 ## Học liệu hoạt động / trình chiếu (2026-10-27)
 User yêu cầu tất cả tệp dùng S3 private và đồng ý AWS SDK v2. Metadata edu_learning_resources trỏ class_doc_id; lưu activity key/signature, tên/loại/kích thước, uploader, request UUID và storage key opaque. Key/signature cùng null khi gỡ. Không binary trong JSONB; không sửa schema nội dung cũ. Tham chiếu [data-model feature002](../../specs/002-class-plan-teaching-media/data-model.md), migration V28. Không expose storage key qua response.
+
+## Kho học liệu (module: education-plan, scope: người tạo / lớp / trường) — V125, spec 900
+- `edu_resource_items`: học liệu lưu một lần. `kind` FILE|LINK (CHECK: FILE có `storage_key` S3 `hoclieu/`, không `url`; LINK ngược lại), `title`, `owner_id`, `scope` MINE|CLASS|SCHOOL (`classroom_id` bắt buộc khi CLASS), `share_status` PENDING|REJECTED + `share_reason`, `share_by`, `share_at`, `age_group_id` (NULL = mọi nhóm tuổi), `hidden`, thông tin tệp, `upload_request_id` (UNIQUE với `owner_id`), `url` ≤2000.
+- `edu_resource_item_tags`: nhãn `kind` THEME|GOAL, `ref_id` (chủ đề / MT), `curriculum_goal_id` (mã mục tiêu Bộ để khớp năm sau), `name`; UNIQUE (item, kind, ref).
+- `edu_resource_attachments`: dòng gắn học liệu vào giáo án ngày: `class_doc_id`, `activity_key` (CHECK `yyyy-MM-dd#hoc|ngoai_troi|goc|chieu`), `activity_label`, `item_id` (ON DELETE RESTRICT), `created_by`; UNIQUE (doc, mục, học liệu).
+- Chuyển dữ liệu: mỗi dòng `edu_learning_resources` → 1 học liệu MINE của người tải (giữ khóa S3), dòng đang gắn → 1 dòng gắn, nhãn chủ đề từ giáo án. Bảng cũ giữ lại không dùng (xóa bằng migration riêng sau khi kiểm tra).
 
 ## Danh mục Chương trình GDMN của Bộ (module: education-plan, scope: SYSTEM, chỉ đọc) — V33, V34
 

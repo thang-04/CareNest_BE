@@ -800,18 +800,39 @@ class EduClassDocServiceIntegrationTest {
                 "file", "bai.pdf", "application/pdf", "%PDF-1.7 test".getBytes());
         var saved = learningResources.upload(teacher, dayKey, pdf, binding, java.util.UUID.randomUUID());
         assertThat(saved.active()).isTrue();
+        // EDU-82: tệp thành học liệu trong kho, giáo án chỉ giữ dòng gắn
         assertThat(jdbc.queryForObject(
-                        "SELECT storage_key FROM edu_learning_resources WHERE id=?", String.class, saved.id()))
+                        "SELECT storage_key FROM edu_resource_items WHERE id=?", String.class, saved.itemId()))
                 .startsWith("hoclieu/hoclieu_");
 
         // Ngày ngoài tuần của kế hoạch ngày, hoặc mục không có ⇒ không gắn được
         assertApiError(
-                () -> learningResources.bind(
+                () -> learningResources.addLink(
                         teacher,
                         dayKey,
-                        saved.id(),
-                        new com.carenest.dto.eduplan.LearningResourceBinding("2026-09-14#hoc", "x")),
+                        new com.carenest.dto.eduplan.ResourceLinkRequest(
+                                "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-14#hoc", "x", null)),
                 ApiCode.ACTIVITY_CHANGED);
+        // Dùng lại học liệu ở mục khác của tuần: không tạo học liệu mới; gỡ ở mục đầu thì mục sau vẫn còn (EDU-85)
+        Long itemsBefore = jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class);
+        var again = learningResources.attach(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceAttachRequest(
+                        java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều"));
+        assertThat(again).singleElement().satisfies(r -> assertThat(r.itemId()).isEqualTo(saved.itemId()));
+        assertApiError(
+                () -> learningResources.attach(
+                        teacher,
+                        dayKey,
+                        new com.carenest.dto.eduplan.ResourceAttachRequest(
+                                java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều")),
+                ApiCode.RESOURCE_ALREADY_ATTACHED);
+        learningResources.detach(teacher, dayKey, saved.id());
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.activityKey())
+                .containsExactly("2026-09-08#chieu");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class)).isEqualTo(itemsBefore);
         // Kế hoạch chủ đề không còn nhận học liệu
         String themeKey = "tp_" + classId + "_" + theme1;
         service.saveClassDoc(
@@ -830,6 +851,48 @@ class EduClassDocServiceIntegrationTest {
                 () -> learningResources.upload(teacher, dayKey, fake, binding, java.util.UUID.randomUUID()),
                 ApiCode.UNSUPPORTED_MEDIA_TYPE);
         assertThat(learningResources.list(teacher, dayKey)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("Spec 900 FR-018, SC-002: chuyển học liệu cũ sang kho — số học liệu = số dòng cũ, dòng gắn = dòng đang gắn")
+    void legacyLearningResourcesMigrateToLibrary() throws Exception {
+        approveBranch();
+        String dayKey = "dd_" + classId + "_2026-09-07";
+        ObjectNode day = base();
+        day.put("themeId", theme1);
+        day.put("weekStart", "2026-09-07");
+        day.putArray("days").addObject().put("date", "2026-09-07");
+        service.saveClassDoc(teacher, "day", dayKey, day, -1L, rootVersionOf("day", day));
+        Long docId = jdbc.queryForObject("SELECT id FROM edu_class_docs WHERE doc_key=?", Long.class, dayKey);
+        // Hai dòng cũ: một dòng đang gắn mục, một dòng đã gỡ
+        java.util.UUID request = java.util.UUID.randomUUID();
+        String insert = "INSERT INTO edu_learning_resources (class_doc_id, activity_key, activity_label, original_name,"
+                + " content_type, byte_size, storage_key, upload_request_id, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?)";
+        jdbc.update(insert, docId, "2026-09-07#hoc", "Hoạt động học", "bai.hat.pdf", "application/pdf", 10L,
+                "hoclieu/legacy-1", request, teacher.userId());
+        jdbc.update(insert, docId, null, "Hoạt động học", "anh.png", "image/png", 5L, "hoclieu/legacy-2",
+                java.util.UUID.randomUUID(), teacher.userId());
+        String script = new String(
+                getClass().getResourceAsStream("/db/migration/V125__edu_resource_library.sql").readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        String data = script.substring(script.indexOf("ALTER TABLE edu_resource_items ADD COLUMN legacy_id"));
+        for (String sql : data.split(";\\s*\\n")) if (!sql.isBlank()) jdbc.execute(sql);
+        assertThat(jdbc.queryForList(
+                        "SELECT title FROM edu_resource_items WHERE storage_key LIKE 'hoclieu/legacy-%' ORDER BY id",
+                        String.class))
+                .containsExactlyInAnyOrder("bai.hat", "anh");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM edu_resource_attachments a JOIN edu_resource_items i ON i.id = a.item_id"
+                                + " WHERE i.storage_key LIKE 'hoclieu/legacy-%'",
+                        Long.class))
+                .isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(upload_request_id) FROM edu_resource_items WHERE storage_key LIKE 'hoclieu/legacy-%'",
+                        Long.class))
+                .isEqualTo(2L);
+        assertThat(learningResources.list(teacher, dayKey))
+                .singleElement()
+                .satisfies(r -> assertThat(r.fileName()).isEqualTo("bai.hat"));
     }
 
     @Autowired

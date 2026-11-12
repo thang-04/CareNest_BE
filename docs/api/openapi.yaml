@@ -805,7 +805,7 @@ paths:
       - assessment-day-unlock-controller
   /api/assessment/evaluations:
     get:
-      operationId: list_1
+      operationId: list_2
       parameters:
       - in: query
         name: periodType
@@ -1227,7 +1227,7 @@ paths:
       - reward-list-controller
   /api/assessment/reward-lists/{id}/review:
     post:
-      operationId: review
+      operationId: review_1
       parameters:
       - in: path
         name: id
@@ -2869,7 +2869,7 @@ paths:
       - child-enrollment-controller
   /api/children/{childId}/withdraw:
     post:
-      operationId: withdraw
+      operationId: withdraw_1
       parameters:
       - in: path
         name: childId
@@ -3360,7 +3360,7 @@ paths:
       - edu-class-doc-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources:
     get:
-      operationId: list
+      operationId: list_1
       parameters:
       - in: path
         name: docKey
@@ -3377,7 +3377,7 @@ paths:
       tags:
       - learning-resource-controller
     post:
-      operationId: upload
+      operationId: upload_1
       parameters:
       - in: path
         name: docKey
@@ -3416,6 +3416,30 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/attach:
+    post:
+      operationId: attach
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceAttachRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources/confirm:
     post:
       operationId: confirmUpload
@@ -3436,6 +3460,30 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/LearningResourceConfirmRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/links:
+    post:
+      operationId: addLink_1
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceLinkRequest"
         required: true
       responses:
         "200":
@@ -3494,36 +3542,6 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/activity:
-    patch:
-      operationId: bind
-      parameters:
-      - in: path
-        name: docKey
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LearningResourceBinding"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonLearningResourceResponse"
-          description: OK
-      tags:
-      - learning-resource-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/content:
     get:
       operationId: content
@@ -3551,7 +3569,7 @@ paths:
       - learning-resource-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/url:
     get:
-      operationId: contentUrl
+      operationId: contentUrl_1
       parameters:
       - in: path
         name: docKey
@@ -4375,6 +4393,285 @@ paths:
           description: Created
       tags:
       - edu-year-plan-controller
+  /api/education-plans/resources:
+    get:
+      operationId: list
+      parameters:
+      - in: query
+        name: view
+        required: false
+        schema:
+          type: string
+          default: ALL
+      - in: query
+        name: q
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: ageGroupId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: themeId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: themeName
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: goalIds
+        required: false
+        schema:
+          type: array
+          items:
+            type: integer
+            format: int64
+      - in: query
+        name: docKey
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: activityKey
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 50
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponseResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+    post:
+      operationId: upload
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                ageGroupId:
+                  type: string
+                file:
+                  type: string
+                  format: binary
+                title:
+                  type: string
+              required:
+              - file
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/links:
+    post:
+      operationId: addLink
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceLibraryLinkRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}:
+    delete:
+      operationId: delete
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonString"
+          description: OK
+      tags:
+      - resource-library-controller
+    patch:
+      operationId: update_1
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceItemUpdateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}/review:
+    post:
+      operationId: review
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceReviewRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}/share:
+    post:
+      operationId: share
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceShareRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}/url:
+    get:
+      operationId: contentUrl
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}/usages:
+    get:
+      operationId: usages
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListResourceUsageResponse"
+          description: OK
+      tags:
+      - resource-library-controller
+  /api/education-plans/resources/{id}/withdraw:
+    post:
+      operationId: withdraw
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
+          description: OK
+      tags:
+      - resource-library-controller
   /api/education-plans/workflow-policy:
     get:
       operationId: getWorkflowPolicy
@@ -14806,20 +15103,6 @@ components:
           type: string
         shortName:
           type: string
-    LearningResourceBinding:
-      type: object
-      properties:
-        activityKey:
-          type: string
-          minLength: 1
-          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
-        activityLabel:
-          type: string
-          maxLength: 1000
-          minLength: 0
-      required:
-      - activityKey
-      - activityLabel
     LearningResourceConfirmRequest:
       type: object
       properties:
@@ -14835,6 +15118,8 @@ components:
           type: string
           maxLength: 255
           minLength: 0
+        tags:
+          $ref: "#/components/schemas/ResourceTagsRequest"
         uploadId:
           type: string
           maxLength: 120
@@ -14868,9 +15153,20 @@ components:
         id:
           type: integer
           format: int64
+        itemId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        scope:
+          type: string
+        title:
+          type: string
         uploadedBy:
           type: integer
           format: int64
+        url:
+          type: string
     LearningResourceUploadUrlRequest:
       type: object
       properties:
@@ -15944,6 +16240,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PermissionChangeLogResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseResourceItemResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceItemResponse"
         page:
           type: integer
           format: int32
@@ -17080,6 +17395,211 @@ components:
           type: string
           format: date-time
         resetToken:
+          type: string
+    ResourceAttachRequest:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
+        activityLabel:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        itemIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 20
+          minItems: 0
+      required:
+      - activityKey
+      - activityLabel
+      - itemIds
+    ResourceItemResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        attached:
+          type: boolean
+        byteSize:
+          type: integer
+          format: int64
+        canEdit:
+          type: boolean
+        canReview:
+          type: boolean
+        classroomId:
+          type: integer
+          format: int64
+        contentType:
+          type: string
+        fileName:
+          type: string
+        hidden:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        match:
+          type: string
+        mine:
+          type: boolean
+        ownerId:
+          type: integer
+          format: int64
+        scope:
+          type: string
+        shareReason:
+          type: string
+        shareStatus:
+          type: string
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceTagResponse"
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+        usageCount:
+          type: integer
+          format: int64
+    ResourceItemUpdateRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        clearAgeGroup:
+          type: boolean
+        hidden:
+          type: boolean
+        tags:
+          $ref: "#/components/schemas/ResourceTagsRequest"
+        title:
+          type: string
+          maxLength: 255
+          minLength: 1
+    ResourceLibraryLinkRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          maxLength: 255
+          minLength: 0
+        url:
+          type: string
+          maxLength: 2000
+          minLength: 0
+      required:
+      - url
+    ResourceLinkRequest:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
+        activityLabel:
+          type: string
+          maxLength: 1000
+          minLength: 0
+        tags:
+          $ref: "#/components/schemas/ResourceTagsRequest"
+        title:
+          type: string
+          maxLength: 255
+          minLength: 0
+        url:
+          type: string
+          maxLength: 2000
+          minLength: 0
+      required:
+      - activityKey
+      - activityLabel
+      - url
+    ResourceReviewRequest:
+      type: object
+      properties:
+        approve:
+          type: boolean
+        reason:
+          type: string
+          maxLength: 1000
+          minLength: 0
+      required:
+      - approve
+    ResourceShareRequest:
+      type: object
+      properties:
+        classroomId:
+          type: integer
+          format: int64
+        scope:
+          type: string
+          minLength: 1
+          pattern: MINE|CLASS|SCHOOL
+      required:
+      - scope
+    ResourceTagResponse:
+      type: object
+      properties:
+        curriculumGoalId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+        name:
+          type: string
+        refId:
+          type: integer
+          format: int64
+    ResourceTagsRequest:
+      type: object
+      properties:
+        goalIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 50
+          minItems: 0
+        themeId:
+          type: integer
+          format: int64
+        themeName:
+          type: string
+          maxLength: 500
+          minLength: 0
+    ResourceUsageResponse:
+      type: object
+      properties:
+        activityKey:
+          type: string
+        activityLabel:
+          type: string
+        attachmentId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        date:
+          type: string
+        docKey:
           type: string
     ResponseJsonAccessToken:
       type: object
@@ -18598,6 +19118,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListResourceUsageResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceUsageResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListRewardClassRow:
       type: object
       properties:
@@ -19015,6 +19550,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonPageResponseResourceItemResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponseResourceItemResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonPageResponseStockMovementResponse:
       type: object
       properties:
@@ -19205,6 +19753,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ResetToken"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonResourceItemResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ResourceItemResponse"
         desc:
           type: string
         errorCode:

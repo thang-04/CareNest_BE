@@ -20,10 +20,14 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -37,7 +41,10 @@ import org.springframework.web.multipart.MultipartFile;
 public class LearningResourceServiceImpl implements LearningResourceService {
     private static final String LOG_PREFIX = "[LearningResourceServiceImpl]";
     private final EduClassDocService classDocs;
-    private final EduLearningResourceRepository resources;
+    private static final int MAX_PER_SECTION = 20;
+    private final EduResourceAttachmentRepository attachments;
+    private final EduResourceItemRepository items;
+    private final ResourceLibraryService library;
     private final StaffAssignmentService assignments;
     private final FileStorage storage;
     private final Clock clock;
@@ -53,8 +60,11 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         try {
             EduClassDoc doc = classDocs.requireDayAccess(user, docKey, false);
             boolean editor = isEditor(user, doc);
-            List<LearningResourceResponse> result = resources.findAllByClassDocIdOrderByIdAsc(doc.getId()).stream()
-                    .map(r -> response(doc, r))
+            List<EduResourceAttachment> rows = attachments.findAllByClassDocIdOrderByIdAsc(doc.getId());
+            Map<Long, EduResourceItem> byId = itemsOf(rows);
+            List<LearningResourceResponse> result = rows.stream()
+                    .filter(a -> byId.containsKey(a.getItemId()))
+                    .map(a -> response(doc, a, byId.get(a.getItemId())))
                     .filter(r -> editor || r.active())
                     .toList();
             log.info("{}|END", p);
@@ -85,7 +95,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             } catch (IOException ex) {
                 throw GlobalException.of(ApiCode.FILE_UNREADABLE);
             }
-            LearningResourceResponse result = commit(user, docKey, binding, requestId, name, stored);
+            LearningResourceResponse result = commit(user, docKey, binding, requestId, name, stored, null);
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -144,7 +154,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                     throw ex;
                 }
             }
-            LearningResourceResponse result = commit(user, docKey, binding, requestId, name, stored);
+            LearningResourceResponse result =
+                    commit(user, docKey, binding, requestId, name, stored, request.tags());
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -157,8 +168,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     private Prepared prepare(CurrentUser user, String docKey, LearningResourceBinding binding, UUID requestId) {
         return new TransactionTemplate(transactionManager).execute(status -> {
             EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
-            var existing = resources.findByClassDocIdAndUploadRequestId(doc.getId(), requestId);
-            if (existing.isPresent()) return new Prepared(doc.getId(), response(doc, existing.get()));
+            LearningResourceResponse replay = replay(user, doc, binding, requestId);
+            if (replay != null) return new Prepared(doc.getId(), replay);
             validateBinding(doc, binding);
             return new Prepared(doc.getId(), null);
         });
@@ -166,23 +177,36 @@ public class LearningResourceServiceImpl implements LearningResourceService {
 
     private record Prepared(Long docId, LearningResourceResponse replay) {}
 
-    /** Ghi bản ghi học liệu cho tệp đã lưu; giao dịch không thành hoặc trùng requestId thì xóa đúng tệp mới. */
+    /** Tải lại cùng requestId: trả dòng gắn đã có của học liệu đó ở mục này. */
+    private LearningResourceResponse replay(
+            CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, UUID requestId) {
+        return items.findByOwnerIdAndUploadRequestId(user.userId(), requestId)
+                .flatMap(item -> attachments.findAllByClassDocIdAndActivityKey(doc.getId(), binding.activityKey()).stream()
+                        .filter(a -> a.getItemId().equals(item.getId()))
+                        .findFirst()
+                        .map(a -> response(doc, a, item)))
+                .orElse(null);
+    }
+
+    /** EDU-82: tệp đã lưu ⇒ học liệu "Của tôi" + dòng gắn trong một giao dịch; không thành hoặc trùng thì xóa đúng tệp mới. */
     private LearningResourceResponse commit(
             CurrentUser user,
             String docKey,
             LearningResourceBinding binding,
             UUID requestId,
             String name,
-            FileStorage.StoredFile stored) {
+            FileStorage.StoredFile stored,
+            ResourceTagsRequest tags) {
         String key = stored.key();
         boolean[] cleanupRegistered = {false};
         UploadCommit outcome;
         try {
             outcome = new TransactionTemplate(transactionManager).execute(status -> {
                 EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
-                var existing = resources.findByClassDocIdAndUploadRequestId(doc.getId(), requestId);
-                if (existing.isPresent()) return new UploadCommit(response(doc, existing.get()), false);
+                LearningResourceResponse again = replay(user, doc, binding, requestId);
+                if (again != null) return new UploadCommit(again, false);
                 validateBinding(doc, binding);
+                requireRoom(doc, binding.activityKey(), 1);
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
                     public void afterCompletion(int completionStatus) {
@@ -190,19 +214,10 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                     }
                 });
                 cleanupRegistered[0] = true;
-                EduLearningResource saved = resources.saveAndFlush(EduLearningResource.create(
-                        doc.getId(),
-                        binding.activityKey(),
-                        binding.activityLabel(),
-                        name,
-                        stored.contentType(),
-                        stored.size(),
-                        key,
-                        requestId,
-                        user.userId(),
-                        clock.instant()));
+                EduResourceItem item = library.createFileItem(user, ageGroupOf(doc), stored, name, requestId, tags);
+                EduResourceAttachment saved = saveAttachment(user, doc, binding, item.getId());
                 workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
-                return new UploadCommit(response(doc, saved), true);
+                return new UploadCommit(response(doc, saved, item), true);
             });
         } catch (RuntimeException ex) {
             if (!cleanupRegistered[0]) {
@@ -222,24 +237,74 @@ public class LearningResourceServiceImpl implements LearningResourceService {
 
     @Override
     @Transactional
-    public LearningResourceResponse bind(CurrentUser user, String docKey, Long id, LearningResourceBinding binding) {
-        String p = LOG_PREFIX + "|bind|userId=" + user.userId() + "|id=" + id;
+    public LearningResourceResponse addLink(CurrentUser user, String docKey, ResourceLinkRequest request) {
+        String p = LOG_PREFIX + "|addLink|userId=" + user.userId();
         log.info("{}|START", p);
         try {
             EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            LearningResourceBinding binding = request.binding();
             validateBinding(doc, binding);
-            EduLearningResource r = requireResource(doc, id);
-            boolean changed = !Objects.equals(r.getActivityKey(), binding.activityKey())
-                    || !Objects.equals(r.getActivityLabel(), binding.activityLabel());
-            r.bind(binding.activityKey(), binding.activityLabel());
-            resources.saveAndFlush(r);
-            if (changed) workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+            EduResourceItem item =
+                    library.findOrCreateLink(user, request.url(), request.title(), ageGroupOf(doc), request.tags());
+            var result = attachAll(user, doc, binding, List.of(item)).get(0);
             log.info("{}|END", p);
-            return response(doc, r);
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional
+    public List<LearningResourceResponse> attach(CurrentUser user, String docKey, ResourceAttachRequest request) {
+        String p = LOG_PREFIX + "|attach|userId=" + user.userId();
+        log.info("{}|START", p);
+        try {
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            LearningResourceBinding binding = request.binding();
+            validateBinding(doc, binding);
+            List<EduResourceItem> chosen = request.itemIds().stream()
+                    .distinct()
+                    .map(id -> library.requireVisible(user, id))
+                    .toList();
+            var result = attachAll(user, doc, binding, chosen);
+            log.info("{}|END", p);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /** EDU-82: mỗi học liệu một lần mỗi mục, tối đa 20 học liệu mỗi mục; gắn tính là sửa nội dung (EDU-64). */
+    private List<LearningResourceResponse> attachAll(
+            CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, List<EduResourceItem> chosen) {
+        for (EduResourceItem item : chosen)
+            if (attachments.existsByClassDocIdAndActivityKeyAndItemId(doc.getId(), binding.activityKey(), item.getId()))
+                throw GlobalException.of(ApiCode.RESOURCE_ALREADY_ATTACHED);
+        requireRoom(doc, binding.activityKey(), chosen.size());
+        List<LearningResourceResponse> out = chosen.stream()
+                .map(item -> response(doc, saveAttachment(user, doc, binding, item.getId()), item))
+                .toList();
+        workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+        return out;
+    }
+
+    private EduResourceAttachment saveAttachment(
+            CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, Long itemId) {
+        try {
+            return attachments.saveAndFlush(EduResourceAttachment.of(
+                    doc.getId(), binding.activityKey(), binding.activityLabel(), itemId, user.userId(), clock.instant()));
+        } catch (DataIntegrityViolationException ex) {
+            // Hai người gắn cùng lúc: ràng buộc duy nhất ở DB chặn bản thứ hai
+            throw GlobalException.withCause(ApiCode.RESOURCE_ALREADY_ATTACHED, ex);
+        }
+    }
+
+    private void requireRoom(EduClassDoc doc, String activityKey, int adding) {
+        if (attachments.countByClassDocIdAndActivityKey(doc.getId(), activityKey) + adding > MAX_PER_SECTION)
+            throw GlobalException.of(ApiCode.RESOURCE_SECTION_FULL, MAX_PER_SECTION);
     }
 
     @Override
@@ -249,11 +314,10 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         log.info("{}|START", p);
         try {
             EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
-            EduLearningResource r = requireResource(doc, id);
-            boolean changed = r.getActivityKey() != null;
-            r.detach();
-            resources.saveAndFlush(r);
-            if (changed) workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+            // EDU-85: gỡ khỏi mục chỉ xóa dòng gắn; học liệu trong kho và ở ngày khác còn nguyên
+            attachments.delete(requireAttachment(doc, id));
+            attachments.flush();
+            workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
             log.info("{}|END", p);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
@@ -268,12 +332,12 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         log.info("{}|START", p);
         try {
             EduClassDoc doc = classDocs.requireDayAccess(user, docKey, false);
-            EduLearningResource r = requireResource(doc, id);
-            if (!isEditor(user, doc) && !active(doc, r)) throw GlobalException.of(ApiCode.LEARNING_RESOURCE_UNBOUND);
+            EduResourceItem item = viewable(user, doc, id);
+            if (item.isLink()) throw GlobalException.of(ApiCode.LEARNING_RESOURCE_NOT_FOUND);
             Download result = new Download(
-                    storage.load(FileCategory.LEARNING_RESOURCE, r.getStorageKey()),
-                    r.getOriginalName(),
-                    r.getContentType());
+                    storage.load(FileCategory.LEARNING_RESOURCE, item.getStorageKey()),
+                    item.getOriginalName(),
+                    item.getContentType());
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -289,16 +353,21 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         log.info("{}|START", p);
         try {
             EduClassDoc doc = classDocs.requireDayAccess(user, docKey, false);
-            EduLearningResource r = requireResource(doc, id);
-            if (!isEditor(user, doc) && !active(doc, r)) throw GlobalException.of(ApiCode.LEARNING_RESOURCE_UNBOUND);
-            var url = storage.presignGet(
-                    FileCategory.LEARNING_RESOURCE, r.getStorageKey(), r.getContentType(), r.getOriginalName());
+            // EDU-86: ai xem được giáo án thì xem được học liệu đã gắn, bất kể phạm vi/ẩn của học liệu
+            var result = ResourceLibraryServiceImpl.urlOf(storage, viewable(user, doc, id));
             log.info("{}|END", p);
-            return new FileUrlResponse(url.url(), url.expiresAt());
+            return result;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private EduResourceItem viewable(CurrentUser user, EduClassDoc doc, Long id) {
+        EduResourceAttachment a = requireAttachment(doc, id);
+        if (!isEditor(user, doc) && !matches(doc, a.getActivityKey()))
+            throw GlobalException.of(ApiCode.LEARNING_RESOURCE_UNBOUND);
+        return items.findById(a.getItemId()).orElseThrow(() -> GlobalException.of(ApiCode.LEARNING_RESOURCE_NOT_FOUND));
     }
 
     private boolean isEditor(CurrentUser user, EduClassDoc doc) {
@@ -312,10 +381,22 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                         user.userId());
     }
 
-    private EduLearningResource requireResource(EduClassDoc doc, Long id) {
-        return resources
+    private Long ageGroupOf(EduClassDoc doc) {
+        return classrooms.findClassroomInfo(doc.getClassroomId())
+                .map(c -> c.ageGroupId())
+                .orElse(null);
+    }
+
+    private EduResourceAttachment requireAttachment(EduClassDoc doc, Long id) {
+        return attachments
                 .findByIdAndClassDocId(id, doc.getId())
                 .orElseThrow(() -> GlobalException.of(ApiCode.LEARNING_RESOURCE_NOT_FOUND));
+    }
+
+    private Map<Long, EduResourceItem> itemsOf(List<EduResourceAttachment> rows) {
+        if (rows.isEmpty()) return Map.of();
+        return items.findAllById(rows.stream().map(EduResourceAttachment::getItemId).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(EduResourceItem::getId, Function.identity()));
     }
 
     private static final java.util.regex.Pattern KEY =
@@ -341,22 +422,23 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         }
     }
 
-    private static boolean active(EduClassDoc doc, EduLearningResource r) {
-        return matches(doc, r.getActivityKey());
-    }
-
-    private LearningResourceResponse response(EduClassDoc doc, EduLearningResource r) {
+    private LearningResourceResponse response(EduClassDoc doc, EduResourceAttachment a, EduResourceItem item) {
         return new LearningResourceResponse(
-                r.getId(),
+                a.getId(),
                 doc.getDocKey(),
-                r.getActivityKey(),
-                r.getActivityLabel(),
-                r.getOriginalName(),
-                r.getContentType(),
-                r.getByteSize(),
-                r.getUploadedBy(),
-                r.getCreatedAt(),
-                active(doc, r));
+                a.getActivityKey(),
+                a.getActivityLabel(),
+                item.getTitle(),
+                item.isLink() ? "text/uri-list" : item.getContentType(),
+                item.getByteSize() == null ? 0 : item.getByteSize(),
+                a.getCreatedBy(),
+                a.getCreatedAt(),
+                matches(doc, a.getActivityKey()),
+                item.getId(),
+                item.getKind(),
+                item.getTitle(),
+                item.getUrl(),
+                item.getScope());
     }
 
     private interface ContentSource {
