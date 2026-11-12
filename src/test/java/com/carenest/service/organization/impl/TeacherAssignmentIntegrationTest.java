@@ -701,6 +701,13 @@ class TeacherAssignmentIntegrationTest {
                 .containsExactly(ageGroup4);
         assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, TODAY)).isEmpty();
 
+        // Năm đang chạy: phân công bắt đầu sau hôm nay chưa có quyền
+        jdbc.update("INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-11-15')", teacher3, ageGroup4, year);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, TODAY)).isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, LocalDate.of(2026, 11, 15)))
+                .containsExactly(ageGroup4);
+
         assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, year, TODAY)).containsExactly(teacher2);
         assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, LocalDate.of(2027, 10, 1)))
                 .containsExactly(teacher1);
