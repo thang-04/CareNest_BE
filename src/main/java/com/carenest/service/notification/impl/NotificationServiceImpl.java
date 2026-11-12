@@ -69,10 +69,11 @@ public class NotificationServiceImpl implements NotificationService {
             List<Notification> created = new ArrayList<>();
             for (Long userId : new LinkedHashSet<>(userIds)) {
                 if (userId == null
-                        || (once && link != null && notificationRepository.existsByUserIdAndTypeAndLink(userId, type, link)))
-                    continue;
-                created.add(notificationRepository.save(Notification.of(
-                        userId, type, truncate(title, 150), truncate(body, 500), childId, now, link)));
+                        || (once
+                                && link != null
+                                && notificationRepository.existsByUserIdAndTypeAndLink(userId, type, link))) continue;
+                created.add(notificationRepository.save(
+                        Notification.of(userId, type, truncate(title, 150), truncate(body, 500), childId, now, link)));
             }
             if (!created.isEmpty()) {
                 // Đẩy tới thiết bị sau khi giao dịch tạo thông báo đã lưu (PushDispatchListener)

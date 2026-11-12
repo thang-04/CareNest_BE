@@ -36,7 +36,9 @@ public record YearPlanSummaryResponse(
         YearPlanDetailResponse.TimeLock timeLock) {
 
     @com.fasterxml.jackson.annotation.JsonProperty
-    public com.carenest.utils.enums.EduPlanLevel planType() { return planLevel; }
+    public com.carenest.utils.enums.EduPlanLevel planType() {
+        return planLevel;
+    }
 
     @com.fasterxml.jackson.annotation.JsonProperty
     public String planTypeLabel() {
@@ -44,7 +46,9 @@ public record YearPlanSummaryResponse(
     }
 
     @com.fasterxml.jackson.annotation.JsonProperty
-    public Instant sentAt() { return sentBy == null ? null : sentBy.at(); }
+    public Instant sentAt() {
+        return sentBy == null ? null : sentBy.at();
+    }
 
     public YearPlanSummaryResponse(
             Long id,

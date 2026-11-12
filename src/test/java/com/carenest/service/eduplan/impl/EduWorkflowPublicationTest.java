@@ -6,10 +6,10 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import com.carenest.dto.organization.SchoolYearResponse;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.entity.eduplan.EduPlanGoal;
 import com.carenest.entity.eduplan.EduPlanSubDomain;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduBreakRepository;
 import com.carenest.repository.eduplan.EduGoalContentRepository;
@@ -115,7 +115,8 @@ class EduWorkflowPublicationTest {
     void acceptsDisjointDifferentParentAndRejectsUndatedBranches() {
         given(templateRepository.findAllByYearPlanIdOrderBySortOrderAsc(1L))
                 .willReturn(List.of(
-                        branch(1, "2026-09-07", "2026-09-11"), branch(1, "2026-09-14", "2026-09-18"),
+                        branch(1, "2026-09-07", "2026-09-11"),
+                        branch(1, "2026-09-14", "2026-09-18"),
                         branch(2, "2026-09-07", "2026-09-18")));
         assertThatCode(() -> validator.validateBranchDates(1L)).doesNotThrowAnyException();
         // Quy tắc hiện hành: mẫu nhánh phải có đủ ngày bắt đầu/kết thúc
@@ -143,7 +144,16 @@ class EduWorkflowPublicationTest {
     @Test
     @DisplayName("EDU-52: chủ đề thiếu ngày bắt đầu hoặc kết thúc thì từ chối ban hành (mã 7037)")
     void rejectsMissingThemeDates() {
-        EduPlan plan = EduPlan.createDraft(com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, "P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
+        EduPlan plan = EduPlan.createDraft(
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                "P-01",
+                1L,
+                1L,
+                "Kế hoạch năm",
+                "Mô tả",
+                10L,
+                "TL",
+                Instant.now());
         given(schoolStructureService.findSchoolYear(1L))
                 .willReturn(Optional.of(
                         new SchoolYearResponse(1L, "2026-2027", LocalDate.of(2026, 8, 1), LocalDate.of(2027, 5, 31))));
@@ -166,7 +176,16 @@ class EduWorkflowPublicationTest {
     @DisplayName(
             "EDU-53: lĩnh vực có lĩnh vực con nhưng có mục tiêu nằm ngoài lĩnh vực con thì từ chối ban hành (mã 7038)")
     void rejectsMixedSubDomainGoals() {
-        EduPlan plan = EduPlan.createDraft(com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, "P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
+        EduPlan plan = EduPlan.createDraft(
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                "P-01",
+                1L,
+                1L,
+                "Kế hoạch năm",
+                "Mô tả",
+                10L,
+                "TL",
+                Instant.now());
         given(schoolStructureService.findSchoolYear(1L))
                 .willReturn(Optional.of(
                         new SchoolYearResponse(1L, "2026-2027", LocalDate.of(2026, 8, 1), LocalDate.of(2027, 5, 31))));
@@ -179,7 +198,8 @@ class EduWorkflowPublicationTest {
         given(theme.getStartDate()).willReturn(LocalDate.of(2026, 9, 7)); // Monday
         given(theme.getEndDate()).willReturn(LocalDate.of(2026, 9, 11)); // Friday
         List<EduTheme> themes = withMinimumThemes(theme);
-        given(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())).willReturn(themes);
+        given(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()))
+                .willReturn(themes);
 
         EduPlanSubDomain sub = mock(EduPlanSubDomain.class);
         given(sub.getId()).willReturn(100L);
@@ -211,7 +231,16 @@ class EduWorkflowPublicationTest {
     @Test
     @DisplayName("EDU-51: trùng tên mục tiêu trong cùng phạm vi thì từ chối ban hành (mã 7036)")
     void rejectsDuplicateGoalNames() {
-        EduPlan plan = EduPlan.createDraft(com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR, "P-01", 1L, 1L, "Kế hoạch năm", "Mô tả", 10L, "TL", Instant.now());
+        EduPlan plan = EduPlan.createDraft(
+                com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,
+                "P-01",
+                1L,
+                1L,
+                "Kế hoạch năm",
+                "Mô tả",
+                10L,
+                "TL",
+                Instant.now());
         given(schoolStructureService.findSchoolYear(1L))
                 .willReturn(Optional.of(
                         new SchoolYearResponse(1L, "2026-2027", LocalDate.of(2026, 8, 1), LocalDate.of(2027, 5, 31))));
@@ -224,7 +253,8 @@ class EduWorkflowPublicationTest {
         given(theme.getStartDate()).willReturn(LocalDate.of(2026, 9, 7)); // Monday
         given(theme.getEndDate()).willReturn(LocalDate.of(2026, 9, 11)); // Friday
         List<EduTheme> themes = withMinimumThemes(theme);
-        given(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId())).willReturn(themes);
+        given(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(plan.getId()))
+                .willReturn(themes);
 
         EduPlanGoal goal1 = mock(EduPlanGoal.class);
         given(goal1.getId()).willReturn(201L);

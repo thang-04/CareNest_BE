@@ -24,7 +24,8 @@ class EduYearPlanEditingTest {
         EduYearPlanServiceImpl.requireDesignatedAuthor(author, plan, edit);
         assertThatThrownBy(() -> EduYearPlanServiceImpl.requireDesignatedAuthor(other, plan, edit))
                 .isInstanceOf(GlobalException.class);
-        assertThatThrownBy(() -> EduYearPlanServiceImpl.requireDesignatedAuthor(author, plan,
-                new YearPlanEditRequest(null, null, UUID.randomUUID()))).isInstanceOf(GlobalException.class);
+        assertThatThrownBy(() -> EduYearPlanServiceImpl.requireDesignatedAuthor(
+                        author, plan, new YearPlanEditRequest(null, null, UUID.randomUUID())))
+                .isInstanceOf(GlobalException.class);
     }
 }

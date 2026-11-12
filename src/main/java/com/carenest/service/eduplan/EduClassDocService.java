@@ -40,5 +40,4 @@ public interface EduClassDocService {
 
     /** Spec 003 FR-013: nhắc một lần khi gói học kỳ / hồ sơ chủ đề chưa ban hành vào "Gần đến hạn"; trả số gốc đã nhắc. */
     int remindNearDeadlines();
-
 }

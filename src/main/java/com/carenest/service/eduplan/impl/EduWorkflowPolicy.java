@@ -25,7 +25,8 @@ public class EduWorkflowPolicy {
                     || Set.copyOf(rList).size() != rList.size()
                     || rList.contains(Role.TEACHER)
                     || cList.stream().anyMatch(c -> rList.stream().anyMatch(r -> r.ordinal() <= c.ordinal()))) {
-                throw new IllegalArgumentException("Invalid education creator/reviewer roles: reviewer must have strictly higher hierarchy than creator");
+                throw new IllegalArgumentException(
+                        "Invalid education creator/reviewer roles: reviewer must have strictly higher hierarchy than creator");
             }
             creators = cList;
             reviewers = rList;

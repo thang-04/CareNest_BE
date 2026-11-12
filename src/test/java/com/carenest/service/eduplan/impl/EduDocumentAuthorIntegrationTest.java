@@ -7,7 +7,6 @@ import com.carenest.dto.eduplan.ClassDocActionRequest;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
-import com.carenest.entity.eduplan.EduDocumentAuthor;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduDocumentAuthorRepository;
 import com.carenest.security.CurrentUser;
@@ -286,11 +285,22 @@ class EduDocumentAuthorIntegrationTest {
                 "tp_" + classId + "_" + themeId, "theme", classId, yearPlan.id(), themeId, null, teacher1.userId()));
         classDocRepository.saveAndFlush(com.carenest.entity.eduplan.EduClassDoc.create(
                 themeKey, "dossier", classId, yearPlan.id(), themeId, null, teacher1.userId()));
+        // EDU-80: hồ sơ chủ đề chỉ gửi được khi mọi MT của chủ đề được xếp vào ngày dạy
+        String goalIds = String.join(
+                ",",
+                jdbc.queryForList(
+                        "SELECT DISTINCT '\"' || goal_id || '\"' FROM edu_goal_contents WHERE goal_id IN "
+                                + "(SELECT id FROM edu_plan_goals WHERE team_plan_id = ?)",
+                        String.class,
+                        yearPlan.id()));
         for (int week = 0; week < 3; week++) {
             LocalDate monday = LocalDate.of(2026, 9, 7).plusWeeks(week);
             Long author = week == 0 ? teacher2.userId() : teacher1.userId();
-            classDocRepository.saveAndFlush(com.carenest.entity.eduplan.EduClassDoc.create(
-                    "wp_" + classId + "_" + monday, "week", classId, yearPlan.id(), themeId, monday, author));
+            var weekDoc = com.carenest.entity.eduplan.EduClassDoc.create(
+                    "wp_" + classId + "_" + monday, "week", classId, yearPlan.id(), themeId, monday, author);
+            weekDoc.changeContent(
+                    "{\"picks\":{\"hoc.1\":[{\"cardId\":\"c-1\",\"goalIds\":[" + goalIds + "]}]}}", author);
+            classDocRepository.saveAndFlush(weekDoc);
             classDocRepository.saveAndFlush(com.carenest.entity.eduplan.EduClassDoc.create(
                     "dd_" + classId + "_" + monday, "day", classId, yearPlan.id(), themeId, monday, author));
         }

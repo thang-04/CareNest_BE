@@ -97,13 +97,16 @@ class EduWorkflowAccessPolicyTest {
     @DisplayName("EDU-64: tổ trưởng không xem kế hoạch tổ đã ban hành của nhóm tuổi khác")
     void teamLeaderViewScopeStaysWithinAssignedAgeGroup() {
         CurrentUser leader = user(11L, CareNestRole.TEACHER);
-        given(staffAssignmentService.findActiveTeamLeaderAgeGroupIds(11L, TODAY)).willReturn(Set.of(1L));
+        given(staffAssignmentService.findActiveTeamLeaderAgeGroupIds(11L, TODAY))
+                .willReturn(Set.of(1L));
         given(staffAssignmentService.findActiveTeacherAgeGroupIds(11L, TODAY)).willReturn(Set.of());
 
         var scope = accessPolicy.viewScope(leader);
 
-        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.APPROVED)).isTrue();
-        assertThat(scope.allows(2L, com.carenest.utils.enums.EduPlanStatus.APPROVED)).isFalse();
+        assertThat(scope.allows(1L, com.carenest.utils.enums.EduPlanStatus.APPROVED))
+                .isTrue();
+        assertThat(scope.allows(2L, com.carenest.utils.enums.EduPlanStatus.APPROVED))
+                .isFalse();
     }
 
     @Test

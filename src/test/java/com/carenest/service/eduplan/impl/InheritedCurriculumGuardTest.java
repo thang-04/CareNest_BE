@@ -29,18 +29,30 @@ class InheritedCurriculumGuardTest {
         var content = mock(EduGoalContent.class);
         when(content.getId()).thenReturn(4L);
         var existing = Map.of(2L, List.of(content));
-        var request = request(List.of(new YearPlanRequest.Content(4L, "Đã sửa", List.of()),
+        var request = request(List.of(
+                new YearPlanRequest.Content(4L, "Đã sửa", List.of()),
                 new YearPlanRequest.Content(null, "Thêm mới", List.of())));
         InheritedCurriculumGuard.validateInheritedTree(plan, request, List.of(goal), existing);
-        assertThatThrownBy(() -> InheritedCurriculumGuard.validateInheritedTree(plan, request(List.of()),
-                List.of(goal), existing)).isInstanceOf(GlobalException.class);
-        assertThatThrownBy(() -> InheritedCurriculumGuard.validateInheritedTree(plan,
-                request(List.of(new YearPlanRequest.Content(99L, "Ngoại", List.of()))),
-                List.of(goal), existing)).isInstanceOf(GlobalException.class);
+        assertThatThrownBy(() -> InheritedCurriculumGuard.validateInheritedTree(
+                        plan, request(List.of()), List.of(goal), existing))
+                .isInstanceOf(GlobalException.class);
+        assertThatThrownBy(() -> InheritedCurriculumGuard.validateInheritedTree(
+                        plan,
+                        request(List.of(new YearPlanRequest.Content(99L, "Ngoại", List.of()))),
+                        List.of(goal),
+                        existing))
+                .isInstanceOf(GlobalException.class);
     }
 
     private YearPlanRequest request(List<YearPlanRequest.Content> contents) {
-        return new YearPlanRequest(1L, 1L, "Kế hoạch", "", List.of(new YearPlanRequest.Domain(3L,
-                List.of(new YearPlanRequest.Row(2L, "goal", "Mục tiêu", contents)))), List.of(), List.of());
+        return new YearPlanRequest(
+                1L,
+                1L,
+                "Kế hoạch",
+                "",
+                List.of(new YearPlanRequest.Domain(
+                        3L, List.of(new YearPlanRequest.Row(2L, "goal", "Mục tiêu", contents)))),
+                List.of(),
+                List.of());
     }
 }

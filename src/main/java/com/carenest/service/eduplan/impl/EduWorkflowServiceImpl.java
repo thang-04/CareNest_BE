@@ -6,13 +6,13 @@ import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.dto.organization.StaffAssignmentSummaryResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduDocumentAuthor;
-import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.entity.eduplan.EduPlan;
+import com.carenest.entity.eduplan.EduSettings;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduClassDocRepository;
 import com.carenest.repository.eduplan.EduDocumentAuthorRepository;
-import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.repository.eduplan.EduPlanRepository;
+import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.EduPlanAccessPolicy;
 import com.carenest.service.account.AccountService;
@@ -23,6 +23,7 @@ import com.carenest.service.eduplan.impl.EduWorkflowPolicy.Role;
 import com.carenest.service.eduplan.impl.EduWorkflowPolicy.RolePolicy;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.RequestMemo;
 import com.carenest.utils.enums.EduClassDocStatus;
 import com.carenest.utils.enums.EduPlanStatus;
 import com.carenest.utils.enums.StaffRole;
@@ -35,7 +36,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -82,7 +82,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         String logPrefix = LOG_PREFIX + "|loadPolicy|docType=" + docType;
         log.info("{}|START", logPrefix);
         try {
-            RolePolicy policy = parsePolicyNode(loadSettingsPolicyNode(), (EduClassDoc.isRoot(docType) || "week".equals(docType) || "day".equals(docType) ? EduClassDoc.policyType(docType) : docType));
+            RolePolicy policy = parsePolicyNode(
+                    loadSettingsPolicyNode(),
+                    (EduClassDoc.isRoot(docType) || "week".equals(docType) || "day".equals(docType)
+                            ? EduClassDoc.policyType(docType)
+                            : docType));
             var result = policy;
             log.info("{}|END", logPrefix);
             return result;
@@ -222,8 +226,9 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                     existing.get().touch(now);
                     authorRepository.save(existing.get());
                 } else {
-                    var author=EduDocumentAuthor.forYearPlan(yearPlanId,userId,origin,now);
-                    author.initializeOwner(yearPlanRepository.findById(yearPlanId).orElseThrow());
+                    var author = EduDocumentAuthor.forYearPlan(yearPlanId, userId, origin, now);
+                    author.initializeOwner(
+                            yearPlanRepository.findById(yearPlanId).orElseThrow());
                     authorRepository.save(author);
                 }
             } else if (classDocId != null) {
@@ -477,7 +482,7 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
                 event.initializeOwner(plan);
                 eventRepository.save(event);
                 yearPlanRepository.save(plan);
-                if(eval.complete()) teamUpdates.updateAfterPublication(plan,now);
+                if (eval.complete()) teamUpdates.updateAfterPublication(plan, now);
             }
 
             // 3. Class docs lock in ascending ID order
@@ -690,7 +695,8 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     }
 
     private String legacySnapshot(String type, Instant at, List<Approval> approvals, Set<Long> authors, String chain) {
-        String key = "year".equals(type) ? "year" : "branch".equals(type) || "semester".equals(type) ? "branch" : "week";
+        String key =
+                "year".equals(type) ? "year" : "branch".equals(type) || "semester".equals(type) ? "branch" : "week";
         JsonNode legacy = settingsRepository
                 .findById(EduSettings.SINGLETON_ID)
                 .map(EduSettings::getLegacySigners)
@@ -740,7 +746,12 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         }
     }
 
+    // Một request đọc chỉ đọc cấu hình duyệt một lần (trước đây ~50 lần khi mở chi tiết một kế hoạch)
     private JsonNode loadSettingsPolicyNode() {
+        return RequestMemo.get("eduWorkflowPolicy", this::readSettingsPolicyNode);
+    }
+
+    private JsonNode readSettingsPolicyNode() {
         return settingsRepository
                 .findById((short) 1)
                 .map(EduSettings::getWorkflowPolicy)

@@ -33,26 +33,32 @@ class EduClassDocFutureEditTest {
     void gridFutureCellsCanChangeButCannotMovePastDaysToFutureDates() {
         ObjectNode old = week();
         ObjectNode future = old.deepCopy();
-        ((tools.jackson.databind.node.ArrayNode) future.path("grid").path("hoc").path("days")).set(4, mapper.valueToTree("Mới"));
+        ((tools.jackson.databind.node.ArrayNode) future.path("grid").path("hoc").path("days"))
+                .set(4, mapper.valueToTree("Mới"));
         assertThatCode(() -> EduClassDocFutureEdit.validateWeek(old, future, monday, monday.plusDays(1)))
                 .doesNotThrowAnyException();
-        ((ObjectNode) future.path("days").get(0)).put("date", monday.plusWeeks(1).toString());
+        ((ObjectNode) future.path("days").get(0))
+                .put("date", monday.plusWeeks(1).toString());
         assertThatThrownBy(() -> EduClassDocFutureEdit.validateWeek(old, future, monday, monday.plusDays(1)))
                 .isInstanceOf(GlobalException.class);
     }
 
     @Test
     void unknownDateAndStartDayAreLockedButFutureThemeIsEditable() {
-        assertThatThrownBy(() -> EduClassDocFutureEdit.requireFuture(null, monday)).isInstanceOf(GlobalException.class);
-        assertThatThrownBy(() -> EduClassDocFutureEdit.requireFuture(monday, monday)).isInstanceOf(GlobalException.class);
-        assertThatCode(() -> EduClassDocFutureEdit.requireFuture(monday.plusDays(1), monday)).doesNotThrowAnyException();
+        assertThatThrownBy(() -> EduClassDocFutureEdit.requireFuture(null, monday))
+                .isInstanceOf(GlobalException.class);
+        assertThatThrownBy(() -> EduClassDocFutureEdit.requireFuture(monday, monday))
+                .isInstanceOf(GlobalException.class);
+        assertThatCode(() -> EduClassDocFutureEdit.requireFuture(monday.plusDays(1), monday))
+                .doesNotThrowAnyException();
     }
 
     private ObjectNode week() {
         ObjectNode doc = mapper.createObjectNode();
         doc.put("prep", "Cũ");
         var days = doc.putArray("days");
-        for (int i = 0; i < 5; i++) days.addObject().put("date", monday.plusDays(i).toString()).put("aims", "Cũ");
+        for (int i = 0; i < 5; i++)
+            days.addObject().put("date", monday.plusDays(i).toString()).put("aims", "Cũ");
         var grid = doc.putObject("grid").putObject("hoc");
         grid.put("common", "Chung");
         var cells = grid.putArray("days");

@@ -187,9 +187,10 @@ class ConcurrentDailyAssessmentIntegrationTest {
                 + plan + ", " + theme + ", '2026-10-26', 'APPROVED', '" + content + "'::jsonb, "
                 + principal.userId() + ", " + principal.userId() + ") RETURNING id");
         // Spec 003 FR-008: chỉ chấm theo tuần có cả giáo án ngày đã ban hành (hồ sơ chủ đề)
-        jdbc.update("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
-                + "created_by, updated_by) SELECT 'd-a', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "
-                + "created_by, updated_by FROM edu_class_docs WHERE id = " + weekDoc);
+        jdbc.update(
+                "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
+                        + "created_by, updated_by) SELECT 'd-a', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "
+                        + "created_by, updated_by FROM edu_class_docs WHERE id = " + weekDoc);
     }
 
     @Test

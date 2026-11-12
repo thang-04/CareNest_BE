@@ -1,16 +1,15 @@
 package com.carenest.service.eduplan.impl;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.carenest.entity.eduplan.EduPlanBranchTemplate;
-import com.carenest.entity.eduplan.EduPlan;
-import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduGoalContent;
-import com.carenest.utils.enums.EduGoalRowKind;
+import com.carenest.entity.eduplan.EduGoalRow;
+import com.carenest.entity.eduplan.EduPlan;
+import com.carenest.entity.eduplan.EduPlanBranchTemplate;
+import com.carenest.entity.eduplan.EduTheme;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.eduplan.EduBreakRepository;
 import com.carenest.repository.eduplan.EduGoalContentRepository;
@@ -20,6 +19,7 @@ import com.carenest.repository.eduplan.EduPlanGoalRepository;
 import com.carenest.repository.eduplan.EduPlanSubDomainRepository;
 import com.carenest.repository.eduplan.EduThemeRepository;
 import com.carenest.service.organization.SchoolStructureService;
+import com.carenest.utils.enums.EduGoalRowKind;
 import java.time.LocalDate;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -44,44 +44,57 @@ class YearPlanPublicationValidatorTest {
         var content = EduGoalContent.create();
         content.place(2L, (short) 0, "Nội dung");
         assertThatThrownBy(() -> YearPlanPublicationValidator.requireAnnualContents(
-                List.of(group, first, second), List.of(content)))
+                        List.of(group, first, second), List.of(content)))
                 .isInstanceOf(GlobalException.class)
-                .satisfies(ex -> assertThat(((GlobalException) ex).getFieldErrors().getFirst().message())
+                .satisfies(ex -> assertThat(((GlobalException) ex)
+                                .getFieldErrors()
+                                .getFirst()
+                                .message())
                         .contains("Mục tiêu 2"));
         var another = EduGoalContent.create();
         another.place(3L, (short) 0, "Nội dung khác");
         YearPlanPublicationValidator.requireAnnualContents(List.of(group, first, second), List.of(content, another));
         assertThatThrownBy(() -> YearPlanPublicationValidator.requireAnnualContents(
-                List.of(first, second), List.of(content, another)))
+                        List.of(first, second), List.of(content, another)))
                 .isInstanceOf(GlobalException.class);
     }
+
     @Test
     void submissionChecksSavedDurationLimitAndRejectsUnknownSnapshot() {
         var themes = mock(EduThemeRepository.class);
         var breaks = mock(EduBreakRepository.class);
         var templates = mock(EduPlanBranchTemplateRepository.class);
         var validator = new YearPlanPublicationValidator(
-                mock(SchoolStructureService.class), breaks, themes, mock(EduPlanSubDomainRepository.class),
-                mock(EduPlanExpectedResultRepository.class), mock(EduPlanGoalRepository.class),
-                mock(EduGoalContentRepository.class), templates, new tools.jackson.databind.ObjectMapper());
+                mock(SchoolStructureService.class),
+                breaks,
+                themes,
+                mock(EduPlanSubDomainRepository.class),
+                mock(EduPlanExpectedResultRepository.class),
+                mock(EduPlanGoalRepository.class),
+                mock(EduGoalContentRepository.class),
+                templates,
+                new tools.jackson.databind.ObjectMapper());
         var plan = mock(EduPlan.class);
         var theme = mock(EduTheme.class);
         when(plan.getId()).thenReturn(42L);
-        when(plan.getDurationPolicySnapshot()).thenReturn(
-                "{\"mode\":\"BOUNDED\",\"theme\":{\"minWeeks\":2,\"maxWeeks\":4},"
+        when(plan.getDurationPolicySnapshot())
+                .thenReturn("{\"mode\":\"BOUNDED\",\"theme\":{\"minWeeks\":2,\"maxWeeks\":4},"
                         + "\"branch\":{\"minWeeks\":1,\"maxWeeks\":2}}");
         when(theme.getName()).thenReturn("Chủ đề A");
         when(theme.getStartDate()).thenReturn(LocalDate.of(2026, 9, 7));
         when(theme.getEndDate()).thenReturn(LocalDate.of(2026, 10, 9));
         when(themes.findAllByYearPlanIdOrderBySortOrderAsc(42L)).thenReturn(List.of(theme));
         assertThatThrownBy(() -> validator.validateSubmissionSchedule(plan))
-                .isInstanceOf(GlobalException.class).hasMessageContaining("Chủ đề A");
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("Chủ đề A");
         when(plan.getDurationPolicySnapshot()).thenReturn("{\"mode\":\"MISSING_OR_UNKNOWN\"}");
         assertThatThrownBy(() -> validator.validateSubmissionSchedule(plan))
-                .isInstanceOf(GlobalException.class).hasMessageContaining("giới hạn");
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("giới hạn");
         when(plan.getTitle()).thenReturn("Năm học cần kiểm tra");
         assertThatThrownBy(() -> validator.validateForPublication(plan))
-                .isInstanceOf(GlobalException.class).hasMessageContaining("giới hạn");
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("giới hạn");
     }
 
     @Test
@@ -89,9 +102,14 @@ class YearPlanPublicationValidatorTest {
         var themes = mock(EduThemeRepository.class);
         var templates = mock(EduPlanBranchTemplateRepository.class);
         var validator = new YearPlanPublicationValidator(
-                mock(SchoolStructureService.class), mock(EduBreakRepository.class), themes,
-                mock(EduPlanSubDomainRepository.class), mock(EduPlanExpectedResultRepository.class),
-                mock(EduPlanGoalRepository.class), mock(EduGoalContentRepository.class), templates,
+                mock(SchoolStructureService.class),
+                mock(EduBreakRepository.class),
+                themes,
+                mock(EduPlanSubDomainRepository.class),
+                mock(EduPlanExpectedResultRepository.class),
+                mock(EduPlanGoalRepository.class),
+                mock(EduGoalContentRepository.class),
+                templates,
                 new tools.jackson.databind.ObjectMapper());
         var plan = mock(EduPlan.class);
         var theme = mock(EduTheme.class);
@@ -108,8 +126,10 @@ class YearPlanPublicationValidatorTest {
         when(themes.findAllByYearPlanIdOrderBySortOrderAsc(42L)).thenReturn(List.of(theme));
         when(templates.findAllByYearPlanIdOrderBySortOrderAsc(42L)).thenReturn(List.of(branch));
         assertThatThrownBy(() -> validator.validateSubmissionSchedule(plan))
-                .isInstanceOf(GlobalException.class).hasMessageContaining("ngoài chủ đề");
+                .isInstanceOf(GlobalException.class)
+                .hasMessageContaining("ngoài chủ đề");
     }
+
     @Test
     void annualSubmissionRequiresAtLeastNineThemes() {
         assertThatThrownBy(() -> YearPlanPublicationValidator.requireMinimumThemes(8))
@@ -117,11 +137,17 @@ class YearPlanPublicationValidatorTest {
                 .hasMessageContaining("Chưa đạt số lượng chủ đề cho phép");
         YearPlanPublicationValidator.requireMinimumThemes(9);
     }
+
     private YearPlanPublicationValidator validator(EduPlanBranchTemplateRepository templates) {
         return new YearPlanPublicationValidator(
-                mock(SchoolStructureService.class), mock(EduBreakRepository.class), mock(EduThemeRepository.class),
-                mock(EduPlanSubDomainRepository.class), mock(EduPlanExpectedResultRepository.class),
-                mock(EduPlanGoalRepository.class), mock(EduGoalContentRepository.class), templates,
+                mock(SchoolStructureService.class),
+                mock(EduBreakRepository.class),
+                mock(EduThemeRepository.class),
+                mock(EduPlanSubDomainRepository.class),
+                mock(EduPlanExpectedResultRepository.class),
+                mock(EduPlanGoalRepository.class),
+                mock(EduGoalContentRepository.class),
+                templates,
                 mock(tools.jackson.databind.ObjectMapper.class));
     }
 

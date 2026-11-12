@@ -61,7 +61,9 @@ public record YearPlanDetailResponse(
             boolean canUnlock) {}
 
     @com.fasterxml.jackson.annotation.JsonProperty
-    public com.carenest.utils.enums.EduPlanLevel planType() { return planLevel; }
+    public com.carenest.utils.enums.EduPlanLevel planType() {
+        return planLevel;
+    }
 
     @com.fasterxml.jackson.annotation.JsonProperty
     public String planTypeLabel() {
@@ -69,14 +71,27 @@ public record YearPlanDetailResponse(
     }
 
     @com.fasterxml.jackson.annotation.JsonProperty
-    public Instant sentAt() { return sentBy == null ? null : sentBy.at(); }
+    public Instant sentAt() {
+        return sentBy == null ? null : sentBy.at();
+    }
 
     @com.fasterxml.jackson.annotation.JsonProperty
-    public long contentRevision() { return revision; }
+    public long contentRevision() {
+        return revision;
+    }
 
-    public record ReviewItem(Long reviewItemId, String itemKind, Long itemId, Long sourcePlanId,
-            String reason, boolean resolved, Long resolvedBy, Instant resolvedAt) {}
+    public record ReviewItem(
+            Long reviewItemId,
+            String itemKind,
+            Long itemId,
+            Long sourcePlanId,
+            String reason,
+            boolean resolved,
+            Long resolvedBy,
+            Instant resolvedAt) {}
+
     public record NewItem(String itemKind, Long itemId) {}
+
     public YearPlanDetailResponse(
             Long id,
             String code,
@@ -115,8 +130,50 @@ public record YearPlanDetailResponse(
             boolean canAssignContents,
             boolean canEditBranchTemplates,
             List<String> remapWarnings) {
-        this(id, code, schoolYearId, schoolYearName, ageGroupId, ageGroupName, title, description, status, owner, sentBy, issued, editing, createdAt, updatedAt, domains, themes, breaks, history, lastReturnNote, review, permissions, revision, editExpiresAt, versionNo, sourcePlanId, current, versions, planLevel, curriculumSourcePlanId, sourceMode, durationPolicySnapshot, branchTemplates, canEditCurriculum, canAssignContents, canEditBranchTemplates, remapWarnings, null, List.of(), List.of(), null);
+        this(
+                id,
+                code,
+                schoolYearId,
+                schoolYearName,
+                ageGroupId,
+                ageGroupName,
+                title,
+                description,
+                status,
+                owner,
+                sentBy,
+                issued,
+                editing,
+                createdAt,
+                updatedAt,
+                domains,
+                themes,
+                breaks,
+                history,
+                lastReturnNote,
+                review,
+                permissions,
+                revision,
+                editExpiresAt,
+                versionNo,
+                sourcePlanId,
+                current,
+                versions,
+                planLevel,
+                curriculumSourcePlanId,
+                sourceMode,
+                durationPolicySnapshot,
+                branchTemplates,
+                canEditCurriculum,
+                canAssignContents,
+                canEditBranchTemplates,
+                remapWarnings,
+                null,
+                List.of(),
+                List.of(),
+                null);
     }
+
     public YearPlanDetailResponse(
             Long id,
             String code,

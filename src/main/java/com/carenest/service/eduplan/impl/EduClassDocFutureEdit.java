@@ -27,18 +27,23 @@ final class EduClassDocFutureEdit {
             if (!after.path("days").isArray() || after.path("days").size() > 5)
                 throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
             for (int i = 0; i < after.path("days").size(); i++)
-                if (!after.path("days").path(i).path("date").asString("").equals(start.plusDays(i).toString()))
-                    throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                if (!after.path("days")
+                        .path(i)
+                        .path("date")
+                        .asString("")
+                        .equals(start.plusDays(i).toString())) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
         }
         for (String field : Set.of("grid", "picks", "unlinked"))
             if (after.has(field) && !after.path(field).isObject()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
-        if (after.has("dayGoals") && (!after.path("dayGoals").isArray() || after.path("dayGoals").size() > 5))
+        if (after.has("dayGoals")
+                && (!after.path("dayGoals").isArray() || after.path("dayGoals").size() > 5))
             throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
         if (start.isAfter(today) || !released) return;
         ObjectNode oldShared = before.deepCopy();
         ObjectNode newShared = after.deepCopy();
-        oldShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked"));
-        newShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked"));
+        // EDU-79: bản tuần theo hồ sơ chủ đề (khóa "week" của day) khóa theo hồ sơ chủ đề, không theo từng ngày
+        oldShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked", "week"));
+        newShared.remove(Set.of("days", "grid", "dayGoals", "picks", "unlinked", "week"));
         unchanged(oldShared, newShared);
         for (int i = 0; i < 5; i++) {
             JsonNode oldDay = before.path("days").path(i);
@@ -52,7 +57,8 @@ final class EduClassDocFutureEdit {
         if (after.path("days").size() > 5) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
         if (after.path("dayGoals").size() > 5) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
         for (int i = 0; i < 5; i++)
-            if (!sameList(before.path("dayGoals").path(i), after.path("dayGoals").path(i)))
+            if (!sameList(
+                    before.path("dayGoals").path(i), after.path("dayGoals").path(i)))
                 requireFuture(start.plusDays(i), today);
         for (String field : Set.of("picks", "unlinked"))
             for (String key : keys(before.path(field), after.path(field))) {
@@ -75,7 +81,8 @@ final class EduClassDocFutureEdit {
             unchanged(oldCommon, newCommon);
             if (newRow.path("days").size() > 5) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
             for (int i = 0; i < 5; i++)
-                if (!Objects.equals(oldRow.path("days").path(i), newRow.path("days").path(i)))
+                if (!Objects.equals(
+                        oldRow.path("days").path(i), newRow.path("days").path(i)))
                     requireFuture(start.plusDays(i), today);
         }
     }

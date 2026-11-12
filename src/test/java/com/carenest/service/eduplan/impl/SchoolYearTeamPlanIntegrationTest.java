@@ -181,7 +181,12 @@ class SchoolYearTeamPlanIntegrationTest {
                 null,
                 // Mẫu nhánh cần đủ ngày bắt đầu/kết thúc
                 List.of(new YearPlanRequest.BranchTemplate(
-                        "template-a", null, "theme-a", "Dự án gợi ý", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 11))));
+                        "template-a",
+                        null,
+                        "theme-a",
+                        "Dự án gợi ý",
+                        LocalDate.of(2026, 9, 7),
+                        LocalDate.of(2026, 9, 11))));
     }
 
     /** Kế hoạch năm cần tối thiểu 9 chủ đề liền nhau: chủ đề A + 8 chủ đề phụ 2 tuần (đúng giới hạn mặc định). */
@@ -282,13 +287,15 @@ class SchoolYearTeamPlanIntegrationTest {
         var annual = issuedAnnual();
         var originalTeam = teamFrom(annual);
         var annualV2 = service.createVersion(vicePrincipal, annual.id(), edit(vicePrincipal, annual.id(), true));
-        var reviewed = service.submitYearPlan(vicePrincipal, annualV2.id(), null, edit(vicePrincipal, annualV2.id(), true));
+        var reviewed =
+                service.submitYearPlan(vicePrincipal, annualV2.id(), null, edit(vicePrincipal, annualV2.id(), true));
         var issued = service.issueYearPlan(
                 principal, annualV2.id(), "Đạt", new YearPlanEditRequest(null, reviewed.revision(), UUID.randomUUID()));
 
         var teamVersions = jdbc.queryForList(
                 "SELECT id, version_no, status, curriculum_source_plan_id FROM edu_team_plans WHERE school_year_id=? AND age_group_id=? ORDER BY id",
-                schoolYear, ageGroup3);
+                schoolYear,
+                ageGroup3);
         assertThat(teamVersions).hasSize(1);
         assertThat(((Number) teamVersions.getFirst().get("id")).longValue()).isEqualTo(originalTeam.id());
         var detail = service.getYearPlan(leader3, originalTeam.id());
@@ -562,8 +569,7 @@ class SchoolYearTeamPlanIntegrationTest {
         assertThat(row.goalNo()).isEqualTo((short) 1);
         var retained = service.updateYearPlan(
                 vicePrincipal, draft.id(), labelRequest(draft, null), edit(vicePrincipal, draft.id(), true));
-        assertThat(goal(retained).displayLabel())
-                .isEqualTo("Mục tiêu 01");
+        assertThat(goal(retained).displayLabel()).isEqualTo("Mục tiêu 01");
         var cleared = service.updateYearPlan(
                 vicePrincipal, draft.id(), labelRequest(retained, ""), edit(vicePrincipal, draft.id(), true));
         entityManager.flush();
@@ -592,14 +598,12 @@ class SchoolYearTeamPlanIntegrationTest {
                         GlobalException.class,
                         e -> assertThat(e.getApiCode())
                                 .isEqualTo(com.carenest.utils.ApiCode.INHERITED_CURRICULUM_READ_ONLY));
-        assertThat(goal(service.getYearPlan(leader3, team.id())).displayLabel())
-                .isEqualTo("Mục tiêu 01");
+        assertThat(goal(service.getYearPlan(leader3, team.id())).displayLabel()).isEqualTo("Mục tiêu 01");
         var version = service.createVersion(
                 vicePrincipal,
                 annual.id(),
                 new YearPlanEditRequest(session(vicePrincipal), annual.revision(), UUID.randomUUID()));
-        assertThat(goal(version).displayLabel())
-                .isEqualTo("Mục tiêu 01");
+        assertThat(goal(version).displayLabel()).isEqualTo("Mục tiêu 01");
     }
 
     @Test

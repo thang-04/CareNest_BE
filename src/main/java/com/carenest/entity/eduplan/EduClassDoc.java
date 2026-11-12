@@ -226,8 +226,7 @@ public class EduClassDoc {
         this.updatedBy = userId;
     }
 
-    public static EduClassDoc createSemester(
-            Long classroomId, Long yearPlanId, int semesterNo, Long userId) {
+    public static EduClassDoc createSemester(Long classroomId, Long yearPlanId, int semesterNo, Long userId) {
         EduClassDoc doc = create(
                 "sp_" + classroomId + "_" + yearPlanId + "_" + semesterNo,
                 SEMESTER,
@@ -294,6 +293,9 @@ public class EduClassDoc {
         if (this.authorCoverage == null) {
             this.authorCoverage = authorCoverage;
         }
-        this.updatedBy = userId;
+        // Tạo bù lúc khởi động không có người sửa: giữ người sửa cũ (updated_by NOT NULL)
+        if (userId != null) {
+            this.updatedBy = userId;
+        }
     }
 }

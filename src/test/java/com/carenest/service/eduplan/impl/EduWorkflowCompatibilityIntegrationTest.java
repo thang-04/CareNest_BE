@@ -98,7 +98,8 @@ class EduWorkflowCompatibilityIntegrationTest {
                                         null,
                                         "goal",
                                         "Trẻ phát triển thể chất",
-                                        List.of(new YearPlanRequest.Content(null, "Nội dung vận động", List.of("t-1"))))))),
+                                        List.of(new YearPlanRequest.Content(
+                                                null, "Nội dung vận động", List.of("t-1"))))))),
                 annualThemes(),
                 List.of(),
                 com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR,

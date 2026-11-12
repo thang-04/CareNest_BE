@@ -37,22 +37,32 @@ class EduPlanTimeLockTest {
     }
 
     private void yearStarts(LocalDate start) {
-        when(years.findSchoolYear(any())).thenReturn(Optional.of(new SchoolYearResponse(1L, "2026-2027", start, start.plusMonths(9))));
+        when(years.findSchoolYear(any()))
+                .thenReturn(Optional.of(new SchoolYearResponse(1L, "2026-2027", start, start.plusMonths(9))));
     }
 
     @Test
     void locksFromSchoolYearStartUntilPrincipalUnlocks() {
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(any())).thenReturn(List.of());
         yearStarts(LocalDate.of(2026, 11, 1));
-        assertThat(new EduPlanTimeLock(years, events, plans, clock, true).locked(plan)).isFalse();
+        assertThat(new EduPlanTimeLock(years, events, plans, clock, true).locked(plan))
+                .isFalse();
 
         yearStarts(LocalDate.of(2026, 9, 1));
         EduPlanTimeLock lock = new EduPlanTimeLock(years, events, plans, clock, true);
         assertThat(lock.locked(plan)).isTrue();
         assertThat(lock.info(plan).state()).isEqualTo(EduDeadline.OVERDUE);
 
-        EduPlanEvent unlock = EduPlanEvent.of(null, EduPlanTimeLock.ACTION_UNLOCK, "Mở khóa", 1L, "HT", "Hiệu trưởng", "",
-                        "Lý do", clock.instant())
+        EduPlanEvent unlock = EduPlanEvent.of(
+                        null,
+                        EduPlanTimeLock.ACTION_UNLOCK,
+                        "Mở khóa",
+                        1L,
+                        "HT",
+                        "Hiệu trưởng",
+                        "",
+                        "Lý do",
+                        clock.instant())
                 .withDeadline(LocalDate.of(2026, 10, 30));
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(any())).thenReturn(List.of(unlock));
         assertThat(lock.locked(plan)).isFalse();
@@ -62,19 +72,29 @@ class EduPlanTimeLockTest {
     @Test
     void unlockOnIssuedVersionAlsoOpensLaterAdjustmentVersion() {
         yearStarts(LocalDate.of(2026, 9, 1));
-        EduPlanEvent unlock = EduPlanEvent.of(null, EduPlanTimeLock.ACTION_UNLOCK, "Mở khóa", 1L, "HT", "Hiệu trưởng", "",
-                        "Lý do", clock.instant())
+        EduPlanEvent unlock = EduPlanEvent.of(
+                        null,
+                        EduPlanTimeLock.ACTION_UNLOCK,
+                        "Mở khóa",
+                        1L,
+                        "HT",
+                        "Hiệu trưởng",
+                        "",
+                        "Lý do",
+                        clock.instant())
                 .withDeadline(LocalDate.of(2026, 10, 30));
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(any())).thenReturn(List.of());
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(eq(9L))).thenReturn(List.of(unlock));
         // plan (phiên bản điều chỉnh, chưa có sự kiện riêng) cùng chuỗi với bản ban hành id 9 đã được mở khóa
-        assertThat(new EduPlanTimeLock(years, events, plans, clock, true).locked(plan)).isFalse();
+        assertThat(new EduPlanTimeLock(years, events, plans, clock, true).locked(plan))
+                .isFalse();
     }
 
     @Test
     void disabledFlagNeverLocks() {
         when(events.findAllByYearPlanIdOrderByOccurredAtAscIdAsc(any())).thenReturn(List.of());
         yearStarts(LocalDate.of(2026, 9, 1));
-        assertThat(new EduPlanTimeLock(years, events, plans, clock, false).locked(plan)).isFalse();
+        assertThat(new EduPlanTimeLock(years, events, plans, clock, false).locked(plan))
+                .isFalse();
     }
 }

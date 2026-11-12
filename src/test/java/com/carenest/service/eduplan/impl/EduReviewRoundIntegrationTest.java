@@ -7,8 +7,8 @@ import com.carenest.dto.eduplan.YearPlanDetailResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.entity.eduplan.EduPlan;
-import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.repository.eduplan.EduPlanRepository;
+import com.carenest.repository.eduplan.EduSettingsRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.service.eduplan.EduYearPlanService;
@@ -108,9 +108,12 @@ class EduReviewRoundIntegrationTest {
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
 
         // Lớp test không rollback: kết thúc tổ trưởng của test trước vì tạo bản tổ cần đúng một tổ trưởng
-        jdbc.update("UPDATE staff_assignments SET valid_to='2026-09-01' WHERE staff_role='AGE_GROUP_TEAM_LEADER' "
-                + "AND age_group_id=? AND valid_to IS NULL", ageGroup3);
-        jdbc.update("UPDATE edu_settings SET duration_policy = '{\"theme\":{\"minWeeks\":1,\"maxWeeks\":4},\"branch\":{\"minWeeks\":1,\"maxWeeks\":2}}'::jsonb");
+        jdbc.update(
+                "UPDATE staff_assignments SET valid_to='2026-09-01' WHERE staff_role='AGE_GROUP_TEAM_LEADER' "
+                        + "AND age_group_id=? AND valid_to IS NULL",
+                ageGroup3);
+        jdbc.update(
+                "UPDATE edu_settings SET duration_policy = '{\"theme\":{\"minWeeks\":1,\"maxWeeks\":4},\"branch\":{\"minWeeks\":1,\"maxWeeks\":2}}'::jsonb");
         // Test khác có thể đổi chính sách kế hoạch năm; khôi phục mặc định PHT soạn, HT duyệt
         jdbc.update("UPDATE edu_settings SET workflow_policy = workflow_policy || "
                 + "'{\"schoolYear\":{\"creators\":[\"VICE_PRINCIPAL\"],\"reviewers\":[\"PRINCIPAL\"]}}'::jsonb");
@@ -123,7 +126,9 @@ class EduReviewRoundIntegrationTest {
         principal = user("ht-" + suffix, CareNestRole.PRINCIPAL);
         insertAssignment(principal.userId(), "PRINCIPAL", null, null, null);
 
-        var annualReq = annualRequest(schoolYear, "Annual Round " + suffix,
+        var annualReq = annualRequest(
+                schoolYear,
+                "Annual Round " + suffix,
                 List.of(new YearPlanRequest.BranchTemplate(
                         "tmpl-1", null, "t-1", "Mẫu 1", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 11))));
         UUID vpSession = UUID.randomUUID();
@@ -603,18 +608,27 @@ class EduReviewRoundIntegrationTest {
 
     private YearPlanDetailResponse createAndSubmitAnnualPlan() {
         var entries = new java.util.HashMap<String, EduWorkflowPolicyRequest.PolicyEntry>();
-        workflowService.getPolicy(principal).policies().forEach((key, policy) -> entries.put(
-                key, new EduWorkflowPolicyRequest.PolicyEntry(policy.creators(), policy.reviewers())));
-        entries.put("schoolYear", new EduWorkflowPolicyRequest.PolicyEntry(
-                List.of("TEAM_LEADER"), List.of("VICE_PRINCIPAL", "PRINCIPAL")));
-        workflowService.savePolicy(principal, new EduWorkflowPolicyRequest(workflowService.getPolicyRevision(), entries));
+        workflowService
+                .getPolicy(principal)
+                .policies()
+                .forEach((key, policy) -> entries.put(
+                        key, new EduWorkflowPolicyRequest.PolicyEntry(policy.creators(), policy.reviewers())));
+        entries.put(
+                "schoolYear",
+                new EduWorkflowPolicyRequest.PolicyEntry(
+                        List.of("TEAM_LEADER"), List.of("VICE_PRINCIPAL", "PRINCIPAL")));
+        workflowService.savePolicy(
+                principal, new EduWorkflowPolicyRequest(workflowService.getPolicyRevision(), entries));
         long versionYear = insertId(
                 "INSERT INTO school_years(name,start_date,end_date) VALUES (?, '2026-09-01','2027-05-31') RETURNING id",
                 "V-" + UUID.randomUUID().toString().substring(0, 8));
         var request = annualRequest(versionYear, "Kế hoạch năm kiểm tra vòng duyệt", List.of());
         var created = yearPlanService.createYearPlan(
                 leader, request, new YearPlanEditRequest(session(leader), 0L, UUID.randomUUID()));
-        return yearPlanService.submitYearPlan(leader, created.id(), "Gửi duyệt vòng 1",
+        return yearPlanService.submitYearPlan(
+                leader,
+                created.id(),
+                "Gửi duyệt vòng 1",
                 new YearPlanEditRequest(session(leader), created.revision(), UUID.randomUUID()));
     }
 

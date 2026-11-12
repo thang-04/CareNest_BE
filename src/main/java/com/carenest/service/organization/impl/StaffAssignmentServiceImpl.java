@@ -14,6 +14,7 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.RequestMemo;
 import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -71,7 +72,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         String logPrefix = LOG_PREFIX + "|hasActivePrincipalAssignment|userId=" + userId;
         log.info("{}|START", logPrefix);
         try {
-            boolean active = staffAssignmentRepository.existsActiveByRole(userId, StaffRole.PRINCIPAL, date);
+            boolean active = RequestMemo.get(
+                    "principal:" + userId + ":" + date,
+                    () -> staffAssignmentRepository.existsActiveByRole(userId, StaffRole.PRINCIPAL, date));
             log.info("{}|END", logPrefix);
             return active;
         } catch (RuntimeException ex) {
@@ -85,7 +88,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         String logPrefix = LOG_PREFIX + "|hasActiveTeamLeaderAssignment|userId=" + userId;
         log.info("{}|START", logPrefix);
         try {
-            boolean active = staffAssignmentRepository.existsActiveTeamLeader(userId, date);
+            boolean active = RequestMemo.get(
+                    "teamLeader:" + userId + ":" + date,
+                    () -> staffAssignmentRepository.existsActiveTeamLeader(userId, date));
             log.info("{}|END", logPrefix);
             return active;
         } catch (RuntimeException ex) {
@@ -159,7 +164,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderAgeGroupIds|userId=" + userId;
         log.info("{}|START", logPrefix);
         try {
-            Set<Long> ageGroupIds = Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderAgeGroupIds(userId, date));
+            Set<Long> ageGroupIds = RequestMemo.get(
+                    "leaderAgeGroups:" + userId + ":" + date,
+                    () -> Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderAgeGroupIds(userId, date)));
             log.info("{}|END", logPrefix);
             return ageGroupIds;
         } catch (RuntimeException ex) {
@@ -173,7 +180,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         String logPrefix = LOG_PREFIX + "|findActiveTeacherAgeGroupIds|userId=" + userId;
         log.info("{}|START", logPrefix);
         try {
-            Set<Long> ageGroupIds = Set.copyOf(staffAssignmentRepository.findActiveTeacherAgeGroupIds(userId, date));
+            Set<Long> ageGroupIds = RequestMemo.get(
+                    "teacherAgeGroups:" + userId + ":" + date,
+                    () -> Set.copyOf(staffAssignmentRepository.findActiveTeacherAgeGroupIds(userId, date)));
             log.info("{}|END", logPrefix);
             return ageGroupIds;
         } catch (RuntimeException ex) {
@@ -273,11 +282,14 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         String logPrefix = LOG_PREFIX + "|findActiveCampusIds|userId=" + userId + "|role=" + staffRole;
         log.info("{}|START", logPrefix);
         try {
-            List<Long> campusIds = staffRole == StaffRole.TEACHER
-                    ? staffAssignmentRepository.findActiveTeacherCampusIds(userId, date)
-                    : staffAssignmentRepository.findActiveCampusIds(userId, staffRole, date);
+            Set<Long> campusIds = RequestMemo.get(
+                    "campuses:" + userId + ":" + staffRole + ":" + date,
+                    () -> Set.copyOf(
+                            staffRole == StaffRole.TEACHER
+                                    ? staffAssignmentRepository.findActiveTeacherCampusIds(userId, date)
+                                    : staffAssignmentRepository.findActiveCampusIds(userId, staffRole, date)));
             log.info("{}|END", logPrefix);
-            return Set.copyOf(campusIds);
+            return campusIds;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

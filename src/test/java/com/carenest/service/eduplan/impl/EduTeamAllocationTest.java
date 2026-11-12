@@ -31,9 +31,15 @@ class EduTeamAllocationTest {
         var rows = List.of(goal1, goal2);
         var contents = List.of(content1, content2);
         assertThatThrownBy(() -> EduTeamPlanServiceImpl.requireAllocatedGoals(
-                rows, contents, List.of(EduContentThemeTick.of(11L, 101L), EduContentThemeTick.of(12L, 999L)), Set.of(101L)))
+                        rows,
+                        contents,
+                        List.of(EduContentThemeTick.of(11L, 101L), EduContentThemeTick.of(12L, 999L)),
+                        Set.of(101L)))
                 .isInstanceOf(GlobalException.class);
-        EduTeamPlanServiceImpl.requireAllocatedGoals(rows, contents,
-                List.of(EduContentThemeTick.of(11L, 101L), EduContentThemeTick.of(12L, 101L)), Set.of(101L));
+        EduTeamPlanServiceImpl.requireAllocatedGoals(
+                rows,
+                contents,
+                List.of(EduContentThemeTick.of(11L, 101L), EduContentThemeTick.of(12L, 101L)),
+                Set.of(101L));
     }
 }

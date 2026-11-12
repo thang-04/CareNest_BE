@@ -1,6 +1,5 @@
 package com.carenest.service.eduplan;
 
-import java.time.LocalDate;
 import com.carenest.dto.common.PageResponse;
 import com.carenest.dto.eduplan.YearPlanChangesResponse;
 import com.carenest.dto.eduplan.YearPlanDetailResponse;
@@ -8,6 +7,7 @@ import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.dto.eduplan.YearPlanSummaryResponse;
 import com.carenest.security.CurrentUser;
+import java.time.LocalDate;
 import org.springframework.data.domain.Pageable;
 
 /** Kế hoạch giáo dục năm học theo nhóm tuổi (rule EDU, sequence SD-01..SD-08). */
@@ -48,8 +48,8 @@ public interface EduYearPlanService {
 
     void deleteYearPlan(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);
 
-    YearPlanDetailResponse resolveReview(CurrentUser user, Long planId, Long reviewItemId,
-            Long expectedSourcePlanId, YearPlanEditRequest edit);
+    YearPlanDetailResponse resolveReview(
+            CurrentUser user, Long planId, Long reviewItemId, Long expectedSourcePlanId, YearPlanEditRequest edit);
 
     /** EDU-10: cấp khóa sửa theo phiên khi hồ sơ đang ở trạng thái nháp. */
     YearPlanDetailResponse startEditing(CurrentUser currentUser, Long planId, YearPlanEditRequest edit);

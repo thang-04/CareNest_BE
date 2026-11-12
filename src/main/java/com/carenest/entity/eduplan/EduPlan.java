@@ -3,14 +3,14 @@ package com.carenest.entity.eduplan;
 import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
 import jakarta.persistence.Column;
-import jakarta.persistence.MappedSuperclass;
-import jakarta.persistence.Transient;
-import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.MappedSuperclass;
+import jakarta.persistence.SequenceGenerator;
+import jakarta.persistence.Transient;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -51,7 +51,9 @@ public abstract class EduPlan {
     }
 
     public String sourceMode() {
-        return getPlanLevel() == EduPlanLevel.SCHOOL_YEAR ? "ROOT" : curriculumSourcePlanId == null ? "LEGACY" : "INHERITED";
+        return getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
+                ? "ROOT"
+                : curriculumSourcePlanId == null ? "LEGACY" : "INHERITED";
     }
 
     public String workflowKey() {
@@ -154,9 +156,17 @@ public abstract class EduPlan {
 
     public abstract EduPlanLevel getPlanLevel();
 
-    public static EduPlan createDraft(String code, Long schoolYearId, Long ageGroupId, String title,
-            String description, Long ownerId, String ownerTitle, Instant now) {
-        return createDraft(EduPlanLevel.TEAM, code, schoolYearId, ageGroupId, title, description, ownerId, ownerTitle, now);
+    public static EduPlan createDraft(
+            String code,
+            Long schoolYearId,
+            Long ageGroupId,
+            String title,
+            String description,
+            Long ownerId,
+            String ownerTitle,
+            Instant now) {
+        return createDraft(
+                EduPlanLevel.TEAM, code, schoolYearId, ageGroupId, title, description, ownerId, ownerTitle, now);
     }
 
     public static EduPlan createDraft(
@@ -187,8 +197,7 @@ public abstract class EduPlan {
     }
 
     /** Phiên bản n+1 chép từ bản đã ban hành; nội dung con do service chép, người tạo là owner (EDU-02). */
-    public static EduPlan createVersion(
-            EduPlan source, String code, Long ownerId, String ownerTitle, Instant now) {
+    public static EduPlan createVersion(EduPlan source, String code, Long ownerId, String ownerTitle, Instant now) {
         EduPlan plan = createDraft(
                 source.getPlanLevel(),
                 code,

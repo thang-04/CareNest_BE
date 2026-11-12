@@ -212,7 +212,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         return doc.getStatus().editable()
                 && user.hasRole(CareNestRole.TEACHER)
                 && Objects.equals(
-                        assignments.findHomeroomTeacherIds(List.of(classroom.id()), LocalDate.now(clock))
+                        assignments
+                                .findHomeroomTeacherIds(List.of(classroom.id()), LocalDate.now(clock))
                                 .get(classroom.id()),
                         user.userId());
     }
@@ -233,7 +234,12 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     }
 
     private boolean matches(EduClassDoc doc, String key, String signature) {
-        if (key == null || signature == null || !key.matches("[0-9]+#[0-9]+")) return false;
+        if (key == null || signature == null) return false;
+        // R9: kế hoạch chủ đề đã lưu thẻ ⇒ khóa là id thẻ, chữ ký theo tên thẻ; bản cũ giữ cách khớp theo ô chữ
+        for (var card : mapper.readTree(doc.getContent()).path("activities"))
+            if (key.equals(card.path("id").asString("")))
+                return LearningResourcePolicy.signature(card.path("name").asString("")).equals(signature);
+        if (!key.matches("[0-9]+#[0-9]+")) return false;
         try {
             String[] parts = key.split("#");
             long goalId = Long.parseLong(parts[0]);

@@ -81,8 +81,9 @@ public class EduYearPlanController {
         if (planType != null && planLevel != null && planType != planLevel) {
             throw com.carenest.exception.GlobalException.of(ApiCode.INVALID_VALUE, "loại kế hoạch");
         }
-        var level = planType != null ? planType : planLevel == null
-                ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel;
+        var level = planType != null
+                ? planType
+                : planLevel == null ? com.carenest.utils.enums.EduPlanLevel.TEAM : planLevel;
         PageResponse<YearPlanSummaryResponse> plans = eduYearPlanService.getYearPlans(
                 currentUser,
                 schoolYearId,
@@ -156,20 +157,27 @@ public class EduYearPlanController {
     @PostMapping("/{planId}/review/{reviewItemId}/resolve")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<YearPlanDetailResponse>> resolveReview(
-            @PathVariable Long planId, @PathVariable Long reviewItemId,
-            @Valid @RequestBody ReviewResolutionRequest request, CurrentUser currentUser,
+            @PathVariable Long planId,
+            @PathVariable Long reviewItemId,
+            @Valid @RequestBody ReviewResolutionRequest request,
+            CurrentUser currentUser,
             @RequestHeader(value = "X-Edit-Session", required = false) UUID sessionId,
             @RequestHeader("X-Plan-Revision") Long revision,
             @RequestHeader("Idempotency-Key") UUID requestId) {
         String logPrefix = LOG_PREFIX + "|resolveReview|planId=" + planId;
         log.info("{}|START", logPrefix);
-        var result = eduYearPlanService.resolveReview(currentUser, planId, reviewItemId,
-                request.expectedSourcePlanId(), new YearPlanEditRequest(sessionId, revision, requestId));
+        var result = eduYearPlanService.resolveReview(
+                currentUser,
+                planId,
+                reviewItemId,
+                request.expectedSourcePlanId(),
+                new YearPlanEditRequest(sessionId, revision, requestId));
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Review resolved", result);
     }
 
-    public record ReviewResolutionRequest(@jakarta.validation.constraints.NotNull Long expectedSourcePlanId) {}
+    public record ReviewResolutionRequest(
+            @jakarta.validation.constraints.NotNull Long expectedSourcePlanId) {}
 
     @PostMapping("/{planId}/submit")
     @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")

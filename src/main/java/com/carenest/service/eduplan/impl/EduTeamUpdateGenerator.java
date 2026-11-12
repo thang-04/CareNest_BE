@@ -3,11 +3,9 @@ package com.carenest.service.eduplan.impl;
 import com.carenest.entity.eduplan.*;
 import com.carenest.repository.eduplan.*;
 import com.carenest.service.eduplan.EduTeamPlanService;
-import java.util.stream.Collectors;
 import com.carenest.utils.enums.*;
 import java.time.Instant;
 import java.util.*;
-import java.util.function.BiConsumer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,49 +34,67 @@ class EduTeamUpdateGenerator {
         String prefix = LOG_PREFIX + "|updateAfterPublication|planId=" + annual.getId();
         log.info("{}|START", prefix);
         try {
-            if (annual.getPlanLevel() != EduPlanLevel.SCHOOL_YEAR || annual.getStatus() != EduPlanStatus.APPROVED) return;
+            if (annual.getPlanLevel() != EduPlanLevel.SCHOOL_YEAR || annual.getStatus() != EduPlanStatus.APPROVED)
+                return;
             var years = plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                     EduPlanLevel.SCHOOL_YEAR, annual.getSchoolYearId(), annual.getAgeGroupId());
-            if (years.stream().anyMatch(p -> p.getStatus() == EduPlanStatus.APPROVED
-                    && p.getVersionNo() > annual.getVersionNo())) return;
-            Set<Long> sources = new HashSet<>(); years.forEach(p -> sources.add(p.getId()));
+            if (years.stream()
+                    .anyMatch(p -> p.getStatus() == EduPlanStatus.APPROVED && p.getVersionNo() > annual.getVersionNo()))
+                return;
+            Set<Long> sources = new HashSet<>();
+            years.forEach(p -> sources.add(p.getId()));
             var chain = plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                     EduPlanLevel.TEAM, annual.getSchoolYearId(), annual.getAgeGroupId());
             if (chain.isEmpty()) {
                 var leaders = accounts.findActiveUserIds(assignments.findActiveTeamLeaderIds(
                         annual.getAgeGroupId(), now.atZone(clock.getZone()).toLocalDate()));
                 if (leaders.size() != 1)
-                    throw com.carenest.exception.GlobalException.of(com.carenest.utils.ApiCode.INVALID_VALUE,
+                    throw com.carenest.exception.GlobalException.of(
+                            com.carenest.utils.ApiCode.INVALID_VALUE,
                             "cần đúng một tổ trưởng đang được phân công cho nhóm tuổi để soạn kế hoạch tổ");
                 Long ownerId = leaders.iterator().next();
-                EduPlan target = EduPlan.createDraft(EduPlanLevel.TEAM,
+                EduPlan target = EduPlan.createDraft(
+                        EduPlanLevel.TEAM,
                         years.getFirst().getCode().replaceFirst("^KHN-", ""),
-                        annual.getSchoolYearId(), annual.getAgeGroupId(), "Kế hoạch giáo dục tổ", "",
-                        ownerId, "Tổ trưởng", now);
-                target.initializePlanSource(EduPlanLevel.TEAM, annual.getId(), false, annual.getDurationPolicySnapshot());
+                        annual.getSchoolYearId(),
+                        annual.getAgeGroupId(),
+                        "Kế hoạch giáo dục tổ",
+                        "",
+                        ownerId,
+                        "Tổ trưởng",
+                        now);
+                target.initializePlanSource(
+                        EduPlanLevel.TEAM, annual.getId(), false, annual.getDurationPolicySnapshot());
                 plans.saveAndFlush(target);
                 copyContent(annual.getId(), target.getId());
                 log.info("{}|END", prefix);
                 return;
             }
-            var open = chain.stream().filter(p -> p.getStatus() != EduPlanStatus.APPROVED).findFirst();
+            var open = chain.stream()
+                    .filter(p -> p.getStatus() != EduPlanStatus.APPROVED)
+                    .findFirst();
             EduPlan prior = open.orElseGet(() -> chain.stream()
                     .filter(p -> p.getStatus() == EduPlanStatus.APPROVED)
-                    .max(Comparator.comparingInt(EduPlan::getVersionNo)).orElse(null));
+                    .max(Comparator.comparingInt(EduPlan::getVersionNo))
+                    .orElse(null));
             // Spec 004 (Q6): kế hoạch tổ đã khóa theo năm học thì không nhận cập nhật nguồn, tới khi HT mở khóa
             if (prior != null && timeLock.locked(prior)) return;
-            if (prior == null || prior.getCurriculumSourcePlanId() == null
+            if (prior == null
+                    || prior.getCurriculumSourcePlanId() == null
                     || !sources.contains(prior.getCurriculumSourcePlanId())
                     || Objects.equals(prior.getCurriculumSourcePlanId(), annual.getId())) return;
             EduTeamPlan target;
             if (open.isPresent()) {
                 target = (EduTeamPlan) plans.findForUpdateById(prior.getId()).orElseThrow();
             } else {
-                target = (EduTeamPlan) EduPlan.createVersion(prior,
-                        chain.getFirst().getCode() + "-V" + (prior.getVersionNo()+1),
-                        prior.getOwnerId(), prior.getOwnerTitle(), now);
-                target.initializePlanSource(EduPlanLevel.TEAM, prior.getCurriculumSourcePlanId(), false,
-                        prior.getDurationPolicySnapshot());
+                target = (EduTeamPlan) EduPlan.createVersion(
+                        prior,
+                        chain.getFirst().getCode() + "-V" + (prior.getVersionNo() + 1),
+                        prior.getOwnerId(),
+                        prior.getOwnerTitle(),
+                        now);
+                target.initializePlanSource(
+                        EduPlanLevel.TEAM, prior.getCurriculumSourcePlanId(), false, prior.getDurationPolicySnapshot());
                 plans.saveAndFlush(target);
                 copyContent(prior.getId(), target.getId());
             }
@@ -86,9 +102,11 @@ class EduTeamUpdateGenerator {
             plans.save(target);
             log.info("{}|END", prefix);
         } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}",prefix,ex.getClass().getSimpleName()); throw ex;
+            log.warn("{}|ERROR|type={}", prefix, ex.getClass().getSimpleName());
+            throw ex;
         }
     }
+
     void copyContent(Long sourceId, Long targetId) {
         EduPlan owner = requirePlan(targetId);
         Map<Long, Long> themeIds = new HashMap<>();
@@ -98,7 +116,11 @@ class EduTeamUpdateGenerator {
                     themeRepository.save(ownedTheme(owner, theme)).getId());
         }
         breakRepository.saveAll(breakRepository.findAllByYearPlanIdOrderBySortOrderAsc(sourceId).stream()
-                .map(b -> { var copy=EduBreak.copyFor(targetId,b);copy.initializeOwner(owner);return copy; })
+                .map(b -> {
+                    var copy = EduBreak.copyFor(targetId, b);
+                    copy.initializeOwner(owner);
+                    return copy;
+                })
                 .toList());
         List<EduGoalRow> sourceRows = findRows(sourceId);
         Map<Long, Long> rowIds = new HashMap<>();
@@ -110,9 +132,8 @@ class EduTeamUpdateGenerator {
         }
         Map<Long, Long> contentIds = new HashMap<>();
         if (!rowIds.isEmpty()) {
-            for (EduGoalContent content :
-                    goalContentRepository.findAllByGoalRowIdInOrderBySortOrderAsc(
-                            sourceRows.stream().map(EduGoalRow::getId).toList())) {
+            for (EduGoalContent content : goalContentRepository.findAllByGoalRowIdInOrderBySortOrderAsc(
+                    sourceRows.stream().map(EduGoalRow::getId).toList())) {
                 EduGoalContent copy = EduGoalContent.copyFor(rowIds.get(content.getGoalRowId()), content);
                 contentIds.put(content.getId(), goalContentRepository.save(copy).getId());
             }
@@ -140,8 +161,30 @@ class EduTeamUpdateGenerator {
         }
     }
 
-    private EduTheme ownedTheme(EduPlan owner,EduTheme source){var copy=EduTheme.copyFor(owner.getId(),source);copy.initializeOwner(owner);return copy;}
-    private EduPlan requirePlan(Long id){return plans.findById(id).orElseThrow();}
-    private List<EduGoalRow> findRows(Long id){List<EduGoalRow> out=new ArrayList<>();out.addAll(subDomainRepository.findAllByYearPlanIdOrderBySortOrderAsc(id));out.addAll(expectedResultRepository.findAllByYearPlanIdOrderBySortOrderAsc(id));out.addAll(goalRepository.findAllByYearPlanIdOrderBySortOrderAsc(id));out.sort(Comparator.comparing(EduGoalRow::getDomainId).thenComparing(EduGoalRow::getSortOrder));return out;}
-    private EduGoalRow saveRow(EduGoalRow row){return row instanceof EduPlanGoal g?goalRepository.save(g):row instanceof EduPlanSubDomain s?subDomainRepository.save(s):expectedResultRepository.save((EduPlanExpectedResult)row);}
+    private EduTheme ownedTheme(EduPlan owner, EduTheme source) {
+        var copy = EduTheme.copyFor(owner.getId(), source);
+        copy.initializeOwner(owner);
+        return copy;
+    }
+
+    private EduPlan requirePlan(Long id) {
+        return plans.findById(id).orElseThrow();
+    }
+
+    private List<EduGoalRow> findRows(Long id) {
+        List<EduGoalRow> out = new ArrayList<>();
+        out.addAll(subDomainRepository.findAllByYearPlanIdOrderBySortOrderAsc(id));
+        out.addAll(expectedResultRepository.findAllByYearPlanIdOrderBySortOrderAsc(id));
+        out.addAll(goalRepository.findAllByYearPlanIdOrderBySortOrderAsc(id));
+        out.sort(Comparator.comparing(EduGoalRow::getDomainId).thenComparing(EduGoalRow::getSortOrder));
+        return out;
+    }
+
+    private EduGoalRow saveRow(EduGoalRow row) {
+        return row instanceof EduPlanGoal g
+                ? goalRepository.save(g)
+                : row instanceof EduPlanSubDomain s
+                        ? subDomainRepository.save(s)
+                        : expectedResultRepository.save((EduPlanExpectedResult) row);
+    }
 }

@@ -47,10 +47,12 @@ class EduPlanTimeLock {
 
     EduDeadline.Info info(EduPlan plan) {
         LocalDate today = LocalDate.now(clock);
-        LocalDate start = schoolStructureService.findSchoolYear(plan.getSchoolYearId())
+        LocalDate start = schoolStructureService
+                .findSchoolYear(plan.getSchoolYearId())
                 .map(SchoolYearResponse::startDate)
                 .orElse(null);
-        // Mở khóa áp cho cả chuỗi phiên bản (cùng loại, năm học, nhóm tuổi): HT mở trên bản hiện hành thì phiên bản điều
+        // Mở khóa áp cho cả chuỗi phiên bản (cùng loại, năm học, nhóm tuổi): HT mở trên bản hiện hành thì phiên bản
+        // điều
         // chỉnh tạo sau đó gửi được tới hạn mới; lấy lần mở khóa mới nhất
         Set<Long> chain = planRepository
                 .findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(

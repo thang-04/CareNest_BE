@@ -24,9 +24,9 @@ import com.carenest.utils.Constants.EduPermission;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
-import java.time.LocalDate;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -39,19 +39,38 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class EduClassDocTeamSourceTest {
-    @Mock EduPlanRepository yearPlanRepository;
-    @Mock EduClassDocRepository classDocRepository;
-    @Mock ClassroomService classroomService;
-    @Mock EduWorkflowService eduWorkflowService;
-    @Mock EduPlanAccessPolicy accessPolicy;
-    @Mock StaffAssignmentService staffAssignmentService;
-    @Mock com.carenest.repository.eduplan.EduThemeRepository themeRepository;
-    @Mock com.carenest.repository.eduplan.EduPlanBranchTemplateRepository templateRepository;
-    @Mock Clock clock;
-    @InjectMocks EduClassDocServiceImpl service;
+    @Mock
+    EduPlanRepository yearPlanRepository;
 
-    private final ClassroomInfoResponse classroom = new ClassroomInfoResponse(
-            1L, "Lớp mẫu", 2L, 3L, null, null, null, 4L, List.of(), null, null);
+    @Mock
+    EduClassDocRepository classDocRepository;
+
+    @Mock
+    ClassroomService classroomService;
+
+    @Mock
+    EduWorkflowService eduWorkflowService;
+
+    @Mock
+    EduPlanAccessPolicy accessPolicy;
+
+    @Mock
+    StaffAssignmentService staffAssignmentService;
+
+    @Mock
+    com.carenest.repository.eduplan.EduThemeRepository themeRepository;
+
+    @Mock
+    com.carenest.repository.eduplan.EduPlanBranchTemplateRepository templateRepository;
+
+    @Mock
+    Clock clock;
+
+    @InjectMocks
+    EduClassDocServiceImpl service;
+
+    private final ClassroomInfoResponse classroom =
+            new ClassroomInfoResponse(1L, "Lớp mẫu", 2L, 3L, null, null, null, 4L, List.of(), null, null);
 
     @Test
     void classDraftCannotReorderSourceThemesEvenWhenDatesAreUnchanged() {
@@ -60,11 +79,13 @@ class EduClassDocTeamSourceTest {
         when(first.getId()).thenReturn(31L);
         when(second.getId()).thenReturn(32L);
         when(themeRepository.findAllByYearPlanIdOrderBySortOrderAsc(20L)).thenReturn(List.of(first, second));
-        var draft = new ClassCalendarPreviewRequest.CalendarDraft(List.of(
-                new ClassCalendarPreviewRequest.ThemeSchedule(32L, null, null),
-                new ClassCalendarPreviewRequest.ThemeSchedule(31L, null, null)), List.of());
+        var draft = new ClassCalendarPreviewRequest.CalendarDraft(
+                List.of(
+                        new ClassCalendarPreviewRequest.ThemeSchedule(32L, null, null),
+                        new ClassCalendarPreviewRequest.ThemeSchedule(31L, null, null)),
+                List.of());
         assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(
-                service, "validateBranchIdentity", 20L, draft, null, classroom))
+                        service, "validateBranchIdentity", 20L, draft, null, classroom))
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.EDUCATION_CALENDAR_INVALID);
@@ -83,8 +104,8 @@ class EduClassDocTeamSourceTest {
                 .thenReturn(java.util.Map.of(1L, 10L));
         when(yearPlanRepository.findById(20L)).thenReturn(Optional.of(annual));
 
-        assertThatThrownBy(() -> service.previewClassCalendar(
-                        user, new ClassCalendarPreviewRequest(1L, 20L, -1L, null, null)))
+        assertThatThrownBy(() ->
+                        service.previewClassCalendar(user, new ClassCalendarPreviewRequest(1L, 20L, -1L, null, null)))
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.YEAR_PLAN_CLASS_MISMATCH);
@@ -121,8 +142,10 @@ class EduClassDocTeamSourceTest {
                         EduPlanLevel.TEAM, 3L, 4L))
                 .thenReturn(List.of(annual, update));
 
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isSuperseded", 20L)).isFalse();
-        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isSuperseded", 20L)).isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isSuperseded", 20L))
+                .isFalse();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(service, "isSuperseded", 20L))
+                .isTrue();
     }
 
     @Test
@@ -166,7 +189,8 @@ class EduClassDocTeamSourceTest {
         when(staffAssignmentService.findHomeroomTeacherIds(eq(List.of(1L)), any()))
                 .thenReturn(java.util.Map.of(1L, 11L));
 
-        assertThatThrownBy(() -> ReflectionTestUtils.invokeMethod(service, "requireClassDocAuthor", nonHomeroom, classroom))
+        assertThatThrownBy(() ->
+                        ReflectionTestUtils.invokeMethod(service, "requireClassDocAuthor", nonHomeroom, classroom))
                 .isInstanceOf(GlobalException.class)
                 .extracting(ex -> ((GlobalException) ex).getApiCode())
                 .isEqualTo(ApiCode.CLASS_DOC_TEACHER_ONLY);

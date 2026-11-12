@@ -90,8 +90,8 @@ class EduYearPlanUnlockIntegrationTest {
         jdbc.update("UPDATE edu_settings SET duration_policy = '{\"theme\":{\"minWeeks\":1,\"maxWeeks\":4},"
                 + "\"branch\":{\"minWeeks\":1,\"maxWeeks\":2}}'::jsonb");
         UUID session = UUID.randomUUID();
-        YearPlanDetailResponse draft =
-                service.createYearPlan(vp, request(year, ageGroup, domain), new YearPlanEditRequest(session, 0L, UUID.randomUUID()));
+        YearPlanDetailResponse draft = service.createYearPlan(
+                vp, request(year, ageGroup, domain), new YearPlanEditRequest(session, 0L, UUID.randomUUID()));
 
         assertThat(listed(ht, year, draft.id()).timeLock()).satisfies(lock -> {
             assertThat(lock.timeLocked()).isTrue();
@@ -99,7 +99,8 @@ class EduYearPlanUnlockIntegrationTest {
             assertThat(lock.deadlineState()).isEqualTo(EduDeadline.OVERDUE);
         });
         assertThat(listed(vp, year, draft.id()).timeLock().canUnlock()).isFalse();
-        assertCode(() -> service.unlockYearPlan(vp, draft.id(), "Lý do", LocalDate.of(2026, 10, 30)), ApiCode.FORBIDDEN);
+        assertCode(
+                () -> service.unlockYearPlan(vp, draft.id(), "Lý do", LocalDate.of(2026, 10, 30)), ApiCode.FORBIDDEN);
 
         YearPlanDetailResponse unlocked = service.unlockYearPlan(ht, draft.id(), "Lý do", LocalDate.of(2026, 10, 30));
         assertThat(unlocked.timeLock().extendedTo()).isEqualTo(LocalDate.of(2026, 10, 30));
@@ -107,7 +108,8 @@ class EduYearPlanUnlockIntegrationTest {
 
         YearPlanDetailResponse sent = service.submitYearPlan(
                 vp, draft.id(), null, new YearPlanEditRequest(session, unlocked.revision(), UUID.randomUUID()));
-        service.issueYearPlan(ht, draft.id(), "Ban hành", new YearPlanEditRequest(null, sent.revision(), UUID.randomUUID()));
+        service.issueYearPlan(
+                ht, draft.id(), "Ban hành", new YearPlanEditRequest(null, sent.revision(), UUID.randomUUID()));
         // Hạn mở đã qua ⇒ bản đã ban hành khóa lại và không mở khóa nữa
         jdbc.update("UPDATE edu_plan_events SET deadline = '2026-10-21' WHERE action = 'unlock'");
         entityManager.clear();
@@ -123,7 +125,10 @@ class EduYearPlanUnlockIntegrationTest {
     }
 
     private YearPlanSummaryResponse listed(CurrentUser user, long year, Long planId) {
-        return service.getYearPlans(user, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR).items().stream()
+        return service
+                .getYearPlans(user, year, null, null, Pageable.unpaged(), EduPlanLevel.SCHOOL_YEAR)
+                .items()
+                .stream()
                 .filter(p -> p.id().equals(planId))
                 .findFirst()
                 .orElseThrow();
@@ -159,8 +164,9 @@ class EduYearPlanUnlockIntegrationTest {
     }
 
     private static void assertCode(org.assertj.core.api.ThrowableAssert.ThrowingCallable call, ApiCode code) {
-        assertThatThrownBy(call).isInstanceOfSatisfying(GlobalException.class, ex -> assertThat(ex.getApiCode())
-                .isEqualTo(code));
+        assertThatThrownBy(call)
+                .isInstanceOfSatisfying(
+                        GlobalException.class, ex -> assertThat(ex.getApiCode()).isEqualTo(code));
     }
 
     private CurrentUser user(String username, CareNestRole role) {

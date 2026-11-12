@@ -162,8 +162,10 @@ class SecurityConfigTest {
                                 HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
                                 "authorization, content-type, x-class-doc-version, x-dossier-version"))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("x-class-doc-version")))
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("x-dossier-version")));
+                .andExpect(header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("x-class-doc-version")))
+                .andExpect(
+                        header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("x-dossier-version")));
     }
 
     @Test

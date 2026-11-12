@@ -542,14 +542,16 @@ public enum ApiCode {
     THEME_NOT_IN_PLAN(7104, HttpStatus.BAD_REQUEST, "Chủ đề không thuộc kế hoạch năm học"),
     WEEK_NOT_IN_THEME(7105, HttpStatus.BAD_REQUEST, "Tuần không phải tuần học của chủ đề"),
     CLASS_DOC_SUBMITTED(7106, HttpStatus.CONFLICT, "Tài liệu đã gửi duyệt, không sửa được"),
-    WEEKLY_LESSON_VIA_THEME(7107, HttpStatus.BAD_REQUEST, "Giáo án tuần được gửi và duyệt cùng kế hoạch chủ đề"),
+    WEEKLY_LESSON_VIA_THEME(7107, HttpStatus.BAD_REQUEST, "Kế hoạch tuần được gửi và duyệt cùng kế hoạch chủ đề"),
     YEAR_PLAN_CLASS_MISMATCH(7108, HttpStatus.BAD_REQUEST, "Kế hoạch năm học không khớp với lớp"),
     YEAR_PLAN_NOT_ISSUED(7109, HttpStatus.CONFLICT, "Kế hoạch năm học của nhóm tuổi chưa được ban hành"),
     BRANCH_THEMES_NOT_APPROVED(7110, HttpStatus.CONFLICT, "Dự kiến chủ đề nhánh của lớp cần được duyệt trước"),
     THEME_PLAN_NOT_SAVED(7111, HttpStatus.CONFLICT, "Cần lưu kế hoạch giáo dục chủ đề trước"),
     BRANCH_WEEKS_UNNAMED(7112, HttpStatus.CONFLICT, "Còn {0} tuần chưa đặt tên chủ đề nhánh"),
     WEEKLY_LESSONS_MISSING(
-            7113, HttpStatus.CONFLICT, "Còn thiếu giáo án {0}. Soạn và lưu đủ giáo án các nhánh rồi mới gửi duyệt"),
+            7113,
+            HttpStatus.CONFLICT,
+            "Còn thiếu kế hoạch giáo dục ngày {0}. Soạn và lưu đủ kế hoạch giáo dục ngày các nhánh rồi mới gửi duyệt"),
     NOT_YOUR_REVIEW_STEP(7114, HttpStatus.FORBIDDEN, "Bạn không {0} được ở bước này"),
     THEME_PLAN_NOT_FOUND(7115, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch chủ đề"),
     RESOURCE_THEME_ONLY(7116, HttpStatus.BAD_REQUEST, "Học liệu chỉ thuộc kế hoạch chủ đề"),
@@ -707,12 +709,13 @@ public enum ApiCode {
     SEMESTER_PACKAGE_INCOMPLETE(
             7387, HttpStatus.BAD_REQUEST, "Học kỳ còn thiếu chủ đề nhánh, kế hoạch chủ đề hoặc kế hoạch tuần"),
     CLASS_DOC_TIME_LOCKED(
-            7388,
-            HttpStatus.CONFLICT,
-            "Đã tới hạn, tài liệu đã khóa. Bản chưa ban hành cần Hiệu trưởng mở hạn"),
+            7388, HttpStatus.CONFLICT, "Đã tới hạn, tài liệu đã khóa. Bản chưa ban hành cần Hiệu trưởng mở hạn"),
     PLAN_TIME_LOCKED(7389, HttpStatus.CONFLICT, "Năm học đã bắt đầu, kế hoạch đã khóa. Cần Hiệu trưởng mở khóa"),
     // Spec 005 FR-007a: data.details = [{ date, section }] để Web ghi chữ đỏ đúng mục
-    DAY_PLAN_SECTION_EMPTY(7390, HttpStatus.BAD_REQUEST, "Giáo án ngày còn mục chưa có nội dung: {0}"),
+    DAY_PLAN_SECTION_EMPTY(7390, HttpStatus.BAD_REQUEST, "Kế hoạch giáo dục ngày còn mục chưa có nội dung: {0}"),
+    // EDU-80: data.details = [{ goalId, goalNo }]
+    THEME_GOALS_NOT_COVERED(7391, HttpStatus.BAD_REQUEST, "Chủ đề còn mục tiêu chưa được dạy ngày nào: {0}"),
+    YEAR_GOALS_NOT_COVERED(7392, HttpStatus.BAD_REQUEST, "Năm học còn mục tiêu chưa được dạy: {0}"),
     CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,

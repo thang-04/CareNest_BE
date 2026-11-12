@@ -12,28 +12,47 @@ public class EduTeamPlan extends EduPlan {
     private Long previousSourcePlanId;
 
     @Override
-    public EduPlanLevel getPlanLevel() { return EduPlanLevel.TEAM; }
+    public EduPlanLevel getPlanLevel() {
+        return EduPlanLevel.TEAM;
+    }
 
     @Override
     @Access(AccessType.PROPERTY)
     @Column(name = "curriculum_source_plan_id")
-    public Long getCurriculumSourcePlanId() { return curriculumSourcePlanId; }
-    protected void setCurriculumSourcePlanId(Long value) { curriculumSourcePlanId = value; }
+    public Long getCurriculumSourcePlanId() {
+        return curriculumSourcePlanId;
+    }
+
+    protected void setCurriculumSourcePlanId(Long value) {
+        curriculumSourcePlanId = value;
+    }
 
     @Override
     @Access(AccessType.PROPERTY)
     @Column(name = "legacy_team_without_source", nullable = false)
-    public boolean isLegacyTeamWithoutSource() { return legacyTeamWithoutSource; }
-    protected void setLegacyTeamWithoutSource(boolean value) { legacyTeamWithoutSource = value; }
+    public boolean isLegacyTeamWithoutSource() {
+        return legacyTeamWithoutSource;
+    }
+
+    protected void setLegacyTeamWithoutSource(boolean value) {
+        legacyTeamWithoutSource = value;
+    }
 
     @Override
     @Access(AccessType.PROPERTY)
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "duration_policy_snapshot", nullable = false, columnDefinition = "jsonb")
-    public String getDurationPolicySnapshot() { return durationPolicySnapshot; }
-    protected void setDurationPolicySnapshot(String value) { durationPolicySnapshot = value; }
+    public String getDurationPolicySnapshot() {
+        return durationPolicySnapshot;
+    }
 
-    public Long getPreviousSourcePlanId() { return previousSourcePlanId; }
+    protected void setDurationPolicySnapshot(String value) {
+        durationPolicySnapshot = value;
+    }
+
+    public Long getPreviousSourcePlanId() {
+        return previousSourcePlanId;
+    }
 
     public void changeCurriculumSource(Long sourceId, java.time.Instant now) {
         if (java.util.Objects.equals(curriculumSourcePlanId, sourceId)) return;

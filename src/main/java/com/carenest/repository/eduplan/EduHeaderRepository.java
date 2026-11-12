@@ -3,7 +3,6 @@ package com.carenest.repository.eduplan;
 import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.utils.enums.EduPlanStatus;
 import jakarta.persistence.LockModeType;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -20,6 +19,7 @@ import org.springframework.data.repository.query.Param;
 public interface EduHeaderRepository<T extends EduPlan> extends JpaRepository<T, Long> {
 
     boolean existsBySchoolYearIdAndAgeGroupId(Long schoolYearId, Long ageGroupId);
+
     boolean existsBySchoolYearIdAndAgeGroupIdAndDisabledFalse(Long schoolYearId, Long ageGroupId);
 
     Optional<T> findByOwnerIdAndCreatedRequestId(Long ownerId, UUID createdRequestId);

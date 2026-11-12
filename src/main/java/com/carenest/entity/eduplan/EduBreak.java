@@ -35,7 +35,8 @@ public class EduBreak {
         if (yearPlanId != null && !yearPlanId.equals(plan.getId()))
             throw new IllegalArgumentException("Plan owner differs");
         yearPlanId = plan.getId();
-        schoolYearPlanId = plan.getPlanLevel() == com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR ? plan.getId() : null;
+        schoolYearPlanId =
+                plan.getPlanLevel() == com.carenest.utils.enums.EduPlanLevel.SCHOOL_YEAR ? plan.getId() : null;
         teamPlanId = plan.getPlanLevel() == com.carenest.utils.enums.EduPlanLevel.TEAM ? plan.getId() : null;
     }
 

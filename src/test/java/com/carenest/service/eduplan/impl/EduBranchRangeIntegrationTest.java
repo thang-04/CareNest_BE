@@ -3,7 +3,6 @@ package com.carenest.service.eduplan.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
-import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.YearPlanEditRequest;
 import com.carenest.dto.eduplan.YearPlanRequest;
 import com.carenest.security.CurrentUser;
@@ -16,11 +15,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -33,10 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.node.ArrayNode;
-import tools.jackson.databind.node.ObjectNode;
 
 @SpringBootTest
 @Transactional
@@ -127,7 +121,10 @@ class EduBranchRangeIntegrationTest {
                         List.of(
                                 new YearPlanRequest.Row(null, "group", "Kết quả mong đợi", List.of()),
                                 new YearPlanRequest.Row(
-                                        null, "goal", "MT", List.of(new YearPlanRequest.Content(null, "ND", List.of("th1"))))))),
+                                        null,
+                                        "goal",
+                                        "MT",
+                                        List.of(new YearPlanRequest.Content(null, "ND", List.of("th1"))))))),
                 List.of(
                         new YearPlanRequest.Theme(
                                 "th1",
@@ -148,7 +145,12 @@ class EduBranchRangeIntegrationTest {
                                 "",
                                 ""),
                         // Quy tắc hiện hành: kế hoạch năm cần tối thiểu 9 chủ đề
-                        extraTheme(0), extraTheme(1), extraTheme(2), extraTheme(3), extraTheme(4), extraTheme(5),
+                        extraTheme(0),
+                        extraTheme(1),
+                        extraTheme(2),
+                        extraTheme(3),
+                        extraTheme(4),
+                        extraTheme(5),
                         extraTheme(6)),
                 List.of(),
                 EduPlanLevel.SCHOOL_YEAR,
@@ -206,7 +208,8 @@ class EduBranchRangeIntegrationTest {
     /** Chủ đề phụ 2 tuần nối tiếp sau chủ đề 2 (từ 19/10/2026), đúng giới hạn thời lượng mặc định. */
     private static YearPlanRequest.Theme extraTheme(int no) {
         LocalDate monday = LocalDate.of(2026, 10, 19).plusWeeks(2L * no);
-        return new YearPlanRequest.Theme("x" + no, null, "Chủ đề phụ " + no, "CDX" + no, monday, monday.plusDays(11), "", "");
+        return new YearPlanRequest.Theme(
+                "x" + no, null, "Chủ đề phụ " + no, "CDX" + no, monday, monday.plusDays(11), "", "");
     }
 
     private CurrentUser user(String username, CareNestRole role) {

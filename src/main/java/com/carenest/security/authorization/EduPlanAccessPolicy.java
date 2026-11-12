@@ -32,8 +32,8 @@ public class EduPlanAccessPolicy {
                     Set.of(
                             EduPermission.GOALS_VIEW,
                             EduPermission.GOALS_EDIT,
-                            EduPermission.GOALS_APPROVE,
-                            EduPermission.PLAN_CONFIG),
+                            // Tiền 11/11/2026: cấu hình kế hoạch chỉ Hiệu trưởng (thay "HT/PHT" của EDU-11)
+                            EduPermission.GOALS_APPROVE),
             CareNestRole.TEACHER, Set.of(EduPermission.GOALS_VIEW, EduPermission.GOALS_EDIT));
 
     private final StaffAssignmentService staffAssignmentService;
@@ -243,12 +243,14 @@ public class EduPlanAccessPolicy {
                 .map(a -> a.classroomId())
                 .filter(Objects::nonNull)
                 .collect(java.util.stream.Collectors.toSet());
-        Set<Long> homeroomClasses = staffAssignmentService
-                .findHomeroomTeacherIds(List.copyOf(teacherClasses), LocalDate.now(clock))
-                .entrySet().stream()
-                .filter(entry -> Objects.equals(entry.getValue(), user.userId()))
-                .map(Map.Entry::getKey)
-                .collect(java.util.stream.Collectors.toSet());
+        Set<Long> homeroomClasses =
+                staffAssignmentService
+                        .findHomeroomTeacherIds(List.copyOf(teacherClasses), LocalDate.now(clock))
+                        .entrySet()
+                        .stream()
+                        .filter(entry -> Objects.equals(entry.getValue(), user.userId()))
+                        .map(Map.Entry::getKey)
+                        .collect(java.util.stream.Collectors.toSet());
         return new ClassScopeSnapshot(
                 Set.copyOf(roles), Set.copyOf(campuses), Set.copyOf(ages), Set.copyOf(homeroomClasses));
     }

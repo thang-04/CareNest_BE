@@ -7,11 +7,18 @@ import java.util.stream.Collectors;
 
 final class EduPlanReviewDiff {
     record Issue(String kind, Long itemId, String reason) {}
+
     private EduPlanReviewDiff() {}
-    static List<Issue> review(YearPlanVersionDiff.Snapshot before, YearPlanVersionDiff.Snapshot after,
-            YearPlanVersionDiff.Snapshot team, LocalDate today) {
-        Map<Long, YearPlanVersionDiff.ContentItem> old = by(before.contents(), YearPlanVersionDiff.ContentItem::lineage);
-        Map<Long, YearPlanVersionDiff.ContentItem> next = by(after.contents(), YearPlanVersionDiff.ContentItem::lineage);
+
+    static List<Issue> review(
+            YearPlanVersionDiff.Snapshot before,
+            YearPlanVersionDiff.Snapshot after,
+            YearPlanVersionDiff.Snapshot team,
+            LocalDate today) {
+        Map<Long, YearPlanVersionDiff.ContentItem> old =
+                by(before.contents(), YearPlanVersionDiff.ContentItem::lineage);
+        Map<Long, YearPlanVersionDiff.ContentItem> next =
+                by(after.contents(), YearPlanVersionDiff.ContentItem::lineage);
         Map<Long, YearPlanVersionDiff.GoalItem> oldGoals = by(before.goals(), YearPlanVersionDiff.GoalItem::lineage);
         Map<Long, YearPlanVersionDiff.GoalItem> newGoals = by(after.goals(), YearPlanVersionDiff.GoalItem::lineage);
         Map<Long, YearPlanVersionDiff.ThemeItem> themes = by(team.themes(), YearPlanVersionDiff.ThemeItem::lineage);
@@ -25,7 +32,7 @@ final class EduPlanReviewDiff {
             else if (!Objects.equals(prior.goalLineage(), current.goalLineage())) reason = "REF_LOST";
             else if (!Objects.equals(prior.text(), current.text())
                     || !Objects.equals(oldGoals.get(prior.goalLineage()), newGoals.get(prior.goalLineage()))
-                        && !sameGoal(oldGoals.get(prior.goalLineage()), newGoals.get(prior.goalLineage()))) {
+                            && !sameGoal(oldGoals.get(prior.goalLineage()), newGoals.get(prior.goalLineage()))) {
                 reason = "SOURCE_CHANGED";
             }
             if (reason != null) result.add(new Issue("CONTENT", content.id(), reason));
@@ -41,20 +48,28 @@ final class EduPlanReviewDiff {
         }
         return List.copyOf(result);
     }
-    private static boolean ongoing(YearPlanVersionDiff.ContentItem c,
-            Map<Long, YearPlanVersionDiff.ThemeItem> themes, LocalDate today) {
-        return c.themeLineages().isEmpty() || c.themeLineages().stream().anyMatch(id -> {
-            var t = themes.get(id); return t == null || t.endDate() == null || !t.endDate().isBefore(today);
-        });
+
+    private static boolean ongoing(
+            YearPlanVersionDiff.ContentItem c, Map<Long, YearPlanVersionDiff.ThemeItem> themes, LocalDate today) {
+        return c.themeLineages().isEmpty()
+                || c.themeLineages().stream().anyMatch(id -> {
+                    var t = themes.get(id);
+                    return t == null || t.endDate() == null || !t.endDate().isBefore(today);
+                });
     }
+
     private static boolean sameGoal(YearPlanVersionDiff.GoalItem a, YearPlanVersionDiff.GoalItem b) {
         return a != null && b != null && Objects.equals(a.text(), b.text());
     }
+
     private static boolean sameTheme(YearPlanVersionDiff.ThemeItem a, YearPlanVersionDiff.ThemeItem b) {
-        return Objects.equals(a.name(), b.name()) && Objects.equals(a.abbr(), b.abbr())
-            && Objects.equals(a.startDate(), b.startDate()) && Objects.equals(a.endDate(), b.endDate());
+        return Objects.equals(a.name(), b.name())
+                && Objects.equals(a.abbr(), b.abbr())
+                && Objects.equals(a.startDate(), b.startDate())
+                && Objects.equals(a.endDate(), b.endDate());
     }
-    private static <T> Map<Long,T> by(List<T> rows, Function<T,Long> key) {
+
+    private static <T> Map<Long, T> by(List<T> rows, Function<T, Long> key) {
         return rows.stream().collect(Collectors.toMap(key, Function.identity()));
     }
 }

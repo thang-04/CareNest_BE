@@ -70,4 +70,35 @@ class LearningResourceServiceImplTest {
             TransactionSynchronizationManager.clearSynchronization();
         }
     }
+
+    @Test
+    void cardIdMatchesByCardNameAndLegacyKeepsRowText() {
+        // R9: theme đã có thẻ ⇒ khóa = id thẻ, chữ ký theo tên thẻ; theme cũ ⇒ khớp ô chữ như trước
+        var goals = mock(EduPlanGoalRepository.class);
+        var service = new LearningResourceServiceImpl(
+                mock(EduClassDocService.class),
+                mock(EduLearningResourceRepository.class),
+                goals,
+                mock(StaffAssignmentService.class),
+                mock(StorageService.class),
+                new ObjectMapper(),
+                Clock.systemUTC(),
+                mock(com.carenest.service.eduplan.EduWorkflowService.class),
+                mock(com.carenest.service.organization.ClassroomService.class),
+                mock(org.springframework.transaction.PlatformTransactionManager.class));
+        EduClassDoc cards = EduClassDoc.create("tp_1_2", "theme", 1L, 3L, 2L, null, 7L);
+        cards.changeContent("{\"activities\":[{\"id\":\"c-1\",\"name\":\"Bật xa\"}]}", 7L);
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                        service, "matches", cards, "c-1", LearningResourcePolicy.signature("Bật xa")))
+                .isTrue();
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                        service, "matches", cards, "c-1", LearningResourcePolicy.signature("Đổi tên")))
+                .isFalse();
+        EduClassDoc legacy = EduClassDoc.create("tp_1_2", "theme", 1L, 3L, 2L, null, 7L);
+        legacy.changeContent("{\"rows\":{\"9\":{\"activities\":\"A\"}}}", 7L);
+        when(goals.belongsToTheme(9L, 3L, 2L)).thenReturn(true);
+        assertThat((Boolean) ReflectionTestUtils.invokeMethod(
+                        service, "matches", legacy, "9#0", LearningResourcePolicy.signature("A")))
+                .isTrue();
+    }
 }
