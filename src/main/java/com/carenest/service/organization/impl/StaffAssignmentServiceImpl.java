@@ -192,6 +192,26 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|findActiveTeamLeaderAgeGroupIds|userId=" + userId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> ageGroupIds = schoolYearId == null
+                    ? findActiveTeamLeaderAgeGroupIds(userId, date)
+                    : RequestMemo.get(
+                            "leaderAgeGroups:" + userId + ":" + schoolYearId + ":" + date,
+                            () -> Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderAgeGroupIdsInYear(
+                                    userId, schoolYearId, date)));
+            log.info("{}|END", logPrefix);
+            return ageGroupIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findActiveTeacherAgeGroupIds(Long userId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|findActiveTeacherAgeGroupIds|userId=" + userId;
         log.info("{}|START", logPrefix);
@@ -262,11 +282,13 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
-    public Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date) {
-        String logPrefix = LOG_PREFIX + "|findActiveTeamLeaderIds|ageGroupId=" + ageGroupId;
+    public Set<Long> findActiveTeamLeaderIds(Long schoolYearId, Long ageGroupId, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|findActiveTeamLeaderIds|schoolYearId=" + schoolYearId + "|ageGroupId=" + ageGroupId;
         log.info("{}|START", logPrefix);
         try {
-            Set<Long> userIds = Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderIds(ageGroupId, date));
+            Set<Long> userIds =
+                    Set.copyOf(staffAssignmentRepository.findActiveTeamLeaderIds(schoolYearId, ageGroupId, date));
             log.info("{}|END", logPrefix);
             return userIds;
         } catch (RuntimeException ex) {

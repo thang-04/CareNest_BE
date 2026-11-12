@@ -36,6 +36,9 @@ public interface StaffAssignmentService {
     /** Nhóm tuổi Tổ trưởng đang phụ trách (phân công AGE_GROUP_TEAM_LEADER còn hiệu lực). */
     Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, LocalDate date);
 
+    /** Nhóm tuổi người dùng làm Tổ trưởng trong năm học; schoolYearId null ⇒ mọi năm (như bản không có năm). */
+    Set<Long> findActiveTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate date);
+
     /**
      * Nhóm tuổi Tổ trưởng phụ trách trong năm học schoolYearId, gồm cả phân công năm sắp diễn ra chưa tới ngày bắt
      * đầu (giai đoạn chuẩn bị, CFG-YR-05).
@@ -54,8 +57,8 @@ public interface StaffAssignmentService {
     /** Giáo viên chủ nhiệm hiện tại của từng lớp (lớp chưa có chủ nhiệm không có trong map). */
     Map<Long, Long> findHomeroomTeacherIds(Collection<Long> classroomIds, LocalDate date);
 
-    /** Tổ trưởng đang phụ trách nhóm tuổi. */
-    Set<Long> findActiveTeamLeaderIds(Long ageGroupId, LocalDate date);
+    /** Tổ trưởng đang phụ trách nhóm tuổi trong năm học (năm sau có Tổ trưởng riêng, không gộp). */
+    Set<Long> findActiveTeamLeaderIds(Long schoolYearId, Long ageGroupId, LocalDate date);
 
     /** Campus mà phân công đang hiệu lực của role đó trỏ tới (GV: campus của lớp). */
     Set<Long> findActiveCampusIds(Long userId, StaffRole staffRole, LocalDate date);

@@ -53,6 +53,14 @@ public interface EduWorkflowService {
 
     boolean isAuthorEligible(com.carenest.security.CurrentUser user, String docType, Long ageGroupId, Long classroomId);
 
+    /** Như trên trong đúng năm học (Tổ trưởng năm khác không tính); schoolYearId null ⇒ mọi năm. */
+    boolean isAuthorEligible(
+            com.carenest.security.CurrentUser user,
+            String docType,
+            Long schoolYearId,
+            Long ageGroupId,
+            Long classroomId);
+
     String buildPrintSnapshot(
             String docType,
             long revision,

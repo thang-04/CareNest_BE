@@ -84,6 +84,16 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             """)
     List<Long> findActiveTeamLeaderAgeGroupIds(@Param("userId") Long userId, @Param("date") LocalDate date);
 
+    // Như trên nhưng chỉ phân công của năm học đang xét; phân công cũ không ghi năm học (null) vẫn tính
+    @Query("""
+            select distinct a.ageGroupId from StaffAssignment a
+            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER
+              and (a.schoolYearId = :schoolYearId or a.schoolYearId is null)
+              and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
+            """)
+    List<Long> findActiveTeamLeaderAgeGroupIdsInYear(
+            @Param("userId") Long userId, @Param("schoolYearId") Long schoolYearId, @Param("date") LocalDate date);
+
     // Nhóm tuổi của các lớp GV đang dạy; lớp chưa gán nhóm tuổi thì bỏ qua
     @Query("""
             select distinct c.ageGroupId from StaffAssignment a, Classroom c
@@ -119,10 +129,15 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     List<Long> findYearTeamLeaderAgeGroupIds(
             @Param("userId") Long userId, @Param("schoolYearId") Long schoolYearId, @Param("date") LocalDate date);
 
+    // Tổ trưởng theo đúng năm học; phân công cũ không ghi năm học (null) vẫn tính để giữ dữ liệu trước đây
     @Query("select distinct a.userId from StaffAssignment a"
             + " where a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER"
-            + " and a.ageGroupId = :ageGroupId and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
-    List<Long> findActiveTeamLeaderIds(@Param("ageGroupId") Long ageGroupId, @Param("date") LocalDate date);
+            + " and (a.schoolYearId = :schoolYearId or a.schoolYearId is null) and a.ageGroupId = :ageGroupId"
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
+    List<Long> findActiveTeamLeaderIds(
+            @Param("schoolYearId") Long schoolYearId,
+            @Param("ageGroupId") Long ageGroupId,
+            @Param("date") LocalDate date);
 
     // Người đang giữ một vai trò quản lý: PHT của campus (campusId) hoặc HT (campusId null)
     @Query("select distinct a.userId from StaffAssignment a where a.staffRole = :role"

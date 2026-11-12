@@ -493,7 +493,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     .map(ClassroomInfoResponse::ageGroupId)
                     .filter(Objects::nonNull)
                     .distinct()
-                    .forEach(ag -> leaders.put(ag, staffAssignmentService.findActiveTeamLeaderIds(ag, today)));
+                    .forEach(ag ->
+                            leaders.put(ag, staffAssignmentService.findActiveTeamLeaderIds(schoolYearId, ag, today)));
             Set<Long> staffIds = new HashSet<>();
             teachers.values().forEach(staffIds::addAll);
             leaders.values().forEach(staffIds::addAll);
@@ -571,7 +572,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     classInfoById,
                     policies,
                     eduWorkflowService.getPolicyRevision(),
-                    accessPolicy.classScopeSnapshot(currentUser),
+                    accessPolicy.classScopeSnapshot(currentUser, schoolYearId),
                     eduWorkflowService.getUnionAuthorUserIdsForDossiers(docs),
                     plans,
                     supersededPlanIds,
@@ -835,8 +836,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         .map(d -> readObject(d.getContent()))
                         .orElse(objectMapper.createObjectNode());
                 JsonNode dossierCards = dayWeek.path("cards");
-                for (JsonNode card : dossierCards)
-                    if (card instanceof ObjectNode c) c.put("origin", "dossier");
+                for (JsonNode card : dossierCards) if (card instanceof ObjectNode c) c.put("origin", "dossier");
                 EduActivityCards.validate(
                         dossierCards,
                         goalIds(themeGoals.ofTheme(plan.getId(), themeId, themeDoc.path("customTicks"))),
@@ -970,7 +970,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         || eduWorkflowService
                                 .getUnionAuthorUserIdsForDossier(doc)
                                 .contains(currentUser.userId())
-                        || !accessPolicy.canReviewClassDoc(currentUser, actingRole, cls.ageGroupId(), cls.id())) {
+                        || !accessPolicy.canReviewClassDoc(
+                                currentUser, actingRole, cls.schoolYearId(), cls.ageGroupId(), cls.id())) {
                     throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, request.action());
                 }
                 if (ACTION_APPROVE.equals(request.action())) {
@@ -1195,11 +1196,13 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     .forEach(c -> c.path("goalIds").forEach(g -> referenced.add(EduActivityCards.longOf(g))));
         } else {
             // Lượt xếp mới mang goalIds (bản chụp MT của thẻ), bản cũ mang goalId; gõ tay không có MT
-            content.path("picks").forEach(list -> list.forEach(p -> {
-                if (p.path("goalIds").isArray())
-                    p.path("goalIds").forEach(g -> referenced.add(EduActivityCards.longOf(g)));
-                else if (p.has("goalId")) referenced.add(parseId(p.path("goalId").asString("")));
-            }));
+            content.path("picks")
+                    .forEach(list -> list.forEach(p -> {
+                        if (p.path("goalIds").isArray())
+                            p.path("goalIds").forEach(g -> referenced.add(EduActivityCards.longOf(g)));
+                        else if (p.has("goalId"))
+                            referenced.add(parseId(p.path("goalId").asString("")));
+                    }));
         }
         return referenced.stream()
                 .filter(id -> !goalIds.contains(id) || (changedGoals.contains(id) && !checks.contains(CHECK_GOAL + id)))
@@ -1337,7 +1340,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         user.userId(), com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL, today)
                 : Set.of();
         Set<Long> taught = staffAssignmentService.findCurrentTeacherClassroomIds(user.userId(), today);
-        Set<Long> led = staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), today);
+        Set<Long> led = staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), schoolYearId, today);
         return classes.stream()
                 .filter(c -> campuses.contains(c.campusId())
                         || taught.contains(c.id())
@@ -1473,7 +1476,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (!semester) {
             ObjectNode themeContent = themeContentOf(draftTheme, docs);
             Set<Long> taught = taughtGoals(
-                    weeks.stream().filter(w -> draftTheme.equals(w.themeId())).toList(), docs, rows, breaks, draftTheme);
+                    weeks.stream().filter(w -> draftTheme.equals(w.themeId())).toList(),
+                    docs,
+                    rows,
+                    breaks,
+                    draftTheme);
             requireCovered(
                     themeGoals.ofTheme(planId, draftTheme, themeContent.path("customTicks")),
                     taught,
@@ -1530,7 +1537,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         Set<Long> taught = new HashSet<>();
         for (TeachingWeek w : weeks) {
             EduClassDoc dayDoc = docs.stream()
-                    .filter(d -> EduClassDoc.DAY.equals(d.getKind()) && w.start().equals(d.getWeekStart()))
+                    .filter(d ->
+                            EduClassDoc.DAY.equals(d.getKind()) && w.start().equals(d.getWeekStart()))
                     .findFirst()
                     .orElse(null);
             ObjectNode dayContent = dayDoc == null ? objectMapper.createObjectNode() : readObject(dayDoc.getContent());
@@ -1539,7 +1547,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             JsonNode content = dossierWeek
                     ? dayContent.path("week")
                     : docs.stream()
-                            .filter(d -> EduClassDoc.WEEK.equals(d.getKind()) && w.start().equals(d.getWeekStart()))
+                            .filter(d -> EduClassDoc.WEEK.equals(d.getKind())
+                                    && w.start().equals(d.getWeekStart()))
                             .findFirst()
                             .map(d -> (JsonNode) readObject(d.getContent()))
                             .orElse(objectMapper.createObjectNode());
@@ -1551,9 +1560,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 for (var row : rows) {
                     JsonNode cell = content.path("grid").path(row.key());
                     boolean merged = row.canMerge() && cell.path("allWeek").asBoolean(row.allWeek());
-                    List<String> keys = merged
-                            ? List.of(row.key() + ".all")
-                            : List.of(row.key() + "." + day, row.key() + ".extra");
+                    List<String> keys =
+                            merged ? List.of(row.key() + ".all") : List.of(row.key() + "." + day, row.key() + ".extra");
                     for (String key : keys)
                         content.path("picks")
                                 .path(key)
@@ -1584,7 +1592,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     private static boolean hasLegacyActivities(JsonNode content) {
-        return content.path("rows").valueStream()
+        return content.path("rows")
+                .valueStream()
                 .anyMatch(r -> !r.path("activities").asString("").isBlank());
     }
 
@@ -1784,7 +1793,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (hasLegacyActivities(node))
                 node.set(
                         "activities",
-                        EduActivityCards.normalizeTheme(node, eduConfigService.getEduConfig().weekRows(), null));
+                        EduActivityCards.normalizeTheme(
+                                node, eduConfigService.getEduConfig().weekRows(), null));
         }
         if (EduClassDoc.DAY.equals(doc.getKind()))
             node.put("effectiveWeek", member.path("week").isObject() ? "dossier" : "semester");
@@ -1906,7 +1916,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (EduClassDoc.THEME.equals(doc.getKind()) && !node.has("activities") && hasLegacyActivities(node))
             node.set(
                     "activities",
-                    EduActivityCards.normalizeTheme(node, eduConfigService.getEduConfig().weekRows(), null));
+                    EduActivityCards.normalizeTheme(
+                            node, eduConfigService.getEduConfig().weekRows(), null));
         // FR-018: bản tuần nào đang hiệu lực cho trang ngày, đánh giá trẻ (server quyết định)
         if (EduClassDoc.DAY.equals(doc.getKind()))
             node.put("effectiveWeek", dossierWeekEffective(doc, node) ? "dossier" : "semester");
@@ -2008,7 +2019,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         .contains(currentUser.userId())
                 && (context == null
                         ? accessPolicy.canReviewClassDoc(
-                                currentUser, evaluation.waitingRole(), cls.ageGroupId(), cls.id())
+                                currentUser, evaluation.waitingRole(), cls.schoolYearId(), cls.ageGroupId(), cls.id())
                         : context.scope().canReview(evaluation.waitingRole(), cls.ageGroupId(), cls.campusId()));
         // Lịch sử duyệt (ghi chú gửi, lý do trả lại) chỉ cho người soạn và người duyệt (FR-019)
         boolean seesHistory = author

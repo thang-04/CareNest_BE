@@ -94,6 +94,23 @@ class EduWorkflowAccessPolicyTest {
     }
 
     @Test
+    @DisplayName("Tổ trưởng năm học sau không có quyền Tổ trưởng ở năm học trước cùng nhóm tuổi")
+    void teamLeaderScopedToSchoolYear() {
+        CurrentUser tlUser = user(11L, CareNestRole.TEACHER);
+        given(staffAssignmentService.findActiveTeamLeaderAgeGroupIds(11L, 2L, TODAY))
+                .willReturn(Set.of(1L));
+        given(staffAssignmentService.findActiveTeamLeaderAgeGroupIds(11L, 1L, TODAY))
+                .willReturn(Set.of());
+
+        assertThat(accessPolicy.canReviewYearPlan(tlUser, Role.TEAM_LEADER, 2L, 1L))
+                .isTrue();
+        assertThat(accessPolicy.canReviewYearPlan(tlUser, Role.TEAM_LEADER, 1L, 1L))
+                .isFalse();
+        assertThat(accessPolicy.canReviewClassDoc(tlUser, Role.TEAM_LEADER, 1L, 1L, 101L))
+                .isFalse();
+    }
+
+    @Test
     @DisplayName("EDU-64: tổ trưởng không xem kế hoạch tổ đã ban hành của nhóm tuổi khác")
     void teamLeaderViewScopeStaysWithinAssignedAgeGroup() {
         CurrentUser leader = user(11L, CareNestRole.TEACHER);

@@ -816,7 +816,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                         .getOrDefault(cls.id(), List.of());
         Set<Long> leaderIds = cls.ageGroupId() == null
                 ? Set.of()
-                : staffAssignmentService.findActiveTeamLeaderIds(cls.ageGroupId(), at);
+                : staffAssignmentService.findActiveTeamLeaderIds(cls.schoolYearId(), cls.ageGroupId(), at);
         Long issuer = cls.ageGroupId() == null
                 ? null
                 : evaluationRepository.findApprovedPlanIssuer(cls.schoolYearId(), cls.ageGroupId());

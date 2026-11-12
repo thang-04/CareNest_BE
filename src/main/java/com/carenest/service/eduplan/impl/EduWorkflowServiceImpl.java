@@ -972,7 +972,14 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public boolean isAuthorEligible(CurrentUser user, String docType, Long ageGroupId, Long classroomId) {
-        String logPrefix = LOG_PREFIX + "|isAuthorEligible";
+        return isAuthorEligible(user, docType, null, ageGroupId, classroomId);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public boolean isAuthorEligible(
+            CurrentUser user, String docType, Long schoolYearId, Long ageGroupId, Long classroomId) {
+        String logPrefix = LOG_PREFIX + "|isAuthorEligible|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             if (user == null) {
@@ -982,11 +989,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             }
             RolePolicy policy = loadPolicy(docType);
             if (("year".equals(docType) || "schoolYear".equals(docType))) {
-                var result = accessPolicy.canAuthorYearPlan(user, policy, ageGroupId);
+                var result = accessPolicy.canAuthorYearPlan(user, policy, schoolYearId, ageGroupId);
                 log.info("{}|END", logPrefix);
                 return result;
             }
-            var result = accessPolicy.canAuthorClassDoc(user, policy, ageGroupId, classroomId);
+            var result = accessPolicy.canAuthorClassDoc(user, policy, schoolYearId, ageGroupId, classroomId);
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {
