@@ -33,7 +33,7 @@ CREATE TEMP TABLE th_ops_att AS
 SELECT ch.id AS child_id, cl.id AS classroom_id, cl.campus_id, dd.day, t.user_id AS teacher_id,
        -- Vắng có phép đến từ đơn nghỉ của phụ huynh (ATT-04) nên chỉ trẻ có tài khoản phụ huynh; còn lại vắng không phép
        CASE WHEN h.r >= 6 THEN 'PRESENT'
-            WHEN h.r < 4 AND EXISTS (SELECT 1 FROM guardian_child_links l WHERE l.child_id = ch.id) THEN 'EXCUSED'
+            WHEN h.r < 4 AND EXISTS (SELECT 1 FROM child_guardians l WHERE l.child_id = ch.id AND l.user_id IS NOT NULL) THEN 'EXCUSED'
             ELSE 'UNEXCUSED' END AS status,
        CASE WHEN h.r < 6 THEN '' ELSE g.meal_sessions END AS meals,
        (dd.day + TIME '08:00' + (h.m % 30) * INTERVAL '1 minute') AT TIME ZONE 'Asia/Ho_Chi_Minh' AS recorded_at,

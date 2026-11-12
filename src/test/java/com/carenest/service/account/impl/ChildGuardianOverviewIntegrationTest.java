@@ -108,10 +108,6 @@ class ChildGuardianOverviewIntegrationTest {
                 + " VALUES ('kc-ph" + n + "', '0900" + String.format("%06d", n) + "', 'Phụ huynh An', 'PARENT')"
                 + " RETURNING id");
         guardian(activated, 0, "Phụ huynh An", "0900" + String.format("%06d", n), parentId, true);
-        jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
-                parentId,
-                activated);
 
         notActivated = enrolledChild("Trần Bình", classA);
         guardian(notActivated, 0, "Phụ huynh Bình", "0911" + String.format("%06d", n), null, true);
@@ -179,10 +175,6 @@ class ChildGuardianOverviewIntegrationTest {
                 + " VALUES ('kc-x" + SEQ.incrementAndGet() + "', '09" + String.format("%08d", SEQ.get())
                 + "', 'Phụ huynh thêm', 'PARENT') RETURNING id");
         guardian(child, 0, "Phụ huynh thêm", "08" + String.format("%08d", SEQ.incrementAndGet()), account, true);
-        jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'FATHER')",
-                account,
-                child);
         entityManager.flush();
     }
 
@@ -223,13 +215,14 @@ class ChildGuardianOverviewIntegrationTest {
             long childId, int position, String name, String phone, Long userId, boolean accountRecipient) {
         jdbc.update(
                 "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
-                        + " account_recipient) VALUES (?, ?, ?, 'MOTHER', ?, ?, ?, ?)",
+                        + " linked_at, account_recipient) VALUES (?, ?, ?, 'MOTHER', ?, ?, ?, ?, ?)",
                 childId,
                 position,
                 name,
                 phone,
                 "999" + String.format("%09d", SEQ.incrementAndGet()),
                 userId,
+                userId == null ? null : java.sql.Timestamp.from(java.time.Instant.now()),
                 accountRecipient);
     }
 

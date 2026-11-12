@@ -142,14 +142,6 @@ JOIN classrooms r ON r.name = v.classroom_name
 WHERE NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.child_id = ch.id AND e.classroom_id = r.id)
   AND NOT EXISTS (SELECT 1 FROM enrollments e WHERE e.child_id = ch.id AND e.valid_to IS NULL);
 
-INSERT INTO guardian_child_links (user_id, child_id, relationship)
-SELECT u.id, ch.id, v.relationship
-FROM (VALUES ('parent1', 'Trẻ Demo A1-01', 'MOTHER'),
-             ('parent2', 'Trẻ Demo B1-01', 'FATHER')) AS v (username, child_name, relationship)
-JOIN user_accounts u ON u.username = v.username
-JOIN children ch ON ch.full_name = v.child_name
-ON CONFLICT (user_id, child_id) DO NOTHING;
-
 -- CCCD giả = "999" + 9 số cuối SĐT demo (không có mã tỉnh 999, như BE giả của FE)
 UPDATE user_accounts u SET citizen_id = v.citizen_id
 FROM (VALUES ('parent1', '999900000006'), ('parent2', '999900000007')) AS v (username, citizen_id)
@@ -157,8 +149,9 @@ WHERE u.username = v.username AND u.citizen_id IS NULL;
 
 -- Phụ huynh trên hồ sơ (AUTH-20): parent1, parent2 đã kích hoạt (có liên kết), người còn lại chờ kích hoạt.
 -- parent1, parent2 có tên đăng nhập kiểu cũ (không phải SĐT) nên SĐT trên hồ sơ khác tên đăng nhập.
-INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, email, user_id)
-SELECT ch.id, v.position, v.full_name, v.relationship, v.phone, v.citizen_id, v.email, u.id
+INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, email, user_id, linked_at)
+SELECT ch.id, v.position, v.full_name, v.relationship, v.phone, v.citizen_id, v.email, u.id,
+       CASE WHEN u.id IS NULL THEN NULL ELSE now() END
 FROM (VALUES ('Trẻ Demo A1-01', 0, 'Phụ huynh A Demo', 'MOTHER', '0900000006', '999900000006', 'parent1@gmail.com', 'parent1'),
              ('Trẻ Demo A1-02', 0, 'Bố Demo A1-02', 'FATHER', '0900000102', '999900000102', NULL, NULL),
              ('Trẻ Demo B1-01', 0, 'Phụ huynh B Demo', 'FATHER', '0900000007', '999900000007', NULL, 'parent2'),
@@ -359,7 +352,6 @@ FROM (SELECT DISTINCT ON (x.child_id) x.id
       FROM child_guardians x
       WHERE NOT EXISTS (SELECT 1 FROM child_guardians r WHERE r.child_id = x.child_id AND r.account_recipient)
       ORDER BY x.child_id,
-               EXISTS (SELECT 1 FROM guardian_child_links l
-                       WHERE l.child_id = x.child_id AND l.user_id = x.user_id) DESC,
+               (x.user_id IS NOT NULL) DESC,
                x.position) c
 WHERE g.id = c.id;

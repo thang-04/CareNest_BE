@@ -149,7 +149,8 @@ class HealthExamIntegrationTest {
         // HLT-11, PAR-03: phụ huynh liên kết nhận thông báo khi kết luận (công bố) và khi sửa phiếu đã kết luận
         long parentId = user("he-parent", CareNestRole.PARENT).userId();
         jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                "INSERT INTO child_guardians (user_id, child_id, position, full_name, relationship, phone, citizen_id,"
+                        + " linked_at) VALUES (?, ?, 0, 'Mẹ (giả)', 'MOTHER', '0900000009', '000000000009', now())",
                 parentId,
                 child1);
         HealthExamResponse fresh = exams.getExam(teacherA, campaign, child1);

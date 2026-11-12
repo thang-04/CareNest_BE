@@ -241,17 +241,6 @@ Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-1
 | placed_at | TIMESTAMPTZ | không | Lúc xếp | — |
 Index: `idx_child_placements_child` (`child_id`, `placed_at DESC`).
 
-## guardian_child_links  (module: child, scope: CHILD)
-Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/gỡ qua `/children/{id}/guardians` (AUTH-18, AUTH-19). Migration: V3, V9 (CHECK quan hệ), V63 (6 loại).
-| Column | Type | Null | Ý nghĩa | Rule ID |
-| --- | --- | --- | --- | --- |
-| id | BIGINT identity | không | Khóa chính | — |
-| user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh | AUTH-04 |
-| child_id | BIGINT FK children | không | | AUTH-04 |
-| relationship | VARCHAR(30) | không | `FATHER` / `MOTHER` / `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` / `GUARDIAN` (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ — như hồ sơ trẻ); `OTHER` chỉ còn ở dữ liệu trước V63 (CHECK `ck_guardian_child_links_relationship`) | AUTH-18 |
-| created_at | TIMESTAMPTZ | không | | — |
-Index: `uk_guardian_child_links_user_child`, `idx_guardian_child_links_child_id`.
-
 ## attendance_records  (module: attendance, scope: CLASS)
 Mục đích: điểm danh và tham gia ăn của một trẻ trong một ngày (ATT-01, ATT-02). Migration: `V21__create_attendance.sql`.
 | Column | Type | Null | Ý nghĩa | Rule ID |
@@ -586,22 +575,23 @@ Mục đích: hành chính của trẻ, 1–1 với `children`; phiếu khám s�
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 
 ## child_guardians  (module: child, scope: CHILD)
-Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20); nguồn scope của phụ huynh vẫn là `guardian_child_links`. Migration: V63.
+Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20). Dòng có `user_id` = liên kết tài khoản phụ huynh–trẻ, là nguồn scope của phụ huynh (AUTH-04; bảng `guardian_child_links` cũ bị V122 gộp vào đây). Migration: V63, V81, V122.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | child_id | BIGINT FK children | không | | — |
 | position | SMALLINT | không | Thứ tự nhập 0–2 ⇒ tối đa 3 phụ huynh mỗi trẻ (CHECK + UNIQUE cùng `child_id`) | AUTH-18 |
 | full_name | VARCHAR(150) | không | | — |
-| relationship | VARCHAR(30) | không | 6 mã như `guardian_child_links`; `OTHER` chỉ ở dữ liệu chuyển từ liên kết cũ | AUTH-18 |
+| relationship | VARCHAR(30) | không | `FATHER` / `MOTHER` / `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` / `GUARDIAN` (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ); `OTHER` còn trong CHECK cho dữ liệu cũ | AUTH-18 |
 | phone | VARCHAR(10) | không | SĐT chuẩn hóa 10 số bắt đầu 0 (CHECK) = tên đăng nhập tài khoản phụ huynh | AUTH-18 |
 | citizen_id | VARCHAR(12) | có (xem dưới) | CCCD 12 chữ số, khóa nhận diện phụ huynh | AUTH-18 |
 | email | VARCHAR(255) | có | Email liên hệ, chữ thường | AUTH-18 |
-| user_id | BIGINT FK user_accounts | có | Tài khoản đã kích hoạt cho trẻ này; NULL = chưa kích hoạt | AUTH-20 |
+| user_id | BIGINT FK user_accounts | có | Tài khoản đã liên kết với trẻ (nguồn scope phụ huynh); NULL = chưa kích hoạt hoặc đã gỡ liên kết | AUTH-04, AUTH-19, AUTH-20 |
+| linked_at | TIMESTAMPTZ | có | V122. Lúc liên kết tài khoản với trẻ; có ⇔ `user_id` có (CHECK `ck_child_guardians_linked`) | AUTH-19 |
 | photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(36), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung tùy chọn khi tiếp nhận; private S3, JPG/PNG/WEBP ≤2 MiB; CHECK metadata hoàn chỉnh, V80. Ảnh ChildGuardian tách ảnh tài khoản và đọc theo id ổn định. | CHD-02, PCK-02 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Ràng buộc: UNIQUE (`child_id`, `position`), (`child_id`, `phone`), (`child_id`, `citizen_id`) dạng DEFERRABLE INITIALLY DEFERRED (Sửa hồ sơ đổi thông tin giữa hai phụ huynh trong một lần lưu); UNIQUE (`child_id`, `user_id`). `ck_child_guardians_citizen_id_required` **NOT VALID**: dòng thêm/sửa phải có CCCD; dòng V63 chuyển từ liên kết cũ chưa có CCCD (nhập bổ sung). V63 chuyển mỗi liên kết có sẵn có tên đăng nhập là SĐT thành 1 dòng (tối đa 3 mỗi trẻ).
-`accountStatus` trả FE: `NOT_ACTIVATED` khi chưa có `guardian_child_links` với trẻ; có thì `user_accounts.status`.
+Ràng buộc: UNIQUE (`child_id`, `position`), (`child_id`, `phone`), (`child_id`, `citizen_id`) dạng DEFERRABLE INITIALLY DEFERRED (Sửa hồ sơ đổi thông tin giữa hai phụ huynh trong một lần lưu); UNIQUE (`child_id`, `user_id`). `ck_child_guardians_citizen_id_required` **NOT VALID**: dòng thêm/sửa phải có CCCD; hồ sơ demo cũ có thể thiếu CCCD (nhập bổ sung).
+`accountStatus` trả FE: `NOT_ACTIVATED` khi `user_id` NULL; có thì `user_accounts.status`.
 Index: `idx_child_guardians_phone`, `idx_child_guardians_citizen_id`, `idx_child_guardians_user_id` (kiểm một người một tài khoản trên mọi hồ sơ — AUTH-18).
 
 ## child_health_declarations  (module: child, scope: CHILD)
@@ -789,30 +779,20 @@ V36 bỏ bảng `edu_expected_results` (danh mục gợi ý chưa từng có d�
 
 V35 thay bảng `edu_goal_rows` bằng ba bảng trên, giữ id/lineage/sort_order và chuyển FK nội dung. Ba bảng dùng `edu_plan_rows_seq`; `kind` chỉ còn ở DTO. Không tự tạo cha khi dữ liệu cũ thiếu cấp. FK cha được deferred để chuyển cha trong cùng transaction; service flush cập nhật trước xóa tiêu đề cũ.
 
-## role_permissions  (module: identity-access, scope: SYSTEM)
-Mục đích: ma trận quyền theo role do Hiệu trưởng bật/tắt (ADR-0017); có dòng = role có quyền. Migration: `V7__create_permissions.sql` (seed = quyền mặc định của enum `Permission`).
+## permission_grants  (module: identity-access, scope: SYSTEM)
+Mục đích: một bảng cho cả ma trận quyền theo role do Hiệu trưởng bật/tắt và ngoại lệ quyền từng người (ADR-0017). Dòng role (`role` có giá trị, `user_id` NULL): có dòng = role có quyền. Dòng người (`user_id` có giá trị, `role` NULL): GRANT/REVOKE so với ma trận. Migration: `V82__consolidate_auth_tables.sql` (gộp `role_permissions` + `user_permission_overrides` của V7/V38/V40, seed = quyền mặc định của enum `Permission`). Code: entity `RolePermission` và `UserPermissionOverride` cùng map bảng này, mỗi entity chỉ thấy phần dòng của mình (`@SQLRestriction`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| role | VARCHAR(20) | không | Chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK, `TEAM_LEADER` từ V38); role khác cố định trong code. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23 |
+| role | VARCHAR(20) | có | Dòng role: chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK, `TEAM_LEADER` từ V38); role khác cố định trong code. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23 |
+| user_id | BIGINT | có | Dòng người: FK `user_accounts`, người được cấp/thu quyền. Đúng một trong `role`/`user_id` có giá trị (CHECK) | AUTH-10 |
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
-| updated_by | BIGINT | có | FK `user_accounts`; null với dòng seed | AUTH-14 |
-| updated_at | TIMESTAMPTZ | không | Thời điểm bật | — |
-Index: `uk_role_permissions_role_permission` (role, permission_code).
-
-## user_permission_overrides  (module: identity-access, scope: SYSTEM)
-Mục đích: ngoại lệ quyền của từng người so với ma trận role (ADR-0017). Migration: V7, V40 (`scope`).
-| Column | Type | Null | Ý nghĩa | Rule ID |
-| --- | --- | --- | --- | --- |
-| id | BIGINT identity | không | Khóa chính | — |
-| user_id | BIGINT | không | FK `user_accounts`, người được cấp/thu quyền | AUTH-10 |
-| permission_code | VARCHAR(64) | không | Mã enum `Permission` | AUTH-10 |
-| effect | VARCHAR(10) | không | `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định) | AUTH-10, AUTH-13 |
-| scope | VARCHAR(10) | có | Chỉ GRANT (CHECK): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (chỉ mã sửa theo mảng — API kiểm); REVOKE luôn NULL (ADR-0023) | AUTH-20 |
-| reason | VARCHAR(500) | không | Lý do | AUTH-14 |
-| created_by | BIGINT | không | FK `user_accounts`, người sửa gần nhất; CHECK `created_by <> user_id` | AUTH-12 |
+| effect | VARCHAR(10) | có | Chỉ dòng người: `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định); dòng role NULL | AUTH-10, AUTH-13 |
+| scope | VARCHAR(10) | có | Chỉ GRANT (CHECK): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (chỉ mã sửa theo mảng — API kiểm); REVOKE và dòng role NULL (ADR-0023) | AUTH-20 |
+| reason | VARCHAR(500) | có | Lý do; bắt buộc ở dòng người | AUTH-14 |
+| granted_by | BIGINT | có | FK `user_accounts`: người bật ô ma trận (null với dòng seed) / người sửa ngoại lệ gần nhất (bắt buộc, CHECK khác `user_id`) | AUTH-12, AUTH-14 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
-Index: `uk_user_permission_overrides_user_permission` (user_id, permission_code).
+Index: `uk_permission_grants_role_permission` (role, permission_code) WHERE role IS NOT NULL; `uk_permission_grants_user_permission` (user_id, permission_code) WHERE user_id IS NOT NULL.
 
 ## permission_change_log  (module: identity-access, scope: SYSTEM)
 Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`).

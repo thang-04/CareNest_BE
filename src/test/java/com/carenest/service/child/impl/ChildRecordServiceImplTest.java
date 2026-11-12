@@ -479,8 +479,11 @@ class ChildRecordServiceImplTest {
     }
 
     private static ChildGuardian guardian(Long id, int position, String citizenId, String phone, Long userId) {
-        ChildGuardian g = ChildGuardian.create(
-                CHILD_ID, position, "Mẹ An", GuardianRelationship.MOTHER, phone, citizenId, null, userId);
+        ChildGuardian g =
+                ChildGuardian.create(CHILD_ID, position, "Mẹ An", GuardianRelationship.MOTHER, phone, citizenId, null);
+        if (userId != null) {
+            g.linkAccount(userId, java.time.Instant.EPOCH);
+        }
         ReflectionTestUtils.setField(g, "id", id);
         return g;
     }
