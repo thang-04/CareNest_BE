@@ -1,6 +1,6 @@
 #!/bin/sh
 # Chặn trước commit (<2s): file secret, sửa migration đã commit, secret trong dòng thêm, conflict marker,
-# AI-layer lệch (check-ai-layer). ADR-0012. Không dùng --no-verify để lách (AGENTS.md › Git).
+# AI-layer lệch (check-ai-layer), file rác (junk-files). ADR-0012. Không dùng --no-verify để lách (AGENTS.md › Git).
 . "$(dirname "$0")/lib.sh"
 staged=$(git -c core.quotepath=off diff --cached --name-only --diff-filter=ACMR)
 
@@ -92,6 +92,16 @@ if printf '%s\n' $staged | grep -Eq '^(AGENTS\.md|\.claude/(settings\.json|hooks
   if command -v node >/dev/null 2>&1 && [ -f scripts/ai-layer/sync-shared.mjs ]; then
     node scripts/ai-layer/sync-shared.mjs --check >&2 || cn_warn "harness dùng chung lệch giữa các repo (xem trên)"
   fi
+fi
+
+# 6. File rác (log, cache, file nén, thư mục tạm, file bị ignore mà vẫn add) bị chặn; file lạ chưa ignore chỉ nhắc
+if command -v node >/dev/null 2>&1 && [ -f scripts/ai-layer/junk-files.mjs ]; then
+  node scripts/ai-layer/junk-files.mjs --staged --stderr
+  case $? in
+    0) ;;
+    1) cn_err "commit có file rác (xem trên)" ;;
+    *) cn_warn "junk-files không chạy được — bỏ qua" ;;
+  esac
 fi
 
 [ "$CN_ERRORS" -eq 0 ] || { echo "[CareNest] Commit bị chặn ($CN_ERRORS lỗi). Sửa nguyên nhân, không dùng --no-verify." >&2; exit 1; }
