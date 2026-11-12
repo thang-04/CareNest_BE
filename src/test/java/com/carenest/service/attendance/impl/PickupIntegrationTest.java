@@ -268,6 +268,38 @@ class PickupIntegrationTest {
     }
 
     @Test
+    void listsOnlyClassesTheTeacherHandsOverToday() {
+        // GV có quyền đón trẻ nhưng không có ATTENDANCE_RECORD vẫn thấy lớp mình (PCK-01)
+        assertThat(pickups.listClasses(teacherA)).singleElement().satisfies(c -> {
+            assertThat(c.id()).isEqualTo(classA);
+            assertThat(c.name()).isEqualTo("Lớp A");
+            assertThat(c.campusId()).isEqualTo(campus);
+        });
+        assertThat(pickups.listClasses(teacherB))
+                .extracting(c -> c.name())
+                .containsExactly("Lớp B");
+
+        // Không có quyền đón trẻ hoặc không phải GV ⇒ không có lớp
+        CurrentUser noPickup = new CurrentUser(
+                teacherA.userId(),
+                teacherA.keycloakUserId(),
+                teacherA.username(),
+                teacherA.fullName(),
+                null,
+                Set.of(CareNestRole.TEACHER),
+                Set.of(Permission.ATTENDANCE_VIEW));
+        assertThat(pickups.listClasses(noPickup)).isEmpty();
+        assertThat(pickups.listClasses(parent)).isEmpty();
+
+        // Năm học không còn hoạt động ⇒ lớp không còn trong danh sách
+        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = "
+                + "(SELECT school_year_id FROM classrooms WHERE id = ?)", classA);
+        // Sửa bằng JDBC nên bỏ bản năm học Hibernate đã nạp trong transaction của test
+        entityManager.clear();
+        assertThat(pickups.listClasses(teacherA)).isEmpty();
+    }
+
+    @Test
     void parentUploadsPhotoThatClassTeacherSees() {
         when(photoStorage.store(any(), anyString())).thenReturn(PHOTO_KEY);
         when(photoStorage.load(PHOTO_KEY)).thenReturn(PNG);

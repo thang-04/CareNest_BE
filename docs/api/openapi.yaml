@@ -6913,6 +6913,18 @@ paths:
           description: OK
       tags:
       - pickup-controller
+  /api/pickups/classes:
+    get:
+      operationId: listClasses
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListPickupClassResponse"
+          description: OK
+      tags:
+      - pickup-controller
   /api/role-permissions:
     get:
       operationId: getRolePermissions
@@ -16056,6 +16068,20 @@ components:
             $ref: "#/components/schemas/PickupGuardian"
         row:
           $ref: "#/components/schemas/PickupRow"
+    PickupClassResponse:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
     PickupGuardian:
       type: object
       properties:
@@ -18273,6 +18299,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PermissionResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListPickupClassResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/PickupClassResponse"
         desc:
           type: string
         errorCode:
