@@ -169,8 +169,9 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             Set<Long> seen = new LinkedHashSet<>();
             for (String key : keys) {
                 // FR-026: MT của lượt xếp = MT của thẻ; gõ tay không có MT nên không sinh mục đánh giá
-                content.path("picks").path(key).forEach(p -> EduActivityCards.resolveGoals(p, cards)
-                        .forEach(id -> {
+                content.path("picks")
+                        .path(key)
+                        .forEach(p -> EduActivityCards.resolveGoals(p, cards).forEach(id -> {
                             EduPlanGoal goal = goals.get(id);
                             if (goal != null && seen.add(id)) {
                                 picked.add(new Goal(id, goal.getGoalNo(), goal.getText()));

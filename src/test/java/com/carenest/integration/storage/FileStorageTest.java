@@ -1,7 +1,6 @@
 package com.carenest.integration.storage;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -115,7 +114,8 @@ class FileStorageTest {
     void learningResourceLimitsDependOnKind() {
         int sixMb = 6 * 1024 * 1024;
         assertCode(
-                catchThrowable(() -> storage.presignPut(FileCategory.LEARNING_RESOURCE, 1L, "a.png", "image/png", sixMb)),
+                catchThrowable(
+                        () -> storage.presignPut(FileCategory.LEARNING_RESOURCE, 1L, "a.png", "image/png", sixMb)),
                 ApiCode.FILE_TOO_LARGE);
         assertThat(storage.presignPut(FileCategory.LEARNING_RESOURCE, 1L, "a.pdf", "application/pdf", sixMb))
                 .isNotNull();
@@ -132,7 +132,8 @@ class FileStorageTest {
         assertThat(storage.resolve(FileCategory.INSPECTION_SIGNATURE, "inspsig_1_20261105-143012_ab12.png"))
                 .isEqualTo("signatures/inspections/inspsig_1_20261105-143012_ab12.png");
         assertCode(
-                catchThrowable(() -> storage.resolve(FileCategory.USER_AVATAR, "avatars/children/child_1_20261105-143012_ab12.png")),
+                catchThrowable(() ->
+                        storage.resolve(FileCategory.USER_AVATAR, "avatars/children/child_1_20261105-143012_ab12.png")),
                 ApiCode.FILE_KEY_INVALID);
         assertCode(
                 catchThrowable(() -> storage.resolve(FileCategory.USER_AVATAR, "avatars/users/../x")),

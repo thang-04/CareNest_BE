@@ -1,11 +1,10 @@
 package com.carenest.service.eduplan.impl;
 
+import com.carenest.dto.common.FileUrlResponse;
+import com.carenest.dto.common.PresignedUploadResponse;
 import com.carenest.dto.eduplan.*;
 import com.carenest.entity.eduplan.*;
 import com.carenest.exception.GlobalException;
-import com.carenest.dto.common.FileUrlResponse;
-import com.carenest.dto.common.PresignedUploadResponse;
-import com.carenest.utils.enums.FileCategory;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.integration.storage.FileTypes;
 import com.carenest.repository.eduplan.*;
@@ -15,6 +14,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.LearningResourcePolicy;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -186,8 +186,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                 TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                     @Override
                     public void afterCompletion(int completionStatus) {
-                        if (completionStatus != STATUS_COMMITTED)
-                            storage.remove(FileCategory.LEARNING_RESOURCE, key);
+                        if (completionStatus != STATUS_COMMITTED) storage.remove(FileCategory.LEARNING_RESOURCE, key);
                     }
                 });
                 cleanupRegistered[0] = true;
@@ -319,7 +318,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                 .orElseThrow(() -> GlobalException.of(ApiCode.LEARNING_RESOURCE_NOT_FOUND));
     }
 
-    private static final java.util.regex.Pattern KEY = java.util.regex.Pattern.compile(LearningResourceBinding.KEY_PATTERN);
+    private static final java.util.regex.Pattern KEY =
+            java.util.regex.Pattern.compile(LearningResourceBinding.KEY_PATTERN);
 
     /** EDU-81: mục hoạt động phải là một trong 4 mục cố định của một ngày (thứ 2–6) thuộc tuần của kế hoạch ngày. */
     private void validateBinding(EduClassDoc doc, LearningResourceBinding b) {
@@ -327,15 +327,15 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                 || b.activityLabel() == null
                 || b.activityLabel().isBlank()
                 || b.activityLabel().length() > 1000
-                || !matches(doc, b.activityKey()))
-            throw GlobalException.of(ApiCode.ACTIVITY_CHANGED);
+                || !matches(doc, b.activityKey())) throw GlobalException.of(ApiCode.ACTIVITY_CHANGED);
     }
 
     private static boolean matches(EduClassDoc doc, String key) {
         if (key == null || !KEY.matcher(key).matches() || doc.getWeekStart() == null) return false;
         try {
             LocalDate date = LocalDate.parse(key.substring(0, key.indexOf('#')));
-            return !date.isBefore(doc.getWeekStart()) && !date.isAfter(doc.getWeekStart().plusDays(4));
+            return !date.isBefore(doc.getWeekStart())
+                    && !date.isAfter(doc.getWeekStart().plusDays(4));
         } catch (DateTimeParseException ex) {
             return false;
         }

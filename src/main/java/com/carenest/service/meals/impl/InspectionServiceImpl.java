@@ -11,7 +11,6 @@ import com.carenest.entity.meals.InspectionEvent;
 import com.carenest.entity.meals.InspectionSheet;
 import com.carenest.entity.meals.InspectionSignature;
 import com.carenest.exception.GlobalException;
-import com.carenest.utils.enums.FileCategory;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.meals.FoodSampleRepository;
 import com.carenest.repository.meals.InspectionSheetRepository;
@@ -21,6 +20,7 @@ import com.carenest.service.account.UserSignatureService;
 import com.carenest.service.meals.InspectionService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ImageFiles;
+import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.InspectionStatus;
 import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
@@ -47,7 +47,8 @@ public class InspectionServiceImpl implements InspectionService {
     private static final String LOG_PREFIX = "[InspectionServiceImpl]";
     private static final int MIN_REASON = 3;
     private static final Set<String> HEADER_KEYS = Set.of("place", "checkedAt");
-    // Mã ảnh: UUID (tệp cũ) hoặc tên tệp theo quy tắc kho (không thư mục), chỉ chữ/số/_/-/. nên an toàn khi nhúng vào JSON
+    // Mã ảnh: UUID (tệp cũ) hoặc tên tệp theo quy tắc kho (không thư mục), chỉ chữ/số/_/-/. nên an toàn khi nhúng vào
+    // JSON
     private static final Pattern IMAGE_KEY =
             Pattern.compile("[a-f0-9-]{36}|[a-z]+_[0-9A-Za-z-]{1,40}_\\d{8}-\\d{6}_[a-z0-9]{4}\\.[a-z]+");
 

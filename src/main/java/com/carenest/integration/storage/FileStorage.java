@@ -121,7 +121,8 @@ public class FileStorage {
             throw GlobalException.withCause(ApiCode.FILE_UNREADABLE, ex);
         }
         String key = newKey(category, ownerId, ext);
-        // ponytail: luồng không đọc lại được nên trùng key (xác suất ~1/1,7 triệu trong cùng giây) báo thử lại thay vì tự sinh lại
+        // ponytail: luồng không đọc lại được nên trùng key (xác suất ~1/1,7 triệu trong cùng giây) báo thử lại thay vì
+        // tự sinh lại
         if (!put(key, FileTypes.mime(ext), RequestBody.fromInputStream(buffered, size))) throw unavailable();
         return new StoredFile(key, FileTypes.mime(ext), size);
     }
@@ -246,9 +247,8 @@ public class FileStorage {
             long size = s3.headObject(r -> r.bucket(props.bucket()).key(tmpKey)).contentLength();
             try {
                 validate(category, ext, size);
-                byte[] head = s3.getObjectAsBytes(r -> r.bucket(props.bucket())
-                                .key(tmpKey)
-                                .range("bytes=0-" + (FileTypes.HEAD_BYTES - 1)))
+                byte[] head = s3.getObjectAsBytes(r ->
+                                r.bucket(props.bucket()).key(tmpKey).range("bytes=0-" + (FileTypes.HEAD_BYTES - 1)))
                         .asByteArray();
                 if (!FileTypes.matches(ext, head)) throw GlobalException.of(ApiCode.FILE_CONTENT_MISMATCH);
             } catch (GlobalException ex) {
@@ -294,16 +294,16 @@ public class FileStorage {
     }
 
     private static Pattern keyPattern(StorageProperties.Category c) {
-        return Pattern.compile(Pattern.quote(c.folder() + c.code()) + "_[0-9A-Za-z-]{1,40}_\\d{8}-\\d{6}_[a-z0-9]{4}\\.("
-                + String.join("|", c.types()) + ")");
+        return Pattern.compile(Pattern.quote(c.folder() + c.code())
+                + "_[0-9A-Za-z-]{1,40}_\\d{8}-\\d{6}_[a-z0-9]{4}\\.(" + String.join("|", c.types()) + ")");
     }
 
     private String newKey(FileCategory category, Object ownerId, String ext) {
         var c = categories.get(category);
         StringBuilder suffix = new StringBuilder(4);
         for (int i = 0; i < 4; i++) suffix.append(RANDOM_CHARS.charAt(random.nextInt(RANDOM_CHARS.length())));
-        return c.folder() + c.code() + "_" + owner(ownerId) + "_" + STAMP.format(clock.instant().atZone(zone)) + "_"
-                + suffix + "." + ext;
+        return c.folder() + c.code() + "_" + owner(ownerId) + "_"
+                + STAMP.format(clock.instant().atZone(zone)) + "_" + suffix + "." + ext;
     }
 
     private static String owner(Object ownerId) {
@@ -329,7 +329,9 @@ public class FileStorage {
     private GlobalException unsupported(FileCategory category) {
         return GlobalException.of(
                 ApiCode.UNSUPPORTED_MEDIA_TYPE,
-                ", chỉ nhận: " + String.join(", ", new TreeSet<>(categories.get(category).types())));
+                ", chỉ nhận: "
+                        + String.join(
+                                ", ", new TreeSet<>(categories.get(category).types())));
     }
 
     /** true khi ghi được; false khi key đã tồn tại (412). */

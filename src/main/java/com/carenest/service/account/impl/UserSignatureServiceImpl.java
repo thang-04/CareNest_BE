@@ -1,16 +1,16 @@
 package com.carenest.service.account.impl;
 
-import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.account.UserSignatureResponse;
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.account.UserSignature;
 import com.carenest.exception.GlobalException;
-import com.carenest.utils.enums.FileCategory;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.account.UserSignatureRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.UserSignatureService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.FileCategory;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.List;
@@ -151,7 +151,8 @@ public class UserSignatureServiceImpl implements UserSignatureService {
         try {
             UserSignature signature = mine(currentUser.userId(), signatureId);
             ImageContent image = new ImageContent(
-                    storage.loadBytes(FileCategory.USER_SIGNATURE, signature.getStorageKey()), signature.getContentType());
+                    storage.loadBytes(FileCategory.USER_SIGNATURE, signature.getStorageKey()),
+                    signature.getContentType());
             log.info("{}|END", logPrefix);
             return image;
         } catch (RuntimeException ex) {
@@ -163,8 +164,7 @@ public class UserSignatureServiceImpl implements UserSignatureService {
     @Override
     @Transactional(readOnly = true)
     public FileUrlResponse getContentUrl(CurrentUser currentUser, Long signatureId) {
-        String logPrefix =
-                LOG_PREFIX + "|getContentUrl|userId=" + currentUser.userId() + "|signatureId=" + signatureId;
+        String logPrefix = LOG_PREFIX + "|getContentUrl|userId=" + currentUser.userId() + "|signatureId=" + signatureId;
         log.info("{}|START", logPrefix);
         try {
             UserSignature signature = mine(currentUser.userId(), signatureId);

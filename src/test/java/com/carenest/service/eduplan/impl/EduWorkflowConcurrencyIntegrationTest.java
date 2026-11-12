@@ -24,7 +24,8 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 @SpringBootTest(
-        properties = {"spring.jpa.properties.hibernate.generate_statistics=true", "carenest.storage.bucket=test-bucket"})
+        properties = {"spring.jpa.properties.hibernate.generate_statistics=true", "carenest.storage.bucket=test-bucket"
+        })
 @Testcontainers(disabledWithoutDocker = true)
 class EduWorkflowConcurrencyIntegrationTest {
     @Container

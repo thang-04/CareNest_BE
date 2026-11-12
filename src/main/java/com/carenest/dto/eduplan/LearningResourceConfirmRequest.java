@@ -8,7 +8,10 @@ import jakarta.validation.constraints.Size;
 public record LearningResourceConfirmRequest(
         @NotBlank @Size(max = 120) String uploadId,
         @NotBlank @Size(max = 255) String fileName,
-        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN) String activityKey,
+
+        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN)
+        String activityKey,
+
         @NotBlank @Size(max = 1000) String activityLabel) {
 
     public LearningResourceBinding binding() {

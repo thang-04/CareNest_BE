@@ -59,7 +59,9 @@ public final class FileTypes {
     public static String extension(String fileName) {
         if (fileName == null) return null;
         int dot = fileName.lastIndexOf('.');
-        return dot < 0 || dot == fileName.length() - 1 ? null : fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
+        return dot < 0 || dot == fileName.length() - 1
+                ? null
+                : fileName.substring(dot + 1).toLowerCase(Locale.ROOT);
     }
 
     /** Nội dung đầu tệp có đúng định dạng của đuôi không. */
@@ -73,7 +75,8 @@ public final class FileTypes {
             case "gif" -> ascii.startsWith("GIF87a") || ascii.startsWith("GIF89a");
             case "webp" -> ascii.startsWith("RIFF") && ascii.length() >= 12 && ascii.startsWith("WEBP", 8);
             case "mp4" -> ascii.length() >= 12 && ascii.startsWith("ftyp", 4);
-            case "webm" -> head.length >= 4 && HexFormat.of().formatHex(head, 0, 4).equals("1a45dfa3");
+            case "webm" ->
+                head.length >= 4 && HexFormat.of().formatHex(head, 0, 4).equals("1a45dfa3");
             case "pdf" -> ascii.startsWith("%PDF-");
             case "pptx", "docx", "xlsx" -> ascii.startsWith("PK\u0003\u0004");
             // txt/csv: văn bản thuần, không nhị phân, không HTML/XML

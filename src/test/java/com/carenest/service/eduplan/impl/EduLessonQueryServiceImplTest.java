@@ -139,14 +139,20 @@ class EduLessonQueryServiceImplTest {
                         null));
         List<EduPlanGoal> found = List.of(goal(7, 3));
         when(goals.findAllById(Set.of(7L))).thenReturn(found);
-        EduClassDoc week = doc(EduClassDoc.WEEK, 5L, monday,
+        EduClassDoc week = doc(
+                EduClassDoc.WEEK,
+                5L,
+                monday,
                 "{'picks':{'hoc.0':[{'id':'7#0','goalId':'7','goalNo':3,'text':'HĐ học: Đi bước lùi'}]}}");
         EduClassDoc day = doc(EduClassDoc.DAY, 5L, monday, "{}");
         EduClassDoc legacyTheme =
                 doc(EduClassDoc.THEME, 5L, null, "{'rows':{'7':{'activities':'HĐ học: Đi bước lùi'}}}");
         when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(week, day, legacyTheme));
         List<Long> before = goalsOn(monday);
-        EduClassDoc cardTheme = doc(EduClassDoc.THEME, 5L, null,
+        EduClassDoc cardTheme = doc(
+                EduClassDoc.THEME,
+                5L,
+                null,
                 "{'activities':[{'id':'7#0','slot':'hoc','name':'HĐ học: Đi bước lùi','goalIds':['7'],'legacy':true}]}");
         when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(week, day, cardTheme));
         assertThat(goalsOn(monday)).isEqualTo(before).containsExactly(7L);
@@ -166,10 +172,16 @@ class EduLessonQueryServiceImplTest {
                         null));
         List<EduPlanGoal> found = List.of(goal(7, 3), goal(8, 4));
         when(goals.findAllById(Set.of(7L, 8L))).thenReturn(found);
-        EduClassDoc theme = doc(EduClassDoc.THEME, 5L, null,
+        EduClassDoc theme = doc(
+                EduClassDoc.THEME,
+                5L,
+                null,
                 "{'activities':[{'id':'c-1','slot':'hoc','name':'Bật xa','goalIds':['7','8']}]}");
         EduClassDoc week = doc(EduClassDoc.WEEK, 5L, monday, "{'picks':{}}");
-        EduClassDoc day = doc(EduClassDoc.DAY, 5L, monday,
+        EduClassDoc day = doc(
+                EduClassDoc.DAY,
+                5L,
+                monday,
                 "{'week':{'picks':{'hoc.0':[{'cardId':'c-1','goalIds':['7'],'text':'Bật xa'},{'text':'gõ tay'}]}}}");
         when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(theme, week, day));
         assertThat(goalsOn(monday)).containsExactly(7L, 8L);

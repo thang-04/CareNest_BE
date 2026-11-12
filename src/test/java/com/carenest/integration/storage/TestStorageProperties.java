@@ -29,14 +29,23 @@ final class TestStorageProperties {
                         root + "hoclieu/",
                         "hoclieu",
                         20,
-                        Set.of("jpg", "jpeg", "png", "gif", "webp", "mp4", "webm", "pdf", "pptx", "docx", "xlsx", "txt",
-                                "csv"),
+                        Set.of(
+                                "jpg", "jpeg", "png", "gif", "webp", "mp4", "webm", "pdf", "pptx", "docx", "xlsx",
+                                "txt", "csv"),
                         Map.of("image", DataSize.ofMegabytes(5), "video", DataSize.ofMegabytes(100)),
                         "education/learning-resources/"));
-        c.put("user-signature", cat(root + "signatures/users/", "sig", 2, Set.of("jpg", "png"), null, "accounts/signatures/"));
+        c.put(
+                "user-signature",
+                cat(root + "signatures/users/", "sig", 2, Set.of("jpg", "png"), null, "accounts/signatures/"));
         c.put(
                 "inspection-signature",
-                cat(root + "signatures/inspections/", "inspsig", 2, Set.of("jpg", "png"), null, "meals/inspection-signatures/"));
+                cat(
+                        root + "signatures/inspections/",
+                        "inspsig",
+                        2,
+                        Set.of("jpg", "png"),
+                        null,
+                        "meals/inspection-signatures/"));
         return new StorageProperties(bucket, Duration.ofMinutes(15), "tmp/", c);
     }
 

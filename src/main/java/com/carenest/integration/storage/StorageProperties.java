@@ -1,7 +1,6 @@
 package com.carenest.integration.storage;
 
 import com.carenest.utils.enums.FileCategory;
-
 import java.time.Duration;
 import java.util.EnumMap;
 import java.util.Map;
@@ -11,7 +10,8 @@ import org.springframework.util.unit.DataSize;
 
 /** Cấu hình kho tệp: thư mục, giới hạn, định dạng từng loại (FR-002) — đổi qua yml/biến môi trường, không sửa code. */
 @ConfigurationProperties("carenest.storage")
-public record StorageProperties(String bucket, Duration presignTtl, String tmpPrefix, Map<String, Category> categories) {
+public record StorageProperties(
+        String bucket, Duration presignTtl, String tmpPrefix, Map<String, Category> categories) {
 
     public record Category(
             String folder,
@@ -44,7 +44,9 @@ public record StorageProperties(String bucket, Duration presignTtl, String tmpPr
                 throw new IllegalStateException("Invalid " + where + ".max-size");
             if (c.types() == null || c.types().isEmpty() || !c.types().stream().allMatch(FileTypes::supported))
                 throw new IllegalStateException("Invalid " + where + ".types");
-            if (c.legacyPrefix() != null && !c.legacyPrefix().isBlank() && !c.legacyPrefix().matches("[a-zA-Z0-9/_-]*"))
+            if (c.legacyPrefix() != null
+                    && !c.legacyPrefix().isBlank()
+                    && !c.legacyPrefix().matches("[a-zA-Z0-9/_-]*"))
                 throw new IllegalStateException("Invalid " + where + ".legacy-prefix");
             result.put(category, c);
         }

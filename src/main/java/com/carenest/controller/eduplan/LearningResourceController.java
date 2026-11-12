@@ -53,12 +53,8 @@ public class LearningResourceController {
             CurrentUser user) {
         String p = LOG_PREFIX + "|upload|userId=" + user.userId();
         log.info("{}|START", p);
-        var result = service.upload(
-                user,
-                docKey,
-                file,
-                new LearningResourceBinding(activityKey, activityLabel),
-                requestId);
+        var result =
+                service.upload(user, docKey, file, new LearningResourceBinding(activityKey, activityLabel), requestId);
         log.info("{}|END", p);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Upload learning resource success", result);
     }
@@ -66,7 +62,9 @@ public class LearningResourceController {
     /** Bước 1 tải trực tiếp (tệp lớn): xin liên kết PUT lên kho; client PUT xong thì gọi {@code /confirm}. */
     @PostMapping("/upload-url")
     public ResponseEntity<ResponseJson<PresignedUploadResponse>> uploadUrl(
-            @PathVariable String docKey, @Valid @RequestBody LearningResourceUploadUrlRequest request, CurrentUser user) {
+            @PathVariable String docKey,
+            @Valid @RequestBody LearningResourceUploadUrlRequest request,
+            CurrentUser user) {
         String p = LOG_PREFIX + "|uploadUrl|userId=" + user.userId();
         log.info("{}|START", p);
         var result = service.uploadUrl(user, docKey, request);

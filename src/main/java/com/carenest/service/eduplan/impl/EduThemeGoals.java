@@ -50,10 +50,7 @@ class EduThemeGoals {
     }
 
     static List<GoalRef> ofTheme(
-            List<EduPlanGoal> goals,
-            Map<Long, List<EduGoalContent>> contents,
-            Set<Long> ticked,
-            JsonNode customTicks) {
+            List<EduPlanGoal> goals, Map<Long, List<EduGoalContent>> contents, Set<Long> ticked, JsonNode customTicks) {
         JsonNode custom = customTicks == null || !customTicks.isObject() ? null : customTicks;
         return numbered(goals).stream()
                 .filter(g -> {
@@ -74,7 +71,9 @@ class EduThemeGoals {
     // Web chỉ đánh số MT có chữ (numberGoals); MT trống không thuộc chủ đề, không phải dạy
     private static List<EduPlanGoal> numbered(List<EduPlanGoal> goals) {
         return goals.stream()
-                .filter(g -> g.getGoalNo() != null && g.getText() != null && !g.getText().isBlank())
+                .filter(g -> g.getGoalNo() != null
+                        && g.getText() != null
+                        && !g.getText().isBlank())
                 .sorted(Comparator.comparing(EduPlanGoal::getGoalNo))
                 .toList();
     }

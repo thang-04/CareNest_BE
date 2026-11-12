@@ -6,13 +6,13 @@ import static org.mockito.Mockito.*;
 
 import com.carenest.dto.eduplan.LearningResourceBinding;
 import com.carenest.entity.eduplan.EduClassDoc;
-import com.carenest.utils.enums.FileCategory;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.eduplan.EduLearningResourceRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import java.time.Clock;
 import java.util.Set;
 import java.util.UUID;
@@ -43,8 +43,8 @@ class LearningResourceServiceImplTest {
                 transactions);
         var user = new CurrentUser(7L, "kc-7", "demo", "Demo", null, Set.of(CareNestRole.TEACHER));
         // EDU-81: học liệu gắn kế hoạch giáo dục ngày
-        EduClassDoc doc = EduClassDoc.create(
-                "dd_1_2_2026-09-07", "day", 1L, 3L, 2L, java.time.LocalDate.of(2026, 9, 7), 7L);
+        EduClassDoc doc =
+                EduClassDoc.create("dd_1_2_2026-09-07", "day", 1L, 3L, 2L, java.time.LocalDate.of(2026, 9, 7), 7L);
         ReflectionTestUtils.setField(doc, "id", 8L);
         when(docs.requireDayAccess(user, "dd_1_2_2026-09-07", true)).thenReturn(doc);
         when(storage.store(

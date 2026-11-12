@@ -84,8 +84,9 @@ public final class InMemoryS3 {
         if ("*".equals(request.ifNoneMatch()) && objects.containsKey(request.key()))
             throw (S3Exception) S3Exception.builder()
                     .statusCode(412)
-                    .awsErrorDetails(
-                            AwsErrorDetails.builder().errorCode("PreconditionFailed").build())
+                    .awsErrorDetails(AwsErrorDetails.builder()
+                            .errorCode("PreconditionFailed")
+                            .build())
                     .build();
         try (InputStream input = body.contentStreamProvider().newStream()) {
             objects.put(request.key(), input.readAllBytes());

@@ -8,7 +8,6 @@ import com.carenest.entity.meals.MealPhoto;
 import com.carenest.entity.meals.MealPhotoSettings;
 import com.carenest.entity.meals.MealPhotoWindow;
 import com.carenest.exception.GlobalException;
-import com.carenest.utils.enums.FileCategory;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.meals.MealPhotoRepository;
 import com.carenest.repository.meals.MealPhotoSettingsRepository;
@@ -17,6 +16,7 @@ import com.carenest.service.meals.MealPhotoService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.MealSession;
 import java.io.IOException;
 import java.time.Clock;
@@ -186,9 +186,8 @@ public class MealPhotoServiceImpl implements MealPhotoService {
     }
 
     private MealPhoto readablePhoto(CurrentUser currentUser, Long photoId) {
-        MealPhoto photo = photoRepository
-                .findById(photoId)
-                .orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PHOTO_NOT_FOUND));
+        MealPhoto photo =
+                photoRepository.findById(photoId).orElseThrow(() -> GlobalException.of(ApiCode.MEAL_PHOTO_NOT_FOUND));
         kitchenAccess.resolveReadCampus(currentUser, photo.getCampusId());
         return photo;
     }

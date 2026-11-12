@@ -8,7 +8,6 @@ import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.child.Child;
 import com.carenest.entity.child.ChildGuardian;
 import com.carenest.exception.GlobalException;
-import com.carenest.utils.enums.FileCategory;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.child.ChildGuardianRepository;
 import com.carenest.repository.child.ChildRepository;
@@ -20,6 +19,7 @@ import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildPhotoService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ImageFiles;
+import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.Permission;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
@@ -102,7 +102,8 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
                         .findById(childId)
                         .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
                 ImageContent image = photos.child();
-                child.assignEnrollmentPhoto(store(childId, image), image.contentType(), image.content().length, clock.instant());
+                child.assignEnrollmentPhoto(
+                        store(childId, image), image.contentType(), image.content().length, clock.instant());
                 childRepository.save(child);
             }
             if (!photos.guardians().isEmpty()) {
@@ -151,7 +152,8 @@ public class ChildPhotoServiceImpl implements ChildPhotoService {
         try {
             ChildGuardian guardian = photoGuardian(actor, childId, guardianId);
             ImageContent result = new ImageContent(
-                    storage.loadBytes(FileCategory.CHILD_AVATAR, guardian.getPhotoKey()), guardian.getPhotoContentType());
+                    storage.loadBytes(FileCategory.CHILD_AVATAR, guardian.getPhotoKey()),
+                    guardian.getPhotoContentType());
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {

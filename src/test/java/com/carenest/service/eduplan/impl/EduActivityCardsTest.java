@@ -92,18 +92,20 @@ class EduActivityCardsTest {
                 mapper.readTree("{\"cards\":[{\"id\":\"d-1\",\"goalIds\":[5]}]}"));
         assertThat(EduActivityCards.resolveGoals(json("{'cardId':'c-1','goalIds':[9]}"), cards))
                 .containsExactly(3L, 4L);
-        assertThat(EduActivityCards.resolveGoals(json("{'cardId':'d-1'}"), cards)).containsExactly(5L);
+        assertThat(EduActivityCards.resolveGoals(json("{'cardId':'d-1'}"), cards))
+                .containsExactly(5L);
         assertThat(EduActivityCards.resolveGoals(json("{'cardId':'gone','goalIds':['8']}"), cards))
                 .containsExactly(8L);
         assertThat(EduActivityCards.resolveGoals(json("{'id':'7#0','goalId':'7'}"), cards))
                 .containsExactly(7L);
-        assertThat(EduActivityCards.resolveGoals(json("{'text':'gõ tay'}"), cards)).isEmpty();
+        assertThat(EduActivityCards.resolveGoals(json("{'text':'gõ tay'}"), cards))
+                .isEmpty();
     }
 
     @Test
     void goalLeftThemeIsDroppedButCardKept() {
-        ArrayNode cards = (ArrayNode)
-                mapper.readTree("[{\"id\":\"c\",\"goalIds\":[3,4],\"contentRefs\":[\"3:0\",\"4:1\"]}]");
+        ArrayNode cards =
+                (ArrayNode) mapper.readTree("[{\"id\":\"c\",\"goalIds\":[3,4],\"contentRefs\":[\"3:0\",\"4:1\"]}]");
         EduActivityCards.dropGoalsOutside(cards, Set.of(3L), Set.of(3L, 4L));
         assertThat(cards.get(0).path("goalIds")).hasSize(1);
         assertThat(cards.get(0).path("contentRefs")).hasSize(1);

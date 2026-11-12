@@ -207,10 +207,14 @@ class ChildEnrollmentIntegrationTest {
         Set<Permission> permissions = new java.util.HashSet<>(principal.permissions());
         permissions.remove(Permission.PARENT_ACCOUNT_MANAGE);
         CurrentUser withoutAccounts = user(principal.userId(), CareNestRole.PRINCIPAL, permissions);
-        org.mockito.Mockito.doReturn(new com.carenest.integration.storage.FileStorage.StoredFile("child-photo", "image/png", 3), new com.carenest.integration.storage.FileStorage.StoredFile("parent-photo", "image/png", 3))
+        org.mockito.Mockito.doReturn(
+                        new com.carenest.integration.storage.FileStorage.StoredFile("child-photo", "image/png", 3),
+                        new com.carenest.integration.storage.FileStorage.StoredFile("parent-photo", "image/png", 3))
                 .when(childPhotoStorage)
                 .store(eq(com.carenest.utils.enums.FileCategory.CHILD_AVATAR), any(), any(byte[].class));
-        org.mockito.Mockito.doReturn(new byte[] {7, 8, 9}).when(childPhotoStorage).loadBytes(com.carenest.utils.enums.FileCategory.CHILD_AVATAR, "parent-photo");
+        org.mockito.Mockito.doReturn(new byte[] {7, 8, 9})
+                .when(childPhotoStorage)
+                .loadBytes(com.carenest.utils.enums.FileCategory.CHILD_AVATAR, "parent-photo");
         var request = request("Trẻ ảnh giả", "2023-03-01", null, campusA, newGuardian("0900000711", "999000000711"));
         var result = enrollmentService.enrollWithPhotos(
                 withoutAccounts,
@@ -260,7 +264,8 @@ class ChildEnrollmentIntegrationTest {
     @Test
     @DisplayName("CHD-02: S3 lỗi giữa chừng rollback hồ sơ, dọn object ảnh mới và bù trừ Keycloak")
     void uploadFailureRollsBackEnrollment() throws Exception {
-        org.mockito.Mockito.doReturn(new com.carenest.integration.storage.FileStorage.StoredFile("new-object", "image/png", 3))
+        org.mockito.Mockito.doReturn(
+                        new com.carenest.integration.storage.FileStorage.StoredFile("new-object", "image/png", 3))
                 .doThrow(GlobalException.of(ApiCode.STORAGE_UNAVAILABLE))
                 .when(childPhotoStorage)
                 .store(eq(com.carenest.utils.enums.FileCategory.CHILD_AVATAR), any(), any(byte[].class));

@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -15,13 +15,13 @@ import com.carenest.dto.account.UserSignatureResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.entity.account.UserSignature;
 import com.carenest.exception.GlobalException;
-import com.carenest.utils.enums.FileCategory;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.account.UserSignatureRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.TestPermissions;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -174,7 +174,8 @@ class UserSignatureServiceImplTest {
         UserSignature mine = signature(1, 7, true);
         when(repository.findByIdAndUserId(1L, 7L)).thenReturn(Optional.of(mine));
         when(repository.findByIdAndUserId(5L, 7L)).thenReturn(Optional.empty());
-        when(storage.loadBytes(FileCategory.USER_SIGNATURE, mine.getStorageKey())).thenReturn(PNG);
+        when(storage.loadBytes(FileCategory.USER_SIGNATURE, mine.getStorageKey()))
+                .thenReturn(PNG);
 
         ImageContent image = service.getContent(PHT, 1L);
 

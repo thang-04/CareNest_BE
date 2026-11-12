@@ -17,7 +17,6 @@ import com.carenest.dto.meals.InspectionSheetResponse;
 import com.carenest.dto.meals.InspectionSignRequest;
 import com.carenest.entity.meals.InspectionSheet;
 import com.carenest.exception.GlobalException;
-import com.carenest.utils.enums.FileCategory;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.meals.FoodSampleRepository;
 import com.carenest.repository.meals.InspectionSheetRepository;
@@ -27,6 +26,7 @@ import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.account.UserSignatureService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.FileCategory;
 import com.carenest.utils.enums.InspectionStatus;
 import com.carenest.utils.enums.InspectionTab;
 import com.carenest.utils.enums.Permission;
@@ -377,7 +377,8 @@ class InspectionServiceImplTest {
         verify(imageStorage, never()).loadBytes(any(), any());
 
         when(sheetRepository.existsWithImage(eq(CAMPUS), eq(IMAGE_KEY), any())).thenReturn(true);
-        when(imageStorage.loadBytes(FileCategory.INSPECTION_SIGNATURE, IMAGE_KEY)).thenReturn(PNG);
+        when(imageStorage.loadBytes(FileCategory.INSPECTION_SIGNATURE, IMAGE_KEY))
+                .thenReturn(PNG);
         assertThat(service.getSignatureImage(PHT, CAMPUS, IMAGE_KEY).contentType())
                 .isEqualTo("image/png");
     }

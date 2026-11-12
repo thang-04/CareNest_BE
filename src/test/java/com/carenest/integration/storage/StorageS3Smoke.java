@@ -58,17 +58,21 @@ class StorageS3Smoke {
 
                 // 2. Liên kết xem có hạn tải được không cần header; URL không ký bị chặn
                 var url = storage.presignGet(FileCategory.MEAL, photo.key(), photo.contentType(), "anh.png");
-                var get = http.send(HttpRequest.newBuilder(URI.create(url.url())).build(), HttpResponse.BodyHandlers.ofByteArray());
+                var get = http.send(
+                        HttpRequest.newBuilder(URI.create(url.url())).build(), HttpResponse.BodyHandlers.ofByteArray());
                 assertThat(get.statusCode()).isEqualTo(200);
                 assertThat(get.body()).isEqualTo(PNG);
                 String plain = "https://" + bucket + ".s3." + region.id() + ".amazonaws.com/" + photo.key();
-                var anonymous = http.send(HttpRequest.newBuilder(URI.create(plain)).build(), HttpResponse.BodyHandlers.discarding());
-                assertThat(anonymous.statusCode()).as("Bucket must stay private").isIn(403, 404);
+                var anonymous = http.send(
+                        HttpRequest.newBuilder(URI.create(plain)).build(), HttpResponse.BodyHandlers.discarding());
+                assertThat(anonymous.statusCode())
+                        .as("Bucket must stay private")
+                        .isIn(403, 404);
 
                 // 3. Tải trực tiếp qua liên kết PUT rồi xác nhận
                 byte[] pdf = "%PDF-1.4\nCareNest smoke\n%%EOF".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
-                var upload =
-                        storage.presignPut(FileCategory.LEARNING_RESOURCE, 1L, "smoke.pdf", "application/pdf", pdf.length);
+                var upload = storage.presignPut(
+                        FileCategory.LEARNING_RESOURCE, 1L, "smoke.pdf", "application/pdf", pdf.length);
                 keys.add("tmp/" + root + "hoclieu/" + upload.uploadId());
                 var put = http.send(
                         HttpRequest.newBuilder(URI.create(upload.url()))
@@ -77,24 +81,29 @@ class StorageS3Smoke {
                                 .build(),
                         HttpResponse.BodyHandlers.discarding());
                 assertThat(put.statusCode()).isEqualTo(200);
-                FileStorage.StoredFile confirmed = storage.confirm(FileCategory.LEARNING_RESOURCE, 1L, upload.uploadId());
+                FileStorage.StoredFile confirmed =
+                        storage.confirm(FileCategory.LEARNING_RESOURCE, 1L, upload.uploadId());
                 keys.add(confirmed.key());
-                assertThat(storage.loadBytes(FileCategory.LEARNING_RESOURCE, confirmed.key())).isEqualTo(pdf);
+                assertThat(storage.loadBytes(FileCategory.LEARNING_RESOURCE, confirmed.key()))
+                        .isEqualTo(pdf);
 
                 // 4. Xóa xong không đọc được nữa
                 for (String key : List.of(photo.key(), confirmed.key())) {
-                    FileCategory category = key.equals(photo.key()) ? FileCategory.MEAL : FileCategory.LEARNING_RESOURCE;
+                    FileCategory category =
+                            key.equals(photo.key()) ? FileCategory.MEAL : FileCategory.LEARNING_RESOURCE;
                     storage.remove(category, key);
                     assertThatThrownBy(() -> storage.loadBytes(category, key))
                             .isInstanceOf(GlobalException.class)
-                            .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode()).isEqualTo(ApiCode.FILE_NOT_FOUND));
+                            .satisfies(ex -> assertThat(((GlobalException) ex).getApiCode())
+                                    .isEqualTo(ApiCode.FILE_NOT_FOUND));
                 }
             } finally {
                 for (String key : keys) s3.deleteObject(r -> r.bucket(bucket).key(key));
             }
             System.out.println("S3_SMOKE PASS | store, presigned GET, presigned PUT + confirm, private, cleanup");
         } catch (Exception | AssertionError ex) {
-            throw new AssertionError("S3 smoke failed (sanitized): " + ex.getClass().getSimpleName() + " " + safe(ex));
+            throw new AssertionError(
+                    "S3 smoke failed (sanitized): " + ex.getClass().getSimpleName() + " " + safe(ex));
         }
     }
 

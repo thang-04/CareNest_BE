@@ -88,9 +88,7 @@ final class EduActivityCards {
             rows.stream()
                     .filter(r -> r.label().trim().toLowerCase(Locale.ROOT).equals(h))
                     .forEach(r -> found.add(r.key()));
-        SLOT_WORDS.stream()
-                .filter(w -> w.getValue().matcher(head).find())
-                .forEach(w -> found.add(w.getKey()));
+        SLOT_WORDS.stream().filter(w -> w.getValue().matcher(head).find()).forEach(w -> found.add(w.getKey()));
         return found.stream().filter(slotKeys::contains).findFirst().orElse("");
     }
 
@@ -153,7 +151,8 @@ final class EduActivityCards {
     static Map<String, JsonNode> cards(JsonNode themeCards, JsonNode dayWeek) {
         Map<String, JsonNode> byId = new LinkedHashMap<>();
         if (themeCards != null) themeCards.forEach(c -> byId.put(c.path("id").asString(""), c));
-        if (dayWeek != null) dayWeek.path("cards").forEach(c -> byId.putIfAbsent(c.path("id").asString(""), c));
+        if (dayWeek != null)
+            dayWeek.path("cards").forEach(c -> byId.putIfAbsent(c.path("id").asString(""), c));
         return byId;
     }
 

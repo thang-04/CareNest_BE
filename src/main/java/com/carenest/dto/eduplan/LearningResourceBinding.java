@@ -9,7 +9,9 @@ import jakarta.validation.constraints.Size;
  * {@code yyyy-MM-dd#mục} (mục: hoc, ngoai_troi, goc, chieu).
  */
 public record LearningResourceBinding(
-        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN) String activityKey,
+        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN)
+        String activityKey,
+
         @NotBlank @Size(max = 1000) String activityLabel) {
 
     public static final String KEY_PATTERN = "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)";
