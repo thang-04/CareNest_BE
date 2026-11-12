@@ -923,7 +923,7 @@ public class ChildRecordServiceImpl implements ChildRecordService {
             String label = "Phụ huynh " + (i + 1) + " — ";
             if (edit.guardianId() == null) {
                 ChildGuardian created = ChildGuardian.create(
-                        childId, i, d.fullName(), d.relationship(), d.phone(), d.citizenId(), d.email(), null);
+                        childId, i, d.fullName(), d.relationship(), d.phone(), d.citizenId(), d.email());
                 // Spec013: hồ sơ còn một phụ huynh mà chưa có người nhận tài khoản ⇒ chọn người đó
                 created.selectAccountRecipient(edits.size() == 1 && !hasRecipient);
                 childGuardianRepository.save(created);

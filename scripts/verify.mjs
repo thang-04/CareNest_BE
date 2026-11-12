@@ -7,6 +7,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { createWriteStream, existsSync, mkdirSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { findJunk, reportJunk } from "./ai-layer/junk-files.mjs";
 import { ensureGitHooks } from "./ai-layer/lib.mjs";
 
 const SUMMARY = /^\[(?:INFO|WARNING|ERROR)\]\s+Tests run:\s*(\d+),\s*Failures:\s*(\d+),\s*Errors:\s*(\d+),\s*Skipped:\s*(\d+)\s*$/;
@@ -204,8 +205,17 @@ async function main(argv) {
   return 0;
 }
 
+// Cổng file rác chạy sau build/test: có lỗi ⇒ verify fail dù dòng VERIFY ở trên là PASS (hook đọc exit code)
+async function mainWithJunkGate(argv) {
+  const code = await main(argv);
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const junkErrors = reportJunk(findJunk({ root }));
+  if (junkErrors) console.log(`VERIFY FAIL junk | ${junkErrors} file rác trong nhánh — xử lý theo các dòng [JUNK] ở trên`);
+  return junkErrors ? 1 : code;
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  main(process.argv.slice(2)).then(
+  mainWithJunkGate(process.argv.slice(2)).then(
     (code) => (process.exitCode = code),
     (err) => {
       console.error(`VERIFY FAIL | verify.mjs crash: ${err.stack ?? err}`);

@@ -2,13 +2,18 @@
 
 ## Nguồn và phạm vi
 
-- User yêu cầu ngày 01/11/2026: mọi feature mới làm theo `QuyTrinhLamViec.docx`, nguồn tại `D:/UNIVERSITY_FPT/fall2026/SDD-ADD/spec_template_handon/QuyTrinhLamViec.docx`.
+- User yêu cầu ngày 01/11/2026: feature mới làm theo `QuyTrinhLamViec.docx` (tài liệu môn SDD-ADD do user giữ).
 - Nội dung quy trình được lưu ở đây để không phụ thuộc file ngoài repo. Mẫu Domain spec: [DOMAIN_SPEC_TEMPLATE.md](../../docs/business/DOMAIN_SPEC_TEMPLATE.md).
 - User xác nhận ngày 01/11/2026: giữ stack, kiến trúc và convention CareNest; Java 21/Spring Boot/PostgreSQL 17. MySQL và các lựa chọn kiến trúc trong tài liệu nguồn là ví dụ, không phải yêu cầu chuyển stack.
-- Áp dụng mọi feature mới, kể cả làn S. Sửa bug/refactor thuần kỹ thuật tiếp tục theo workflow tương ứng; nếu phát sinh nghiệp vụ mới thì áp dụng quy trình này cho phần nghiệp vụ mới.
+- **Mức áp dụng theo làn (user chốt 11/11/2026):**
+  - Làn **L**: đủ 12 bước dưới đây.
+  - Làn **M**: một file `specs/<feature>/spec.md` rút gọn (rule ID áp dụng, acceptance Given/When/Then, thay đổi data/contract nếu có) → implement → verify. Không cần constitution/plan/tasks/analyze/converge riêng.
+  - Làn **S**: 3–5 dòng acceptance trong chat rồi làm; không tạo file spec.
+  - Sửa bug/refactor thuần kỹ thuật theo workflow tương ứng; phát sinh nghiệp vụ mới thì áp mức theo làn cho phần đó.
+- Skill `speckit-*` (làn L) không nằm trong repo: cài Spec Kit theo hướng dẫn của công cụ đang dùng; chưa cài ⇒ làm tay theo đúng thứ tự 12 bước và ghi rõ trong báo cáo.
 - Giữ các cổng hiện có của [AGENTS.md](../../AGENTS.md): làm rõ nghiệp vụ, plan làn L do user duyệt trước code, quyền sửa liên repo, dependency/contract, verify và không tự commit/push/tạo branch.
 
-## Trình tự bắt buộc
+## Trình tự bắt buộc (làn L)
 
 1. **Domain spec**: trong `specs/<feature>/domain-spec.md`, đi đủ 14 mục của mẫu; đọc module card, rule/flow hiện có; phân biệt bước người dùng ngoài hệ thống với bước hệ thống. Không dùng ví dụ trong mẫu làm business rule.
 2. **speckit-constitution**: kiểm tra `.specify/memory/constitution.md` với nguyên tắc CareNest. Tái sử dụng constitution hợp lệ; nếu còn template hoặc cần sửa thì làm rõ, cập nhật theo skill, không tự thay stack hoặc làm mất nguyên tắc đã chốt.

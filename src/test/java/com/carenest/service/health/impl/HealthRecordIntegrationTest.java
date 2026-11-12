@@ -157,7 +157,8 @@ class HealthRecordIntegrationTest {
                 child,
                 classA);
         jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                "INSERT INTO child_guardians (user_id, child_id, position, full_name, relationship, phone, citizen_id,"
+                        + " linked_at) VALUES (?, ?, 0, 'Mẹ (giả)', 'MOTHER', '0900000009', '000000000009', now())",
                 parentId,
                 child);
         jdbc.update(
@@ -242,7 +243,7 @@ class HealthRecordIntegrationTest {
 
         for (String type : List.of("HEALTH_RESULT_PUBLISHED", "HEALTH_RESULT_UPDATED")) {
             assertThat(count(
-                            "SELECT count(*) FROM notifications n JOIN guardian_child_links l ON l.user_id = n.user_id"
+                            "SELECT count(*) FROM notifications n JOIN child_guardians l ON l.user_id = n.user_id"
                                     + " WHERE l.child_id = ? AND n.type = ? AND n.body NOT LIKE '%cm%'",
                             child, type))
                     .isEqualTo(1);

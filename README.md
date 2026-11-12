@@ -223,7 +223,7 @@ Chi tiết: [AGENTS.md](AGENTS.md), mục "Quy tắc chung CareNest".
 
 ## Trạng thái
 
-- **Đã có:** 6 module có code, migration V1–V40, gateway đăng nhập Web, phân quyền cấu hình được, học liệu S3, triển khai VPS qua CI.
+- **Đã có:** 9 package feature có code (`controller/` của `src/main/java/com/carenest`), migration Flyway trong `src/main/resources/db/migration`, gateway đăng nhập Web, phân quyền cấu hình được, học liệu S3, triển khai VPS qua CI.
 - **Chưa có:** sức khỏe định kỳ, đánh giá trẻ, thông báo, audit, AI, báo cáo; thực đơn và kho của module dinh dưỡng.
 
 Chi tiết từng module và các rule còn `PENDING`: [CURRENT_STATE](docs/context/CURRENT_STATE.md).

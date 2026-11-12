@@ -1,5 +1,6 @@
 # Cross-Repo Map
 
+> Tra nhanh bằng grep (file sinh tự động, mỗi dòng 1 endpoint): `docs/api/API_INDEX.md` — endpoint → controller#method; `docs/system/FE_API_CALLS.md` — file Web gọi endpoint nào → controller. File này giữ ownership, quy ước và các quyết định liên repo.
 ## Mốc nghiệp vụ giáo dục ghi nhận09/11/2026 — contract hiện hành và đích
 
 Nguồn: [12 câu trả lời](../business/education-plan-confirmation-2026-11-09.md), user xác nhận giáo viên phía trường đã xác nhận. Không đổi endpoint/DTO hoặc ghi đã triển khai từ việc chốt nghiệp vụ.

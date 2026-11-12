@@ -3,6 +3,7 @@ package com.carenest.repository.child;
 import com.carenest.entity.child.ChildGuardian;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,6 +15,26 @@ public interface ChildGuardianRepository extends JpaRepository<ChildGuardian, Lo
     List<ChildGuardian> lockByChildId(@Param("childId") Long childId);
 
     List<ChildGuardian> findAllByChildIdOrderByPositionAsc(Long childId);
+
+    // Liên kết tài khoản phụ huynh–trẻ = dòng có user_id (nguồn scope phụ huynh, AUTH-04)
+    boolean existsByUserIdAndChildId(Long userId, Long childId);
+
+    Optional<ChildGuardian> findByUserIdAndChildId(Long userId, Long childId);
+
+    @Query("select g.childId from ChildGuardian g where g.userId = :userId order by g.childId")
+    List<Long> findLinkedChildIds(@Param("userId") Long userId);
+
+    @Query("select g from ChildGuardian g where g.childId = :childId and g.userId is not null"
+            + " order by g.linkedAt, g.id")
+    List<ChildGuardian> findLinkedOfChild(@Param("childId") Long childId);
+
+    @Query("select g.childId, count(g) from ChildGuardian g where g.childId in :childIds and g.userId is not null"
+            + " group by g.childId")
+    List<Object[]> countLinkedByChildIds(@Param("childIds") Collection<Long> childIds);
+
+    @Query("select g from ChildGuardian g where g.childId in :childIds and g.userId is not null"
+            + " order by g.childId, g.linkedAt, g.id")
+    List<ChildGuardian> findLinkedOfChildren(@Param("childIds") Collection<Long> childIds);
 
     /** Mọi dòng phụ huynh đã liên kết tài khoản (đồng bộ thông tin tài khoản, đổi SĐT được duyệt — AUTH-21). */
     List<ChildGuardian> findAllByUserId(Long userId);
@@ -37,9 +58,8 @@ public interface ChildGuardianRepository extends JpaRepository<ChildGuardian, Lo
                     "SELECT g.id AS guardianId, u.status AS accountStatus, u.username AS username, s.status AS smsStatus,"
                             + " CAST(EXTRACT(EPOCH FROM s.sent_at) * 1000 AS BIGINT) AS smsAtMillis"
                             + " FROM child_guardians g"
-                            + " LEFT JOIN guardian_child_links l ON l.child_id = g.child_id AND l.user_id = g.user_id"
-                            + " LEFT JOIN user_accounts u ON u.id = l.user_id"
-                            + " LEFT JOIN LATERAL (SELECT p.status, p.sent_at FROM parent_sms_logs p WHERE p.user_id = l.user_id"
+                            + " LEFT JOIN user_accounts u ON u.id = g.user_id"
+                            + " LEFT JOIN LATERAL (SELECT p.status, p.sent_at FROM parent_sms_logs p WHERE p.user_id = g.user_id"
                             + " ORDER BY p.sent_at DESC, p.id DESC LIMIT 1) s ON TRUE"
                             + " WHERE g.child_id IN (:childIds)",
             nativeQuery = true)
