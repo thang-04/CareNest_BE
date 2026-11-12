@@ -29,7 +29,6 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
-import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
@@ -817,20 +816,21 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         Set<Long> leaderIds = cls.ageGroupId() == null
                 ? Set.of()
                 : staffAssignmentService.findYearTeamLeaderIds(cls.ageGroupId(), cls.schoolYearId(), at);
-        Long issuer = cls.ageGroupId() == null
-                ? null
-                : evaluationRepository.findApprovedPlanIssuer(cls.schoolYearId(), cls.ageGroupId());
+        // Ô "Phó hiệu trưởng": PHT phụ trách điểm trường của lớp tại ngày in, theo phân công năm học đó; không có thì
+        // để
+        // trống cho ghi tay (không lấy người ban hành kế hoạch vì có thể là HT)
+        List<Long> vpIds = staffAssignmentService.findCampusVicePrincipalIds(cls.campusId(), at).stream()
+                .sorted()
+                .toList();
         List<Long> ids = new ArrayList<>(teacherIds);
         ids.addAll(leaderIds);
-        if (issuer != null) {
-            ids.add(issuer);
-        }
+        ids.addAll(vpIds);
         Map<Long, String> names = accountService.findFullNames(ids);
-        String vicePrincipal = issuer != null ? names.get(issuer) : null;
-        if (vicePrincipal == null) {
-            List<String> vps = accountService.findActiveFullNamesByRole(CareNestRole.VICE_PRINCIPAL);
-            vicePrincipal = vps.size() == 1 ? vps.getFirst() : null;
-        }
+        String vicePrincipal = vpIds.stream()
+                .map(names::get)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
         return new ThemeSigners(
                 teacherIds.stream().map(names::get).filter(Objects::nonNull).toList(),
                 leaderIds.stream()

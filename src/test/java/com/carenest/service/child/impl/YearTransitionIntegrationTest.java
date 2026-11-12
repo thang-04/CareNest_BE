@@ -129,9 +129,13 @@ class YearTransitionIntegrationTest {
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principalId);
+        // PHT theo năm học: năm 2026-2027 (hết hạn 31/05/2027) và năm 2027-2028 từ ngày mở chuẩn bị (hôm nay
+        // 30/08/2027)
         jdbc.update(
-                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
-                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-09-01', NULL), (?, 'VICE_PRINCIPAL', ?, '2027-08-05', '2028-05-31')",
+                vpId,
+                campus,
                 vpId,
                 campus);
         for (long classId : List.of(newClass4, newClass3)) {

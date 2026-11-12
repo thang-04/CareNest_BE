@@ -85,8 +85,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
             ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
             boolean teacher = teaches(currentUser, cls);
             // Xem như đánh giá cuối năm: GV lớp; đã xác nhận thì PHT / HT điểm trường và tổ trưởng nhóm tuổi của lớp
-            boolean reader = rules.readsCampus(currentUser, cls.campusId())
-                    || rules.leadsClass(currentUser, cls);
+            boolean reader = rules.readsCampus(currentUser, cls.campusId()) || rules.leadsClass(currentUser, cls);
             if (!teacher && !(ev.isConfirmed() && reader)) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }

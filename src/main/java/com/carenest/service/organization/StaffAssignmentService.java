@@ -31,6 +31,12 @@ public interface StaffAssignmentService {
     /** Đã từng được phân công dạy lớp (tới ngày date), kể cả phân công đã kết thúc. */
     boolean hasTeacherAssignmentHistory(Long userId, Long classroomId, LocalDate date);
 
+    /** Người dùng dạy thay lớp vào đúng ngày này. */
+    boolean hasSubstituteAssignmentOn(Long userId, Long classroomId, LocalDate date);
+
+    /** Có phân công vai trò trong năm học (campusId null = mọi điểm trường); dùng cho xem lại năm đã kết thúc. */
+    boolean hadRoleInYear(Long userId, StaffRole staffRole, Long campusId, Long schoolYearId);
+
     List<StaffAssignmentSummaryResponse> findActiveAssignments(Long userId, LocalDate date);
 
     /** Nhóm tuổi Tổ trưởng đang phụ trách (phân công AGE_GROUP_TEAM_LEADER còn hiệu lực). */

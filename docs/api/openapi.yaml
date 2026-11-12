@@ -20236,6 +20236,7 @@ components:
           - CLASSES
           - TEACHERS
           - TEAM_LEADERS
+          - VICE_PRINCIPALS
           - CUTOFF
           - SEMESTER
         reason:
@@ -21511,6 +21512,7 @@ components:
             - CLASSES
             - TEACHERS
             - TEAM_LEADERS
+            - VICE_PRINCIPALS
             - CUTOFF
             - SEMESTER
           uniqueItems: true
@@ -21539,6 +21541,9 @@ components:
           type: integer
           format: int32
         teamLeaders:
+          type: integer
+          format: int32
+        vicePrincipals:
           type: integer
           format: int32
         withoutRoom:

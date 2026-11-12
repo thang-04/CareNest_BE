@@ -181,8 +181,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
             // Tổ trưởng chuyên môn xem tổng hợp phiếu các lớp nhóm tuổi mình (AUTH-23)
-            if (!rules.canView(currentUser, cls)
-                    && !rules.leadsClass(currentUser, cls)) {
+            if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
             checkMonth(month, cls.yearStart(), cls.yearEnd());

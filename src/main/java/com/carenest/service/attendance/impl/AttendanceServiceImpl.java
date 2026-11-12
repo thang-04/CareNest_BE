@@ -164,7 +164,10 @@ public class AttendanceServiceImpl implements AttendanceService {
         log.info("{}|START", logPrefix);
         try {
             LocalDate day = date == null ? rules.today() : date;
-            ClassroomInfoResponse cls = viewableClass(currentUser, classId);
+            ClassroomInfoResponse cls = findClass(classId);
+            if (!rules.canViewDay(currentUser, cls, day)) {
+                throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+            }
             List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, day);
             Map<Long, AttendanceRecord> records =
                     recordRepository
@@ -310,8 +313,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         try {
             ClassroomInfoResponse cls = findClass(classId);
             // Tổ trưởng chuyên môn xem tổng hợp (không xem phiếu điểm danh/sức khỏe từng ngày) các lớp nhóm tuổi mình
-            if (!rules.canView(currentUser, cls)
-                    && !rules.leadsClass(currentUser, cls)) {
+            if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             checkRange(from, to);

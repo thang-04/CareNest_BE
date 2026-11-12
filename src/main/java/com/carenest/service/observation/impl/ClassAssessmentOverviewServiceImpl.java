@@ -180,8 +180,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.readsCampus(currentUser, cls.campusId())
-                    && !rules.leadsClass(currentUser, cls)) {
+            if (!rules.readsCampus(currentUser, cls.campusId()) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             String p = checkPeriod(period);

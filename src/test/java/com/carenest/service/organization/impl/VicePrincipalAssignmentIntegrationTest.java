@@ -10,6 +10,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.VicePrincipalAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -52,6 +54,9 @@ class VicePrincipalAssignmentIntegrationTest {
 
     @Autowired
     private VicePrincipalAssignmentService service;
+
+    @Autowired
+    private com.carenest.service.organization.StaffAssignmentService staffAssignmentService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -114,7 +119,9 @@ class VicePrincipalAssignmentIntegrationTest {
         assertThat(planned.get(vp1)).isEqualTo(campusB);
         assertThat(campusByUser(service.getAssignments(principal, activeYear)).get(vp1))
                 .isEqualTo(campusA);
-        assertThat(validTo(vp1, campusA)).isEqualTo(LocalDate.of(2027, 7, 31));
+        // Dòng PHT cũ để trống valid_to tự hết hạn cuối năm học, không cần sửa
+        assertThat(validTo(vp1, campusA)).isNull();
+        assertThat(validTo(vp1, campusB)).isEqualTo(LocalDate.of(2028, 5, 31));
     }
 
     @Test
@@ -124,7 +131,7 @@ class VicePrincipalAssignmentIntegrationTest {
         service.assign(principal, activeYear, vp1, new VicePrincipalAssignmentRequest(campusC));
 
         assertThat(validTo(vp1, campusA)).isEqualTo(LocalDate.of(2026, 10, 21));
-        assertThat(validTo(vp1, campusC)).isEqualTo(LocalDate.of(2027, 7, 31));
+        assertThat(validTo(vp1, campusC)).isEqualTo(LocalDate.of(2027, 5, 31));
         assertThat(campusByUser(service.getAssignments(principal, plannedYear)).get(vp1))
                 .isEqualTo(campusB);
     }
@@ -188,6 +195,46 @@ class VicePrincipalAssignmentIntegrationTest {
                 () -> service.assign(vice, activeYear, vp2, new VicePrincipalAssignmentRequest(campusA)),
                 ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
         assertThat(count(vp2)).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName(
+            "Phân công PHT theo năm học: hết hạn ngày kết thúc năm, dòng cũ để trống valid_to không nối sang năm sau")
+    void vicePrincipalAssignmentEndsWithTheSchoolYear() {
+        service.assign(principal, activeYear, vp2, new VicePrincipalAssignmentRequest(campusB));
+        assertThat(validTo(vp2, campusB)).isEqualTo(LocalDate.of(2027, 5, 31));
+
+        // Giai đoạn chuẩn bị năm sau: PHT năm nay vẫn còn phạm vi điểm trường để chuẩn bị (xếp lớp, phân công)
+        LocalDate prep = LocalDate.of(2027, 5, 20);
+        assertThat(staffAssignmentService.hasActiveCampusAssignment(vp1, StaffRole.VICE_PRINCIPAL, campusA, prep))
+                .isTrue();
+        assertThat(staffAssignmentService.hasActiveCampusAssignment(vp2, StaffRole.VICE_PRINCIPAL, campusB, prep))
+                .isTrue();
+        // Hết năm học: cả dòng mới lẫn dòng cũ để trống valid_to đều hết hiệu lực
+        LocalDate nextYear = LocalDate.of(2027, 8, 15);
+        assertThat(staffAssignmentService.hasActiveCampusAssignment(vp1, StaffRole.VICE_PRINCIPAL, campusA, nextYear))
+                .isFalse();
+        assertThat(staffAssignmentService.findActiveCampusIds(vp2, StaffRole.VICE_PRINCIPAL, nextYear))
+                .isEmpty();
+        // Năm sau chưa phân công ⇒ bước Phó hiệu trưởng của năm đó trống; năm nay vẫn hiện đúng
+        Map<Long, Long> planned = campusByUser(service.getAssignments(principal, plannedYear));
+        assertThat(planned.get(vp1)).isNull();
+        assertThat(planned.get(vp2)).isNull();
+        assertThat(campusByUser(service.getAssignments(principal, activeYear)).get(vp1))
+                .isEqualTo(campusA);
+
+        // Năm sau HT xếp vp2 vào A được (dòng cũ của vp1 không còn chiếm điểm trường)
+        assertThat(campusByUser(service.assign(
+                                principal, plannedYear, vp2, new VicePrincipalAssignmentRequest(campusA)))
+                        .get(vp2))
+                .isEqualTo(campusA);
+        // Phân công năm sau có hiệu lực từ ngày mở chuẩn bị (mặc định 1 tháng trước ngày bắt đầu 01/08/2027)
+        LocalDate prepDay = LocalDate.of(2027, 7, 1);
+        assertThat(staffAssignmentService.hasActiveCampusAssignment(vp2, StaffRole.VICE_PRINCIPAL, campusA, prepDay))
+                .isTrue();
+        assertThat(staffAssignmentService.hasActiveCampusAssignment(
+                        vp2, StaffRole.VICE_PRINCIPAL, campusA, prepDay.minusDays(1)))
+                .isFalse();
     }
 
     private Map<Long, Long> campusByUser(VicePrincipalAssignmentResponse response) {

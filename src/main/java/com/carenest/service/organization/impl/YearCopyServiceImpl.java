@@ -7,6 +7,8 @@ import com.carenest.dto.organization.CutoffRequest;
 import com.carenest.dto.organization.SchoolYearSemesterRequest;
 import com.carenest.dto.organization.TeacherCandidateResponse;
 import com.carenest.dto.organization.TeamLeaderRequest;
+import com.carenest.dto.organization.VicePrincipalAssignmentRequest;
+import com.carenest.dto.organization.VicePrincipalAssignmentResponse;
 import com.carenest.dto.organization.YearCopyRequest;
 import com.carenest.dto.organization.YearCopyResponse;
 import com.carenest.entity.organization.AgeGroup;
@@ -27,6 +29,7 @@ import com.carenest.service.organization.ClassManagementService;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.service.organization.TeacherDirectory;
+import com.carenest.service.organization.VicePrincipalAssignmentService;
 import com.carenest.service.organization.YearCopyService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -71,6 +74,7 @@ public class YearCopyServiceImpl implements YearCopyService {
     private final SchoolConfigAccess schoolConfigAccess;
     private final ClassManagementService classManagementService;
     private final TeacherAssignmentService teacherAssignmentService;
+    private final VicePrincipalAssignmentService vicePrincipalAssignmentService;
     private final AttendanceCutoffService attendanceCutoffService;
     private final SchoolYearService schoolYearService;
 
@@ -113,12 +117,22 @@ public class YearCopyServiceImpl implements YearCopyService {
             int teamLeaders = parts.contains(YearCopyPart.TEAM_LEADERS)
                     ? copyTeamLeaders(currentUser, source, target, skipped)
                     : 0;
+            int vicePrincipals = parts.contains(YearCopyPart.VICE_PRINCIPALS)
+                    ? copyVicePrincipals(currentUser, source, target, skipped)
+                    : 0;
             LocalTime cutoff =
                     parts.contains(YearCopyPart.CUTOFF) ? copyCutoff(currentUser, source, target, skipped) : null;
             boolean semesterCopied =
                     parts.contains(YearCopyPart.SEMESTER) && copySemester(currentUser, source, target, skipped);
             YearCopyResponse response = new YearCopyResponse(
-                    copiedClasses, withoutRoom, teacherClasses, teamLeaders, cutoff, semesterCopied, skipped);
+                    copiedClasses,
+                    withoutRoom,
+                    teacherClasses,
+                    teamLeaders,
+                    vicePrincipals,
+                    cutoff,
+                    semesterCopied,
+                    skipped);
             log.info(
                     "{}|END|classes={}|teacherClasses={}|teamLeaders={}|skipped={}",
                     logPrefix,
@@ -200,6 +214,43 @@ public class YearCopyServiceImpl implements YearCopyService {
             } catch (GlobalException ex) {
                 skipped.add(
                         new YearCopyResponse.Skipped(YearCopyPart.TEACHERS, targetClass.getName(), ex.getMessage()));
+            }
+        }
+        return copied;
+    }
+
+    /**
+     * PHT và điểm trường phụ trách (mỗi năm học phân công lại — Cần chốt 12/11/2026); PHT đã có phân công ở năm đích thì
+     * giữ, không ghi đè. Quyền chức năng HT cấp gắn theo tài khoản nên tự giữ, không cần chép.
+     */
+    private int copyVicePrincipals(
+            CurrentUser currentUser, SchoolYear source, SchoolYear target, List<YearCopyResponse.Skipped> skipped) {
+        Set<Long> assigned = vicePrincipalAssignmentService.getAssignments(currentUser, target.getId()).rows().stream()
+                .filter(r -> r.assignment() != null)
+                .map(r -> r.user().id())
+                .collect(Collectors.toSet());
+        int copied = 0;
+        for (VicePrincipalAssignmentResponse.Row row : vicePrincipalAssignmentService
+                .getAssignments(currentUser, source.getId())
+                .rows()) {
+            if (row.assignment() == null || assigned.contains(row.user().id())) {
+                continue;
+            }
+            if (!"ACTIVE".equals(row.user().status())) {
+                skipped.add(new YearCopyResponse.Skipped(
+                        YearCopyPart.VICE_PRINCIPALS, row.user().fullName(), "Tài khoản đã khóa / nghỉ việc"));
+                continue;
+            }
+            try {
+                vicePrincipalAssignmentService.assign(
+                        currentUser,
+                        target.getId(),
+                        row.user().id(),
+                        new VicePrincipalAssignmentRequest(row.assignment().campusId()));
+                copied++;
+            } catch (GlobalException ex) {
+                skipped.add(new YearCopyResponse.Skipped(
+                        YearCopyPart.VICE_PRINCIPALS, row.user().fullName(), ex.getMessage()));
             }
         }
         return copied;

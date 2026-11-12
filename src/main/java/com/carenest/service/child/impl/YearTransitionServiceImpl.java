@@ -178,7 +178,11 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             PlacementBoardResponse response = new PlacementBoardResponse(
                     toBrief(setup.year()),
                     setup.sourceYear() == null ? null : toBrief(setup.sourceYear()),
-                    (principal || currentUser.hasPermission(Permission.YEAR_PLACEMENT_MANAGE))
+                    // PHT có quyền nhưng hết phân công (không còn điểm trường nào) thì chỉ xem
+                    (principal
+                                    || (currentUser.hasPermission(Permission.YEAR_PLACEMENT_MANAGE)
+                                            && setup.campuses().stream()
+                                                    .anyMatch(c -> placesCampus(currentUser, c.id()))))
                             && setup.year().status() == SchoolYearStatus.PLANNED
                             && setup.sourceYear() != null
                             && isNextYear(setup),

@@ -103,16 +103,13 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 log.info("{}|unchanged|END", logPrefix);
                 return toResponse(year);
             }
-            // Phân công đã đặt cho năm sau (bắt đầu sau năm này) giữ nguyên; phân công mới dừng trước nó
-            LocalDate nextStart = open.stream()
-                    .map(StaffAssignment::getValidFrom)
-                    .filter(from -> from.isAfter(year.getEndDate()))
-                    .min(LocalDate::compareTo)
-                    .orElse(null);
+            // Phân công PHT theo năm học (Cần chốt 12/11/2026): hết hạn ở ngày kết thúc năm, năm sau HT phân công lại;
+            // phân công đã đặt cho năm sau giữ nguyên
+            LocalDate end = year.getEndDate();
             // AUTH-26: mỗi điểm trường tối đa một PHT trong khoảng phân công mới
             if (campusId != null
                     && staffAssignmentRepository.existsOtherVicePrincipalAtCampusOpenEnded(
-                            campusId, userId, start, nextStart == null ? null : nextStart.minusDays(1))) {
+                            campusId, userId, start, end)) {
                 throw GlobalException.of(ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
             }
             for (StaffAssignment a : open) {
@@ -126,12 +123,8 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 }
             }
             if (campusId != null) {
-                staffAssignmentRepository.save(StaffAssignment.vicePrincipal(
-                        userId,
-                        campusId,
-                        start,
-                        nextStart == null ? null : nextStart.minusDays(1),
-                        currentUser.userId()));
+                staffAssignmentRepository.save(
+                        StaffAssignment.vicePrincipal(userId, campusId, start, end, currentUser.userId()));
             }
             staffAssignmentRepository.flush();
             VicePrincipalAssignmentResponse response = toResponse(year);
@@ -167,10 +160,24 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 rows);
     }
 
-    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày bắt đầu năm học
+    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày mở chuẩn bị (CFG-YR-05) để PHT năm mới chuẩn bị được
     private LocalDate effectiveStart(SchoolYear year) {
         LocalDate today = schoolConfigAccess.today();
-        return today.isAfter(year.getStartDate()) ? today : year.getStartDate();
+        if (today.isAfter(year.getStartDate())) {
+            return today;
+        }
+        if (year.getStatus() == SchoolYearStatus.PLANNED) {
+            LocalDate prep = year.getPrepDate().isAfter(year.getStartDate()) ? year.getStartDate() : year.getPrepDate();
+            // Ngày mở chuẩn bị luôn sau ngày kết thúc năm trước (2036); dữ liệu cũ thiếu ngày này thì vẫn không chồng
+            // năm trước
+            for (SchoolYear other : schoolYearRepository.findAllByOrderByStartDateDesc()) {
+                if (other.getEndDate().isBefore(year.getStartDate()) && !prep.isAfter(other.getEndDate())) {
+                    prep = other.getEndDate().plusDays(1);
+                }
+            }
+            return today.isAfter(prep) ? today : prep;
+        }
+        return year.getStartDate();
     }
 
     private SchoolYear findYear(Long schoolYearId) {

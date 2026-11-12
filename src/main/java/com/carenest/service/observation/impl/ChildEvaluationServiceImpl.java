@@ -111,8 +111,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             List<ClassroomInfoResponse> years = classroomService.findYearClassrooms(schoolYearId);
-            Set<Long> ledGroups =
-                    type == EvaluationPeriodType.YEAR ? rules.teamLeaderAgeGroupIds(currentUser, schoolYearId) : Set.of();
+            Set<Long> ledGroups = type == EvaluationPeriodType.YEAR
+                    ? rules.teamLeaderAgeGroupIds(currentUser, schoolYearId)
+                    : Set.of();
             List<ClassroomInfoResponse> visible = years.stream()
                     .filter(c -> teaches(currentUser, c)
                             || rules.readsCampus(currentUser, c.campusId())

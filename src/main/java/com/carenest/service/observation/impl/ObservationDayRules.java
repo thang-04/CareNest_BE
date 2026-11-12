@@ -18,6 +18,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
+import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -91,9 +92,38 @@ class ObservationDayRules {
             return false;
         }
         if (isLeader(user)) {
-            return campusAccessPolicy.canEditCampus(user, Permission.ASSESSMENT_VIEW, cls.campusId());
+            return campusAccessPolicy.canEditCampus(user, Permission.ASSESSMENT_VIEW, cls.campusId())
+                    || ledClosedYear(user, cls);
         }
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
+    }
+
+    /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay khi năm đã kết thúc. */
+    boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
+        return canView(user, cls)
+                || (cls.yearStatus() == SchoolYearStatus.CLOSED
+                        && user.hasRole(CareNestRole.TEACHER)
+                        && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+    }
+
+    /**
+     * Năm đã kết thúc (Cần chốt 12/11/2026): HT / PHT xem lại (chỉ xem) theo phân công của chính năm đó, kể cả khi năm
+     * nay không còn phân công; PHT theo điểm trường của năm đó, hoặc mọi điểm trường nếu quyền xem là toàn trường.
+     */
+    boolean ledClosedYear(CurrentUser user, ClassroomInfoResponse cls) {
+        if (cls.yearStatus() != SchoolYearStatus.CLOSED || !user.hasPermission(Permission.ASSESSMENT_VIEW)) {
+            return false;
+        }
+        if (user.hasRole(CareNestRole.PRINCIPAL)
+                && staffAssignmentService.hadRoleInYear(user.userId(), StaffRole.PRINCIPAL, null, cls.schoolYearId())) {
+            return true;
+        }
+        return user.hasRole(CareNestRole.VICE_PRINCIPAL)
+                && staffAssignmentService.hadRoleInYear(
+                        user.userId(),
+                        StaffRole.VICE_PRINCIPAL,
+                        user.hasSchoolWidePermission(Permission.ASSESSMENT_VIEW) ? null : cls.campusId(),
+                        cls.schoolYearId());
     }
 
     /** Giáo viên xem lại (chỉ xem) lớp mình từng dạy ở năm đã kết thúc. */
