@@ -76,7 +76,7 @@ topics:
   security:       [docs/architecture/SECURITY.md, docs/business/USER_ROLES.md, docs/decisions/ADR-0003-access-scope-model.md, docs/decisions/ADR-0017-configurable-permissions.md]
   api:            [docs/contracts/API_CONVENTIONS.md, docs/contracts/ERROR_CONTRACT.md, docs/contracts/AUTH_CONTRACT.md]
   database:       [docs/database/DATABASE.md, docs/business/DOMAIN_MODEL.md, docs/database/ERD.md, docs/database/DATA_DICTIONARY.md]
-  cross-repo:     [docs/system/CROSS_REPO_MAP.md]
+  cross-repo:     [docs/api/API_INDEX.md, docs/system/FE_API_CALLS.md, docs/system/CROSS_REPO_MAP.md]
   memory:         [docs/knowledge/ISSUE_INDEX.md, docs/knowledge/CROSS_MODULE_ISSUES.md, docs/knowledge/KNOWN_ISSUES.md, docs/knowledge/PATTERNS.md, docs/knowledge/TROUBLESHOOTING.md]
   quality:        [docs/quality/DEFINITION_OF_DONE.md, docs/quality/VERIFICATION.md, docs/quality/TEST_STRATEGY.md, docs/quality/NFR.md]
   operations:     [README.md, .env.example, compose.yaml, src/main/resources/application.yml, docs/knowledge/TROUBLESHOOTING.md, docs/system/DEPLOYMENT.md, compose.vps.yaml, deploy/, .github/workflows/deploy.yml]
@@ -100,7 +100,7 @@ available:
   hooks: [.claude/settings.json, .claude/hooks/session-orient.mjs, .claude/hooks/guard-edits.mjs, .claude/hooks/track-activity.mjs, .claude/hooks/stop-gate.mjs, .claude/hooks/lib/]   # Claude hooks (ADR-0012)
   routing: [.ai/ROUTER.md, .ai/ESCALATION.md, .ai/CONTEXT_MAP.yaml]
   profiles: [.ai/profiles/code.md, .ai/profiles/feature.md, .ai/profiles/architecture.md, .ai/profiles/operations.md, .ai/profiles/cross-repo.md, .ai/profiles/full.md]
-  workflows: [.ai/workflows/fix-bug.md, .ai/workflows/implement-feature.md, .ai/workflows/review-code.md, .ai/workflows/update-database.md, .ai/workflows/update-api.md, .ai/workflows/deploy.md, .ai/workflows/update-knowledge.md, .ai/workflows/clarify-business.md, .ai/workflows/plan-change.md]
+  workflows: [.ai/workflows/fix-bug.md, .ai/workflows/implement-feature.md, .ai/workflows/feature-spec-loop.md, .ai/workflows/review-code.md, .ai/workflows/update-database.md, .ai/workflows/update-api.md, .ai/workflows/deploy.md, .ai/workflows/update-knowledge.md, .ai/workflows/clarify-business.md, .ai/workflows/plan-change.md]
   api_snapshot: [docs/api/openapi.yaml]   # hợp đồng API, khóa bởi OpenApiSnapshotTest
   harness: [docs/quality/VERIFICATION.md, .githooks/, scripts/verify.mjs, src/test/java/com/carenest/architecture/ArchitectureRulesTest.java, docs/plans/_TEMPLATE.md, docs/decisions/ADR-0012-engineering-harness.md, .gitattributes, .editorconfig, scripts/check-ai-layer.mjs, scripts/ai-layer/, .claude/hooks/harness.config.json]   # quy trình làn S/M/L + cổng (ADR-0012)
   skills: [.agents/skills/, .claude/skills/]
