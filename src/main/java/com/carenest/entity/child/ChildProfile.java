@@ -91,4 +91,27 @@ public class ChildProfile {
         profile.addressStreet = addressStreet;
         return profile;
     }
+
+    /** Sửa hành chính ở Sửa hồ sơ (CHD-05); nguồn chi trả luôn BHYT. */
+    public void update(
+            String idNumber,
+            YesNo premature,
+            Short gestationWeeks,
+            String ethnicity,
+            String beneficiary,
+            String bloodType,
+            String addressProvince,
+            String addressWard,
+            String addressStreet) {
+        this.idNumber = idNumber;
+        this.premature = premature;
+        this.gestationWeeks = gestationWeeks;
+        this.ethnicity = ethnicity;
+        this.beneficiary = beneficiary;
+        this.paymentSource = PAYMENT_SOURCE;
+        this.bloodType = bloodType;
+        this.addressProvince = addressProvince;
+        this.addressWard = addressWard;
+        this.addressStreet = addressStreet;
+    }
 }

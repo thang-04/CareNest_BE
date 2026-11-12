@@ -67,6 +67,8 @@ class GuardianAccountServiceImplTest {
             accounts,
             links,
             children,
+            mock(com.carenest.service.child.ChildListService.class),
+            mock(com.carenest.service.child.ChildIntakeService.class),
             policy,
             new AccountLifecycleOperations(
                     accounts, identity, authState, new TransactionTemplate(mock(PlatformTransactionManager.class))),
@@ -234,7 +236,7 @@ class GuardianAccountServiceImplTest {
         assertThatThrownBy(() -> service.addGuardian(VICE, CHILD, confirmed(99L)))
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.GUARDIAN_ACCOUNT_CONFIRMATION_REQUIRED);
-        verify(links, never()).createLink(any(), any(), any());
+        verify(selected, never()).recordLink(any(), any(), any(), any());
         verifyNoInteractions(identity);
     }
 
@@ -294,7 +296,7 @@ class GuardianAccountServiceImplTest {
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.ACCOUNT_MANAGE_DENIED);
         verifyNoInteractions(identity);
-        verify(links, never()).createLink(any(), any(), any());
+        verify(selected, never()).recordLink(any(), any(), any(), any());
     }
 
     @Test

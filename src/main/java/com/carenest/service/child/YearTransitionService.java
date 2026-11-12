@@ -3,6 +3,7 @@ package com.carenest.service.child;
 import com.carenest.dto.child.AutoPlaceRequest;
 import com.carenest.dto.child.AutoPlaceResponse;
 import com.carenest.dto.child.PlacementBoardResponse;
+import com.carenest.dto.child.PrepClassesResponse;
 import com.carenest.dto.child.SavePlacementsRequest;
 import com.carenest.dto.child.YearReadinessResponse;
 import com.carenest.dto.organization.SchoolYearDetailResponse;
@@ -29,6 +30,9 @@ public interface YearTransitionService {
     AutoPlaceResponse autoPlace(CurrentUser currentUser, Long schoolYearId, AutoPlaceRequest request);
 
     YearReadinessResponse getReadiness(CurrentUser currentUser, Long schoolYearId);
+
+    /** CFG-YR-05: lớp năm đang chuẩn bị mà người xem dạy / làm tổ trưởng, kèm trẻ đã xếp vào (chỉ xem). */
+    PrepClassesResponse getPrepClasses(CurrentUser currentUser, Long schoolYearId);
 
     SchoolYearDetailResponse activateSchoolYear(CurrentUser currentUser, Long schoolYearId, String confirmName);
 }

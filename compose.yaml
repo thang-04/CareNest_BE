@@ -89,6 +89,10 @@ services:
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
       # Compose có Mailpit làm SMTP nên bật gửi email đặt mật khẩu
       KEYCLOAK_ACTIONS_EMAIL_ENABLED: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:-true}
+      # Trợ lý AI (AI-09); khóa trống ⇒ AI tắt (AI-03)
+      CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      CARENEST_AI_API_KEY: ${CARENEST_AI_API_KEY:-}
+      CARENEST_AI_MODEL: ${CARENEST_AI_MODEL:-gemini-2.0-flash}
     ports:
       - "${SERVER_PORT:-8080}:8080"
 

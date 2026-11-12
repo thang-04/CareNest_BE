@@ -74,7 +74,7 @@ public class MealCountController {
     }
 
     @PostMapping("/meal-counts/adjustments")
-    @PreAuthorize("hasRole('VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('MEAL_COUNT_CONFIRM')")
     public ResponseEntity<ResponseJson<List<MealCountResponse>>> adjust(
             @Valid @RequestBody MealAdjustRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|adjust|userId=" + currentUser.userId() + "|classId=" + request.classId();

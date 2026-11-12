@@ -32,6 +32,13 @@ class ParentSmsSender {
         return send(account, SmsPurpose.ACTIVATION, text);
     }
 
+    /** Đổi SĐT được duyệt (G94-180/AUTH-21): {@code account} đã mang tên đăng nhập mới nên tin tới SĐT mới. */
+    SmsStatus sendUsernameChanged(UserAccount account, String temporaryPassword) {
+        String text = "CareNest: So dien thoai dang nhap da doi. Ten dang nhap moi: " + account.getUsername()
+                + ". Mat khau tam: " + temporaryPassword + ". Doi mat khau o lan dang nhap dau.";
+        return send(account, SmsPurpose.USERNAME_CHANGED, text);
+    }
+
     private SmsStatus send(UserAccount account, SmsPurpose purpose, String text) {
         String logPrefix = LOG_PREFIX + "|send|userId=" + account.getId() + "|purpose=" + purpose;
         SmsStatus status;

@@ -78,6 +78,16 @@ Keycloak/xác thực: bảng lỗi đầy đủ ở `docs/system/KEYCLOAK.md` m�
 - Đã thử không hiệu quả: truyền `-DspotlessFiles=src/test/java/com/carenest/controller/child/ChildEnrollmentControllerTest.java` hai lần; cả hai `BUILD SUCCESS` nhưng không chọn được file.
 - Incident: [ENV-261101-spotless-windows-file-filter](incidents/ENV-261101-spotless-windows-file-filter.md).
 
+### API local trỏ DB dev VPS: `cannot execute SELECT FOR NO KEY UPDATE in a read-only transaction` lúc khởi động
+- Nguyên nhân: `HealthCheckServiceImpl.closeExpiredHealthChecks` chạy ở `ApplicationReadyEvent` và khóa dòng; DB chỉ đọc chặn lệnh này nên API dừng.
+- Xử lý (xem dữ liệu `carenest_dev` từ máy local):
+  - Tunnel `ssh -N -L 18330:127.0.0.1:18330 thangnd@<VPS>`.
+  - Code khớp schema DB: worktree `origin/dev`, chép `.env` vào worktree. Nhánh feature có migration chưa lên `dev` thì không trỏ vào DB dùng chung.
+  - `DB_URL=jdbc:postgresql://localhost:18330/carenest_dev`, `SPRING_FLYWAY_ENABLED=false`, profile `dev`; không thêm `default_transaction_read_only`.
+  - Đăng nhập bằng Keycloak local (8 user seed cùng id với seed VPS). FE: `VITE_USE_MOCK=false`, `VITE_API_BASE_URL=/be-api`, `VITE_SCHOOL_CONFIG_API=true`.
+  - Chỉ xem; tắt API trước 23h50 (job 23h50, 0h ghi DB). Không trỏ DB `carenest` (production).
+- Incident: [ENV-261110-local-api-shared-db-read-only](incidents/ENV-261110-local-api-shared-db-read-only.md).
+
 ## Format
 
 ```markdown

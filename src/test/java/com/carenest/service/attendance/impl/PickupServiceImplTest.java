@@ -26,6 +26,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.ClassroomStatus;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupVerification;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
@@ -90,8 +91,8 @@ class PickupServiceImplTest {
     private AccountService accountService;
 
     private PickupServiceImpl service;
-    private final CurrentUser teacher =
-            new CurrentUser(7L, "kc-7", "teacher", "Cô A (giả)", null, Set.of(CareNestRole.TEACHER));
+    private final CurrentUser teacher = new CurrentUser(
+            7L, "kc-7", "teacher", "Cô A (giả)", null, Set.of(CareNestRole.TEACHER), Set.of(Permission.PICKUP_RECORD));
 
     @BeforeEach
     void setUp() {

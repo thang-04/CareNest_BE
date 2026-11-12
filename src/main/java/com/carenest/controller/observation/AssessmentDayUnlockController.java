@@ -31,7 +31,7 @@ public class AssessmentDayUnlockController {
     private final AssessmentDayUnlockService assessmentDayUnlockService;
 
     @GetMapping("/assessment/day-unlocks")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_UNLOCK')")
     public ResponseEntity<ResponseJson<List<AssessmentDayUnlockResponse>>> getUnlocks(
             @RequestParam(required = false) Long campusId,
             @RequestParam(required = false) Long classId,
@@ -48,7 +48,7 @@ public class AssessmentDayUnlockController {
     }
 
     @PostMapping("/assessment/day-unlocks")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_UNLOCK')")
     public ResponseEntity<ResponseJson<AssessmentDayUnlockResponse>> unlockDay(
             @Valid @RequestBody AssessmentDayUnlockRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|unlockDay|userId=" + currentUser.userId() + "|classId=" + request.classId();
@@ -59,7 +59,7 @@ public class AssessmentDayUnlockController {
     }
 
     @PostMapping("/assessment/day-unlocks/{unlockId}/revoke")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_UNLOCK')")
     public ResponseEntity<ResponseJson<AssessmentDayUnlockResponse>> revokeUnlock(
             @PathVariable Long unlockId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|revokeUnlock|userId=" + currentUser.userId() + "|unlockId=" + unlockId;

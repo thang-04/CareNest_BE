@@ -70,6 +70,7 @@ public class HealthExamServiceImpl implements HealthExamService {
     private final ChildIntakeService childIntakeService;
     private final EnrollmentService enrollmentService;
     private final ClassroomService classroomService;
+    private final HealthNotifier healthNotifier;
 
     /** Đợt khám, hồ sơ trẻ, lớp trẻ đang học (cùng điểm trường với đợt). */
     private record Target(HealthCheckCampaign campaign, ChildViewResponse child, ClassroomInfoResponse cls) {}
@@ -214,6 +215,10 @@ public class HealthExamServiceImpl implements HealthExamService {
             // Kết luận ghi tiền sử ngược về khai báo sức khỏe (HLT-06)
             if (request.conclude() && historyChanged) {
                 writeBackHistory(childId, exam.history(), date, currentUser, now);
+            }
+            // HLT-11: kết luận là công bố; sửa phiếu đã kết luận là công bố lại ⇒ báo phụ huynh
+            if (request.conclude()) {
+                healthNotifier.resultPublished(childId, child.fullName(), concluded);
             }
             HealthRecords.Snapshot after = records.load(List.of(childId));
             HealthExamResponse saved = view(currentUser, target, after, examOf(after, childId, campaignId));
@@ -483,6 +488,7 @@ public class HealthExamServiceImpl implements HealthExamService {
                 next,
                 HealthDeclarationAction.UPDATED_FROM_EXAM,
                 "Cập nhật từ phiếu khám ngày " + DMY.format(examDate),
+                "phiếu khám ngày " + DMY.format(examDate),
                 user.userId(),
                 now);
     }

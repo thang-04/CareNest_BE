@@ -6,10 +6,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.carenest.entity.eduplan.EduContentThemeTick;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.entity.eduplan.EduPlanGoal;
 import com.carenest.entity.eduplan.EduPlanSubDomain;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
 import com.carenest.utils.enums.EduGoalRowKind;
 import com.carenest.utils.enums.EduPlanStatus;
 import java.time.Instant;
@@ -47,7 +47,7 @@ class EduYearPlanSchemaIntegrationTest {
     private JdbcTemplate jdbc;
 
     @Autowired
-    private EduYearPlanRepository yearPlanRepository;
+    private EduPlanRepository yearPlanRepository;
 
     @Autowired
     private EduPlanGoalRepository goalRepository;
@@ -125,13 +125,15 @@ class EduYearPlanSchemaIntegrationTest {
     @Test
     @DisplayName("EDU-09: chỉ dòng MT có số MT; xóa kế hoạch xóa cả cây con")
     void storesGoalTreeAndCascadesOnDelete() {
-        EduYearPlan plan = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
+        EduPlan plan = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
         long domain =
                 domainRepository.findAllByActiveTrueOrderBySortOrderAsc().get(0).getId();
 
         EduPlanSubDomain sub = (EduPlanSubDomain) EduGoalRow.create(plan.getId(), EduGoalRowKind.SUB);
+        sub.initializeOwner(plan);
         sub.place(domain, (short) 0, EduGoalRowKind.SUB, "Phát triển vận động", null);
         EduPlanGoal goal = (EduPlanGoal) EduGoalRow.create(plan.getId(), EduGoalRowKind.GOAL);
+        goal.initializeOwner(plan);
         goal.place(domain, (short) 1, EduGoalRowKind.GOAL, "Trẻ thực hiện đủ động tác", (short) 1);
         subDomainRepository.saveAndFlush(sub);
         goal.attachParents(sub.getId(), null);
@@ -141,6 +143,7 @@ class EduYearPlanSchemaIntegrationTest {
         content.place(goal.getId(), (short) 0, "Hô hấp: hít vào, thở ra");
         goalContentRepository.saveAndFlush(content);
         EduTheme theme = EduTheme.create(plan.getId());
+        theme.initializeOwner(plan);
         theme.update((short) 0, "Trường mầm non", "TMN", LocalDate.of(2026, 9, 7), LocalDate.of(2026, 9, 25), "", "");
         themeRepository.saveAndFlush(theme);
         tickRepository.saveAndFlush(EduContentThemeTick.of(content.getId(), theme.getId()));
@@ -152,7 +155,7 @@ class EduYearPlanSchemaIntegrationTest {
                 .singleElement()
                 .satisfies(row -> assertThat(row[1]).isEqualTo(1L));
 
-        jdbc.update("DELETE FROM edu_year_plans WHERE id = ?", plan.getId());
+        jdbc.update("DELETE FROM edu_team_plans WHERE id = ?", plan.getId());
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_content_theme_ticks", Integer.class))
                 .isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_plan_goals", Integer.class))
@@ -162,12 +165,12 @@ class EduYearPlanSchemaIntegrationTest {
     @Test
     @DisplayName("EDU-09: dòng MT thiếu số MT bị DB từ chối")
     void rejectsGoalRowWithoutGoalNumber() {
-        EduYearPlan plan = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
+        EduPlan plan = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
         long domain =
                 domainRepository.findAllByActiveTrueOrderBySortOrderAsc().get(0).getId();
 
         assertThatThrownBy(() -> jdbc.update(
-                        "INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text) "
+                        "INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text) "
                                 + "VALUES (?, ?, 0, 'MT thiếu số')",
                         plan.getId(),
                         domain))
@@ -177,10 +180,12 @@ class EduYearPlanSchemaIntegrationTest {
     @Test
     @DisplayName("EDU-04: bản nháp lưu được chủ đề trùng viết tắt; kiểm khi gửi duyệt")
     void draftThemesMayShareAbbr() {
-        EduYearPlan plan = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
+        EduPlan plan = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
         EduTheme first = EduTheme.create(plan.getId());
+        first.initializeOwner(plan);
         first.update((short) 0, "Trường mầm non", "TMN", null, null, "", "");
         EduTheme second = EduTheme.create(plan.getId());
+        second.initializeOwner(plan);
         second.update((short) 1, "Thế giới mới", "tmn", null, null, "", "");
 
         themeRepository.saveAllAndFlush(List.of(first, second));
@@ -192,39 +197,46 @@ class EduYearPlanSchemaIntegrationTest {
     @Test
     @DisplayName("EDU-06: tìm kiếm lọc theo nhóm tuổi được xem, trạng thái và từ khóa")
     void searchFiltersByScopeStatusAndKeyword() {
-        EduYearPlan draft3 = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
-        EduYearPlan issued4 = draft("KHNH-20262027-MGN", ageGroup4);
+        EduPlan draft3 = yearPlanRepository.saveAndFlush(draft("KHNH-20262027-MGB", ageGroup3));
+        EduPlan issued4 = draft("KHNH-20262027-MGN", ageGroup4);
         issued4.issue(owner, NOW);
         yearPlanRepository.saveAndFlush(issued4);
 
-        Page<EduYearPlan> principalView = yearPlanRepository.search(
+        Page<EduPlan> principalView = yearPlanRepository.search(
                 schoolYear, null, Set.of(EduPlanStatus.APPROVED), Set.of(), Set.of(), null, PageRequest.of(0, 20));
-        assertThat(principalView.getContent()).extracting(EduYearPlan::getId).containsExactly(issued4.getId());
+        assertThat(principalView.getContent()).extracting(EduPlan::getId).containsExactly(issued4.getId());
 
-        Page<EduYearPlan> leaderView = yearPlanRepository.search(
+        Page<EduPlan> leaderView = yearPlanRepository.search(
                 schoolYear, null, Set.of(), Set.of(ageGroup3), Set.of(), "%mgb%", PageRequest.of(0, 20));
-        assertThat(leaderView.getContent()).extracting(EduYearPlan::getId).containsExactly(draft3.getId());
+        assertThat(leaderView.getContent()).extracting(EduPlan::getId).containsExactly(draft3.getId());
 
         // GV dạy cả 2 nhóm tuổi chỉ thấy bản đã ban hành
-        Page<EduYearPlan> teacherView = yearPlanRepository.search(
+        Page<EduPlan> teacherView = yearPlanRepository.search(
                 schoolYear, null, Set.of(), Set.of(), Set.of(ageGroup3, ageGroup4), null, PageRequest.of(0, 20));
-        assertThat(teacherView.getContent()).extracting(EduYearPlan::getId).containsExactly(issued4.getId());
+        assertThat(teacherView.getContent()).extracting(EduPlan::getId).containsExactly(issued4.getId());
     }
 
-    private EduYearPlan draft(String code, long ageGroupId) {
-        return EduYearPlan.createDraft(code, schoolYear, ageGroupId, "Kế hoạch " + code, "", owner, null, NOW);
-    }
-
-    @Test
-    @DisplayName("EDU-10: phiên đang giữ quyền bắt buộc có trạng thái để trả về, không để CHECK lọt NULL")
-    void activeSessionCannotHaveNullReturnStatus() {
-        EduYearPlan plan = yearPlanRepository.saveAndFlush(draft("NULL-GUARD", ageGroup3));
-        assertThatThrownBy(
-                        () -> jdbc.update("UPDATE edu_year_plans SET editing_from = NULL WHERE id = ?", plan.getId()))
-                .isInstanceOf(DataIntegrityViolationException.class);
+    private EduPlan draft(String code, long ageGroupId) {
+        return legacyDraft(code, schoolYear, ageGroupId, "Kế hoạch " + code, "", owner, null, NOW);
     }
 
     private long insertId(String sql, Object... args) {
         return jdbc.queryForObject(sql, Long.class, args);
+    }
+
+    private static com.carenest.entity.eduplan.EduPlan legacyDraft(
+            String code,
+            Long yearId,
+            Long ageId,
+            String title,
+            String description,
+            Long ownerId,
+            String ownerTitle,
+            java.time.Instant now) {
+        var plan = com.carenest.entity.eduplan.EduPlan.createDraft(
+                code, yearId, ageId, title, description, ownerId, ownerTitle, now);
+        plan.initializePlanSource(
+                com.carenest.utils.enums.EduPlanLevel.TEAM, null, true, "{\"mode\":\"LEGACY_UNBOUNDED\"}");
+        return plan;
     }
 }

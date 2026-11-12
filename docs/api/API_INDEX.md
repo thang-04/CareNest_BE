@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 292 endpoint.
+Tổng: 318 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -61,6 +61,9 @@ POST /assessment/reward-lists/{id}/decision · src/main/java/com/carenest/contro
 POST /assessment/reward-lists/{id}/review · src/main/java/com/carenest/controller/observation/RewardListController.java#review
 GET /assessment/reward-lists/classes/{classId} · src/main/java/com/carenest/controller/observation/RewardListController.java#detail
 PUT /assessment/reward-lists/classes/{classId} · src/main/java/com/carenest/controller/observation/RewardListController.java#save
+GET /assessment/semester-evaluations · src/main/java/com/carenest/controller/observation/SemesterAssessmentController.java#getSemesterAssessment
+PUT /assessment/semester-evaluations · src/main/java/com/carenest/controller/observation/SemesterAssessmentController.java#saveSemesterAssessment
+POST /assessment/semester-evaluations/confirm · src/main/java/com/carenest/controller/observation/SemesterAssessmentController.java#confirmSemesterAssessment
 GET /assessment/theme-evaluations · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#getEvaluation
 PUT /assessment/theme-evaluations · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#saveEvaluation
 GET /assessment/theme-evaluations/classes · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#getClasses
@@ -90,28 +93,39 @@ PATCH /campuses/{campusId}/status · src/main/java/com/carenest/controller/organ
 GET /campuses/options · src/main/java/com/carenest/controller/organization/SchoolStructureController.java#listCampuses
 GET /children · src/main/java/com/carenest/controller/child/ChildController.java#searchChildren
 GET /children/{childId} · src/main/java/com/carenest/controller/child/ChildController.java#getChildProfile
+PUT /children/{childId} · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#update
 GET /children/{childId}/account-recipient · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#candidates
 PUT /children/{childId}/account-recipient · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#select
 GET /children/{childId}/daily-health · src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getChildHistory
 GET /children/{childId}/guardian-photos/{guardianId} · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getGuardianPhoto
 GET /children/{childId}/guardians · src/main/java/com/carenest/controller/child/GuardianController.java#listGuardians
 POST /children/{childId}/guardians · src/main/java/com/carenest/controller/child/GuardianController.java#addGuardian
+POST /children/{childId}/guardians/{guardianId}/phone-change-requests · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#requestGuardianPhoneChange
 DELETE /children/{childId}/guardians/{userId} · src/main/java/com/carenest/controller/child/GuardianController.java#removeGuardian
 GET /children/{childId}/guardians/{userId}/photo · src/main/java/com/carenest/controller/account/AccountPhotoController.java#getGuardianPhoto
 POST /children/{childId}/guardians/activate · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#activate
 POST /children/{childId}/guardians/lookup · src/main/java/com/carenest/controller/child/GuardianController.java#findGuardianCandidate
 GET /children/{childId}/guardians/pending · src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#pending
 GET /children/{childId}/health · src/main/java/com/carenest/controller/health/HealthMeasurementController.java#getHealthRecord
+PUT /children/{childId}/health-declaration · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#saveDeclaration
 POST /children/{childId}/health/measurements · src/main/java/com/carenest/controller/health/HealthMeasurementController.java#createMeasurement
 PUT /children/{childId}/health/measurements/{measurementId} · src/main/java/com/carenest/controller/health/HealthMeasurementController.java#updateMeasurement
+GET /children/{childId}/health/published · src/main/java/com/carenest/controller/health/HealthMeasurementController.java#getPublishedHealth
+GET /children/{childId}/health/trend-analysis · src/main/java/com/carenest/controller/health/HealthTrendController.java#latestTrend
+POST /children/{childId}/health/trend-analysis · src/main/java/com/carenest/controller/health/HealthTrendController.java#analyzeTrend
+POST /children/{childId}/health/trend-analysis/{interpretationId}/approve · src/main/java/com/carenest/controller/health/HealthTrendController.java#approveTrend
 GET /children/{childId}/photo · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getChildPhoto
+POST /children/{childId}/placement · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
 GET /children/{childId}/profile · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getProfile
 POST /children/{childId}/readmit · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#readmit
+POST /children/{childId}/withdraw · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
 GET /children/duplicate-check · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#checkDuplicate
 POST /children/enrollments · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#enroll
 POST /children/enrollments/import · src/main/java/com/carenest/controller/child/ChildEnrollmentImportController.java#importRows
 POST /children/enrollments/import/preview · src/main/java/com/carenest/controller/child/ChildEnrollmentImportController.java#preview
 POST /children/guardian-check · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#checkGuardians
+GET /children/guardian-overview · src/main/java/com/carenest/controller/child/GuardianController.java#guardianOverview
+GET /children/parent-accounts · src/main/java/com/carenest/controller/child/ChildController.java#listParentAccounts
 GET /children/parent-accounts/by-citizen-id · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#findParentAccount
 GET /children/placement-classes · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#listPlacementClasses
 POST /classes · src/main/java/com/carenest/controller/organization/ClassController.java#createClass
@@ -133,18 +147,21 @@ GET /daily-health/overview · src/main/java/com/carenest/controller/attendance/D
 GET /education-plans/class-docs · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocs
 PUT /education-plans/class-docs/{kind}/{docKey} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#saveClassDoc
 POST /education-plans/class-docs/{kind}/{docKey}/actions · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#actOnClassDoc
+POST /education-plans/class-docs/branch/calendar-preview · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#previewClassCalendar
 POST /education-plans/class-docs/branch/file-preview · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#previewBranchFile
+GET /education-plans/class-docs/releases/{releaseId} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocRelease
 GET /education-plans/class-docs/theme/{docKey}/learning-resources · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#list
 POST /education-plans/class-docs/theme/{docKey}/learning-resources · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#upload
 DELETE /education-plans/class-docs/theme/{docKey}/learning-resources/{id} · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#detach
 PATCH /education-plans/class-docs/theme/{docKey}/learning-resources/{id}/activity · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#bind
 GET /education-plans/class-docs/theme/{docKey}/learning-resources/{id}/content · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#content
-PUT /education-plans/class-docs/week/{docKey}/adjustments · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#saveAdjustments
 GET /education-plans/config · src/main/java/com/carenest/controller/eduplan/EduConfigController.java#getEduConfig
 PUT /education-plans/config · src/main/java/com/carenest/controller/eduplan/EduConfigController.java#updateEduConfig
 GET /education-plans/curriculum/contents · src/main/java/com/carenest/controller/eduplan/EduCurriculumController.java#getContents
 GET /education-plans/curriculum/goals · src/main/java/com/carenest/controller/eduplan/EduCurriculumController.java#getGoals
 GET /education-plans/curriculum/sources · src/main/java/com/carenest/controller/eduplan/EduCurriculumController.java#getSources
+GET /education-plans/duration-policy · src/main/java/com/carenest/controller/eduplan/EduDurationPolicyController.java#get
+PUT /education-plans/duration-policy · src/main/java/com/carenest/controller/eduplan/EduDurationPolicyController.java#save
 GET /education-plans/goals · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getYearPlans
 POST /education-plans/goals · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#createYearPlan
 DELETE /education-plans/goals/{planId} · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#deleteYearPlan
@@ -155,10 +172,15 @@ POST /education-plans/goals/{planId}/editing-heartbeat · src/main/java/com/care
 POST /education-plans/goals/{planId}/finish-editing · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#finishEditing
 POST /education-plans/goals/{planId}/issue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#issueYearPlan
 POST /education-plans/goals/{planId}/return · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#returnYearPlan
+POST /education-plans/goals/{planId}/review/{reviewItemId}/resolve · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#resolveReview
 POST /education-plans/goals/{planId}/start-editing · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#startEditing
 POST /education-plans/goals/{planId}/submit · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#submitYearPlan
+POST /education-plans/goals/{planId}/unlock · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#unlockYearPlan
 POST /education-plans/goals/{planId}/versions · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#createVersion
 POST /education-plans/goals/file-preview · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#previewGoalFile
+GET /education-plans/goals/review-queue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getReviewQueue
+GET /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#getWorkflowPolicy
+PUT /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#updateWorkflowPolicy
 GET /health-checks · src/main/java/com/carenest/controller/health/HealthCheckController.java#listHealthChecks
 POST /health-checks · src/main/java/com/carenest/controller/health/HealthCheckController.java#createHealthCheck
 GET /health-checks/{campaignId} · src/main/java/com/carenest/controller/health/HealthCheckController.java#getHealthCheck
@@ -263,6 +285,9 @@ PUT /nutrition/suppliers/{supplierId} · src/main/java/com/carenest/controller/m
 PATCH /nutrition/suppliers/{supplierId}/status · src/main/java/com/carenest/controller/meals/SupplierController.java#changeSupplierStatus
 PATCH /parent-accounts/{userId}/status · src/main/java/com/carenest/controller/child/GuardianController.java#updateParentStatus
 POST /parent-accounts/{userId}/temporary-password · src/main/java/com/carenest/controller/child/GuardianController.java#resetParentPassword
+GET /parent-accounts/phone-change-requests · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#listPhoneChangeRequests
+POST /parent-accounts/phone-change-requests/{requestId}/approve · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#approve
+POST /parent-accounts/phone-change-requests/{requestId}/reject · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#reject
 GET /permission-change-logs · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionChangeLogs
 GET /permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
 GET /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
@@ -288,6 +313,7 @@ PUT /school-years/{schoolYearId}/holidays · src/main/java/com/carenest/controll
 GET /school-years/{schoolYearId}/placements · src/main/java/com/carenest/controller/child/YearTransitionController.java#getPlacements
 PUT /school-years/{schoolYearId}/placements · src/main/java/com/carenest/controller/child/YearTransitionController.java#savePlacements
 POST /school-years/{schoolYearId}/placements/auto · src/main/java/com/carenest/controller/child/YearTransitionController.java#autoPlace
+GET /school-years/{schoolYearId}/prep-classes · src/main/java/com/carenest/controller/child/YearTransitionController.java#getPrepClasses
 GET /school-years/{schoolYearId}/readiness · src/main/java/com/carenest/controller/child/YearTransitionController.java#getReadiness
 PUT /school-years/{schoolYearId}/semester · src/main/java/com/carenest/controller/organization/SchoolYearController.java#updateSemester
 GET /school-years/{schoolYearId}/semester-locks · src/main/java/com/carenest/controller/organization/SchoolYearController.java#getSemesterLocks

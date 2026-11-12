@@ -36,6 +36,28 @@ import org.springframework.transaction.annotation.Transactional;
 public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     private static final String LOG_PREFIX = "[StaffAssignmentServiceImpl]";
 
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, List<StaffAssignmentSummaryResponse>> findActiveEducationReviewerAssignments(LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findActiveEducationReviewerAssignments";
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, List<StaffAssignmentSummaryResponse>> result = staffAssignmentRepository
+                    .findActiveByRoles(
+                            List.of(StaffRole.PRINCIPAL, StaffRole.VICE_PRINCIPAL, StaffRole.AGE_GROUP_TEAM_LEADER),
+                            date)
+                    .stream()
+                    .collect(Collectors.groupingBy(
+                            StaffAssignment::getUserId,
+                            Collectors.mapping(staffAssignmentMapper::toSummaryResponse, Collectors.toList())));
+            log.info("{}|END", logPrefix);
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
     private final StaffAssignmentRepository staffAssignmentRepository;
     private final StaffAssignmentMapper staffAssignmentMapper;
     private final ClassroomRepository classroomRepository;
@@ -126,6 +148,22 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                             .toList();
             log.info("{}|END", logPrefix);
             return assignments;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findYearTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|findYearTeamLeaderAgeGroupIds|userId=" + userId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> ageGroupIds =
+                    Set.copyOf(staffAssignmentRepository.findYearTeamLeaderAgeGroupIds(userId, schoolYearId, date));
+            log.info("{}|END", logPrefix);
+            return ageGroupIds;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -238,6 +276,36 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                 ids = staffAssignmentRepository.findActiveLeaderIds(StaffRole.PRINCIPAL, null, date);
             }
             Set<Long> result = Set.copyOf(ids);
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findCampusVicePrincipalIds(Long campusId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findCampusVicePrincipalIds|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> result =
+                    Set.copyOf(staffAssignmentRepository.findActiveLeaderIds(StaffRole.VICE_PRINCIPAL, campusId, date));
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findPrincipalIds(LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findPrincipalIds";
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> result =
+                    Set.copyOf(staffAssignmentRepository.findActiveLeaderIds(StaffRole.PRINCIPAL, null, date));
             log.info("{}|count={}|END", logPrefix, result.size());
             return result;
         } catch (RuntimeException ex) {
@@ -366,6 +434,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             if (assignment.substitute() && assignment.validTo() == null) {
                 throw GlobalException.of(ApiCode.SUBSTITUTE_END_DATE_REQUIRED);
             }
+            if (!assignment.substitute() && assignment.replacedTeacherId() != null) {
+                throw GlobalException.of(ApiCode.SUBSTITUTE_TEACHER_ONLY);
+            }
             LocalDate validTo = assignment.staffRole() == StaffRole.TEACHER
                     ? checkTeacherAssignment(assignment)
                     : assignment.validTo();
@@ -392,7 +463,8 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                     assignment.validFrom(),
                     validTo,
                     assignment.assignedBy(),
-                    assignment.substitute()));
+                    assignment.substitute(),
+                    assignment.replacedTeacherId()));
             log.info("{}|assignmentId={}|END", logPrefix, saved.getId());
             return staffAssignmentMapper.toResponse(saved);
         } catch (RuntimeException ex) {
@@ -460,13 +532,36 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         LocalDate today = LocalDate.now(clock);
         Set<Long> teacher = Set.of(assignment.userId());
         teacherClassRules.lockForAssignment(classroom, teacher);
-        // Dạy thay / phân công lẻ: GV trong điểm trường của lớp
-        teacherClassRules.checkTeachers(classroom, year, teacher, today, false);
+        // Phân công lẻ dạy chính: GV trong điểm trường của lớp; dạy thay được lấy GV cơ sở khác (Cần chốt 11/11/2026)
+        teacherClassRules.checkTeachers(classroom, year, teacher, today, assignment.substitute());
         if (!assignment.substitute()) {
             teacherClassRules.checkOneMainClass(classroom, year, teacher, today);
+        } else {
+            checkReplacedTeacher(assignment);
         }
         LocalDate validTo = assignment.validTo();
         return validTo == null || validTo.isAfter(year.getEndDate()) ? year.getEndDate() : validTo;
+    }
+
+    // SCH-04, AUTH-16 (Cần chốt 10/11/2026): dạy thay phải chọn dạy thay cho 1 trong 2 GV đứng lớp; người dạy thay
+    // không phải GV đứng lớp đó; mỗi GV đứng lớp chỉ 1 người dạy thay trong cùng khoảng ngày
+    private void checkReplacedTeacher(NewStaffAssignment assignment) {
+        Long replaced = assignment.replacedTeacherId();
+        if (replaced == null) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_REPLACED_REQUIRED);
+        }
+        if (!staffAssignmentRepository.existsMainTeacherOn(
+                assignment.classroomId(), replaced, assignment.validFrom())) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_REPLACED_NOT_IN_CLASS);
+        }
+        if (staffAssignmentRepository.existsMainTeacherOn(
+                assignment.classroomId(), assignment.userId(), assignment.validFrom())) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_IS_CLASS_TEACHER);
+        }
+        if (staffAssignmentRepository.existsSubstituteFor(
+                assignment.classroomId(), replaced, assignment.validFrom(), assignment.validTo())) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_ALREADY_COVERED);
+        }
     }
 
     // Hình dạng phạm vi khớp CHECK ck_staff_assignments_scope (V2); campus/lớp phải tồn tại

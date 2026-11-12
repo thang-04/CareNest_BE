@@ -48,6 +48,14 @@ public class MealCountLine {
     @Column(nullable = false)
     private int substitute;
 
+    // NUT-02: suất thay thế do PHT/HT điều chỉnh tay ⇒ điểm danh đổi không tính lại theo hồ sơ dị ứng
+    @Column(name = "substitute_adjusted", nullable = false)
+    private boolean substituteAdjusted;
+
+    // Điểm danh đổi sau khi suất thay thế đã điều chỉnh tay ⇒ người duyệt kiểm tra lại số thay thế
+    @Column(name = "attendance_changed", nullable = false)
+    private boolean attendanceChanged;
+
     static MealCountLine of(
             MealCount count, Long classroomId, boolean pending, int present, int absent, int missing, int normal) {
         MealCountLine line = new MealCountLine();
@@ -65,6 +73,8 @@ public class MealCountLine {
     MealCountLine copyAsPending() {
         MealCountLine copy = of(mealCount, classroomId, true, present, absent, missing, normal);
         copy.substitute = substitute;
+        copy.substituteAdjusted = substituteAdjusted;
+        copy.attendanceChanged = attendanceChanged;
         return copy;
     }
 
@@ -87,5 +97,23 @@ public class MealCountLine {
     void setServings(int normal, int substitute) {
         this.normal = normal;
         this.substitute = substitute;
+    }
+
+    void markSubstituteAdjusted() {
+        this.substituteAdjusted = true;
+        this.attendanceChanged = false;
+    }
+
+    void markAttendanceChanged() {
+        this.attendanceChanged = true;
+    }
+
+    void copyFlagsFrom(MealCountLine other) {
+        this.substituteAdjusted = other.substituteAdjusted;
+        this.attendanceChanged = other.attendanceChanged;
+    }
+
+    void clearAttendanceChanged() {
+        this.attendanceChanged = false;
     }
 }

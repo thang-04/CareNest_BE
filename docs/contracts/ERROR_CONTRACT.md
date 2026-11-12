@@ -35,6 +35,10 @@ Bổ sung 31/10/2026 (G94-180, phiếu khám Phụ lục II và phiếu theo dõ
 
 Bổ sung 31/10/2026 (G94-180, đón trẻ, ảnh phụ huynh, thông báo): ảnh chân dung sai loại/quá 2 MB 1131, chưa có ảnh hoặc ngoài phạm vi 1132; thông báo không tìm thấy (hoặc của người khác) 1201; đón trẻ 4101–4107 — trẻ không tìm thấy hoặc ngoài phạm vi 4101, không phải GV lớp 4102, lớp không thuộc năm học đang hoạt động 4103, ngày ngoài khoảng 4104, trẻ chưa điểm danh có mặt 4105, trẻ vắng 4106, đã trả hôm nay 4107. Lỗi theo ô của form trả trẻ, đăng ký thiết bị dùng 9001 `INVALID_REQUEST_DATA` (`verification`, `guardianPosition`, `handoverTime`, `note`, `token`, `platform`). Cần thêm vào bản Word của Cần.
 
+Bổ sung 10/11/2026 (G94-180, yêu cầu đổi SĐT phụ huynh — AUTH-21): 1136–1140 (bảng dưới). Trước khi gộp `dev` 10/11/2026 nhánh dùng 1133–1137; `dev` đã dùng 1133–1135 cho đổi vai trò, sửa hồ sơ nhân sự (AUTH-25) nên mã của nhánh dời sang 1136–1140. Gộp `dev` 11/11/2026: `dev` dùng 1140–1142 cho chữ ký (SIG-01) nên `USERNAME_CHANGE_NOT_ALLOWED` dời 1140 ⇒ 1143.
+
+Bổ sung 10/11/2026 (G94-180, hồ sơ sức khỏe đầy đủ): bản giải thích xu hướng sức khỏe không tìm thấy 5040 (404). Dùng lại 8001/8002 cho AI giải thích xu hướng, 5025 cho nhân sự ngoài phạm vi, 9001 + ô cho sửa khai báo sức khỏe (bảng dưới). Cần thêm vào bản Word của Cần.
+
 Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
 
 | Dải | Phân hệ |
@@ -89,10 +93,24 @@ Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và 
 | Tiếp nhận trùng trẻ đang học / chờ xếp lớp | `CHILD_DUPLICATE` (3008, 409, không có ô) | CHD-04 |
 | CCCD / SĐT phụ huynh đã thuộc người khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.idNumber` / `phone` | AUTH-18 |
 | Mở lại hồ sơ trẻ chưa nghỉ học | `CHILD_NOT_LEFT` (3010, 409) | CHD-03 |
+| Sửa hồ sơ / cho nghỉ học / xếp lớp trẻ đã nghỉ | `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/CHD-03, CHD-10 |
+| Xếp / chuyển lớp: thiếu lớp, cùng lớp, chưa khai báo sức khỏe, lớp ngừng hoạt động / khác năm đang hoạt động / ngoài điểm trường được giao / đủ sĩ số (`classId`); đang có lớp mà thiếu lý do, lý do > 300 (`reason`) | `INVALID_REQUEST_DATA` (9001) + ô | CHD-10, G94-180/CHD-02 |
+| Danh sách trẻ: lọc lớp / điểm trường ngoài phạm vi; phụ huynh gọi | `CLASS_ACCESS_DENIED` (2201, 403) / `CAMPUS_ACCESS_DENIED` (2102, 403); `FORBIDDEN` (1101, 403) | AUTH-08, AUTH-04 |
+| Cho nghỉ học: ngày nghỉ, lý do sai (`leftAt`, `reason`); Sửa hồ sơ: form sai, ngày sinh sau ngày tiếp nhận, bỏ phụ huynh đang liên kết tài khoản (`guardians`), đổi cùng lúc CCCD và SĐT, thiếu quyền quản lý tài khoản khi sửa họ tên/email/CCCD phụ huynh có tài khoản | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-03, AUTH-21 |
+| Sửa hồ sơ: SĐT mới của phụ huynh có tài khoản đã là tên đăng nhập tài khoản khác | `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) + ô `guardians.{i}.phone` | AUTH-18, G94-180/AUTH-21 |
+| Yêu cầu đổi SĐT không tồn tại / đã xử lý / ngoài điểm trường | `PHONE_CHANGE_REQUEST_NOT_FOUND` (1136, 404) / `PHONE_CHANGE_REQUEST_NOT_PENDING` (1137, 409) / `CHILD_GUARDIAN_MANAGE_DENIED` (3006, 403). ~~`PHONE_CHANGE_SELF_DECISION` (1138, 403)~~ bỏ 2026-11-11: người gửi có quyền duyệt thì tự duyệt được; không dùng lại số 1138 | G94-180/AUTH-21 |
+| Duyệt đổi SĐT: số mới đã thuộc người khác, tài khoản/hồ sơ đã đổi số, phụ huynh hết liên kết hoặc đã bị bỏ khỏi hồ sơ, phụ huynh vừa có tài khoản, trẻ đã nghỉ (desc nêu lý do) | `PHONE_CHANGE_REQUEST_STALE` (1139, 409) | G94-180/AUTH-21 |
+| Gửi yêu cầu đổi SĐT (`POST /children/{id}/guardians/{guardianId}/phone-change-requests`): thiếu/sai số, trùng số đang dùng, thiếu lý do, phụ huynh kiêm nhân sự (ô `newPhone`, `reason`) / số đã thuộc phụ huynh hoặc tài khoản khác (ô `newPhone`) / phụ huynh không thuộc trẻ / trẻ đã nghỉ. Sửa hồ sơ (`PUT /children/{id}`) đổi SĐT phụ huynh đã lưu ⇒ 400 ô `guardians[i].phone` | `INVALID_REQUEST_DATA` (9001, 400) / `GUARDIAN_IDENTITY_CONFLICT` (3009, 409) / `CHILD_GUARDIAN_NOT_FOUND` (3012, 404) / `CHILD_ALREADY_LEFT` (3011, 409) | G94-180/AUTH-21 (sửa 2026-11-11) |
+| Duyệt đổi SĐT khi realm Keycloak chưa bật sửa username (`docs/system/KEYCLOAK.md` mục 7) | `USERNAME_CHANGE_NOT_ALLOWED` (1143, 503) | G94-180/AUTH-21 |
 | AI không khả dụng / quá thời gian | `AI_SERVICE_UNAVAILABLE` (503) / `AI_TIMEOUT` (504) | AI-03 |
+| Sửa khai báo sức khỏe: form sai (ô theo khai báo, không tiền tố `declaration.`: `allergies`, `medicalHistory.tbContactDate`…), thiếu lý do khi đã có khai báo (`reason`, ≤ 300) | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-06 |
+| Giải thích xu hướng sức khỏe: AI chưa cấu hình hoặc viết ngôn ngữ chẩn đoán (bỏ, không lưu) / quá thời gian | `AI_SERVICE_UNAVAILABLE` (8001, 503) / `AI_TIMEOUT` (8002, 504) | HLT-04, AI-03 |
+| Duyệt bản giải thích xu hướng không tồn tại hoặc của trẻ khác / nhân sự ngoài phạm vi trẻ | `HEALTH_INTERPRETATION_NOT_FOUND` (5040, 404) / `HEALTH_RECORD_ACCESS_DENIED` (5025, 403) | HLT-05 |
+| Phụ huynh xem kết quả sức khỏe của trẻ không liên kết | `CHILD_ACCESS_DENIED` (403) | PAR-03, AUTH-07 |
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
 | Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |
 | Ghi tài liệu lớp trên phiên bản đã thay thế / gửi bản chép còn ô đỏ | `YEAR_PLAN_SUPERSEDED` (7122, 409) / `CLASS_DOC_VERSION_FIX_REQUIRED` (7121, 409) | EDU-26 |
-| Kế hoạch điều chỉnh sai ngày / quá dài | `CLASS_DOC_ADJUSTMENT_INVALID` (7123, 400) | EDU-27 |
+| Gửi hồ sơ chủ đề còn mục giáo án ngày trống (`data.details = [{date, section}]`) | `DAY_PLAN_SECTION_EMPTY` (7390, 400) | spec 005 FR-007a |
+| Gửi gói học kỳ còn thiếu phần (`data.details` = mục thiếu) | `SEMESTER_PACKAGE_INCOMPLETE` (7387, 400) | spec 004 FR-003 |
 
 Không trả stack trace, tên class, SQL. Lỗi từ Spring Security ghi cùng format (guide 8.5, `docs/contracts/AUTH_CONTRACT.md`): 401 `UNAUTHENTICATED` (1002, kèm `WWW-Authenticate: Bearer`), 403 `FORBIDDEN` (1101), 503 `AUTH_SERVICE_UNAVAILABLE` (1013, không lấy được key kiểm token từ Keycloak).

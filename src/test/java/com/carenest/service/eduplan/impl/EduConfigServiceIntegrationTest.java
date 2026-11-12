@@ -5,11 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.carenest.dto.eduplan.EduConfigRequest;
 import com.carenest.dto.eduplan.EduConfigResponse;
+import com.carenest.dto.eduplan.EduWorkflowPolicyRequest;
+import com.carenest.dto.eduplan.EduWorkflowPolicyResponse;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.exception.GlobalException;
+import com.carenest.repository.eduplan.EduPlanRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduConfigService;
+import com.carenest.service.eduplan.EduWorkflowService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.EduPlanStatus;
+import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -40,7 +48,16 @@ class EduConfigServiceIntegrationTest {
     private EduConfigService service;
 
     @Autowired
+    private EduWorkflowService workflowService;
+
+    @Autowired
+    private EduPlanRepository yearPlanRepository;
+
+    @Autowired
     private JdbcTemplate jdbc;
+
+    @Autowired
+    private jakarta.persistence.EntityManager entityManager;
 
     private CurrentUser vicePrincipal;
     private CurrentUser principal;
@@ -118,16 +135,18 @@ class EduConfigServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-11: Phó HT đổi tên lĩnh vực, thêm/bỏ lĩnh vực, đổi người ký và dòng tuần")
+    @DisplayName("EDU-11: Phó HT đổi tên lĩnh vực, thêm/bỏ lĩnh vực và dòng tuần khi gửi echo người ký")
     void vicePrincipalUpdatesConfig() {
         String physical = service.getEduConfig().domains().getFirst().name();
+        EduConfigResponse.Signers echo = service.getEduConfig().signers();
+        EduConfigRequest.Signers echoReq = new EduConfigRequest.Signers(echo.year(), echo.branch(), echo.week());
 
         EduConfigResponse saved = service.updateEduConfig(
                 vicePrincipal,
-                request(
+                new EduConfigRequest(
                         Map.of(physical, "Thể chất (đổi tên)", "Lĩnh vực mới", "Tên hiển thị mới"),
                         List.of("Lĩnh vực mới"),
-                        List.of("TEAM_LEADER", "VICE_PRINCIPAL", "PRINCIPAL"),
+                        echoReq,
                         List.of(row("hoc", "Hoạt động học", false, false), row("don", "Đón trẻ", false, true))));
 
         assertThat(saved.domains()).hasSize(6);
@@ -136,7 +155,7 @@ class EduConfigServiceIntegrationTest {
                 .satisfies(d -> assertThat(d.name()).isEqualTo("Lĩnh vực mới"))
                 .satisfies(d -> assertThat(d.displayLabel()).isEqualTo("Tên hiển thị mới"))
                 .satisfies(d -> assertThat(d.standard()).isFalse());
-        assertThat(saved.signers().week()).containsExactly("TEAM_LEADER", "VICE_PRINCIPAL", "PRINCIPAL");
+        assertThat(saved.signers().branch()).containsExactly("TEAM_LEADER", "VICE_PRINCIPAL");
         // Mặc định cả tuần thì dòng đó cũng được gộp
         assertThat(saved.weekRows()).extracting(EduConfigResponse.WeekRow::key).containsExactly("hoc", "don");
         assertThat(saved.weekRows().getLast().canMerge()).isTrue();
@@ -144,42 +163,271 @@ class EduConfigServiceIntegrationTest {
         // Bỏ lĩnh vực thêm: ẩn khỏi cấu hình; tên trống thì dùng lại tên gốc
         EduConfigResponse removed = service.updateEduConfig(
                 principal,
-                request(
-                        Map.of(physical, ""),
-                        List.of(),
-                        List.of("TEAM_LEADER", "VICE_PRINCIPAL"),
-                        List.of(row("hoc", "Hoạt động học", false, false))));
+                new EduConfigRequest(
+                        Map.of(physical, ""), List.of(), echoReq, List.of(row("hoc", "Hoạt động học", false, false))));
         assertThat(removed.domains()).hasSize(5);
         assertThat(removed.domains().getFirst().displayLabel()).isNull();
         assertThat(service.getEduConfig().weekRows()).hasSize(1);
     }
 
     @Test
-    @DisplayName("EDU-11: giáo viên không sửa được; kế hoạch năm phải có PHT ký; không bỏ dòng Hoạt động học")
+    @DisplayName("EDU-11: giáo viên không sửa được; đổi người ký bị chặn; không bỏ dòng Hoạt động học")
     void rejectsInvalidConfig() {
         List<EduConfigRequest.WeekRow> rows = List.of(row("hoc", "Hoạt động học", false, false));
-        List<String> chain = List.of("TEAM_LEADER", "VICE_PRINCIPAL");
+        EduConfigResponse.Signers echo = service.getEduConfig().signers();
+        EduConfigRequest.Signers echoReq = new EduConfigRequest.Signers(echo.year(), echo.branch(), echo.week());
 
+        // Giáo viên không có quyền
         assertApiError(
-                () -> service.updateEduConfig(teacher, request(Map.of(), List.of(), chain, rows)), ApiCode.FORBIDDEN);
+                () -> service.updateEduConfig(teacher, new EduConfigRequest(Map.of(), List.of(), echoReq, rows)),
+                ApiCode.FORBIDDEN);
+        // Đổi chuỗi người ký qua PUT config cũ bị chặn cho mọi caller (kể cả PHT)
         assertApiError(
                 () -> service.updateEduConfig(
                         vicePrincipal,
                         new EduConfigRequest(
                                 Map.of(),
                                 List.of(),
-                                new EduConfigRequest.Signers(List.of("TEAM_LEADER"), chain, chain),
+                                new EduConfigRequest.Signers(List.of("TEAM_LEADER"), echo.branch(), echo.week()),
                                 rows)),
-                ApiCode.BAD_REQUEST);
+                ApiCode.FORBIDDEN);
+        // Không bỏ được dòng học
         assertApiError(
                 () -> service.updateEduConfig(
-                        vicePrincipal, request(Map.of(), List.of(), chain, List.of(row("don", "Đón trẻ", true, true)))),
+                        vicePrincipal,
+                        new EduConfigRequest(Map.of(), List.of(), echoReq, List.of(row("don", "Đón trẻ", true, true)))),
                 ApiCode.BAD_REQUEST);
         String physical = service.getEduConfig().domains().getFirst().name();
         assertApiError(
                 () -> service.updateEduConfig(
-                        vicePrincipal, request(Map.of(), List.of(physical.toUpperCase()), chain, rows)),
+                        vicePrincipal, new EduConfigRequest(Map.of(), List.of(physical.toUpperCase()), echoReq, rows)),
                 ApiCode.DOMAIN_NAME_EXISTS);
+    }
+
+    @Test
+    @DisplayName("T016: HT lưu policy mới tăng revision, GET config trả workflow, canConfigure và yearCreationScopes")
+    void savePolicyUpdatesWorkflowPolicyAndRevision() {
+        EduWorkflowPolicyRequest req = new EduWorkflowPolicyRequest(
+                1L,
+                Map.of(
+                        "year",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEAM_LEADER"), List.of("VICE_PRINCIPAL", "PRINCIPAL")),
+                        "branch",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                        "theme",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
+
+        EduWorkflowPolicyResponse response = workflowService.savePolicy(principal, req);
+        assertThat(response.revision()).isEqualTo(2);
+        assertThat(response.canConfigure()).isTrue();
+
+        EduConfigResponse configPrincipal = service.getEduConfig(principal);
+        assertThat(configPrincipal.workflow()).isNotNull();
+        assertThat(configPrincipal.workflow().revision()).isEqualTo(2);
+        assertThat(configPrincipal.canConfigure()).isTrue();
+
+        EduConfigResponse configVp = service.getEduConfig(vicePrincipal);
+        assertThat(configVp.canConfigure()).isFalse();
+    }
+
+    @Test
+    @DisplayName("T016: Lưu policy tự động reconcile kế hoạch năm đang REVIEW: giữ approvals cũ, cập nhật waitingRole")
+    void savePolicyReconcilesPendingYearPlan() {
+        Instant now = Instant.parse("2026-11-06T00:00:00Z");
+        long ownerId = account("owner-p", "Owner P", "TEACHER", "ACTIVE");
+        long approver1 = account("app-1", "Approver 1", "TEACHER", "ACTIVE");
+        long yearId = jdbc.queryForObject(
+                "INSERT INTO school_years(name,start_date,end_date) VALUES ('2026-2027-C','2026-08-01','2027-07-31') RETURNING id",
+                Long.class);
+        long ageId = jdbc.queryForObject("SELECT id FROM age_groups WHERE code='ag-3'", Long.class);
+
+        EduPlan plan = legacyDraft("P-REC", yearId, ageId, "Kế hoạch reconcile", "Mô tả", ownerId, "TL", now);
+        plan.submit(ownerId, now);
+        String approvalsJson = "[{\"userId\":" + approver1
+                + ",\"name\":\"Approver 1\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\"" + now
+                + "\",\"note\":\"OK\"}]";
+        plan.updateWorkflowState(EduPlanStatus.REVIEW, 1, approvalsJson, 1L, null, null, null, null, null, now);
+        yearPlanRepository.saveAndFlush(plan);
+
+        // Đổi policy: creators TEACHER, reviewers year thành [TEAM_LEADER, VICE_PRINCIPAL, PRINCIPAL]
+        EduWorkflowPolicyRequest req = new EduWorkflowPolicyRequest(
+                1L,
+                Map.of(
+                        "year",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL", "PRINCIPAL")),
+                        "branch",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                        "theme",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
+
+        workflowService.savePolicy(principal, req);
+
+        EduPlan reloaded = yearPlanRepository.findById(plan.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(EduPlanStatus.REVIEW);
+        assertThat(reloaded.getApprovals()).contains("TEAM_LEADER");
+        // Phân công PHT/HT hiệu lực từ hôm qua (setUp) nên đánh giá theo ngày hiện tại, không theo mốc cố định
+        EduWorkflowPolicy.Evaluation eval = workflowService.evaluateYearPlan(reloaded, LocalDate.now());
+        assertThat(eval.waitingRole()).isEqualTo(EduWorkflowPolicy.Role.VICE_PRINCIPAL);
+    }
+
+    @Test
+    @DisplayName("T016: Hoàn tất do đổi policy chuyển status APPROVED với completionMode=POLICY_CHANGE")
+    void savePolicyProspectiveCompletionByPolicyChange() {
+        Instant now = Instant.parse("2026-11-06T00:00:00Z");
+        long ownerId = account("owner-pc", "Owner PC", "TEACHER", "ACTIVE");
+        long leaderId = account("leader-pc", "Leader PC", "TEACHER", "ACTIVE");
+        long yearId = jdbc.queryForObject(
+                "INSERT INTO school_years(name,start_date,end_date) VALUES ('2026-2027-PC','2026-08-01','2027-07-31') RETURNING id",
+                Long.class);
+        long ageId = jdbc.queryForObject("SELECT id FROM age_groups WHERE code='ag-3'", Long.class);
+
+        // Bước 1: đổi policy thành [TEAM_LEADER, VICE_PRINCIPAL] (revision 2)
+        EduWorkflowPolicyRequest step1Req = new EduWorkflowPolicyRequest(
+                1L,
+                Map.of(
+                        "year",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                        "branch",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                        "theme",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
+        workflowService.savePolicy(principal, step1Req);
+
+        EduPlan plan = legacyDraft("P-AUTO", yearId, ageId, "Kế hoạch auto", "Mô tả", ownerId, "TL", now);
+        plan.submit(ownerId, now);
+        String approvalsJson =
+                "[{\"userId\":" + leaderId + ",\"name\":\"Leader PC\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\""
+                        + now + "\",\"note\":\"Duyệt\"}]";
+        plan.updateWorkflowState(EduPlanStatus.REVIEW, 1, approvalsJson, 2L, null, null, null, null, null, now);
+        yearPlanRepository.saveAndFlush(plan);
+        // Thêm mục tiêu để thỏa mãn điều kiện sẵn sàng ban hành (PLAN_GOAL_REQUIRED)
+        jdbc.update(
+                "INSERT INTO edu_plan_goals (id, team_plan_id, domain_id, sort_order, text, goal_no) VALUES (nextval('edu_plan_rows_seq'), ?, 1, 1, 'Mục tiêu kiểm thử', 1)",
+                plan.getId());
+
+        // Bước 2: đổi policy year thành chỉ cần TEAM_LEADER ký (revision 2 -> 3)
+        // -> bước cuối đã duyệt -> auto APPROVED
+        EduWorkflowPolicyRequest step2Req = new EduWorkflowPolicyRequest(
+                2L,
+                Map.of(
+                        "year", new EduWorkflowPolicyRequest.PolicyEntry(List.of("TEACHER"), List.of("TEAM_LEADER")),
+                        "branch",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                        "theme",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
+
+        workflowService.savePolicy(principal, step2Req);
+
+        EduPlan reloaded = yearPlanRepository.findById(plan.getId()).orElseThrow();
+        assertThat(reloaded.getStatus()).isEqualTo(EduPlanStatus.APPROVED);
+        assertThat(reloaded.getCompletionMode()).isEqualTo("POLICY_CHANGE");
+    }
+
+    @Test
+    @DisplayName("T016: Rollback toàn bộ policy change khi prospective publication validation thất bại")
+    void savePolicyRollsBackWhenPublicationPrerequisitesFail() {
+        Instant now = Instant.parse("2026-11-06T00:00:00Z");
+        long ownerId = account("owner-rb", "Owner RB", "TEACHER", "ACTIVE");
+        long leaderId = account("leader-rb", "Leader RB", "TEACHER", "ACTIVE");
+        long yearId = jdbc.queryForObject(
+                "INSERT INTO school_years(name,start_date,end_date) VALUES ('2026-2027-BAD','2026-08-01','2027-07-31') RETURNING id",
+                Long.class);
+        long ageId = jdbc.queryForObject("SELECT id FROM age_groups WHERE code='ag-3'", Long.class);
+
+        // Bước 1: đổi policy thành [TEAM_LEADER, VICE_PRINCIPAL] (revision 2)
+        EduWorkflowPolicyRequest step1Req = new EduWorkflowPolicyRequest(
+                1L,
+                Map.of(
+                        "year",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                        "branch",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                        "theme",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
+        workflowService.savePolicy(principal, step1Req);
+
+        EduPlan plan = legacyDraft("P-BAD", yearId, ageId, "Kế hoạch bad", "Mô tả", ownerId, "TL", now);
+        plan.submit(ownerId, now);
+        String approvalsJson =
+                "[{\"userId\":" + leaderId + ",\"name\":\"Leader RB\",\"roleKey\":\"TEAM_LEADER\",\"round\":1,\"at\":\""
+                        + now + "\",\"note\":\"Duyệt\"}]";
+        plan.updateWorkflowState(EduPlanStatus.REVIEW, 1, approvalsJson, 2L, null, null, null, null, null, now);
+        plan.updateInfo("", "Mô tả", now); // Tiêu đề rỗng vi phạm validation
+        yearPlanRepository.saveAndFlush(plan);
+
+        // Bước 2: đổi policy để auto-publish -> validation lỗi -> rollback
+        EduWorkflowPolicyRequest step2Req = new EduWorkflowPolicyRequest(
+                2L,
+                Map.of(
+                        "year", new EduWorkflowPolicyRequest.PolicyEntry(List.of("TEACHER"), List.of("TEAM_LEADER")),
+                        "branch",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                        "theme",
+                                new EduWorkflowPolicyRequest.PolicyEntry(
+                                        List.of("TEACHER"), List.of("TEAM_LEADER", "VICE_PRINCIPAL"))));
+
+        assertThatThrownBy(() -> workflowService.savePolicy(principal, step2Req))
+                .isInstanceOf(GlobalException.class);
+
+        // Transaction bị đánh dấu rollback do validation thất bại trong cùng transaction
+        assertThat(org.springframework.test.context.transaction.TestTransaction.isFlaggedForRollback())
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("T016: PUT /education-plans/config cũ từ chối thay đổi signers cho mọi caller (kể cả HT)")
+    void legacyConfigEndpointRejectsSignersModification() {
+        List<EduConfigRequest.WeekRow> rows = List.of(row("hoc", "Hoạt động học", false, false));
+        // Gửi signers khác với server projection (ví dụ thêm PRINCIPAL)
+        EduConfigRequest req = new EduConfigRequest(
+                Map.of(),
+                List.of(),
+                new EduConfigRequest.Signers(
+                        List.of("VICE_PRINCIPAL", "PRINCIPAL"),
+                        List.of("TEAM_LEADER", "VICE_PRINCIPAL"),
+                        List.of("TEAM_LEADER", "VICE_PRINCIPAL")),
+                rows);
+
+        // Kể cả HT cũng không được đổi qua config cũ
+        assertApiError(() -> service.updateEduConfig(principal, req), ApiCode.FORBIDDEN);
+        assertApiError(() -> service.updateEduConfig(vicePrincipal, req), ApiCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName(
+            "T016: PUT /education-plans/config cũ chấp nhận signers echo đúng server projection và cập nhật field khác")
+    void legacyConfigEndpointAcceptsSignersEcho() {
+        String physical = service.getEduConfig().domains().getFirst().name();
+        EduConfigResponse current = service.getEduConfig();
+        EduConfigRequest.Signers echoSigners = new EduConfigRequest.Signers(
+                current.signers().year(),
+                current.signers().branch(),
+                current.signers().week());
+
+        EduConfigResponse updated = service.updateEduConfig(
+                vicePrincipal,
+                new EduConfigRequest(
+                        Map.of(physical, "Thể chất mới"),
+                        List.of(),
+                        echoSigners,
+                        List.of(row("hoc", "Hoạt động học", false, false), row("don", "Đón trẻ", false, true))));
+
+        assertThat(updated.domains().getFirst().displayLabel()).isEqualTo("Thể chất mới");
     }
 
     private static EduConfigRequest request(
@@ -218,5 +466,21 @@ class EduConfigServiceIntegrationTest {
                 username,
                 "Demo " + username);
         return new CurrentUser(id, "kc-" + username, username, "Demo " + username, null, Set.of(role));
+    }
+
+    private static com.carenest.entity.eduplan.EduPlan legacyDraft(
+            String code,
+            Long yearId,
+            Long ageId,
+            String title,
+            String description,
+            Long ownerId,
+            String ownerTitle,
+            java.time.Instant now) {
+        var plan = com.carenest.entity.eduplan.EduPlan.createDraft(
+                code, yearId, ageId, title, description, ownerId, ownerTitle, now);
+        plan.initializePlanSource(
+                com.carenest.utils.enums.EduPlanLevel.TEAM, null, true, "{\"mode\":\"LEGACY_UNBOUNDED\"}");
+        return plan;
     }
 }

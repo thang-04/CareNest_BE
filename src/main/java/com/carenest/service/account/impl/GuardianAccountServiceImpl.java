@@ -3,10 +3,14 @@ package com.carenest.service.account.impl;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
+import com.carenest.dto.child.ChildGuardianOverviewResponse;
+import com.carenest.dto.child.ChildListFilter;
+import com.carenest.dto.child.ChildListItemResponse;
 import com.carenest.dto.child.GuardianCandidateResponse;
 import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.child.GuardianResponse;
 import com.carenest.dto.child.ParentPasswordResponse;
+import com.carenest.dto.common.PageResponse;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.NewIdentityUser;
@@ -15,6 +19,8 @@ import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.account.GuardianAccountService;
+import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildListService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.utils.ApiCode;
@@ -22,6 +28,7 @@ import com.carenest.utils.PersonNames;
 import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.UserStatus;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -31,6 +38,7 @@ import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 /**
@@ -47,6 +55,8 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
     private final UserAccountRepository userAccountRepository;
     private final GuardianChildLinkService guardianChildLinkService;
     private final ChildService childService;
+    private final ChildListService childListService;
+    private final ChildIntakeService childIntakeService;
     private final StaffAccessPolicy staffAccessPolicy;
     private final AccountLifecycleOperations accountLifecycle;
     private final TemporaryPasswordGenerator passwordGenerator;
@@ -70,17 +80,7 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             List<GuardianResponse> guardians = links.stream()
                     .filter(link -> accounts.containsKey(link.userId()))
                     .filter(link -> link.userId().equals(selectedAccountId))
-                    .map(link -> {
-                        UserAccount account = accounts.get(link.userId());
-                        return new GuardianResponse(
-                                account.getId(),
-                                account.getUsername(),
-                                account.getFullName(),
-                                account.getEmail(),
-                                link.relationship(),
-                                account.getStatus(),
-                                link.linkedAt());
-                    })
+                    .map(link -> guardianResponse(accounts.get(link.userId()), link))
                     .toList();
             log.info("{}|END", logPrefix);
             return guardians;
@@ -88,6 +88,67 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<ChildGuardianOverviewResponse> guardianOverview(CurrentUser actor, ChildListFilter filter) {
+        String logPrefix = LOG_PREFIX + "|guardianOverview|actorUserId=" + actor.userId() + "|campusId="
+                + filter.campusId() + "|page=" + filter.page() + "|size=" + filter.size();
+        log.info("{}|START", logPrefix);
+        try {
+            PageResponse<ChildListItemResponse> page = childListService.searchChildren(actor, filter);
+            // Cùng điều kiện với /children/{id}/guardians: trẻ người xem không quản lý được thì không lộ tài khoản
+            Map<Long, GuardianResponse> accounts = recipientAccounts(page.items().stream()
+                    .filter(ChildListItemResponse::canManage)
+                    .map(ChildListItemResponse::id)
+                    .toList());
+            List<ChildGuardianOverviewResponse> items = page.items().stream()
+                    .map(child -> new ChildGuardianOverviewResponse(child, accounts.get(child.id())))
+                    .toList();
+            log.info("{}|count={}|accounts={}|END", logPrefix, items.size(), accounts.size());
+            return new PageResponse<>(items, page.page(), page.size(), page.totalElements(), page.totalPages());
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    /** childId → tài khoản của phụ huynh nhận tài khoản đã liên kết với trẻ; ba truy vấn cho cả danh sách. */
+    private Map<Long, GuardianResponse> recipientAccounts(List<Long> childIds) {
+        Map<Long, Long> recipients = childIntakeService.findRecipientAccountIds(childIds);
+        if (recipients.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, GuardianLinkResponse> links = new HashMap<>();
+        guardianChildLinkService.findLinksOfChildren(recipients.keySet()).stream()
+                .filter(link -> link.userId().equals(recipients.get(link.childId())))
+                .forEach(link -> links.putIfAbsent(link.childId(), link));
+        Map<Long, UserAccount> accounts = userAccountRepository
+                .findAllById(links.values().stream()
+                        .map(GuardianLinkResponse::userId)
+                        .collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(UserAccount::getId, Function.identity()));
+        Map<Long, GuardianResponse> result = new HashMap<>();
+        links.forEach((childId, link) -> {
+            UserAccount account = accounts.get(link.userId());
+            if (account != null) {
+                result.put(childId, guardianResponse(account, link));
+            }
+        });
+        return result;
+    }
+
+    private static GuardianResponse guardianResponse(UserAccount account, GuardianLinkResponse link) {
+        return new GuardianResponse(
+                account.getId(),
+                account.getUsername(),
+                account.getFullName(),
+                account.getEmail(),
+                link.relationship(),
+                account.getStatus(),
+                link.linkedAt());
     }
 
     @Override

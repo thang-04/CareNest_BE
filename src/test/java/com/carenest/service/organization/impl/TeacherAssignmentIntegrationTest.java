@@ -16,6 +16,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.StaffRole;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
@@ -108,8 +109,14 @@ class TeacherAssignmentIntegrationTest {
         teacherOf(teacher2, classA1);
         teacherOf(teacher3, classA2);
         teacherOf(teacherB, classB1);
-        principal =
-                new CurrentUser(principalId, "kc-principal", "principal", "P", null, Set.of(CareNestRole.PRINCIPAL));
+        principal = new CurrentUser(
+                principalId,
+                "kc-principal",
+                "principal",
+                "P",
+                null,
+                Set.of(CareNestRole.PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
     }
 
     @Test
@@ -192,7 +199,26 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    void remainingTeacherBecomesHomeroomWhenNoneChosen() {
+    @DisplayName("SCH-04: năm đang học mỗi lớp đúng 2 GV đứng lớp và có chủ nhiệm (Cần chốt 10/11/2026)")
+    void activeYearNeedsExactlyTwoTeachersAndHomeroom() {
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1), teacher1)),
+                ApiCode.CLASS_NEEDS_TWO_TEACHERS);
+        expectError(
+                () -> service.assignClassTeachers(
+                        principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), null)),
+                ApiCode.HOMEROOM_REQUIRED);
+        assertThat(service.assignClassTeachers(
+                                principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher2))
+                        .homeroomTeacherId())
+                .isEqualTo(teacher2);
+    }
+
+    @Test
+    void remainingTeacherBecomesHomeroomWhenNoneChosenInPlannedYear() {
+        // Năm sắp tới HT xếp dần: lưu tạm 1 GV được, người còn lại làm chủ nhiệm
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
         ClassTeachersResponse result =
                 service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(teacher2), null));
 
@@ -235,7 +261,8 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    void oneTeacherIsAllowedWithHomeroom() {
+    void oneTeacherIsAllowedWithHomeroomInPlannedYear() {
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
         ClassTeachersResponse result =
                 service.assignClassTeachers(principal, classA1, new ClassTeachersRequest(List.of(teacher1), teacher1));
 
@@ -246,7 +273,8 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    void homeroomIsOptional() {
+    void homeroomIsOptionalInPlannedYear() {
+        jdbc.update("UPDATE school_years SET status = 'PLANNED' WHERE id = ?", year);
         ClassTeachersResponse result = service.assignClassTeachers(
                 principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), null));
 
@@ -335,6 +363,43 @@ class TeacherAssignmentIntegrationTest {
         assertThat(result.homeroomTeacherId()).isEqualTo(teacher2);
     }
 
+    @Test
+    void schoolScopeLetsVicePrincipalAssignEveryCampusAndRevokeBlocksIt() {
+        CurrentUser vpB = vicePrincipalOf("vpB", "CS-B");
+        // AUTH-13: HT cấp STAFF_ASSIGNMENT_MANAGE phạm vi SCHOOL ⇒ PHT cơ sở B phân công được lớp cơ sở A
+        CurrentUser schoolWide = new CurrentUser(
+                vpB.userId(),
+                vpB.keycloakUserId(),
+                vpB.username(),
+                vpB.fullName(),
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
+        assertThat(service.getTeacherAssignments(schoolWide, year, null).classes())
+                .hasSize(3);
+        ClassTeachersResponse result = service.assignClassTeachers(
+                schoolWide, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher1));
+        assertThat(result.teacherIds()).containsExactlyInAnyOrder(teacher1, teacher2);
+        // Phạm vi CAMPUS chỉ thấy lớp cơ sở mình
+        assertThat(service.getTeacherAssignments(vpB, year, null).classes()).hasSize(1);
+
+        // HT thu hồi mã quyền ⇒ còn là PHT vẫn bị chặn
+        CurrentUser revoked = new CurrentUser(
+                vpB.userId(),
+                vpB.keycloakUserId(),
+                vpB.username(),
+                vpB.fullName(),
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of());
+        assertThat(service.getTeacherAssignments(revoked, year, null).classes()).isEmpty();
+        expectError(
+                () -> service.assignClassTeachers(
+                        revoked, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher1)),
+                ApiCode.STAFF_ASSIGNMENT_MANAGE_DENIED);
+    }
+
     private CurrentUser vicePrincipalOf(String username, String campusCode) {
         long userId = user(username);
         jdbc.update(
@@ -342,7 +407,14 @@ class TeacherAssignmentIntegrationTest {
                         + "SELECT ?, 'VICE_PRINCIPAL', id, '2026-01-01' FROM campuses WHERE code = ?",
                 userId,
                 campusCode);
-        return new CurrentUser(userId, "kc-" + username, username, "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        return new CurrentUser(
+                userId,
+                "kc-" + username,
+                username,
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
     }
 
     @Test
@@ -388,8 +460,14 @@ class TeacherAssignmentIntegrationTest {
 
     @Test
     void vicePrincipalCannotAssign() {
-        CurrentUser vicePrincipal =
-                new CurrentUser(999L, "kc-vp", "vp", "VP", null, Set.of(CareNestRole.VICE_PRINCIPAL));
+        CurrentUser vicePrincipal = new CurrentUser(
+                999L,
+                "kc-vp",
+                "vp",
+                "VP",
+                null,
+                Set.of(CareNestRole.VICE_PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
 
         expectError(
                 () -> service.assignTeamLeader(vicePrincipal, new TeamLeaderRequest(year, ageGroup3, teacher1)),
@@ -421,6 +499,7 @@ class TeacherAssignmentIntegrationTest {
 
         assertThat(created.validTo()).isEqualTo(TODAY.plusDays(14));
         assertThat(created.substitute()).isTrue();
+        assertThat(created.replacedTeacherId()).isEqualTo(teacher3);
         assertThat(jdbc.queryForObject(
                         "SELECT assigned_by FROM staff_assignments WHERE id = ?", Long.class, created.id()))
                 .isEqualTo(principal.userId());
@@ -430,6 +509,15 @@ class TeacherAssignmentIntegrationTest {
         ClassTeachersResponse a2 = service.assignClassTeachers(
                 principal, classA2, new ClassTeachersRequest(List.of(teacher3, teacher1), teacher3));
         assertThat(a2.teacherIds()).containsExactlyInAnyOrder(teacher3, teacher1);
+    }
+
+    @Test
+    @DisplayName("SCH-04 (Cần chốt 11/11/2026): dạy thay được lấy GV cơ sở khác; dạy chính lẻ vẫn trong cơ sở của lớp")
+    void substituteMayComeFromAnotherCampus() {
+        StaffAssignmentResponse created =
+                staffAssignmentService.createAssignment(substituteAssignment(teacherB, classA2, TODAY.plusDays(7)));
+        assertThat(created.substitute()).isTrue();
+        assertThat(created.userId()).isEqualTo(teacherB);
     }
 
     @Test
@@ -501,9 +589,43 @@ class TeacherAssignmentIntegrationTest {
                 teacherId, StaffRole.TEACHER, null, classroomId, TODAY, validTo, principal.userId(), false);
     }
 
+    // Dạy thay ở lớp A2 cho teacher3 (GV đứng lớp A2)
     private NewStaffAssignment substituteAssignment(long teacherId, long classroomId, LocalDate validTo) {
+        return substituteFor(teacherId, classroomId, validTo, teacher3);
+    }
+
+    private NewStaffAssignment substituteFor(long teacherId, long classroomId, LocalDate validTo, Long replaced) {
         return new NewStaffAssignment(
-                teacherId, StaffRole.TEACHER, null, classroomId, TODAY, validTo, principal.userId(), true);
+                teacherId, StaffRole.TEACHER, null, classroomId, TODAY, validTo, principal.userId(), true, replaced);
+    }
+
+    @Test
+    @DisplayName("AUTH-16, SCH-04: dạy thay phải chọn dạy thay cho GV đứng lớp; mỗi GV một người dạy thay cùng lúc")
+    void substituteMustNameReplacedClassTeacher() {
+        LocalDate end = TODAY.plusDays(7);
+        expectError(
+                () -> staffAssignmentService.createAssignment(substituteFor(teacher1, classA2, end, null)),
+                ApiCode.SUBSTITUTE_REPLACED_REQUIRED);
+        // teacher2 không đứng lớp A2
+        expectError(
+                () -> staffAssignmentService.createAssignment(substituteFor(teacher1, classA2, end, teacher2)),
+                ApiCode.SUBSTITUTE_REPLACED_NOT_IN_CLASS);
+        // GV đứng lớp A2 không dạy thay cho lớp mình
+        long teacher4 = user("teacher4");
+        teacherOf(teacher4, classA2);
+        expectError(
+                () -> staffAssignmentService.createAssignment(substituteFor(teacher4, classA2, end, teacher3)),
+                ApiCode.SUBSTITUTE_IS_CLASS_TEACHER);
+
+        StaffAssignmentResponse created =
+                staffAssignmentService.createAssignment(substituteFor(teacher1, classA2, end, teacher3));
+        assertThat(created.replacedTeacherId()).isEqualTo(teacher3);
+        // Đã có người dạy thay cho teacher3 trong khoảng này
+        long teacher5 = user("teacher5");
+        jdbc.update("UPDATE user_accounts SET primary_role = 'TEACHER' WHERE id = ?", teacher5);
+        expectError(
+                () -> staffAssignmentService.createAssignment(substituteFor(teacher5, classA2, end, teacher3)),
+                ApiCode.SUBSTITUTE_ALREADY_COVERED);
     }
 
     private long user(String username) {

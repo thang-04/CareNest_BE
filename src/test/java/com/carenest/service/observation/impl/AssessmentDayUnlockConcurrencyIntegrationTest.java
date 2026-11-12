@@ -7,6 +7,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.AssessmentDayUnlockService;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -109,7 +110,8 @@ class AssessmentDayUnlockConcurrencyIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        return new CurrentUser(
+                id, "kc-" + username, username, username, null, Set.of(role), Set.of(Permission.ASSESSMENT_UNLOCK));
     }
 
     private long insertId(String sql) {
