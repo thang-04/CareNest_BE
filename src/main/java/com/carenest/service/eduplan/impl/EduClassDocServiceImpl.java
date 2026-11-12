@@ -711,7 +711,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 if (expectedVersion != null && expectedVersion != -1L) {
                     throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
                 }
-                requireCanCreate(kind, cls.id(), plan.getId(), themeId);
+                requireCanCreate(kind, cls.id(), plan.getId(), themeId, weekStart);
                 entity = EduClassDoc.create(
                         docKey, kind, classId, plan.getId(), themeId, weekStart, currentUser.userId());
                 String sourceKey = doc.path("sourceDocKey").asString("").trim();
@@ -1389,7 +1389,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
     }
 
     /** EDU-64: nhánh và hồ sơ chủ đề được soạn song song; giáo án cần hồ sơ chủ đề đã lưu. */
-    private void requireCanCreate(String kind, Long classId, Long yearPlanId, Long themeId) {
+    private void requireCanCreate(String kind, Long classId, Long yearPlanId, Long themeId, LocalDate weekStart) {
         if (EduClassDoc.BRANCH.equals(kind)) {
             return;
         }
@@ -1398,6 +1398,17 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 && docs.stream()
                         .noneMatch(d -> EduClassDoc.THEME.equals(d.getKind()) && themeId.equals(d.getThemeId()))) {
             throw GlobalException.of(ApiCode.THEME_PLAN_NOT_SAVED);
+        }
+        // EDU-14 (Tiền 13/11/2026): tuần chưa có tên chủ đề nhánh thì chưa tạo kế hoạch tuần/ngày; bản đã tạo vẫn sửa được
+        if ((EduClassDoc.WEEK.equals(kind) || EduClassDoc.DAY.equals(kind)) && weekStart != null) {
+            boolean named = docs.stream()
+                    .filter(d -> EduClassDoc.BRANCH.equals(d.getKind()))
+                    .anyMatch(d -> !readObject(d.getContent())
+                            .path("names")
+                            .path(weekStart.toString())
+                            .asString("")
+                            .isBlank());
+            if (!named) throw GlobalException.of(ApiCode.BRANCH_WEEKS_UNNAMED, 1);
         }
     }
 

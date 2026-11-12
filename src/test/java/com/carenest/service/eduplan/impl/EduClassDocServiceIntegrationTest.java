@@ -814,7 +814,8 @@ class EduClassDocServiceIntegrationTest {
                 ApiCode.ACTIVITY_CHANGED);
         // Kế hoạch chủ đề không còn nhận học liệu
         String themeKey = "tp_" + classId + "_" + theme1;
-        service.saveClassDoc(teacher, "theme", themeKey, theme(theme1), versionOf(themeKey), rootVersionOf("theme", theme(theme1)));
+        service.saveClassDoc(
+                teacher, "theme", themeKey, theme(theme1), versionOf(themeKey), rootVersionOf("theme", theme(theme1)));
         assertApiError(() -> learningResources.list(teacher, themeKey), ApiCode.RESOURCE_DAY_ONLY);
 
         var bytes = new java.io.ByteArrayOutputStream();
@@ -1685,7 +1686,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-78 FR-005, FR-007: thẻ hợp lệ lưu được; thiếu tên, MT ngoài chủ đề, thẻ mới không loại giờ bị server từ chối")
+    @DisplayName(
+            "EDU-78 FR-005, FR-007: thẻ hợp lệ lưu được; thiếu tên, MT ngoài chủ đề, thẻ mới không loại giờ bị server từ chối")
     void themeCardsAreValidatedOnServer() {
         String themeKey = "tp_" + classId + "_" + theme1;
         ObjectNode doc = theme(theme1);
@@ -1734,7 +1736,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-79 FR-015, FR-018: day.week lưu khi gói học kỳ đã ban hành; khóa lạ bị từ chối; hồ sơ ban hành ⇒ bản hiệu lực")
+    @DisplayName(
+            "EDU-79 FR-015, FR-018: day.week lưu khi gói học kỳ đã ban hành; khóa lạ bị từ chối; hồ sơ ban hành ⇒ bản hiệu lực")
     void dossierWeekSavesAfterSemesterReleaseAndBecomesEffective() {
         String themeKey = "tp_" + classId + "_" + theme1;
         service.saveClassDoc(teacher, "theme", themeKey, theme(theme1), versionOf(themeKey), null);
@@ -1743,9 +1746,20 @@ class EduClassDocServiceIntegrationTest {
         edited.putObject("base");
         String dayKey = "dd_" + classId + "_2026-09-07";
         String ds = "ds_" + classId + "_" + theme1;
+        // EDU-14 (13/11/2026): tuần chưa có tên nhánh thì chưa tạo được kế hoạch tuần/ngày
         assertErrorCode(
-                () -> service.saveClassDoc(
-                        teacher, "day", dayKey, dayWith("2026-09-07", edited), -1L, versionOf(ds)),
+                () -> service.saveClassDoc(teacher, "day", dayKey, dayWith("2026-09-07", edited), -1L, versionOf(ds)),
+                ApiCode.BRANCH_WEEKS_UNNAMED);
+        String branchKey = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(
+                teacher,
+                "branch",
+                branchKey,
+                branch(names("2026-09-07", "2026-09-21", "2026-09-28")),
+                versionOf(branchKey),
+                rootVersionOf("branch", branch(names("2026-09-07", "2026-09-21", "2026-09-28"))));
+        assertErrorCode(
+                () -> service.saveClassDoc(teacher, "day", dayKey, dayWith("2026-09-07", edited), -1L, versionOf(ds)),
                 ApiCode.SEMESTER_PACKAGE_NOT_RELEASED);
 
         approveBranch();
@@ -1796,7 +1810,9 @@ class EduClassDocServiceIntegrationTest {
         assertThat(jdbc.queryForObject("SELECT status FROM edu_class_docs WHERE doc_key=?", String.class, dayKey))
                 .isEqualTo("DRAFT");
         assertThat(jdbc.queryForObject(
-                        "SELECT content->'week' IS NOT NULL FROM edu_class_docs WHERE doc_key=?", Boolean.class, dayKey))
+                        "SELECT content->'week' IS NOT NULL FROM edu_class_docs WHERE doc_key=?",
+                        Boolean.class,
+                        dayKey))
                 .isTrue();
     }
 
@@ -1825,7 +1841,8 @@ class EduClassDocServiceIntegrationTest {
                             objectMapper.valueToTree(ex.getData()).path("details");
                     assertThat(details).hasSize(1);
                     assertThat(details.get(0).path("goalId").asLong()).isEqualTo(goal1);
-                    assertThat(ex.getMessage()).contains("MT" + details.get(0).path("goalNo").asInt());
+                    assertThat(ex.getMessage())
+                            .contains("MT" + details.get(0).path("goalNo").asInt());
                 });
         // Bỏ bản tuần sửa ⇒ dùng bản theo kỳ (có MT) ⇒ gửi được
         saveDay("2026-09-07", null);

@@ -261,6 +261,8 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
 
 ### Bổ sung hiển thị lịch nhánh — Tiền 11/11/2026
 
+EDU-14 (Tiền 13/11/2026) — tạo mới kế hoạch tuần/ngày khi tuần chưa có tên chủ đề nhánh (`names[weekStart]` của hồ sơ nhánh trống) ⇒ 409 7112 `BRANCH_WEEKS_UNNAMED` trong `requireCanCreate`; bản đã tạo vẫn sửa được.
+
 EDU-14/39/59 — CONFIRMED (hiển thị): Bảng Dự kiến chủ đề - chủ đề nhánh hiện tất cả tháng, hàng tháng/cột Tuần 1–5, bỏ lọc tháng. Dùng đủ tuần lịch chủ đề lớn, gộp các tuần liền nhau của cùng mã nhánh (ví dụ Tuần 3 + 4), hiện ngày đầu–cuối và tên nhánh; giữ tuần trống, tách tại tháng mới. Không đổi ngày hoặc quy tắc lưu. Nguồn: Tiền chốt trực tiếp trong phiên 11/11/2026; bản chuẩn mục hai kiểu xem.
 - Thuật ngữ hiển thị (Tiền 11/11/2026): thông báo/ApiCode của kế hoạch giáo dục dùng "kế hoạch giáo dục ngày" thay "giáo án ngày", "kế hoạch tuần" thay "giáo án tuần" (7107, 7113, 7390, thông báo "Cần soạn lại kế hoạch giáo dục ngày"). Mã lỗi đánh giá trẻ (7306–7309) chưa đổi.
 
