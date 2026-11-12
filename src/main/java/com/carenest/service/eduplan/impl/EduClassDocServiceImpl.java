@@ -430,8 +430,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
 
     @Override
     @Transactional
-    public EduClassDoc requireThemeAccess(CurrentUser currentUser, String docKey, boolean write) {
-        String logPrefix = LOG_PREFIX + "|requireThemeAccess|userId=" + currentUser.userId();
+    public EduClassDoc requireDayAccess(CurrentUser currentUser, String docKey, boolean write) {
+        String logPrefix = LOG_PREFIX + "|requireDayAccess|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
         try {
             requireView(currentUser);
@@ -444,14 +444,21 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             }
             EduClassDoc doc =
                     write ? classDocRepository.findForUpdateById(found.getId()).orElseThrow() : found;
-            if (!EduClassDoc.THEME.equals(doc.getKind())) throw GlobalException.of(ApiCode.RESOURCE_THEME_ONLY);
+            // EDU-81: học liệu chỉ thuộc kế hoạch giáo dục ngày
+            if (!EduClassDoc.DAY.equals(doc.getKind())) throw GlobalException.of(ApiCode.RESOURCE_DAY_ONLY);
             ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
             LocalDate today = LocalDate.now(clock);
             if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             if (write) {
                 requireClassDocAuthor(currentUser, cls);
-                if (!doc.getStatus().editable()) throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
+                // Như lưu giáo án ngày: hồ sơ chủ đề chứa nó phải còn Nháp (chờ duyệt/ban hành ⇒ khóa)
+                boolean dossierDraft = classDocRepository
+                        .findByDocKey(dossierKey(doc.getClassroomId(), doc.getThemeId()))
+                        .map(r -> r.getStatus().editable())
+                        .orElse(false);
+                if (doc.getStatus() == EduClassDocStatus.REVIEW || !dossierDraft)
+                    throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 // EDU-26: học liệu của tài liệu trên phiên bản đã thay thế cũng chỉ xem
                 if (isSuperseded(doc.getYearPlanId())) throw GlobalException.of(ApiCode.YEAR_PLAN_SUPERSEDED);
             }

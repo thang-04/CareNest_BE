@@ -20,7 +20,7 @@ Response chung `FileUrlResponse`:
 | `/signatures/me/{signatureId}/url` | `/signatures/me/{signatureId}/content` |
 | `/nutrition/meal-photos/{photoId}/url` | `/nutrition/meal-photos/{photoId}/content` |
 | `/inspections/signatures/{imageKey}/url` (+ query đang có của endpoint gốc) | `/inspections/signatures/{imageKey}` |
-| `/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/url` | `.../learning-resources/{id}/content` |
+| `/education-plans/class-docs/day/{docKey}/learning-resources/{id}/url` | `.../learning-resources/{id}/content` |
 
 - Liên kết ký `response-content-type` theo MIME đã lưu; học liệu ký thêm `response-content-disposition: inline; filename*=UTF-8''<tên gốc>`.
 - Ảnh chữ ký biên bản: `{imageKey}` trên URL là **tên tệp** (không thư mục) với key mới, UUID với key cũ; service ghép thư mục rồi kiểm tồn tại
@@ -28,7 +28,7 @@ Response chung `FileUrlResponse`:
 
 ## 2. Tải học liệu trực tiếp (FR-010)
 
-### POST `/education-plans/class-docs/theme/{docKey}/learning-resources/upload-url`
+### POST `/education-plans/class-docs/day/{docKey}/learning-resources/upload-url`
 
 Quyền: như POST multipart học liệu hiện có (`requireThemeAccess(user, docKey, true)`).
 
@@ -49,12 +49,12 @@ Response 200:
 Client PUT nguyên tệp lên `url` với đúng `headers` (trình duyệt tự đặt `Content-Length`). Lỗi trước khi cấp: `FILE_TOO_LARGE`,
 `UNSUPPORTED_MEDIA_TYPE`, `FILE_EMPTY`, `FILE_NAME_INVALID`, quyền.
 
-### POST `/education-plans/class-docs/theme/{docKey}/learning-resources/confirm`
+### POST `/education-plans/class-docs/day/{docKey}/learning-resources/confirm`
 
 Header `Idempotency-Key: <uuid>` (như POST multipart). Request:
 ```json
 { "uploadId": "hoclieu_12_20261112-101500_a1b2.mp4", "fileName": "bai-hat.mp4",
-  "activityKey": "...", "activitySignature": "...", "activityLabel": "..." }
+  "activityKey": "...", "activityLabel": "..." }
 ```
 Response 200: `LearningResourceResponse` như POST multipart.
 

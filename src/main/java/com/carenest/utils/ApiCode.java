@@ -586,7 +586,7 @@ public enum ApiCode {
             7113, HttpStatus.CONFLICT, "Còn thiếu giáo án {0}. Soạn và lưu đủ giáo án các nhánh rồi mới gửi duyệt"),
     NOT_YOUR_REVIEW_STEP(7114, HttpStatus.FORBIDDEN, "Bạn không {0} được ở bước này"),
     THEME_PLAN_NOT_FOUND(7115, HttpStatus.NOT_FOUND, "Không tìm thấy kế hoạch chủ đề"),
-    RESOURCE_THEME_ONLY(7116, HttpStatus.BAD_REQUEST, "Học liệu chỉ thuộc kế hoạch chủ đề"),
+    RESOURCE_DAY_ONLY(7116, HttpStatus.BAD_REQUEST, "Học liệu chỉ thuộc kế hoạch giáo dục ngày"),
     CLASS_DOC_LOCKED(7117, HttpStatus.CONFLICT, "Tài liệu đã khóa chỉnh sửa"),
     LEARNING_RESOURCE_NOT_FOUND(7118, HttpStatus.NOT_FOUND, "Không tìm thấy học liệu"),
     LEARNING_RESOURCE_UNBOUND(7119, HttpStatus.NOT_FOUND, "Học liệu chưa gắn với hoạt động hiện tại"),

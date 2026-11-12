@@ -3358,23 +3358,7 @@ paths:
           description: OK
       tags:
       - edu-class-doc-controller
-  /api/education-plans/class-docs/releases/{releaseId}:
-    get:
-      operationId: getClassDocRelease
-      parameters:
-      - in: path
-        name: releaseId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content: {}
-          description: OK
-      tags:
-      - edu-class-doc-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources:
     get:
       operationId: list
       parameters:
@@ -3416,15 +3400,12 @@ paths:
                   type: string
                 activityLabel:
                   type: string
-                activitySignature:
-                  type: string
                 file:
                   type: string
                   format: binary
               required:
               - activityKey
               - activityLabel
-              - activitySignature
               - file
       responses:
         "200":
@@ -3435,7 +3416,7 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/confirm:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/confirm:
     post:
       operationId: confirmUpload
       parameters:
@@ -3465,7 +3446,7 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/upload-url:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/upload-url:
     post:
       operationId: uploadUrl
       parameters:
@@ -3489,7 +3470,7 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}:
     delete:
       operationId: detach
       parameters:
@@ -3513,7 +3494,7 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/activity:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/activity:
     patch:
       operationId: bind
       parameters:
@@ -3543,7 +3524,7 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/content:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/content:
     get:
       operationId: content
       parameters:
@@ -3568,7 +3549,7 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
-  /api/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/url:
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/{id}/url:
     get:
       operationId: contentUrl
       parameters:
@@ -3592,6 +3573,22 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
+  /api/education-plans/class-docs/releases/{releaseId}:
+    get:
+      operationId: getClassDocRelease
+      parameters:
+      - in: path
+        name: releaseId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content: {}
+          description: OK
+      tags:
+      - edu-class-doc-controller
   /api/education-plans/class-docs/{kind}/{docKey}:
     put:
       operationId: saveClassDoc
@@ -14814,35 +14811,26 @@ components:
       properties:
         activityKey:
           type: string
-          maxLength: 180
-          minLength: 0
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
         activityLabel:
           type: string
           maxLength: 1000
           minLength: 0
-        activitySignature:
-          type: string
-          minLength: 1
-          pattern: "[a-f0-9]{64}"
       required:
       - activityKey
       - activityLabel
-      - activitySignature
     LearningResourceConfirmRequest:
       type: object
       properties:
         activityKey:
           type: string
-          maxLength: 180
-          minLength: 0
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
         activityLabel:
           type: string
           maxLength: 1000
           minLength: 0
-        activitySignature:
-          type: string
-          minLength: 1
-          pattern: "[a-f0-9]{64}"
         fileName:
           type: string
           maxLength: 255
@@ -14854,7 +14842,6 @@ components:
       required:
       - activityKey
       - activityLabel
-      - activitySignature
       - fileName
       - uploadId
     LearningResourceResponse:
@@ -14865,8 +14852,6 @@ components:
         activityKey:
           type: string
         activityLabel:
-          type: string
-        activitySignature:
           type: string
         byteSize:
           type: integer

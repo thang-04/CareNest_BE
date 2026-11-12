@@ -191,8 +191,9 @@ logic lưu trữ.
 
 **Học liệu và kế hoạch giáo dục**
 
-- **FR-019**: Học liệu (`hoclieu/`) MUST gắn với hoạt động/giáo án như hiện có (feature 002); quyền xem/sửa học liệu theo quyền
-  xem/sửa giáo án chứa nó, không đổi chuỗi duyệt/quyền/MT của kế hoạch giáo dục.
+- **FR-019**: Học liệu (`hoclieu/`) MUST chỉ gắn với **kế hoạch giáo dục ngày**, theo ngày + mục hoạt động (hoc, ngoai_troi, goc,
+  chieu) — EDU-81, Tiền chốt 12/11/2026; quyền xem/sửa theo kế hoạch ngày và hồ sơ chủ đề chứa nó. Học liệu cũ gắn kế hoạch chủ đề
+  bị xóa hết (V123). Không đổi chuỗi duyệt/MT của kế hoạch giáo dục.
 - **FR-020**: Các thư mục `plans/year-goals/`, `plans/themes/`, `plans/lessons/` MUST chỉ được khai báo sẵn trong cấu hình (loại,
   giới hạn, định dạng); feature này không thêm màn hình/API tải bản đã ký và không đổi luồng kế hoạch giáo dục, vì nghiệp vụ đã chốt
   "duyệt trong hệ thống, in file để ký tay, không bắt buộc tải bản đã ký" (Report 3; quyết định không ký điện tử). Muốn thêm tải bản

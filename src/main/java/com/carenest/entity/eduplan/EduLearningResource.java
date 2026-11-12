@@ -52,7 +52,6 @@ public class EduLearningResource {
     public static EduLearningResource create(
             Long docId,
             String key,
-            String signature,
             String label,
             String name,
             String type,
@@ -63,7 +62,7 @@ public class EduLearningResource {
             Instant now) {
         EduLearningResource r = new EduLearningResource();
         r.classDocId = docId;
-        r.bind(key, signature, label);
+        r.bind(key, label);
         r.originalName = name;
         r.contentType = type;
         r.byteSize = size;
@@ -74,9 +73,9 @@ public class EduLearningResource {
         return r;
     }
 
-    public void bind(String key, String signature, String label) {
+    public void bind(String key, String label) {
         activityKey = key;
-        activitySignature = signature;
+        activitySignature = null;
         activityLabel = label;
     }
 

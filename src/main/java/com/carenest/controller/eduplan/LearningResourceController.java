@@ -23,7 +23,8 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
-@RequestMapping("/education-plans/class-docs/theme/{docKey}/learning-resources")
+// EDU-81: học liệu chỉ thuộc kế hoạch giáo dục ngày (dd_…), gắn theo ngày + mục hoạt động
+@RequestMapping("/education-plans/class-docs/day/{docKey}/learning-resources")
 @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
 @RequiredArgsConstructor
 @Slf4j
@@ -47,7 +48,6 @@ public class LearningResourceController {
             @PathVariable String docKey,
             @RequestPart MultipartFile file,
             @RequestPart String activityKey,
-            @RequestPart String activitySignature,
             @RequestPart String activityLabel,
             @RequestHeader("Idempotency-Key") UUID requestId,
             CurrentUser user) {
@@ -57,7 +57,7 @@ public class LearningResourceController {
                 user,
                 docKey,
                 file,
-                new LearningResourceBinding(activityKey, activitySignature, activityLabel),
+                new LearningResourceBinding(activityKey, activityLabel),
                 requestId);
         log.info("{}|END", p);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Upload learning resource success", result);

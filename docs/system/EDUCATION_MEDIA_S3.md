@@ -73,11 +73,11 @@ Thêm loại mới: thêm giá trị vào `FileCategory` + một khối trong `c
 Mỗi endpoint đọc tệp có anh em `.../url` trả `{url, expiresAt}` cùng điều kiện quyền: `/accounts/me/photo/url`,
 `/children/{childId}/guardians/{userId}/photo/url`, `/children/{childId}/photo/url`, `/children/{childId}/guardian-photos/{guardianId}/url`,
 `/signatures/me/{signatureId}/url`, `/nutrition/meal-photos/{photoId}/url`, `/inspections/signatures/{imageKey}/url?campusId=`,
-`/education-plans/class-docs/theme/{docKey}/learning-resources/{id}/url`. Endpoint stream cũ giữ nguyên.
+`/education-plans/class-docs/day/{docKey}/learning-resources/{id}/url`. Endpoint stream cũ giữ nguyên.
 
-Học liệu tải trực tiếp: `POST .../learning-resources/upload-url` `{fileName, contentType, size}` → `{uploadId, url, method: PUT, headers,
+Học liệu (EDU-81: chỉ kế hoạch giáo dục ngày `dd_…`, gắn `activityKey` = `yyyy-MM-dd#hoc|ngoai_troi|goc|chieu`) tải trực tiếp: `POST .../learning-resources/upload-url` `{fileName, contentType, size}` → `{uploadId, url, method: PUT, headers,
 expiresAt}`; client `PUT` tệp lên `url` với đúng `headers`; rồi `POST .../learning-resources/confirm` (header `Idempotency-Key`)
-`{uploadId, fileName, activityKey, activitySignature, activityLabel}` → học liệu. Chi tiết: `specs/017-s3-file-storage/contracts/storage-api.md`.
+`{uploadId, fileName, activityKey, activityLabel}` → học liệu. Chi tiết: `specs/017-s3-file-storage/contracts/storage-api.md`.
 
 ## 3. Dựng bucket trên môi trường dev (AWS Console)
 
