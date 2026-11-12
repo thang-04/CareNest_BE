@@ -1,0 +1,5 @@
+# Bộ test cũ dựng kế hoạch năm/tổ sau ngày bắt đầu năm học (đồng hồ cố định) ⇒ tắt khóa theo năm học (spec 004);
+# lớp EduPlanTimeLockIntegrationTest bật lại để kiểm quy tắc khóa.
+carenest:
+  eduplan:
+    plan-time-lock-enabled: false

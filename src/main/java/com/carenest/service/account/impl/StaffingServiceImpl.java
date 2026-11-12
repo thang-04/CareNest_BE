@@ -65,7 +65,8 @@ public class StaffingServiceImpl implements StaffingService {
                     request.validFrom() == null ? LocalDate.now(clock) : request.validFrom(),
                     request.validTo(),
                     actor.userId(),
-                    Boolean.TRUE.equals(request.substitute())));
+                    Boolean.TRUE.equals(request.substitute()),
+                    request.replacedTeacherId()));
             log.info("{}|assignmentId={}|END", logPrefix, created.id());
             return created;
         } catch (RuntimeException ex) {

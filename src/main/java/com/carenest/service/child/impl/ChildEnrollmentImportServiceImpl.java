@@ -7,6 +7,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.child.ChildEnrollmentImportService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.DuplicateChildKind;
 import java.text.Normalizer;
 import java.time.*;
 import java.time.format.DateTimeFormatter;
@@ -113,9 +114,19 @@ public class ChildEnrollmentImportServiceImpl implements ChildEnrollmentImportSe
                                 .map(GuardianInput::idNumber)
                                 .toList(),
                         null);
-                if (duplicate != null) errors.add("Trẻ đã có hồ sơ trong hệ thống");
+                // G94-180/CHD-04, như BE giả FE: trùng trẻ đang học/chờ xếp lớp chặn; trùng trẻ đã nghỉ chỉ gợi ý mở
+                // lại
+                // hồ sơ cũ (lúc lưu cũng chỉ chặn trẻ chưa nghỉ)
+                List<String> notes = new ArrayList<>();
+                if (duplicate != null && duplicate.kind() == DuplicateChildKind.LEFT) {
+                    notes.add("Trẻ từng học ở trường ("
+                            + (duplicate.code() == null ? "" : "hồ sơ cũ " + duplicate.code() + ", ")
+                            + "đã nghỉ học): nên mở lại hồ sơ cũ ở Tiếp nhận trẻ thay vì nhập mới.");
+                } else if (duplicate != null) {
+                    errors.add("Trẻ đã có hồ sơ trong hệ thống (trùng họ tên, ngày sinh và phụ huynh)");
+                }
                 result.add(new PreviewRow(
-                        i + 1, raw, payload, errors.stream().distinct().toList(), selectionError, List.of()));
+                        i + 1, raw, payload, errors.stream().distinct().toList(), selectionError, List.copyOf(notes)));
             }
             log.info("{}|rows={}|END", logPrefix, result.size());
             return new Preview(true, file.getOriginalFilename(), result);

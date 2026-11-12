@@ -221,9 +221,7 @@ VALUES ('TP001', 'Gạo tẻ', 'GRAIN', 'g', 'kg', 1000, 18000, 344, 7.9, 1.0, 7
        ('TP004', 'Sữa bò tươi', 'EGG_DAIRY', 'ml', 'hộp 180 ml', 180, 8000, 74, 3.9, 4.4, 4.8, 'DEV_SAMPLE', 0, 'DRY', 'ANIMAL')
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO food_allergens (food_id, allergen_id)
-SELECT f.id, a.id FROM foods f JOIN allergens a ON a.code = 'COW_MILK' WHERE f.code = 'TP004'
-ON CONFLICT DO NOTHING;
+UPDATE foods SET allergen_codes = 'COW_MILK' WHERE code = 'TP004' AND allergen_codes = '';
 
 INSERT INTO dishes (code, name, dish_type, description)
 VALUES ('M001', 'Cháo thịt bằm cà rốt', 'CARB', 'Món demo')
@@ -248,9 +246,7 @@ VALUES ('TP005', 'Dầu đậu nành', 'FAT_SUGAR', 'g', 'chai 1 kg', 1000, 4500
        ('TP008', 'Trứng gà', 'EGG_DAIRY', 'g', 'kg', 1000, 60000, 166, 14.8, 11.6, 0.5, 'DEV_SAMPLE', 12, 'FRESH', 'ANIMAL')
 ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO food_allergens (food_id, allergen_id)
-SELECT f.id, a.id FROM foods f JOIN allergens a ON a.code = 'EGG' WHERE f.code = 'TP008'
-ON CONFLICT DO NOTHING;
+UPDATE foods SET allergen_codes = 'EGG' WHERE code = 'TP008' AND allergen_codes = '';
 
 INSERT INTO dishes (code, name, dish_type, description)
 VALUES ('M002', 'Cơm trắng', 'CARB', 'Món demo'),
@@ -347,3 +343,15 @@ WHERE ag.code = v.code
   AND num_nonnulls(c.calcium_min, c.calcium_max, c.phosphorus_min, c.phosphorus_max, c.iron_min, c.iron_max,
                    c.vitamin_a_min, c.vitamin_a_max, c.vitamin_b1_min, c.vitamin_b1_max, c.vitamin_b2_min,
                    c.vitamin_b2_max, c.vitamin_pp_min, c.vitamin_pp_max, c.vitamin_c_min, c.vitamin_c_max) = 0;
+
+-- Người nhận tài khoản (AUTH-18): mỗi trẻ có phụ huynh đúng một người nhận, như tiếp nhận/nhập Excel. Ưu tiên người
+-- đã liên kết tài khoản (như V81), không ai thì người đầu trên hồ sơ. DB mới: seed chạy sau V81 nên V81 không chọn được.
+-- Chỉ đụng trẻ chưa có người nhận nên chạy lại không đổi gì.
+UPDATE child_guardians g SET account_recipient = TRUE
+FROM (SELECT DISTINCT ON (x.child_id) x.id
+      FROM child_guardians x
+      WHERE NOT EXISTS (SELECT 1 FROM child_guardians r WHERE r.child_id = x.child_id AND r.account_recipient)
+      ORDER BY x.child_id,
+               (x.user_id IS NOT NULL) DESC,
+               x.position) c
+WHERE g.id = c.id;

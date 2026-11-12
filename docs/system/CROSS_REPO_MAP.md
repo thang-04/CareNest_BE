@@ -1,6 +1,45 @@
 # Cross-Repo Map
 
+## Mốc nghiệp vụ giáo dục ghi nhận09/11/2026 — contract hiện hành và đích
+
+Nguồn: [12 câu trả lời](../business/education-plan-confirmation-2026-11-09.md), user xác nhận giáo viên phía trường đã xác nhận. Không đổi endpoint/DTO hoặc ghi đã triển khai từ việc chốt nghiệp vụ.
+
+- Web năm→tổ→lớp theo nhóm tuổi dùng chung hai điểm trường; mỗi loại/năm/tuổi một chuỗi, tối đa một bản nháp/chờ. Tên riêng không tạo chuỗi mới.
+- Người soạn annual cần preview file theo policy annual, giữ hai chế độ thay toàn bộ/thay phần có và lưu tay. TEAM chỉ kế thừa/tick, không nhập file sửa cây.
+- Server phải hỗ trợ TT duyệt năm/tổ khi được HT cấu hình và đúng tuổi/không tự duyệt; nguồn hồ sơ lớp chỉ TEAM APPROVED hiện hành. Controller issue/return và requireIssuedPlan hiện còn gap, không coi UI là enforcement.
+- Không ai xóa TEAM, kể cả nháp. Chỉ năm hiện bảng/thao tác phiên bản; TEAM giữ lịch sử nội bộ. Khi năm mới ban hành, tự chuyển nguồn tổ đang soạn/chờ, chờ về nháp; tổ ban hành có bản cập nhật, lớp giữ bản ban hành cũ tới khi cập nhật duyệt. Rà soát phần đổi/xóa/liên kết ảnh hưởng; mục mới riêng để phân bổ, chủ đề kết thúc không đỏ.
+- Nghiệp vụ spec015 chưa có luồng đầy đủ; API hiện còn planLevel và entity chung edu_year_plans, V96 local là chuẩn bị. Không dùng tài liệu đích planType/tách bảng như contract đã deploy. FE bị tác động list/form/detail/queue/source/version; App cần đánh giá theo consumer thực tế khi sửa API, chưa đổi App trong lượt này.
+
+Các delta cũ phía dưới được đọc theo mốc trên và rule hiện hành; phần chưa tương thích ghi là gap triển khai.
+
+## Điều chỉnh dữ liệu nguồn Bộ — delta014 draft, 08/11/2026
+
+- Audit PDF chính thức: 33 mục tiêu thiếu dấu hai chấm, một câu “5 - 7” tách sai; xem [plan delta](../../specs/014-curriculum-cascade-suggestions/source-correction-plan.md). Đề xuất migration mới và mock FE, giữ endpoint/DTO và dữ liệu kế hoạch đã chép; các client API có thể thấy nội dung sửa, APP chưa khảo sát.
+- Delta thay dữ liệu catalog/response ngoài plan014 đã duyệt: chờ user duyệt trước migration/đồng bộ nguồn, không sửa migration đã commit.
+
+## Thiết kế feature014 — 08/11/2026
+
+- [Plan014](../../specs/014-curriculum-cascade-suggestions/plan.md) draft: runtime dự kiến chỉ Web, dùng nguyên catalog/provenance BE; không endpoint/DTO/schema delta. Consumer cụ thể CurriculumGoalsModal/GoalTables/GoalFormPage/useCurriculum/curriculum.mjs; API/mapper/mock giữ payload. APP sibling vắng, chưa kiểm consumer Mobile.
+- User đã cấp quyền sửa giáo dục FE014 ngày08/11/2026; user đã duyệt vòng implement→converge plan014; chưa có quyền APP, delta sửa catalog bằng migration chờ duyệt. Approval012/013 không tự mở rộng. Contract/ma trận kiểm tại specs014; chưa chạy runtime.
+
+## Delta gợi ý phân cấp — feature014, 08/11/2026
+
+- EDU-61/[spec014](../../specs/014-curriculum-cascade-suggestions/spec.md): Web cần lọc mục tiêu đích, bỏ lựa chọn sai khi đổi cha, gợi ý ngay tại ô nhóm/mục tiêu/nội dung; nội dung theo nhóm lấy từ mục tiêu mục D. Không tự gắn mục C với nhóm.
+- Mobile cần khảo sát consumer ở plan, chưa khẳng định có cùng màn hình. Chưa quyết định đổi endpoint/DTO/schema; chưa sửa source/client, user đã cấp quyền sửa giáo dục FE014 ngày08/11/2026, chưa cấp quyền APP. Plan014 đã được user duyệt triển khai; delta migration catalog có plan riêng chờ duyệt.
+
+## Delta quyền xem năm và danh sách mục tiêu — feature013, 08/11/2026
+
+- Nguồn user, EDU-60, [đặc tả](../../specs/013-published-year-plan-visibility/spec.md): chỉ quyền lập tổ thì chỉ xem năm đã ban hành; HT/PHT có phân công hiệu lực mọi nhóm tuổi, tổ trưởng/GV chỉ tuổi tài khoản được giao theo user làm rõ sau analyze08/11/2026; BE xác định scope từ tài khoản xác thực, chặn tổ trưởng/GV xem chéo tuổi hoặc giả tham số và phân công không có/hết hiệu lực/bị thu hồi ở mọi lần đọc; Q1=A user chốt08/11: giữ quyền xem năm chưa ban hành để soạn/duyệt theo quyền năm độc lập và phân công hợp lệ, không đổi scope riêng. Đã có [plan013](../../specs/013-published-year-plan-visibility/plan.md) đã triển khai source và [consumer contract](../../specs/013-published-year-plan-visibility/contracts/visibility-and-layout.md): scope cấp năm cho list/detail/source/version, không thêm endpoint/DTO/schema/dependency; chỉ siết dữ liệu được phép đọc. Review thiết kế đã xử lý raw HT/PHT scope bypass policy, user sau đó yêu cầu triển khai vòng implement/converge UI-first, source đã thực hiện theo evidence quickstart013.
+- Web cần đối chiếu danh sách/chi tiết/chọn nguồn năm và phần mục tiêu nguồn ở màn soạn/chi tiết tổ (các consumer giáo dục đã ghi ở feature012): liệt kê đủ cây/nhãn/nội dung/hàng chưa tick, card giãn, cuộn trang, giữ nguồn chỉ đọc/tick. Lượt plan đã đọc source FE để xác định consumer và CSS giới hạn chiều cao/overflow; chưa sửa FE, cần user cho phép trước triển khai. Đề xuất overflow:visible cả hai trục ở TEAM goal wrapper, cuộn document; giữ readonly/tick và mock annual theo scope server.
+- APP chưa có bằng chứng consumer mới trong lượt này; chưa kiểm và không sửa repo APP. Không tự mở rộng triển khai mobile. Mới có tài liệu, chưa kiểm chứng hành vi runtime của delta.
+
 ## Ownership
+
+EDU-59/FR021 user07/11/2026: nhánh có khoảng đầy đủ kiểm overlap inclusive cùng chủ đề cha và Thứ Hai–Thứ Sáu khi submit/publication, bao gồm publication do policy đổi; draft/name-only giữ như trước. Không đổi endpoint/DTO/schema/ApiCode (dùng EDUCATION_CALENDAR_INVALID). Web hiển thị/check trước và mock cùng semantics; hai endpoint dd/mm/yy chỉnh độc lập. APP không sửa, chưa kiểm repo sibling vắng.
+
+Delta user duyệt toàn bộ07/11/2026 (EDU-58): YearPlanRequest/YearPlanDetailResponse domains[].rows[].displayLabel là field additive cho goal, tối đa100. Null/omitted giữ nhãn khi update, blank clear; goalNo/ID không đổi. Web `/education/school-year-plans` sửa nhãn/kéo tăng số, `/education/goals` nhận nhãn nguồn chỉ đọc; adapter/mock/in giữ nhãn. APP không cần đổi field goalNo; repo sibling APP không hiện diện để kiểm chứng trực tiếp, không sửa APP. Migration V93 additive; không đổi endpoint/ApiCode. Schema tài liệu các nested Domain/Row/Content kế hoạch có tên riêng để tránh ghi đè schema module khác.
+
+Yêu cầu EDU-54 ngày 06/11/2026 (CONFIRMED): [spec011](../../specs/011-plan-creator-reviewer/spec.md) cấu hình vai trò tạo/duyệt chỉ cho giáo dục, cả kế hoạch năm và hồ sơ lớp; chỉ Hiệu trưởng cấu hình, Phó HT không được cấu hình phần này. Tách soạn/duyệt theo loại, chuỗi đổi áp dụng ngay cho bản đang chờ, giữ các bước đã duyệt; mọi bước chuỗi mới đã duyệt thì hoàn tất theo kết quả cũ. Đã triển khai và kiểm chứng đầy đủ trên BE (`GET/PUT /education-plans/workflow-policy`, V87 expand, V88 contract siết 3 trạng thái, 1,104 test PASS) và FE (EduConfigPage, GoalListPage, GoalFormPage, GoalDetailPage, PlanReviewQueuePage, BranchPlanPage, ClassThemePlanPage, WeekPlanPage, 199 test PASS). Snapshot ô ký in từ `review.printSnapshot`.
 
 | Hạng mục | CareNest_BE | CareNest_FE | CareNest_APP |
 | --- | --- | --- | --- |
@@ -67,6 +106,10 @@ Trạng thái tích hợp (2026-11-01, đối chiếu `origin/dev` FE và BE): w
 
 ## Consumer của API kế hoạch giáo dục (G94-226)
 
+Feature012 đã có [plan làn L draft](../plans/active/2026-11-07-school-year-team-plans.md) và [contract/consumer matrix](../../specs/012-school-year-team-plans/contracts/clients.md), chờ user duyệt trước code. Rollout giữ `/education/goals`=TEAM, thêm `/education/school-year-plans`; BE default GET TEAM, workflow year vẫn TEAM. POST TEAM nguồn-less mới bị chặn nên phải phối hợp FE thay tạo từ annual, không hứa tương thích ghi tuyệt đối. Source version upgrade là lựa chọn tường minh ở tạo version tổ. Observation queries themes/issuer/year goals chọn TEAM, lịch theo lớp và frozen view không mất khi chủ đề bị bỏ. Không sửa FE/APP trong lượt plan này.
+
+EDU-55/56, user đã chốt Q1–Q3 ngày 07/11/2026 cho [feature012](../../specs/012-school-year-team-plans/spec.md), chưa triển khai: tách năm theo nhóm tuổi/tổ, điều hướng năm trên tổ; phần 2 năm bỏ cột mục tiêu liên kết/tự tick, phần 3 bốn cột có STT, không tick/viết tắt. Delta mới user 07/11: PHT tạo mẫu nhánh, GV lấy/sửa tên bản lớp/thêm nhánh; chủ đề lớn đổi thứ tự dạy nhưng không sửa tên/nội dung nguồn; tổ lấy nội dung năm đã ban hành, GV lấy tổ sau ban hành. Câu 1 speckit-clarify 07/11: tổ trưởng chỉ phân bổ mục tiêu nguồn vào chủ đề; cần khóa thao tác thêm mới/sửa/xóa mục tiêu/nội dung kế thừa và kiểm cả nhập file/ghi phía server. Câu 2 clarify và chỉ dẫn tiếp theo 07/11: giữ cách tick/bỏ tick từng nội dung vào chủ đề, mục tiêu đi theo và logic lưu/phiên bản cũ; chỉ khóa biên soạn cây nguồn, không đổi sang tự tick cả mục tiêu. Hai luồng duyệt mặc định cấu hình riêng; HT cấu hình cả hai loại thời lượng, tính tuần học và chỉ áp dụng hồ sơ tạo mới; hồ sơ cũ giữ cấp tổ. Web consumers cần đánh giá ở bước plan: GoalListPage/GoalFormPage/GoalDetailPage, GoalTables/ThemePlanBody, BranchPlanPage/ClassThemePlanPage/WeekPlanPage, EduConfigPage, PlanReviewQueuePage, model lịch/mapper/service và nhập/xuất file. Nhánh hai tuần tác động chọn tuần/ngày, hoạt động/MT cho đánh giá trẻ và bảo toàn phiên bản/liên kết cũ. Chưa quyết định endpoint/DTO, không sửa source FE/APP; quyền sửa liên repo chưa được user cấp. APP chưa có bằng chứng tích hợp mới, phải đối chiếu khi thiết kế, không tự thêm consumer. Mức nguồn tri thức PROPOSED do chưa có xác nhận team/trường; Q1–Q3 cũ đã trả lời; Q4=A đã chốt mẫu nhánh tham khảo, không cần lấy đủ; Q5=A đã chốt chuyển cả khối chủ đề/nhánh, giữ số tuần và dời ngày; plan/data-model/contracts đã cập nhật/review lại delta: optional-template/rename, POST branch/calendar-preview và PUT orderedThemeIds, import RENAME/CREATE_CUSTOM từ form rỗng, notes theo branch offset, identity+formRevision để chặn response muộn; chưa code. Cần user duyệt plan/API/migration và cấp quyền FE trước triển khai.
+
 | API BE | Consumer FE |
 | --- | --- |
 | `GET/POST /education-plans/goals`, `GET/PUT/DELETE /education-plans/goals/{planId}`, `POST …/{planId}/submit\|issue\|return\|start-editing\|finish-editing\|editing-heartbeat` | `CareNest_FE/src/services/education-plan/api/educationPlanApi.js` (`getAll`, `saveGoal`, `deleteGoal`, `startEditingGoal`, `finishEditingGoal`), `src/hooks/education-plan/useEducationPlan.jsx` |
@@ -108,6 +151,28 @@ Nguồn: `CareNest_CODE/plans/reports/final-261101-1407-carenest-e2e-business-fl
 BE preview additive cùng `POST /education-plans/goals/file-preview`: giữ domains/themeAbbrs/warnings, thêm metadata(title/year/khoảng tuổi), themes(name/abbr/festivals/start/end/note), breaks(name/start/end/note). Không đổi API lưu hoặc schema; xem [contract](../../specs/009-full-year-plan-file-import/contracts/full-year-plan-preview.md). Parser/preview BE đã có evidence cũ; quyết định hai chế độ thay nội dung Web mới được user duyệt02/11 và đã implement/verify FE phase2 và chờ review trước convergence; chưa gọi toàn feature hoàn tất.
 Consumer Web cần cập nhật: educationPlanApi.js → educationPlanService.js → ImportGoalFileModal.jsx → GoalFormPage.jsx/importGoalFile.mjs. Preview/merge Web giữ năm đích, dời ngày, chặn lệch nhóm tuổi/nhận nhóm khi trống theo quyền, ghép/remap chủ đề trước ticks theo hai chế độ: full xóa phần thiếu, present giữ phần thiếu, phần có thay nguyên phần. Giữ API/DB; chỉ sửa tài liệu BE trong delta này. File cũ metadata null/themes[]/breaks[] phải preview rõ phần sẽ xóa/giữ; không mặc định additive. Thiếu yearRange cấu hình thật khóa apply. Mobile chưa có consumer và không sửa APP. Màn phần1 user yêu cầu nhập dạng bảng như phần2/3; toàn bộ nút desktop cùng hàng/định dạng.
 
+
+Delta feature011 hoàn tất: chỉ ba trạng thái Nháp/Duyệt/Ban hành (DRAFT/REVIEW/APPROVED), người soạn không sửa khi REVIEW; role tới lượt là metadata. printSnapshot được đóng băng khi ban hành. Không sửa source module khác; giáo dục giữ APPROVED/issued_by compatibility projection, publisher thật field riêng. Helper AccountService.findActiveUserIds và StaffAssignmentService.findActiveEducationReviewerAssignments chỉ đọc + test phục vụ lọc ACTIVE và reviewer assignments. Migration expand V87 và contract V88 siết đúng 3 trạng thái, hoàn thành kiểm chứng full gate BE và FE.
+
+Feature011 — user xác nhận06/11 trong vòng implement/converge: App mobile chưa tích hợp kế hoạch giáo dục; Web được phép sửa riêng phần giáo dục. Không có thay đổi APP trong delivery này; contract mới là đầu vào khi tích hợp APP sau này.
+
+Feature013 delivery08/11/2026: Web GoalTables/CSS đổi nền header nguồn/readonly, giữ nhánh và thêm select xem mục tiêu theo tick; mock annual list/detail/source/diff cùng scope, usePlanChanges truyền actor. BE scope áp riêngSCHOOL_YEAR, TEAM giữ base. OpenAPI metadata nested schema eduplan có tên riêng chống collision, không đổi JSON/endpoint; consumer JSON không đổi, codegen cần snapshot cập nhật. Browser fixture và HTTP integration(testJWT/realDB) không thay live Keycloak E2E. Quyền FE do user cấp; không sửa APP/deploy.
+
+## Delta giáo dục 09/11/2026 — feature015
+
+EDU-62: [spec](../../specs/015-separate-year-team-plans/spec.md), [hiện trạng/đích DB](../../specs/015-separate-year-team-plans/database-context.md). Web ảnh hưởng list/form/detail kế hoạch (GoalListPage, GoalFormPage, GoalDetailPage), danh sách chờ duyệt/dashboard, service/mapper năm-tổ và rà soát thay đổi. Đích: trang lập tổ trực tiếp không modal, tên riêng, chọn nguồn năm đã ban hành, năm cột danh sách, phiên bản chỉ hiện ở năm. Chỉ đạo tách bảng còn ảnh hưởng server mapping/FK và consumers tài liệu lớp/đánh giá trẻ; chưa xác định contract mới. Mobile phải kiểm consumer trong bước plan nếu contract đổi, chưa khẳng định không ảnh hưởng. Lượt này chỉ đọc source Web có liên quan; không sửa FE/APP hoặc triển khai DB/API.
+
 ## Sức khỏe trong ngày — 05/11/2026
 
 GET ChildDay thêm `handedOverAt` và `contacts[{fullName,relationship,phone}]`, giữ mọi field cũ. FE `createDailyHealthBeApi.getDailyHealth/getChildDailyHealthHistory` map field; `DailyHealthPanel` khóa nhập khi đã trả và hiện liên hệ hồ sơ. GET lịch sử vẫn chỉ xem. APP chưa triển khai, cần dùng canRecord/handedOverAt khi nối, POST đã chặn HEALTH_CHILD_PICKED_UP. Không thay quyền hoặc tạo thông báo.
+
+## Hồ sơ trẻ, sức khỏe, xếp lớp, danh sách trẻ — 10/11/2026 (nhánh G94-180)
+
+BE đã làm; FE (module `children` còn `demo`) và APP cần nối. Plan: `docs/plans/completed/2026-11-10-health-record-complete.md`, `docs/plans/completed/2026-11-10-child-placement-list.md`.
+- **FE — khai báo sức khỏe:** `PUT /children/{id}/health-declaration` `{ declaration, reason }` (lỗi ô không tiền tố `declaration.`); `GET /children/{id}/profile` = `{ child, cls, declaration, placements }`.
+- **FE — xếp / chuyển lớp:** `POST /children/{id}/placement` `{ classId, reason }` ⇒ ChildView; lỗi 400 + ô `classId` / `reason`, trẻ đã nghỉ 409 3011 (BE giả trả 403 / 422). `cls.schoolYearId` là id số (BE giả dùng tên năm).
+- **FE — danh sách trẻ `GET /children`:** `childrenApi.listAllChildren` cần gửi `schoolYear` (id số, không phải tên `2026-2027`), `status` (lặp tham số, mặc định bỏ trẻ đã nghỉ — màn Danh sách trẻ muốn thấy trẻ đã nghỉ phải gửi đủ 3 trạng thái), `classId`, `keyword`; đọc `items`, `totalPages`, `classId`, `className`; `guardians[].relation` là mã (`MOTHER`…) — adapter đổi nhãn như hồ sơ; không có CCCD, email phụ huynh. Màn Tài khoản phụ huynh (`guardianApi`) không phải đổi: tham số `classroomId`, `q` vẫn nhận; mỗi dòng vẫn có `classroomId`, `guardianCount`; nay có `canManage` thật (FE đang ép `true`).
+- **FE — xu hướng sức khỏe:** `POST /children/{id}/health/trend-analysis` như BE giả + `id`, `source`, `approvedAt`; thêm duyệt `POST …/{interpretationId}/approve` `{ summary? }` (FE chưa có nút) — phụ huynh chỉ thấy bản đã duyệt.
+- **FE — đổi SĐT phụ huynh (11/11/2026):** Sửa hồ sơ khóa ô SĐT của phụ huynh đã lưu (gửi số khác ⇒ 400 ô `guardians[i].phone`); nút "Yêu cầu đổi SĐT" gọi `POST /children/{id}/guardians/{guardianId}/phone-change-requests` `{ newPhone, reason }` ⇒ 201 `GuardianPhoneChangeResponse` (lỗi ô `newPhone`, `reason`; 409 3009 số của người khác; 404 3012). Màn duyệt (chưa có ở FE): `GET /parent-accounts/phone-change-requests?status`, `POST …/{id}/approve`, `POST …/{id}/reject` `{ note? }`; `canDecide` gồm cả người gửi; `userId` null = phụ huynh chưa có tài khoản (tên ở `guardianName`). `ChildUpdateResponse.phoneChangeRequests` luôn rỗng.
+- **FE — bảng tổng quan PHT:** `GET /children/parent-accounts?status&keyword` (mục 4.8), FE đếm `status=NOT_ACTIVATED`.
+- **APP — phụ huynh:** `GET /children/{id}/health/published` (kết quả đã công bố, `growth[]` có z WHO, giải thích đã duyệt); loại thông báo mới `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED`, `CHILD_PLACED` (push loại sức khỏe chỉ câu chung).

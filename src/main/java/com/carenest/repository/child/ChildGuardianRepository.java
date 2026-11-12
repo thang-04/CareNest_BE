@@ -32,6 +32,13 @@ public interface ChildGuardianRepository extends JpaRepository<ChildGuardian, Lo
             + " group by g.childId")
     List<Object[]> countLinkedByChildIds(@Param("childIds") Collection<Long> childIds);
 
+    @Query("select g from ChildGuardian g where g.childId in :childIds and g.userId is not null"
+            + " order by g.childId, g.linkedAt, g.id")
+    List<ChildGuardian> findLinkedOfChildren(@Param("childIds") Collection<Long> childIds);
+
+    /** Mọi dòng phụ huynh đã liên kết tài khoản (đồng bộ thông tin tài khoản, đổi SĐT được duyệt — AUTH-21). */
+    List<ChildGuardian> findAllByUserId(Long userId);
+
     /** Phụ huynh trên mọi hồ sơ trẻ có SĐT hoặc CCCD trong danh sách (kiểm một người một tài khoản, AUTH-18). */
     @Query("select g from ChildGuardian g where g.phone in :phones or g.citizenId in :citizenIds order by g.id")
     List<ChildGuardian> findAllByPhoneOrCitizenId(
@@ -42,24 +49,31 @@ public interface ChildGuardianRepository extends JpaRepository<ChildGuardian, Lo
     List<ChildGuardian> findAllOfAccount(@Param("userId") Long userId, @Param("phone") String phone);
 
     /**
-     * Trạng thái tài khoản và lần gửi SMS gần nhất của từng phụ huynh trên hồ sơ trẻ: chưa có liên kết với trẻ ⇒
-     * {@code accountStatus} null (Chưa kích hoạt). Chỉ đọc bảng tài khoản, không qua feature account.
+     * Trạng thái, tên đăng nhập của tài khoản và lần gửi SMS gần nhất của từng phụ huynh trên hồ sơ trẻ: chưa có liên kết
+     * với trẻ ⇒ {@code accountStatus}, {@code username} null (Chưa kích hoạt). Chỉ đọc bảng tài khoản, không qua feature
+     * account.
      */
     @Query(
-            value = "SELECT g.id AS guardianId, u.status AS accountStatus, s.status AS smsStatus,"
-                    + " CAST(EXTRACT(EPOCH FROM s.sent_at) * 1000 AS BIGINT) AS smsAtMillis"
-                    + " FROM child_guardians g"
-                    + " LEFT JOIN user_accounts u ON u.id = g.user_id"
-                    + " LEFT JOIN LATERAL (SELECT p.status, p.sent_at FROM parent_sms_logs p WHERE p.user_id = g.user_id"
-                    + " ORDER BY p.sent_at DESC, p.id DESC LIMIT 1) s ON TRUE"
-                    + " WHERE g.child_id = :childId",
+            value =
+                    "SELECT g.id AS guardianId, u.status AS accountStatus, u.username AS username, s.status AS smsStatus,"
+                            + " CAST(EXTRACT(EPOCH FROM s.sent_at) * 1000 AS BIGINT) AS smsAtMillis"
+                            + " FROM child_guardians g"
+                            + " LEFT JOIN user_accounts u ON u.id = g.user_id"
+                            + " LEFT JOIN LATERAL (SELECT p.status, p.sent_at FROM parent_sms_logs p WHERE p.user_id = g.user_id"
+                            + " ORDER BY p.sent_at DESC, p.id DESC LIMIT 1) s ON TRUE"
+                            + " WHERE g.child_id IN (:childIds)",
             nativeQuery = true)
-    List<GuardianAccountRow> findAccountRows(@Param("childId") Long childId);
+    List<GuardianAccountRow> findAccountRows(@Param("childIds") Collection<Long> childIds);
+
+    /** Phụ huynh trên hồ sơ của nhiều trẻ (danh sách trẻ), theo trẻ rồi vị trí. */
+    List<ChildGuardian> findAllByChildIdInOrderByChildIdAscPositionAsc(Collection<Long> childIds);
 
     interface GuardianAccountRow {
         Long getGuardianId();
 
         String getAccountStatus();
+
+        String getUsername();
 
         String getSmsStatus();
 

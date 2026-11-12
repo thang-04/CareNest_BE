@@ -28,7 +28,7 @@ public class ClassRatingController {
     private final ClassRatingService classRatingService;
 
     @GetMapping("/assessment/class-ratings")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
     public ResponseEntity<ResponseJson<ClassRatingResponse>> listRatings(
             @RequestParam ClassRatingPeriod period,
             @RequestParam(required = false) Long schoolYearId,
@@ -42,7 +42,7 @@ public class ClassRatingController {
     }
 
     @PutMapping("/assessment/class-ratings")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_CLASS_REVIEW')")
     public ResponseEntity<ResponseJson<ClassRatingResponse>> saveRatings(
             @Valid @RequestBody ClassRatingSaveRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveRatings|userId=" + currentUser.userId() + "|period=" + request.period();

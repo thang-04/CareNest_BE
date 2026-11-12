@@ -64,13 +64,30 @@ erDiagram
     }
 ```
 
-## education-plan — Ba bảng mục tiêu (V35)
+## education-plan — năm/tổ và cây mục tiêu (V35, V96/V97 candidate)
 
 ```mermaid
 erDiagram
-    edu_year_plans ||--o{ edu_plan_sub_domains : owns
-    edu_year_plans ||--o{ edu_plan_expected_results : owns
-    edu_year_plans ||--o{ edu_plan_goals : owns
+    edu_year_plans |o--o{ edu_plan_sub_domains : school_year_plan_id
+    edu_team_plans |o--o{ edu_plan_sub_domains : team_plan_id
+    edu_year_plans |o--o{ edu_plan_expected_results : school_year_plan_id
+    edu_team_plans |o--o{ edu_plan_expected_results : team_plan_id
+    edu_year_plans |o--o{ edu_plan_goals : school_year_plan_id
+    edu_team_plans |o--o{ edu_plan_goals : team_plan_id
+    edu_year_plans |o--o{ edu_team_plans : curriculum_source_plan_id
+    edu_year_plans |o--o{ edu_team_plans : previous_source_plan_id
+    edu_team_plans ||--o{ edu_class_docs : team_plan_id
+    edu_team_plans ||--o{ edu_team_review_items : team_plan_id
+    edu_year_plans ||--o{ edu_team_review_items : source_plan_id
+    edu_year_plans |o--o{ edu_themes : school_year_plan_id
+    edu_team_plans |o--o{ edu_themes : team_plan_id
+    edu_year_plans |o--o{ edu_breaks : school_year_plan_id
+    edu_team_plans |o--o{ edu_breaks : team_plan_id
+    edu_year_plans |o--o{ edu_plan_events : school_year_plan_id
+    edu_team_plans |o--o{ edu_plan_events : team_plan_id
+    edu_year_plans |o--o{ edu_plan_branch_templates : school_year_plan_id
+    edu_team_plans |o--o{ edu_plan_branch_templates : team_plan_id
+    edu_themes ||--o{ edu_plan_branch_templates : same_owner
     edu_domains ||--o{ edu_plan_sub_domains : categorizes
     edu_domains ||--o{ edu_plan_expected_results : categorizes
     edu_domains ||--o{ edu_plan_goals : categorizes
@@ -85,9 +102,14 @@ erDiagram
     edu_curriculum_goals |o--o{ edu_plan_goals : source
     edu_goal_contents ||--o{ edu_content_theme_ticks : ticks
     edu_themes ||--o{ edu_content_theme_ticks : ticks
+    edu_year_plans |o--o{ edu_document_authors : "ledger"
+    edu_team_plans |o--o{ edu_document_authors : "ledger"
+    edu_class_docs |o--o{ edu_document_authors : "ledger"
+    user_accounts ||--o{ edu_document_authors : "authored by"
 ```
 
-Ba bảng có ID từ sequence chung; FK cha ghép với year_plan_id/domain_id. FK goal→group kiểm sub_domain_key để sub của goal và group khớp kể cả NULL. Cấp cha tùy chọn theo user 29/10/2026; không đổi rows/kind API. Chi tiết: [ADR-0021](../decisions/ADR-0021-year-plan-goal-hierarchy.md).
+Schema đích V97 chỉ kiểm trên scratch; chưa áp dụng DB đang dùng. Header năm/tổ có ID từ `edu_plan_id_seq` chung, self-source trong từng bảng, không cột plan_level. Ba bảng cây dùng `edu_plan_rows_seq`; FK cha ghép với mỗi school_year_plan_id/team_plan_id và domain_id, giữ deferred semantics. FK goal→group kiểm sub_domain_key để sub của goal và group khớp kể cả NULL. Cấp cha tùy chọn theo user 29/10/2026; không đổi rows/kind API. Chi tiết: [ADR-0021](../decisions/ADR-0021-year-plan-goal-hierarchy.md).
+Sổ cái `edu_document_authors` (V87, V88) theo dõi người soạn thực tế qua đúng một FK giữa `edu_year_plans`, `edu_team_plans` và `edu_class_docs` để ngăn tự duyệt (EDU-54).
 ## child — tiếp nhận trẻ, phụ huynh trên hồ sơ, khai báo sức khỏe (V63)
 
 ```mermaid
@@ -173,3 +195,7 @@ erDiagram
         VARCHAR after_scope
     }
 ```
+
+## Bảng đánh giá học kỳ theo lớp — 05/11/2026
+
+`semester_assessments`: FK classroom_id → classrooms, campus_id → campuses, school_year_id → school_years, confirmed_by → user_accounts; unique(classroom_id,semester_no). period_start/end là kỳ cấu hình; note; result_snapshot TEXT chốt domains/goals/children/counts; confirmed_at; version optimistic. Mỗi lớp-năm (lớp gắn một năm) có tối đa hai bảng, không thay child_evaluations cũ.

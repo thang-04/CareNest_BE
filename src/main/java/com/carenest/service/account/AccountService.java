@@ -6,6 +6,7 @@ import com.carenest.utils.enums.CareNestRole;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public interface AccountService {
 
@@ -13,6 +14,8 @@ public interface AccountService {
 
     /** Họ tên theo userId, cho màn hình hiển thị người soạn, người gửi, người duyệt. */
     Map<Long, String> findFullNames(Collection<Long> userIds);
+
+    Set<Long> findActiveUserIds(Collection<Long> userIds);
 
     /** Họ tên các tài khoản đang hoạt động có vai trò chính role (in tên người ký trên bản in kế hoạch). */
     List<String> findActiveFullNamesByRole(CareNestRole role);

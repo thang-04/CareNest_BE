@@ -40,7 +40,7 @@ public class AttendanceController {
     private final AttendanceDayUnlockService attendanceDayUnlockService;
 
     @GetMapping("/attendance/classes")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.hasAny('ATTENDANCE_VIEW', 'ATTENDANCE_RECORD', 'DAILY_HEALTH_RECORD')")
     public ResponseEntity<ResponseJson<List<AttendanceClassResponse>>> getClasses(
             @RequestParam(required = false) Long schoolYearId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getClasses|userId=" + currentUser.userId();
@@ -51,7 +51,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/attendance/day-info")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.hasAny('ATTENDANCE_VIEW', 'ATTENDANCE_RECORD', 'DAILY_HEALTH_RECORD')")
     public ResponseEntity<ResponseJson<DayInfoResponse>> getDayInfo(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @RequestParam(required = false) Long classId,
@@ -64,7 +64,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/classes/{classId}/attendance")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.hasAny('ATTENDANCE_VIEW', 'ATTENDANCE_RECORD', 'DAILY_HEALTH_RECORD')")
     public ResponseEntity<ResponseJson<ClassAttendanceResponse>> getClassAttendance(
             @PathVariable Long classId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
@@ -77,7 +77,7 @@ public class AttendanceController {
     }
 
     @PutMapping("/classes/{classId}/attendance")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_RECORD')")
     public ResponseEntity<ResponseJson<SaveAttendanceResponse>> saveClassAttendance(
             @PathVariable Long classId, @Valid @RequestBody SaveAttendanceRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|saveClassAttendance|userId=" + currentUser.userId() + "|classId=" + classId;
@@ -88,7 +88,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/classes/{classId}/attendance/summary")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.hasAny('ATTENDANCE_VIEW', 'ATTENDANCE_RECORD')")
     public ResponseEntity<ResponseJson<AttendanceSummaryResponse.ClassSummary>> getClassSummary(
             @PathVariable Long classId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
@@ -103,7 +103,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/attendance/summary")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    @PreAuthorize("@permissionGuard.hasAny('ATTENDANCE_VIEW', 'ATTENDANCE_RECORD')")
     public ResponseEntity<ResponseJson<AttendanceSummaryResponse.MultiSummary>> getSummary(
             @RequestParam(required = false) Long campusId,
             @RequestParam(required = false) Long schoolYearId,
@@ -119,7 +119,7 @@ public class AttendanceController {
     }
 
     @GetMapping("/attendance/day-unlocks")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_UNLOCK')")
     public ResponseEntity<ResponseJson<List<DayUnlockResponse>>> getUnlocks(CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|getUnlocks|userId=" + currentUser.userId();
         log.info("{}|START", logPrefix);
@@ -129,7 +129,7 @@ public class AttendanceController {
     }
 
     @PostMapping("/attendance/day-unlocks")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_UNLOCK')")
     public ResponseEntity<ResponseJson<DayUnlockResponse>> unlockDay(
             @Valid @RequestBody DayUnlockRequest request, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|unlockDay|userId=" + currentUser.userId() + "|classId=" + request.classId();
@@ -140,7 +140,7 @@ public class AttendanceController {
     }
 
     @PostMapping("/attendance/day-unlocks/{unlockId}/revoke")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL')")
+    @PreAuthorize("@permissionGuard.has('ATTENDANCE_UNLOCK')")
     public ResponseEntity<ResponseJson<DayUnlockResponse>> revokeUnlock(
             @PathVariable Long unlockId, CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|revokeUnlock|userId=" + currentUser.userId() + "|unlockId=" + unlockId;

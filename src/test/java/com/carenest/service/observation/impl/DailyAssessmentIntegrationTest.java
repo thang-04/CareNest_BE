@@ -30,6 +30,7 @@ import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.NapLevel;
 import com.carenest.utils.enums.Participation;
+import com.carenest.utils.enums.Permission;
 import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.Duration;
@@ -41,6 +42,7 @@ import java.util.Map;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -178,23 +180,75 @@ class DailyAssessmentIntegrationTest {
         teach(teacherB, classB);
 
         // Giáo án tuần 26–30/10 của lớp A đã duyệt: Hoạt động học thứ 3 có MT1, thứ 4 có MT1 + MT2
-        long plan = insertId("INSERT INTO edu_year_plans (code, school_year_id, age_group_id, title, status, owner_id) "
-                + "VALUES ('KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
-                + ") RETURNING id");
+        long plan = insertId(
+                "INSERT INTO edu_team_plans (legacy_team_without_source, code, school_year_id, age_group_id, title, status, owner_id) "
+                        + "VALUES (true, 'KH-T', " + year + ", " + ag3 + ", 'KH', 'APPROVED', " + principal.userId()
+                        + ") RETURNING id");
         long domain = jdbc.queryForObject("SELECT id FROM edu_domains ORDER BY sort_order LIMIT 1", Long.class);
         goal1 = goal(plan, domain, 1, "Trẻ nhận biết màu");
         goal2 = goal(plan, domain, 2, "Trẻ đếm đến 5");
         goal3 = goal(plan, domain, 3, "Trẻ nhảy bật");
-        long theme = insertId("INSERT INTO edu_themes (year_plan_id, sort_order, name, abbr) VALUES (" + plan
+        long theme = insertId("INSERT INTO edu_themes (team_plan_id, sort_order, name, abbr) VALUES (" + plan
                 + ", 1, 'Bản thân', 'BT') RETURNING id");
         String content = "{\"grid\":{\"hoc\":{\"days\":[\"\",\"Toán\",\"Tạo hình\",\"\",\"\"]}},\"picks\":{"
                 + "\"hoc.1\":[{\"id\":\"p1\",\"goalId\":\"" + goal1 + "\"}],"
                 + "\"hoc.2\":[{\"id\":\"p2\",\"goalId\":\"" + goal1 + "\"},{\"id\":\"p3\",\"goalId\":\"" + goal2
                 + "\"}]}}";
-        weekDoc = insertId("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, year_plan_id, theme_id, "
+        weekDoc = insertId("INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, "
                 + "week_start, status, content, created_by, updated_by) VALUES ('w-a', 'week', " + classA + ", "
                 + plan + ", " + theme + ", '2026-10-26', 'APPROVED', '" + content + "'::jsonb, "
                 + principal.userId() + ", " + principal.userId() + ") RETURNING id");
+        // Spec 003 FR-008: chỉ chấm theo tuần có cả giáo án ngày đã ban hành (hồ sơ chủ đề)
+        jdbc.update(
+                "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
+                        + "created_by, updated_by) SELECT 'd-a', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "
+                        + "created_by, updated_by FROM edu_class_docs WHERE id = " + weekDoc);
+    }
+
+    @Test
+    @DisplayName("OBS-01: trẻ vắng thì mục tiêu của giáo án ngày đó tính Chưa đạt ở tổng quan lớp")
+    void absentChildCountsDayGoalsAsNotMetInClassDetail() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(
+                                new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true)),
+                                new SaveAttendanceRequest.Entry(child2, AttendanceStatus.UNEXCUSED, Map.of()))));
+        ClassAssessmentDetailResponse detail = overviewService.getClassDetail(principal, classA, "DAY");
+        // Giáo án thứ 4 (hôm nay) có 2 mục tiêu ở Hoạt động học
+        assertThat(detail.children())
+                .filteredOn(r -> r.childId().equals(child2))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.chuaDat()).isEqualTo(2);
+                    assertThat(r.dat()).isZero();
+                });
+        // Trẻ có mặt chưa đánh giá: không có lượt nào
+        assertThat(detail.children())
+                .filteredOn(r -> r.childId().equals(child1))
+                .singleElement()
+                .satisfies(r -> assertThat(r.chuaDat()).isZero());
+    }
+
+    @Test
+    @DisplayName("Hồ sơ phát triển trả ngày trẻ đã điểm danh vắng, trẻ có mặt thì không")
+    void developmentListsAbsentDays() {
+        attendanceService.saveClassAttendance(
+                teacherA,
+                classA,
+                new SaveAttendanceRequest(
+                        TODAY,
+                        List.of(
+                                new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true)),
+                                new SaveAttendanceRequest.Entry(child2, AttendanceStatus.UNEXCUSED, Map.of()))));
+        assertThat(evaluations.development(principal, child2, TODAY, TODAY).absentDays())
+                .containsExactly(TODAY);
+        assertThat(evaluations.development(principal, child1, TODAY, TODAY).absentDays())
+                .isEmpty();
     }
 
     @Test
@@ -241,6 +295,11 @@ class DailyAssessmentIntegrationTest {
         assertThat(sheet.attendanceTaken()).isTrue();
         // Chỉ trẻ có mặt; sức khỏe điền sẵn từ sức khỏe trong ngày
         assertThat(sheet.rows()).extracting(DailySheetResponse.Row::childId).containsExactly(child1);
+        // Trẻ vắng vẫn hiện riêng, không có dòng đánh giá
+        assertThat(sheet.absentChildren()).singleElement().satisfies(a -> {
+            assertThat(a.childId()).isEqualTo(child2);
+            assertThat(a.attendanceStatus()).isEqualTo(AttendanceStatus.UNEXCUSED);
+        });
         assertThat(sheet.rows().getFirst().health().signs()).containsExactly(HealthSymptom.COUGH);
         assertThat(sheet.rows().getFirst().recorded()).isFalse();
         assertThat(sheet.rows().getFirst().generalRecorded()).isFalse();
@@ -326,7 +385,8 @@ class DailyAssessmentIntegrationTest {
                 ApiCode.ASSESSMENT_DIAGNOSTIC_TERM);
         expectCode(() -> service.getDailySheet(teacherB, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
         // AUTH-20: PHT điểm trường khác xem được (chỉ xem), không ghi
-        assertThat(service.getDailySheet(vpB, classA, TODAY)).isNotNull();
+        assertThat(service.getDailySheet(withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), classA, TODAY))
+                .isNotNull();
         expectCode(() -> service.saveSkills(vpA, classA, skills(TODAY, child1, "x")), ApiCode.CLASS_ACCESS_DENIED);
         expectCode(() -> service.getDailySheet(teacherA, classA, TODAY.plusDays(1)), ApiCode.ASSESSMENT_FUTURE_DATE);
         expectCode(
@@ -361,7 +421,7 @@ class DailyAssessmentIntegrationTest {
         assertThat(rowB.activities()).isEmpty();
 
         // Giáo án chưa duyệt không dùng để chấm
-        jdbc.update("UPDATE edu_class_docs SET status = 'PENDING_VP' WHERE id = ?", weekDoc);
+        jdbc.update("UPDATE edu_class_docs SET status = 'REVIEW' WHERE id = ?", weekDoc);
         entityManager.clear();
         attendance(child1, classA, TODAY);
         assertThat(service.getDailySheet(teacherA, classA, TODAY).lesson()).isNull();
@@ -413,8 +473,21 @@ class DailyAssessmentIntegrationTest {
         assertThat(reopened.unlock().id()).isEqualTo(opened.id());
         service.saveGeneral(teacherA, classA, general(YESTERDAY, child1, "Bổ sung"));
 
-        // PHT điểm trường khác xem được lịch sử mở lại (chỉ xem), không mở/thu hồi được
-        assertThat(unlockService.getUnlocks(vpB, null, null, null, null, null))
+        // PHT điểm trường khác chỉ xem lịch sử khi ASSESSMENT_VIEW được cấp scope SCHOOL; không mở/thu hồi được.
+        assertThat(unlockService.getUnlocks(
+                        withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), null, null, null, null, null))
+                .extracting(AssessmentDayUnlockResponse::id)
+                .containsExactly(opened.id());
+        // PHT có quyền Mở lại ở cơ sở mình nhưng bị thu hồi quyền Xem: vẫn thấy lần mở lại của cơ sở mình
+        CurrentUser unlockOnly = new CurrentUser(
+                vpA.userId(),
+                vpA.keycloakUserId(),
+                vpA.username(),
+                vpA.fullName(),
+                null,
+                vpA.roles(),
+                Set.of(Permission.ASSESSMENT_UNLOCK));
+        assertThat(unlockService.getUnlocks(unlockOnly, null, null, null, null, null))
                 .extracting(AssessmentDayUnlockResponse::id)
                 .containsExactly(opened.id());
         assertThat(unlockService.getUnlocks(principal, campusA, classA, true, YESTERDAY, YESTERDAY))
@@ -479,8 +552,13 @@ class DailyAssessmentIntegrationTest {
         assertThat(week.start()).isEqualTo(LocalDate.of(2026, 10, 26));
         assertThat(week.end()).isEqualTo(LocalDate.of(2026, 10, 30));
         assertThat(week.schoolDays()).isEqualTo(3);
-        // AUTH-20 (Cần chốt 03/11/2026): PHT xem tổng quan mọi điểm trường
-        assertThat(week.rows()).extracting(r -> r.classId()).contains(classA, classB);
+        // Mặc định PHT chỉ thấy campus A.
+        assertThat(week.rows()).extracting(r -> r.classId()).containsExactly(classA);
+        assertThat(overviewService
+                        .getOverview(withSchoolWide(vpA, Permission.ASSESSMENT_VIEW), "WEEK", null, null, null, null)
+                        .rows())
+                .extracting(r -> r.classId())
+                .contains(classA, classB);
         assertThat(week.rows())
                 .filteredOn(r -> r.classId().equals(classA))
                 .singleElement()
@@ -508,8 +586,11 @@ class DailyAssessmentIntegrationTest {
         expectCode(
                 () -> overviewService.getOverview(teacherA, "DAY", null, null, null, null),
                 ApiCode.ASSESSMENT_OVERVIEW_FORBIDDEN);
-        // AUTH-20: PHT điểm trường khác xem chi tiết lớp; giáo viên không phải lớp mình vẫn bị chặn
-        assertThat(overviewService.getClassDetail(vpB, classA, "DAY").classId()).isEqualTo(classA);
+        // PHT điểm trường khác cần ASSESSMENT_VIEW scope SCHOOL; giáo viên không phải lớp mình vẫn bị chặn.
+        assertThat(overviewService
+                        .getClassDetail(withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), classA, "DAY")
+                        .classId())
+                .isEqualTo(classA);
         expectCode(() -> overviewService.getClassDetail(teacherA, classA, "DAY"), ApiCode.CLASS_ACCESS_DENIED);
         // Tổ trưởng nhóm tuổi xem tổng quan và chi tiết các lớp cùng nhóm tuổi (lớp A, B)
         jdbc.update(
@@ -544,8 +625,10 @@ class DailyAssessmentIntegrationTest {
                         .getFirst()
                         .text())
                 .isEqualTo("Updated class note");
-        // AUTH-20: PHT điểm trường khác xem được chi tiết lớp (chỉ xem)
-        assertThat(overviewService.getClassDetail(vpB, classA, "DAY").classId()).isEqualTo(classA);
+        assertThat(overviewService
+                        .getClassDetail(withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), classA, "DAY")
+                        .classId())
+                .isEqualTo(classA);
         attendance(child1, classA, TODAY);
         service.saveGeneral(teacherA, classA, general(TODAY, child1, "Child note"));
         assertThat(service.getDailySheet(teacherA, classA, TODAY).classComment().text())
@@ -560,26 +643,30 @@ class DailyAssessmentIntegrationTest {
         attendance(child1, classA, TODAY);
         service.saveSkills(
                 teacherA, classA, skills(TODAY, child1, null, activity("hoc", List.of(goal1), List.of(goal2))));
-        long nextPlan = insertId("INSERT INTO edu_year_plans "
-                + "(code, school_year_id, age_group_id, title, status, owner_id, version_no, source_plan_id) "
-                + "SELECT 'KH-T-V2', school_year_id, age_group_id, title, status, owner_id, 2, id "
-                + "FROM edu_year_plans WHERE id = (SELECT year_plan_id FROM edu_class_docs WHERE id = "
+        long nextPlan = insertId("INSERT INTO edu_team_plans "
+                + "(code, school_year_id, age_group_id, title, status, owner_id, version_no, source_plan_id, legacy_team_without_source) "
+                + "SELECT 'KH-T-V2', school_year_id, age_group_id, title, status, owner_id, 2, id, legacy_team_without_source "
+                + "FROM edu_team_plans WHERE id = (SELECT team_plan_id FROM edu_class_docs WHERE id = "
                 + weekDoc + ") RETURNING id");
         long domain = jdbc.queryForObject("SELECT domain_id FROM edu_plan_goals WHERE id = ?", Long.class, goal1);
         long copiedGoal = goal(nextPlan, domain, 1, "Trẻ nhận biết màu");
         long addedGoal = goal(nextPlan, domain, 2, "Trẻ nhảy bật");
         jdbc.update("UPDATE edu_plan_goals SET lineage_id = ? WHERE id = ?", goal1, copiedGoal);
         jdbc.update("UPDATE edu_plan_goals SET lineage_id = ? WHERE id = ?", goal3, addedGoal);
-        long nextTheme = insertId("INSERT INTO edu_themes (year_plan_id, sort_order, name, abbr, lineage_id) "
+        long nextTheme = insertId("INSERT INTO edu_themes (team_plan_id, sort_order, name, abbr, lineage_id) "
                 + "SELECT " + nextPlan + ", 1, name, abbr, id FROM edu_themes "
                 + "WHERE id = (SELECT theme_id FROM edu_class_docs WHERE id = " + weekDoc + ") RETURNING id");
         String content =
                 "{\"picks\":{\"hoc.2\":[{\"goalId\":\"" + copiedGoal + "\"},{\"goalId\":\"" + addedGoal + "\"}]}}";
         long nextDoc = insertId("INSERT INTO edu_class_docs "
-                + "(doc_key, kind, classroom_id, year_plan_id, theme_id, week_start, status, content, created_by, updated_by, source_doc_id) "
+                + "(doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, created_by, updated_by, source_doc_id) "
                 + "SELECT 'w-a-v2', kind, classroom_id, " + nextPlan + ", " + nextTheme
                 + ", week_start, status, '" + content + "'::jsonb, created_by, updated_by, id "
                 + "FROM edu_class_docs WHERE id = " + weekDoc + " RETURNING id");
+        jdbc.update(
+                "INSERT INTO edu_class_docs (doc_key, kind, classroom_id, team_plan_id, theme_id, week_start, status, content, "
+                        + "created_by, updated_by) SELECT 'd-a-v2', 'day', classroom_id, team_plan_id, theme_id, week_start, status, '{}'::jsonb, "
+                        + "created_by, updated_by FROM edu_class_docs WHERE id = " + nextDoc);
         entityManager.clear();
 
         DailySheetResponse sheet = service.getDailySheet(teacherA, classA, TODAY);
@@ -662,7 +749,9 @@ class DailyAssessmentIntegrationTest {
         attendance(child1, classA, LocalDate.of(2026, 9, 15));
         LocalDate september = LocalDate.of(2026, 9, 1);
         // PHT chưa thấy nội dung khi GV chưa xác nhận
-        assertThat(monthlyComments.get(vpB, classA, september).content()).isNull();
+        CurrentUser schoolViewer = withSchoolWide(vpB, Permission.ASSESSMENT_VIEW);
+        assertThat(monthlyComments.get(schoolViewer, classA, september).content())
+                .isNull();
 
         var draft = monthlyComments.get(teacherA, classA, september);
         assertThat(draft.status()).isEqualTo("AWAITING_REVIEW");
@@ -675,7 +764,7 @@ class DailyAssessmentIntegrationTest {
         assertThat(confirmed.status()).isEqualTo("CONFIRMED");
         expectCode(() -> monthlyComments.save(teacherA, request), ApiCode.EVALUATION_ALREADY_CONFIRMED);
 
-        var leaderView = monthlyComments.get(vpB, classA, september);
+        var leaderView = monthlyComments.get(schoolViewer, classA, september);
         assertThat(leaderView.content()).startsWith("Lớp đi học đều");
         assertThat(leaderView.draft()).isNull();
         assertThat(leaderView.canEdit()).isFalse();
@@ -705,13 +794,17 @@ class DailyAssessmentIntegrationTest {
         var item = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingItem(classA, levels, " Lớp làm tốt ");
         var request = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(period, List.of(item));
 
-        // PHT điểm trường B xem được lớp A (AUTH-20) nhưng không chấm được
-        assertThat(ratings.list(vpB, null, period, null).rows())
+        // ASSESSMENT_VIEW scope SCHOOL cho phép xem lớp A, nhưng không tự cấp quyền chấm.
+        assertThat(ratings.list(withSchoolWide(vpB, Permission.ASSESSMENT_VIEW), null, period, null)
+                        .rows())
                 .filteredOn(r -> r.classId().equals(classA))
                 .singleElement()
                 .satisfies(r -> assertThat(r.canEdit()).isFalse());
         expectCode(() -> ratings.save(vpB, request), ApiCode.CLASS_RATING_FORBIDDEN);
 
+        // Trường chỉ có 1 HT: tên HT điền sẵn chỗ ký bản in (Cần chốt 10/11/2026)
+        jdbc.update("UPDATE user_accounts SET primary_role = 'PRINCIPAL' WHERE id = ?", principal.userId());
+        assertThat(ratings.list(vpA, null, period, null).principalName()).isEqualTo("principal");
         var saved = ratings.save(vpA, request);
         assertThat(saved.rows())
                 .filteredOn(r -> r.classId().equals(classA))
@@ -812,7 +905,10 @@ class DailyAssessmentIntegrationTest {
     @Test
     void yearDraftSurvivesTransferAndProgramReportCountsCurrentRosterOnce() {
         var year = com.carenest.utils.enums.EvaluationPeriodType.YEAR;
-        jdbc.update("UPDATE school_years SET end_date = '2026-10-31' WHERE status = 'ACTIVE'");
+        // OBS-06 (Cần chốt 10/11/2026): cuối năm mở khi học kỳ II kết thúc (27/10, trước hôm nay 28/10)
+        jdbc.update("UPDATE school_years SET end_date = '2026-10-31', semester1_start = start_date,"
+                + " semester1_end = '2026-09-30', semester2_start = '2026-10-01', semester2_end = '2026-10-27'"
+                + " WHERE status = 'ACTIVE'");
         jdbc.update(
                 "UPDATE classrooms SET age_group_id = (SELECT id FROM age_groups WHERE code = 'ag-5' LIMIT 1) WHERE id IN (?, ?)",
                 classA,
@@ -887,6 +983,27 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("OBS-23: hôm nay lớp chưa điểm danh thì chưa tính là ngày phải đi (không hạ bé chăm, chuyên cần)")
+    void qualityReportSkipsTodayUntilClassRecordsAttendance() {
+        // Hôm nay 28/10/2026; 1–27/10 có 19 ngày học thứ 2–6
+        attendance(child1, classA, LocalDate.of(2026, 10, 1));
+        entityManager.clear();
+        var before = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 10), null);
+        assertThat(before.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> assertThat(r.schoolDays()).isEqualTo(19));
+
+        attendance(child1, classA, TODAY);
+        entityManager.clear();
+        var after = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 10), null);
+        assertThat(after.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> assertThat(r.schoolDays()).isEqualTo(20));
+    }
+
+    @Test
     void monthlyQualityCountsChildrenWhoLeftAndJoinedDuringMonth() {
         attendance(child1, classA, LocalDate.of(2026, 9, 15));
         attendance(child2, classA, LocalDate.of(2026, 9, 21));
@@ -912,6 +1029,67 @@ class DailyAssessmentIntegrationTest {
                         .getReport(vpA, null, java.time.YearMonth.of(2026, 9), campusA)
                         .rows())
                 .allMatch(r -> r.campusId().equals(campusA));
+    }
+
+    @Test
+    void schoolTotalCountsOnlyChildrenWhoQuitWhileClassRowCountsTransfers() {
+        // Cần chốt 10/11/2026: lớp đếm cả trẻ chuyển đi; dòng toàn trường chỉ đếm trẻ nghỉ hẳn
+        jdbc.update("UPDATE enrollments SET valid_to = '2026-09-19' WHERE child_id = ?", child1);
+        jdbc.update(
+                "INSERT INTO enrollments (child_id, classroom_id, valid_from) VALUES (?, ?, '2026-09-20')",
+                child1,
+                classB);
+        // Trẻ đi đủ mọi ngày học ở cả lớp A (1–19/9) lẫn lớp B (20–30/9)
+        for (LocalDate d = LocalDate.of(2026, 9, 1); !d.isAfter(LocalDate.of(2026, 9, 30)); d = d.plusDays(1)) {
+            if (d.getDayOfWeek().getValue() <= 5) {
+                attendance(child1, d.isBefore(LocalDate.of(2026, 9, 20)) ? classA : classB, d);
+            }
+        }
+        entityManager.clear();
+        var transferred = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 9), null);
+        // Lớp A: trẻ chuyển đi tính vào trẻ ra lớp, không xét bé chăm
+        assertThat(transferred.rows())
+                .filteredOn(r -> r.classId().equals(classA))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.leftChildren()).isEqualTo(1);
+                    assertThat(r.diligentChildren()).isZero();
+                });
+        // Lớp B: trẻ vào 20/9 đi đủ thời gian ở lớp = 100% ⇒ bé chăm; vẫn tính vào sĩ số tháng 9
+        assertThat(transferred.rows())
+                .filteredOn(r -> r.classId().equals(classB))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.children()).isEqualTo(2);
+                    assertThat(r.diligentChildren()).isEqualTo(1);
+                });
+        assertThat(transferred.totals())
+                .filteredOn(t -> t.level().equals("TOAN_TRUONG"))
+                .singleElement()
+                .satisfies(t -> assertThat(t.leftChildren()).isZero());
+
+        // Thôi học ở lớp B sau đó ⇒ nghỉ hẳn, dòng toàn trường đếm 1
+        jdbc.update(
+                "UPDATE enrollments SET valid_to = '2026-09-25' WHERE child_id = ? AND classroom_id = ?",
+                child1,
+                classB);
+        entityManager.clear();
+        var quit = qualityReports.getReport(principal, null, java.time.YearMonth.of(2026, 9), null);
+        // Nghỉ hẳn ở lớp B ⇒ trẻ ra lớp của B, không còn là bé chăm
+        assertThat(quit.rows())
+                .filteredOn(r -> r.classId().equals(classB))
+                .singleElement()
+                .satisfies(r -> {
+                    assertThat(r.leftChildren()).isEqualTo(1);
+                    assertThat(r.diligentChildren()).isZero();
+                });
+        assertThat(quit.totals())
+                .filteredOn(t -> t.level().equals("TOAN_TRUONG"))
+                .singleElement()
+                .satisfies(t -> {
+                    assertThat(t.leftChildren()).isEqualTo(1);
+                    assertThat(t.leftRate()).isNotNull();
+                });
     }
 
     private static SaveDailySkillsRequest skills(LocalDate date, long childId, String comment, Activity... activities) {
@@ -957,14 +1135,53 @@ class DailyAssessmentIntegrationTest {
     }
 
     private long goal(long plan, long domain, int no, String text) {
-        return insertId("INSERT INTO edu_plan_goals (year_plan_id, domain_id, sort_order, text, goal_no) VALUES ("
+        return insertId("INSERT INTO edu_plan_goals (team_plan_id, domain_id, sort_order, text, goal_no) VALUES ("
                 + plan + ", " + domain + ", " + no + ", '" + text + "', " + no + ") RETURNING id");
     }
 
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions =
+                switch (role) {
+                    case PRINCIPAL ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_UNLOCK,
+                                Permission.ASSESSMENT_VIEW,
+                                Permission.ASSESSMENT_UNLOCK,
+                                Permission.ASSESSMENT_CLASS_REVIEW);
+                    case VICE_PRINCIPAL ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_UNLOCK,
+                                Permission.ASSESSMENT_VIEW,
+                                Permission.ASSESSMENT_UNLOCK,
+                                Permission.ASSESSMENT_CLASS_REVIEW,
+                                Permission.REWARD_REVIEW);
+                    case TEACHER, TEAM_LEADER ->
+                        Set.of(
+                                Permission.ATTENDANCE_VIEW,
+                                Permission.ATTENDANCE_RECORD,
+                                Permission.DAILY_HEALTH_RECORD,
+                                Permission.ASSESSMENT_VIEW,
+                                Permission.ASSESSMENT_RECORD,
+                                Permission.ASSESSMENT_CONFIRM);
+                    default -> Set.of();
+                };
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
+    }
+
+    private static CurrentUser withSchoolWide(CurrentUser user, Permission... permissions) {
+        return new CurrentUser(
+                user.userId(),
+                user.keycloakUserId(),
+                user.username(),
+                user.fullName(),
+                user.email(),
+                user.roles(),
+                user.permissions(),
+                Set.of(permissions));
     }
 
     private void campusRole(CurrentUser user, long campusId) {

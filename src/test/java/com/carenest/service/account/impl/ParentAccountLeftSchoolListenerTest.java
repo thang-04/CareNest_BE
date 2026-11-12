@@ -60,6 +60,7 @@ class ParentAccountLeftSchoolListenerTest {
         listener.onChildrenLeftSchool(new YearTransitionService.ChildrenLeftSchoolEvent(List.of(LEAVING), START));
 
         assertThat(parent.getStatus()).isEqualTo(UserStatus.INACTIVE);
+        assertThat(parent.isLockedBySystem()).isTrue();
         verify(authState).revokeAccountAuth(61L);
         verify(identity).setUserEnabled("kc-61", false);
         verify(identity).logoutUser("kc-61");

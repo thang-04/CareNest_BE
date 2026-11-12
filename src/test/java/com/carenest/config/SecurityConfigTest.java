@@ -154,6 +154,21 @@ class SecurityConfigTest {
     }
 
     @Test
+    void shouldAllowClassDocVersionHeadersInPreflight() throws Exception {
+        mockMvc.perform(options(TEACHER_ENDPOINT)
+                        .header(HttpHeaders.ORIGIN, ALLOWED_ORIGIN)
+                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "PUT")
+                        .header(
+                                HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS,
+                                "authorization, content-type, x-class-doc-version, x-dossier-version"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                                HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("x-class-doc-version")))
+                .andExpect(
+                        header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, containsString("x-dossier-version")));
+    }
+
+    @Test
     void shouldRejectCorsPreflightFromUnknownOrigin() throws Exception {
         mockMvc.perform(options(TEACHER_ENDPOINT)
                         .header(HttpHeaders.ORIGIN, "https://evil.example")

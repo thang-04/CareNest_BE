@@ -1,6 +1,7 @@
 package com.carenest.service.meals.impl;
 
 import com.carenest.dto.attendance.DayInfoResponse;
+import com.carenest.dto.meals.ClassMealCountResponse;
 import com.carenest.dto.meals.MealAdjustRequest;
 import com.carenest.dto.meals.MealCountDayResponse;
 import com.carenest.dto.meals.MealCountResponse;
@@ -77,21 +78,23 @@ public class MealCountServiceImpl implements MealCountService {
     private final NotificationService notificationService;
     private final Clock clock;
 
-    /** Phạm vi người xem: HT toàn trường; PHT còn phân công xem mọi điểm trường (AUTH-20); bếp điểm trường mình. */
+    /** Phạm vi người xem: HT toàn trường; PHT theo phạm vi HT cấp (AUTH-20 cập nhật 10/11/2026); bếp điểm trường mình. */
     private record Viewer(
             CurrentUser user,
             boolean principal,
             Set<Long> leadCampuses,
             Set<Long> kitchenCampuses,
-            Predicate<Long> editsCampus) {
+            Predicate<Long> editsCampus,
+            Predicate<Long> viewsCampus) {
         boolean sees(Long campusId) {
             return reviews(campusId) || kitchenCampuses.contains(campusId);
         }
 
         // HT, PHT thấy cả số chờ xác nhận lại; bếp chỉ thấy số đã xác nhận.
-        // AUTH-20: PHT còn phân công xem số suất mọi điểm trường; xác nhận/điều chỉnh vẫn theo phạm vi
+        // Phân quyền động (Cần chốt 10/11/2026): PHT xem số suất trong phạm vi ATTENDANCE_VIEW hoặc MEAL_COUNT_CONFIRM
+        // HT cấp (mặc định cơ sở mình, SCHOOL = toàn trường)
         boolean reviews(Long campusId) {
-            return principal || !leadCampuses.isEmpty();
+            return principal || (!leadCampuses.isEmpty() && viewsCampus.test(campusId));
         }
 
         // NUT-02 + AUTH-20: HT xác nhận mọi điểm trường; PHT có MEAL_COUNT_CONFIRM trong phạm vi được giao
@@ -99,9 +102,9 @@ public class MealCountServiceImpl implements MealCountService {
             return editsCampus.test(campusId);
         }
 
-        // NUT-02: điều chỉnh suất thay thế chỉ PHT, cùng phạm vi xác nhận
+        // NUT-02: điều chỉnh suất thay thế: PHT trong phạm vi xác nhận; HT mọi điểm trường (Cần chốt 10/11/2026)
         boolean adjusts(Long campusId) {
-            return !principal && editsCampus.test(campusId);
+            return editsCampus.test(campusId);
         }
 
         StaffRole confirmerRole() {
@@ -183,6 +186,68 @@ public class MealCountServiceImpl implements MealCountService {
             }
             MealCountDayResponse response = new MealCountDayResponse(
                     day, info.today(), info.cutoff(), info.schoolDay(), info.baseLocked(), counts);
+            log.info("{}|END", logPrefix);
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public ClassMealCountResponse getClassMealCount(CurrentUser currentUser, Long classId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|getClassMealCount|userId=" + currentUser.userId() + "|classId=" + classId;
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate day = date == null ? LocalDate.now(clock) : date;
+            // Cùng cách kiểm lớp với màn điểm danh: không xem được lớp ⇒ CLASS_ACCESS_DENIED (403)
+            DayInfoResponse info = attendanceService.getDayInfo(currentUser, day, classId);
+            Year year = year(null);
+            ClassroomInfoResponse cls = year == null ? null : year.classById().get(classId);
+            List<ClassMealCountResponse.Meal> meals = new ArrayList<>();
+            if (cls != null && info.schoolDay() && !day.isAfter(info.today())) {
+                Map<MealSession, MealCount> stored = new HashMap<>();
+                mealCountRepository.findByCampusIdInAndDate(List.of(cls.campusId()), day).stream()
+                        .filter(c -> c.getSchoolYearId().equals(year.id()))
+                        .forEach(c -> stored.put(c.getSession(), c));
+                List<ClassMealTally> tallies = null;
+                for (MealSession session : cls.mealSessions().stream().sorted().toList()) {
+                    MealCount count = stored.get(session);
+                    if (count != null) {
+                        // Giáo viên thấy số hiện tại của lớp (kể cả số chờ xác nhận lại sau khi sửa điểm danh)
+                        MealCountLine line = count.visibleLine(classId).orElse(null);
+                        meals.add(new ClassMealCountResponse.Meal(
+                                session,
+                                line == null ? 0 : line.getNormal(),
+                                line == null ? 0 : line.getSubstitute(),
+                                count.reviewStatus().name(),
+                                count.hasPending(),
+                                count.getConfirmedAt()));
+                        continue;
+                    }
+                    // Sổ chưa lập (trước giờ chốt hoặc chưa ai mở sổ): tạm tính từ điểm danh, không lưu
+                    if (tallies == null) {
+                        tallies = attendanceService.tallyMeals(day, cls.campusId(), year.id());
+                    }
+                    ClassMealTally tally = tallies.stream()
+                            .filter(t -> t.classroomId().equals(classId))
+                            .findFirst()
+                            .orElse(null);
+                    int eating = tally == null ? 0 : tally.meals().getOrDefault(session, 0);
+                    int substitute = tally == null ? 0 : tally.substitutes().getOrDefault(session, 0);
+                    meals.add(new ClassMealCountResponse.Meal(
+                            session, eating - substitute, substitute, OPEN, false, null));
+                }
+            }
+            ClassMealCountResponse response = new ClassMealCountResponse(
+                    classId,
+                    cls == null ? null : cls.name(),
+                    day,
+                    info.today(),
+                    info.cutoff(),
+                    info.schoolDay(),
+                    info.locked(),
+                    meals);
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -439,7 +504,11 @@ public class MealCountServiceImpl implements MealCountService {
         Map<Long, Boolean> editable = new HashMap<>();
         Predicate<Long> editsCampus = campusId -> editable.computeIfAbsent(
                 campusId, id -> campusAccessPolicy.canEditCampus(user, Permission.MEAL_COUNT_CONFIRM, id));
-        return new Viewer(user, principal, lead, kitchen, editsCampus);
+        Map<Long, Boolean> viewable = new HashMap<>();
+        Predicate<Long> viewsCampus = campusId -> viewable.computeIfAbsent(
+                campusId,
+                id -> campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, id) || editsCampus.test(id));
+        return new Viewer(user, principal, lead, kitchen, editsCampus, viewsCampus);
     }
 
     private static Set<Long> campusesOf(
@@ -623,7 +692,9 @@ public class MealCountServiceImpl implements MealCountService {
                         t.meals().getOrDefault(session, 0) - t.substitutes().getOrDefault(session, 0),
                         t.substitutes().getOrDefault(session, 0),
                         null,
-                        null))
+                        null,
+                        false,
+                        false))
                 .toList();
         return new MealCountResponse(
                 null,
@@ -657,7 +728,9 @@ public class MealCountServiceImpl implements MealCountService {
                 l.getNormal(),
                 l.getSubstitute(),
                 confirmed == null ? null : confirmed.getNormal(),
-                confirmed == null ? null : confirmed.getSubstitute());
+                confirmed == null ? null : confirmed.getSubstitute(),
+                l.isSubstituteAdjusted(),
+                l.isAttendanceChanged());
     }
 
     private static Totals totals(List<Line> lines) {

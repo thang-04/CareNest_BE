@@ -47,6 +47,10 @@ public class Notification {
     @Column(name = "read_at")
     private Instant readAt;
 
+    // Đường dẫn Web mở thẳng hồ sơ liên quan (spec 003); null với thông báo App
+    @Column(updatable = false, length = 255)
+    private String link;
+
     public static Notification of(
             Long userId, NotificationType type, String title, String body, Long childId, Instant at) {
         Notification n = new Notification();
@@ -56,6 +60,13 @@ public class Notification {
         n.body = body;
         n.childId = childId;
         n.createdAt = at;
+        return n;
+    }
+
+    public static Notification of(
+            Long userId, NotificationType type, String title, String body, Long childId, Instant at, String link) {
+        Notification n = of(userId, type, title, body, childId, at);
+        n.link = link;
         return n;
     }
 

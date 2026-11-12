@@ -1,8 +1,9 @@
 package com.carenest.controller.eduplan;
 
 import com.carenest.dto.eduplan.BranchFilePreviewResponse;
+import com.carenest.dto.eduplan.ClassCalendarPreviewRequest;
+import com.carenest.dto.eduplan.ClassCalendarPreviewResponse;
 import com.carenest.dto.eduplan.ClassDocActionRequest;
-import com.carenest.dto.eduplan.ClassDocAdjustmentsRequest;
 import com.carenest.dto.eduplan.ClassDocsResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
@@ -37,7 +38,7 @@ public class EduClassDocController {
     private final EduClassDocService classDocService;
 
     @PostMapping(value = "/branch/file-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<BranchFilePreviewResponse>> previewBranchFile(
             @RequestParam Long classId,
             @RequestParam Long yearPlanId,
@@ -49,6 +50,18 @@ public class EduClassDocController {
         BranchFilePreviewResponse preview = classDocService.previewBranchFile(currentUser, classId, yearPlanId, file);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Preview branch file success", preview);
+    }
+
+    @PostMapping("/branch/calendar-preview")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<ClassCalendarPreviewResponse>> previewClassCalendar(
+            @RequestBody ClassCalendarPreviewRequest request, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|previewClassCalendar|userId=" + currentUser.userId() + "|classId=" + request.classId();
+        log.info("{}|START", logPrefix);
+        ClassCalendarPreviewResponse response = classDocService.previewClassCalendar(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Preview class calendar success", response);
     }
 
     @GetMapping
@@ -64,32 +77,35 @@ public class EduClassDocController {
     }
 
     @PutMapping("/{kind}/{docKey}")
-    @PreAuthorize("hasRole('TEACHER')")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
     public ResponseEntity<ResponseJson<ObjectNode>> saveClassDoc(
             @PathVariable String kind,
             @PathVariable String docKey,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Class-Doc-Version") Long expectedVersion,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Dossier-Version", required = false)
+                    Long expectedRootVersion,
             @RequestBody ObjectNode doc,
             CurrentUser currentUser) {
         String logPrefix =
                 LOG_PREFIX + "|saveClassDoc|userId=" + currentUser.userId() + "|kind=" + kind + "|docKey=" + docKey;
         log.info("{}|START", logPrefix);
-        ObjectNode saved = classDocService.saveClassDoc(currentUser, kind, docKey, doc);
+        ObjectNode saved =
+                classDocService.saveClassDoc(currentUser, kind, docKey, doc, expectedVersion, expectedRootVersion);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save class document success", saved);
     }
 
-    // EDU-27: ô "Kế hoạch điều chỉnh và bổ sung" của kế hoạch ngày, ghi riêng để sửa được cả sau khi duyệt
-    @PutMapping("/week/{docKey}/adjustments")
-    @PreAuthorize("hasRole('TEACHER')")
-    public ResponseEntity<ResponseJson<ObjectNode>> saveAdjustments(
-            @PathVariable String docKey,
-            @Valid @RequestBody ClassDocAdjustmentsRequest request,
-            CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|saveAdjustments|userId=" + currentUser.userId() + "|docKey=" + docKey;
+    /** Spec 002 FR-018: xem lại một bản hồ sơ chủ đề đã ban hành trước đây. */
+    @GetMapping("/releases/{releaseId}")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+    public ResponseEntity<ResponseJson<ObjectNode>> getClassDocRelease(
+            @PathVariable Long releaseId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|getClassDocRelease|userId=" + currentUser.userId() + "|releaseId=" + releaseId;
         log.info("{}|START", logPrefix);
-        ObjectNode saved = classDocService.saveAdjustments(currentUser, docKey, request.adjustments());
+        ObjectNode release = classDocService.getClassDocRelease(currentUser, releaseId);
         log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save lesson adjustments success", saved);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get class document release success", release);
     }
 
     @PostMapping("/{kind}/{docKey}/actions")
@@ -97,12 +113,13 @@ public class EduClassDocController {
     public ResponseEntity<ResponseJson<ObjectNode>> actOnClassDoc(
             @PathVariable String kind,
             @PathVariable String docKey,
+            @org.springframework.web.bind.annotation.RequestHeader(value = "X-Class-Doc-Version") Long expectedVersion,
             @Valid @RequestBody ClassDocActionRequest request,
             CurrentUser currentUser) {
         String logPrefix = LOG_PREFIX + "|actOnClassDoc|userId=" + currentUser.userId() + "|kind=" + kind + "|docKey="
                 + docKey + "|action=" + request.action();
         log.info("{}|START", logPrefix);
-        ObjectNode doc = classDocService.actOnClassDoc(currentUser, kind, docKey, request);
+        ObjectNode doc = classDocService.actOnClassDoc(currentUser, kind, docKey, request, expectedVersion);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update class document status success", doc);
     }

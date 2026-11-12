@@ -329,7 +329,7 @@ class ChildEnrollmentMigrationIntegrationTest {
                         Long.class,
                         children[2]))
                 .isZero();
-        // V82: liên kết chuyển sang child_guardians (user_id + linked_at); dòng có user_id mà không có liên kết bị gỡ
+        // V122: liên kết chuyển sang child_guardians (user_id + linked_at); dòng có user_id mà không có liên kết bị gỡ
         assertThat(old.queryForObject(
                         "SELECT count(*) FROM child_guardians WHERE user_id IS NOT NULL AND linked_at IS NOT NULL",
                         Long.class))

@@ -15,6 +15,7 @@ import com.carenest.dto.child.GuardianChildSummary;
 import com.carenest.dto.child.GuardianDraft;
 import com.carenest.dto.child.GuardianRecord;
 import com.carenest.dto.child.HealthDeclarationDraft;
+import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
 import com.carenest.dto.common.FieldErrorResponse;
@@ -51,11 +52,9 @@ import com.carenest.utils.enums.ChildStatus;
 import com.carenest.utils.enums.ClassroomStatus;
 import com.carenest.utils.enums.DeclarationState;
 import com.carenest.utils.enums.DuplicateChildKind;
-import com.carenest.utils.enums.GuardianAccountStatus;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthDeclarationAction;
 import com.carenest.utils.enums.SchoolYearStatus;
-import com.carenest.utils.enums.SmsStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -72,8 +71,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 /** Không log họ tên, ngày sinh, SĐT, CCCD, sức khỏe — chỉ id, số lượng. */
 @Slf4j
@@ -99,6 +100,11 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     private final StaffAssignmentService staffAssignmentService;
     private final StaffAccessPolicy staffAccessPolicy;
     private final Clock clock;
+    private final TbContactNotifier tbContactNotifier;
+    private final ObjectMapper objectMapper;
+    private final PlacementRules placementRules;
+    private final GuardianViews guardianViews;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional(readOnly = true)
@@ -220,6 +226,8 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             childRepository.save(child);
             childHistoryRepository.save(ChildHistory.record(
                     childId, ChildHistoryAction.READMITTED, actor.userId(), reason, clock.instant()));
+            // Feature account mở lại tài khoản phụ huynh hệ thống đã khóa khi trẻ nghỉ (sau commit; CHD-04, V90)
+            eventPublisher.publishEvent(new ChildReadmittedEvent(childId));
             ChildViewResponse view = getChildView(childId);
             log.info("{}|campusId={}|END", logPrefix, campusId);
             return view;
@@ -320,10 +328,21 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                     .toList());
             declarationHistoryRepository.save(ChildHealthDeclarationHistory.record(
                     childId, HealthDeclarationAction.DECLARED, actor.userId(), null, now));
+            // CHD-07: khai Có tiếp xúc người bệnh lao khi tiếp nhận / nhập Excel
+            if (d.tbContactState() == DeclarationState.REPORTED) {
+                tbContactNotifier.contactReported(
+                        childId, draft.fullName(), draft.campusId(), d.tbContactDate(), actor.userId());
+            }
             childHistoryRepository.save(
                     ChildHistory.record(childId, ChildHistoryAction.ENROLLED, actor.userId(), null, now));
             if (placed) {
-                enrollmentRepository.save(Enrollment.start(childId, draft.classroomId(), today, actor.userId()));
+                // CHD-10, mục 6.2: lớp từ hôm nay, ghi lịch sử xếp lớp, báo GV lớp (tiếp nhận form và nhập Excel)
+                ClassroomInfoResponse classroom = classroomService
+                        .findClassroomInfo(draft.classroomId())
+                        .orElseThrow(() -> GlobalException.of(ApiCode.CLASS_NOT_FOUND));
+                placementRules.startEnrollment(childId, classroom, actor.userId(), today);
+                placementRules.recordPlacement(
+                        childId, draft.fullName(), null, classroom, actor.userId(), null, now, today);
             }
 
             int linked = 0;
@@ -500,21 +519,9 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
         if (classId != null) {
             ClassroomInfoResponse classroom =
                     classroomService.findClassroomInfo(classId).orElse(null);
-            if (classroom == null || classroom.status() != ClassroomStatus.ACTIVE) {
-                throw fieldError("classId", "Lớp không tồn tại hoặc đã ngừng hoạt động");
-            }
-            if (classroom.yearStatus() != SchoolYearStatus.ACTIVE) {
-                throw fieldError(
-                        "classId",
-                        "Chỉ xếp vào lớp của năm học đang hoạt động. Xếp lớp cho năm học sau ở màn Xếp lớp năm học mới.");
-            }
-            if (!wholeSchool && !managed.contains(classroom.campusId())) {
-                throw fieldError("classId", "Chỉ xếp được vào lớp thuộc điểm trường bạn được giao");
-            }
-            long enrolled = enrolledCounts(List.of(classroom.id()), today).getOrDefault(classroom.id(), 0L);
-            if (classroom.capacity() != null && enrolled >= classroom.capacity()) {
-                throw fieldError(
-                        "classId", classroom.name() + " đã đủ " + classroom.capacity() + " trẻ. Chọn lớp khác.");
+            String problem = placementRules.classProblem(actor, classroom, today);
+            if (problem != null) {
+                throw fieldError("classId", problem);
             }
             if (campusId != null && !campusId.equals(classroom.campusId())) {
                 throw fieldError("classId", "Lớp không thuộc điểm trường đã chọn");
@@ -602,6 +609,25 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     }
 
     @Override
+    public Map<Long, Long> findRecipientAccountIds(Collection<Long> childIds) {
+        String logPrefix = LOG_PREFIX + "|findRecipientAccountIds|children=" + childIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, Long> result = new HashMap<>();
+            if (!childIds.isEmpty()) {
+                childGuardianRepository.findAllByChildIdInOrderByChildIdAscPositionAsc(childIds).stream()
+                        .filter(g -> g.isAccountRecipient() && g.getUserId() != null)
+                        .forEach(g -> result.putIfAbsent(g.getChildId(), g.getUserId()));
+            }
+            log.info("{}|count={}|END", logPrefix, result.size());
+            return result;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ChildGuardianResponse> accountCandidates(Long childId) {
         String logPrefix = LOG_PREFIX + "|accountCandidates|childId=" + childId;
@@ -679,32 +705,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
     }
 
     private List<ChildGuardianResponse> guardiansOf(Long childId) {
-        Map<Long, ChildGuardianRepository.GuardianAccountRow> accounts =
-                childGuardianRepository.findAccountRows(childId).stream()
-                        .collect(Collectors.toMap(
-                                ChildGuardianRepository.GuardianAccountRow::getGuardianId, Function.identity()));
-        return childGuardianRepository.findAllByChildIdOrderByPositionAsc(childId).stream()
-                .map(g -> {
-                    ChildGuardianRepository.GuardianAccountRow row = accounts.get(g.getId());
-                    String accountStatus = row == null ? null : row.getAccountStatus();
-                    String smsStatus = row == null ? null : row.getSmsStatus();
-                    Long smsAt = row == null ? null : row.getSmsAtMillis();
-                    return new ChildGuardianResponse(
-                            g.getFullName(),
-                            g.getRelationship(),
-                            g.getPhone(),
-                            g.getCitizenId(),
-                            g.getEmail(),
-                            accountStatus == null
-                                    ? GuardianAccountStatus.NOT_ACTIVATED
-                                    : GuardianAccountStatus.valueOf(accountStatus),
-                            smsStatus == null ? null : SmsStatus.valueOf(smsStatus),
-                            smsAt == null ? null : Instant.ofEpochMilli(smsAt),
-                            guardianPhotoUrl(g),
-                            g.getId(),
-                            g.isAccountRecipient());
-                })
-                .toList();
+        return guardianViews.of(childId);
     }
 
     private static String guardianPhotoUrl(ChildGuardian guardian) {
@@ -798,6 +799,7 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             ChildMedicalHistory history,
             HealthDeclarationAction action,
             String note,
+            String changeSource,
             Long userId,
             Instant at) {
         String logPrefix = LOG_PREFIX + "|updateMedicalHistory|childId=" + childId + "|action=" + action;
@@ -807,6 +809,10 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
             ChildHealthDeclaration.Answer family =
                     new ChildHealthDeclaration.Answer(history.family(), history.familyText());
             Optional<ChildHealthDeclaration> existing = declarationRepository.findById(childId);
+            HealthDeclarationResponse.DeclarationMedicalHistory before =
+                    existing.map(ChildIntakeServiceImpl::medicalHistoryView).orElse(null);
+            LocalDate beforeTbDate =
+                    existing.map(ChildHealthDeclaration::getTbContactDate).orElse(null);
             if (existing.isPresent()) {
                 existing.get().updateMedicalHistory(self, family, history.tbContact(), history.tbContactDate());
             } else {
@@ -825,12 +831,45 @@ public class ChildIntakeServiceImpl implements ChildIntakeService {
                         userId,
                         at));
             }
-            declarationHistoryRepository.save(ChildHealthDeclarationHistory.record(childId, action, userId, note, at));
+            HealthDeclarationResponse.DeclarationMedicalHistory after =
+                    new HealthDeclarationResponse.DeclarationMedicalHistory(
+                            new HealthDeclarationResponse.DeclarationAnswer(history.self(), history.selfText()),
+                            new HealthDeclarationResponse.DeclarationAnswer(history.family(), history.familyText()),
+                            new HealthDeclarationResponse.DeclarationTbContact(
+                                    history.tbContact(), history.tbContactDate()));
+            String historyChange = objectMapper.writeValueAsString(
+                    new HealthDeclarationResponse.DeclarationHistoryChange(before, after));
+            declarationHistoryRepository.save(
+                    ChildHealthDeclarationHistory.record(childId, action, userId, note, null, historyChange, at));
+            // CHD-07: ngày tiếp xúc lao đã có đổi (từ phiếu khám) ⇒ báo HT, PHT điểm trường, người lưu
+            if (history.tbContact() == DeclarationState.REPORTED
+                    && beforeTbDate != null
+                    && history.tbContactDate() != null
+                    && !beforeTbDate.equals(history.tbContactDate())) {
+                Child child = childRepository
+                        .findById(childId)
+                        .orElseThrow(() -> GlobalException.of(ApiCode.CHILD_NOT_FOUND));
+                tbContactNotifier.contactDateChanged(
+                        childId,
+                        child.getFullName(),
+                        currentCampusOf(child, LocalDate.now(clock)),
+                        beforeTbDate,
+                        history.tbContactDate(),
+                        changeSource,
+                        userId);
+            }
             log.info("{}|END", logPrefix);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private static HealthDeclarationResponse.DeclarationMedicalHistory medicalHistoryView(ChildHealthDeclaration d) {
+        return new HealthDeclarationResponse.DeclarationMedicalHistory(
+                new HealthDeclarationResponse.DeclarationAnswer(d.getSelfHistoryState(), d.getSelfHistoryText()),
+                new HealthDeclarationResponse.DeclarationAnswer(d.getFamilyHistoryState(), d.getFamilyHistoryText()),
+                new HealthDeclarationResponse.DeclarationTbContact(d.getTbContactState(), d.getTbContactDate()));
     }
 
     private static ChildProfileDetailResponse toProfileResponse(ChildProfile p) {

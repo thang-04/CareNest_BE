@@ -4,12 +4,14 @@ import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
+import com.carenest.dto.health.PublishedHealthResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.health.HealthCheckCampaign;
 import com.carenest.entity.health.HealthMeasurement;
 import com.carenest.entity.health.HealthMeasurementEdit;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.health.HealthCheckCampaignRepository;
+import com.carenest.repository.health.HealthInterpretationRepository;
 import com.carenest.repository.health.HealthMeasurementEditRepository;
 import com.carenest.repository.health.HealthMeasurementRepository;
 import com.carenest.security.CurrentUser;
@@ -21,6 +23,7 @@ import com.carenest.service.organization.ClassroomService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckStatus;
+import com.carenest.utils.enums.InterpretationStatus;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -32,6 +35,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 
 @Slf4j
 @Service
@@ -50,6 +55,9 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
     private final ChildService childService;
     private final EnrollmentService enrollmentService;
     private final ClassroomService classroomService;
+    private final HealthNotifier healthNotifier;
+    private final HealthInterpretationRepository interpretationRepository;
+    private final ObjectMapper objectMapper;
 
     @Override
     @Transactional(readOnly = true)
@@ -141,6 +149,8 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                     .measuredBy(currentUser.userId())
                     .createdAt(rules.now())
                     .build());
+            // HLT-11: lưu là công bố ⇒ báo phụ huynh
+            healthNotifier.resultPublished(childId, child.fullName(), false);
             HealthMeasurementResponse view = view(saved, child);
             log.info("{}|END", logPrefix);
             return view;
@@ -190,10 +200,69 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                 editRepository.save(HealthMeasurementEdit.of(
                         m.getId(), currentUser.userId(), reason, records.writeChanges(changes), rules.now()));
                 m.update(request.heightCm(), request.weightKg(), note, rules.now());
+                healthNotifier.resultPublished(childId, child.fullName(), true);
             }
             HealthMeasurementResponse view = view(m, child);
             log.info("{}|END", logPrefix);
             return view;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PublishedHealthResponse getPublishedHealth(CurrentUser currentUser, Long childId) {
+        String logPrefix = LOG_PREFIX + "|getPublishedHealth|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            // AUTH-04, CHD-04: phụ huynh chỉ trẻ có liên kết và chưa nghỉ học; nhân sự theo phạm vi lớp
+            childAccessPolicy.checkCanReadChild(currentUser, childId);
+            ChildBriefResponse child = brief(childId);
+            HealthRecords.Snapshot s = records.load(List.of(childId));
+            List<HealthMeasurementResponse> published =
+                    records.views(s, s.results(childId), child.dateOfBirth(), child.gender(), false);
+            List<PublishedHealthResponse.PublishedHealthResult> results = published.stream()
+                    .map(m -> new PublishedHealthResponse.PublishedHealthResult(
+                            m.id(),
+                            m.date(),
+                            m.ageMonths(),
+                            m.source(),
+                            m.campaignKind(),
+                            m.campaignName(),
+                            m.heightCm(),
+                            m.weightKg(),
+                            m.headCircumferenceCm(),
+                            m.bmi(),
+                            m.bmiStatus(),
+                            m.bmiZScore(),
+                            m.note(),
+                            m.followUpLevel(),
+                            m.conclusionCategory(),
+                            m.conclusion(),
+                            m.publishedAt()))
+                    .toList();
+            // HLT-05, PAR-03: phụ huynh chỉ thấy giải thích đã duyệt
+            PublishedHealthResponse.ApprovedInterpretation interpretation = interpretationRepository
+                    .findFirstByChildIdAndStatusOrderByApprovedAtDescIdDesc(childId, InterpretationStatus.APPROVED)
+                    .map(i -> new PublishedHealthResponse.ApprovedInterpretation(
+                            i.getId(),
+                            i.getSummary(),
+                            objectMapper.readValue(
+                                    i.getWarnings(),
+                                    new TypeReference<List<PublishedHealthResponse.TrendWarning>>() {}),
+                            i.getApprovedAt()))
+                    .orElse(null);
+            PublishedHealthResponse response = new PublishedHealthResponse(
+                    childId,
+                    results,
+                    HealthGrowth.points(published, child.gender()),
+                    s.latestExam(childId),
+                    s.latestBmi(childId, child.dateOfBirth(), child.gender()),
+                    interpretation);
+            log.info("{}|results={}|END", logPrefix, results.size());
+            return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

@@ -7,6 +7,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.Permission;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -72,7 +73,13 @@ class TeacherAssignmentConcurrencyIntegrationTest {
         // GV đã dạy lớp C1 tới hôm qua: còn là giáo viên của điểm trường nhưng hiện chưa dạy lớp nào
         long shared = teacher("shared-c", class1, "2026-10-21");
         CurrentUser principal = new CurrentUser(
-                principalId, "kc-principal-c", "principal-c", "P", null, Set.of(CareNestRole.PRINCIPAL));
+                principalId,
+                "kc-principal-c",
+                "principal-c",
+                "P",
+                null,
+                Set.of(CareNestRole.PRINCIPAL),
+                Set.of(Permission.STAFF_ASSIGNMENT_MANAGE));
 
         var start = new CountDownLatch(1);
         var outcomes = new ConcurrentLinkedQueue<String>();

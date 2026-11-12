@@ -28,6 +28,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
     món lặp trong tuần ⇒ cảnh báo                                                     (NUT-20)
     dị ứng                                                                            (NUT-09)
     kho khô không đủ theo sĩ số dự kiến ⇒ cảnh báo, chưa trừ                          (NUT-11, P-38)
+      └─ cộng dồn theo ngày từ hôm nay: số thực phẩm thiếu, ngày bắt đầu thiếu; chi tiết ở bản dự trù
 [S] Món có chất dị ứng mức nặng: PHT chọn món thay thế theo chất × món,
     dùng chung cho mọi trẻ dị ứng chất đó; hệ thống gợi ý                             (NUT-23)
       ↓
@@ -43,6 +44,8 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 ```text
 [S] PHT lập bản dự trù: sĩ số dự kiến điền sẵn theo nhóm tuổi × cơ sở, PHT sửa,
     chọn kỳ và thực đơn dự kiến; lưu, in danh sách đặt hàng                           (NUT-07, NUT-12)
+      └─ kèm hàng khô cần nhập thêm tới hết kỳ (tính khi xem, không lưu), in chung    (NUT-11, P-24 đổi 08/11)
+[S] Bán trú hôm nay: kho khô sắp thiếu n thực phẩm từ ngày X (tới hết tuần sau)      (NUT-11)
 [B] PHT gửi NCC; sau giờ chốt báo NCC tăng/giảm hàng tươi                             (NUT-12)
 [B] Bếp kiểm hàng tươi, báo PHT qua Zalo/điện thoại
 [S] Số suất ngày của cơ sở được xác nhận (flow attendance.md, NUT-02)
@@ -84,7 +87,7 @@ Module: nutrition (+ ai-assistance, child cho dị ứng, attendance cho suất)
 [B] Ký giấy các bên
 ```
 
-Còn mở: mẫu sổ lưu mẫu (P-26); kiểm thực ba bước (P-27).
+Đã chốt 09–10/11: mẫu sổ lưu mẫu theo Mẫu 4, 5 (P-26) và kiểm thực ba bước do PHT điền, ký ảnh (P-27) — INS-01..04, SIG-01; chưa cài đặt, xem `docs/plans/active/2026-11-10-inspection-records-signatures.md`.
 
 ## AI gợi ý thực đơn (tùy chọn, không bắt buộc)
 

@@ -17,6 +17,8 @@ import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -87,6 +89,32 @@ class MealDemandCalculator {
             }
         }
         return List.copyOf(merged.values());
+    }
+
+    /** Số trẻ đang học tại {@code date} theo nhóm tuổi của các lớp năm học hiện hành ở điểm trường. */
+    Map<Long, Integer> enrolledByAgeGroup(Long campusId, LocalDate date) {
+        List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
+                .filter(c -> campusId.equals(c.campusId()) && c.ageGroupId() != null)
+                .toList();
+        Map<Long, Long> perClass = classroomService.countActiveChildren(
+                classes.stream().map(ClassroomInfoResponse::id).toList(), date);
+        Map<Long, Integer> byAgeGroup = new HashMap<>();
+        for (ClassroomInfoResponse c : classes) {
+            byAgeGroup.merge(c.ageGroupId(), perClass.getOrDefault(c.id(), 0L).intValue(), Integer::sum);
+        }
+        return byAgeGroup;
+    }
+
+    /** NUT-07: suất dự kiến = số trẻ của nhóm tuổi × mỗi bữa nhóm tuổi đó được phục vụ. */
+    List<Servings> expectedServings(Map<Long, Integer> countByAgeGroup) {
+        List<Servings> servings = new ArrayList<>();
+        for (AgeGroupDetailResponse group : ageGroupService.getAgeGroups()) {
+            int count = countByAgeGroup.getOrDefault(group.id(), 0);
+            if (count > 0 && group.mealSessions() != null) {
+                group.mealSessions().forEach(session -> servings.add(new Servings(session, group.id(), count)));
+            }
+        }
+        return servings;
     }
 
     /** Khối thực đơn của từng nhóm tuổi (NUT-13). */

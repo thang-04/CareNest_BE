@@ -1,16 +1,27 @@
 package com.carenest.controller.child;
 
+import com.carenest.dto.account.GuardianPhoneChangeCreateRequest;
+import com.carenest.dto.account.GuardianPhoneChangeResponse;
 import com.carenest.dto.child.ChildEnrollmentResponse;
+import com.carenest.dto.child.ChildUpdateResponse;
 import com.carenest.dto.child.ChildViewResponse;
 import com.carenest.dto.child.DuplicateCheckResponse;
 import com.carenest.dto.child.EnrollChildRequest;
 import com.carenest.dto.child.GuardianCheckRequest;
+import com.carenest.dto.child.HealthDeclarationRequest;
+import com.carenest.dto.child.HealthDeclarationResponse;
 import com.carenest.dto.child.ParentAccountLookupResponse;
+import com.carenest.dto.child.PlaceChildRequest;
 import com.carenest.dto.child.PlacementClassResponse;
 import com.carenest.dto.child.ReadmitChildRequest;
+import com.carenest.dto.child.UpdateChildRequest;
+import com.carenest.dto.child.WithdrawChildRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.ChildEnrollmentService;
+import com.carenest.service.account.ChildProfileEditService;
+import com.carenest.service.account.GuardianPhoneChangeService;
 import com.carenest.service.child.ChildIntakeService;
+import com.carenest.service.child.ChildRecordService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.constraints.Size;
@@ -24,6 +35,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -44,6 +56,28 @@ public class ChildEnrollmentController {
 
     private final ChildIntakeService childIntakeService;
     private final ChildEnrollmentService childEnrollmentService;
+    private final ChildRecordService childRecordService;
+    private final ChildProfileEditService childProfileEditService;
+    private final GuardianPhoneChangeService guardianPhoneChangeService;
+
+    // G94-180/AUTH-21 (sửa 2026-11-11): Sửa hồ sơ không đổi SĐT phụ huynh đã lưu; gửi yêu cầu ở đây, HT hoặc PHT có
+    // quyền duyệt ở /parent-accounts/phone-change-requests. Phạm vi như Sửa hồ sơ (service).
+    @PostMapping("/{childId}/guardians/{guardianId}/phone-change-requests")
+    @org.springframework.web.bind.annotation.ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_EDIT')")
+    public ResponseEntity<ResponseJson<GuardianPhoneChangeResponse>> requestGuardianPhoneChange(
+            @PathVariable Long childId,
+            @PathVariable Long guardianId,
+            @RequestBody GuardianPhoneChangeCreateRequest request,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|requestGuardianPhoneChange|userId=" + currentUser.userId() + "|childId="
+                + childId + "|guardianId=" + guardianId;
+        log.info("{}|START", logPrefix);
+        GuardianPhoneChangeResponse response =
+                guardianPhoneChangeService.request(currentUser, childId, guardianId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.CREATED, "Request guardian phone change success", response);
+    }
 
     @GetMapping("/duplicate-check")
     @PreAuthorize("@permissionGuard.has('CHILD_ENROLL')")
@@ -146,5 +180,52 @@ public class ChildEnrollmentController {
         ChildViewResponse child = childIntakeService.readmit(currentUser, childId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Readmit child success", child);
+    }
+
+    @PostMapping("/{childId}/withdraw")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<ChildViewResponse>> withdraw(
+            @PathVariable Long childId, @RequestBody WithdrawChildRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|withdraw|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse child = childRecordService.withdraw(currentUser, childId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw child success", child);
+    }
+
+    @PostMapping("/{childId}/placement")
+    @PreAuthorize("@permissionGuard.has('CHILD_PLACEMENT')")
+    public ResponseEntity<ResponseJson<ChildViewResponse>> placeChild(
+            @PathVariable Long childId, @RequestBody PlaceChildRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|placeChild|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildViewResponse child = childRecordService.place(currentUser, childId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Place child success", child);
+    }
+
+    @PutMapping("/{childId}/health-declaration")
+    @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_EDIT')")
+    public ResponseEntity<ResponseJson<HealthDeclarationResponse>> saveDeclaration(
+            @PathVariable Long childId, @RequestBody HealthDeclarationRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|saveDeclaration|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        HealthDeclarationResponse declaration = childRecordService.saveDeclaration(currentUser, childId, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Save health declaration success", declaration);
+    }
+
+    @PutMapping("/{childId}")
+    @PreAuthorize("@permissionGuard.has('CHILD_PROFILE_EDIT')")
+    public ResponseEntity<ResponseJson<ChildUpdateResponse>> update(
+            @PathVariable Long childId, @RequestBody UpdateChildRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|update|userId=" + currentUser.userId() + "|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        ChildUpdateResponse updated = childProfileEditService.update(currentUser, childId, request);
+        log.info(
+                "{}|phoneRequests={}|END",
+                logPrefix,
+                updated.phoneChangeRequests().size());
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update child success", updated);
     }
 }

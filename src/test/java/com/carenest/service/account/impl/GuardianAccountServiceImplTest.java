@@ -67,6 +67,8 @@ class GuardianAccountServiceImplTest {
             accounts,
             links,
             children,
+            mock(com.carenest.service.child.ChildListService.class),
+            mock(com.carenest.service.child.ChildIntakeService.class),
             policy,
             new AccountLifecycleOperations(
                     accounts, identity, authState, new TransactionTemplate(mock(PlatformTransactionManager.class))),

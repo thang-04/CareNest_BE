@@ -31,6 +31,15 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
             nativeQuery = true)
     int updatePrimaryRole(@Param("id") Long id, @Param("role") String role);
 
+    /** Đổi tên đăng nhập (cột không updatable trên entity); chỉ khi tên cũ còn đúng — trả 0 nếu đã đổi theo đường khác. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+            value = "UPDATE user_accounts SET username = :newUsername, updated_at = now()"
+                    + " WHERE id = :id AND username = :oldUsername",
+            nativeQuery = true)
+    int updateUsername(
+            @Param("id") Long id, @Param("oldUsername") String oldUsername, @Param("newUsername") String newUsername);
+
     java.util.List<UserAccount> findByEmailIgnoreCase(String email);
 
     // CCCD phụ huynh là khóa nhận diện (AUTH-18, UNIQUE ở V63)

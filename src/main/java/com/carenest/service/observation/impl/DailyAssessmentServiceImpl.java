@@ -29,6 +29,7 @@ import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.EatingLevel;
 import com.carenest.utils.enums.HealthSymptom;
 import com.carenest.utils.enums.MealSession;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -136,7 +137,9 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                     date,
                     rules.today(),
                     cls.yearStart(),
-                    rules.canRecord(currentUser, cls) && !yearReadOnly,
+                    currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
+                            && rules.canRecord(currentUser, cls)
+                            && !yearReadOnly,
                     yearReadOnly,
                     baseLocked && unlock == null,
                     unlock,
@@ -144,6 +147,14 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                     cls.mealSessions(),
                     lesson,
                     rows,
+                    // Lớp đã điểm danh: hiện cả trẻ vắng để cô thấy đủ lớp, không chấm được
+                    statuses.isEmpty()
+                            ? List.of()
+                            : children.stream()
+                                    .filter(c -> statuses.get(c.id()) != AttendanceStatus.PRESENT)
+                                    .map(c -> new DailySheetResponse.AbsentChild(
+                                            c.id(), c.fullName(), statuses.get(c.id())))
+                                    .toList(),
                     classCommentRepository
                             .findByClassroomIdAndDate(classId, date)
                             .map(c -> rules.commentViews(List.of(c)).getFirst())
@@ -341,7 +352,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
     /** Thứ tự: quyền (giáo viên lớp) → năm học → ngày → khóa / mở lại. */
     private ClassroomInfoResponse checkWritable(CurrentUser user, Long classId, LocalDate date) {
         ClassroomInfoResponse cls = rules.findClass(classId);
-        if (!rules.canRecord(user, cls)) {
+        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(user, cls)) {
             throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
         }
         // CFG-YR-01: năm đã kết thúc (hoặc chưa kích hoạt) chỉ xem

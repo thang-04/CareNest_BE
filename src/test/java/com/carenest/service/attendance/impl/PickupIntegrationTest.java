@@ -27,6 +27,7 @@ import com.carenest.utils.enums.DevicePlatform;
 import com.carenest.utils.enums.GuardianRelationship;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.NotificationType;
+import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupOutcome;
 import com.carenest.utils.enums.PickupStatus;
 import com.carenest.utils.enums.PickupVerification;
@@ -347,7 +348,10 @@ class PickupIntegrationTest {
     private CurrentUser user(String username, CareNestRole role) {
         long id = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) VALUES ('kc-" + username
                 + "', '" + username + "', '" + username + "') RETURNING id");
-        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role));
+        Set<Permission> permissions = role == CareNestRole.TEACHER
+                ? Set.of(Permission.ATTENDANCE_VIEW, Permission.DAILY_HEALTH_RECORD, Permission.PICKUP_RECORD)
+                : Set.of();
+        return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
     }
 
     private void teach(CurrentUser user, long classroomId) {

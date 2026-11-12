@@ -51,3 +51,6 @@ DB). Nhánh bán trú dùng V83 ⇒ nhánh này merge vào `dev` trước. 3. L�
   Spotless ok. Chưa commit, chưa reset DB VPS.
 - 2026-11-10: Commit bị hook chặn (sửa migration đã commit). Trả V3–V81 về nguyên trạng, thêm V82 chuyển dữ liệu.
   V82 đụng ràng buộc CCCD NOT VALID khi cập nhật hồ sơ cũ thiếu CCCD ⇒ bỏ tạm rồi gắn lại NOT VALID (như V81).
+- 2026-11-12: Gộp `origin/dev` (đã tới V121, V114/V116 còn ghi `role_permissions`) ⇒ đổi số `V82__consolidate_auth_tables`
+  → `V122` (nội dung giữ nguyên, chạy sau cùng nên chép cả quyền V114). Chuyển phần `dev` mới thêm còn dùng
+  `guardian_child_links` sang `child_guardians`: `findLinksOfChildren`, `findAccountRows`, 3 seed `db/dev`, 8 file test.

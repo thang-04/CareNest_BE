@@ -75,6 +75,19 @@ class EvaluationSources {
     }
 
     /** Hồ sơ phát triển: dòng thời gian của trẻ qua mọi lớp trong khoảng. */
+    /** Ngày trẻ đã điểm danh vắng (có phép / không phép) trong khoảng; ngày chưa điểm danh thì không tính. */
+    List<LocalDate> absentDates(Long childId, LocalDate from, LocalDate to) {
+        if (to.isBefore(from)) {
+            return List.of();
+        }
+        return attendanceService.findDayStatuses(List.of(childId), from, to).stream()
+                .filter(s -> s.status() != null && s.status() != AttendanceStatus.PRESENT)
+                .map(AttendanceService.ChildDayStatus::date)
+                .distinct()
+                .sorted()
+                .toList();
+    }
+
     Map<Long, ChildData> loadTimeline(ClassroomInfoResponse cls, Long childId, LocalDate from, LocalDate to) {
         return load(cls, List.of(childId), from, to, true, false);
     }

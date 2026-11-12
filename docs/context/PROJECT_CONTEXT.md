@@ -1,5 +1,14 @@
 # Project Context — CareNest
 
+> **Quyết định mới user 10/11/2026 — EDU-72:** Bỏ thao tác lập kế hoạch tổ lần đầu. Khi kế hoạch năm được ban hành, hệ thống tự tạo một TEAM DRAFT cùng năm học/nhóm tuổi, gắn phiên bản năm đã ban hành mới nhất và giao tổ trưởng duy nhất đang phụ trách tuổi đó soạn. User làm rõ “chỉ có một tổ trưởng của một nhóm tuổi, gửi cho người đó soạn”. Quyết định này thay phần “không tự lập tổ/giữ nút lập tổ/chọn nguồn thủ công” ở EDU-62 và tài liệu09/11; các quy tắc giữ nội dung đang soạn, rà soát và giữ tổ ban hành cũ làm nguồn lớp vẫn áp dụng. Đây là chỉ đạo user, không suy là xác nhận mới từ giáo viên trường.
+
+
+> **Quyết định user10/11/2026 — duyệt hồ sơ lớp:** Theo chuỗi HT cấu hình, không bắt buộc có bước TT; chỉ PHT duyệt cũng hợp lệ. Giữ cấp trên duyệt cấp dưới, chống tự duyệt, phạm vi phân công và REVIEW cấm sửa. Quyết định này thay yêu cầu TT bắt buộc trước PHT/HT trong tài liệu09/11; chưa phải bằng chứng triển khai/nghiệm thu.
+
+> **Làm rõ user10/11/2026 — hồ sơ lớp:** Chủ đề nhánh, kế hoạch chủ đề và các thông tin đưa xuống lớp lấy từ kế hoạch tổ đã ban hành (không lấy trực tiếp từ kế hoạch năm). GVCN của lớp được soạn/gửi lại chủ đề nhánh, kế hoạch chủ đề và giáo án lớp; giáo viên thường chỉ xem nội dung và dạy. Người soạn không tự duyệt hồ sơ của mình.
+
+> **Điều chỉnh mới user10/11/2026 — quyền soạn:** GVCN không có quyền soạn kế hoạch tổ; kế hoạch tổ do tổ trưởng được cấu hình soạn. Quyền của GVCN chỉ áp dụng hồ sơ lớp thuộc nhóm tuổi: soạn chủ đề nhánh, kế hoạch chủ đề và giáo án của lớp đó. Không bắt buộc GVCN kiêm tổ trưởng; giáo viên không phải GVCN chỉ xem và dạy.
+
 Nguồn: xem bảng **Nguồn bằng chứng** cuối file. Tổng hợp 26/09/2026, đối chiếu lại 04/10/2026; stack chốt 03/10/2026. Đọc file này **một lần** khi task ở mức L2+; task L1 dùng module card.
 
 ## Quy ước trạng thái thông tin
@@ -37,6 +46,20 @@ CareNest tạo **hồ sơ có cấu trúc, lấy trẻ làm trung tâm, có lị
 
 **Định vị (review 24/09, CONFIRMED):** CareNest **bao phủ, cải tiến và mở rộng** các chức năng của PMS/GoKids mà workflow của trường cần, để trường không phải dùng song song nhiều app rời rạc. Ví dụ: thực đơn phải nối liền chọn món → tính dinh dưỡng → định lượng/mua (PMS đang làm nhưng không tách theo điểm trường); quan sát/đánh giá cần ngữ cảnh hoạt động. Không viết "CareNest không trùng/không thay thế PMS/GoKids". Vẫn **không** thay hệ thống ngành/quốc gia và không thay Zalo cho chat. Kế hoạch giáo dục (mục tiêu năm học, chủ đề nhánh, kế hoạch chủ đề, giáo án tuần/ngày) soạn và duyệt trong CareNest theo mẫu MN Thái Dương, nối với đánh giá trẻ theo MT; ngữ cảnh hoạt động lấy từ giáo án đã duyệt (Tiền chốt 22/10; khảo sát team 27/10, user chốt 2026-10-29; rule EDU, OBS-07, module education-plan, ADR-0020, ADR-0006).
 
+## Context kế hoạch giáo dục — xác nhận ghi nhận09/11/2026
+
+User xác nhận [bộ 12 quyết định](../business/education-plan-confirmation-2026-11-09.md) đã được giáo viên phía trường xác nhận; chưa có tên/ngày xác nhận trực tiếp. Đây là nghiệp vụ đích, delivery theo [module card](../modules/education-plan.md).
+
+Năm học biên soạn cây mục tiêu/nội dung và dự kiến chủ đề. Tổ theo nhóm tuổi dùng chung hai điểm trường, lấy đúng một năm APPROVED hiện hành cùng năm/tuổi và tick từng nội dung. Theo EDU-65 PROPOSED (user trực tiếp 09/11), tổ trưởng được thêm/sửa nội dung riêng của tổ, không sửa nguồn năm; GV phía dưới thấy nội dung tổ theo phạm vi và trạng thái hiện hành. Mỗi loại/năm/tuổi một chuỗi, tối đa một bản nháp/chờ. GV triển khai lớp từ tổ đã ban hành; nhánh có thể nhiều tuần, trước gửi phải phủ đủ tuần học bằng nhánh có tên.
+
+Theo EDU-67/68 PROPOSED (user trực tiếp 09/11), năm mới và tổ cùng sửa nội dung thì bản cập nhật giữ phần tổ đã sửa và báo tổ trưởng rà soát; phiên bản năm điều chỉnh dùng giới hạn cấu hình tại lúc tạo. Giới hạn đã mất do lỗi chỉ khôi phục khi có bằng chứng, giữ trạng thái hồ sơ.
+
+Theo EDU-69/70 PROPOSED (user trực tiếp 09/11, lựa chọn mới nhất), kiểm đủ 9 chủ đề và nội dung/tick khi gửi; áp dụng duyệt theo thứ bậc cố định, một người soạn được chỉ định, bỏ lease 90 giây/heartbeat 20 giây như flow hiện hành. Phần mô tả chuỗi duyệt tùy cấu hình và lease trong đoạn lịch sử dưới đây không còn là nghiệp vụ đích trong phạm vi kế hoạch giáo dục. Chưa có xác nhận giáo viên trường hoặc bằng chứng triển khai delta này.
+
+Theo EDU-71 PROPOSED (user trực tiếp 09/11), hồ sơ năm mất giới hạn do lỗi hoặc chưa thể phân biệt với legacy thật phải chặn gửi và báo kiểm tra/khôi phục; chỉ khôi phục theo bằng chứng, giữ trạng thái. Legacy thật có bằng chứng không bị áp giới hạn mới; vẫn kiểm đủ ngày. STT mục tiêu tự sinh theo EDU-09, nhãn tùy chọn rỗng về mặc định theo EDU-58.
+
+Mặc định năm PHT→HT, tổ TT→PHT, hồ sơ chủ đề lớp GV→TT→PHT; HT cấu hình riêng, TT được duyệt năm/tổ khi được cấu hình đúng tuổi và không tự duyệt. REVIEW khóa sửa. TT chỉ xem kế hoạch tổ đúng nhóm tuổi; quyền xem annual APPROVED cùng tuổi làm nguồn lập tổ vẫn giữ, GV không xem/truy cập annual. PHT là vai trò duy nhất lập/sửa chủ đề trong annual và mẫu nhánh nguồn. Từ tổ APPROVED, cả hai GV của lớp xem chủ đề/nhánh đúng lớp; chỉ GVCN soạn nhánh, kế hoạch chủ đề và giáo án riêng theo lớp/tổ, không đổi nguồn hay lớp khác; đổi chủ nhiệm chuyển quyền soạn nhưng giữ lịch sử. Chủ đề lớn xám/chỉ đọc với GV. Trang chủ đề nhánh: PHT lọc mọi tuổi/lớp, TT lọc lớp đúng tuổi, GV không lọc đa lớp. Chủ nhiệm có thể soạn cả năm; một chủ đề kéo qua nhiều tháng vẫn một hồ sơ. Nhánh không duyệt riêng, đi cùng hồ sơ kế hoạch chủ đề; GVCN chủ động gửi, TT được nhắc từ 7 ngày trước ngày bắt đầu nhưng vẫn duyệt sớm. Phần nhánh/chủ đề/giáo án chưa đến ngày dạy được sửa, chỉ hồ sơ chủ đề chứa phần sửa về Nháp và gửi duyệt lại, phần đã đến ngày dạy khóa sửa. Không ai xóa tổ; giữ lịch sử, chỉ năm hiện phiên bản. Năm mới ban hành tự chuyển nguồn tổ nháp/chờ và mở cập nhật tổ đã ban hành, giữ bản cũ cho lớp tới khi cập nhật duyệt; đỏ phần đổi/xóa/liên kết ảnh hưởng, mục mới riêng để phân bổ, chủ đề kết thúc không đỏ. Năm nhập file hai chế độ thay toàn bộ/thay phần có, preview/xác nhận/lưu tay; tổ không nhập file sửa cây. Reset demo chỉ là local và chỉ xóa dữ liệu nghiệp vụ kế hoạch/hồ sơ lớp, giữ danh mục, trường/lớp, tài khoản, phân công và cấu hình. Các gap code không làm đổi yêu cầu này.
+
 ## Actor (CONFIRMED)
 
 Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kitchen Staff, System Admin. **System Admin ≠ Principal**: Admin giữ phần kỹ thuật (tạo tài khoản Hiệu trưởng, khóa/mở, xử lý sự cố), không phân quyền nghiệp vụ (AUTH-06); BGH là người dùng nghiệp vụ. Tổ trưởng chuyên môn là phân công trên tài khoản GV, không phải actor đăng nhập riêng (AUTH-23). Client: Web cho Admin/BGH/GV; App cho phụ huynh, GV, bếp (AUTH-21). Chi tiết: `docs/business/USER_ROLES.md`.
@@ -52,7 +75,7 @@ Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kit
 | — | ~~Chuẩn bị bếp + bàn giao suất cho lớp~~ — thay bằng ảnh mẫu bữa + sổ lưu mẫu trên App (NUT-16, NUT-21) | REMOVED (NUT-14, NUT-15) | nutrition | meal-management |
 | — | Kho khô rút gọn (nhập, trừ theo ngày theo suất đã xác nhận (P-38), xem tồn), bản dự trù + kiểm nhận hàng tươi do PHT ghi, danh mục NCC | CONFIRMED (ADR-0009, user chốt 28/10, sửa 01/11) | nutrition | meal-management |
 | FE-03 | Cân đo định kỳ (mặc định 3 lần/năm, cấu hình được), phân loại WHO, công bố cho phụ huynh, khám bác sĩ 2 lần/năm, trend, AI giải thích có duyệt; sức khỏe trong ngày báo phụ huynh ngay | CONFIRMED (HLT-01..14; khảo sát team 27/10) | health | health-check |
-| FE-04 | Kế hoạch giáo dục: mục tiêu năm học theo nhóm tuổi → chủ đề nhánh → kế hoạch chủ đề → giáo án tuần/ngày, duyệt trong hệ thống, in ký tay | CONFIRMED (Tiền 22/10; khảo sát team 27/10 — EDU-29..38; mục mâu thuẫn code đã chốt theo code 29/10) | education-plan | education-plan |
+| FE-04 | Kế hoạch giáo dục: năm học → tổ theo nhóm tuổi dùng chung hai điểm trường → nhánh lớp → kế hoạch chủ đề → giáo án tuần/ngày; duyệt theo cấu hình, in ký tay | CONFIRMED (Tiền 22/10; khảo sát team 27/10 — EDU-29..38; mục mâu thuẫn code đã chốt theo code 29/10) | education-plan | education-plan |
 | — | Đánh giá trẻ hằng ngày theo MT của giáo án đã duyệt (ngữ cảnh hoạt động) | CONFIRMED (Tiền 20/10, ADR-0006) | learning-observation, education-plan | child-observation |
 | FE-05 | Đánh giá hằng ngày có cấu trúc: 7 mặt, 3 mức, mặc định "bình thường" | CONFIRMED (OBS-01, OBS-02); tiêu chí P-11 | learning-observation | child-observation |
 | FE-06 | Hồ sơ phát triển (không có mục theo dõi riêng) | CONFIRMED (OBS-03) | learning-observation | child-observation |
@@ -119,3 +142,4 @@ Dùng mã này ở cột Nguồn của rule. Bản gốc nằm ngoài repo (thư
 | Team 02/10 | Quyết định trưởng nhóm (đơn nghỉ, kho) | 02/10/2026 | CONFIRMED (team chốt) |
 | Mẫu MN Thái Dương | File kế hoạch giáo dục năm học, chủ đề, tuần, ngày của trường MN Thái Dương | 10/2026 | Mẫu nghiệp vụ và mẫu in của kế hoạch giáo dục |
 | Tiền 14–23/10 | Quyết định nghiệp vụ kế hoạch giáo dục (MT liên tục, chuỗi duyệt, bỏ ký ảnh 16/10, UI CareNest_FE là chuẩn 20/10, đưa vào V1 22/10, khóa Đang sửa 23/10) | 14–23/10/2026 | CONFIRMED; tài liệu ở `huong_dan_nghiep_vu/` |
+| Xác nhận nghiệp vụ giáo dục09/11 | User trả lời 12 câu hỏi và xác nhận đã được giáo viên phía trường xác nhận; chưa cung cấp tên/ngày xác nhận trực tiếp | Ghi nhận09/11/2026 | CONFIRMED trong phạm vi bộ câu hỏi; docs/business/education-plan-confirmation-2026-11-09.md; không xác nhận delivery |

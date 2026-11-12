@@ -9,9 +9,9 @@ import com.carenest.entity.eduplan.EduBreak;
 import com.carenest.entity.eduplan.EduDomain;
 import com.carenest.entity.eduplan.EduGoalContent;
 import com.carenest.entity.eduplan.EduGoalRow;
+import com.carenest.entity.eduplan.EduPlan;
 import com.carenest.entity.eduplan.EduPlanEvent;
 import com.carenest.entity.eduplan.EduTheme;
-import com.carenest.entity.eduplan.EduYearPlan;
 import com.carenest.utils.enums.EduGoalRowKind;
 import java.time.Instant;
 import java.util.List;
@@ -22,14 +22,19 @@ import org.springframework.stereotype.Component;
 public class EduYearPlanMapper {
 
     public YearPlanSummaryResponse toSummaryResponse(
-            EduYearPlan plan,
+            EduPlan plan,
             String schoolYearName,
             String ageGroupName,
             long goalCount,
             long themeCount,
             Map<Long, String> userNames,
             Instant editExpiresAt,
-            boolean current) {
+            boolean current,
+            com.carenest.dto.eduplan.EduReviewStateResponse review,
+            YearPlanDetailResponse.Permissions permissions,
+            YearPlanDetailResponse.TimeLock timeLock) {
+        Long publisherId = plan.getPublishedBy() != null ? plan.getPublishedBy() : plan.getIssuedBy();
+        Instant publishedAt = plan.getCompletedAt() != null ? plan.getCompletedAt() : plan.getIssuedAt();
         return new YearPlanSummaryResponse(
                 plan.getId(),
                 plan.getCode(),
@@ -38,23 +43,30 @@ public class EduYearPlanMapper {
                 plan.getAgeGroupId(),
                 ageGroupName,
                 plan.getTitle(),
-                plan.getStatus(),
+                plan.publicStatus(),
                 goalCount,
                 themeCount,
                 toOwner(plan, userNames),
                 toActor(plan.getSentBy(), plan.getSentAt(), userNames),
-                toActor(plan.getIssuedBy(), plan.getIssuedAt(), userNames),
-                toActor(plan.getEditingBy(), plan.getEditingSince(), userNames),
+                toActor(publisherId, publishedAt, userNames),
+                null,
                 plan.getCreatedAt(),
                 plan.getUpdatedAt(),
                 plan.getContentRevision(),
-                editExpiresAt,
+                null,
                 plan.getVersionNo(),
                 plan.getSourcePlanId(),
-                current);
+                current,
+                review,
+                permissions,
+                plan.getPlanLevel(),
+                plan.getCurriculumSourcePlanId(),
+                plan.sourceMode(),
+                plan.getDurationPolicySnapshot(),
+                timeLock);
     }
 
-    public PlanActorResponse toOwner(EduYearPlan plan, Map<Long, String> userNames) {
+    public PlanActorResponse toOwner(EduPlan plan, Map<Long, String> userNames) {
         return new PlanActorResponse(plan.getOwnerId(), userNames.get(plan.getOwnerId()), plan.getOwnerTitle(), null);
     }
 
@@ -78,7 +90,8 @@ public class EduYearPlanMapper {
                 goal && curriculum != null ? curriculum.sectionRef() : null,
                 kind == EduGoalRowKind.SUB ? id : null,
                 kind == EduGoalRowKind.GROUP ? id : null,
-                !goal && curriculum != null ? curriculum.text() : null);
+                !goal && curriculum != null ? curriculum.text() : null,
+                row.getDisplayLabel());
     }
 
     public YearPlanDetailResponse.Content toContent(EduGoalContent content, List<Long> themeIds) {

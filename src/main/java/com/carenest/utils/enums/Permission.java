@@ -52,18 +52,101 @@ public enum Permission {
             "staff",
             "Phân công nhân sự (campus, lớp)",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
-            EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
     // AUTH-18: PHT mặc định cấp tài khoản phụ huynh cho trẻ đang học trong campus mình
     PARENT_ACCOUNT_MANAGE(
             "child",
             "Cấp, khóa/mở tài khoản phụ huynh và liên kết với trẻ",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL)),
+    YEAR_PLACEMENT_MANAGE(
+            "school",
+            "Xếp lớp năm học mới cho trẻ trong điểm trường phụ trách",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    ROOM_MANAGE(
+            "school",
+            "Thêm, sửa, ngừng sử dụng phòng ban trong điểm trường phụ trách",
+            EnumSet.of(CareNestRole.PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    ATTENDANCE_VIEW(
+            "attendance",
+            "Xem điểm danh, đơn nghỉ, sức khỏe và tổng hợp trong phạm vi",
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL, CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+            true),
+    ATTENDANCE_RECORD(
+            "attendance",
+            "Ghi và sửa điểm danh, tham gia ăn của lớp phụ trách",
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+    DAILY_HEALTH_RECORD(
+            "attendance",
+            "Ghi sức khỏe trong ngày của trẻ lớp phụ trách",
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+    PICKUP_RECORD(
+            "attendance",
+            "Xác minh và ghi nhận trả trẻ của lớp phụ trách",
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+    ATTENDANCE_UNLOCK(
+            "attendance",
+            "Mở lại hoặc kết thúc sớm lần mở điểm danh tại điểm trường phụ trách",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
     // NUT-02 + AUTH-20: việc của mảng dinh dưỡng; PHT mặc định bật ở cơ sở mình, HT thu hồi hoặc nâng lên cả trường
     MEAL_COUNT_CONFIRM(
             "meals",
             "Xác nhận, điều chỉnh số suất",
             EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    // AUTH-20 (Cần chốt 10/11/2026): GV/tổ trưởng luôn xem đánh giá lớp mình, HT không thu hồi; PHT theo HT cấp
+    ASSESSMENT_VIEW(
+            "assessment",
+            "Xem đánh giá trẻ trong phạm vi",
+            EnumSet.of(
+                    CareNestRole.PRINCIPAL,
+                    CareNestRole.VICE_PRINCIPAL,
+                    CareNestRole.TEACHER,
+                    CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    ASSESSMENT_RECORD(
+            "assessment",
+            "Ghi và sửa đánh giá trẻ của lớp phụ trách",
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+    ASSESSMENT_CONFIRM(
+            "assessment",
+            "Xác nhận đánh giá học kỳ, chủ đề và cuối năm của lớp phụ trách",
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER),
+            EnumSet.of(CareNestRole.TEACHER, CareNestRole.TEAM_LEADER)),
+    ASSESSMENT_UNLOCK(
+            "assessment",
+            "Mở lại hoặc kết thúc sớm lần mở ngày đánh giá tại điểm trường phụ trách",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    ASSESSMENT_CLASS_REVIEW(
+            "assessment",
+            "Ghi xếp loại nhóm lớp tại điểm trường phụ trách",
+            EnumSet.of(CareNestRole.PRINCIPAL, CareNestRole.VICE_PRINCIPAL),
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
+            true),
+    REWARD_REVIEW(
+            "assessment",
+            "Xem xét và chuyển đề xuất khen thưởng tại điểm trường phụ trách",
+            EnumSet.of(CareNestRole.VICE_PRINCIPAL),
             EnumSet.of(CareNestRole.VICE_PRINCIPAL),
             true),
     // AUTH-20: danh mục bán trú dùng chung cả trường (SCH-06); PHT mặc định tắt, HT cấp cho PHT dinh dưỡng
@@ -158,14 +241,14 @@ public enum Permission {
         return CONFIGURABLE_ROLES.contains(role);
     }
 
-    /** Quyền cố định của role không cấu hình được (ADMIN, PRINCIPAL, PARENT); role cấu hình được ⇒ rỗng. */
+    /**
+     * Quyền cố định: mặc định của role mà HT không bật/tắt được. Role cố định (ADMIN, PRINCIPAL, PARENT) ⇒ mọi quyền
+     * mặc định; role cấu hình được ⇒ chỉ quyền mặc định không nằm trong ma trận (vd. GV xem đánh giá).
+     */
     public static Set<Permission> fixedPermissionsOf(CareNestRole role) {
-        if (isConfigurableRole(role)) {
-            return EnumSet.noneOf(Permission.class);
-        }
         EnumSet<Permission> result = EnumSet.noneOf(Permission.class);
         for (Permission permission : values()) {
-            if (permission.defaultRoles.contains(role)) {
+            if (permission.defaultRoles.contains(role) && !permission.isConfigurableFor(role)) {
                 result.add(permission);
             }
         }

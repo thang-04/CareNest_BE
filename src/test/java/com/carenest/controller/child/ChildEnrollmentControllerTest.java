@@ -167,6 +167,189 @@ class ChildEnrollmentControllerTest {
     @MockitoBean
     private ChildEnrollmentService childEnrollmentService;
 
+    @MockitoBean
+    private com.carenest.service.child.ChildRecordService childRecordService;
+
+    @MockitoBean
+    private com.carenest.service.account.ChildProfileEditService childProfileEditService;
+
+    @MockitoBean
+    private com.carenest.service.account.GuardianPhoneChangeService guardianPhoneChangeService;
+
+    @Test
+    @DisplayName("G94-180/AUTH-21 (sửa 11/11): gửi yêu cầu đổi SĐT phụ huynh cần CHILD_PROFILE_EDIT ⇒ 201")
+    void profileEditorRequestsGuardianPhoneChange() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);
+        com.carenest.dto.account.GuardianPhoneChangeResponse response =
+                org.mockito.Mockito.mock(com.carenest.dto.account.GuardianPhoneChangeResponse.class);
+        given(guardianPhoneChangeService.request(
+                        eq(actor),
+                        eq(301L),
+                        eq(41L),
+                        eq(new com.carenest.dto.account.GuardianPhoneChangeCreateRequest("0987654321", "Đổi số"))))
+                .willReturn(response);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                                "/api/children/301/guardians/41/phone-change-requests")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPhone\":\"0987654321\",\"reason\":\"Đổi số\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.desc").value("Request guardian phone change success"));
+    }
+
+    @Test
+    @DisplayName("G94-180/AUTH-21: thiếu CHILD_PROFILE_EDIT ⇒ 403, không tạo yêu cầu")
+    void requestGuardianPhoneChangeNeedsProfileEdit() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post(
+                                "/api/children/301/guardians/41/phone-change-requests")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newPhone\":\"0987654321\",\"reason\":\"Đổi số\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(guardianPhoneChangeService);
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: cho nghỉ học cần quyền CHILD_PLACEMENT ⇒ 200 trả hồ sơ")
+    void placementManagerWithdrawsChild() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
+        var request = new com.carenest.dto.child.WithdrawChildRequest("2026-11-10", "Chuyển nhà");
+        given(childRecordService.withdraw(actor, 301L, request)).willReturn(view());
+
+        mockMvc.perform(post("/api/children/301/withdraw")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"leftAt\":\"2026-11-10\",\"reason\":\"Chuyển nhà\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Withdraw child success"))
+                .andExpect(jsonPath("$.data.id").value(301));
+    }
+
+    @Test
+    @DisplayName("G94-180/CHD-03: thiếu quyền CHILD_PLACEMENT ⇒ 403, không gọi service")
+    void withdrawNeedsPlacementPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(post("/api/children/301/withdraw")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"leftAt\":\"2026-11-10\",\"reason\":\"x\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
+    }
+
+    @Test
+    @DisplayName("CHD-10: xếp / chuyển lớp cần quyền CHILD_PLACEMENT ⇒ 200 trả hồ sơ có lớp mới")
+    void placementManagerPlacesChild() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PLACEMENT);
+        var request = new com.carenest.dto.child.PlaceChildRequest(31L, "Đổi theo độ tuổi");
+        given(childRecordService.place(actor, 301L, request)).willReturn(view(31L));
+
+        mockMvc.perform(post("/api/children/301/placement")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"classId\":31,\"reason\":\"Đổi theo độ tuổi\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Place child success"))
+                .andExpect(jsonPath("$.data.classId").value(31))
+                .andExpect(jsonPath("$.data.className").value("Lớp kiểm thử"));
+    }
+
+    @Test
+    @DisplayName("CHD-10: thiếu quyền CHILD_PLACEMENT ⇒ 403, không gọi service")
+    void placementNeedsPlacementPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(post("/api/children/301/placement")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"classId\":31,\"reason\":\"x\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
+    }
+
+    @Test
+    @DisplayName("CHD-06: sửa khai báo sức khỏe cần quyền CHILD_PROFILE_EDIT ⇒ 200 trả khai báo đã lưu")
+    void profileEditorSavesHealthDeclaration() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);
+        given(childRecordService.saveDeclaration(eq(actor), eq(301L), any()))
+                .willReturn(new com.carenest.dto.child.HealthDeclarationResponse(
+                        301L, null, null, null, null, 2L, "Demo", null, List.of()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                                "/api/children/301/health-declaration")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"declaration\":{\"allergies\":{\"state\":\"NONE_REPORTED\",\"items\":[]}},"
+                                + "\"reason\":\"Phụ huynh bổ sung\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Save health declaration success"))
+                .andExpect(jsonPath("$.data.childId").value(301));
+
+        ArgumentCaptor<com.carenest.dto.child.HealthDeclarationRequest> request =
+                ArgumentCaptor.forClass(com.carenest.dto.child.HealthDeclarationRequest.class);
+        verify(childRecordService).saveDeclaration(eq(actor), eq(301L), request.capture());
+        assertThat(request.getValue().reason()).isEqualTo("Phụ huynh bổ sung");
+        assertThat(request.getValue().declaration().allergies().state()).isEqualTo("NONE_REPORTED");
+    }
+
+    @Test
+    @DisplayName("CHD-06: thiếu quyền CHILD_PROFILE_EDIT ⇒ 403, không gọi service")
+    void healthDeclarationNeedsProfileEditPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_PROFILE_VIEW);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put(
+                                "/api/children/301/health-declaration")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"declaration\":null,\"reason\":\"x\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childRecordService);
+    }
+
+    @Test
+    @DisplayName("Mục 4.2: Sửa hồ sơ cần quyền CHILD_PROFILE_EDIT ⇒ 200 kèm yêu cầu đổi SĐT")
+    void profileEditorUpdatesChild() throws Exception {
+        CurrentUser actor = authenticateWithPermissions(Permission.CHILD_PROFILE_EDIT);
+        given(childProfileEditService.update(eq(actor), eq(301L), any()))
+                .willReturn(new com.carenest.dto.child.ChildUpdateResponse(view(), List.of(), List.of()));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/children/301")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"child\":"
+                                + ENROLL_JSON
+                                        .substring(ENROLL_JSON.indexOf("{", 1), ENROLL_JSON.indexOf("\"declaration\""))
+                                        .trim()
+                                        .replaceAll(",$", "")
+                                + ",\"reason\":\"Sửa họ tên\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.desc").value("Update child success"))
+                .andExpect(jsonPath("$.data.child.id").value(301))
+                .andExpect(jsonPath("$.data.phoneChangeRequests").isArray());
+    }
+
+    @Test
+    @DisplayName("Mục 4.2: thiếu quyền CHILD_PROFILE_EDIT ⇒ 403")
+    void updateNeedsProfileEditPermission() throws Exception {
+        authenticateWithPermissions(Permission.CHILD_ENROLL);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/children/301")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"x\"}"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(childProfileEditService);
+    }
+
     @Test
     @DisplayName(
             "CHD-01: PHT tiếp nhận ⇒ 201, trường hồ sơ cùng cấp với guardianAccounts, tuần thai chuyển xuống service")

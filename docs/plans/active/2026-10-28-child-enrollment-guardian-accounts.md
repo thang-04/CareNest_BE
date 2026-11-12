@@ -1,6 +1,6 @@
 ---
 title: Tiếp nhận trẻ, phụ huynh trên hồ sơ, tài khoản phụ huynh (CCCD, SMS), dữ liệu theo năm học — việc BE
-status: approved     # user duyệt 2026-10-28; D-3 thành việc kỹ thuật Phase 4, D-7 chốt A
+status: in-progress   # user duyệt 2026-10-28; Phase 1–9 xong, còn Phase 10 (SMS thật, D-2)
 owner: carenestg94@gmail.com
 jira: G94-180 / BE-FEAT-43   # theo nhánh hiện tại; xác nhận task Jira khi commit
 branch: feature/G94-180-BE-FEAT-43-child-health-pickup
@@ -8,7 +8,7 @@ modules: [child, identity-access, health, school-structure, notification]
 rules: [AUTH-18, AUTH-19, AUTH-20, AUTH-21, CHD-01, CHD-02, CHD-03, CHD-04, CHD-05, CHD-06, CHD-07, CHD-08, CHD-09, CHD-10, HLT-06, HLT-08, ATT-09]
 risk: high
 created: 2026-10-28
-updated: 2026-10-28
+updated: 2026-11-11
 ---
 # Tiếp nhận trẻ, phụ huynh trên hồ sơ, tài khoản phụ huynh, dữ liệu theo năm học — việc BE
 
@@ -186,6 +186,16 @@ Theo mục 1 của Đặc tả. Mỗi phase: Files ghi khi bắt đầu; Exit `n
 - Giả định (user soát): form tiếp nhận (`ChildEnrollmentService`) vẫn chặn SĐT thuộc tài khoản nhân sự, mã mới `PHONE_OF_STAFF_ACCOUNT` 1130 — chưa có bước xác nhận đúng người như thêm phụ huynh; làm theo multi-role là việc sau.
 - Lệch nghiệp vụ chưa giải quyết, ghi ở `docs/business/BUSINESS_RULES.md` mục "G94-180 — chờ đánh lại mã": mã CHD-01..10, AUTH-20, AUTH-21, ATT-09, HLT-08 của nhánh này trùng mã rule khác nội dung bên `dev` (khảo sát team 27/10); AUTH-18 `dev` bỏ gửi mật khẩu qua SMS (30/10) trong khi lưu form tiếp nhận gửi SMS; CHD-03 `dev` không chuyển cơ sở.
 - `docs/api/openapi.yaml` sinh lại từ code sau gộp (`-Dopenapi.snapshot.update=true`).
+
+### 2026-11-11 — Phase 8: bảng tổng quan PHT (mục 4.8)
+- `GET /children/parent-accounts?status&keyword` (`ChildController` → `ChildListService.listParentAccounts`): mỗi phụ huynh trên hồ sơ trẻ Đang học, Chờ xếp lớp người xem quản lý được, dòng như BE giả `listParentAccounts` (không có `key`; `guardian` bỏ CCCD, email; `username` null khi chưa kích hoạt). Từ khóa không phân biệt dấu (BE giả dùng `normalizeText`). Phạm vi, truy vấn dùng chung với `GET /children` (tách `scopeOf`, `rowsOf`); tên đăng nhập lấy thêm cột `username` ở `ChildGuardianRepository.findAccountRows`.
+- Trước đó cùng ngày: `GET /children/guardian-overview` cho màn Tài khoản phụ huynh (mục 4.7; một lần gọi cho cả trang).
+- Test: `ParentAccountListIntegrationTest` (5), `ChildControllerTest` (+3). OpenAPI snapshot cập nhật (chỉ thêm).
+
+### 2026-11-11 — Tổng kết phase
+- Phase 1–3: xong (29/10). Phase 4 (Sửa hồ sơ, đổi SĐT qua duyệt), Phase 6 (cho nghỉ học): plan `2026-11-10-child-edit-withdraw` (còn chờ user soát Key decisions, chỉnh realm Keycloak trên VPS). Phase 5 (nhập Excel) và chọn một phụ huynh nhận tài khoản: Spec013 (`docs/plans/completed/2026-11-05-selected-parent-account.md`). Phase 6 (xếp/chuyển lớp) và Phase 9 (năm học: `GET /children?schoolYear`, lớp năm đang hoạt động, đón trẻ, `GET /health-checks?schoolYear`): `docs/plans/completed/2026-11-10-child-placement-list.md` cùng các luồng đã có. Phase 7: `docs/plans/completed/2026-11-10-health-record-complete.md`. Phase 8: mục trên.
+- Còn Phase 10: SMS thật (D-2 chưa chọn nhà cung cấp; cổng giả `FakeSmsGateway`). Lệch rule: AUTH-18 của `dev` không gửi mật khẩu qua SMS, nhánh này vẫn gửi — chờ team chốt cùng việc đánh lại mã rule `G94-180/*`.
+- Sửa thêm 11/11: trẻ cho nghỉ khi chưa có lớp tính là đã nghỉ; trẻ mở lại hồ sơ chờ xếp lớp không tính là nghỉ (plan `2026-11-10-child-edit-withdraw`, Progress log 2026-11-11).
 
 ## Đặc tả (chép từ FE ngày 28/10/2026)
 
