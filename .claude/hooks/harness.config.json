@@ -5,6 +5,9 @@
     "FE": ["../CareNest_FE"],
     "APP": ["../CareNest_APP"]
   },
+  "junk": {
+    "allow": [".specify/memory/constitution.md"]
+  },
   "lanes": {
     "smallMaxFiles": 2,
     "mediumMaxFiles": 8,

@@ -19,6 +19,7 @@
 | Kiến trúc đúng | `ArchitectureRulesTest` pass |
 | Format | Spotless pass (`mvnw.cmd spotless:apply` để sửa) |
 | AI layer nhất quán | `node scripts/check-ai-layer.mjs` exit 0 |
+| Không dính file rác | `node scripts/ai-layer/junk-files.mjs` exit 0 (verify tự chạy; cảnh báo `[JUNK] WARN` ⇒ commit hoặc thêm `.gitignore`) |
 
 ## Gate fail
 Sửa nguyên nhân. Không xóa/`@Disabled`/skip test, không nới rule ArchUnit, không `--no-verify`, không regenerate snapshot cho qua. Rule sai thật ⇒ đề xuất sửa rule + lý do, hỏi user. Snapshot đổi ngoài ý muốn = bug contract.

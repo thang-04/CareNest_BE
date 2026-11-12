@@ -104,6 +104,7 @@ G94-182: Add lesson plan validation
 - **Iron Law:** chưa có output `node scripts/verify.mjs` chạy sau lần sửa cuối ⇒ không báo "xong/pass/đã sửa"; skip = chưa kiểm chứng (`docs/quality/VERIFICATION.md`).
 - Làn L ⇒ plan được duyệt mới code (mục "Chế độ làm việc"). Sửa bug thất bại 3 lần ⇒ dừng, ghi Attempts, hỏi.
 - Sửa `.ai/ .claude/ .agents/ docs/` ⇒ `node scripts/check-ai-layer.mjs`. Cổng fail ⇒ sửa nguyên nhân, không lách.
+- **File rác:** không commit log, cache, file nén, thư mục tạm của công cụ/AI, file nặng; file phát sinh không thuộc source ⇒ thêm vào `.gitignore`. `node scripts/ai-layer/junk-files.mjs` chặn ở pre-commit, pre-push và verify; file lạ chưa ignore chỉ cảnh báo. Ngoại lệ có chủ đích ⇒ `junk.allow` trong `.claude/hooks/harness.config.json`.
 
 ### Hỏi trước khi làm
 

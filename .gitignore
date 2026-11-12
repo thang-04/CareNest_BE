@@ -33,5 +33,12 @@ Thumbs.db
 # Thư mục tạm khi soát/xuất tài liệu nghiệp vụ (ảnh render, script một lần): không commit
 .tmp_doc_*/
 
+# Ghi chú/đầu ra tạm của công cụ AI và script một lần (không thuộc source)
+.superpowers/
+.playwright-mcp/
+.continues-handoff.md
+__pycache__/
+*.pyc
+
 # Local constitution (user request 2026-11-07; do not commit/push)
 /.specify/memory/constitution.md
