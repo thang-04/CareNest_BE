@@ -82,6 +82,18 @@ Mục đích: nhận xét chung cả lớp theo tháng. Migration: V72.
 | confirmed_by / confirmed_at | BIGINT, TIMESTAMPTZ | có | Người, lúc xác nhận; có thì không sửa | OBS-26 |
 | updated_by / updated_at / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Lần lưu gần nhất, khóa lạc quan | OBS-26 |
 
+## weekly_comments  (module: learning-observation, scope: CHILD)
+Mục đích: nhận xét tuần theo trẻ gửi phụ huynh. Migration: V126.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| child_id / classroom_id / campus_id / school_year_id | BIGINT FK | không | Trẻ, lớp viết; UNIQUE `(child_id, week_start)` | OBS-29 |
+| week_start | DATE | không | Thứ Hai của tuần (CHECK ISODOW = 1) | OBS-29 |
+| content | TEXT | không | Nội dung, tối đa 2000 ký tự (CHECK) | OBS-29 |
+| status | VARCHAR(10) | không | `DRAFT` / `SENT`; SENT thì khóa | OBS-29 |
+| draft_source | VARCHAR(10) | không | `TEMPLATE` / `AI` / `MANUAL`: nguồn bản nháp | OBS-29 |
+| sent_by / sent_at | BIGINT, TIMESTAMPTZ | có | Người, lúc gửi; có ⇔ SENT (CHECK) | OBS-29 |
+| created_* / updated_* / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Người tạo, lần lưu gần nhất, khóa lạc quan | OBS-29 |
+
 ## attendance_cutoffs  (module: school-structure, scope: SCHOOL)
 Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó.
 | Column | Type | Null | Ý nghĩa | Rule ID |
@@ -311,7 +323,7 @@ Mục đích: thông báo theo người nhận để App/Web hiện danh sách; 
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ. CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ; `WEEKLY_COMMENT_SENT` (V126, OBS-29). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08, OBS-29 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | link | VARCHAR(255) | có | V109: đường dẫn Web mở thẳng hồ sơ kế hoạch giáo dục; nhắc "Gần đến hạn" không tạo trùng cùng người + loại + link | EDU-74 |
