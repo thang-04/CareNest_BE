@@ -819,14 +819,14 @@ class EduClassDocServiceIntegrationTest {
                 teacher,
                 dayKey,
                 new com.carenest.dto.eduplan.ResourceAttachRequest(
-                        java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều"));
+                        java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều", null));
         assertThat(again).singleElement().satisfies(r -> assertThat(r.itemId()).isEqualTo(saved.itemId()));
         assertApiError(
                 () -> learningResources.attach(
                         teacher,
                         dayKey,
                         new com.carenest.dto.eduplan.ResourceAttachRequest(
-                                java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều")),
+                                java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều", null)),
                 ApiCode.RESOURCE_ALREADY_ATTACHED);
         learningResources.detach(teacher, dayKey, saved.id());
         assertThat(learningResources.list(teacher, dayKey))
@@ -881,8 +881,8 @@ class EduClassDocServiceIntegrationTest {
 
     @Test
     @DisplayName(
-            "Spec 900 FR-018, SC-002: chuyển học liệu cũ sang kho — số học liệu = số dòng cũ, dòng gắn = dòng đang gắn")
-    void legacyLearningResourcesMigrateToLibrary() throws Exception {
+            "Spec 901 FR-004, FR-011: V128 đổi nhãn chủ đề cũ thành nhãn tự thêm theo dòng gắn (tên, năm học); gỡ là mất")
+    void v128ConvertsThemeTagsToAttachmentTags() throws Exception {
         approveBranch();
         String dayKey = "dd_" + classId + "_2026-09-07";
         ObjectNode day = base();
@@ -890,59 +890,40 @@ class EduClassDocServiceIntegrationTest {
         day.put("weekStart", "2026-09-07");
         day.putArray("days").addObject().put("date", "2026-09-07");
         service.saveClassDoc(teacher, "day", dayKey, day, -1L, rootVersionOf("day", day));
-        Long docId = jdbc.queryForObject("SELECT id FROM edu_class_docs WHERE doc_key=?", Long.class, dayKey);
-        // Hai dòng cũ: một dòng đang gắn mục, một dòng đã gỡ
-        java.util.UUID request = java.util.UUID.randomUUID();
-        String insert = "INSERT INTO edu_learning_resources (class_doc_id, activity_key, activity_label, original_name,"
-                + " content_type, byte_size, storage_key, upload_request_id, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?)";
+        var saved = learningResources.addLink(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceLinkRequest(
+                        "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-07#hoc", "Hoạt động học", null));
+        // Như dữ liệu V126: một nhãn chủ đề không tên, không gắn dòng gắn
         jdbc.update(
-                insert,
-                docId,
-                "2026-09-07#hoc",
-                "Hoạt động học",
-                "bai.hat.pdf",
-                "application/pdf",
-                10L,
-                "hoclieu/legacy-1",
-                request,
-                teacher.userId());
-        jdbc.update(
-                insert,
-                docId,
-                null,
-                "Hoạt động học",
-                "anh.png",
-                "image/png",
-                5L,
-                "hoclieu/legacy-2",
-                java.util.UUID.randomUUID(),
-                teacher.userId());
+                "INSERT INTO edu_resource_item_tags (item_id, kind, ref_id) VALUES (?, 'THEME', ?)",
+                saved.itemId(),
+                Long.valueOf(theme1));
         String script = new String(
                 getClass()
-                        .getResourceAsStream("/db/migration/V126__edu_resource_library.sql")
+                        .getResourceAsStream("/db/migration/V128__edu_resource_personal_library.sql")
                         .readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8);
-        String data = script.substring(script.indexOf("ALTER TABLE edu_resource_items ADD COLUMN legacy_id"));
+        String data = script.substring(script.indexOf("-- 3."), script.indexOf("-- 4."));
         for (String sql : data.split(";\\s*\\n")) if (!sql.isBlank()) jdbc.execute(sql);
-        assertThat(jdbc.queryForList(
-                        "SELECT title FROM edu_resource_items WHERE storage_key LIKE 'hoclieu/legacy-%' ORDER BY id",
-                        String.class))
-                .containsExactlyInAnyOrder("bai.hat", "anh");
+        var tags = jdbc.queryForList(
+                "SELECT t.name, t.school_year_id, t.attachment_id FROM edu_resource_item_tags t WHERE t.item_id=?",
+                saved.itemId());
+        String themeName =
+                jdbc.queryForObject("SELECT name FROM edu_themes WHERE id=?", String.class, Long.valueOf(theme1));
+        assertThat(tags).singleElement().satisfies(t -> {
+            assertThat(t.get("name")).isEqualTo(themeName);
+            assertThat(t.get("school_year_id")).isNotNull();
+            assertThat(t.get("attachment_id")).isEqualTo(saved.id());
+        });
+        // EDU-87: gỡ dòng gắn ⇒ nhãn tự thêm mất theo
+        learningResources.detach(teacher, dayKey, saved.id());
         assertThat(jdbc.queryForObject(
-                        "SELECT count(*) FROM edu_resource_attachments a JOIN edu_resource_items i ON i.id = a.item_id"
-                                + " WHERE i.storage_key LIKE 'hoclieu/legacy-%'",
-                        Long.class))
-                .isEqualTo(1L);
-        assertThat(jdbc.queryForObject(
-                        "SELECT count(upload_request_id) FROM edu_resource_items WHERE storage_key LIKE 'hoclieu/legacy-%'",
-                        Long.class))
-                .isEqualTo(2L);
-        assertThat(jdbc.queryForObject(
-                        "SELECT sort_order FROM edu_resource_attachments WHERE class_doc_id=?", Integer.class, docId))
+                        "SELECT count(*) FROM edu_resource_item_tags WHERE item_id=?", Long.class, saved.itemId()))
                 .isZero();
-        assertThat(learningResources.list(teacher, dayKey))
-                .singleElement()
-                .satisfies(r -> assertThat(r.fileName()).isEqualTo("bai.hat"));
+        assertThat(jdbc.queryForObject("SELECT to_regclass('edu_learning_resources') IS NULL", Boolean.class))
+                .isTrue();
     }
 
     @Autowired

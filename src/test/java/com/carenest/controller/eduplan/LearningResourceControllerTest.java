@@ -49,8 +49,7 @@ class LearningResourceControllerTest {
                 3L,
                 "FILE",
                 "demo.pdf",
-                null,
-                "MINE");
+                null);
         given(service.upload(eq(user), eq("dd_1_1_2026-09-07"), any(), any(), eq(requestId)))
                 .willReturn(result);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(BASE)

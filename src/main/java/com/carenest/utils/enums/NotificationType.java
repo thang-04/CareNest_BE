@@ -32,8 +32,5 @@ public enum NotificationType {
     EDU_RELEASED,
     EDU_RETURNED,
     EDU_DEADLINE_EXTENDED,
-    EDU_DEADLINE_NEAR,
-    // Kho học liệu (EDU-84): báo người tạo khi học liệu được duyệt / trả lại khỏi kho trường
-    EDU_RESOURCE_APPROVED,
-    EDU_RESOURCE_RETURNED
+    EDU_DEADLINE_NEAR
 }

@@ -215,8 +215,9 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                     }
                 });
                 cleanupRegistered[0] = true;
-                EduResourceItem item = library.createFileItem(user, ageGroupOf(doc), stored, name, requestId, tags);
+                EduResourceItem item = library.createFileItem(user, ageGroupOf(doc), stored, name, requestId);
                 EduResourceAttachment saved = saveAttachment(user, doc, binding, item.getId());
+                library.tagAttachment(item.getId(), saved.getId(), schoolYearOf(doc), tags);
                 workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
                 return new UploadCommit(response(doc, saved, item), true);
             });
@@ -245,9 +246,9 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
             LearningResourceBinding binding = request.binding();
             validateBinding(doc, binding);
-            EduResourceItem item =
-                    library.findOrCreateLink(user, request.url(), request.title(), ageGroupOf(doc), request.tags());
-            var result = attachAll(user, doc, binding, List.of(item)).get(0);
+            EduResourceItem item = library.findOrCreateLink(user, request.url(), request.title(), ageGroupOf(doc));
+            var result =
+                    attachAll(user, doc, binding, List.of(item), request.tags()).get(0);
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -267,9 +268,9 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             validateBinding(doc, binding);
             List<EduResourceItem> chosen = request.itemIds().stream()
                     .distinct()
-                    .map(id -> library.requireVisible(user, id))
+                    .map(id -> library.requireOwned(user, id)) // FR-013: chỉ gắn học liệu trong kho của mình
                     .toList();
-            var result = attachAll(user, doc, binding, chosen);
+            var result = attachAll(user, doc, binding, chosen, request.tags());
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -280,13 +281,21 @@ public class LearningResourceServiceImpl implements LearningResourceService {
 
     /** EDU-82: mỗi học liệu một lần mỗi mục, tối đa 20 học liệu mỗi mục; gắn tính là sửa nội dung (EDU-64). */
     private List<LearningResourceResponse> attachAll(
-            CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, List<EduResourceItem> chosen) {
+            CurrentUser user,
+            EduClassDoc doc,
+            LearningResourceBinding binding,
+            List<EduResourceItem> chosen,
+            ResourceTagsRequest tags) {
         for (EduResourceItem item : chosen)
             if (attachments.existsByClassDocIdAndActivityKeyAndItemId(doc.getId(), binding.activityKey(), item.getId()))
                 throw GlobalException.of(ApiCode.RESOURCE_ALREADY_ATTACHED);
         requireRoom(doc, binding.activityKey(), chosen.size());
         List<LearningResourceResponse> out = chosen.stream()
-                .map(item -> response(doc, saveAttachment(user, doc, binding, item.getId()), item))
+                .map(item -> {
+                    EduResourceAttachment saved = saveAttachment(user, doc, binding, item.getId());
+                    library.tagAttachment(item.getId(), saved.getId(), schoolYearOf(doc), tags);
+                    return response(doc, saved, item);
+                })
                 .toList();
         workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
         return out;
@@ -415,6 +424,13 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                         user.userId());
     }
 
+    private Long schoolYearOf(EduClassDoc doc) {
+        return classrooms
+                .findClassroomInfo(doc.getClassroomId())
+                .map(c -> c.schoolYearId())
+                .orElse(null);
+    }
+
     private Long ageGroupOf(EduClassDoc doc) {
         return classrooms
                 .findClassroomInfo(doc.getClassroomId())
@@ -474,8 +490,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                 item.getId(),
                 item.getKind(),
                 item.getTitle(),
-                item.getUrl(),
-                item.getScope());
+                item.getUrl());
     }
 
     private interface ContentSource {

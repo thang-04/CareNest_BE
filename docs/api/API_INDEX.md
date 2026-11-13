@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 340 endpoint.
+Tổng: 335 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -189,15 +189,10 @@ POST /education-plans/goals/{planId}/versions · src/main/java/com/carenest/cont
 POST /education-plans/goals/file-preview · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#previewGoalFile
 GET /education-plans/goals/review-queue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getReviewQueue
 GET /education-plans/resources · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#list
-POST /education-plans/resources · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#upload
 DELETE /education-plans/resources/{id} · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#delete
 PATCH /education-plans/resources/{id} · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#update
-POST /education-plans/resources/{id}/review · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#review
-POST /education-plans/resources/{id}/share · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#share
 GET /education-plans/resources/{id}/url · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#contentUrl
 GET /education-plans/resources/{id}/usages · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#usages
-POST /education-plans/resources/{id}/withdraw · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#withdraw
-POST /education-plans/resources/links · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#addLink
 GET /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#getWorkflowPolicy
 PUT /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#updateWorkflowPolicy
 GET /health-checks · src/main/java/com/carenest/controller/health/HealthCheckController.java#listHealthChecks

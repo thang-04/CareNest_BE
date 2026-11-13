@@ -1227,7 +1227,7 @@ paths:
       - reward-list-controller
   /api/assessment/reward-lists/{id}/review:
     post:
-      operationId: review_1
+      operationId: review
       parameters:
       - in: path
         name: id
@@ -2869,7 +2869,7 @@ paths:
       - child-enrollment-controller
   /api/children/{childId}/withdraw:
     post:
-      operationId: withdraw_1
+      operationId: withdraw
       parameters:
       - in: path
         name: childId
@@ -3360,7 +3360,7 @@ paths:
       - edu-class-doc-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources:
     get:
-      operationId: list_1
+      operationId: list
       parameters:
       - in: path
         name: docKey
@@ -3377,7 +3377,7 @@ paths:
       tags:
       - learning-resource-controller
     post:
-      operationId: upload_1
+      operationId: upload
       parameters:
       - in: path
         name: docKey
@@ -3472,7 +3472,7 @@ paths:
       - learning-resource-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources/links:
     post:
-      operationId: addLink_1
+      operationId: addLink
       parameters:
       - in: path
         name: docKey
@@ -4419,14 +4419,8 @@ paths:
       - edu-year-plan-controller
   /api/education-plans/resources:
     get:
-      operationId: list
+      operationId: list_1
       parameters:
-      - in: query
-        name: view
-        required: false
-        schema:
-          type: string
-          default: ALL
       - in: query
         name: q
         required: false
@@ -4473,6 +4467,17 @@ paths:
         schema:
           type: string
       - in: query
+        name: teachThemeName
+        required: false
+        schema:
+          type: string
+      - in: query
+        name: schoolYearId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
         name: page
         required: false
         schema:
@@ -4492,57 +4497,6 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonPageResponseResourceItemResponse"
-          description: OK
-      tags:
-      - resource-library-controller
-    post:
-      operationId: upload
-      parameters:
-      - in: header
-        name: Idempotency-Key
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                ageGroupId:
-                  type: string
-                file:
-                  type: string
-                  format: binary
-                title:
-                  type: string
-              required:
-              - file
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
-          description: OK
-      tags:
-      - resource-library-controller
-  /api/education-plans/resources/links:
-    post:
-      operationId: addLink
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResourceLibraryLinkRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
           description: OK
       tags:
       - resource-library-controller
@@ -4589,56 +4543,6 @@ paths:
           description: OK
       tags:
       - resource-library-controller
-  /api/education-plans/resources/{id}/review:
-    post:
-      operationId: review
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResourceReviewRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
-          description: OK
-      tags:
-      - resource-library-controller
-  /api/education-plans/resources/{id}/share:
-    post:
-      operationId: share
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ResourceShareRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
-          description: OK
-      tags:
-      - resource-library-controller
   /api/education-plans/resources/{id}/url:
     get:
       operationId: contentUrl
@@ -4673,26 +4577,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResponseJsonListResourceUsageResponse"
-          description: OK
-      tags:
-      - resource-library-controller
-  /api/education-plans/resources/{id}/withdraw:
-    post:
-      operationId: withdraw
-      parameters:
-      - in: path
-        name: id
-        required: true
-        schema:
-          type: integer
-          format: int64
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonResourceItemResponse"
+                $ref: "#/components/schemas/ResponseJsonResourceUsagesResponse"
           description: OK
       tags:
       - resource-library-controller
@@ -13229,6 +13114,14 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/GoalCount"
+    GoalTag:
+      type: object
+      properties:
+        goalId:
+          type: integer
+          format: int64
+      required:
+      - goalId
     GroupStat:
       type: object
       properties:
@@ -15182,8 +15075,6 @@ components:
           format: int64
         kind:
           type: string
-        scope:
-          type: string
         title:
           type: string
         uploadedBy:
@@ -16065,8 +15956,6 @@ components:
           - EDU_RETURNED
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
-          - EDU_RESOURCE_APPROVED
-          - EDU_RESOURCE_RETURNED
     NutritionTotals:
       type: object
       properties:
@@ -17440,6 +17329,8 @@ components:
             format: int64
           maxItems: 20
           minItems: 0
+        tags:
+          $ref: "#/components/schemas/ResourceTagsRequest"
       required:
       - activityKey
       - activityLabel
@@ -17455,19 +17346,10 @@ components:
         byteSize:
           type: integer
           format: int64
-        canEdit:
-          type: boolean
-        canReview:
-          type: boolean
-        classroomId:
-          type: integer
-          format: int64
         contentType:
           type: string
         fileName:
           type: string
-        hidden:
-          type: boolean
         id:
           type: integer
           format: int64
@@ -17475,21 +17357,14 @@ components:
           type: string
         match:
           type: string
-        mine:
-          type: boolean
-        ownerId:
-          type: integer
-          format: int64
-        scope:
-          type: string
-        shareReason:
-          type: string
-        shareStatus:
-          type: string
         tags:
           type: array
           items:
             $ref: "#/components/schemas/ResourceTagResponse"
+        taughtThemes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TaughtTheme"
         title:
           type: string
         updatedAt:
@@ -17508,30 +17383,29 @@ components:
           format: int64
         clearAgeGroup:
           type: boolean
-        hidden:
-          type: boolean
-        tags:
-          $ref: "#/components/schemas/ResourceTagsRequest"
+        goals:
+          type: array
+          items:
+            $ref: "#/components/schemas/GoalTag"
+          maxItems: 50
+          minItems: 0
+        removeTagIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 100
+          minItems: 0
+        themes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThemeTag"
+          maxItems: 50
+          minItems: 0
         title:
           type: string
           maxLength: 255
           minLength: 1
-    ResourceLibraryLinkRequest:
-      type: object
-      properties:
-        ageGroupId:
-          type: integer
-          format: int64
-        title:
-          type: string
-          maxLength: 255
-          minLength: 0
-        url:
-          type: string
-          maxLength: 2000
-          minLength: 0
-      required:
-      - url
     ResourceLinkRequest:
       type: object
       properties:
@@ -17574,33 +17448,15 @@ components:
       required:
       - activityKey
       - ids
-    ResourceReviewRequest:
-      type: object
-      properties:
-        approve:
-          type: boolean
-        reason:
-          type: string
-          maxLength: 1000
-          minLength: 0
-      required:
-      - approve
-    ResourceShareRequest:
-      type: object
-      properties:
-        classroomId:
-          type: integer
-          format: int64
-        scope:
-          type: string
-          minLength: 1
-          pattern: MINE|CLASS|SCHOOL
-      required:
-      - scope
     ResourceTagResponse:
       type: object
       properties:
+        auto:
+          type: boolean
         curriculumGoalId:
+          type: integer
+          format: int64
+        id:
           type: integer
           format: int64
         kind:
@@ -17610,6 +17466,11 @@ components:
         refId:
           type: integer
           format: int64
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
     ResourceTagsRequest:
       type: object
       properties:
@@ -17644,6 +17505,22 @@ components:
           type: string
         docKey:
           type: string
+        locked:
+          type: boolean
+        status:
+          type: string
+    ResourceUsagesResponse:
+      type: object
+      properties:
+        deletableFrom:
+          type: string
+          format: date
+        locked:
+          type: boolean
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceUsageResponse"
     ResponseJsonAccessToken:
       type: object
       properties:
@@ -19161,21 +19038,6 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonListResourceUsageResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          type: array
-          items:
-            $ref: "#/components/schemas/ResourceUsageResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
     ResponseJsonListRewardClassRow:
       type: object
       properties:
@@ -19809,6 +19671,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ResourceItemResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonResourceUsagesResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ResourceUsagesResponse"
         desc:
           type: string
         errorCode:
@@ -21583,6 +21458,16 @@ components:
         taken:
           type: integer
           format: int64
+    TaughtTheme:
+      type: object
+      properties:
+        name:
+          type: string
+        schoolYearId:
+          type: integer
+          format: int64
+        schoolYearName:
+          type: string
     TbContactInput:
       type: object
       properties:
@@ -21802,6 +21687,19 @@ components:
             type: string
         vicePrincipal:
           type: string
+    ThemeTag:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 500
+          minLength: 0
+        schoolYearId:
+          type: integer
+          format: int64
+        themeId:
+          type: integer
+          format: int64
     TicketBoardResponse:
       type: object
       properties:

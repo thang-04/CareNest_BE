@@ -3,7 +3,7 @@ package com.carenest.dto.eduplan;
 import java.time.Instant;
 import java.util.List;
 
-/** Học liệu trong kho kèm số lượt đang dùng, mức gợi ý ({@code GOAL}/{@code THEME}) và quyền của người xem. */
+/** Học liệu trong kho cá nhân (EDU-84) kèm chủ đề đã dạy, số lượt đang dùng và mức gợi ý ({@code GOAL}/{@code THEME}). */
 public record ResourceItemResponse(
         Long id,
         String kind,
@@ -12,18 +12,14 @@ public record ResourceItemResponse(
         String fileName,
         String contentType,
         Long byteSize,
-        Long ownerId,
-        boolean mine,
-        String scope,
-        Long classroomId,
-        String shareStatus,
-        String shareReason,
         Long ageGroupId,
-        boolean hidden,
         List<ResourceTagResponse> tags,
+        List<TaughtTheme> taughtThemes,
         long usageCount,
         String match,
         boolean attached,
-        boolean canEdit,
-        boolean canReview,
-        Instant updatedAt) {}
+        Instant updatedAt) {
+
+    /** EDU-87: chủ đề đã dạy (gộp nhãn không trùng theo tên + năm học). */
+    public record TaughtTheme(String name, Long schoolYearId, String schoolYearName) {}
+}

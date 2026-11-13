@@ -93,7 +93,7 @@ class LearningResourceServiceImplTest {
         when(storage.store(eq(FileCategory.LEARNING_RESOURCE), eq(8L), eq("demo.pdf"), any(), anyLong()))
                 .thenReturn(new FileStorage.StoredFile("hoclieu/new-object", "application/pdf", 8));
         when(items.findByOwnerIdAndUploadRequestId(any(), any())).thenReturn(Optional.empty());
-        when(library.createFileItem(any(), any(), any(), any(), any(), any()))
+        when(library.createFileItem(any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("test failure"));
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -115,9 +115,9 @@ class LearningResourceServiceImplTest {
     @Test
     void attachCreatesOnlyReferenceToLibraryItem() {
         EduResourceItem item = link(5L, 7L);
-        when(library.requireVisible(teacher, 5L)).thenReturn(item);
-        var result =
-                service.attach(teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học"));
+        when(library.requireOwned(teacher, 5L)).thenReturn(item);
+        var result = service.attach(
+                teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học", null));
         // EDU-82: chỉ thêm dòng gắn, không tạo học liệu mới, không đụng kho tệp
         assertThat(result).singleElement().satisfies(r -> {
             assertThat(r.itemId()).isEqualTo(5L);
@@ -130,11 +130,11 @@ class LearningResourceServiceImplTest {
 
     @Test
     void attachSameItemTwiceInSectionRejected() {
-        when(library.requireVisible(teacher, 5L)).thenReturn(link(5L, 7L));
+        when(library.requireOwned(teacher, 5L)).thenReturn(link(5L, 7L));
         when(attachments.existsByClassDocIdAndActivityKeyAndItemId(8L, "2026-09-08#hoc", 5L))
                 .thenReturn(true);
         assertThatThrownBy(() -> service.attach(
-                        teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học")))
+                        teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học", null)))
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.RESOURCE_ALREADY_ATTACHED);
@@ -142,10 +142,10 @@ class LearningResourceServiceImplTest {
 
     @Test
     void sectionHoldsAtMostTwentyResources() {
-        when(library.requireVisible(teacher, 5L)).thenReturn(link(5L, 7L));
+        when(library.requireOwned(teacher, 5L)).thenReturn(link(5L, 7L));
         when(attachments.countByClassDocIdAndActivityKey(8L, "2026-09-08#hoc")).thenReturn(20L);
         assertThatThrownBy(() -> service.attach(
-                        teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học")))
+                        teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học", null)))
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.RESOURCE_SECTION_FULL);
@@ -165,10 +165,9 @@ class LearningResourceServiceImplTest {
     }
 
     @Test
-    void viewerOfPlanSeesAttachedLinkWhateverItsScope() {
-        // EDU-86: học liệu "Của tôi" của người khác, đã ẩn — người xem giáo án vẫn mở được
+    void viewerOfPlanSeesAttachedLinkFromSomeoneElsesLibrary() {
+        // EDU-86: học liệu trong kho riêng của người khác — người xem giáo án vẫn mở được
         EduResourceItem item = link(5L, 99L);
-        item.changeHidden(true, Instant.now());
         EduResourceAttachment a =
                 EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 0, 99L, Instant.now());
         ReflectionTestUtils.setField(a, "id", 30L);
@@ -177,6 +176,32 @@ class LearningResourceServiceImplTest {
         when(assignments.findHomeroomTeacherIds(any(), any())).thenReturn(Map.of());
         assertThat(service.contentUrl(teacher, KEY, 30L).url())
                 .isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    }
+
+    @Test
+    void attachRejectsItemFromAnotherTeachersLibrary() {
+        // FR-013: chỉ gắn học liệu trong kho của mình
+        when(library.requireOwned(teacher, 5L)).thenThrow(GlobalException.of(ApiCode.RESOURCE_ITEM_NOT_FOUND));
+        assertThatThrownBy(() -> service.attach(
+                        teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học", null)))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.RESOURCE_ITEM_NOT_FOUND);
+        verify(attachments, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void attachTagsTheNewAttachmentWithThemeAndSchoolYear() {
+        when(library.requireOwned(teacher, 5L)).thenReturn(link(5L, 7L));
+        when(attachments.saveAndFlush(any())).thenAnswer(i -> {
+            EduResourceAttachment a = i.getArgument(0);
+            ReflectionTestUtils.setField(a, "id", 40L);
+            return a;
+        });
+        var tags = new com.carenest.dto.eduplan.ResourceTagsRequest(3L, "Trường mầm non", List.of(20L));
+        service.attach(teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học", tags));
+        // EDU-87: nhãn tự thêm gắn với dòng gắn vừa tạo, năm học của lớp (2)
+        verify(library).tagAttachment(5L, 40L, 2L, tags);
     }
 
     private EduResourceAttachment row(long id, long itemId, int order) {

@@ -5,7 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** EDU-87: nhãn chủ đề hoặc MT của học liệu; MT giữ mã mục tiêu Chương trình Bộ để khớp sang năm học sau. */
+/** EDU-87: nhãn chủ đề (kèm năm học) hoặc MT của học liệu; MT giữ mã mục tiêu Chương trình Bộ để khớp sang năm học sau. */
 @Entity
 @Table(name = "edu_resource_item_tags")
 @Getter
@@ -30,8 +30,22 @@ public class EduResourceItemTag {
     @Column(length = 500)
     private String name;
 
-    public static EduResourceItemTag of(Long itemId, String kind, Long refId, Long curriculumGoalId, String name) {
+    private Long schoolYearId;
+
+    /** NULL = nhãn thêm tay; có giá trị = nhãn tự thêm, DB xóa theo dòng gắn (EDU-87). */
+    private Long attachmentId;
+
+    public static EduResourceItemTag of(
+            Long itemId,
+            String kind,
+            Long refId,
+            Long curriculumGoalId,
+            String name,
+            Long schoolYearId,
+            Long attachmentId) {
         EduResourceItemTag t = new EduResourceItemTag();
+        t.schoolYearId = schoolYearId;
+        t.attachmentId = attachmentId;
         t.itemId = itemId;
         t.kind = kind;
         t.refId = refId;

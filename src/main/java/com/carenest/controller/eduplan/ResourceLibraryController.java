@@ -9,19 +9,16 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
 import jakarta.validation.Valid;
 import java.util.List;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
-/** Spec 900: kho học liệu dùng lại cho giáo án ngày (EDU-82…88). */
+/** Kho học liệu cá nhân của giáo viên (spec 900/901, EDU-82…88); học liệu chỉ vào kho từ giáo án ngày. */
 @RestController
 @RequestMapping("/education-plans/resources")
-@PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
+@PreAuthorize("hasRole('TEACHER')")
 @RequiredArgsConstructor
 @Slf4j
 public class ResourceLibraryController {
@@ -30,7 +27,6 @@ public class ResourceLibraryController {
 
     @GetMapping
     public ResponseEntity<ResponseJson<PageResponse<ResourceItemResponse>>> list(
-            @RequestParam(defaultValue = "ALL") String view,
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String kind,
             @RequestParam(required = false) Long ageGroupId,
@@ -39,42 +35,30 @@ public class ResourceLibraryController {
             @RequestParam(required = false) List<Long> goalIds,
             @RequestParam(required = false) String docKey,
             @RequestParam(required = false) String activityKey,
+            @RequestParam(required = false) String teachThemeName,
+            @RequestParam(required = false) Long schoolYearId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size,
             CurrentUser user) {
-        String p = LOG_PREFIX + "|list|userId=" + user.userId() + "|view=" + view;
+        String p = LOG_PREFIX + "|list|userId=" + user.userId();
         log.info("{}|START", p);
         var result = service.list(
                 user,
                 new ResourceLibraryService.Query(
-                        view, q, kind, ageGroupId, themeId, themeName, goalIds, docKey, activityKey, page, size));
+                        q,
+                        kind,
+                        ageGroupId,
+                        themeId,
+                        themeName,
+                        goalIds,
+                        docKey,
+                        activityKey,
+                        teachThemeName,
+                        schoolYearId,
+                        page,
+                        size));
         log.info("{}|END", p);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get resource library success", result);
-    }
-
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ResponseJson<ResourceItemResponse>> upload(
-            @RequestPart MultipartFile file,
-            @RequestPart(required = false) String title,
-            @RequestPart(required = false) String ageGroupId,
-            @RequestHeader("Idempotency-Key") UUID requestId,
-            CurrentUser user) {
-        String p = LOG_PREFIX + "|upload|userId=" + user.userId();
-        log.info("{}|START", p);
-        Long ageGroup = ageGroupId == null || ageGroupId.isBlank() ? null : Long.valueOf(ageGroupId);
-        var result = service.upload(user, file, title, ageGroup, requestId);
-        log.info("{}|END", p);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Upload resource success", result);
-    }
-
-    @PostMapping("/links")
-    public ResponseEntity<ResponseJson<ResourceItemResponse>> addLink(
-            @Valid @RequestBody ResourceLibraryLinkRequest request, CurrentUser user) {
-        String p = LOG_PREFIX + "|addLink|userId=" + user.userId();
-        log.info("{}|START", p);
-        var result = service.addLink(user, request);
-        log.info("{}|END", p);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Add resource link success", result);
     }
 
     @PatchMapping("/{id}")
@@ -87,35 +71,6 @@ public class ResourceLibraryController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update resource success", result);
     }
 
-    @PostMapping("/{id}/share")
-    public ResponseEntity<ResponseJson<ResourceItemResponse>> share(
-            @PathVariable Long id, @Valid @RequestBody ResourceShareRequest request, CurrentUser user) {
-        String p = LOG_PREFIX + "|share|userId=" + user.userId() + "|id=" + id;
-        log.info("{}|START", p);
-        var result = service.share(user, id, request);
-        log.info("{}|END", p);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Share resource success", result);
-    }
-
-    @PostMapping("/{id}/withdraw")
-    public ResponseEntity<ResponseJson<ResourceItemResponse>> withdraw(@PathVariable Long id, CurrentUser user) {
-        String p = LOG_PREFIX + "|withdraw|userId=" + user.userId() + "|id=" + id;
-        log.info("{}|START", p);
-        var result = service.withdraw(user, id);
-        log.info("{}|END", p);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Withdraw resource request success", result);
-    }
-
-    @PostMapping("/{id}/review")
-    public ResponseEntity<ResponseJson<ResourceItemResponse>> review(
-            @PathVariable Long id, @Valid @RequestBody ResourceReviewRequest request, CurrentUser user) {
-        String p = LOG_PREFIX + "|review|userId=" + user.userId() + "|id=" + id;
-        log.info("{}|START", p);
-        var result = service.review(user, id, request);
-        log.info("{}|END", p);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Review resource request success", result);
-    }
-
     @DeleteMapping("/{id}")
     public ResponseEntity<ResponseJson<String>> delete(@PathVariable Long id, CurrentUser user) {
         String p = LOG_PREFIX + "|delete|userId=" + user.userId() + "|id=" + id;
@@ -126,7 +81,7 @@ public class ResourceLibraryController {
     }
 
     @GetMapping("/{id}/usages")
-    public ResponseEntity<ResponseJson<List<ResourceUsageResponse>>> usages(@PathVariable Long id, CurrentUser user) {
+    public ResponseEntity<ResponseJson<ResourceUsagesResponse>> usages(@PathVariable Long id, CurrentUser user) {
         String p = LOG_PREFIX + "|usages|userId=" + user.userId() + "|id=" + id;
         log.info("{}|START", p);
         var result = service.usages(user, id);

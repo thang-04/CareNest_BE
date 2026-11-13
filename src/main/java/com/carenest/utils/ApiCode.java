@@ -600,14 +600,13 @@ public enum ApiCode {
     // Spec 900 kho học liệu (EDU-82…88)
     RESOURCE_LINK_INVALID(7127, HttpStatus.BAD_REQUEST, "Chỉ nhận link YouTube hoặc Google Drive/Docs (https)"),
     RESOURCE_ITEM_NOT_FOUND(7128, HttpStatus.NOT_FOUND, "Không tìm thấy học liệu trong kho"),
-    RESOURCE_ITEM_IN_USE(7129, HttpStatus.CONFLICT, "Học liệu đang dùng ở {0} mục hoạt động, chỉ ẩn được"),
     RESOURCE_ALREADY_ATTACHED(7130, HttpStatus.CONFLICT, "Học liệu đã gắn vào mục này"),
     RESOURCE_SECTION_FULL(7131, HttpStatus.CONFLICT, "Mỗi mục hoạt động gắn tối đa {0} học liệu"),
     RESOURCE_ITEM_FORBIDDEN(7132, HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác học liệu này"),
-    RESOURCE_SHARE_STATE(7133, HttpStatus.CONFLICT, "Trạng thái chia sẻ học liệu đã đổi, tải lại trang"),
-    RESOURCE_REVIEW_REASON_REQUIRED(7134, HttpStatus.BAD_REQUEST, "Cần ghi lý do trả lại"),
-    RESOURCE_PENDING_REVIEW(7135, HttpStatus.CONFLICT, "Học liệu đang chờ duyệt lên kho trường, rút đề nghị trước"),
     RESOURCE_ORDER_STALE(7136, HttpStatus.CONFLICT, "Học liệu của mục đã thay đổi, tải lại trang rồi sắp xếp lại"),
+    // EDU-85/88: đang gắn giáo án Chờ duyệt hoặc đã ban hành chưa qua ngày dạy ⇒ không xóa, không đổi tên
+    RESOURCE_ITEM_LOCKED(
+            7137, HttpStatus.CONFLICT, "Học liệu đang dùng ở giáo án chờ duyệt hoặc chưa qua ngày dạy: {0}. {1}"),
     ACTIVITY_CHANGED(7120, HttpStatus.CONFLICT, "Hoạt động đã thay đổi. Lưu và chọn lại hoạt động trước khi gắn tệp"),
     CLASS_DOC_VERSION_FIX_REQUIRED(
             7121, HttpStatus.CONFLICT, "Còn {0} mục đổi theo kế hoạch năm mới chưa sửa (ô đỏ). Sửa hết rồi mới gửi"),

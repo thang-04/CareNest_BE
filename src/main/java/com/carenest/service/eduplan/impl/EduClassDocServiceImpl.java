@@ -456,10 +456,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
                 requireClassDocAuthor(currentUser, cls);
                 // Như lưu giáo án ngày: hồ sơ chủ đề chứa nó phải còn Nháp (chờ duyệt/ban hành ⇒ khóa)
-                boolean dossierDraft = classDocRepository
-                        .findByDocKey(dossierKey(doc.getClassroomId(), doc.getThemeId()))
-                        .map(r -> r.getStatus().editable())
-                        .orElse(false);
+                boolean dossierDraft =
+                        dossierOf(doc).map(r -> r.getStatus().editable()).orElse(false);
                 if (doc.getStatus() == EduClassDocStatus.REVIEW || !dossierDraft)
                     throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 // EDU-26: học liệu của tài liệu trên phiên bản đã thay thế cũng chỉ xem
@@ -471,6 +469,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public EduClassDocStatus dayStatus(EduClassDoc day) {
+        if (day.getStatus() == EduClassDocStatus.REVIEW) return EduClassDocStatus.REVIEW;
+        return dossierOf(day).map(EduClassDoc::getStatus).orElse(day.getStatus());
+    }
+
+    private Optional<EduClassDoc> dossierOf(EduClassDoc day) {
+        return classDocRepository.findByDocKey(dossierKey(day.getClassroomId(), day.getThemeId()));
     }
 
     @Override

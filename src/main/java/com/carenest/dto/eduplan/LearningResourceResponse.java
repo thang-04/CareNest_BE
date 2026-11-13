@@ -17,5 +17,4 @@ public record LearningResourceResponse(
         Long itemId,
         String kind,
         String title,
-        String url,
-        String scope) {}
+        String url) {}

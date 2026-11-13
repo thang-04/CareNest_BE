@@ -21,6 +21,8 @@ public interface EduResourceAttachmentRepository extends JpaRepository<EduResour
 
     List<EduResourceAttachment> findAllByItemIdOrderByIdAsc(Long itemId);
 
+    void deleteAllByItemId(Long itemId);
+
     List<EduResourceAttachment> findAllByClassDocIdAndActivityKey(Long classDocId, String activityKey);
 
     @Query("select a.itemId, count(a) from EduResourceAttachment a where a.itemId in :itemIds group by a.itemId")

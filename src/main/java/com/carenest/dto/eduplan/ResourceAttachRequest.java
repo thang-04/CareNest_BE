@@ -1,5 +1,6 @@
 package com.carenest.dto.eduplan;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
@@ -13,7 +14,8 @@ public record ResourceAttachRequest(
         @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN)
         String activityKey,
 
-        @NotBlank @Size(max = 1000) String activityLabel) {
+        @NotBlank @Size(max = 1000) String activityLabel,
+        @Valid ResourceTagsRequest tags) {
 
     public LearningResourceBinding binding() {
         return new LearningResourceBinding(activityKey, activityLabel);
