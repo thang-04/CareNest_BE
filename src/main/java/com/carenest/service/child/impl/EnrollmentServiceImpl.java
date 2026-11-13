@@ -6,12 +6,14 @@ import com.carenest.entity.child.Enrollment;
 import com.carenest.repository.child.ChildRepository;
 import com.carenest.repository.child.EnrollmentRepository;
 import com.carenest.service.child.EnrollmentService;
+import com.carenest.utils.enums.ChildStatus;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +39,23 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             List<Long> classroomIds = enrollmentRepository.findActiveClassroomIds(childId, date);
             log.info("{}|END", logPrefix);
             return classroomIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Optional<Long> findPendingPlacementCampusId(Long childId) {
+        String logPrefix = LOG_PREFIX + "|findPendingPlacementCampusId|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        try {
+            Optional<Long> campusId = childRepository
+                    .findById(childId)
+                    .filter(c -> c.getStatus() == ChildStatus.PENDING_PLACEMENT)
+                    .map(Child::getIntakeCampusId);
+            log.info("{}|END", logPrefix);
+            return campusId;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
