@@ -46,9 +46,9 @@ class EduTeamUpdateGenerator {
             var chain = plans.findAllByPlanLevelAndSchoolYearIdAndAgeGroupIdOrderByVersionNoAsc(
                     EduPlanLevel.TEAM, annual.getSchoolYearId(), annual.getAgeGroupId());
             if (chain.isEmpty()) {
-                var leaders = accounts.findActiveUserIds(assignments.findActiveTeamLeaderIds(
-                        annual.getSchoolYearId(),
+                var leaders = accounts.findActiveUserIds(assignments.findYearTeamLeaderIds(
                         annual.getAgeGroupId(),
+                        annual.getSchoolYearId(),
                         now.atZone(clock.getZone()).toLocalDate()));
                 if (leaders.size() != 1)
                     throw com.carenest.exception.GlobalException.of(

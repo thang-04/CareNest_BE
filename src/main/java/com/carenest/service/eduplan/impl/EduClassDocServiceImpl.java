@@ -487,14 +487,14 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Map<Long, Long> homerooms = staffAssignmentService.findHomeroomTeacherIds(classIds, today);
             Map<Long, String> codes = ageGroupCodes();
 
-            // Tổ trưởng của các nhóm tuổi có lớp đang xem (để hiện chuỗi duyệt, tên người duyệt)
+            // Tổ trưởng của các nhóm tuổi có lớp đang xem (để hiện chuỗi duyệt, tên người duyệt), theo năm học của lớp
+            // để tổ trưởng năm khác không lọt vào
             Map<Long, Set<Long>> leaders = new LinkedHashMap<>();
             classes.stream()
-                    .map(ClassroomInfoResponse::ageGroupId)
-                    .filter(Objects::nonNull)
-                    .distinct()
-                    .forEach(ag ->
-                            leaders.put(ag, staffAssignmentService.findActiveTeamLeaderIds(schoolYearId, ag, today)));
+                    .filter(c -> c.ageGroupId() != null && c.schoolYearId() != null)
+                    .forEach(c -> leaders.computeIfAbsent(
+                            c.ageGroupId(),
+                            ag -> staffAssignmentService.findYearTeamLeaderIds(ag, c.schoolYearId(), today)));
             Set<Long> staffIds = new HashSet<>();
             teachers.values().forEach(staffIds::addAll);
             leaders.values().forEach(staffIds::addAll);
