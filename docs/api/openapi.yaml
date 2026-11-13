@@ -21696,6 +21696,8 @@ components:
         campusId:
           type: integer
           format: int64
+        swap:
+          type: boolean
     VicePrincipalAssignmentResponse:
       type: object
       properties:

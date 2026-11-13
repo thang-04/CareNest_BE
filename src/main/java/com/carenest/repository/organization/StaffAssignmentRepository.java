@@ -292,6 +292,19 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
+    // PHT khác đang giữ điểm trường trong khoảng [from, to] (AUTH-26: nhiều nhất một người)
+    @Query("""
+            select distinct a.userId from StaffAssignment a
+            where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL
+              and a.campusId = :campusId and a.userId <> :userId
+              and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)
+            """)
+    List<Long> findOtherVicePrincipalIdsAtCampus(
+            @Param("campusId") Long campusId,
+            @Param("userId") Long userId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
     // Phân công không ngày kết thúc ⇒ so tới ngày xa nhất PostgreSQL date nhận được, tránh tham số null trong query
     default boolean existsOtherVicePrincipalAtCampusOpenEnded(
             Long campusId, Long userId, LocalDate from, LocalDate to) {
