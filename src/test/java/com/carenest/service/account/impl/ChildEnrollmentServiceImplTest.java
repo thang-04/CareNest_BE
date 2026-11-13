@@ -550,6 +550,28 @@ class ChildEnrollmentServiceImplTest {
         }
 
         @Test
+        @DisplayName(
+                "G94-180/AUTH-20: không có quyền quản lý tài khoản, tài khoản cũ chỉ khớp SĐT ⇒ không liên kết, không ghi CCCD")
+        void withoutAccountPermissionLegacyParentByPhoneIsNotTouched() {
+            EnrollmentDraft draft =
+                    givenDraft(VICE_WITHOUT_ACCOUNTS, FILES, recipient(0, MOTHER_PHONE, MOTHER_ID, "Mẹ giả"));
+            given(userAccountRepository.findAllByUsernameIn(Set.of(MOTHER_PHONE)))
+                    .willReturn(List.of(parent(61L, MOTHER_PHONE, null, "Mẹ giả (tài khoản)")));
+            given(childIntakeService.createEnrolledChild(VICE_WITHOUT_ACCOUNTS, draft, Map.of()))
+                    .willReturn(CHILD_ID);
+            givenView();
+
+            ChildEnrollmentResponse response = service.enrollWithPhotos(VICE_WITHOUT_ACCOUNTS, REQUEST, FILES);
+
+            // Hồ sơ giữ thông tin trên form, phụ huynh chờ người có quyền kích hoạt
+            assertThat(response.guardianAccounts())
+                    .containsExactly(new GuardianAccountResultResponse(
+                            "Mẹ giả", MOTHER_PHONE, GuardianAccountResult.NOT_ACTIVATED, false, null));
+            verify(userAccountRepository, never()).claimCitizenId(anyLong(), any());
+            verifyNoInteractions(identityProviderClient, passwordGenerator, smsSender);
+        }
+
+        @Test
         @DisplayName("AUTH-18: chỉ người nhận tài khoản được tạo/liên kết và có kết quả; phụ huynh khác giữ như form")
         void onlyRecipientGetsAccount() {
             GuardianDraft mother = recipient(0, MOTHER_PHONE, MOTHER_ID, "Mẹ giả");

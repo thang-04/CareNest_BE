@@ -148,11 +148,10 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                                 inputs.size() == 1 || Boolean.TRUE.equals(g.accountRecipient()));
                     })
                     .toList();
-            ParentAccounts accounts = loadAccounts(guardians);
-            List<FieldErrorResponse> conflicts = identityConflicts(
-                    withAccountInfo(guardians, accounts),
-                    accounts,
-                    actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE));
+            boolean manageAccounts = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
+            ParentAccounts accounts = loadAccounts(guardians, manageAccounts);
+            List<FieldErrorResponse> conflicts =
+                    identityConflicts(withAccountInfo(guardians, accounts), accounts, manageAccounts);
             if (!conflicts.isEmpty()) {
                 throw GlobalException.withFieldErrors(ApiCode.GUARDIAN_IDENTITY_CONFLICT, conflicts);
             }
@@ -187,9 +186,9 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
             EnrollmentPhotos photos =
                     childPhotoService.validatePhotos(draft.guardians().size(), files);
             // P-18 A: không có quyền quản lý tài khoản phụ huynh (ở điểm trường nhận trẻ — prepare đã kiểm phạm vi)
-            // ⇒ vẫn lưu; phụ huynh chưa có tài khoản chờ kích hoạt, trùng tài khoản có sẵn thì vẫn liên kết
+            // ⇒ vẫn lưu; phụ huynh chưa có tài khoản chờ kích hoạt, trùng CCCD tài khoản có sẵn thì vẫn liên kết
             boolean manageAccounts = actor.hasPermission(Permission.PARENT_ACCOUNT_MANAGE);
-            ParentAccounts accounts = loadAccounts(draft.guardians());
+            ParentAccounts accounts = loadAccounts(draft.guardians(), manageAccounts);
             // Tài khoản có sẵn: hồ sơ ghi họ tên, SĐT, email của tài khoản, không sửa tài khoản (C-2; sửa tài khoản
             // theo hồ sơ, đổi SĐT đổi tên đăng nhập làm ở Phase 4 — AUTH-21)
             List<GuardianDraft> guardians = withAccountInfo(draft.guardians(), accounts);
@@ -273,8 +272,12 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
         }
     }
 
-    /** Tài khoản có SĐT (tên đăng nhập) hoặc CCCD của các phụ huynh trên form. */
-    private ParentAccounts loadAccounts(List<GuardianDraft> guardians) {
+    /**
+     * Tài khoản có SĐT (tên đăng nhập) hoặc CCCD của các phụ huynh trên form. {@code matchByPhone}: người lưu có
+     * {@code PARENT_ACCOUNT_MANAGE}; không có quyền thì chỉ khớp theo CCCD — khớp theo SĐT sẽ ghi CCCD vào tài khoản cũ,
+     * tức là sửa tài khoản (G94-180/AUTH-20, user chốt 13/11/2026).
+     */
+    private ParentAccounts loadAccounts(List<GuardianDraft> guardians, boolean matchByPhone) {
         Set<String> phones = guardians.stream()
                 .map(GuardianDraft::phone)
                 .filter(Objects::nonNull)
@@ -292,7 +295,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                 ? Map.of()
                 : userAccountRepository.findAllByUsernameIn(phones).stream()
                         .collect(Collectors.toMap(UserAccount::getUsername, Function.identity()));
-        return new ParentAccounts(byCitizenId, byUsername, phones, citizenIds);
+        return new ParentAccounts(byCitizenId, byUsername, phones, citizenIds, matchByPhone);
     }
 
     private static List<GuardianDraft> withAccountInfo(List<GuardianDraft> guardians, ParentAccounts accounts) {
@@ -355,19 +358,23 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
     private record Enrolled(Long childId, List<UserAccount> created, Map<Integer, Long> accountIds) {}
 
     /**
-     * Tài khoản khớp phụ huynh (AUTH-18): theo CCCD; tài khoản cũ chưa có CCCD khớp theo SĐT. Không tin id tài khoản
-     * client gửi.
+     * Tài khoản khớp phụ huynh (AUTH-18): theo CCCD; tài khoản cũ chưa có CCCD khớp theo SĐT chỉ khi
+     * {@code matchByPhone}. Không tin id tài khoản client gửi.
      */
     private record ParentAccounts(
             Map<String, UserAccount> byCitizenId,
             Map<String, UserAccount> byUsername,
             Collection<String> phones,
-            Collection<String> citizenIds) {
+            Collection<String> citizenIds,
+            boolean matchByPhone) {
 
         Optional<UserAccount> parentOf(GuardianDraft g) {
             UserAccount byId = g.citizenId() == null ? null : byCitizenId.get(g.citizenId());
             if (byId != null) {
                 return Optional.of(byId);
+            }
+            if (!matchByPhone) {
+                return Optional.empty();
             }
             UserAccount byPhone = g.phone() == null ? null : byUsername.get(g.phone());
             return byPhone != null && byPhone.getPrimaryRole() == CareNestRole.PARENT && byPhone.getCitizenId() == null
