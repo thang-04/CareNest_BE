@@ -6,7 +6,6 @@ public record LearningResourceResponse(
         Long id,
         String docKey,
         String activityKey,
-        String activitySignature,
         String activityLabel,
         String fileName,
         String contentType,

@@ -58,7 +58,7 @@ public class UserAccount {
     private CareNestRole primaryRole;
 
     /** Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, GV đối chiếu khi trả trẻ — PCK-02); tệp ở S3. */
-    @Column(name = "photo_key", length = 36)
+    @Column(name = "photo_key", length = 255)
     private String photoKey;
 
     @Column(name = "photo_content_type", length = 30)

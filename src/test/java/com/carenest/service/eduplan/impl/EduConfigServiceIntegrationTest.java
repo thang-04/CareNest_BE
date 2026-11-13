@@ -127,7 +127,15 @@ class EduConfigServiceIntegrationTest {
 
         assertThat(config.domains()).hasSize(5).allMatch(EduConfigResponse.Domain::standard);
         assertThat(config.signers().branch()).containsExactly("TEAM_LEADER", "VICE_PRINCIPAL");
-        assertThat(config.weekRows()).hasSize(8);
+        // V124 (spec 005): thêm "Ăn, ngủ", đổi nhãn và thứ tự theo mẫu chung
+        assertThat(config.weekRows())
+                .extracting(EduConfigResponse.WeekRow::key)
+                .containsExactly(
+                        "don", "tro_chuyen", "the_duc", "hoc", "goc", "ngoai_troi", "an_ngu", "chieu", "tra_tre");
+        assertThat(config.weekRows())
+                .filteredOn(r -> java.util.List.of("goc", "ngoai_troi", "chieu").contains(r.key()))
+                .extracting(EduConfigResponse.WeekRow::label)
+                .containsExactly("Hoạt động góc", "Hoạt động ngoài trời", "Hoạt động chiều");
         assertThat(config.weekRows())
                 .filteredOn(r -> r.key().equals("ngoai_troi"))
                 .singleElement()
@@ -135,14 +143,18 @@ class EduConfigServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("EDU-11: Phó HT đổi tên lĩnh vực, thêm/bỏ lĩnh vực và dòng tuần khi gửi echo người ký")
-    void vicePrincipalUpdatesConfig() {
+    @DisplayName("EDU-11: Hiệu trưởng đổi tên lĩnh vực, thêm/bỏ lĩnh vực và dòng tuần; Phó HT không còn quyền cấu hình")
+    void principalUpdatesConfigAndVicePrincipalCannot() {
+        assertApiError(
+                () -> service.updateEduConfig(
+                        vicePrincipal, new EduConfigRequest(Map.of(), List.of(), null, List.of())),
+                ApiCode.FORBIDDEN);
         String physical = service.getEduConfig().domains().getFirst().name();
         EduConfigResponse.Signers echo = service.getEduConfig().signers();
         EduConfigRequest.Signers echoReq = new EduConfigRequest.Signers(echo.year(), echo.branch(), echo.week());
 
         EduConfigResponse saved = service.updateEduConfig(
-                vicePrincipal,
+                principal,
                 new EduConfigRequest(
                         Map.of(physical, "Thể chất (đổi tên)", "Lĩnh vực mới", "Tên hiển thị mới"),
                         List.of("Lĩnh vực mới"),
@@ -181,10 +193,10 @@ class EduConfigServiceIntegrationTest {
         assertApiError(
                 () -> service.updateEduConfig(teacher, new EduConfigRequest(Map.of(), List.of(), echoReq, rows)),
                 ApiCode.FORBIDDEN);
-        // Đổi chuỗi người ký qua PUT config cũ bị chặn cho mọi caller (kể cả PHT)
+        // Đổi chuỗi người ký qua PUT config cũ bị chặn cho mọi caller (kể cả HT)
         assertApiError(
                 () -> service.updateEduConfig(
-                        vicePrincipal,
+                        principal,
                         new EduConfigRequest(
                                 Map.of(),
                                 List.of(),
@@ -194,13 +206,13 @@ class EduConfigServiceIntegrationTest {
         // Không bỏ được dòng học
         assertApiError(
                 () -> service.updateEduConfig(
-                        vicePrincipal,
+                        principal,
                         new EduConfigRequest(Map.of(), List.of(), echoReq, List.of(row("don", "Đón trẻ", true, true)))),
                 ApiCode.BAD_REQUEST);
         String physical = service.getEduConfig().domains().getFirst().name();
         assertApiError(
                 () -> service.updateEduConfig(
-                        vicePrincipal, new EduConfigRequest(Map.of(), List.of(physical.toUpperCase()), echoReq, rows)),
+                        principal, new EduConfigRequest(Map.of(), List.of(physical.toUpperCase()), echoReq, rows)),
                 ApiCode.DOMAIN_NAME_EXISTS);
     }
 
@@ -420,7 +432,7 @@ class EduConfigServiceIntegrationTest {
                 current.signers().week());
 
         EduConfigResponse updated = service.updateEduConfig(
-                vicePrincipal,
+                principal,
                 new EduConfigRequest(
                         Map.of(physical, "Thể chất mới"),
                         List.of(),

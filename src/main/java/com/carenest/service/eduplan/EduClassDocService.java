@@ -17,7 +17,7 @@ public interface EduClassDocService {
 
     ClassCalendarPreviewResponse previewClassCalendar(CurrentUser currentUser, ClassCalendarPreviewRequest request);
 
-    com.carenest.entity.eduplan.EduClassDoc requireThemeAccess(CurrentUser currentUser, String docKey, boolean write);
+    com.carenest.entity.eduplan.EduClassDoc requireDayAccess(CurrentUser currentUser, String docKey, boolean write);
 
     /** Tài liệu, lớp và giáo viên của năm học (null = năm đang hoạt động) trong phạm vi người xem. */
     ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId);

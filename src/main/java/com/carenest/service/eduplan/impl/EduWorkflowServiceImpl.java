@@ -23,6 +23,7 @@ import com.carenest.service.eduplan.impl.EduWorkflowPolicy.Role;
 import com.carenest.service.eduplan.impl.EduWorkflowPolicy.RolePolicy;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.RequestMemo;
 import com.carenest.utils.enums.EduClassDocStatus;
 import com.carenest.utils.enums.EduPlanStatus;
 import com.carenest.utils.enums.StaffRole;
@@ -745,7 +746,12 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
         }
     }
 
+    // Một request đọc chỉ đọc cấu hình duyệt một lần (trước đây ~50 lần khi mở chi tiết một kế hoạch)
     private JsonNode loadSettingsPolicyNode() {
+        return RequestMemo.get("eduWorkflowPolicy", this::readSettingsPolicyNode);
+    }
+
+    private JsonNode readSettingsPolicyNode() {
         return settingsRepository
                 .findById((short) 1)
                 .map(EduSettings::getWorkflowPolicy)
@@ -966,7 +972,14 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
     @Override
     @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
     public boolean isAuthorEligible(CurrentUser user, String docType, Long ageGroupId, Long classroomId) {
-        String logPrefix = LOG_PREFIX + "|isAuthorEligible";
+        return isAuthorEligible(user, docType, null, ageGroupId, classroomId);
+    }
+
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public boolean isAuthorEligible(
+            CurrentUser user, String docType, Long schoolYearId, Long ageGroupId, Long classroomId) {
+        String logPrefix = LOG_PREFIX + "|isAuthorEligible|schoolYearId=" + schoolYearId;
         log.info("{}|START", logPrefix);
         try {
             if (user == null) {
@@ -976,11 +989,11 @@ public class EduWorkflowServiceImpl implements EduWorkflowService {
             }
             RolePolicy policy = loadPolicy(docType);
             if (("year".equals(docType) || "schoolYear".equals(docType))) {
-                var result = accessPolicy.canAuthorYearPlan(user, policy, ageGroupId);
+                var result = accessPolicy.canAuthorYearPlan(user, policy, schoolYearId, ageGroupId);
                 log.info("{}|END", logPrefix);
                 return result;
             }
-            var result = accessPolicy.canAuthorClassDoc(user, policy, ageGroupId, classroomId);
+            var result = accessPolicy.canAuthorClassDoc(user, policy, schoolYearId, ageGroupId, classroomId);
             log.info("{}|END", logPrefix);
             return result;
         } catch (RuntimeException ex) {

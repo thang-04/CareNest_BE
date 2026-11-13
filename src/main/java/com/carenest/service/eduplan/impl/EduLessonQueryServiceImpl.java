@@ -54,14 +54,13 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             // trong
             // hồ sơ chủ đề); hồ sơ mở lại sửa phần tương lai vẫn giữ ngày đã dạy (phần đã qua khóa sửa, EDU-64)
             List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdInOrderByIdAsc(List.of(classroomId));
-            java.util.Set<String> releasedDays = docs.stream()
+            Map<String, EduClassDoc> releasedDays = docs.stream()
                     .filter(d -> EduClassDoc.DAY.equals(d.getKind()) && released(d))
-                    .map(d -> d.getYearPlanId() + ":" + d.getWeekStart())
-                    .collect(java.util.stream.Collectors.toSet());
+                    .collect(Collectors.toMap(d -> d.getYearPlanId() + ":" + d.getWeekStart(), d -> d, (a, b) -> a));
             List<EduClassDoc> weeks = docs.stream()
                     .filter(d -> EduClassDoc.WEEK.equals(d.getKind())
                             && released(d)
-                            && releasedDays.contains(d.getYearPlanId() + ":" + d.getWeekStart()))
+                            && releasedDays.containsKey(d.getYearPlanId() + ":" + d.getWeekStart()))
                     .filter(d -> !d.getWeekStart().plusDays(SCHOOL_DAYS - 1L).isBefore(from)
                             && !d.getWeekStart().isAfter(to))
                     .toList();
@@ -69,15 +68,37 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             if (!weeks.isEmpty()) {
                 List<EduConfigResponse.WeekRow> rows =
                         eduConfigService.getEduConfig().weekRows();
-                List<JsonNode> contents =
-                        weeks.stream().map(d -> readContent(d.getContent())).toList();
-                Map<Long, EduPlanGoal> goals = goalsOf(contents);
+                // EDU-79 (FR-029): giáo án ngày đã ban hành có bản tuần sửa theo hồ sơ chủ đề thì dùng bản đó
+                List<JsonNode> contents = new ArrayList<>();
+                List<Map<String, JsonNode>> cards = new ArrayList<>();
+                for (EduClassDoc week : weeks) {
+                    JsonNode dayWeek = readContent(releasedDays
+                                    .get(week.getYearPlanId() + ":" + week.getWeekStart())
+                                    .getContent())
+                            .path("week");
+                    boolean dossier = dayWeek.isObject();
+                    contents.add(dossier ? dayWeek : readContent(week.getContent()));
+                    JsonNode theme = docs.stream()
+                            .filter(d -> EduClassDoc.THEME.equals(d.getKind())
+                                    && d.getYearPlanId().equals(week.getYearPlanId())
+                                    && d.getThemeId() != null
+                                    && d.getThemeId().equals(week.getThemeId()))
+                            .findFirst()
+                            .map(d -> readContent(d.getContent()))
+                            .orElse(null);
+                    cards.add(EduActivityCards.cards(
+                            theme instanceof tools.jackson.databind.node.ObjectNode o
+                                    ? EduActivityCards.normalizeTheme(o, rows, null)
+                                    : null,
+                            dossier ? dayWeek : null));
+                }
+                Map<Long, EduPlanGoal> goals = goalsOf(contents, cards);
                 for (int w = 0; w < weeks.size(); w++) {
                     EduClassDoc doc = weeks.get(w);
                     for (int day = 0; day < SCHOOL_DAYS; day++) {
                         LocalDate date = doc.getWeekStart().plusDays(day);
                         if (!date.isBefore(from) && !date.isAfter(to)) {
-                            result.put(date, dayLesson(doc, contents.get(w), day, date, rows, goals));
+                            result.put(date, dayLesson(doc, contents.get(w), cards.get(w), day, date, rows, goals));
                         }
                     }
                 }
@@ -117,28 +138,23 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
                 || (doc.getHistory() != null && doc.getHistory().contains("\"revise_future\""));
     }
 
-    private Map<Long, EduPlanGoal> goalsOf(List<JsonNode> contents) {
+    private Map<Long, EduPlanGoal> goalsOf(List<JsonNode> contents, List<Map<String, JsonNode>> cards) {
         Set<Long> ids = new LinkedHashSet<>();
-        contents.forEach(c -> c.path("picks")
-                .forEach(list -> list.forEach(p -> {
-                    Long id = goalId(p);
-                    if (id != null) {
-                        ids.add(id);
-                    }
-                })));
+        for (int i = 0; i < contents.size(); i++) {
+            Map<String, JsonNode> byId = cards.get(i);
+            contents.get(i)
+                    .path("picks")
+                    .forEach(list -> list.forEach(p -> ids.addAll(EduActivityCards.resolveGoals(p, byId))));
+        }
         return goalRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(EduGoalRow::getId, Function.identity()));
-    }
-
-    private static Long goalId(JsonNode pick) {
-        String raw = pick.path("goalId").asString("");
-        return raw.matches("\\d+") ? Long.valueOf(raw) : null;
     }
 
     /** Dòng gộp cả tuần dùng ô "all", ngược lại ô của ngày đó kèm phần chung "extra" (như màn giáo án tuần). */
     private static ApprovedDayLessonResponse dayLesson(
             EduClassDoc doc,
             JsonNode content,
+            Map<String, JsonNode> cards,
             int day,
             LocalDate date,
             List<EduConfigResponse.WeekRow> rows,
@@ -152,13 +168,15 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             List<Goal> picked = new ArrayList<>();
             Set<Long> seen = new LinkedHashSet<>();
             for (String key : keys) {
-                content.path("picks").path(key).forEach(p -> {
-                    Long id = goalId(p);
-                    EduPlanGoal goal = id == null ? null : goals.get(id);
-                    if (goal != null && seen.add(id)) {
-                        picked.add(new Goal(id, goal.getGoalNo(), goal.getText()));
-                    }
-                });
+                // FR-026: MT của lượt xếp = MT của thẻ; gõ tay không có MT nên không sinh mục đánh giá
+                content.path("picks")
+                        .path(key)
+                        .forEach(p -> EduActivityCards.resolveGoals(p, cards).forEach(id -> {
+                            EduPlanGoal goal = goals.get(id);
+                            if (goal != null && seen.add(id)) {
+                                picked.add(new Goal(id, goal.getGoalNo(), goal.getText()));
+                            }
+                        }));
             }
             if (!picked.isEmpty()) {
                 activities.add(new Activity(row.key(), row.label(), topicOf(cell, merged, day), picked));

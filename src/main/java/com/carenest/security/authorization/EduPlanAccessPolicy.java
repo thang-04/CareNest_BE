@@ -32,8 +32,8 @@ public class EduPlanAccessPolicy {
                     Set.of(
                             EduPermission.GOALS_VIEW,
                             EduPermission.GOALS_EDIT,
-                            EduPermission.GOALS_APPROVE,
-                            EduPermission.PLAN_CONFIG),
+                            // Tiền 11/11/2026: cấu hình kế hoạch chỉ Hiệu trưởng (thay "HT/PHT" của EDU-11)
+                            EduPermission.GOALS_APPROVE),
             CareNestRole.TEACHER, Set.of(EduPermission.GOALS_VIEW, EduPermission.GOALS_EDIT));
 
     private final StaffAssignmentService staffAssignmentService;
@@ -143,11 +143,21 @@ public class EduPlanAccessPolicy {
     }
 
     public boolean isTeamLeaderOf(CurrentUser user, Long ageGroupId) {
+        return isTeamLeaderOf(user, null, ageGroupId);
+    }
+
+    /** Tổ trưởng nhóm tuổi trong đúng năm học; schoolYearId null ⇒ mọi năm. */
+    public boolean isTeamLeaderOf(CurrentUser user, Long schoolYearId, Long ageGroupId) {
         return user.hasRole(CareNestRole.TEACHER)
                 && hasPermission(user, EduPermission.GOALS_EDIT)
-                && staffAssignmentService
-                        .findActiveTeamLeaderAgeGroupIds(user.userId(), LocalDate.now(clock))
-                        .contains(ageGroupId);
+                && ledAgeGroups(user, schoolYearId, LocalDate.now(clock)).contains(ageGroupId);
+    }
+
+    // Phân công Tổ trưởng theo năm học: năm sau có Tổ trưởng riêng, không gộp với năm trước
+    private Set<Long> ledAgeGroups(CurrentUser user, Long schoolYearId, LocalDate date) {
+        return schoolYearId == null
+                ? staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), date)
+                : staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), schoolYearId, date);
     }
 
     public boolean isTeacherOfAgeGroup(CurrentUser user, Long ageGroupId) {
@@ -166,6 +176,11 @@ public class EduPlanAccessPolicy {
 
     /** EDU-54: Tập vai trò nghiệp vụ thực tế có hiệu lực theo phân công tại ngày hiện tại. */
     public Set<EduWorkflowPolicy.Role> effectiveRoles(CurrentUser user) {
+        return effectiveRoles(user, null);
+    }
+
+    /** Như trên; schoolYearId khác null ⇒ vai trò Tổ trưởng chỉ tính phân công của năm học đó. */
+    public Set<EduWorkflowPolicy.Role> effectiveRoles(CurrentUser user, Long schoolYearId) {
         LocalDate today = LocalDate.now(clock);
         Set<EduWorkflowPolicy.Role> roles = EnumSet.noneOf(EduWorkflowPolicy.Role.class);
         if (user.hasRole(CareNestRole.PRINCIPAL)
@@ -179,7 +194,10 @@ public class EduPlanAccessPolicy {
             roles.add(EduWorkflowPolicy.Role.VICE_PRINCIPAL);
         }
         if (user.hasRole(CareNestRole.TEACHER)) {
-            if (staffAssignmentService.hasActiveTeamLeaderAssignment(user.userId(), today)) {
+            boolean leader = schoolYearId == null
+                    ? staffAssignmentService.hasActiveTeamLeaderAssignment(user.userId(), today)
+                    : !ledAgeGroups(user, schoolYearId, today).isEmpty();
+            if (leader) {
                 roles.add(EduWorkflowPolicy.Role.TEAM_LEADER);
             }
             roles.add(EduWorkflowPolicy.Role.TEACHER);
@@ -189,7 +207,11 @@ public class EduPlanAccessPolicy {
 
     /** Reviewer-precedence: người có vai trò reviewer hiệu lực theo loại không được soạn cùng loại dù có nhiều role. */
     public boolean hasReviewerPrecedence(CurrentUser user, EduWorkflowPolicy.RolePolicy policy) {
-        Set<EduWorkflowPolicy.Role> active = effectiveRoles(user);
+        return hasReviewerPrecedence(user, policy, null);
+    }
+
+    public boolean hasReviewerPrecedence(CurrentUser user, EduWorkflowPolicy.RolePolicy policy, Long schoolYearId) {
+        Set<EduWorkflowPolicy.Role> active = effectiveRoles(user, schoolYearId);
         return policy.reviewers().stream().anyMatch(active::contains);
     }
 
@@ -255,11 +277,28 @@ public class EduPlanAccessPolicy {
                 Set.copyOf(roles), Set.copyOf(campuses), Set.copyOf(ages), Set.copyOf(homeroomClasses));
     }
 
+    /** Như trên cho lớp của một năm học: Tổ trưởng chỉ tính phân công của năm đó (null ⇒ như bản không có năm). */
+    public ClassScopeSnapshot classScopeSnapshot(CurrentUser user, Long schoolYearId) {
+        ClassScopeSnapshot all = classScopeSnapshot(user);
+        if (schoolYearId == null || !user.hasRole(CareNestRole.TEACHER)) return all;
+        Set<Long> ages = ledAgeGroups(user, schoolYearId, LocalDate.now(clock));
+        Set<EduWorkflowPolicy.Role> roles = EnumSet.noneOf(EduWorkflowPolicy.Role.class);
+        roles.addAll(all.roles());
+        if (ages.isEmpty()) roles.remove(EduWorkflowPolicy.Role.TEAM_LEADER);
+        return new ClassScopeSnapshot(Set.copyOf(roles), all.viceCampuses(), Set.copyOf(ages), all.homeroomClasses());
+    }
+
     public boolean canAuthorYearPlan(CurrentUser user, EduWorkflowPolicy.RolePolicy policy, Long ageGroupId) {
-        if (hasReviewerPrecedence(user, policy)) {
+        return canAuthorYearPlan(user, policy, null, ageGroupId);
+    }
+
+    /** schoolYearId: năm học của kế hoạch (null ⇒ Tổ trưởng của mọi năm, dùng khi chưa gắn năm cụ thể). */
+    public boolean canAuthorYearPlan(
+            CurrentUser user, EduWorkflowPolicy.RolePolicy policy, Long schoolYearId, Long ageGroupId) {
+        if (hasReviewerPrecedence(user, policy, schoolYearId)) {
             return false;
         }
-        Set<EduWorkflowPolicy.Role> active = effectiveRoles(user);
+        Set<EduWorkflowPolicy.Role> active = effectiveRoles(user, schoolYearId);
         LocalDate today = LocalDate.now(clock);
         for (EduWorkflowPolicy.Role creatorRole : policy.creators()) {
             if (!active.contains(creatorRole)) {
@@ -270,9 +309,7 @@ public class EduPlanAccessPolicy {
                         case PRINCIPAL, VICE_PRINCIPAL -> true;
                         case TEAM_LEADER ->
                             ageGroupId != null
-                                    && staffAssignmentService
-                                            .findActiveTeamLeaderAgeGroupIds(user.userId(), today)
-                                            .contains(ageGroupId);
+                                    && ledAgeGroups(user, schoolYearId, today).contains(ageGroupId);
                         case TEACHER ->
                             ageGroupId != null
                                     && staffAssignmentService
@@ -288,10 +325,19 @@ public class EduPlanAccessPolicy {
 
     public boolean canAuthorClassDoc(
             CurrentUser user, EduWorkflowPolicy.RolePolicy policy, Long ageGroupId, Long classroomId) {
-        if (hasReviewerPrecedence(user, policy)) {
+        return canAuthorClassDoc(user, policy, null, ageGroupId, classroomId);
+    }
+
+    public boolean canAuthorClassDoc(
+            CurrentUser user,
+            EduWorkflowPolicy.RolePolicy policy,
+            Long schoolYearId,
+            Long ageGroupId,
+            Long classroomId) {
+        if (hasReviewerPrecedence(user, policy, schoolYearId)) {
             return false;
         }
-        Set<EduWorkflowPolicy.Role> active = effectiveRoles(user);
+        Set<EduWorkflowPolicy.Role> active = effectiveRoles(user, schoolYearId);
         LocalDate today = LocalDate.now(clock);
         for (EduWorkflowPolicy.Role creatorRole : policy.creators()) {
             if (!active.contains(creatorRole)) {
@@ -304,9 +350,7 @@ public class EduPlanAccessPolicy {
                             canReviewClassDoc(user, EduWorkflowPolicy.Role.VICE_PRINCIPAL, ageGroupId, classroomId);
                         case TEAM_LEADER ->
                             ageGroupId != null
-                                    && staffAssignmentService
-                                            .findActiveTeamLeaderAgeGroupIds(user.userId(), today)
-                                            .contains(ageGroupId);
+                                    && ledAgeGroups(user, schoolYearId, today).contains(ageGroupId);
                         case TEACHER ->
                             classroomId != null
                                     && staffAssignmentService.hasActiveTeacherAssignment(
@@ -320,6 +364,11 @@ public class EduPlanAccessPolicy {
     }
 
     public boolean canReviewYearPlan(CurrentUser user, EduWorkflowPolicy.Role roleKey, Long ageGroupId) {
+        return canReviewYearPlan(user, roleKey, null, ageGroupId);
+    }
+
+    public boolean canReviewYearPlan(
+            CurrentUser user, EduWorkflowPolicy.Role roleKey, Long schoolYearId, Long ageGroupId) {
         LocalDate today = LocalDate.now(clock);
         return switch (roleKey) {
             case PRINCIPAL -> isPrincipal(user);
@@ -327,15 +376,18 @@ public class EduPlanAccessPolicy {
             case TEAM_LEADER ->
                 ageGroupId != null
                         && user.hasRole(CareNestRole.TEACHER)
-                        && staffAssignmentService
-                                .findActiveTeamLeaderAgeGroupIds(user.userId(), today)
-                                .contains(ageGroupId);
+                        && ledAgeGroups(user, schoolYearId, today).contains(ageGroupId);
             case TEACHER -> false;
         };
     }
 
     public boolean canReviewClassDoc(
             CurrentUser user, EduWorkflowPolicy.Role roleKey, Long ageGroupId, Long classroomId) {
+        return canReviewClassDoc(user, roleKey, null, ageGroupId, classroomId);
+    }
+
+    public boolean canReviewClassDoc(
+            CurrentUser user, EduWorkflowPolicy.Role roleKey, Long schoolYearId, Long ageGroupId, Long classroomId) {
         LocalDate today = LocalDate.now(clock);
         return switch (roleKey) {
             case PRINCIPAL -> isPrincipal(user);
@@ -351,9 +403,7 @@ public class EduPlanAccessPolicy {
             case TEAM_LEADER ->
                 ageGroupId != null
                         && user.hasRole(CareNestRole.TEACHER)
-                        && staffAssignmentService
-                                .findActiveTeamLeaderAgeGroupIds(user.userId(), today)
-                                .contains(ageGroupId);
+                        && ledAgeGroups(user, schoolYearId, today).contains(ageGroupId);
             case TEACHER -> false;
         };
     }

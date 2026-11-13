@@ -96,6 +96,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 
 ## Known pitfalls
 
+- Hiệu năng (12/11/2026): kiểm quyền kế hoạch năm/tổ gọi lại tra phân công, cấu hình duyệt hàng trăm lần mỗi request. Tra cứu đọc mới qua `utils/RequestMemo` (chỉ request GET); thêm hàm tra cứu phân công/cấu hình mới thì bọc tương tự. Danh sách `GET /goals` đủ cho Web (bản tóm tắt); Web chỉ gọi chi tiết khi mở đúng kế hoạch (FE-BUG-261111-dashboard-reload-burst).
 - Khoảng ngày chủ đề/nhánh phải wrap theo cột ở cả năm/tổ; không ép nowrap cho range hoặc trigger. Xem [lỗi tràn ngày](../knowledge/incidents/BUG-261108-theme-date-column-overflow.md).
 - Lịch sử EDU-48 trước cập nhật05/11 (không dùng làm mặc định hiện hành): thao tác xóa lĩnh vực con ở Web phải bỏ toàn bộ nhánh sau xác nhận số lượng; không chỉ bỏ heading rồi normalize vì con có thể đổi cha. Contract PUT vẫn cho phép giữ/chuyển các dòng client cố ý gửi; xem delta feature006, chưa coi là đã implement khi plan mới draft.
 
@@ -139,8 +140,8 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 
 EDU-10/22/23: phiên sửa riêng từng tab, TTL 90s và heartbeat 20s; cùng tài khoản gọi start-editing bằng phiên mới thì nhận quyền ngay (`EduYearPlan.acquireSession`), phiên cũ nhận 409 ở heartbeat/lưu, người khác vẫn 409 tới khi hết hạn; FE chỉ ghi khi bấm Lưu/Ctrl+S hoặc gửi/ban hành (bỏ tự lưu 2s/15s, Tiền chốt 27/10), kiểm revision và request ID chống lưu trùng. DRAFT giữ trạng thái khi giữ lease; REVIEW cấm lease/sửa theo EDU-54; draft giữ nội dung chưa hoàn chỉnh, gửi/ban hành mới kiểm tra đầy đủ. V30 bổ sung phiên/revision; contract hiện hành cần X-Edit-Session, X-Plan-Revision, Idempotency-Key. Bản phục hồi Web riêng theo user/kế hoạch/slot; không trộn hay ghi đè khi xung đột. Chi tiết: [đặc tả](../../specs/001-year-plan-autosave/spec.md).
 
-## Học liệu hoạt động (Tiền yêu cầu, 27/10/2026)
-Mọi binary ảnh/video/slide/tệp lưu S3 private, metadata riêng trong edu_learning_resources; backend scope check, không public bucket/URL. Không đổi MT/chuỗi duyệt EDU-12..18. Sửa hoạt động làm fingerprint không khớp thì cần gắn lại. Chi tiết [feature002](../../specs/002-class-plan-teaching-media/spec.md), [S3](../system/EDUCATION_MEDIA_S3.md), ADR-0018. Tích hợp S3 thật cần cấu hình và smoke riêng.
+## Học liệu hoạt động (Tiền yêu cầu, 27/10/2026; EDU-81 12/11/2026)
+EDU-81: học liệu chỉ thuộc **kế hoạch giáo dục ngày** (`dd_…`), gắn theo ngày + mục hoạt động (`activityKey` = `yyyy-MM-dd#hoc|ngoai_troi|goc|chieu`, ngày trong tuần của kế hoạch ngày); API `/education-plans/class-docs/day/{docKey}/learning-resources` (+ `upload-url`, `confirm`, `{id}/url`); ghi khi hồ sơ chủ đề chứa ngày còn Nháp. Học liệu cũ gắn kế hoạch chủ đề đã xóa (V123), bỏ `activitySignature`. Mọi binary ảnh/video/slide/tệp lưu S3 private thư mục `hoclieu/` (spec 017), metadata riêng trong edu_learning_resources; backend scope check, không public bucket/URL. Không đổi MT/chuỗi duyệt EDU-12..18. Chi tiết [feature002](../../specs/002-class-plan-teaching-media/spec.md), [S3](../system/EDUCATION_MEDIA_S3.md), ADR-0018. Tích hợp S3 thật cần cấu hình và smoke riêng.
 
 ## Mã lỗi (chuẩn ERROR_CONTRACT, merge daily-attendance 28/10/2026)
 Mọi lỗi của module ném `GlobalException.of(ApiCode.X)`; response có `errorCode` 4 số, Web/App phân biệt bằng mã, không so `desc`. Dải: 70xx kế hoạch năm (7006 `Đang được {0} sửa`, 7020 mất phiên sửa, 7021 revision cũ, 7022 chờ duyệt chỉ Phó HT sửa…), 71xx tài liệu lớp + học liệu (7115–7120), 72xx cấu hình; tệp/S3 dùng 80xx (8003 kho lỗi, 8004 loại tệp, 8005 quá cỡ, 8006–8013). Thiếu part multipart/header ⇒ 9003. Danh sách đầy đủ: `ApiCode.java`, `docs/contracts/ERROR_CONTRACT.md`.
@@ -248,11 +249,42 @@ Feature013 delivery08/11/2026 (EDU-60): đã có scope annual theo policy/status
   Năm/tổ: `unlock` bị chặn khi chuỗi phiên bản đã có bản ban hành; `timeLock.canUnlock` = HT && khóa && chưa ban hành.
 - FR-021a: `GET /goals` (`YearPlanSummaryResponse`) thêm `timeLock {deadline, extendedTo, deadlineState, timeLocked, canUnlock}` cho
   màn Kế hoạch quá hạn (FE/APP chỉ thêm trường).
-- Ban giám hiệu xem gốc chưa ban hành (`boardRootNode`): `history` chỉ giữ sự kiện `extend` (hạn mới, người mở, lý do) cho màn
+- Lịch nhánh (`branch`): mọi người xem được lớp trong phạm vi nhận bản đầy đủ, không cần ban hành; đã bỏ `releasedBranchNode` và `branchUnreleasedSemesters` (Tiền 11/11/2026). Quyền sửa vẫn theo `permissions.canEdit`.
+- Gốc chưa ban hành (`overdueRootNode`, Tiền 11/11/2026): chỉ Hiệu trưởng thấy, và chỉ khi `canExtend` (quá hạn) hoặc đã có sự kiện `extend`; còn lại người chỉ xem (kể cả PHT không soạn/duyệt) chỉ thấy bản ban hành gần nhất (`releasedNode`). `history` chỉ giữ sự kiện `extend` (hạn mới, người mở, lý do) cho màn
   Kế hoạch quá hạn, ẩn ghi chú gửi/trả lại. HT thấy được kế hoạch năm/tổ Nháp chưa từng ban hành khi đã quá hạn hoặc đã mở hạn
-  (để mở hạn) — chờ Tiền xác nhận.
+  (để mở hạn) — Tiền xác nhận 11/11/2026 (bổ sung EDU-73).
 - V106 xóa ràng buộc `ck_edu_class_docs_adjustments_day` (V103 đã thay `_week` bằng `_day`) cùng `ck_edu_class_docs_adjustments`.
 - Lỗi có cấu trúc: `GlobalException.withData(code, data, args)` ⇒ `ResponseJson.data` = `data` (vd. `{ details }`).
 - Kiểm chứng: `EduClassDocServiceIntegrationTest` (`adjustmentsRemoved`, `dossierSubmitRequiresEveryDaySection`,
   `newPackageVersionResetsOnlyChangedWeekDays`, `overdueSemesterPackageNeedsExtension`, `releasedPackageLocksAfterSemesterStartUntilUnlocked`),
   `EduYearPlanUnlockIntegrationTest`.
+
+### Bổ sung hiển thị lịch nhánh — Tiền 11/11/2026
+
+EDU-14 (Tiền 13/11/2026) — tạo mới kế hoạch tuần/ngày khi tuần chưa có tên chủ đề nhánh (`names[weekStart]` của hồ sơ nhánh trống) ⇒ 409 7112 `BRANCH_WEEKS_UNNAMED` trong `requireCanCreate`; bản đã tạo vẫn sửa được.
+
+EDU-14/39/59 — CONFIRMED (hiển thị): Bảng Dự kiến chủ đề - chủ đề nhánh hiện tất cả tháng, hàng tháng/cột Tuần 1–5, bỏ lọc tháng. Dùng đủ tuần lịch chủ đề lớn, gộp các tuần liền nhau của cùng mã nhánh (ví dụ Tuần 3 + 4), hiện ngày đầu–cuối và tên nhánh; giữ tuần trống, tách tại tháng mới. Không đổi ngày hoặc quy tắc lưu. Nguồn: Tiền chốt trực tiếp trong phiên 11/11/2026; bản chuẩn mục hai kiểu xem.
+- Thuật ngữ hiển thị (Tiền 11/11/2026): thông báo/ApiCode của kế hoạch giáo dục dùng "kế hoạch giáo dục ngày" thay "giáo án ngày", "kế hoạch tuần" thay "giáo án tuần" (7107, 7113, 7390, thông báo "Cần soạn lại kế hoạch giáo dục ngày"). Mã lỗi đánh giá trẻ (7306–7309) chưa đổi.
+
+## Thẻ hoạt động, kế hoạch tuần theo hồ sơ chủ đề, kiểm đủ MT (spec 006 — Tiền 12/11/2026, EDU-78/79/80)
+
+Không đổi DB, không thêm endpoint; chỉ đổi hình dạng `content` (JSONB) và thêm 2 `ApiCode`.
+
+- `theme.content.activities[]` = thẻ `{ id, slot, name, goalIds[], contentRefs[], legacy?, origin? }` (EDU-78). Bản cũ chưa có
+  thẻ ⇒ `EduActivityCards.normalizeTheme` dựng từ `rows[goalId].activities` khi đọc (id `goalId#i`, dòng không rõ loại giờ ⇒
+  `slot=""`, `legacy=true`); lưu lại thì ghi `activities`, bỏ chữ `rows[*].activities` của MT thuộc chủ đề. Server kiểm thẻ (R8):
+  tên 1–300 ký tự, `slot` thuộc dòng tuần (`""` chỉ thẻ cũ), `goalIds` thuộc MT chủ đề (`EduThemeGoals.ofTheme`, áp `customTicks`),
+  `contentRefs` dạng `goalId:i` của MT đã chọn; sai ⇒ 400 `INVALID_VALUE`. MT đã rời chủ đề (vẫn là MT của năm) bị gỡ khỏi thẻ, thẻ giữ.
+- `week.content.picks[cell][]` mới: `{ id, cardId, goalIds[], text, cornerId? }`; bản cũ `{ id, goalId, … }` vẫn đọc được.
+  MT của lượt = MT của thẻ (`EduActivityCards.resolveGoals`: thẻ → bản chụp `goalIds` → `goalId`); gõ tay không có MT.
+- `day.content.week` (EDU-79): bản kế hoạch tuần sửa theo hồ sơ chủ đề `{ aims, prep, grid, picks, unlinked, corners, cards, base }`.
+  Lưu `day` nhận khóa `days`, `dayGoals`, `week`; có `week` mới/đổi thì cần gói học kỳ chứa chủ đề đã ban hành (409 7386), khóa
+  theo hồ sơ chủ đề (`CLASS_DOC_LOCKED` / `CLASS_DOC_TIME_LOCKED`); `week.cards` kiểm như thẻ, `origin="dossier"`.
+  Response `day` có `effectiveWeek: "semester" | "dossier"`; "dossier" khi giáo án ngày đã ban hành (hoặc mở lại sửa phần tương lai)
+  và có `week`. Đánh giá trẻ (`EduLessonQueryServiceImpl`) dùng bản hiệu lực này (FR-029).
+- EDU-80 trong `requireCanSubmit` (sau 7387/7390): gửi `dossier` thiếu MT chủ đề ⇒ 400 **7396** `THEME_GOALS_NOT_COVERED`; gửi
+  `semester` số 2 (học kỳ cuối) hoặc `dossier` của chủ đề bắt đầu muộn nhất thiếu MT của năm ⇒ 400 **7397**
+  `YEAR_GOALS_NOT_COVERED`. Cả hai `data.details = [{ goalId, goalNo }]`, message liệt kê "MTn". Bản tuần để tính: chủ đề đang gửi
+  dùng `day.content.week` nếu có; chủ đề khác dùng bản hiệu lực. Bỏ ngày nghỉ; ô gộp cả tuần, `goc.all` tính mọi ngày học.
+- Học liệu (R9): khóa trùng `id` một thẻ ⇒ chữ ký theo `name` của thẻ; theme chưa có thẻ giữ cách khớp ô chữ cũ.
+- `docs/api/openapi.yaml` là bản sinh từ code (`OpenApiSnapshotTest`); spec 006 không đổi chữ ký/DTO nên không đổi file đó.

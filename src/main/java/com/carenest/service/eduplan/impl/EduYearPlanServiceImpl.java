@@ -145,7 +145,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         log.info("{}|START", logPrefix);
         try {
             requirePermission(currentUser, EduPermission.GOALS_VIEW);
-            EduPlanAccessPolicy.ViewScope scope = listScope(currentUser, level);
+            EduPlanAccessPolicy.ViewScope scope = listScope(currentUser, level, schoolYearId);
             // Spec 005 FR-021a: HT cần thấy bản Nháp quá hạn chưa ban hành để mở hạn ở màn Kế hoạch quá hạn
             boolean principal = accessPolicy.isPrincipal(currentUser);
             if (principal) {
@@ -298,7 +298,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                     .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
             // Cấu hình người tạo theo workflow policy
             if (!eduWorkflowService.isAuthorEligible(
-                    currentUser, request.planLevel().workflowKey(), ageGroup.id(), null)) {
+                    currentUser, request.planLevel().workflowKey(), schoolYear.id(), ageGroup.id(), null)) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_CREATE_FORBIDDEN);
             }
             requireEditContext(edit);
@@ -548,7 +548,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId()).contains(currentUser.userId())) {
                 throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, "duyệt");
             }
-            if (!isRoleMatch(currentUser, eval.waitingRole(), plan.getAgeGroupId())) {
+            if (!isRoleMatch(currentUser, eval.waitingRole(), plan.getSchoolYearId(), plan.getAgeGroupId())) {
                 if (eduWorkflowService.hasReviewerPrecedence(
                         currentUser, plan.workflowKey(), plan.getAgeGroupId(), null)) {
                     throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, "duyệt");
@@ -816,7 +816,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             if (source.getPlanLevel() == EduPlanLevel.TEAM)
                 throw GlobalException.of(ApiCode.YEAR_PLAN_VERSION_COMPARE_INVALID);
             // EDU-25: người được sửa kế hoạch (PHT, TT nhóm tuổi) tạo phiên bản
-            if (!eduWorkflowService.isAuthorEligible(currentUser, source.workflowKey(), source.getAgeGroupId(), null)) {
+            if (!eduWorkflowService.isAuthorEligible(
+                    currentUser, source.workflowKey(), source.getSchoolYearId(), source.getAgeGroupId(), null)) {
                 throw GlobalException.of(ApiCode.YEAR_PLAN_CREATE_FORBIDDEN);
             }
             requireEditContext(edit);
@@ -1043,7 +1044,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private void requireViewable(CurrentUser user, EduPlan plan) {
         if (canView(user, plan)) return;
         // Trong phạm vi xem nhưng bản chưa ban hành ⇒ báo rõ thay vì "không có quyền"
-        if (listScope(user, plan.getPlanLevel()).allows(plan.getAgeGroupId(), EduPlanStatus.APPROVED)) {
+        if (listScope(user, plan.getPlanLevel(), plan.getSchoolYearId())
+                .allows(plan.getAgeGroupId(), EduPlanStatus.APPROVED)) {
             throw GlobalException.of(ApiCode.EDU_PLAN_NOT_RELEASED);
         }
         throw GlobalException.of(ApiCode.YEAR_PLAN_ACCESS_DENIED);
@@ -1060,13 +1062,15 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         if (status == EduPlanStatus.DRAFT && accessPolicy.isPrincipal(user))
             return (timeLock.locked(plan) || timeLock.info(plan).extendedTo() != null) && !timeLock.released(plan);
         if (status == EduPlanStatus.APPROVED)
-            return listScope(user, plan.getPlanLevel()).allows(plan.getAgeGroupId(), EduPlanStatus.APPROVED);
+            return listScope(user, plan.getPlanLevel(), plan.getSchoolYearId())
+                    .allows(plan.getAgeGroupId(), EduPlanStatus.APPROVED);
         return status == EduPlanStatus.REVIEW && isCurrentApprover(user, plan);
     }
 
     // Người phụ trách: đủ điều kiện soạn theo cấu hình (với kế hoạch tổ là Tổ trưởng hiện hành); không xét trạng thái
     private boolean isAuthor(CurrentUser user, EduPlan plan) {
-        return eduWorkflowService.isAuthorEligible(user, plan.workflowKey(), plan.getAgeGroupId(), null);
+        return eduWorkflowService.isAuthorEligible(
+                user, plan.workflowKey(), plan.getSchoolYearId(), plan.getAgeGroupId(), null);
     }
 
     private boolean isCurrentApprover(CurrentUser user, EduPlan plan) {
@@ -1076,7 +1080,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     }
 
     /** Danh sách: người phụ trách thấy mọi trạng thái nhóm tuổi mình; người khác chỉ bản đã ban hành. */
-    private EduPlanAccessPolicy.ViewScope listScope(CurrentUser user, EduPlanLevel level) {
+    private EduPlanAccessPolicy.ViewScope listScope(CurrentUser user, EduPlanLevel level, Long schoolYearId) {
         if (!accessPolicy.hasPermission(user, EduPermission.GOALS_VIEW))
             return new EduPlanAccessPolicy.ViewScope(Set.of(), Set.of(), Set.of());
         var policy = eduWorkflowService.loadPolicy(level.workflowKey());
@@ -1086,10 +1090,10 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         Set<Long> full = new HashSet<>();
         Set<Long> approved = new HashSet<>();
         for (var age : schoolStructureService.findAgeGroups()) {
-            if (accessPolicy.canAuthorYearPlan(user, policy, age.id())) full.add(age.id());
+            if (accessPolicy.canAuthorYearPlan(user, policy, schoolYearId, age.id())) full.add(age.id());
             // GV (chủ nhiệm hoặc GV thứ hai) và Tổ trưởng xem bản ban hành của nhóm tuổi mình, gồm kế hoạch năm
-            if (accessPolicy.isTeacherOfAgeGroup(user, age.id()) || accessPolicy.isTeamLeaderOf(user, age.id()))
-                approved.add(age.id());
+            if (accessPolicy.isTeacherOfAgeGroup(user, age.id())
+                    || accessPolicy.isTeamLeaderOf(user, schoolYearId, age.id())) approved.add(age.id());
         }
         return new EduPlanAccessPolicy.ViewScope(schoolWide, Set.copyOf(full), Set.copyOf(approved));
     }
@@ -1991,7 +1995,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
 
     private final EduWorkflowPolicy evaluator = new EduWorkflowPolicy();
 
-    private boolean isRoleMatch(CurrentUser user, EduWorkflowPolicy.Role role, Long ageGroupId) {
+    private boolean isRoleMatch(CurrentUser user, EduWorkflowPolicy.Role role, Long schoolYearId, Long ageGroupId) {
         if (role == EduWorkflowPolicy.Role.PRINCIPAL) {
             return accessPolicy.isPrincipal(user);
         }
@@ -1999,7 +2003,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             return accessPolicy.isVicePrincipal(user);
         }
         if (role == EduWorkflowPolicy.Role.TEAM_LEADER) {
-            return ageGroupId != null && accessPolicy.isTeamLeaderOf(user, ageGroupId);
+            return ageGroupId != null && accessPolicy.isTeamLeaderOf(user, schoolYearId, ageGroupId);
         }
         if (role == EduWorkflowPolicy.Role.TEACHER) {
             return ageGroupId != null && accessPolicy.isTeacherOfAgeGroup(user, ageGroupId);
@@ -2068,7 +2072,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private boolean isUserWaitingRole(CurrentUser user, EduPlan plan) {
         LocalDate today = LocalDate.ofInstant(clock.instant(), clock.getZone());
         EduWorkflowPolicy.Evaluation eval = eduWorkflowService.evaluateYearPlan(plan, today);
-        return eval.waitingRole() != null && isRoleMatch(user, eval.waitingRole(), plan.getAgeGroupId());
+        return eval.waitingRole() != null
+                && isRoleMatch(user, eval.waitingRole(), plan.getSchoolYearId(), plan.getAgeGroupId());
     }
 
     private boolean isUserReviewer(CurrentUser user, EduPlan plan) {

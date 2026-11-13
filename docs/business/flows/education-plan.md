@@ -102,3 +102,20 @@ Hạn − 7 ngày: "Gần đến hạn" + nhắc một lần │ Từ hạn chư
 - Phiên bản mới của gói học kỳ ban hành mà đổi kế hoạch tuần ⇒ chỉ giáo án ngày của tuần đó về Nháp (sự kiện `week_changed`,
   báo GVCN); tuần khác giữ ban hành.
 
+
+## Thẻ hoạt động, kế hoạch tuần theo hồ sơ chủ đề, kiểm đủ MT (spec 006 — Tiền 12/11/2026, EDU-78/79/80)
+
+```text
+Kế hoạch chủ đề: MT (chỉ đọc) → nội dung (chỉ đọc) → thẻ hoạt động {loại giờ, tên, MT[], nội dung[]}   (EDU-78)
+  → Kế hoạch tuần theo kỳ (gói học kỳ): ô Thứ × dòng chọn thẻ, một thẻ xếp nhiều lần; gõ tay ⇒ chưa gắn MT
+    → [gói học kỳ ban hành, trước ngày bắt đầu chủ đề] sửa tuần ở trang Kế hoạch giáo dục ngày ⇒ day.content.week (EDU-79)
+      → Hồ sơ chủ đề = kế hoạch ngày (+ kế hoạch tuần nếu có sửa); gửi chặn nếu MT chủ đề chưa dạy (7396), chủ đề cuối
+        hoặc gói học kỳ cuối thiếu MT năm (7397) (EDU-80)
+        → ban hành ⇒ bản tuần trong hồ sơ là bản hiệu lực cho trang ngày và đánh giá trẻ
+```
+
+- MT của một lượt xếp luôn = MT của thẻ (sửa MT của thẻ khi kế hoạch chủ đề còn sửa được thì các ô đổi theo).
+- Dữ liệu cũ dạng "Loại giờ: …" chuyển thành thẻ khi đọc, id giữ `goalId#i` nên ô tuần, học liệu, MT đánh giá cũ không đổi.
+- Gói học kỳ thiếu MT chỉ cảnh báo (hộp gửi, dòng tổng, tab "Bảng phủ MT"); chặn theo MT chỉ ở hồ sơ chủ đề và cuối năm.
+- Người duyệt hồ sơ chủ đề thấy ô tuần khác bản theo kỳ được đánh dấu; gói học kỳ ra bản mới đổi tuần ⇒ ngày về Nháp, bản tuần
+  sửa theo hồ sơ vẫn giữ, có nhãn "bản theo kỳ đã đổi".
