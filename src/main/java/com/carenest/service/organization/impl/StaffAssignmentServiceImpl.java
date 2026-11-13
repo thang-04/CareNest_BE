@@ -593,7 +593,9 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                     oldEnd.equals(newEnd) ? 0 : staffAssignmentRepository.realignYearEnd(schoolYearId, oldEnd, newEnd);
             int starts = oldStart.equals(newStart)
                     ? 0
-                    : staffAssignmentRepository.realignYearStart(schoolYearId, oldStart, newStart);
+                    // Phân công đã có hiệu lực (giai đoạn chuẩn bị) giữ nguyên ngày bắt đầu, không ghi đè lịch sử
+                    : staffAssignmentRepository.realignYearStart(
+                            schoolYearId, oldStart, newStart, LocalDate.now(clock));
             log.info("{}|ends={}|starts={}|END", logPrefix, ends, starts);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
