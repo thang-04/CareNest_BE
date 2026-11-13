@@ -86,7 +86,8 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                 if (!canRate(currentUser, cls)) {
                     throw GlobalException.of(ApiCode.CLASS_RATING_FORBIDDEN, cls.name());
                 }
-                if (cls.yearStatus() == SchoolYearStatus.CLOSED) {
+                // CFG-YR-01: chỉ xếp loại lớp của năm đang hoạt động; năm sắp tới / đã kết thúc chỉ xem
+                if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                     throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
                 }
                 if (yearId != null && !yearId.equals(cls.schoolYearId())) {
@@ -214,7 +215,7 @@ public class ClassRatingServiceImpl implements ClassRatingService {
     }
 
     private ClassRatingRow rowOf(CurrentUser user, ClassroomInfoResponse cls, ClassRating r, Map<Long, String> names) {
-        boolean canEdit = cls.yearStatus() != SchoolYearStatus.CLOSED && canRate(user, cls);
+        boolean canEdit = cls.yearStatus() == SchoolYearStatus.ACTIVE && canRate(user, cls);
         Levels levels = r == null
                 ? new Levels(null, null, null, null, null, null, null, null)
                 : new Levels(

@@ -786,6 +786,24 @@ class DailyAssessmentIntegrationTest {
     private com.carenest.service.observation.ClassRatingService ratings;
 
     @Test
+    void classRatingIsBlockedForUpcomingYear() {
+        // CFG-YR-01: năm sắp tới chưa hoạt động ⇒ không xếp loại lớp, chỉ xem
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-06', '2028-05-31', 'PLANNED') RETURNING id");
+        long plannedClass = classroom(campusA, planned, "Lớp năm sau", ag3);
+        var tot = com.carenest.utils.enums.ClassRatingLevel.TOT;
+        var levels = new com.carenest.dto.observation.ClassRatingDtos.Levels(tot, tot, tot, tot, tot, tot, tot, tot);
+        var request = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(
+                com.carenest.utils.enums.ClassRatingPeriod.SEMESTER_1,
+                List.of(new com.carenest.dto.observation.ClassRatingDtos.ClassRatingItem(plannedClass, levels, null)));
+
+        expectCode(() -> ratings.save(principal, request), ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM class_ratings", Integer.class))
+                .isZero();
+    }
+
+    @Test
     void classRatingsAreScoredByLeadersOfTheCampusAndReadByTheClassTeacher() {
         var period = com.carenest.utils.enums.ClassRatingPeriod.SEMESTER_1;
         var tot = com.carenest.utils.enums.ClassRatingLevel.TOT;
