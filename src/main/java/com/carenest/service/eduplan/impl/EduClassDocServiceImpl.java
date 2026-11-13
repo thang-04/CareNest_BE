@@ -984,7 +984,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                                     approvals,
                                     eduWorkflowService.getUnionAuthorUserIdsForDossier(doc),
                                     eduWorkflowService.resolveActiveCandidates(
-                                            policy, cls.ageGroupId(), cls.id(), today));
+                                            policy, cls.ageGroupId(), null, cls.id(), today));
                     if (after.complete()) next = EduClassDocStatus.APPROVED;
                 } else if (ACTION_REJECT.equals(request.action())) {
                     if (note.isBlank()) throw GlobalException.of(ApiCode.RETURN_REASON_REQUIRED);
@@ -2635,7 +2635,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (evaluation.waitingRole() == null) return Set.of();
         var policy = eduWorkflowService.loadPolicy(root.getKind());
         Set<Long> ids = new HashSet<>(eduWorkflowService
-                .resolveActiveCandidates(policy, cls.ageGroupId(), cls.id(), today)
+                .resolveActiveCandidates(policy, cls.ageGroupId(), null, cls.id(), today)
                 .getOrDefault(evaluation.waitingRole(), Set.of()));
         ids.removeAll(eduWorkflowService.getUnionAuthorUserIdsForDossier(root));
         return ids;

@@ -105,7 +105,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // Không readOnly: requireDayAccess(write=true) khóa FOR SHARE/UPDATE, Postgres từ chối trong giao dịch chỉ đọc
+    @Transactional
     public PresignedUploadResponse uploadUrl(
             CurrentUser user, String docKey, LearningResourceUploadUrlRequest request) {
         String p = LOG_PREFIX + "|uploadUrl|userId=" + user.userId();

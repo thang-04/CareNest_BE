@@ -568,8 +568,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             String updatedApprovalsJson = eduWorkflowService.serializeApprovals(approvals);
 
             Set<Long> excludedAuthors = eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId());
-            Map<EduWorkflowPolicy.Role, Set<Long>> candidates =
-                    eduWorkflowService.resolveActiveCandidates(policy, plan.getAgeGroupId(), null, today);
+            Map<EduWorkflowPolicy.Role, Set<Long>> candidates = eduWorkflowService.resolveActiveCandidates(
+                    policy, plan.getAgeGroupId(), plan.getSchoolYearId(), null, today);
             EduWorkflowPolicy.Evaluation nextEval =
                     evaluator.evaluate(policy, plan.getReviewRound(), approvals, excludedAuthors, candidates);
 
@@ -2029,7 +2029,11 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         if (eval.waitingRole() == null) return;
         Set<Long> to = new java.util.HashSet<>(eduWorkflowService
                 .resolveActiveCandidates(
-                        eduWorkflowService.loadPolicy(plan.workflowKey()), plan.getAgeGroupId(), null, today)
+                        eduWorkflowService.loadPolicy(plan.workflowKey()),
+                        plan.getAgeGroupId(),
+                        plan.getSchoolYearId(),
+                        null,
+                        today)
                 .getOrDefault(eval.waitingRole(), Set.of()));
         to.removeAll(eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId()));
         to.remove(user.userId());

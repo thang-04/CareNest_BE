@@ -160,6 +160,38 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public Set<Long> findScopedTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate today) {
+        String logPrefix =
+                LOG_PREFIX + "|findScopedTeamLeaderAgeGroupIds|userId=" + userId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> ageGroupIds =
+                    Set.copyOf(staffAssignmentRepository.findScopedTeamLeaderAgeGroupIds(userId, schoolYearId, today));
+            log.info("{}|END", logPrefix);
+            return ageGroupIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Set<Long> findYearTeamLeaderIds(Long ageGroupId, Long schoolYearId, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|findYearTeamLeaderIds|ageGroupId=" + ageGroupId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> userIds =
+                    Set.copyOf(staffAssignmentRepository.findYearTeamLeaderIds(ageGroupId, schoolYearId, date));
+            log.info("{}|END", logPrefix);
+            return userIds;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public Set<Long> findYearTeamLeaderAgeGroupIds(Long userId, Long schoolYearId, LocalDate date) {
         String logPrefix =
                 LOG_PREFIX + "|findYearTeamLeaderAgeGroupIds|userId=" + userId + "|schoolYearId=" + schoolYearId;

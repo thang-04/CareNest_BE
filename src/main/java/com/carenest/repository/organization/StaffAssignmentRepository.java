@@ -84,11 +84,15 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             """)
     List<Long> findActiveTeamLeaderAgeGroupIds(@Param("userId") Long userId, @Param("date") LocalDate date);
 
-    // Như trên nhưng chỉ phân công của năm học đang xét; phân công cũ không ghi năm học (null) vẫn tính
+    // Như trên nhưng chỉ phân công của năm học đang xét; dòng cũ không có school_year_id thuộc năm đầu tiên chưa kết
+    // thúc tính từ valid_from (không tính cho mọi năm)
     @Query("""
             select distinct a.ageGroupId from StaffAssignment a
             where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER
-              and (a.schoolYearId = :schoolYearId or a.schoolYearId is null)
+              and (a.schoolYearId = :schoolYearId or (a.schoolYearId is null
+                   and a.validFrom <= (select y.endDate from SchoolYear y where y.id = :schoolYearId)
+                   and not exists (select p from SchoolYear p where p.id <> :schoolYearId and p.endDate >= a.validFrom
+                       and p.startDate < (select y.startDate from SchoolYear y where y.id = :schoolYearId))))
               and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
             """)
     List<Long> findActiveTeamLeaderAgeGroupIdsInYear(
@@ -129,10 +133,48 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     List<Long> findYearTeamLeaderAgeGroupIds(
             @Param("userId") Long userId, @Param("schoolYearId") Long schoolYearId, @Param("date") LocalDate date);
 
-    // Tổ trưởng theo đúng năm học; phân công cũ không ghi năm học (null) vẫn tính để giữ dữ liệu trước đây
+    // Nhóm tuổi người dùng là Tổ trưởng TRONG năm học :schoolYearId (null = năm đang hoạt động). Năm đang diễn ra /
+    // sắp diễn ra: phân công chưa kết thúc tính tới :today (gồm năm chuẩn bị); năm đang chạy cần đã bắt đầu. Năm đã kết
+    // thúc: ai từng làm Tổ trưởng
+    // năm đó vẫn xem lại được. Bỏ phân công bị gỡ trước khi bắt đầu (valid_to < valid_from). Dòng cũ không có
+    // school_year_id thuộc năm đầu tiên chưa kết thúc tính từ valid_from (valid_to trống không tràn sang năm sau).
+    @Query(value = """
+                    select distinct a.age_group_id from staff_assignments a
+                    join school_years y on y.id = coalesce(cast(:schoolYearId as bigint),
+                        (select s.id from school_years s where s.status = 'ACTIVE' order by s.start_date desc limit 1))
+                    where a.user_id = :userId and a.staff_role = 'AGE_GROUP_TEAM_LEADER' and a.age_group_id is not null
+                      and (a.school_year_id = y.id or (a.school_year_id is null and a.valid_from <= y.end_date
+                           and not exists (select 1 from school_years p where p.id <> y.id
+                               and p.end_date >= a.valid_from and p.start_date < y.start_date)))
+                      and (a.valid_to is null or a.valid_to >= a.valid_from)
+                      and (y.status = 'CLOSED' or a.valid_to is null or a.valid_to >= :today)
+                      and (y.status <> 'ACTIVE' or a.valid_from <= :today)
+                    """, nativeQuery = true)
+    List<Long> findScopedTeamLeaderAgeGroupIds(
+            @Param("userId") Long userId, @Param("schoolYearId") Long schoolYearId, @Param("today") LocalDate today);
+
+    // Tổ trưởng của nhóm tuổi trong năm học :schoolYearId, còn hiệu lực ngày :date (vd. người ký phiếu)
+    @Query(value = """
+                    select distinct a.user_id from staff_assignments a join school_years y on y.id = :schoolYearId
+                    where a.staff_role = 'AGE_GROUP_TEAM_LEADER' and a.age_group_id = :ageGroupId
+                      and (a.school_year_id = y.id or (a.school_year_id is null and a.valid_from <= y.end_date
+                           and not exists (select 1 from school_years p where p.id <> y.id
+                               and p.end_date >= a.valid_from and p.start_date < y.start_date)))
+                      and a.valid_from <= :date and (a.valid_to is null or a.valid_to >= :date)
+                    """, nativeQuery = true)
+    List<Long> findYearTeamLeaderIds(
+            @Param("ageGroupId") Long ageGroupId,
+            @Param("schoolYearId") Long schoolYearId,
+            @Param("date") LocalDate date);
+
+    // Tổ trưởng theo đúng năm học; dòng cũ không có school_year_id thuộc năm đầu tiên chưa kết thúc tính từ valid_from
     @Query("select distinct a.userId from StaffAssignment a"
             + " where a.staffRole = com.carenest.utils.enums.StaffRole.AGE_GROUP_TEAM_LEADER"
-            + " and (a.schoolYearId = :schoolYearId or a.schoolYearId is null) and a.ageGroupId = :ageGroupId"
+            + " and (a.schoolYearId = :schoolYearId or (a.schoolYearId is null"
+            + " and a.validFrom <= (select y.endDate from SchoolYear y where y.id = :schoolYearId)"
+            + " and not exists (select p from SchoolYear p where p.id <> :schoolYearId and p.endDate >= a.validFrom"
+            + " and p.startDate < (select y.startDate from SchoolYear y where y.id = :schoolYearId))))"
+            + " and a.ageGroupId = :ageGroupId"
             + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
     List<Long> findActiveTeamLeaderIds(
             @Param("schoolYearId") Long schoolYearId,
