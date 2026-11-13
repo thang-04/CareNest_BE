@@ -32,5 +32,7 @@ public enum NotificationType {
     EDU_RELEASED,
     EDU_RETURNED,
     EDU_DEADLINE_EXTENDED,
-    EDU_DEADLINE_NEAR
+    EDU_DEADLINE_NEAR,
+    /** GV gửi nhận xét tuần của trẻ, báo phụ huynh đã liên kết với trẻ (OBS-29). */
+    WEEKLY_COMMENT_SENT
 }
