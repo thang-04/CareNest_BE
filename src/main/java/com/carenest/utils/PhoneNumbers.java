@@ -3,11 +3,11 @@ package com.carenest.utils;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
-/** SĐT Việt Nam dùng làm tên đăng nhập phụ huynh (AUTH-18): 10 số, bắt đầu bằng 0. */
+/** SĐT di động Việt Nam dùng làm tên đăng nhập (AUTH-18): 10 số, bắt đầu bằng 03, 05, 07, 08 hoặc 09. */
 public final class PhoneNumbers {
 
     private static final Pattern SEPARATORS = Pattern.compile("[\\s.\\-()]");
-    private static final Pattern LOCAL_MOBILE = Pattern.compile("^0\\d{9}$");
+    private static final Pattern LOCAL_MOBILE = Pattern.compile("^0[35789]\\d{8}$");
 
     private PhoneNumbers() {}
 
