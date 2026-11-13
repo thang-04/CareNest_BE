@@ -286,14 +286,7 @@ class ChildPhotoServiceImplTest {
 
     private static ChildGuardian guardian(Long id, Long childId, int position) {
         ChildGuardian g = ChildGuardian.create(
-                childId,
-                position,
-                "Phụ huynh giả",
-                GuardianRelationship.MOTHER,
-                "0900000000",
-                "999000000001",
-                null,
-                null);
+                childId, position, "Phụ huynh giả", GuardianRelationship.MOTHER, "0900000000", "999000000001", null);
         ReflectionTestUtils.setField(g, "id", id);
         return g;
     }

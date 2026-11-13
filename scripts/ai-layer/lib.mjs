@@ -7,7 +7,7 @@ export const CONFIG_PATH = ".claude/hooks/harness.config.json";
 
 export const DEFAULTS = {
   repo: "BE",
-  siblings: { BE: ["../CareNest_BE-main", "../CareNest_BE"], FE: ["../CareNest_FE"], APP: ["../CareNest_APP"] },
+  siblings: { BE: ["../CareNest_BE"], FE: ["../CareNest_FE"], APP: ["../CareNest_APP"] },
   checkAiLayer: {
     scanGlobs: ["AGENTS.md", "CLAUDE.md", ".ai/**/*.md", ".claude/**/*.md", ".agents/**/*.md", "docs/**/*.md"],
     scanExclude: ["docs/plans/completed/**"],
@@ -20,7 +20,42 @@ export const DEFAULTS = {
     incidentIdPattern: "^(BUG|CASE|ENV)-\\d{6}-[a-z0-9-]+$",
     plansDir: "docs/plans",
     agentsBlock: { heading: "Quy tắc chung CareNest (bắt buộc)", exclude: ["Hỏi trước khi làm", "Phạm vi"] },
-    sharedFiles: [],
+    // File harness giống nhau ở 3 repo; BE là nguồn, chép sang FE/APP bằng scripts/ai-layer/sync-shared.mjs.
+    // Không gồm file theo repo: harness.config.json, scripts/verify.mjs và test của nó, script riêng FE.
+    sharedFiles: [
+      ".claude/settings.json",
+      ".claude/hooks/*.mjs",
+      ".claude/hooks/lib/**",
+      ".claude/hooks/__tests__/**",
+      ".githooks/**",
+      "scripts/check-ai-layer.mjs",
+      "scripts/ai-layer/**",
+      "scripts/__tests__/{ai-layer-lib,api-index,check-ai-layer,githooks,junk-files,sync-shared}.test.mjs",
+      "scripts/__tests__/helpers.mjs",
+      ".gitattributes",
+      ".editorconfig",
+      "docs/plans/_TEMPLATE.md",
+    ],
+  },
+  // Cổng file rác (scripts/ai-layer/junk-files.mjs): file mới khớp `globs` hoặc nặng hơn `maxBytes` bị chặn,
+  // trừ khi khớp `allow`. `baseRef` = nhánh tích hợp để tính "file nhánh này thêm".
+  junk: {
+    baseRef: "origin/dev",
+    maxBytes: 5 * 1024 * 1024,
+    globs: [
+      "**/*.log",
+      "**/*.pyc",
+      "**/__pycache__/**",
+      "**/*.{zip,rar,7z,tar,gz,tgz}",
+      "**/*.{patch,orig,rej,bak,swp,tmp,temp}",
+      "**/.DS_Store",
+      "**/Thumbs.db",
+      "**/.tmp_*/**",
+      "**/.playwright-mcp/**",
+      "**/.superpowers/**",
+      "**/.continues-handoff.md",
+    ],
+    allow: [],
   },
   // Phần dưới dùng cho Claude hooks (.claude/hooks); repo ghi đè trong harness.config.json
   nonCodeGlobs: ["docs/**", ".ai/**", ".claude/**", ".agents/**", ".githooks/**", "scripts/**", "**/*.md", ".git*", ".editorconfig"],
@@ -37,7 +72,13 @@ export const DEFAULTS = {
     contractGlobs: [],
     highRisk: [],
     harnessGlobs: [".claude/settings*.json", ".claude/hooks/**", ".githooks/**", "scripts/**"],
+    // Vùng dùng chung: sửa ở đây ảnh hưởng màn hình/module của người khác ⇒ phải nêu bản tác động trước
+    sharedGlobs: [],
+    // Điểm dừng cứng: luôn hỏi người làm, kể cả khi autonomous=true (AGENTS.md › Chế độ làm việc)
+    hardStops: ["migration", "dependency", "contract", "shared", "foreign"],
   },
+  // Ai phụ trách module nào: modules = {glob: thành viên}, identities = {thành viên: [git user.name]}
+  ownership: { modules: {}, identities: {} },
   plans: { dir: "docs/plans", gateStatuses: ["approved", "in-progress"] },
 };
 

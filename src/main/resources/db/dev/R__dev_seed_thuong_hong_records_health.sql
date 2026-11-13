@@ -461,7 +461,7 @@ SELECT l.user_id, 'HEALTH_RESULT_PUBLISHED', 'Kết quả sức khỏe mới',
 FROM health_measurements h
 JOIN g180_rounds r ON r.campaign_id = h.campaign_id
 JOIN children ch ON ch.id = h.child_id
-JOIN guardian_child_links l ON l.child_id = h.child_id
+JOIN child_guardians l ON l.child_id = h.child_id AND l.user_id IS NOT NULL
 WHERE NOT EXISTS (
     SELECT 1 FROM notifications n
     WHERE n.user_id = l.user_id AND n.child_id = h.child_id AND n.type = 'HEALTH_RESULT_PUBLISHED'
@@ -519,7 +519,6 @@ FROM (SELECT DISTINCT ON (x.child_id) x.id
       FROM child_guardians x
       WHERE NOT EXISTS (SELECT 1 FROM child_guardians r WHERE r.child_id = x.child_id AND r.account_recipient)
       ORDER BY x.child_id,
-               EXISTS (SELECT 1 FROM guardian_child_links l
-                       WHERE l.child_id = x.child_id AND l.user_id = x.user_id) DESC,
+               (x.user_id IS NOT NULL) DESC,
                x.position) c
 WHERE g.id = c.id;

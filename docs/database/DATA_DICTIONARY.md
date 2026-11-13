@@ -26,7 +26,7 @@ Mục đích: hồ sơ nghiệp vụ của người dùng; nối với danh tín
 | locked_by_system | BOOLEAN | không | `TRUE` khi hệ thống khóa vì phụ huynh không còn con đang học (`ParentAccountLeftSchoolListener`); mở lại hồ sơ một con thì tự mở (`ParentAccountReadmitListener`). HT/PHT khóa/mở tay ⇒ `FALSE`. Mặc định `FALSE`, tài khoản khóa trước V90 cũng `FALSE` (mở tay) (V90, user chốt 2026-11-11) | CHD-03, CHD-04 |
 | primary_role | VARCHAR(20) | có | Bản sao role Keycloak khi CareNest tạo tài khoản (V8); lọc danh sách + kiểm phạm vi quản lý nhân sự; quyền người gọi vẫn theo token. NULL = chưa rõ (chỉ Admin quản lý) | AUTH-15..17 |
 | citizen_id | VARCHAR(12) | có | CCCD phụ huynh, khóa nhận diện phụ huynh; UNIQUE, CHECK 12 chữ số (V63). Nhân sự NULL; tài khoản phụ huynh cũ bổ sung khi hồ sơ trẻ ghi CCCD | AUTH-18 |
-| photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(255), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, bắt buộc; GV đối chiếu người đón). Tệp private S3; key cũ UUID, key mới `avatars/users/user_<id>_<thời gian>_<xxxx>.<đuôi>` (V122 nới 255); JPG/PNG/WEBP, giới hạn theo cấu hình kho (2 MB) (V66) | PCK-02 |
+| photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(255), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung (phụ huynh tải khi đăng nhập App lần đầu, bắt buộc; GV đối chiếu người đón). Tệp private S3; key cũ UUID, key mới `avatars/users/user_<id>_<thời gian>_<xxxx>.<đuôi>` (V123 nới 255); JPG/PNG/WEBP, giới hạn theo cấu hình kho (2 MB) (V66) | PCK-02 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
 Không có cột mật khẩu: Keycloak quản lý. Role gốc ở Keycloak (`primary_role` chỉ là bản sao).
 Index: `uk_user_accounts_keycloak_user_id`, `uk_user_accounts_username`, `uk_user_accounts_citizen_id`, `idx_user_accounts_primary_role`.
@@ -240,17 +240,6 @@ Mục đích: lịch sử xếp / chuyển lớp của trẻ, chỉ thêm (CHD-1
 | reason | VARCHAR(300) | có | Lý do (bắt buộc khi chuyển lớp — kiểm ở service; NULL khi xếp lần đầu không ghi) | — |
 | placed_at | TIMESTAMPTZ | không | Lúc xếp | — |
 Index: `idx_child_placements_child` (`child_id`, `placed_at DESC`).
-
-## guardian_child_links  (module: child, scope: CHILD)
-Mục đích: liên kết phụ huynh–trẻ, nguồn scope phụ huynh; tạo/gỡ qua `/children/{id}/guardians` (AUTH-18, AUTH-19). Migration: V3, V9 (CHECK quan hệ), V63 (6 loại).
-| Column | Type | Null | Ý nghĩa | Rule ID |
-| --- | --- | --- | --- | --- |
-| id | BIGINT identity | không | Khóa chính | — |
-| user_id | BIGINT FK user_accounts | không | Tài khoản phụ huynh | AUTH-04 |
-| child_id | BIGINT FK children | không | | AUTH-04 |
-| relationship | VARCHAR(30) | không | `FATHER` / `MOTHER` / `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` / `GUARDIAN` (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ — như hồ sơ trẻ); `OTHER` chỉ còn ở dữ liệu trước V63 (CHECK `ck_guardian_child_links_relationship`) | AUTH-18 |
-| created_at | TIMESTAMPTZ | không | | — |
-Index: `uk_guardian_child_links_user_child`, `idx_guardian_child_links_child_id`.
 
 ## attendance_records  (module: attendance, scope: CLASS)
 Mục đích: điểm danh và tham gia ăn của một trẻ trong một ngày (ATT-01, ATT-02). Migration: `V21__create_attendance.sql`.
@@ -586,22 +575,23 @@ Mục đích: hành chính của trẻ, 1–1 với `children`; phiếu khám s�
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
 
 ## child_guardians  (module: child, scope: CHILD)
-Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20); nguồn scope của phụ huynh vẫn là `guardian_child_links`. Migration: V63.
+Mục đích: phụ huynh trên hồ sơ trẻ, có trước khi có tài khoản (AUTH-20). Dòng có `user_id` = liên kết tài khoản phụ huynh–trẻ, là nguồn scope của phụ huynh (AUTH-04; bảng `guardian_child_links` cũ bị V122 gộp vào đây). Migration: V63, V81, V122.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | child_id | BIGINT FK children | không | | — |
 | position | SMALLINT | không | Thứ tự nhập 0–2 ⇒ tối đa 3 phụ huynh mỗi trẻ (CHECK + UNIQUE cùng `child_id`) | AUTH-18 |
 | full_name | VARCHAR(150) | không | | — |
-| relationship | VARCHAR(30) | không | 6 mã như `guardian_child_links`; `OTHER` chỉ ở dữ liệu chuyển từ liên kết cũ | AUTH-18 |
+| relationship | VARCHAR(30) | không | `FATHER` / `MOTHER` / `GRANDFATHER` / `GRANDMOTHER` / `SIBLING` / `GUARDIAN` (Bố, Mẹ, Ông, Bà, Anh/chị, Người giám hộ); `OTHER` còn trong CHECK cho dữ liệu cũ | AUTH-18 |
 | phone | VARCHAR(10) | không | SĐT chuẩn hóa 10 số bắt đầu 0 (CHECK) = tên đăng nhập tài khoản phụ huynh | AUTH-18 |
 | citizen_id | VARCHAR(12) | có (xem dưới) | CCCD 12 chữ số, khóa nhận diện phụ huynh | AUTH-18 |
 | email | VARCHAR(255) | có | Email liên hệ, chữ thường | AUTH-18 |
-| user_id | BIGINT FK user_accounts | có | Tài khoản đã kích hoạt cho trẻ này; NULL = chưa kích hoạt | AUTH-20 |
+| user_id | BIGINT FK user_accounts | có | Tài khoản đã liên kết với trẻ (nguồn scope phụ huynh); NULL = chưa kích hoạt hoặc đã gỡ liên kết | AUTH-04, AUTH-19, AUTH-20 |
+| linked_at | TIMESTAMPTZ | có | V122. Lúc liên kết tài khoản với trẻ; có ⇔ `user_id` có (CHECK `ck_child_guardians_linked`) | AUTH-19 |
 | photo_key, photo_content_type, photo_size_bytes, photo_updated_at | VARCHAR(255), VARCHAR(30), INTEGER, TIMESTAMPTZ | có (cùng có hoặc cùng null) | Ảnh chân dung tùy chọn khi tiếp nhận; private S3, JPG/PNG/WEBP ≤2 MiB; CHECK metadata hoàn chỉnh, V80. Ảnh ChildGuardian tách ảnh tài khoản và đọc theo id ổn định. | CHD-02, PCK-02 |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Ràng buộc: UNIQUE (`child_id`, `position`), (`child_id`, `phone`), (`child_id`, `citizen_id`) dạng DEFERRABLE INITIALLY DEFERRED (Sửa hồ sơ đổi thông tin giữa hai phụ huynh trong một lần lưu); UNIQUE (`child_id`, `user_id`). `ck_child_guardians_citizen_id_required` **NOT VALID**: dòng thêm/sửa phải có CCCD; dòng V63 chuyển từ liên kết cũ chưa có CCCD (nhập bổ sung). V63 chuyển mỗi liên kết có sẵn có tên đăng nhập là SĐT thành 1 dòng (tối đa 3 mỗi trẻ).
-`accountStatus` trả FE: `NOT_ACTIVATED` khi chưa có `guardian_child_links` với trẻ; có thì `user_accounts.status`.
+Ràng buộc: UNIQUE (`child_id`, `position`), (`child_id`, `phone`), (`child_id`, `citizen_id`) dạng DEFERRABLE INITIALLY DEFERRED (Sửa hồ sơ đổi thông tin giữa hai phụ huynh trong một lần lưu); UNIQUE (`child_id`, `user_id`). `ck_child_guardians_citizen_id_required` **NOT VALID**: dòng thêm/sửa phải có CCCD; hồ sơ demo cũ có thể thiếu CCCD (nhập bổ sung).
+`accountStatus` trả FE: `NOT_ACTIVATED` khi `user_id` NULL; có thì `user_accounts.status`.
 Index: `idx_child_guardians_phone`, `idx_child_guardians_citizen_id`, `idx_child_guardians_user_id` (kiểm một người một tài khoản trên mọi hồ sơ — AUTH-18).
 
 ## child_health_declarations  (module: child, scope: CHILD)
@@ -724,7 +714,7 @@ Hàng tươi (`foods.storage = FRESH`) không vào kho (NUT-12): chỉ có bản
 | fresh_checks | campus_id, check_date, round 1\|2, forecast_id (null ở lần 2; `ON DELETE SET NULL` — xóa bản dự trù giữ lịch sử), checked_by, checked_at, note | UK (campus, date, round) | NUT-12 |
 | fresh_check_lines | check_id (CASCADE), food_id, expected_qty (chụp lúc ghi), received_qty (không bắt buộc), result `ENOUGH`/`SHORT`/`OVER`, note | UK (check, food) | NUT-12 |
 | food_samples | campus_id, sample_date, session, sampled_at, recorded_by, status `RECORDED`/`APPROVED`, approved_by/at, disposed_at, disposal_recorded_by, disposal_status `NONE`/`RECORDED`/`APPROVED`, disposal_approved_by/at, note, dish_ids (V83, bigint[] món đã lưu mẫu; service kiểm món tồn tại), created_at, updated_at | CHECK `disposal_status = NONE` ⇔ `disposed_at` null; không UK (một bữa có thể lưu nhiều lần); hủy ≥ 24 giờ sau `sampled_at` do service kiểm | NUT-21 |
-| meal_photos | campus_id, photo_date, session, storage_key (key tệp trong kho S3: UUID cũ hoặc `meals/meal_...`, VARCHAR(255) từ V122), content_type, size_bytes, uploaded_by, uploaded_at | UK (campus, date, session) — đăng lại thì thay dòng và tệp; size > 0 | NUT-16 |
+| meal_photos | campus_id, photo_date, session, storage_key (key tệp trong kho S3: UUID cũ hoặc `meals/meal_...`, VARCHAR(255) từ V123), content_type, size_bytes, uploaded_by, uploaded_at | UK (campus, date, session) — đăng lại thì thay dòng và tệp; size > 0 | NUT-16 |
 
 ## password_tokens (module: identity-access, scope: ACCOUNT)
 Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi mật khẩu lần đầu, reset). Tạo ở V4 tên `web_auth_challenges`, V6 đổi tên. PK token_hash VARCHAR(64), purpose OTP/FIRST_LOGIN/RESET; user_id FK và keycloak_user_id nullable chỉ cho OTP decoy; lookup_hash/otp_hmac VARCHAR(64) là HMAC, provider_cipher TEXT mã hóa capability provider. created_at/expires_at/resend_available_at/consumed_at TIMESTAMPTZ; attempts 0–5; processing_owner VARCHAR(43). CHECK ngăn password capability thiếu account/provider proof. Không lưu OTP/email plaintext. Index `idx_password_tokens_user`/`idx_password_tokens_expiry` (V5 xóa index lookup_hash). Bảng `web_auth_sessions` (V4) đã xóa ở V5 theo ADR-0015.
@@ -733,7 +723,7 @@ Token dùng 1 lần cho luồng mật khẩu (OTP quên mật khẩu, đổi m�
 Giới hạn số lần gửi email OTP (forgot + resend). Tạo ở V4 tên `web_auth_rate_limits`, V6 đổi tên. PK bucket_hash VARCHAR(64) là HMAC của loại quota + lookup + cửa sổ; used INTEGER ≥0, expires_at TIMESTAMPTZ có index cleanup `idx_otp_send_limits_expiry`. Atomic PostgreSQL upsert không vượt budget. Không lưu IP/email plaintext.
 
 ## Kế hoạch giáo dục năm học và tổ  (module: education-plan, scope: SCHOOL theo nhóm tuổi)
-Migration: `V11__create_edu_year_plans.sql`, `V12__relax_edu_theme_draft_constraints.sql`, `V23__drop_unused_edu_plan_tables.sql`, `V24__add_edu_year_plan_editing_lock.sql`, `V27__create_edu_settings.sql`, `V28__create_edu_class_docs.sql`, `V30__add_edu_year_plan_edit_sessions.sql`, `V31__add_edu_learning_resources.sql`, `V32__add_edu_plan_versions.sql`, `V41__edu_class_doc_sign_chain.sql`, `V80__expand_edu_workflow_policy.sql`, `V81__contract_edu_workflow_policy.sql` (EDU-54), `V89__separate_team_plans.sql` (expand), `V90__cutover_separate_education_plans.sql` (candidate contract spec015), `V95__create_edu_class_doc_releases.sql` (EDU-73), `V96__edu_semester_packages_and_day_plans.sql` (EDU-74), `V99__edu_drop_class_doc_adjustments.sql` (spec 005 DB-F), `V125__edu_resource_library.sql` (spec 900 kho học liệu).
+Migration: `V11__create_edu_year_plans.sql`, `V12__relax_edu_theme_draft_constraints.sql`, `V23__drop_unused_edu_plan_tables.sql`, `V24__add_edu_year_plan_editing_lock.sql`, `V27__create_edu_settings.sql`, `V28__create_edu_class_docs.sql`, `V30__add_edu_year_plan_edit_sessions.sql`, `V31__add_edu_learning_resources.sql`, `V32__add_edu_plan_versions.sql`, `V41__edu_class_doc_sign_chain.sql`, `V80__expand_edu_workflow_policy.sql`, `V81__contract_edu_workflow_policy.sql` (EDU-54), `V89__separate_team_plans.sql` (expand), `V90__cutover_separate_education_plans.sql` (candidate contract spec015), `V95__create_edu_class_doc_releases.sql` (EDU-73), `V96__edu_semester_packages_and_day_plans.sql` (EDU-74), `V99__edu_drop_class_doc_adjustments.sql` (spec 005 DB-F), `V126__edu_resource_library.sql`, `V127__edu_resource_order_and_notices.sql` (spec 900 kho học liệu).
 
 Schema bên dưới là đích sau V97; chỉ kiểm trên scratch, chưa áp dụng DB đang dùng. App mới và V97 phải cutover đồng bộ; V96 vẫn để app cũ là writer duy nhất. Hai header dùng chung `edu_plan_id_seq` (allocationSize=1, không OWNED BY một bảng), giữ ID cũ, không lưu `plan_level`. `EduPlan` là mapped superclass, không phải bảng chung.
 
@@ -753,7 +743,7 @@ Schema bên dưới là đích sau V97; chỉ kiểm trên scratch, chưa áp d�
 | edu_domains | name VARCHAR(150), display_label, short_label, sort_order, active, standard | UNIQUE name; seed 5 lĩnh vực chuẩn (standard, không xóa); lĩnh vực trường thêm bỏ đi thì active = false (V27) | EDU-09, EDU-11 |
 | edu_class_docs | doc_key (khóa Web: `bp_<lớp>_<kế hoạch năm>`, `tp_<lớp>_<chủ đề>`, `wp_<lớp>_<thứ Hai>`, phiên bản ≥2 `wp_<lớp>_<thứ Hai>_<kế hoạch năm>`), kind (branch/theme/week; V103 thêm semester = gói học kỳ `sp_<lớp>_<kế hoạch>_<1|2>`, dossier = hồ sơ chủ đề `ds_<lớp>_<chủ đề>`, day = giáo án ngày `dd_…`), semester_no SMALLINT (V103, chỉ kind semester: 1/2), classroom_id, school_year_plan_id / team_plan_id, theme_id, week_start, status (DRAFT, REVIEW, APPROVED; V88 contract bỏ legacy PENDING_*/REJECTED), content (JSONB object: nội dung soạn; spec 005: `week` có `prep {teacher, child, parent}`, `corners [{id, name, content, aims, prep, steps}]`; `day` có `days[i] = {date, sections {hoc|ngoai_troi|goc|chieu: {aims, prep, rows [{id, title, teacher, child, note}]}}}` — bố cục cũ `aims/prep/steps` chỉ đọc), approvals (JSONB array), history (JSONB array), source_doc_id (V32, bản chép từ phiên bản cũ, ON DELETE SET NULL), ~~adjustments~~ (V32, V103 chuyển sang kind day; **xóa ở V106** cùng `ck_edu_class_docs_adjustments`, `ck_edu_class_docs_adjustments_day`), sign_chain (V41, JSONB array role duyệt chụp lúc gửi), review_round INT DEFAULT 1 (V87), published_by BIGINT (V87), completed_at TIMESTAMPTZ (V87), print_snapshot JSONB (V87), author_tracking_since TIMESTAMPTZ, author_coverage VARCHAR(50), applied_policy_revision BIGINT, completion_policy JSONB, completion_mode VARCHAR(50), created_by, updated_by, created_at, updated_at, version | Một bảng cho 3 loại tài liệu. UNIQUE doc_key; UNIQUE (classroom_id, school_year_plan_id / team_plan_id, kind, theme_id, week_start, semester_no) — cũng là chỉ mục tra theo lớp; CHECK kind, status (DRAFT/REVIEW/APPROVED V88), khóa đúng theo loại (week_start là thứ Hai), kiểu JSONB; FK classroom, year_plan (ON DELETE CASCADE), theme, user | EDU-12..18, EDU-54 |
 | edu_class_doc_releases | id, class_doc_id (FK edu_class_docs, gốc kind dossier/semester — V108 chuyển từ theme), dossier_version BIGINT, print_snapshot JSONB (`signatures` chuỗi ký + `members` nội dung kế hoạch chủ đề và giáo án tuần lúc ban hành), approved_by (FK user_accounts), released_at TIMESTAMPTZ | Mỗi lần hồ sơ chủ đề lớp ban hành một dòng để xem lại bản cũ (V102, backfill bản APPROVED hiện có). UNIQUE (class_doc_id, dossier_version) | EDU-73 |
-| edu_settings | 1 dòng (id = 1): signers (JSON: year, branch, week → danh sách vai trò ký theo thứ tự), week_rows (JSON: key, label, canMerge, allWeek, extraLabel), workflow_policy JSONB (V87), workflow_revision BIGINT DEFAULT 0 (V87), meal_photo_windows (V83, jsonb `[{session, startTime, endTime, updatedBy, updatedAt}]`: khung giờ đăng ảnh bữa ăn chung toàn trường, NUT-16; chưa có bữa ⇒ chưa đăng ảnh được; entity `MealPhotoSettings` của module bán trú), updated_by, updated_at | CHECK id = 1; seed mặc định TT → PHT và 8 dòng tuần (V27); V124 thêm dòng `an_ngu` (Ăn, ngủ), đổi nhãn Hoạt động góc / ngoài trời / chiều, Góc trước Ngoài trời; workflow_policy cấu hình creators và reviewers theo 3 loại tài liệu (V87) | EDU-11, EDU-54 |
+| edu_settings | 1 dòng (id = 1): signers (JSON: year, branch, week → danh sách vai trò ký theo thứ tự), week_rows (JSON: key, label, canMerge, allWeek, extraLabel), workflow_policy JSONB (V87), workflow_revision BIGINT DEFAULT 0 (V87), meal_photo_windows (V83, jsonb `[{session, startTime, endTime, updatedBy, updatedAt}]`: khung giờ đăng ảnh bữa ăn chung toàn trường, NUT-16; chưa có bữa ⇒ chưa đăng ảnh được; entity `MealPhotoSettings` của module bán trú), updated_by, updated_at | CHECK id = 1; seed mặc định TT → PHT và 8 dòng tuần (V27); V125 thêm dòng `an_ngu` (Ăn, ngủ), đổi nhãn Hoạt động góc / ngoài trời / chiều, Góc trước Ngoài trời; workflow_policy cấu hình creators và reviewers theo 3 loại tài liệu (V87) | EDU-11, EDU-54 |
 | edu_document_authors | school_year_plan_id, team_plan_id, class_doc_id (ba FK nullable), user_id FK user_accounts, origin VARCHAR(30), first_authored_at, last_authored_at | num_nonnulls(ba owner)=1; unique partial (school_year_plan_id,user_id), (team_plan_id,user_id), (class_doc_id,user_id); tác giả lớp giữ hai owner header NULL | EDU-54 |
 
 
@@ -770,7 +760,7 @@ Lệch so với CAN_DB (đã chốt 22/10):
 ## Học liệu hoạt động / trình chiếu (2026-10-27)
 User yêu cầu tất cả tệp dùng S3 private và đồng ý AWS SDK v2. Metadata edu_learning_resources trỏ class_doc_id; lưu activity key/signature, tên/loại/kích thước, uploader, request UUID và storage key opaque. Key/signature cùng null khi gỡ. Không binary trong JSONB; không sửa schema nội dung cũ. Tham chiếu [data-model feature002](../../specs/002-class-plan-teaching-media/data-model.md), migration V28. Không expose storage key qua response.
 
-## Kho học liệu (module: education-plan, scope: người tạo / lớp / trường) — V125, spec 900
+## Kho học liệu (module: education-plan, scope: người tạo / lớp / trường) — V126, V127, spec 900
 - `edu_resource_items`: học liệu lưu một lần. `kind` FILE|LINK (CHECK: FILE có `storage_key` S3 `hoclieu/`, không `url`; LINK ngược lại), `title`, `owner_id`, `scope` MINE|CLASS|SCHOOL (`classroom_id` bắt buộc khi CLASS), `share_status` PENDING|REJECTED + `share_reason`, `share_by`, `share_at`, `age_group_id` (NULL = mọi nhóm tuổi), `hidden`, thông tin tệp, `upload_request_id` (UNIQUE với `owner_id`), `url` ≤2000.
 - `edu_resource_item_tags`: nhãn `kind` THEME|GOAL, `ref_id` (chủ đề / MT), `curriculum_goal_id` (mã mục tiêu Bộ để khớp năm sau), `name`; UNIQUE (item, kind, ref).
 - `edu_resource_attachments`: dòng gắn học liệu vào giáo án ngày: `class_doc_id`, `activity_key` (CHECK `yyyy-MM-dd#hoc|ngoai_troi|goc|chieu`), `activity_label`, `item_id` (ON DELETE RESTRICT), `sort_order` (thứ tự trong mục, trùng thì theo id), `created_by`; UNIQUE (doc, mục, học liệu).
@@ -795,30 +785,20 @@ V36 bỏ bảng `edu_expected_results` (danh mục gợi ý chưa từng có d�
 
 V35 thay bảng `edu_goal_rows` bằng ba bảng trên, giữ id/lineage/sort_order và chuyển FK nội dung. Ba bảng dùng `edu_plan_rows_seq`; `kind` chỉ còn ở DTO. Không tự tạo cha khi dữ liệu cũ thiếu cấp. FK cha được deferred để chuyển cha trong cùng transaction; service flush cập nhật trước xóa tiêu đề cũ.
 
-## role_permissions  (module: identity-access, scope: SYSTEM)
-Mục đích: ma trận quyền theo role do Hiệu trưởng bật/tắt (ADR-0017); có dòng = role có quyền. Migration: `V7__create_permissions.sql` (seed = quyền mặc định của enum `Permission`).
+## permission_grants  (module: identity-access, scope: SYSTEM)
+Mục đích: một bảng cho cả ma trận quyền theo role do Hiệu trưởng bật/tắt và ngoại lệ quyền từng người (ADR-0017). Dòng role (`role` có giá trị, `user_id` NULL): có dòng = role có quyền. Dòng người (`user_id` có giá trị, `role` NULL): GRANT/REVOKE so với ma trận. Migration: `V82__consolidate_auth_tables.sql` (gộp `role_permissions` + `user_permission_overrides` của V7/V38/V40, seed = quyền mặc định của enum `Permission`). Code: entity `RolePermission` và `UserPermissionOverride` cùng map bảng này, mỗi entity chỉ thấy phần dòng của mình (`@SQLRestriction`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
-| role | VARCHAR(20) | không | Chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK, `TEAM_LEADER` từ V38); role khác cố định trong code. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23 |
+| role | VARCHAR(20) | có | Dòng role: chỉ `VICE_PRINCIPAL`/`TEACHER`/`KITCHEN_STAFF`/`TEAM_LEADER` (CHECK, `TEAM_LEADER` từ V38); role khác cố định trong code. `TEAM_LEADER` không phải realm role: áp cho GV có phân công `AGE_GROUP_TEAM_LEADER` còn hiệu lực | AUTH-11, AUTH-23 |
+| user_id | BIGINT | có | Dòng người: FK `user_accounts`, người được cấp/thu quyền. Đúng một trong `role`/`user_id` có giá trị (CHECK) | AUTH-10 |
 | permission_code | VARCHAR(64) | không | Mã enum `Permission` (lưu chuỗi; mã lạ bị bỏ qua khi tính quyền) | AUTH-10 |
-| updated_by | BIGINT | có | FK `user_accounts`; null với dòng seed | AUTH-14 |
-| updated_at | TIMESTAMPTZ | không | Thời điểm bật | — |
-Index: `uk_role_permissions_role_permission` (role, permission_code).
-
-## user_permission_overrides  (module: identity-access, scope: SYSTEM)
-Mục đích: ngoại lệ quyền của từng người so với ma trận role (ADR-0017). Migration: V7, V40 (`scope`).
-| Column | Type | Null | Ý nghĩa | Rule ID |
-| --- | --- | --- | --- | --- |
-| id | BIGINT identity | không | Khóa chính | — |
-| user_id | BIGINT | không | FK `user_accounts`, người được cấp/thu quyền | AUTH-10 |
-| permission_code | VARCHAR(64) | không | Mã enum `Permission` | AUTH-10 |
-| effect | VARCHAR(10) | không | `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định) | AUTH-10, AUTH-13 |
-| scope | VARCHAR(10) | có | Chỉ GRANT (CHECK): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (chỉ mã sửa theo mảng — API kiểm); REVOKE luôn NULL (ADR-0023) | AUTH-20 |
-| reason | VARCHAR(500) | không | Lý do | AUTH-14 |
-| created_by | BIGINT | không | FK `user_accounts`, người sửa gần nhất; CHECK `created_by <> user_id` | AUTH-12 |
+| effect | VARCHAR(10) | có | Chỉ dòng người: `GRANT` (cộng thêm) / `REVOKE` (thu hồi phần ma trận, không trừ phần cố định); dòng role NULL | AUTH-10, AUTH-13 |
+| scope | VARCHAR(10) | có | Chỉ GRANT (CHECK): `CAMPUS` = điểm trường PHT đang phân công, `SCHOOL` = mọi điểm trường (chỉ mã sửa theo mảng — API kiểm); REVOKE và dòng role NULL (ADR-0023) | AUTH-20 |
+| reason | VARCHAR(500) | có | Lý do; bắt buộc ở dòng người | AUTH-14 |
+| granted_by | BIGINT | có | FK `user_accounts`: người bật ô ma trận (null với dòng seed) / người sửa ngoại lệ gần nhất (bắt buộc, CHECK khác `user_id`) | AUTH-12, AUTH-14 |
 | created_at, updated_at | TIMESTAMPTZ | không | Thời điểm tạo/sửa | — |
-Index: `uk_user_permission_overrides_user_permission` (user_id, permission_code).
+Index: `uk_permission_grants_role_permission` (role, permission_code) WHERE role IS NOT NULL; `uk_permission_grants_user_permission` (user_id, permission_code) WHERE user_id IS NOT NULL.
 
 ## permission_change_log  (module: identity-access, scope: SYSTEM)
 Mục đích: lịch sử mọi thay đổi ma trận/ngoại lệ, chỉ thêm (AUTH-14). Migration: V7, V40 (`before_scope`, `after_scope`).

@@ -330,7 +330,7 @@ class ChildEnrollmentIntegrationTest {
         assertThat(account).containsEntry("citizen_id", "001234567890").containsEntry("primary_role", "PARENT");
         long accountId = ((Number) account.get("id")).longValue();
         assertThat(count(
-                        "SELECT count(*) FROM guardian_child_links WHERE user_id = ? AND child_id = ?",
+                        "SELECT count(*) FROM child_guardians WHERE user_id = ? AND child_id = ?",
                         accountId,
                         child.id()))
                 .isEqualTo(1);
@@ -508,7 +508,7 @@ class ChildEnrollmentIntegrationTest {
         });
         assertThat(response.child().guardians().get(1).accountStatus()).isEqualTo(GuardianAccountStatus.NOT_ACTIVATED);
         assertThat(count(
-                        "SELECT count(*) FROM guardian_child_links WHERE user_id = ? AND child_id = ?",
+                        "SELECT count(*) FROM child_guardians WHERE user_id = ? AND child_id = ?",
                         existingParent,
                         response.child().id()))
                 .isEqualTo(1);
@@ -839,7 +839,7 @@ class ChildEnrollmentIntegrationTest {
                 .isEqualTo("0918888002");
         assertThat(count("SELECT count(*) FROM user_accounts")).isEqualTo(before + 1);
         assertThat(count(
-                        "SELECT count(*) FROM guardian_child_links WHERE child_id = ?",
+                        "SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL",
                         saved.child().id()))
                 .isEqualTo(1);
         assertThat(count("SELECT count(*) FROM user_accounts WHERE username = '0918888001'"))
@@ -864,7 +864,7 @@ class ChildEnrollmentIntegrationTest {
                 .getFirst();
         entityManager.flush();
         assertThat(count("SELECT count(*) FROM user_accounts")).isEqualTo(before);
-        assertThat(count("SELECT count(*) FROM guardian_child_links WHERE child_id = ?", childId))
+        assertThat(count("SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL", childId))
                 .isZero();
         var candidates = selectedAccounts.candidates(vicePrincipal, childId);
         Long old = candidates.get(0).id();
@@ -880,7 +880,7 @@ class ChildEnrollmentIntegrationTest {
         assertThat(selectedAccounts.activate(vicePrincipal, childId, next))
                 .singleElement()
                 .satisfies(a -> assertThat(a.newAccount()).isFalse());
-        assertThat(count("SELECT count(*) FROM guardian_child_links WHERE child_id = ?", childId))
+        assertThat(count("SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL", childId))
                 .isEqualTo(1);
         expectCode(() -> selectedAccounts.select(vicePrincipal, childId, old), ApiCode.GUARDIAN_IDENTITY_CONFLICT);
     }
@@ -1067,15 +1067,17 @@ class ChildEnrollmentIntegrationTest {
         Long childId = saved.child().id();
         Long selectedUser = selectedAccounts.selectedAccountId(principal, childId);
         jdbc.update("UPDATE child_guardians SET phone = '0901000001' WHERE child_id = ?", childId);
+        // Một phụ huynh khác của trẻ cũng đã có tài khoản: chiếu vẫn theo người được chọn, không theo SĐT trùng
         jdbc.update(
-                "INSERT INTO guardian_child_links (child_id, user_id, relationship) VALUES (?, ?, 'FATHER')",
+                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
+                        + " linked_at) VALUES (?, 1, 'Bố Legacy', 'FATHER', '0918888982', '999900000982', ?, now())",
                 childId,
                 existingParent);
         entityManager.clear();
         assertThat(legacyAccounts.listGuardians(principal, childId))
                 .singleElement()
                 .satisfies(g -> assertThat(g.userId()).isEqualTo(selectedUser));
-        assertThat(count("SELECT count(*) FROM guardian_child_links WHERE child_id = ?", childId))
+        assertThat(count("SELECT count(*) FROM child_guardians WHERE child_id = ? AND user_id IS NOT NULL", childId))
                 .isEqualTo(2);
     }
 
@@ -1171,21 +1173,16 @@ class ChildEnrollmentIntegrationTest {
     private void guardian(
             long childId, String fullName, String relationship, String phone, String citizenId, Long userId) {
         jdbc.update(
-                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id) "
-                        + "VALUES (?, 0, ?, ?, ?, ?, ?)",
+                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
+                        + " linked_at) VALUES (?, 0, ?, ?, ?, ?, ?, CASE WHEN CAST(? AS BIGINT) IS NULL THEN NULL"
+                        + " ELSE now() END)",
                 childId,
                 fullName,
                 relationship,
                 phone,
                 citizenId,
+                userId,
                 userId);
-        if (userId != null) {
-            jdbc.update(
-                    "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, ?)",
-                    userId,
-                    childId,
-                    relationship);
-        }
     }
 
     private long classroom(long campusId, long yearId, String name, long ageGroupId, int capacity) {

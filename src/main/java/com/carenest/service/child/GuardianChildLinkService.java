@@ -1,12 +1,15 @@
 package com.carenest.service.child;
 
 import com.carenest.dto.child.GuardianLinkResponse;
-import com.carenest.utils.enums.GuardianRelationship;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-/** Liên kết phụ huynh–trẻ (nguồn scope phụ huynh, AUTH-04); không gọi ngược policy (MODULE_MAP). */
+/**
+ * Liên kết phụ huynh–trẻ (nguồn scope phụ huynh, AUTH-04) = phụ huynh trên hồ sơ trẻ đã có tài khoản
+ * ({@code child_guardians.user_id}); không gọi ngược policy (MODULE_MAP). Tạo liên kết đi qua tiếp nhận / kích hoạt
+ * tài khoản phụ huynh ({@code ChildIntakeService}).
+ */
 public interface GuardianChildLinkService {
 
     boolean isGuardianOf(Long userId, Long childId);
@@ -21,9 +24,6 @@ public interface GuardianChildLinkService {
     /** childId → số phụ huynh đang liên kết (trẻ không có phụ huynh không có trong map). */
     Map<Long, Long> countGuardiansByChildIds(Collection<Long> childIds);
 
-    /** Đã liên kết ⇒ 409. Kiểm quyền người thao tác ở feature account. */
-    GuardianLinkResponse createLink(Long userId, Long childId, GuardianRelationship relationship);
-
-    /** Gỡ liên kết; tài khoản phụ huynh giữ nguyên (AUTH-19). */
+    /** Gỡ liên kết; tài khoản phụ huynh và thông tin phụ huynh trên hồ sơ giữ nguyên (AUTH-19). */
     void deleteLink(Long userId, Long childId);
 }

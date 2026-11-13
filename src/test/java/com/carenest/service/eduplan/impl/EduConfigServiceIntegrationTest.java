@@ -127,7 +127,7 @@ class EduConfigServiceIntegrationTest {
 
         assertThat(config.domains()).hasSize(5).allMatch(EduConfigResponse.Domain::standard);
         assertThat(config.signers().branch()).containsExactly("TEAM_LEADER", "VICE_PRINCIPAL");
-        // V124 (spec 005): thêm "Ăn, ngủ", đổi nhãn và thứ tự theo mẫu chung
+        // V125 (spec 005): thêm "Ăn, ngủ", đổi nhãn và thứ tự theo mẫu chung
         assertThat(config.weekRows())
                 .extracting(EduConfigResponse.WeekRow::key)
                 .containsExactly(

@@ -468,7 +468,7 @@ class ChildRecordIntegrationTest {
             boolean recipient) {
         jdbc.update(
                 "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
-                        + " account_recipient) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                        + " linked_at, account_recipient) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 childId,
                 position,
                 fullName,
@@ -476,14 +476,8 @@ class ChildRecordIntegrationTest {
                 phone,
                 citizenId,
                 userId,
+                userId == null ? null : java.sql.Timestamp.from(java.time.Instant.now()),
                 recipient);
-        if (userId != null) {
-            jdbc.update(
-                    "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, ?)",
-                    userId,
-                    childId,
-                    relationship);
-        }
     }
 
     private long classroom(long campusId, long yearId, String name, long ageGroupId) {

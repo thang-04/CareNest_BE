@@ -227,7 +227,8 @@ class ChildLeftSchoolIntegrationTest {
         long parentId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name, primary_role)"
                 + " VALUES ('kc-ls" + n + "', '" + phone + "', 'Phụ huynh demo', 'PARENT') RETURNING id");
         jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                "INSERT INTO child_guardians (user_id, child_id, position, full_name, relationship, phone, citizen_id,"
+                        + " linked_at) VALUES (?, ?, 0, 'Mẹ (giả)', 'MOTHER', '0900000009', '000000000009', now())",
                 parentId,
                 childId);
         return new CurrentUser(

@@ -13,7 +13,7 @@ com.carenest
 ├── entity/<feature>/       # JPA entity — không trả qua API
 ├── dto/<feature>/          # request/response DTO (dto/common: PageResponse, FieldErrorResponse)
 ├── mapper/<feature>/       # Entity <-> DTO
-├── integration/            # interface + adapter AI (AiClient), storage (FileStorage), notification, keycloak (Admin API)
+├── integration/            # adapter dịch vụ ngoài: keycloak (Admin API), storage (FileStorage), notification/push, sms; adapter AI chưa có
 ├── security/               # Resource Server Keycloak (ADR-0011): role converter, 401/403 handler; authorization/ = policy scope
 ├── config/                 # WebMvcConfig (prefix API), OpenApiConfig
 ├── exception/              # GlobalException, GlobalExceptionHandler
@@ -30,17 +30,17 @@ Một "module" trong `docs/modules/` = một **feature** trải qua các lớp (
 | Module (docs) | Feature sub-package | Ghi chú |
 | --- | --- | --- |
 | identity-access | `account` + `security/` + `integration/keycloak/` | Auth: Keycloak + Resource Server (ADR-0011); cấp tài khoản qua Keycloak Admin API |
-| school-structure | `organization` (PROPOSED) | Campus, Class, StaffAssignment |
+| school-structure | `organization` | Campus, Class, StaffAssignment |
 | child | `child` | |
 | attendance | `attendance` | Gồm đơn nghỉ |
 | nutrition | `meals` | Thực đơn (MealPlan), số suất, định lượng |
-| health | `health` (PROPOSED) | |
-| learning-observation | `observation` (PROPOSED) | |
+| health | `health` | |
+| learning-observation | `observation` | |
 | education-plan | `eduplan` | Kế hoạch giáo dục: kế hoạch năm, cấu hình, tài liệu lớp, học liệu (ADR-0020) |
-| notification | `notification` (PROPOSED) + `integration/` | |
-| audit | `audit` (PROPOSED) | AuditEvent |
-| ai-assistance | `integration/` (`AiClient`) | Không có service nghiệp vụ riêng |
-| reporting | `report` (PROPOSED) | Chỉ đọc |
+| notification | `notification` + `integration/push`, `integration/sms` | |
+| audit | chưa có package (thiết kế: `audit`) | AuditEvent |
+| ai-assistance | chưa có code (thiết kế: adapter trong `integration/`) | Không có service nghiệp vụ riêng |
+| reporting | chưa có package (thiết kế: `report`) | Chỉ đọc |
 
 ## Quy tắc ranh giới giữa feature (bổ sung guide mục 4)
 

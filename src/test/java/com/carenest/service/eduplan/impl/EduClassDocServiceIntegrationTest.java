@@ -919,7 +919,7 @@ class EduClassDocServiceIntegrationTest {
                 teacher.userId());
         String script = new String(
                 getClass()
-                        .getResourceAsStream("/db/migration/V125__edu_resource_library.sql")
+                        .getResourceAsStream("/db/migration/V126__edu_resource_library.sql")
                         .readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8);
         String data = script.substring(script.indexOf("ALTER TABLE edu_resource_items ADD COLUMN legacy_id"));

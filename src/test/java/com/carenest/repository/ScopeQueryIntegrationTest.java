@@ -123,7 +123,8 @@ class ScopeQueryIntegrationTest {
         insertEnrollment(childMovingToB1, classA1, "2026-09-01", "2026-10-14");
         insertEnrollment(childMovingToB1, classB1, "2026-10-15", null);
         jdbc.update(
-                "INSERT INTO guardian_child_links (user_id, child_id, relationship) VALUES (?, ?, 'MOTHER')",
+                "INSERT INTO child_guardians (user_id, child_id, position, full_name, relationship, phone, citizen_id,"
+                        + " linked_at) VALUES (?, ?, 0, 'Mẹ (giả)', 'MOTHER', '0900000009', '000000000009', now())",
                 parent,
                 childStayingInA1);
     }

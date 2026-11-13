@@ -10,7 +10,8 @@ SELECT r.child_id, r.date, r.date,
               'Đưa con đi khám theo lịch'])[abs(hashtext('l' || r.child_id || r.date::text)::bigint) % 4 + 1],
        p.user_id, ((r.date - 1) + TIME '19:00') AT TIME ZONE 'Asia/Ho_Chi_Minh'
 FROM attendance_records r
-JOIN LATERAL (SELECT l.user_id FROM guardian_child_links l WHERE l.child_id = r.child_id ORDER BY l.id LIMIT 1) p ON TRUE
+JOIN LATERAL (SELECT l.user_id FROM child_guardians l WHERE l.child_id = r.child_id AND l.user_id IS NOT NULL
+              ORDER BY l.id LIMIT 1) p ON TRUE
 WHERE r.status = 'EXCUSED' AND r.date BETWEEN DATE '2026-10-19' AND DATE '2026-11-04'
   AND NOT EXISTS (
       SELECT 1 FROM leave_requests q WHERE q.child_id = r.child_id AND r.date BETWEEN q.from_date AND q.to_date);
@@ -27,7 +28,7 @@ SELECT r.child_id, r.classroom_id, r.campus_id, r.date, 'HANDED_OVER',
        CASE WHEN h.k < 92 THEN g.relationship ELSE 'GRANDMOTHER' END,
        CASE WHEN h.k < 92 THEN g.phone ELSE '0903' || lpad(r.child_id::text, 6, '0') END,
        (r.date + TIME '16:30' + (h.m % 45) * INTERVAL '1 minute') AT TIME ZONE 'Asia/Ho_Chi_Minh',
-       (SELECT count(*) FROM guardian_child_links l WHERE l.child_id = r.child_id),
+       (SELECT count(*) FROM child_guardians l WHERE l.child_id = r.child_id AND l.user_id IS NOT NULL),
        r.recorded_by,
        (r.date + TIME '16:30' + (h.m % 45) * INTERVAL '1 minute') AT TIME ZONE 'Asia/Ho_Chi_Minh'
 FROM attendance_records r
@@ -62,7 +63,7 @@ SELECT l.user_id, 'CHILD_PICKED_UP', 'Bé đã được đón',
        CASE WHEN p.date < DATE '2026-11-03' THEN p.handed_over_at + INTERVAL '20 minutes' END
 FROM pickup_records p
 JOIN children ch ON ch.id = p.child_id
-JOIN guardian_child_links l ON l.child_id = p.child_id
+JOIN child_guardians l ON l.child_id = p.child_id AND l.user_id IS NOT NULL
 WHERE p.outcome = 'HANDED_OVER' AND p.date BETWEEN DATE '2026-10-19' AND DATE '2026-11-04'
   AND NOT EXISTS (
       SELECT 1 FROM notifications n
