@@ -13,7 +13,12 @@ import org.springframework.security.oauth2.jwt.Jwt;
 class KeycloakRealmRoleConverterTest {
 
     static final ClientPlatformProperties PLATFORMS = new ClientPlatformProperties(
-            List.of("carenest-auth-gateway", "carenest-web"), List.of("carenest-mobile"), List.of("carenest-dev"));
+            List.of("carenest-auth-gateway", "carenest-web"),
+            List.of("carenest-mobile"),
+            List.of("carenest-dev"),
+            List.of(),
+            List.of(),
+            List.of());
 
     private final KeycloakRealmRoleConverter converter = new KeycloakRealmRoleConverter(PLATFORMS);
 
@@ -43,11 +48,19 @@ class KeycloakRealmRoleConverterTest {
     }
 
     @Test
-    @DisplayName("AUTH-21: App bỏ role Ban giám hiệu")
-    void mobileTokenDropsSchoolBoardRoles() {
-        Jwt jwt = jwt("carenest-mobile", Map.of("roles", List.of("PRINCIPAL", "TEACHER")));
+    @DisplayName("AUTH-21: App giữ role Ban giám hiệu (chỉ xem — ADR-0026), bỏ ADMIN")
+    void mobileTokenKeepsSchoolBoardRolesAndDropsAdmin() {
+        Jwt jwt = jwt("carenest-mobile", Map.of("roles", List.of("PRINCIPAL", "TEACHER", "ADMIN")));
 
-        assertThat(authorities(jwt)).containsExactly("ROLE_TEACHER");
+        assertThat(authorities(jwt)).containsExactlyInAnyOrder("ROLE_PRINCIPAL", "ROLE_TEACHER");
+    }
+
+    @Test
+    @DisplayName("AUTH-21: ADMIN dùng App ⇒ authority từ chối")
+    void adminOnlyMobileTokenIsDenied() {
+        Jwt jwt = jwt("carenest-mobile", Map.of("roles", List.of("ADMIN")));
+
+        assertThat(authorities(jwt)).containsExactly(ClientPlatform.DENIED_AUTHORITY);
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.carenest.config;
 import com.carenest.security.ClientPlatformProperties;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.KeycloakRealmRoleConverter;
+import com.carenest.security.MobileStaffReadOnlyFilter;
 import com.carenest.security.RestAccessDeniedHandler;
 import com.carenest.security.RestAuthenticationEntryPoint;
 import com.carenest.security.authorization.PermissionGuard;
@@ -42,9 +43,11 @@ import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import tools.jackson.databind.ObjectMapper;
 
 // Resource Server giữ Bearer API; Web gateway opt-in dùng cookie và CSRF theo ADR-0013.
 @Configuration
@@ -65,6 +68,9 @@ public class SecurityConfig {
             HttpSecurity http,
             AuthProperties authProperties,
             KeycloakRealmRoleConverter realmRoleConverter,
+            ClientPlatformProperties platforms,
+            ObjectProvider<PlatformTransactionManager> transactionManagers,
+            ObjectMapper objectMapper,
             @Value("${carenest.api.prefix}") String apiPrefix)
             throws Exception {
         RequestMatcher authGet = authGetMatcher(apiPrefix);
@@ -120,6 +126,11 @@ public class SecurityConfig {
                         }))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(restAuthenticationEntryPoint)
                         .accessDeniedHandler(restAccessDeniedHandler));
+        // ADR-0026: BGH dùng App chỉ xem — chạy ngay sau khi JWT đã thành authentication, trước bước phân quyền
+        http.addFilterAfter(
+                new MobileStaffReadOnlyFilter(
+                        platforms, apiPrefix, transactionManagers.getIfUnique(), objectMapper),
+                BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 

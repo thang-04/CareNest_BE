@@ -39,12 +39,16 @@ Bổ sung 10/11/2026 (G94-180, yêu cầu đổi SĐT phụ huynh — AUTH-21): 
 
 Bổ sung 10/11/2026 (G94-180, hồ sơ sức khỏe đầy đủ): bản giải thích xu hướng sức khỏe không tìm thấy 5040 (404). Dùng lại 8001/8002 cho AI giải thích xu hướng, 5025 cho nhân sự ngoài phạm vi, 9001 + ô cho sửa khai báo sức khỏe (bảng dưới). Cần thêm vào bản Word của Cần.
 
+Bổ sung 13/11/2026 (BGH dùng App chỉ xem — AUTH-21, ADR-0026; chưa có code, plan `docs/plans/active/2026-11-13-bgh-mobile-view-only.md`): mở khối 13xx riêng để không tranh số với 11xx. `MOBILE_STAFF_READ_ONLY` (1301, 403) "Ban giám hiệu chỉ xem trên App, vui lòng thao tác trên CareNest Web" — lệnh ghi của tài khoản chỉ có role BGH từ App, hoặc GET ngoài danh sách cho phép. `MOBILE_STAFF_WRITE_BLOCKED` (1302, 403) "Thao tác này không thực hiện được trên App" — một GET cố ghi DB khi BGH xem trên App (lỗi BE cần sửa). App gặp 1301/1302 ⇒ báo thao tác trên Web, không retry. Nhánh cần mã mới trong khối dùng chung ⇒ ghi giữ chỗ dải số vào đoạn "Bổ sung" của file này trước khi code.
+
 Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
 
 | Dải | Phân hệ |
 | --- | --- |
 | 10xx | Xác thực |
 | 11xx | Tài khoản & phân quyền |
+| 12xx | Thông báo |
+| 13xx | Quyền theo nền tảng App/Web (ADR-0026); 14xx dự phòng cho nhóm này |
 | 20xx | Năm học |
 | 21xx | Điểm trường & phòng |
 | 22xx | Nhóm tuổi & lớp |

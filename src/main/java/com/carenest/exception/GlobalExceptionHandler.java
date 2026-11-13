@@ -1,8 +1,10 @@
 package com.carenest.exception;
 
 import com.carenest.dto.common.FieldErrorResponse;
+import com.carenest.security.MobileStaffReadOnlyFilter;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
@@ -159,7 +161,17 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ResponseJson<Void>> handleUnexpected(Exception ex) {
+    public ResponseEntity<ResponseJson<Void>> handleUnexpected(Exception ex, HttpServletRequest request) {
+        // ADR-0026: BGH xem trên App chạy trong transaction chỉ đọc; GET nào cố ghi là lỗi BE cần sửa
+        if (Boolean.TRUE.equals(request.getAttribute(MobileStaffReadOnlyFilter.READ_ONLY_REQUEST_ATTRIBUTE))
+                && MobileStaffReadOnlyFilter.isReadOnlyViolation(ex)) {
+            log.warn(
+                    "[handleUnexpected]|readOnlyViolation|method={}|path={}|type={}",
+                    request.getMethod(),
+                    request.getRequestURI(),
+                    ex.getClass().getSimpleName());
+            return error(ApiCode.MOBILE_STAFF_WRITE_BLOCKED);
+        }
         log.error("[handleUnexpected]|type={}", ex.getClass().getSimpleName(), ex);
         return error(ApiCode.INTERNAL_ERROR);
     }

@@ -124,6 +124,11 @@ public enum ApiCode {
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
 
+    // ========== 13xx QUYỀN THEO NỀN TẢNG APP/WEB (ADR-0026; 14xx dự phòng) ==========
+    MOBILE_STAFF_READ_ONLY(
+            1301, HttpStatus.FORBIDDEN, "Ban giám hiệu chỉ xem trên App, vui lòng thao tác trên CareNest Web"),
+    MOBILE_STAFF_WRITE_BLOCKED(1302, HttpStatus.FORBIDDEN, "Thao tác này không thực hiện được trên App"),
+
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),
     NO_ACTIVE_SCHOOL_YEAR(2002, HttpStatus.NOT_FOUND, "Chưa có năm học đang hoạt động"),

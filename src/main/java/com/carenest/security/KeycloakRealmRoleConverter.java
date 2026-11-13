@@ -32,7 +32,8 @@ public class KeycloakRealmRoleConverter implements Converter<Jwt, Collection<Gra
 
     @Override
     public Collection<GrantedAuthority> convert(Jwt jwt) {
-        // AUTH-21: GV kiêm phụ huynh trên Web chỉ còn role GV; phụ huynh/bếp trên Web, BGH trên App không còn role nào
+        // AUTH-21: GV kiêm phụ huynh trên Web chỉ còn role GV; phụ huynh/bếp trên Web, ADMIN trên App không còn role
+        // nào. BGH trên App giữ role nhưng chỉ xem (MobileStaffReadOnlyFilter, ADR-0026)
         Set<CareNestRole> allowed = platforms
                 .platformOf(jwt.getClaimAsString(AUTHORIZED_PARTY_CLAIM))
                 .map(ClientPlatform::allowedRoles)

@@ -1,6 +1,6 @@
 # ADR-0022 — Chặn theo nền tảng bằng client của token (`azp`)
 
-- Status: ACCEPTED
+- Status: ACCEPTED; thay một phần bởi ADR-0026 (2026-11-13: BGH dùng App chỉ xem — MOBILE nhận thêm PRINCIPAL, VICE_PRINCIPAL ở dạng chỉ xem)
 - Date: 2026-10-30
 - Liên quan: AUTH-21, ADR-0011, ADR-0013, plan `docs/plans/active/2026-10-30-multi-role-phone-identity.md`
 

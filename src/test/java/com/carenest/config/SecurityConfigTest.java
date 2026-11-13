@@ -1,9 +1,14 @@
 package com.carenest.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -18,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -26,8 +32,12 @@ import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 /**
  * Kiểm filter chain thật (Bearer token → JwtDecoder → role converter → @PreAuthorize).
@@ -35,10 +45,19 @@ import org.springframework.test.web.servlet.MockMvc;
  */
 @WebMvcTest(SecurityTestController.class)
 @Import({WebMvcConfig.class, SecurityConfig.class, RestAuthenticationEntryPoint.class, RestAccessDeniedHandler.class})
+@TestPropertySource(
+        properties = {
+            "carenest.security.platform.mobile-staff-read-paths="
+                    + "GET /security-test/staff,GET /security-test/staff-write-attempt,"
+                    + "GET /security-test/staff-system-write",
+            "carenest.security.platform.mobile-staff-write-exceptions=POST /security-test/notification-read",
+            "carenest.security.platform.mobile-staff-system-write-paths=GET /security-test/staff-system-write"
+        })
 class SecurityConfigTest {
 
     private static final String TEACHER_ENDPOINT = "/api/security-test/teacher";
     private static final String AUTHENTICATED_ENDPOINT = "/api/security-test/authenticated";
+    private static final String STAFF_ENDPOINT = "/api/security-test/staff";
     private static final String WEB_CLIENT = "carenest-auth-gateway";
     private static final String MOBILE_CLIENT = "carenest-mobile";
     private static final String ALLOWED_ORIGIN = "http://localhost:3000";
@@ -51,6 +70,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private CurrentUserService currentUserService;
+
+    @MockitoBean
+    private PlatformTransactionManager transactionManager;
 
     @Test
     void shouldRejectRequestWithoutToken() throws Exception {
@@ -120,13 +142,137 @@ class SecurityConfigTest {
     }
 
     @Test
-    @DisplayName("AUTH-21: Ban giám hiệu không dùng App")
-    void shouldForbidPrincipalOnMobileToken() throws Exception {
-        given(jwtDecoder.decode("mobile-principal"))
-                .willReturn(clientJwt("mobile-principal", MOBILE_CLIENT, "PRINCIPAL"));
+    @DisplayName("AUTH-21: BGH thuần trên App gọi GET ngoài danh sách cho phép ⇒ 1301")
+    void shouldRejectStaffReadOutsideAllowListOnMobile() throws Exception {
+        givenToken("mobile-principal", MOBILE_CLIENT, "PRINCIPAL");
 
         mockMvc.perform(get(AUTHENTICATED_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-principal"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(1301));
+        verify(transactionManager, never()).getTransaction(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: BGH xem được trên App, trong transaction chỉ đọc")
+    void shouldAllowStaffReadOnMobileInReadOnlyTransaction() throws Exception {
+        givenToken("mobile-principal", MOBILE_CLIENT, "PRINCIPAL");
+        given(transactionManager.getTransaction(any())).willReturn(new SimpleTransactionStatus());
+
+        mockMvc.perform(get(STAFF_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-principal"))
+                .andExpect(status().isOk());
+        ArgumentCaptor<TransactionDefinition> definition = ArgumentCaptor.forClass(TransactionDefinition.class);
+        verify(transactionManager).getTransaction(definition.capture());
+        assertThat(definition.getValue().isReadOnly()).isTrue();
+    }
+
+    @Test
+    @DisplayName("AUTH-21: BGH thuần trên App không ghi được, kể cả thao tác của chính mình ⇒ 1301")
+    void shouldRejectStaffWriteOnMobile() throws Exception {
+        givenToken("mobile-vp", MOBILE_CLIENT, "VICE_PRINCIPAL");
+
+        mockMvc.perform(post(STAFF_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-vp"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(1301));
+        mockMvc.perform(post(AUTHENTICATED_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-vp"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(1301));
+    }
+
+    @Test
+    @DisplayName("AUTH-21: GET cố ghi DB khi BGH xem trên App ⇒ 1302")
+    void shouldMapReadOnlyViolationForStaffOnMobile() throws Exception {
+        givenToken("mobile-principal", MOBILE_CLIENT, "PRINCIPAL");
+        given(transactionManager.getTransaction(any())).willReturn(new SimpleTransactionStatus());
+
+        mockMvc.perform(get(STAFF_ENDPOINT + "-write-attempt")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mobile-principal"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(1302));
+    }
+
+    @Test
+    @DisplayName("AUTH-21: lỗi chỉ đọc ngoài luồng BGH trên App vẫn là lỗi hệ thống")
+    void shouldKeepReadOnlyViolationAsInternalErrorOnWeb() throws Exception {
+        givenToken("web-principal", WEB_CLIENT, "PRINCIPAL");
+
+        mockMvc.perform(get(STAFF_ENDPOINT + "-write-attempt")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer web-principal"))
+                .andExpect(status().isInternalServerError());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: GET lập dữ liệu hệ thống (sổ suất) không bọc chỉ đọc")
+    void shouldSkipReadOnlyTransactionForSystemWritePath() throws Exception {
+        givenToken("mobile-principal", MOBILE_CLIENT, "PRINCIPAL");
+
+        mockMvc.perform(get(STAFF_ENDPOINT + "-system-write")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mobile-principal"))
+                .andExpect(status().isOk());
+        verify(transactionManager, never()).getTransaction(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: BGH trên App được đánh dấu thông báo đã đọc, đăng ký thiết bị")
+    void shouldAllowNotificationWriteExceptionForStaffOnMobile() throws Exception {
+        givenToken("mobile-principal", MOBILE_CLIENT, "PRINCIPAL");
+
+        mockMvc.perform(post("/api/security-test/notification-read")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer mobile-principal"))
+                .andExpect(status().isOk());
+        verify(transactionManager, never()).getTransaction(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: PHT kiêm GV trên App vẫn ghi được việc của GV")
+    void shouldKeepTeacherWriteForMultiRoleStaffOnMobile() throws Exception {
+        givenToken("mobile-vp-teacher", MOBILE_CLIENT, "VICE_PRINCIPAL", "TEACHER");
+
+        mockMvc.perform(post(TEACHER_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-vp-teacher"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: PHT kiêm GV trên App không ghi được việc cần quyền BGH ⇒ 1101")
+    void shouldDropStaffRoleOnWriteForMultiRoleOnMobile() throws Exception {
+        givenToken("mobile-vp-teacher", MOBILE_CLIENT, "VICE_PRINCIPAL", "TEACHER");
+
+        mockMvc.perform(post(STAFF_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-vp-teacher"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(1101));
+    }
+
+    @Test
+    @DisplayName("AUTH-21: PHT kiêm GV trên App vẫn xem dữ liệu BGH, không bọc chỉ đọc")
+    void shouldKeepStaffReadForMultiRoleOnMobile() throws Exception {
+        givenToken("mobile-vp-teacher", MOBILE_CLIENT, "VICE_PRINCIPAL", "TEACHER");
+
+        mockMvc.perform(get(STAFF_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-vp-teacher"))
+                .andExpect(status().isOk());
+        verify(transactionManager, never()).getTransaction(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: BGH trên Web ghi như cũ")
+    void shouldKeepStaffWriteOnWeb() throws Exception {
+        givenToken("web-principal", WEB_CLIENT, "PRINCIPAL");
+
+        mockMvc.perform(post(STAFF_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer web-principal"))
+                .andExpect(status().isOk());
+        verify(transactionManager, never()).getTransaction(any());
+    }
+
+    @Test
+    @DisplayName("AUTH-21: ADMIN không dùng App ⇒ 1101")
+    void shouldForbidAdminOnMobileToken() throws Exception {
+        givenToken("mobile-admin", MOBILE_CLIENT, "ADMIN");
+
+        mockMvc.perform(get(AUTHENTICATED_ENDPOINT).header(HttpHeaders.AUTHORIZATION, "Bearer mobile-admin"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(1101));
+    }
+
+    private void givenToken(String tokenValue, String clientId, String... roles) {
+        given(jwtDecoder.decode(tokenValue)).willReturn(clientJwt(tokenValue, clientId, roles));
     }
 
     @Test
