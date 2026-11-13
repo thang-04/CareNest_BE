@@ -3,10 +3,13 @@ package com.carenest.service.observation.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.carenest.dto.eduplan.ApprovedDayLessonResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.ParentWeeklyCommentResponse;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeekOption;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentBoardResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentChildRow;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentDraftRequest;
@@ -16,6 +19,7 @@ import com.carenest.exception.GlobalException;
 import com.carenest.integration.ai.AiClient;
 import com.carenest.integration.ai.AiException;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.observation.WeeklyCommentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -26,6 +30,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,14 +50,15 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-/** Nhận xét tuần (OBS-29) trên PostgreSQL thật. Hôm nay = thứ 4, 28/10/2026; tuần đang xét 26–30/10/2026. */
+/** Nhận xét tuần (OBS-29) trên PostgreSQL thật. Hôm nay = thứ 6, 30/10/2026; tuần đang xét 26–30/10/2026. */
 @SpringBootTest
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class WeeklyCommentIntegrationTest {
 
     private static final LocalDate WEEK = LocalDate.of(2026, 10, 26);
-    private static final Instant NOW = Instant.parse("2026-10-28T03:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-10-30T03:00:00Z");
+    private static final ZoneId ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
 
     @Container
     @ServiceConnection
@@ -63,9 +69,38 @@ class WeeklyCommentIntegrationTest {
         @Bean
         @Primary
         Clock fixedClock() {
-            return Clock.fixed(NOW, ZoneId.of("Asia/Ho_Chi_Minh"));
+            return CLOCK;
         }
     }
+
+    // Đổi được "hôm nay" trong từng test (vd. thứ 5, trước ngày học cuối của tuần)
+    private static final MovableClock CLOCK = new MovableClock();
+
+    static final class MovableClock extends Clock {
+        private Instant now = NOW;
+
+        void set(Instant instant) {
+            now = instant;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZONE;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return Clock.fixed(now, zone);
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
+
+    @MockitoBean
+    private EduLessonQueryService lessonQueryService;
 
     @MockitoBean
     private AiClient aiClient;
@@ -92,6 +127,7 @@ class WeeklyCommentIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        CLOCK.set(NOW);
         long campusA = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-A', 'A', TRUE) RETURNING id");
         long campusB = insertId("INSERT INTO campuses (code, name, is_main) VALUES ('CS-B', 'B', FALSE) RETURNING id");
         long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
@@ -146,9 +182,9 @@ class WeeklyCommentIntegrationTest {
         WeeklyCommentChildRow an = row(board, child1);
         assertThat(an.status()).isEqualTo("DRAFT");
         assertThat(an.draftSource()).isEqualTo(WeeklyCommentSource.TEMPLATE);
-        assertThat(an.content()).contains("Tuần này con đi học 2/3 ngày").doesNotContain("An");
+        assertThat(an.content()).contains("Tuần này con đi học 2/5 ngày").doesNotContain("An");
         assertThat(an.data().presentDays()).isEqualTo(2);
-        assertThat(an.data().schoolDays()).isEqualTo(3);
+        assertThat(an.data().schoolDays()).isEqualTo(5);
         WeeklyCommentChildRow binh = row(board, child2);
         assertThat(binh.status()).isEqualTo("NONE");
         assertThat(binh.absentAllWeek()).isTrue();
@@ -180,7 +216,7 @@ class WeeklyCommentIntegrationTest {
         // Dữ liệu gửi AI không có họ tên, mã trẻ
         ArgumentCaptor<AiClient.AiRequest> sent = ArgumentCaptor.forClass(AiClient.AiRequest.class);
         verify(aiClient).complete(sent.capture());
-        assertThat(sent.getValue().userPrompt()).contains("Đi học 2/3").doesNotContain("An");
+        assertThat(sent.getValue().userPrompt()).contains("Đi học 2/5").doesNotContain("An");
 
         when(aiClient.complete(any())).thenThrow(new AiException(AiException.Reason.UNAVAILABLE, "down", null));
         WeeklyCommentBoardResponse fallback =
@@ -317,6 +353,91 @@ class WeeklyCommentIntegrationTest {
                     default -> Set.of();
                 };
         return new CurrentUser(id, "kc-" + username, username, username, null, Set.of(role), permissions);
+    }
+
+    @Test
+    @DisplayName("OBS-29: tuần chỉ mở từ ngày học cuối; trước đó chỉ xem, viết / lưu / gửi bị chặn")
+    void weekOpensOnLastLessonDay() {
+        CLOCK.set(Instant.parse("2026-10-29T03:00:00Z"));
+
+        WeeklyCommentBoardResponse board = service.getBoard(teacherA, classA, WEEK);
+        assertThat(board.week().source()).isEqualTo("CALENDAR");
+        assertThat(board.week().openFrom()).isEqualTo(WEEK.plusDays(4));
+        assertThat(board.week().open()).isFalse();
+        assertThat(board.canEdit()).isFalse();
+        assertThat(row(board, child1).status()).isEqualTo("NONE");
+        expectCode(
+                () -> service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Con học tốt.")),
+                ApiCode.WEEKLY_COMMENT_WEEK_NOT_ENDED);
+        expectCode(
+                () -> service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, child1, false, false)),
+                ApiCode.WEEKLY_COMMENT_WEEK_NOT_ENDED);
+        expectCode(
+                () -> service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt.")),
+                ApiCode.WEEKLY_COMMENT_WEEK_NOT_ENDED);
+
+        CLOCK.set(NOW);
+        assertThat(service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Con học tốt."))
+                        .canEdit())
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("OBS-29: tuần theo giáo án đã duyệt; nghỉ thứ 6 thì tuần là thứ 2–5 và mở từ thứ 5")
+    void lessonPlanWeekShortenedByHoliday() {
+        CLOCK.set(Instant.parse("2026-10-29T03:00:00Z"));
+        Map<LocalDate, ApprovedDayLessonResponse> lessons = new java.util.TreeMap<>();
+        for (int i = 0; i < 4; i++) {
+            LocalDate d = WEEK.plusDays(i);
+            lessons.put(d, new ApprovedDayLessonResponse(1L, WEEK, d, "Tuần 9", List.of()));
+        }
+        when(lessonQueryService.findApprovedDayLessons(eq(classA), any(), any()))
+                .thenReturn(lessons);
+
+        WeeklyCommentBoardResponse board = service.getBoard(teacherA, classA, WEEK);
+        WeekOption week = board.week();
+        assertThat(week.source()).isEqualTo("LESSON_PLAN");
+        assertThat(week.label()).isEqualTo("Tuần 9");
+        assertThat(week.from()).isEqualTo(WEEK);
+        assertThat(week.to()).isEqualTo(WEEK.plusDays(3));
+        assertThat(week.openFrom()).isEqualTo(WEEK.plusDays(3));
+        assertThat(week.open()).isTrue();
+        assertThat(board.canEdit()).isTrue();
+        // Mở tuần: GV vào xem thì có sẵn nháp theo mẫu câu cho trẻ đi học
+        assertThat(row(board, child1).status()).isEqualTo("DRAFT");
+        assertThat(row(board, child1).draftSource()).isEqualTo(WeeklyCommentSource.TEMPLATE);
+        assertThat(row(board, child1).data().schoolDays()).isEqualTo(4);
+        // Danh sách tuần: mới nhất trước, không có tuần tương lai; tuần chưa có giáo án theo lịch thứ 2–6
+        assertThat(board.weeks().getFirst().weekStart()).isEqualTo(WEEK);
+        assertThat(board.weeks().get(1).weekStart()).isEqualTo(WEEK.minusWeeks(1));
+        assertThat(board.weeks().get(1).source()).isEqualTo("CALENDAR");
+        assertThat(board.weeks().get(1).to()).isEqualTo(WEEK.minusDays(3));
+        assertThat(board.weeks()).allMatch(w -> !w.weekStart().isAfter(WEEK));
+    }
+
+    @Test
+    @DisplayName("OBS-29: việc sáng ngày học cuối tạo nháp còn thiếu, chạy lại không trùng, không đè bản cô đã sửa")
+    void openWeekDraftJobIsIdempotent() {
+        CLOCK.set(Instant.parse("2026-10-29T03:00:00Z"));
+        service.createOpenWeekDrafts();
+        assertThat(count(classA)).isZero();
+
+        CLOCK.set(NOW);
+        service.createOpenWeekDrafts();
+        assertThat(count(classA)).isEqualTo(1);
+        service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Cô tự viết."));
+        service.createOpenWeekDrafts();
+        assertThat(count(classA)).isEqualTo(1);
+        assertThat(row(service.getBoard(teacherA, classA, WEEK), child1).content())
+                .isEqualTo("Cô tự viết.");
+    }
+
+    private int count(long classroomId) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM weekly_comments WHERE classroom_id = ? AND week_start = ?",
+                Integer.class,
+                classroomId,
+                WEEK);
     }
 
     private void campusRole(CurrentUser user, long campusId) {

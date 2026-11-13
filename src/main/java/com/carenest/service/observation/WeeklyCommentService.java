@@ -26,4 +26,7 @@ public interface WeeklyCommentService {
     WeeklyCommentBoardResponse send(CurrentUser currentUser, WeeklyCommentSendRequest request);
 
     List<ParentWeeklyCommentResponse> listForParent(CurrentUser currentUser, Long childId);
+
+    /** Sáng ngày học cuối của tuần: tạo nháp theo mẫu câu cho trẻ chưa có nhận xét ở mọi lớp năm đang hoạt động. */
+    void createOpenWeekDrafts();
 }

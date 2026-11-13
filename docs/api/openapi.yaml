@@ -21910,6 +21910,27 @@ components:
         weekStart:
           type: string
           format: date
+    WeekOption:
+      type: object
+      properties:
+        from:
+          type: string
+          format: date
+        label:
+          type: string
+        open:
+          type: boolean
+        openFrom:
+          type: string
+          format: date
+        source:
+          type: string
+        to:
+          type: string
+          format: date
+        weekStart:
+          type: string
+          format: date
     WeekRow:
       type: object
       properties:
@@ -21950,12 +21971,18 @@ components:
           format: int64
         className:
           type: string
+        week:
+          $ref: "#/components/schemas/WeekOption"
         weekEnd:
           type: string
           format: date
         weekStart:
           type: string
           format: date
+        weeks:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeekOption"
     WeeklyCommentChildRow:
       type: object
       properties:

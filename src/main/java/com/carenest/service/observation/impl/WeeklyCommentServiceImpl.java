@@ -2,10 +2,12 @@ package com.carenest.service.observation.impl;
 
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.GuardianLinkResponse;
+import com.carenest.dto.eduplan.ApprovedDayLessonResponse;
 import com.carenest.dto.observation.EvaluationDtos.GoalCount;
 import com.carenest.dto.observation.EvaluationDtos.StructuredSummary;
 import com.carenest.dto.observation.WeeklyCommentDtos.ParentWeeklyCommentResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeekData;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeekOption;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentBoardResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentChildRow;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentDraftRequest;
@@ -21,9 +23,11 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.observation.WeeklyCommentService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EatingLevel;
@@ -39,16 +43,19 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -64,18 +71,20 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
 
     private final ObservationDayRules rules;
     private final EvaluationSources sources;
+    private final EduLessonQueryService lessonQueryService;
     private final EnrollmentService enrollmentService;
     private final GuardianChildLinkService guardianChildLinkService;
     private final NotificationService notificationService;
     private final AccountService accountService;
     private final ClassroomService classroomService;
+    private final StaffAssignmentService staffAssignmentService;
     private final WeeklyCommentRepository commentRepository;
     private final BehaviourTicketRepository ticketRepository;
     private final TemplateWeeklyCommentDraftGenerator templateGenerator;
     private final AiWeeklyCommentDraftGenerator aiGenerator;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public WeeklyCommentBoardResponse getBoard(CurrentUser currentUser, Long classId, LocalDate weekStart) {
         String logPrefix = LOG_PREFIX + "|getBoard|userId=" + currentUser.userId() + "|classId=" + classId;
         log.info("{}|START", logPrefix);
@@ -84,8 +93,17 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.EVALUATION_VIEW_FORBIDDEN);
             }
-            WeeklyCommentBoardResponse response = board(currentUser, cls, weekOf(cls, weekStart), false);
-            log.info("{}|END", logPrefix);
+            LocalDate week = weekOf(cls, weekStart);
+            // GV mở tuần đã tới ngày học cuối: tạo nháp còn thiếu (như việc chạy sáng hôm đó)
+            int created = 0;
+            if (cls.yearStatus() == SchoolYearStatus.ACTIVE
+                    && currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
+                    && rules.canRecord(currentUser, cls)
+                    && weekRange(cls, week).open()) {
+                created = createMissingDrafts(cls, week, currentUser.userId());
+            }
+            WeeklyCommentBoardResponse response = board(currentUser, cls, week, false);
+            log.info("{}|created={}|END", logPrefix, created);
             return response;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -102,6 +120,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         try {
             ClassroomInfoResponse cls = editableClass(currentUser, request.classId());
             LocalDate week = weekOf(cls, request.weekStart());
+            checkWeekOpen(cls, week);
             rules.lockClassForUpdate(cls.id());
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<Long> targets = request.childId() == null ? List.copyOf(roster.keySet()) : List.of(request.childId());
@@ -176,6 +195,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         try {
             ClassroomInfoResponse cls = editableClass(currentUser, request.classId());
             LocalDate week = weekOf(cls, request.weekStart());
+            checkWeekOpen(cls, week);
             String text = checkContent(request.content(), false);
             rules.lockClassForUpdate(cls.id());
             checkInClass(roster(cls, week), request.childId());
@@ -200,6 +220,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         try {
             ClassroomInfoResponse cls = editableClass(currentUser, request.classId());
             LocalDate week = weekOf(cls, request.weekStart());
+            checkWeekOpen(cls, week);
             rules.lockClassForUpdate(cls.id());
             Map<Long, ClassChildResponse> roster = roster(cls, week);
             List<WeeklyComment> toSend = new ArrayList<>();
@@ -271,6 +292,69 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional
+    // OBS-29: 06:00 thứ Hai–Sáu, tuần mở từ ngày học cuối ⇒ tạo nháp theo mẫu câu cho trẻ chưa có nhận xét; chạy lại
+    // không tạo trùng, không đè bản nháp hay bản đã gửi
+    @Scheduled(cron = "0 0 6 * * MON-FRI", zone = "${carenest.time-zone}")
+    public void createOpenWeekDrafts() {
+        String logPrefix = LOG_PREFIX + "|createOpenWeekDrafts";
+        log.info("{}|START", logPrefix);
+        try {
+            LocalDate today = rules.today();
+            LocalDate week = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            List<ClassroomInfoResponse> classes = classroomService.findActiveYearClassrooms().stream()
+                    .filter(c -> c.yearStatus() == SchoolYearStatus.ACTIVE)
+                    .filter(c -> !week.plusDays(SCHOOL_WEEK_DAYS).isBefore(c.yearStart()) && !week.isAfter(c.yearEnd()))
+                    .toList();
+            Map<Long, Long> homeroom = staffAssignmentService.findHomeroomTeacherIds(
+                    classes.stream().map(ClassroomInfoResponse::id).toList(), today);
+            Map<Long, List<Long>> teachers = staffAssignmentService.findCurrentTeacherIds(
+                    classes.stream().map(ClassroomInfoResponse::id).toList(), today);
+            int created = 0;
+            for (ClassroomInfoResponse cls : classes) {
+                Long author = homeroom.getOrDefault(
+                        cls.id(),
+                        teachers.getOrDefault(cls.id(), List.of()).stream()
+                                .findFirst()
+                                .orElse(null));
+                if (author == null || !weekRange(cls, week).open()) {
+                    continue;
+                }
+                created += createMissingDrafts(cls, week, author);
+            }
+            log.info("{}|classes={}|created={}|END", logPrefix, classes.size(), created);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    // Nháp mẫu câu cho trẻ có mặt trong tuần mà chưa có nhận xét; không đụng bản đã có (nháp hay đã gửi)
+    private int createMissingDrafts(ClassroomInfoResponse cls, LocalDate week, Long author) {
+        Map<Long, ClassChildResponse> roster = roster(cls, week);
+        if (roster.isEmpty() || comments(roster.keySet(), week).size() == roster.size()) {
+            return 0;
+        }
+        rules.lockClassForUpdate(cls.id());
+        Map<Long, WeeklyComment> existing = comments(roster.keySet(), week);
+        Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
+        int created = 0;
+        for (Long childId : roster.keySet()) {
+            ChildWeek w = data.get(childId);
+            if (existing.containsKey(childId) || w.facts().presentDays() == 0) {
+                continue;
+            }
+            WeeklyComment comment = WeeklyComment.create(
+                    childId, cls.id(), cls.campusId(), cls.schoolYearId(), week, author, rules.now());
+            comment.write(cut(templateGenerator.write(w.facts())), WeeklyCommentSource.TEMPLATE, author, rules.now());
+            commentRepository.save(comment);
+            created++;
+        }
+        commentRepository.flush();
+        return created;
     }
 
     // AUTH-03: chỉ GV đang dạy lớp ghi; năm học phải đang hoạt động (CFG-YR-01)
@@ -352,8 +436,9 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     }
 
     private Map<Long, ClassChildResponse> roster(ClassroomInfoResponse cls, LocalDate week) {
-        LocalDate from = max(week, cls.yearStart());
-        LocalDate to = min(min(week.plusDays(SCHOOL_WEEK_DAYS), cls.yearEnd()), rules.today());
+        WeekOption range = weekRange(cls, week);
+        LocalDate from = range.from();
+        LocalDate to = min(range.to(), rules.today());
         if (to.isBefore(from)) {
             return Map.of();
         }
@@ -372,8 +457,9 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     private record ChildWeek(WeeklyCommentDraftGenerator.WeekFacts facts, WeekData data) {}
 
     private Map<Long, ChildWeek> weekData(ClassroomInfoResponse cls, Set<Long> childIds, LocalDate week) {
-        LocalDate from = max(week, cls.yearStart());
-        LocalDate to = min(min(week.plusDays(SCHOOL_WEEK_DAYS), cls.yearEnd()), rules.today());
+        WeekOption range = weekRange(cls, week);
+        LocalDate from = range.from();
+        LocalDate to = min(range.to(), rules.today());
         int schoolDays = 0;
         for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
             if (rules.isSchoolDay(d)) {
@@ -473,15 +559,97 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                             w.data());
                 })
                 .toList();
+        List<WeekOption> weeks = weeks(cls);
+        WeekOption range = weeks.stream()
+                .filter(w -> w.weekStart().equals(week))
+                .findFirst()
+                .orElseGet(() -> weekRange(cls, week));
         return new WeeklyCommentBoardResponse(
                 cls.id(),
                 cls.name(),
                 week,
-                week.plusDays(SCHOOL_WEEK_DAYS),
+                range.to(),
+                range,
+                weeks,
                 aiGenerator.isEnabled(),
-                canEdit,
+                canEdit && range.open(),
                 aiFallback,
                 rows);
+    }
+
+    // OBS-29: tuần theo giáo án tuần đã duyệt của lớp (ngày học có kế hoạch ngày); tuần chưa có giáo án ⇒ thứ Hai–Sáu
+    private WeekOption weekRange(ClassroomInfoResponse cls, LocalDate week) {
+        LocalDate from = max(week, cls.yearStart());
+        LocalDate to = min(week.plusDays(SCHOOL_WEEK_DAYS), cls.yearEnd());
+        return option(cls, week, lessonWeeks(cls, from, to).get(week));
+    }
+
+    // Các tuần của năm học tới tuần hiện tại, mới nhất trước
+    private List<WeekOption> weeks(ClassroomInfoResponse cls) {
+        LocalDate last = min(rules.today(), cls.yearEnd());
+        if (last.isBefore(cls.yearStart())) {
+            return List.of();
+        }
+        LocalDate first = cls.yearStart().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        Map<LocalDate, LessonWeek> byWeek =
+                lessonWeeks(cls, cls.yearStart(), min(last.plusDays(SCHOOL_WEEK_DAYS), cls.yearEnd()));
+        List<WeekOption> out = new ArrayList<>();
+        for (LocalDate monday = last.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                !monday.isBefore(first);
+                monday = monday.minusWeeks(1)) {
+            out.add(option(cls, monday, byWeek.get(monday)));
+        }
+        return out;
+    }
+
+    // Mở viết từ ngày học cuối của tuần (giáo án tuần kết thúc sớm vì nghỉ lễ ⇒ mở từ ngày đó)
+    private WeekOption option(ClassroomInfoResponse cls, LocalDate monday, LessonWeek lesson) {
+        LocalDate from;
+        LocalDate to;
+        String label = null;
+        String source;
+        if (lesson != null) {
+            from = lesson.days().getFirst();
+            to = lesson.days().getLast();
+            label = lesson.label();
+            source = "LESSON_PLAN";
+        } else {
+            from = max(monday, cls.yearStart());
+            to = min(monday.plusDays(SCHOOL_WEEK_DAYS), cls.yearEnd());
+            source = "CALENDAR";
+        }
+        return new WeekOption(
+                monday, from, to, label, source, to, !rules.today().isBefore(to));
+    }
+
+    private record LessonWeek(List<LocalDate> days, String label) {}
+
+    // Ngày học có kế hoạch ngày đã duyệt, gom theo thứ Hai của giáo án tuần (bỏ ngày nghỉ)
+    private Map<LocalDate, LessonWeek> lessonWeeks(ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+        if (to.isBefore(from)) {
+            return Map.of();
+        }
+        Map<LocalDate, List<ApprovedDayLessonResponse>> grouped = new TreeMap<>();
+        lessonQueryService.findApprovedDayLessons(cls.id(), from, to).values().stream()
+                .filter(l -> rules.isSchoolDay(l.date()))
+                .sorted(Comparator.comparing(ApprovedDayLessonResponse::date))
+                .forEach(l -> grouped.computeIfAbsent(l.weekStart(), k -> new ArrayList<>())
+                        .add(l));
+        Map<LocalDate, LessonWeek> out = new HashMap<>();
+        grouped.forEach((monday, lessons) -> out.put(
+                monday,
+                new LessonWeek(
+                        lessons.stream().map(ApprovedDayLessonResponse::date).toList(),
+                        lessons.getFirst().weekLabel())));
+        return out;
+    }
+
+    // OBS-29: chưa tới ngày học cuối của tuần thì chỉ xem, chưa viết / gửi nhận xét
+    private void checkWeekOpen(ClassroomInfoResponse cls, LocalDate week) {
+        WeekOption range = weekRange(cls, week);
+        if (!range.open()) {
+            throw GlobalException.of(ApiCode.WEEKLY_COMMENT_WEEK_NOT_ENDED, DMY.format(range.openFrom()));
+        }
     }
 
     private void notifyParents(WeeklyComment comment, ClassChildResponse child) {

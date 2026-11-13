@@ -12,13 +12,16 @@ public final class WeeklyCommentDtos {
 
     /**
      * Bảng nhận xét tuần của lớp. aiEnabled: có dịch vụ AI để viết nháp; canEdit: GV đang dạy lớp, năm đang hoạt động.
-     * aiFallback: lần viết nháp này xin AI nhưng AI lỗi, đã viết theo mẫu câu.
+     * aiFallback: lần viết nháp này xin AI nhưng AI lỗi, đã viết theo mẫu câu. week: tuần đang xem; weeks: các tuần
+     * của năm học tới tuần hiện tại, mới nhất trước.
      */
     public record WeeklyCommentBoardResponse(
             Long classId,
             String className,
             LocalDate weekStart,
             LocalDate weekEnd,
+            WeekOption week,
+            List<WeekOption> weeks,
             boolean aiEnabled,
             boolean canEdit,
             boolean aiFallback,
@@ -39,6 +42,20 @@ public final class WeeklyCommentDtos {
             String sentByName,
             Instant updatedAt,
             WeekData data) {}
+
+    /**
+     * Tuần nhận xét (OBS-29): weekStart = thứ Hai (khóa lưu); from–to = ngày học có giáo án tuần đã duyệt (source
+     * LESSON_PLAN, label = tên tuần của giáo án) hoặc thứ Hai–Sáu khi chưa có giáo án (CALENDAR). Viết / gửi từ openFrom
+     * (ngày học cuối của tuần); open = hôm nay đã tới openFrom.
+     */
+    public record WeekOption(
+            LocalDate weekStart,
+            LocalDate from,
+            LocalDate to,
+            String label,
+            String source,
+            LocalDate openFrom,
+            boolean open) {}
 
     /** Số liệu tuần từ điểm danh, đánh giá hằng ngày, phiếu bé ngoan (căn cứ của bản nháp). */
     public record WeekData(
