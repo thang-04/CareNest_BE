@@ -57,6 +57,7 @@ Mục đích: năm học; lớp gắn với 1 năm học. Migration: V2.
 | start_date, end_date | DATE | không | CHECK `end_date > start_date`; service chặn chồng khoảng ngày với năm khác | — |
 | status | VARCHAR(20) | không | `PLANNED` / `ACTIVE` / `CLOSED` (V13, mặc định `PLANNED`); CLOSED chỉ đọc | — |
 | semester1_start, semester1_end, semester2_start, semester2_end | DATE | có | Thời gian HK I, HK II do Hiệu trưởng chọn (V44 semester1_end, V48 3 cột còn lại); CHECK `ck_school_years_semesters`: cả 4 NULL, hoặc start_date ≤ HK I bắt đầu ≤ HK I kết thúc < HK II bắt đầu ≤ HK II kết thúc ≤ end_date | — |
+| weekly_comment_deadline_days | SMALLINT | không | Hạn gửi nhận xét tuần (V128): số ngày học sau ngày học cuối của tuần, 0–5, mặc định 1 (CHECK `ck_school_years_weekly_comment_deadline_days`) | OBS-29 |
 | prep_date | DATE | có | Ngày mở chuẩn bị (V118): từ ngày này năm PLANNED mở cho GV xem lớp, trẻ đã xếp, soạn giáo án; NULL (dòng tạo ngoài service) ⇒ 1 tháng trước start_date; CHECK `ck_school_years_prep_date` prep_date ≤ start_date | CFG-YR-05 |
 | activated_at, activated_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lúc/người kích hoạt (V13) | AUTH-01 |
 | closed_at, closed_by | TIMESTAMPTZ, BIGINT FK user_accounts | có | Lúc/người kết thúc; kích hoạt năm mới tự đóng năm ACTIVE cũ (V13) | AUTH-01 |
@@ -94,15 +95,25 @@ Mục đích: nhận xét tuần theo trẻ gửi phụ huynh. Migration: V126.
 | sent_by / sent_at | BIGINT, TIMESTAMPTZ | có | Người, lúc gửi; có ⇔ SENT (CHECK) | OBS-29 |
 | created_* / updated_* / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Người tạo, lần lưu gần nhất, khóa lạc quan | OBS-29 |
 
-## weekly_comment_reopens  (module: learning-observation, scope: CHILD)
-Mục đích: lịch sử mở lại nhận xét tuần đã gửi (HT / PHT có quyền mở lại đánh giá). Migration: V127.
+## weekly_comment_unlocks  (module: learning-observation, scope: CLASS)
+Mục đích: mở lại nhận xét tuần đã khóa của một lớp – tuần tới hạn (HT / PHT có quyền mở lại đánh giá), như `assessment_day_unlocks`. Migration: V128 (thay `weekly_comment_reopens` của V127, đã bỏ).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
-| weekly_comment_id | BIGINT FK weekly_comments | không | Bản nhận xét được mở lại | OBS-29 |
-| reopened_by / reopened_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người, lúc mở lại | OBS-29 |
+| classroom_id / campus_id | BIGINT FK | không | Lớp, điểm trường | OBS-29 |
+| week_start | DATE | không | Thứ Hai của tuần (CHECK ISODOW = 1) | OBS-29 |
+| valid_until | TIMESTAMPTZ | không | Mở đến; kết thúc sớm ⇒ = lúc thu hồi | OBS-29 |
 | reason | VARCHAR(300) | không | Lý do, không trống (CHECK) | OBS-29 |
-| previous_content / previous_sent_at / previous_sent_by | TEXT, TIMESTAMPTZ, BIGINT FK | không | Nội dung, lúc gửi, người gửi trước khi mở lại | OBS-29 |
-Index: `idx_weekly_comment_reopens_comment (weekly_comment_id)`, `idx_weekly_comment_reopens_at (reopened_at DESC)`.
+| unlocked_by / unlocked_at, revoked_by / revoked_at | BIGINT FK, TIMESTAMPTZ | có (revoked) | Người, lúc mở; người, lúc kết thúc sớm | OBS-29 |
+Index: `idx_weekly_comment_unlocks_class_week (classroom_id, week_start)`, `idx_weekly_comment_unlocks_at (unlocked_at DESC)`.
+
+## weekly_comment_revisions  (module: learning-observation, scope: CHILD)
+Mục đích: GV sửa bản đã gửi (trong hạn hoặc khi được mở lại) ⇒ lưu nội dung đã gửi trước đó. Migration: V128.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| weekly_comment_id | BIGINT FK weekly_comments | không | Bản nhận xét | OBS-29 |
+| previous_content / previous_sent_at / previous_sent_by | TEXT, TIMESTAMPTZ, BIGINT FK | không | Nội dung, lúc gửi, người gửi trước khi sửa | OBS-29 |
+| changed_by / changed_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người, lúc sửa | OBS-29 |
+Index: `idx_weekly_comment_revisions_comment (weekly_comment_id)`.
 
 ## attendance_cutoffs  (module: school-structure, scope: SCHOOL)
 Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó.

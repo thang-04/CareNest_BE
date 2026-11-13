@@ -504,7 +504,7 @@ paths:
       - behaviour-ticket-controller
   /api/assessment/behaviour-tickets/overview:
     get:
-      operationId: getOverview_2
+      operationId: getOverview_3
       parameters:
       - in: query
         name: schoolYearId
@@ -727,7 +727,7 @@ paths:
       - class-rating-controller
   /api/assessment/day-unlocks:
     get:
-      operationId: getUnlocks_1
+      operationId: getUnlocks_2
       parameters:
       - in: query
         name: campusId
@@ -786,7 +786,7 @@ paths:
       - assessment-day-unlock-controller
   /api/assessment/day-unlocks/{unlockId}/revoke:
     post:
-      operationId: revokeUnlock_1
+      operationId: revokeUnlock_2
       parameters:
       - in: path
         name: unlockId
@@ -1001,7 +1001,7 @@ paths:
       - child-evaluation-controller
   /api/assessment/overview:
     get:
-      operationId: getOverview_1
+      operationId: getOverview_2
       parameters:
       - in: query
         name: period
@@ -1468,27 +1468,9 @@ paths:
           description: OK
       tags:
       - weekly-comment-controller
-  /api/assessment/weekly-comments/reopen:
-    post:
-      operationId: reopen
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/WeeklyCommentReopenRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonListWeeklyCommentReopenResponse"
-          description: OK
-      tags:
-      - weekly-comment-controller
-  /api/assessment/weekly-comments/reopens:
+  /api/assessment/weekly-comments/overview:
     get:
-      operationId: getReopens
+      operationId: getOverview_1
       parameters:
       - in: query
         name: campusId
@@ -1497,19 +1479,7 @@ paths:
           type: integer
           format: int64
       - in: query
-        name: classId
-        required: false
-        schema:
-          type: integer
-          format: int64
-      - in: query
-        name: from
-        required: false
-        schema:
-          type: string
-          format: date
-      - in: query
-        name: to
+        name: weekStart
         required: false
         schema:
           type: string
@@ -1519,7 +1489,7 @@ paths:
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/ResponseJsonListWeeklyCommentReopenResponse"
+                $ref: "#/components/schemas/ResponseJsonListWeeklyCommentClassSummary"
           description: OK
       tags:
       - weekly-comment-controller
@@ -1538,6 +1508,84 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/unlocks:
+    get:
+      operationId: getUnlocks_1
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: active
+        required: false
+        schema:
+          type: boolean
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListWeeklyCommentUnlockResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+    post:
+      operationId: unlock
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentUnlockRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentUnlockResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/unlocks/{unlockId}/revoke:
+    post:
+      operationId: revokeUnlock_1
+      parameters:
+      - in: path
+        name: unlockId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentUnlockResponse"
           description: OK
       tags:
       - weekly-comment-controller
@@ -7843,6 +7891,31 @@ paths:
           description: OK
       tags:
       - vice-principal-assignment-controller
+  /api/school-years/{schoolYearId}/weekly-comment-deadline:
+    put:
+      operationId: updateWeeklyCommentDeadline
+      parameters:
+      - in: path
+        name: schoolYearId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentDeadlineRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
+          description: OK
+      tags:
+      - school-year-controller
   /api/signatures/me:
     get:
       operationId: listSignatures
@@ -18960,7 +19033,7 @@ components:
         errorCode:
           type: integer
           format: int32
-    ResponseJsonListWeeklyCommentReopenResponse:
+    ResponseJsonListWeeklyCommentClassSummary:
       type: object
       properties:
         code:
@@ -18969,7 +19042,22 @@ components:
         data:
           type: array
           items:
-            $ref: "#/components/schemas/WeeklyCommentReopenResponse"
+            $ref: "#/components/schemas/WeeklyCommentClassSummary"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListWeeklyCommentUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyCommentUnlockResponse"
         desc:
           type: string
         errorCode:
@@ -19733,6 +19821,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonWeeklyCommentUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/WeeklyCommentUnlockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonYearCopyResponse:
       type: object
       properties:
@@ -20388,6 +20489,9 @@ components:
         updatedAt:
           type: string
           format: date-time
+        weeklyCommentDeadlineDays:
+          type: integer
+          format: int32
     SchoolYearRequest:
       type: object
       properties:
@@ -21988,11 +22092,16 @@ components:
     WeekOption:
       type: object
       properties:
+        deadline:
+          type: string
+          format: date
         from:
           type: string
           format: date
         label:
           type: string
+        locked:
+          type: boolean
         open:
           type: boolean
         openFrom:
@@ -22003,6 +22112,9 @@ components:
         to:
           type: string
           format: date
+        unlockedUntil:
+          type: string
+          format: date-time
         weekStart:
           type: string
           format: date
@@ -22090,6 +22202,35 @@ components:
         updatedAt:
           type: string
           format: date-time
+    WeeklyCommentClassSummary:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        overdue:
+          type: boolean
+        sent:
+          type: integer
+          format: int32
+        total:
+          type: integer
+          format: int32
+        week:
+          $ref: "#/components/schemas/WeekOption"
+    WeeklyCommentDeadlineRequest:
+      type: object
+      properties:
+        deadlineDays:
+          type: integer
+          format: int32
+      required:
+      - deadlineDays
     WeeklyCommentDraftRequest:
       type: object
       properties:
@@ -22109,73 +22250,6 @@ components:
       required:
       - classId
       - weekStart
-    WeeklyCommentReopenRequest:
-      type: object
-      properties:
-        childIds:
-          type: array
-          items:
-            type: integer
-            format: int64
-        classId:
-          type: integer
-          format: int64
-        reason:
-          type: string
-        weekStart:
-          type: string
-          format: date
-      required:
-      - classId
-      - weekStart
-    WeeklyCommentReopenResponse:
-      type: object
-      properties:
-        campusId:
-          type: integer
-          format: int64
-        childId:
-          type: integer
-          format: int64
-        childName:
-          type: string
-        classId:
-          type: integer
-          format: int64
-        className:
-          type: string
-        commentId:
-          type: integer
-          format: int64
-        id:
-          type: integer
-          format: int64
-        previousContent:
-          type: string
-        previousSentAt:
-          type: string
-          format: date-time
-        previousSentByName:
-          type: string
-        reason:
-          type: string
-        reopenedAt:
-          type: string
-          format: date-time
-        reopenedBy:
-          type: integer
-          format: int64
-        reopenedByName:
-          type: string
-        weekEnd:
-          type: string
-          format: date
-        weekFrom:
-          type: string
-          format: date
-        weekStart:
-          type: string
-          format: date
     WeeklyCommentSaveRequest:
       type: object
       properties:
@@ -22211,6 +22285,73 @@ components:
       required:
       - classId
       - weekStart
+    WeeklyCommentUnlockRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+        validUntil:
+          type: string
+          format: date-time
+        weekStart:
+          type: string
+          format: date
+      required:
+      - classId
+      - reason
+      - validUntil
+      - weekStart
+    WeeklyCommentUnlockResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        id:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: integer
+          format: int64
+        revokedByName:
+          type: string
+        unlockedAt:
+          type: string
+          format: date-time
+        unlockedBy:
+          type: integer
+          format: int64
+        unlockedByName:
+          type: string
+        validUntil:
+          type: string
+          format: date-time
+        weekEnd:
+          type: string
+          format: date
+        weekFrom:
+          type: string
+          format: date
+        weekStart:
+          type: string
+          format: date
     WindowInput:
       type: object
       properties:
