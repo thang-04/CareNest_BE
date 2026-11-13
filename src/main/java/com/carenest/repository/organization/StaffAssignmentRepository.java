@@ -13,16 +13,6 @@ import org.springframework.data.repository.query.Param;
 /** Mọi query lọc theo ngày: chỉ phân công có hiệu lực tại {@code date} mới tạo phạm vi. */
 public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment, Long> {
 
-    // Phân công PHT theo năm học (Cần chốt 12/11/2026): dòng PHT cũ để trống valid_to chỉ còn hiệu lực tới hết năm học
-    // đầu tiên tính từ valid_from, không tự nối sang năm sau
-    String VP_OPEN_WITHIN_YEAR = " and (a.validTo is not null"
-            + " or a.staffRole <> com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL"
-            + " or not exists (select y from SchoolYear y where y.endDate >= a.validFrom and y.endDate < :date))";
-
-    // Như trên cho truy vấn phân công PHT tính từ ngày :from
-    String VP_OPEN_FROM = " and (a.validTo is not null"
-            + " or not exists (select y from SchoolYear y where y.endDate >= a.validFrom and y.endDate < :from))";
-
     @Query("select a from StaffAssignment a where a.staffRole in :roles and a.validFrom <= :date"
             + " and (a.validTo is null or a.validTo >= :date) order by a.userId, a.id")
     List<StaffAssignment> findActiveByRoles(@Param("roles") Collection<StaffRole> roles, @Param("date") LocalDate date);
@@ -44,7 +34,7 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             select case when count(a) > 0 then true else false end from StaffAssignment a
             where a.userId = :userId and a.staffRole = :staffRole
               and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
-            """ + VP_OPEN_WITHIN_YEAR)
+            """)
     boolean existsActiveByRole(
             @Param("userId") Long userId, @Param("staffRole") StaffRole staffRole, @Param("date") LocalDate date);
 
@@ -61,7 +51,7 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             select case when count(a) > 0 then true else false end from StaffAssignment a
             where a.userId = :userId and a.staffRole = :staffRole and a.campusId = :campusId
               and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
-            """ + VP_OPEN_WITHIN_YEAR)
+            """)
     boolean existsActiveForCampus(
             @Param("userId") Long userId,
             @Param("staffRole") StaffRole staffRole,
@@ -119,11 +109,12 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             where u.id = a.userId and a.campusId = :campusId
               and a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL
               and (a.validTo is null or a.validTo >= :date)
-            """ + VP_OPEN_WITHIN_YEAR + " order by u.fullName")
+              order by u.fullName
+            """)
     List<String> findOpenVicePrincipalNames(@Param("campusId") Long campusId, @Param("date") LocalDate date);
 
     @Query("select a from StaffAssignment a where a.userId = :userId"
-            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)" + VP_OPEN_WITHIN_YEAR
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)"
             + " order by a.staffRole, a.id")
     List<StaffAssignment> findActiveByUserId(@Param("userId") Long userId, @Param("date") LocalDate date);
 
@@ -187,7 +178,7 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     // Người đang giữ một vai trò quản lý: PHT của campus (campusId) hoặc HT (campusId null)
     @Query("select distinct a.userId from StaffAssignment a where a.staffRole = :role"
             + " and (:campusId is null or a.campusId = :campusId)"
-            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)" + VP_OPEN_WITHIN_YEAR)
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
     List<Long> findActiveLeaderIds(
             @Param("role") StaffRole role, @Param("campusId") Long campusId, @Param("date") LocalDate date);
 
@@ -270,12 +261,11 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     // Phân công PHT giao với khoảng [from, to]; mới nhất trước
     @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL"
             + " and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)"
-            + VP_OPEN_FROM
             + " order by a.validFrom desc, a.id desc")
     List<StaffAssignment> findVicePrincipalAssignments(@Param("from") LocalDate from, @Param("to") LocalDate to);
 
     @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL"
-            + " and a.userId = :userId and (a.validTo is null or a.validTo >= :from)" + VP_OPEN_FROM
+            + " and a.userId = :userId and (a.validTo is null or a.validTo >= :from)"
             + " order by a.validFrom, a.id")
     List<StaffAssignment> findOpenVicePrincipalAssignments(@Param("userId") Long userId, @Param("from") LocalDate from);
 
@@ -285,7 +275,7 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             where a.staffRole = com.carenest.utils.enums.StaffRole.VICE_PRINCIPAL
               and a.campusId = :campusId and a.userId <> :userId
               and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)
-            """ + VP_OPEN_FROM)
+            """)
     boolean existsOtherVicePrincipalAtCampus(
             @Param("campusId") Long campusId,
             @Param("userId") Long userId,
@@ -325,9 +315,8 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     boolean existsSubstituteOn(
             @Param("userId") Long userId, @Param("classroomId") Long classroomId, @Param("date") LocalDate date);
 
-    // Có phân công vai trò (HT / PHT điểm trường :campusId, null = điểm trường nào cũng được) trong năm học
-    // :schoolYearId;
-    // dòng PHT để trống valid_to chỉ thuộc năm đầu tiên tính từ valid_from (Cần chốt 12/11/2026)
+    // Có phân công vai trò (HT / PHT điểm trường :campusId, null = điểm trường nào cũng được) giao với năm học
+    // :schoolYearId; phân công để trống valid_to còn hiệu lực tới khi HT đổi
     @Query(value = """
                     select case when count(*) > 0 then true else false end from staff_assignments a
                     join school_years y on y.id = :schoolYearId
@@ -335,9 +324,6 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
                       and (cast(:campusId as bigint) is null or a.campus_id = :campusId)
                       and a.valid_from <= y.end_date and (a.valid_to is null or a.valid_to >= y.start_date)
                       and (a.valid_to is null or a.valid_to >= a.valid_from)
-                      and (a.valid_to is not null or a.staff_role <> 'VICE_PRINCIPAL'
-                           or not exists (select 1 from school_years p
-                                          where p.end_date >= a.valid_from and p.end_date < y.start_date))
                     """, nativeQuery = true)
     boolean existsRoleInYear(
             @Param("userId") Long userId,
@@ -366,15 +352,14 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     List<StaffAssignment> findByUserIdOrderByValidFromDescIdDesc(Long userId);
 
     @Query("select a from StaffAssignment a where a.userId in :userIds"
-            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)" + VP_OPEN_WITHIN_YEAR
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)"
             + " order by a.staffRole, a.id")
     List<StaffAssignment> findActiveByUserIdIn(
             @Param("userIds") Collection<Long> userIds, @Param("date") LocalDate date);
 
     // Campus của phân công campus (PHT/bếp) theo role
     @Query("select distinct a.campusId from StaffAssignment a where a.userId = :userId and a.staffRole = :staffRole"
-            + " and a.campusId is not null and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)"
-            + VP_OPEN_WITHIN_YEAR)
+            + " and a.campusId is not null and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
     List<Long> findActiveCampusIds(
             @Param("userId") Long userId, @Param("staffRole") StaffRole staffRole, @Param("date") LocalDate date);
 

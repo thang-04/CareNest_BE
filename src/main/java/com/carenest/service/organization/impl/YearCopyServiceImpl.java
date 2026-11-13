@@ -220,8 +220,8 @@ public class YearCopyServiceImpl implements YearCopyService {
     }
 
     /**
-     * PHT và điểm trường phụ trách (mỗi năm học phân công lại — Cần chốt 12/11/2026); PHT đã có phân công ở năm đích thì
-     * giữ, không ghi đè. Quyền chức năng HT cấp gắn theo tài khoản nên tự giữ, không cần chép.
+     * PHT và điểm trường phụ trách: phân công PHT giữ qua các năm, sao chép chỉ bổ sung người chưa có phân công ở năm
+     * đích; PHT còn hiệu lực thì bỏ qua, không tạo trùng. Quyền chức năng HT cấp gắn theo tài khoản nên tự giữ.
      */
     private int copyVicePrincipals(
             CurrentUser currentUser, SchoolYear source, SchoolYear target, List<YearCopyResponse.Skipped> skipped) {

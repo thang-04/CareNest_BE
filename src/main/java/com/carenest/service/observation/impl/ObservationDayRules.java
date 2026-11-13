@@ -107,8 +107,9 @@ class ObservationDayRules {
     }
 
     /**
-     * Năm đã kết thúc (Cần chốt 12/11/2026): HT / PHT xem lại (chỉ xem) theo phân công của chính năm đó, kể cả khi năm
-     * nay không còn phân công; PHT theo điểm trường của năm đó, hoặc mọi điểm trường nếu quyền xem là toàn trường.
+     * Năm đã kết thúc: HT / PHT xem lại (chỉ xem) nếu có phân công giao với năm đó (phân công PHT để trống ngày kết thúc
+     * giữ qua các năm), kể cả khi năm nay không còn phân công; PHT theo điểm trường, hoặc mọi điểm trường nếu quyền xem là
+     * toàn trường.
      */
     boolean ledClosedYear(CurrentUser user, ClassroomInfoResponse cls) {
         if (cls.yearStatus() != SchoolYearStatus.CLOSED || !user.hasPermission(Permission.ASSESSMENT_VIEW)) {
