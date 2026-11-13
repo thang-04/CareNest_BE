@@ -60,6 +60,68 @@ class EduWorkflowAccessPolicyTest {
         assertThat(accessPolicy.canAuthorClassDoc(vp, policy, 3L, 100L)).isTrue();
     }
 
+    @Test
+    @DisplayName("EDU-90: xuất file theo thứ bậc HT > PHT > TT > GV so với người tạo")
+    void exportFollowsCreatorRoleHierarchy() {
+        Set<Role> ht = Set.of(Role.PRINCIPAL);
+        Set<Role> pht = Set.of(Role.VICE_PRINCIPAL);
+        Set<Role> tt = Set.of(Role.TEAM_LEADER, Role.TEACHER);
+        Set<Role> gv = Set.of(Role.TEACHER);
+        // HT tạo ⇒ chỉ HT
+        assertThat(EduPlanAccessPolicy.canExport(2L, ht, 1L, Role.PRINCIPAL)).isTrue();
+        assertThat(EduPlanAccessPolicy.canExport(2L, pht, 1L, Role.PRINCIPAL)).isFalse();
+        assertThat(EduPlanAccessPolicy.canExport(2L, tt, 1L, Role.PRINCIPAL)).isFalse();
+        // PHT tạo ⇒ PHT, HT
+        assertThat(EduPlanAccessPolicy.canExport(2L, ht, 1L, Role.VICE_PRINCIPAL))
+                .isTrue();
+        assertThat(EduPlanAccessPolicy.canExport(2L, pht, 1L, Role.VICE_PRINCIPAL))
+                .isTrue();
+        assertThat(EduPlanAccessPolicy.canExport(2L, tt, 1L, Role.VICE_PRINCIPAL))
+                .isFalse();
+        // TT tạo ⇒ TT, PHT, HT
+        assertThat(EduPlanAccessPolicy.canExport(2L, ht, 1L, Role.TEAM_LEADER)).isTrue();
+        assertThat(EduPlanAccessPolicy.canExport(2L, pht, 1L, Role.TEAM_LEADER)).isTrue();
+        assertThat(EduPlanAccessPolicy.canExport(2L, tt, 1L, Role.TEAM_LEADER)).isTrue();
+        assertThat(EduPlanAccessPolicy.canExport(2L, gv, 1L, Role.TEAM_LEADER)).isFalse();
+        // GV tạo / không rõ người tạo ⇒ mọi người xem được
+        assertThat(EduPlanAccessPolicy.canExport(2L, Set.of(), 1L, Role.TEACHER))
+                .isTrue();
+        assertThat(EduPlanAccessPolicy.canExport(2L, Set.of(), null, null)).isTrue();
+        // Người tạo luôn xuất được dù vai trò hiện tại thấp hơn
+        assertThat(EduPlanAccessPolicy.canExport(1L, gv, 1L, Role.VICE_PRINCIPAL))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("EDU-90: vai trò người tạo lấy theo phân công tại ngày tạo, TT tính cả phân công năm chuẩn bị")
+    void creatorRoleResolvedFromAssignmentsOnCreationDate() {
+        Instant createdAt = Instant.parse("2026-11-01T03:00:00Z");
+        LocalDate createdOn = LocalDate.of(2026, 11, 1);
+        given(staffAssignmentService.findActiveAssignments(30L, createdOn))
+                .willReturn(List.of(
+                        new com.carenest.dto.organization.StaffAssignmentSummaryResponse(
+                                StaffRole.TEACHER, 1L, 100L, null, createdOn, null),
+                        new com.carenest.dto.organization.StaffAssignmentSummaryResponse(
+                                StaffRole.AGE_GROUP_TEAM_LEADER, null, null, 3L, createdOn, null)));
+        assertThat(accessPolicy.creatorRole(30L, 9L, createdAt)).isEqualTo(Role.TEAM_LEADER);
+
+        given(staffAssignmentService.findActiveAssignments(31L, createdOn))
+                .willReturn(List.of(new com.carenest.dto.organization.StaffAssignmentSummaryResponse(
+                        StaffRole.TEACHER, 1L, 100L, null, createdOn, null)));
+        given(staffAssignmentService.findYearTeamLeaderAgeGroupIds(31L, 9L, createdOn))
+                .willReturn(Set.of(3L));
+        assertThat(accessPolicy.creatorRole(31L, 9L, createdAt)).isEqualTo(Role.TEAM_LEADER);
+
+        given(staffAssignmentService.findActiveAssignments(32L, createdOn))
+                .willReturn(List.of(new com.carenest.dto.organization.StaffAssignmentSummaryResponse(
+                        StaffRole.PRINCIPAL, null, null, null, createdOn, null)));
+        assertThat(accessPolicy.creatorRole(32L, 9L, createdAt)).isEqualTo(Role.PRINCIPAL);
+
+        given(staffAssignmentService.findActiveAssignments(33L, createdOn)).willReturn(List.of());
+        assertThat(accessPolicy.creatorRole(33L, 9L, createdAt)).isNull();
+        assertThat(accessPolicy.creatorRole(null, 9L, createdAt)).isNull();
+    }
+
     private static CurrentUser user(Long id, CareNestRole... roles) {
         return new CurrentUser(
                 id, "kc-" + id, "user" + id, "Người thử " + id, "user" + id + "@school.edu", Set.of(roles));

@@ -270,6 +270,50 @@ public class EduPlanAccessPolicy {
                 Set.copyOf(roles), Set.copyOf(campuses), Set.copyOf(ages), Set.copyOf(homeroomClasses));
     }
 
+    /**
+     * EDU-90: vai trò cao nhất của người tạo tại ngày tạo (HT/PHT/GV theo phân công hiệu lực ngày đó; Tổ trưởng gồm cả
+     * phân công năm học của tài liệu chưa bắt đầu - giai đoạn chuẩn bị). Không có phân công nào ⇒ null (không rõ).
+     */
+    public EduWorkflowPolicy.Role creatorRole(Long creatorId, Long schoolYearId, java.time.Instant createdAt) {
+        if (creatorId == null || createdAt == null) return null;
+        LocalDate createdOn = LocalDate.ofInstant(createdAt, clock.getZone());
+        return com.carenest.utils.RequestMemo.get(
+                "eduCreatorRole:" + creatorId + ":" + schoolYearId + ":" + createdOn, () -> {
+                    EduWorkflowPolicy.Role best = null;
+                    for (var a : staffAssignmentService.findActiveAssignments(creatorId, createdOn)) {
+                        EduWorkflowPolicy.Role role =
+                                switch (a.staffRole()) {
+                                    case PRINCIPAL -> EduWorkflowPolicy.Role.PRINCIPAL;
+                                    case VICE_PRINCIPAL -> EduWorkflowPolicy.Role.VICE_PRINCIPAL;
+                                    case AGE_GROUP_TEAM_LEADER -> EduWorkflowPolicy.Role.TEAM_LEADER;
+                                    case TEACHER -> EduWorkflowPolicy.Role.TEACHER;
+                                    default -> null;
+                                };
+                        if (role != null && (best == null || role.compareTo(best) > 0)) best = role;
+                    }
+                    if ((best == null || best.compareTo(EduWorkflowPolicy.Role.TEAM_LEADER) < 0)
+                            && schoolYearId != null
+                            && !staffAssignmentService
+                                    .findYearTeamLeaderAgeGroupIds(creatorId, schoolYearId, createdOn)
+                                    .isEmpty()) best = EduWorkflowPolicy.Role.TEAM_LEADER;
+                    return best;
+                });
+    }
+
+    /**
+     * EDU-90: người tạo và vai trò cao hơn (HT > PHT > TT > GV) được xuất file; GV tạo ⇒ ai xem được đều xuất.
+     * Không rõ vai trò người tạo (dữ liệu cũ) ⇒ ai xem được đều xuất. Chỉ gọi khi người dùng đã xem được tài liệu.
+     */
+    public static boolean canExport(
+            Long viewerId,
+            Set<EduWorkflowPolicy.Role> viewerRoles,
+            Long creatorId,
+            EduWorkflowPolicy.Role creatorRole) {
+        if (creatorRole == null || creatorRole == EduWorkflowPolicy.Role.TEACHER) return true;
+        if (Objects.equals(viewerId, creatorId)) return true;
+        return viewerRoles.stream().anyMatch(role -> role.compareTo(creatorRole) >= 0);
+    }
+
     public boolean canAuthorYearPlan(CurrentUser user, EduWorkflowPolicy.RolePolicy policy, Long ageGroupId) {
         return canAuthorYearPlan(user, policy, null, ageGroupId);
     }

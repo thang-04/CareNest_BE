@@ -1999,7 +1999,12 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                         && plan.getId().equals(currentId)
                         && chain.stream().allMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED)
                         && author
-                        && !timeLock.locked(plan));
+                        && !timeLock.locked(plan),
+                EduPlanAccessPolicy.canExport(
+                        user.userId(),
+                        accessPolicy.effectiveRoles(user, plan.getSchoolYearId()),
+                        plan.getOwnerId(),
+                        accessPolicy.creatorRole(plan.getOwnerId(), plan.getSchoolYearId(), plan.getCreatedAt())));
     }
 
     private final EduWorkflowPolicy evaluator = new EduWorkflowPolicy();

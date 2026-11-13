@@ -89,7 +89,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Map<Long, EduClassDoc> docsById,
             Map<String, EduClassDoc> docsByKey,
             Map<Long, SchoolYearDetailResponse> years,
-            Map<Long, LocalDate> opened) {}
+            Map<Long, LocalDate> opened,
+            // EDU-90: vai trò người tạo theo (người tạo, ngày tạo), tránh truy vấn lặp cho cả danh sách
+            Map<String, Optional<EduWorkflowPolicy.Role>> creatorRoles) {}
 
     private static final String ACTION_SUBMIT = "submit";
     private static final String ACTION_APPROVE = "approve";
@@ -589,7 +591,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     docsById,
                     docsByKey,
                     years,
-                    classroomService.findOpenedDates(classIds));
+                    classroomService.findOpenedDates(classIds),
+                    new HashMap<>());
             ClassDocsResponse response = new ClassDocsResponse(
                     toNodes(currentUser, docs, EduClassDoc.BRANCH, evaluations, context),
                     toNodes(currentUser, docs, EduClassDoc.THEME, evaluations, context),
@@ -2132,7 +2135,29 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         permissions.put("canApprove", yearOpen && reviewable && rootKind);
         permissions.put("canReturn", yearOpen && reviewable && rootKind);
         permissions.put("canReject", yearOpen && reviewable && rootKind);
+        // EDU-90: mỗi tài liệu (cả gói/hồ sơ) xét theo người tạo của chính nó
+        permissions.put(
+                "canExport",
+                EduPlanAccessPolicy.canExport(
+                        currentUser.userId(),
+                        context == null
+                                ? accessPolicy.effectiveRoles(currentUser, cls.schoolYearId())
+                                : context.scope().roles(),
+                        doc.getCreatedBy(),
+                        creatorRole(doc, cls.schoolYearId(), context)));
         return node;
+    }
+
+    private EduWorkflowPolicy.Role creatorRole(EduClassDoc doc, Long schoolYearId, ClassListContext context) {
+        if (context == null) return accessPolicy.creatorRole(doc.getCreatedBy(), schoolYearId, doc.getCreatedAt());
+        String key = doc.getCreatedBy() + ":" + schoolYearId + ":"
+                + (doc.getCreatedAt() == null ? null : LocalDate.ofInstant(doc.getCreatedAt(), clock.getZone()));
+        return context.creatorRoles()
+                .computeIfAbsent(
+                        key,
+                        k -> Optional.ofNullable(
+                                accessPolicy.creatorRole(doc.getCreatedBy(), schoolYearId, doc.getCreatedAt())))
+                .orElse(null);
     }
 
     // Nội dung kế hoạch chủ đề + giáo án tuần lúc ban hành, kèm chuỗi ký
