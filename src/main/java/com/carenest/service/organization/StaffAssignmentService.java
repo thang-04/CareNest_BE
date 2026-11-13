@@ -37,6 +37,9 @@ public interface StaffAssignmentService {
     /** Có phân công vai trò trong năm học (campusId null = mọi điểm trường); dùng cho xem lại năm đã kết thúc. */
     boolean hadRoleInYear(Long userId, StaffRole staffRole, Long campusId, Long schoolYearId);
 
+    /** GV / Tổ trưởng có phân công thuộc năm học đã có hiệu lực tới ngày date (CFG-YR-05). */
+    boolean hasStaffAssignmentInYear(Long userId, Long schoolYearId, LocalDate date);
+
     List<StaffAssignmentSummaryResponse> findActiveAssignments(Long userId, LocalDate date);
 
     /** Nhóm tuổi Tổ trưởng đang phụ trách (phân công AGE_GROUP_TEAM_LEADER còn hiệu lực). */

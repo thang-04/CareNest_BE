@@ -74,7 +74,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             boolean leader = isSchoolLeader(currentUser);
             List<SchoolYear> schoolYears = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
                     .filter(y -> status == null || y.getStatus() == status)
-                    .filter(y -> leader || isVisibleToStaff(y, today))
+                    .filter(y -> leader || isVisibleToStaff(currentUser, y, today))
                     .toList();
             Map<Long, Long> classCounts = schoolYears.isEmpty()
                     ? Map.of()
@@ -104,8 +104,8 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         log.info("{}|START", logPrefix);
         try {
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
-            // CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị
-            if (!isSchoolLeader(currentUser) && !isVisibleToStaff(schoolYear, LocalDate.now(clock))) {
+            // CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị, khi có phân công năm đó
+            if (!isSchoolLeader(currentUser) && !isVisibleToStaff(currentUser, schoolYear, LocalDate.now(clock))) {
                 throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
             }
             SchoolYearDetailResponse response = toDetail(schoolYear);
@@ -694,8 +694,12 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         return currentUser.hasRole(CareNestRole.PRINCIPAL) || currentUser.hasRole(CareNestRole.VICE_PRINCIPAL);
     }
 
-    private static boolean isVisibleToStaff(SchoolYear schoolYear, LocalDate today) {
-        return schoolYear.getStatus() != SchoolYearStatus.PLANNED || schoolYear.isPreparing(today);
+    // CFG-YR-05: năm sắp diễn ra chỉ hiện cho GV / Tổ trưởng được phân công năm đó, từ ngày mở chuẩn bị
+    private boolean isVisibleToStaff(CurrentUser currentUser, SchoolYear schoolYear, LocalDate today) {
+        return schoolYear.getStatus() != SchoolYearStatus.PLANNED
+                || (schoolYear.isPreparing(today)
+                        && staffAssignmentService.hasStaffAssignmentInYear(
+                                currentUser.userId(), schoolYear.getId(), today));
     }
 
     // CFG-YR-05: ngày mở chuẩn bị trước ngày bắt đầu, sau ngày kết thúc năm liền trước, không trước hôm nay; trống khi

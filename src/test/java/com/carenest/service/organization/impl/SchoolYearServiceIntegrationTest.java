@@ -147,10 +147,18 @@ class SchoolYearServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị; HT thấy mọi năm")
+    @DisplayName(
+            "CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị, khi được phân công năm đó; HT thấy mọi năm")
     void teacherSeesPlannedYearOnlyFromPrepDate() {
         SchoolYearDetailResponse next = service.createSchoolYear(principal, request(LocalDate.of(2027, 9, 1)));
-        CurrentUser teacher = new CurrentUser(99L, "kc-t", "t", "T", null, Set.of(CareNestRole.TEACHER));
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-t', 't.it', 'T') RETURNING id");
+        CurrentUser teacher = new CurrentUser(teacherId, "kc-t", "t.it", "T", null, Set.of(CareNestRole.TEACHER));
+        long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-V', 'Campus V') RETURNING id");
+        long ageGroup = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long cls = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
+                + campus + ", " + next.id() + ", 'Lớp V', " + ageGroup + ", 25) RETURNING id");
+        teacherRow(teacherId, cls, "2027-09-01");
 
         assertThat(service.getSchoolYears(teacher, null))
                 .extracting(SchoolYearDetailResponse::name)
@@ -161,7 +169,20 @@ class SchoolYearServiceIntegrationTest {
                 .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
 
         service.updateSchoolYear(principal, next.id(), request(LocalDate.of(2027, 8, 30)));
+        // Phân công theo ngày mở chuẩn bị mới (30/08 = hôm nay) ⇒ GV được phân công thấy năm
         assertThat(service.getSchoolYears(teacher, null)).hasSize(2);
+        assertThat(service.getSchoolYear(teacher, next.id()).id()).isEqualTo(next.id());
+
+        // GV không có phân công năm sau vẫn không thấy năm đó
+        long otherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-o', 'o.it', 'O') RETURNING id");
+        CurrentUser other = new CurrentUser(otherId, "kc-o", "o.it", "O", null, Set.of(CareNestRole.TEACHER));
+        assertThat(service.getSchoolYears(other, null))
+                .extracting(SchoolYearDetailResponse::name)
+                .containsExactly("2026-2027");
+        assertThatThrownBy(() -> service.getSchoolYear(other, next.id()))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.SCHOOL_YEAR_NOT_FOUND.format());
     }
 
     @Test

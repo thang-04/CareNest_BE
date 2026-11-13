@@ -331,6 +331,19 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("campusId") Long campusId,
             @Param("schoolYearId") Long schoolYearId);
 
+    // CFG-YR-05: GV / Tổ trưởng có phân công thuộc năm học (lớp của năm, hoặc tổ trưởng ghi năm) đã có hiệu lực tới
+    // :date
+    @Query(value = """
+                    select exists (select 1 from staff_assignments a
+                    left join classrooms c on c.id = a.classroom_id
+                    where a.user_id = :userId and a.staff_role in ('TEACHER', 'AGE_GROUP_TEAM_LEADER')
+                      and (c.school_year_id = :schoolYearId
+                           or (a.staff_role = 'AGE_GROUP_TEAM_LEADER' and a.school_year_id = :schoolYearId))
+                      and a.valid_from <= :date and (a.valid_to is null or a.valid_to >= a.valid_from))
+                    """, nativeQuery = true)
+    boolean existsStaffAssignmentInYear(
+            @Param("userId") Long userId, @Param("schoolYearId") Long schoolYearId, @Param("date") LocalDate date);
+
     interface VicePrincipalRow {
         Long getUserId();
 
