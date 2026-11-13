@@ -1399,7 +1399,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                         .noneMatch(d -> EduClassDoc.THEME.equals(d.getKind()) && themeId.equals(d.getThemeId()))) {
             throw GlobalException.of(ApiCode.THEME_PLAN_NOT_SAVED);
         }
-        // EDU-14 (Tiền 13/11/2026): tuần chưa có tên chủ đề nhánh thì chưa tạo kế hoạch tuần/ngày; bản đã tạo vẫn sửa được
+        // EDU-14 (Tiền 13/11/2026): tuần chưa có tên chủ đề nhánh thì chưa tạo kế hoạch tuần/ngày; bản đã tạo vẫn sửa
+        // được
         if ((EduClassDoc.WEEK.equals(kind) || EduClassDoc.DAY.equals(kind)) && weekStart != null) {
             boolean named = docs.stream()
                     .filter(d -> EduClassDoc.BRANCH.equals(d.getKind()))
