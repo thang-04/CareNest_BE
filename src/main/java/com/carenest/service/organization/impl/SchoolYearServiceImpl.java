@@ -368,6 +368,25 @@ public class SchoolYearServiceImpl implements SchoolYearService {
 
     @Override
     @Transactional(readOnly = true)
+    public void checkPlanYearWritable(Long schoolYearId) {
+        SchoolYear year = findSchoolYear(schoolYearId);
+        SchoolYearRules.checkOpen(year);
+        if (!SchoolYearRules.planWritable(year, LocalDate.now(clock))) {
+            throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_PREPARING, year.getName(), DMY.format(year.getPrepDate()));
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isPlanYearWritable(Long schoolYearId) {
+        return schoolYearRepository
+                .findById(schoolYearId)
+                .map(y -> SchoolYearRules.planWritable(y, LocalDate.now(clock)))
+                .orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public void checkClassYearOpen(Long classroomId) {
         Classroom classroom = classroomRepository
                 .findById(classroomId)

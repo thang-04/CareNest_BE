@@ -119,3 +119,12 @@ Kế hoạch chủ đề: MT (chỉ đọc) → nội dung (chỉ đọc) → th
 - Gói học kỳ thiếu MT chỉ cảnh báo (hộp gửi, dòng tổng, tab "Bảng phủ MT"); chặn theo MT chỉ ở hồ sơ chủ đề và cuối năm.
 - Người duyệt hồ sơ chủ đề thấy ô tuần khác bản theo kỳ được đánh dấu; gói học kỳ ra bản mới đổi tuần ⇒ ngày về Nháp, bản tuần
   sửa theo hồ sơ vẫn giữ, có nhãn "bản theo kỳ đã đổi".
+
+## Kế hoạch theo trạng thái năm học (EDU-89 — Cần đề xuất, Tiền chốt 13/11/2026)
+
+| Năm học | Lập / sửa / gửi / duyệt kế hoạch | Ghi chú |
+|---|---|---|
+| Sắp tới, trước ngày mở chuẩn bị | Không (2040 `SCHOOL_YEAR_NOT_PREPARING`) | HT/PHT thấy năm, chỉ xem (CFG-YR-05) |
+| Sắp tới, từ ngày mở chuẩn bị | Có | GV/TT năm mới thấy lớp từ ngày bắt đầu phân công |
+| Đang hoạt động | Có | |
+| Đã kết thúc (CLOSED) | Không (2003 `SCHOOL_YEAR_CLOSED`) | Chỉ xem/in (CFG-YR-01) |

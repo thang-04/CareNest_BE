@@ -96,6 +96,7 @@ User đã duyệt [feature009](../../specs/009-full-year-plan-file-import/spec.m
 
 ## Known pitfalls
 
+- EDU-89 (13/11/2026): mọi lệnh ghi kế hoạch (năm/tổ qua `loadPlanForUpdate` + `createYearPlan`, lớp qua `saveClassDoc`/`actOnClassDoc`, học liệu qua `requireDayAccess(write)`) gọi `SchoolYearService#checkPlanYearWritable` (CLOSED ⇒ 2003, PLANNED chưa tới ngày mở chuẩn bị ⇒ 2040). Thêm điểm ghi mới phải gọi hàm này; cờ quyền trả FE dùng `isPlanYearWritable` / `year.preparing()`.
 - Hiệu năng (12/11/2026): kiểm quyền kế hoạch năm/tổ gọi lại tra phân công, cấu hình duyệt hàng trăm lần mỗi request. Tra cứu đọc mới qua `utils/RequestMemo` (chỉ request GET); thêm hàm tra cứu phân công/cấu hình mới thì bọc tương tự. Danh sách `GET /goals` đủ cho Web (bản tóm tắt); Web chỉ gọi chi tiết khi mở đúng kế hoạch (FE-BUG-261111-dashboard-reload-burst).
 - Khoảng ngày chủ đề/nhánh phải wrap theo cột ở cả năm/tổ; không ép nowrap cho range hoặc trigger. Xem [lỗi tràn ngày](../knowledge/incidents/BUG-261108-theme-date-column-overflow.md).
 - Lịch sử EDU-48 trước cập nhật05/11 (không dùng làm mặc định hiện hành): thao tác xóa lĩnh vực con ở Web phải bỏ toàn bộ nhánh sau xác nhận số lượng; không chỉ bỏ heading rồi normalize vì con có thể đổi cha. Contract PUT vẫn cho phép giữ/chuyển các dòng client cố ý gửi; xem delta feature006, chưa coi là đã implement khi plan mới draft.

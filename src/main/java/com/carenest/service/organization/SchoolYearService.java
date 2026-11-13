@@ -53,6 +53,12 @@ public interface SchoolYearService {
     /** CFG-YR-01 cho dữ liệu theo ngày (điểm danh, suất ăn, thực đơn…): kiểm năm học chứa ngày đó (không có năm nào thì bỏ qua). */
     void checkDateYearOpen(LocalDate date);
 
+    /** EDU-89: năm đã kết thúc ⇒ 2003; năm sắp tới chưa tới ngày mở chuẩn bị ⇒ 2040. Gọi trước khi ghi kế hoạch giáo dục. */
+    void checkPlanYearWritable(Long schoolYearId);
+
+    /** EDU-89 cho cờ quyền trả về FE (ẩn nút ghi). */
+    boolean isPlanYearWritable(Long schoolYearId);
+
     /** CFG-YR-03: năm sắp diễn ra sớm nhất (năm kế tiếp năm đang hoạt động); null nếu chưa có. */
     SchoolYearDetailResponse findNextPlannedYear();
 
