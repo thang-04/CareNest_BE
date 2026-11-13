@@ -422,8 +422,11 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
                     + " WHERE (a.school_year_id = :yearId OR a.classroom_id IN"
                     + " (SELECT c.id FROM classrooms c WHERE c.school_year_id = :yearId))"
                     + " AND (a.valid_from = :oldStart OR a.valid_from < :newStart)"
-                    + " AND (a.valid_to IS NULL OR a.valid_to >= :newStart)",
+                    + " AND (a.valid_to IS NULL OR a.valid_to >= :newStart) AND a.valid_from > :today",
             nativeQuery = true)
     int realignYearStart(
-            @Param("yearId") Long yearId, @Param("oldStart") LocalDate oldStart, @Param("newStart") LocalDate newStart);
+            @Param("yearId") Long yearId,
+            @Param("oldStart") LocalDate oldStart,
+            @Param("newStart") LocalDate newStart,
+            @Param("today") LocalDate today);
 }
