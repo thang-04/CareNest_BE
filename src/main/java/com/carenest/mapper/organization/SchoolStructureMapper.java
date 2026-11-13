@@ -43,7 +43,8 @@ public class SchoolStructureMapper {
                 schoolYear.getCreatedAt(),
                 schoolYear.getUpdatedAt(),
                 schoolYear.getPrepDate(),
-                schoolYear.isPreparing(today));
+                schoolYear.isPreparing(today),
+                schoolYear.getWeeklyCommentDeadlineDays());
     }
 
     public AgeGroupDetailResponse toDetailResponse(AgeGroup ageGroup) {

@@ -2,11 +2,12 @@ package com.carenest.service.observation;
 
 import com.carenest.dto.observation.WeeklyCommentDtos.ParentWeeklyCommentResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentBoardResponse;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentClassSummary;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentDraftRequest;
-import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenRequest;
-import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockResponse;
 import com.carenest.security.CurrentUser;
 import java.time.LocalDate;
 import java.util.List;
@@ -32,10 +33,16 @@ public interface WeeklyCommentService {
     /** Sáng ngày học cuối của tuần: tạo nháp theo mẫu câu cho trẻ chưa có nhận xét ở mọi lớp năm đang hoạt động. */
     void createOpenWeekDrafts();
 
-    /** HT / PHT có quyền mở lại ở điểm trường của lớp đưa bản đã gửi về nháp (có lý do); trả các lần mở lại vừa tạo. */
-    List<WeeklyCommentReopenResponse> reopen(CurrentUser currentUser, WeeklyCommentReopenRequest request);
+    /** HT / PHT có quyền mở lại ở điểm trường của lớp mở lại lớp – tuần đã khóa tới validUntil (có lý do). */
+    WeeklyCommentUnlockResponse unlock(CurrentUser currentUser, WeeklyCommentUnlockRequest request);
 
-    /** Lịch sử mở lại nhận xét tuần, mới nhất trước: BGH theo điểm trường trong phạm vi, GV theo lớp đang dạy. */
-    List<WeeklyCommentReopenResponse> getReopens(
-            CurrentUser currentUser, Long campusId, Long classId, LocalDate from, LocalDate to);
+    /** Lịch sử mở lại nhận xét tuần, mới nhất trước, theo điểm trường trong phạm vi (như mở lại ngày đánh giá). */
+    List<WeeklyCommentUnlockResponse> getUnlocks(
+            CurrentUser currentUser, Long campusId, Long classId, Boolean active, LocalDate from, LocalDate to);
+
+    /** Kết thúc sớm lần mở lại còn hiệu lực. */
+    WeeklyCommentUnlockResponse revokeUnlock(CurrentUser currentUser, Long unlockId);
+
+    /** BGH: tình hình gửi nhận xét tuần của các lớp trong phạm vi, lớp quá hạn chưa gửi đủ. */
+    List<WeeklyCommentClassSummary> getOverview(CurrentUser currentUser, Long campusId, LocalDate weekStart);
 }

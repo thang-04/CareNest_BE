@@ -12,17 +12,19 @@ import com.carenest.dto.observation.WeeklyCommentDtos.ParentWeeklyCommentRespons
 import com.carenest.dto.observation.WeeklyCommentDtos.WeekOption;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentBoardResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentChildRow;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentClassSummary;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentDraftRequest;
-import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenRequest;
-import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.ai.AiClient;
 import com.carenest.integration.ai.AiException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.observation.WeeklyCommentService;
+import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
@@ -109,6 +111,9 @@ class WeeklyCommentIntegrationTest {
 
     @Autowired
     private WeeklyCommentService service;
+
+    @Autowired
+    private SchoolYearService schoolYearService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -230,8 +235,8 @@ class WeeklyCommentIntegrationTest {
     }
 
     @Test
-    @DisplayName("OBS-29: gửi 1 trẻ báo phụ huynh đã liên kết; đã gửi thì khóa sửa, viết nháp, gửi lại")
-    void sendNotifiesLinkedParentsAndLocks() {
+    @DisplayName("OBS-29: gửi 1 trẻ báo phụ huynh đã liên kết")
+    void sendNotifiesLinkedParents() {
         WeeklyCommentBoardResponse sent = service.send(
                 teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Tuần này con đi học chăm, vui vẻ."));
         WeeklyCommentChildRow an = row(sent, child1);
@@ -242,16 +247,6 @@ class WeeklyCommentIntegrationTest {
                         Integer.class,
                         parent1.userId()))
                 .isEqualTo(1);
-
-        expectCode(
-                () -> service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Sửa")),
-                ApiCode.WEEKLY_COMMENT_ALREADY_SENT);
-        expectCode(
-                () -> service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, child1, true, false)),
-                ApiCode.WEEKLY_COMMENT_ALREADY_SENT);
-        expectCode(
-                () -> service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, null)),
-                ApiCode.WEEKLY_COMMENT_ALREADY_SENT);
     }
 
     @Test
@@ -466,37 +461,27 @@ class WeeklyCommentIntegrationTest {
     }
 
     @Test
-    @DisplayName("OBS-29: HT mở lại bản đã gửi có lý do; về nháp, phụ huynh chưa thấy; GV gửi lại báo đã cập nhật")
-    void principalReopensSentCommentAndTeacherResends() {
+    @DisplayName("OBS-29: trong hạn GV sửa bản đã gửi (về nháp, lưu nội dung cũ); gửi lại báo phụ huynh đã cập nhật")
+    void teacherEditsSentCommentWithinDeadline() {
         service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt."));
-        CurrentUser head = withUnlock(principal);
 
-        List<WeeklyCommentReopenResponse> reopened = service.reopen(
-                head, new WeeklyCommentReopenRequest(classA, WEEK, List.of(child1), "  Gõ nhầm tên hoạt động  "));
-
-        assertThat(reopened).singleElement().satisfies(r -> {
-            assertThat(r.childId()).isEqualTo(child1);
-            assertThat(r.childName()).isEqualTo("An");
-            assertThat(r.className()).isEqualTo("Lớp A");
-            assertThat(r.reason()).isEqualTo("Gõ nhầm tên hoạt động");
-            assertThat(r.reopenedByName()).isEqualTo("principal");
-            assertThat(r.previousContent()).isEqualTo("Con học tốt.");
-            assertThat(r.previousSentByName()).isEqualTo("teachera");
-            assertThat(r.weekFrom()).isEqualTo(WEEK);
-            assertThat(r.weekEnd()).isEqualTo(WEEK.plusDays(4));
-        });
-        WeeklyCommentChildRow an = row(service.getBoard(teacherA, classA, WEEK), child1);
+        WeeklyCommentChildRow an = row(
+                service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Con học tốt, ngoan.")),
+                child1);
         assertThat(an.status()).isEqualTo("DRAFT");
         assertThat(an.reopened()).isTrue();
-        assertThat(an.content()).isEqualTo("Con học tốt.");
         assertThat(service.listForParent(parent1, child1)).isEmpty();
+        assertThat(jdbc.queryForObject(
+                        "SELECT previous_content FROM weekly_comment_revisions r JOIN weekly_comments c"
+                                + " ON c.id = r.weekly_comment_id WHERE c.child_id = ?",
+                        String.class,
+                        child1))
+                .isEqualTo("Con học tốt.");
 
-        service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt, kể chuyện hay."));
-        assertThat(row(service.getBoard(teacherA, classA, WEEK), child1).reopened())
-                .isFalse();
+        service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, null));
         assertThat(service.listForParent(parent1, child1))
                 .singleElement()
-                .satisfies(c -> assertThat(c.content()).isEqualTo("Con học tốt, kể chuyện hay."));
+                .satisfies(c -> assertThat(c.content()).isEqualTo("Con học tốt, ngoan."));
         List<String> bodies = jdbc.queryForList(
                 "SELECT body FROM notifications WHERE type = 'WEEKLY_COMMENT_SENT' AND user_id = ? ORDER BY id",
                 String.class,
@@ -504,52 +489,159 @@ class WeeklyCommentIntegrationTest {
         assertThat(bodies).hasSize(2);
         assertThat(bodies.get(0)).startsWith("Cô đã gửi nhận xét tuần");
         assertThat(bodies.get(1)).startsWith("Cô đã cập nhật nhận xét tuần");
-        // Lịch sử: BGH và GV lớp xem được, GV lớp khác không thấy
-        assertThat(service.getReopens(head, null, classA, null, null)).hasSize(1);
-        assertThat(service.getReopens(teacherA, null, null, null, null)).hasSize(1);
-        assertThat(service.getReopens(teacherB, null, null, null, null)).isEmpty();
     }
 
     @Test
-    @DisplayName("OBS-29: mở lại cả lớp chỉ đụng bản đã gửi; bản nháp, lý do trống / quá dài, sai phạm vi đều bị chặn")
-    void reopenValidation() {
-        CurrentUser head = withUnlock(principal);
-        service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child2, "Nháp."));
-        expectCode(
-                () -> service.reopen(head, new WeeklyCommentReopenRequest(classA, WEEK, null, "Lý do")),
-                ApiCode.WEEKLY_COMMENT_NOT_SENT);
-        expectCode(
-                () -> service.reopen(head, new WeeklyCommentReopenRequest(classA, WEEK, List.of(child2), "Lý do")),
-                ApiCode.WEEKLY_COMMENT_NOT_SENT);
-
+    @DisplayName("OBS-29: hạn mặc định 1 ngày học sau tuần — 23:59 thứ Hai còn sửa, 00:00 thứ Ba khóa cả lớp – tuần")
+    void weekLocksAfterNextSchoolDay() {
+        service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Nháp."));
+        // 23:59 thứ Hai 02/11 (giờ VN)
+        CLOCK.set(Instant.parse("2026-11-02T16:59:00Z"));
+        WeekOption week = service.getBoard(teacherA, classA, WEEK).week();
+        assertThat(week.deadline()).isEqualTo(LocalDate.of(2026, 11, 2));
+        assertThat(week.locked()).isFalse();
         service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt."));
-        expectCode(
-                () -> service.reopen(head, new WeeklyCommentReopenRequest(classA, WEEK, List.of(child1), "  ")),
-                ApiCode.WEEKLY_COMMENT_REOPEN_REASON_REQUIRED);
-        expectCode(
-                () -> service.reopen(
-                        head, new WeeklyCommentReopenRequest(classA, WEEK, List.of(child1), "a".repeat(301))),
-                ApiCode.WEEKLY_COMMENT_REOPEN_REASON_TOO_LONG);
-        // GV không có quyền mở lại; PHT điểm trường khác bị chặn
-        expectCode(
-                () -> service.reopen(teacherA, new WeeklyCommentReopenRequest(classA, WEEK, List.of(child1), "Lý do")),
-                ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
-        expectCode(
-                () -> service.reopen(
-                        withUnlock(vpB), new WeeklyCommentReopenRequest(classA, WEEK, List.of(child1), "Lý do")),
-                ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
-        expectCode(
-                () -> service.reopen(head, new WeeklyCommentReopenRequest(oldClass, WEEK, null, "Lý do")),
-                ApiCode.ASSESSMENT_UNLOCK_YEAR_NOT_ACTIVE);
 
-        // Cả lớp: chỉ bản đã gửi về nháp, bản nháp giữ nguyên
-        List<WeeklyCommentReopenResponse> all =
-                service.reopen(withUnlock(vpA), new WeeklyCommentReopenRequest(classA, WEEK, null, "Sửa chung"));
-        assertThat(all).extracting(WeeklyCommentReopenResponse::childId).containsExactly(child1);
+        // 00:00 thứ Ba 03/11
+        CLOCK.set(Instant.parse("2026-11-02T17:00:00Z"));
         WeeklyCommentBoardResponse board = service.getBoard(teacherA, classA, WEEK);
-        assertThat(row(board, child1).status()).isEqualTo("DRAFT");
-        assertThat(row(board, child2).content()).isEqualTo("Nháp.");
-        assertThat(row(board, child2).reopened()).isFalse();
+        assertThat(board.week().locked()).isTrue();
+        assertThat(board.canEdit()).isFalse();
+        expectCode(
+                () -> service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Sửa.")),
+                ApiCode.WEEKLY_COMMENT_LOCKED);
+        expectCode(
+                () -> service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child2, "Con ngoan.")),
+                ApiCode.WEEKLY_COMMENT_LOCKED);
+        expectCode(
+                () -> service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, null, false, false)),
+                ApiCode.WEEKLY_COMMENT_LOCKED);
+    }
+
+    @Test
+    @DisplayName("OBS-29: ngày nghỉ sau tuần dời hạn sang ngày học kế tiếp; HT đặt hạn 0 / 2 ngày học")
+    void deadlineFollowsSchoolDaysAndYearSetting() {
+        long yearId = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
+        jdbc.update(
+                "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) VALUES (?, ?, ?, 'Nghỉ')",
+                yearId,
+                LocalDate.of(2026, 11, 2),
+                LocalDate.of(2026, 11, 2));
+        assertThat(service.getBoard(teacherA, classA, WEEK).week().deadline()).isEqualTo(LocalDate.of(2026, 11, 3));
+
+        schoolYearService.updateWeeklyCommentDeadline(principal, yearId, 0);
+        assertThat(service.getBoard(teacherA, classA, WEEK).week().deadline()).isEqualTo(WEEK.plusDays(4));
+        schoolYearService.updateWeeklyCommentDeadline(principal, yearId, 2);
+        // 02/11 nghỉ ⇒ ngày học thứ 2 sau tuần là 04/11
+        assertThat(service.getBoard(teacherA, classA, WEEK).week().deadline()).isEqualTo(LocalDate.of(2026, 11, 4));
+
+        expectCode(
+                () -> schoolYearService.updateWeeklyCommentDeadline(principal, yearId, 6),
+                ApiCode.WEEKLY_COMMENT_DEADLINE_DAYS_INVALID);
+        expectCode(
+                () -> schoolYearService.updateWeeklyCommentDeadline(principal, yearId, -1),
+                ApiCode.WEEKLY_COMMENT_DEADLINE_DAYS_INVALID);
+        assertThat(schoolYearService.weeklyCommentDeadlineDays(yearId)).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("OBS-29: HT mở lại lớp – tuần đã khóa tới hạn; GV sửa, gửi được tới hạn rồi khóa lại; kết thúc sớm")
+    void principalUnlocksClassWeekUntilValidUntil() {
+        service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt."));
+        CurrentUser head = withUnlock(principal);
+        CLOCK.set(Instant.parse("2026-11-03T03:00:00Z"));
+        expectCode(
+                () -> service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Sửa.")),
+                ApiCode.WEEKLY_COMMENT_LOCKED);
+
+        Instant until = Instant.parse("2026-11-03T10:00:00Z");
+        WeeklyCommentUnlockResponse unlock =
+                service.unlock(head, new WeeklyCommentUnlockRequest(classA, WEEK, until, "  Cô gửi nhầm nội dung  "));
+        assertThat(unlock.reason()).isEqualTo("Cô gửi nhầm nội dung");
+        assertThat(unlock.className()).isEqualTo("Lớp A");
+        assertThat(unlock.unlockedByName()).isEqualTo("principal");
+        assertThat(unlock.weekFrom()).isEqualTo(WEEK);
+        assertThat(unlock.weekEnd()).isEqualTo(WEEK.plusDays(4));
+        assertThat(unlock.active()).isTrue();
+        expectCode(
+                () -> service.unlock(head, new WeeklyCommentUnlockRequest(classA, WEEK, until, "Lần hai")),
+                ApiCode.WEEKLY_COMMENT_UNLOCK_ALREADY_ACTIVE);
+
+        WeeklyCommentBoardResponse board = service.getBoard(teacherA, classA, WEEK);
+        assertThat(board.week().unlockedUntil()).isEqualTo(until);
+        assertThat(board.canEdit()).isTrue();
+        service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt, kể chuyện hay."));
+        assertThat(service.listForParent(parent1, child1))
+                .singleElement()
+                .satisfies(c -> assertThat(c.content()).isEqualTo("Con học tốt, kể chuyện hay."));
+
+        // Hết hạn mở lại ⇒ khóa lại
+        CLOCK.set(Instant.parse("2026-11-03T10:00:01Z"));
+        expectCode(
+                () -> service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child2, "Nháp.")),
+                ApiCode.WEEKLY_COMMENT_LOCKED);
+
+        // Mở lần nữa rồi kết thúc sớm
+        WeeklyCommentUnlockResponse again = service.unlock(
+                head, new WeeklyCommentUnlockRequest(classA, WEEK, Instant.parse("2026-11-04T10:00:00Z"), "Bổ sung"));
+        WeeklyCommentUnlockResponse revoked = service.revokeUnlock(head, again.id());
+        assertThat(revoked.active()).isFalse();
+        assertThat(revoked.revokedByName()).isEqualTo("principal");
+        expectCode(() -> service.revokeUnlock(head, again.id()), ApiCode.ASSESSMENT_UNLOCK_ALREADY_ENDED);
+        expectCode(
+                () -> service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child2, "Nháp.")),
+                ApiCode.WEEKLY_COMMENT_LOCKED);
+        assertThat(service.getUnlocks(head, null, classA, null, null, null)).hasSize(2);
+        assertThat(service.getUnlocks(head, null, null, true, null, null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("OBS-29: mở lại chỉ khi tuần đã khóa; GV, PHT điểm trường khác, năm đã kết thúc, hạn sai đều bị chặn")
+    void unlockValidation() {
+        CurrentUser head = withUnlock(principal);
+        Instant until = Instant.parse("2026-11-05T10:00:00Z");
+        expectCode(
+                () -> service.unlock(head, new WeeklyCommentUnlockRequest(classA, WEEK, until, "Lý do")),
+                ApiCode.WEEKLY_COMMENT_NOT_LOCKED_YET);
+
+        CLOCK.set(Instant.parse("2026-11-03T03:00:00Z"));
+        expectCode(
+                () -> service.unlock(teacherA, new WeeklyCommentUnlockRequest(classA, WEEK, until, "Lý do")),
+                ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
+        expectCode(
+                () -> service.unlock(withUnlock(vpB), new WeeklyCommentUnlockRequest(classA, WEEK, until, "Lý do")),
+                ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
+        expectCode(
+                () -> service.unlock(head, new WeeklyCommentUnlockRequest(oldClass, WEEK, until, "Lý do")),
+                ApiCode.ASSESSMENT_UNLOCK_YEAR_NOT_ACTIVE);
+        expectCode(
+                () -> service.unlock(
+                        head,
+                        new WeeklyCommentUnlockRequest(classA, WEEK, Instant.parse("2026-11-03T02:00:00Z"), "Lý do")),
+                ApiCode.ASSESSMENT_UNLOCK_DEADLINE_INVALID);
+        // PHT điểm trường của lớp mở được
+        assertThat(service.unlock(withUnlock(vpA), new WeeklyCommentUnlockRequest(classA, WEEK, until, "Lý do"))
+                        .active())
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("OBS-29: BGH xem lớp quá hạn chưa gửi đủ nhận xét tuần")
+    void overviewFlagsOverdueClasses() {
+        service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt."));
+        CLOCK.set(Instant.parse("2026-11-03T03:00:00Z"));
+        List<WeeklyCommentClassSummary> all = service.getOverview(principal, null, WEEK);
+        assertThat(all).extracting(WeeklyCommentClassSummary::classId).contains(classA, classB);
+        WeeklyCommentClassSummary a =
+                all.stream().filter(s -> s.classId().equals(classA)).findFirst().orElseThrow();
+        assertThat(a.total()).isEqualTo(2);
+        assertThat(a.sent()).isEqualTo(1);
+        assertThat(a.overdue()).isTrue();
+        // PHT chỉ thấy lớp điểm trường mình
+        assertThat(service.getOverview(vpB, null, WEEK))
+                .extracting(WeeklyCommentClassSummary::classId)
+                .containsExactly(classB);
+        expectCode(() -> service.getOverview(teacherA, null, WEEK), ApiCode.EVALUATION_VIEW_FORBIDDEN);
     }
 
     private static CurrentUser withUnlock(CurrentUser user) {

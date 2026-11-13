@@ -2,11 +2,12 @@ package com.carenest.controller.observation;
 
 import com.carenest.dto.observation.WeeklyCommentDtos.ParentWeeklyCommentResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentBoardResponse;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentClassSummary;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentDraftRequest;
-import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenRequest;
-import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentUnlockResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.observation.WeeklyCommentService;
 import com.carenest.utils.ApiCode;
@@ -82,32 +83,58 @@ public class WeeklyCommentController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Send weekly comment success", response);
     }
 
-    /** Mở lại bản đã gửi (HT / PHT có quyền mở lại ở điểm trường của lớp): về nháp để GV sửa, gửi lại. */
-    @PostMapping("/assessment/weekly-comments/reopen")
-    @PreAuthorize("@permissionGuard.has('ASSESSMENT_UNLOCK')")
-    public ResponseEntity<ResponseJson<List<WeeklyCommentReopenResponse>>> reopen(
-            @Valid @RequestBody WeeklyCommentReopenRequest request, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|reopen|userId=" + currentUser.userId() + "|classId=" + request.classId();
+    /** BGH: tình hình gửi nhận xét tuần của các lớp trong phạm vi (đã gửi / tổng, quá hạn). */
+    @GetMapping("/assessment/weekly-comments/overview")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
+    public ResponseEntity<ResponseJson<List<WeeklyCommentClassSummary>>> getOverview(
+            @RequestParam(required = false) Long campusId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate weekStart,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getOverview|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
-        List<WeeklyCommentReopenResponse> response = weeklyCommentService.reopen(currentUser, request);
+        List<WeeklyCommentClassSummary> response = weeklyCommentService.getOverview(currentUser, campusId, weekStart);
         log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reopen weekly comments success", response);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get weekly comment overview success", response);
     }
 
-    @GetMapping("/assessment/weekly-comments/reopens")
-    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
-    public ResponseEntity<ResponseJson<List<WeeklyCommentReopenResponse>>> getReopens(
+    @GetMapping("/assessment/weekly-comments/unlocks")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_UNLOCK')")
+    public ResponseEntity<ResponseJson<List<WeeklyCommentUnlockResponse>>> getUnlocks(
             @RequestParam(required = false) Long campusId,
             @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) Boolean active,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|getReopens|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        String logPrefix = LOG_PREFIX + "|getUnlocks|userId=" + currentUser.userId() + "|campusId=" + campusId;
         log.info("{}|START", logPrefix);
-        List<WeeklyCommentReopenResponse> response =
-                weeklyCommentService.getReopens(currentUser, campusId, classId, from, to);
+        List<WeeklyCommentUnlockResponse> response =
+                weeklyCommentService.getUnlocks(currentUser, campusId, classId, active, from, to);
         log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get weekly comment reopens success", response);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get weekly comment unlocks success", response);
+    }
+
+    /** Mở lại lớp – tuần đã khóa (HT / PHT có quyền mở lại ở điểm trường của lớp) tới hạn validUntil. */
+    @PostMapping("/assessment/weekly-comments/unlocks")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_UNLOCK')")
+    public ResponseEntity<ResponseJson<WeeklyCommentUnlockResponse>> unlock(
+            @Valid @RequestBody WeeklyCommentUnlockRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|unlock|userId=" + currentUser.userId() + "|classId=" + request.classId();
+        log.info("{}|START", logPrefix);
+        WeeklyCommentUnlockResponse response = weeklyCommentService.unlock(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Unlock weekly comments success", response);
+    }
+
+    @PostMapping("/assessment/weekly-comments/unlocks/{unlockId}/revoke")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_UNLOCK')")
+    public ResponseEntity<ResponseJson<WeeklyCommentUnlockResponse>> revokeUnlock(
+            @PathVariable Long unlockId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|revokeUnlock|userId=" + currentUser.userId() + "|unlockId=" + unlockId;
+        log.info("{}|START", logPrefix);
+        WeeklyCommentUnlockResponse response = weeklyCommentService.revokeUnlock(currentUser, unlockId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Revoke weekly comment unlock success", response);
     }
 
     @GetMapping("/children/{childId}/weekly-comments")

@@ -105,7 +105,7 @@ public class WeeklyComment {
         this.updatedAt = at;
     }
 
-    /** Mở lại bản đã gửi: về nháp, giữ nội dung; phụ huynh không thấy tới khi GV gửi lại. */
+    /** GV sửa bản đã gửi (còn hạn / đang mở lại): về nháp, giữ nội dung; phụ huynh không thấy tới khi gửi lại. */
     public void reopen(Long by, Instant at) {
         this.status = WeeklyCommentStatus.DRAFT;
         this.sentBy = null;

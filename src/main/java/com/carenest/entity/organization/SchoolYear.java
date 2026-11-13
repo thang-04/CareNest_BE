@@ -54,6 +54,10 @@ public class SchoolYear {
     @Column(name = "prep_date")
     private LocalDate prepDate;
 
+    // OBS-29: nhận xét tuần khóa sau 23:59:59 của ngày học thứ N sau tuần (HT đặt 0–5, mặc định 1)
+    @Column(name = "weekly_comment_deadline_days", nullable = false)
+    private short weeklyCommentDeadlineDays = 1;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private SchoolYearStatus status;
@@ -90,6 +94,10 @@ public class SchoolYear {
         schoolYear.prepDate = prepDate;
         schoolYear.status = SchoolYearStatus.PLANNED;
         return schoolYear;
+    }
+
+    public void changeWeeklyCommentDeadlineDays(int days) {
+        this.weeklyCommentDeadlineDays = (short) days;
     }
 
     public void changeInfo(String name, LocalDate startDate, LocalDate endDate, LocalDate prepDate) {

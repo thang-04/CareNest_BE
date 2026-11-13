@@ -170,6 +170,8 @@ public enum ApiCode {
             2038, HttpStatus.CONFLICT, "Năm học đã bắt đầu hoặc đã kết thúc, không đổi được ngày mở chuẩn bị"),
     ACTIVATION_BEFORE_PREP(
             2039, HttpStatus.CONFLICT, "Năm học chưa tới ngày mở chuẩn bị, chỉ kích hoạt được từ ngày {0}"),
+    WEEKLY_COMMENT_DEADLINE_DAYS_INVALID(
+            2040, HttpStatus.BAD_REQUEST, "Hạn gửi nhận xét tuần từ {0} đến {1} ngày học sau tuần"),
     SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
@@ -770,14 +772,14 @@ public enum ApiCode {
     WEEKLY_COMMENT_WEEK_INVALID(
             7365, HttpStatus.BAD_REQUEST, "Chọn tuần trong năm học của lớp, từ tuần có ngày {0} đến tuần có ngày {1}"),
     WEEKLY_COMMENT_FUTURE_WEEK(7366, HttpStatus.BAD_REQUEST, "Tuần này chưa bắt đầu, chưa viết nhận xét được"),
-    WEEKLY_COMMENT_ALREADY_SENT(7367, HttpStatus.CONFLICT, "Nhận xét tuần đã gửi phụ huynh, không sửa được nữa"),
     WEEKLY_COMMENT_CHILD_NOT_IN_CLASS(7368, HttpStatus.BAD_REQUEST, "Trẻ không thuộc lớp trong tuần này"),
     WEEKLY_COMMENT_PARENT_FORBIDDEN(7369, HttpStatus.FORBIDDEN, "Bạn không xem được nhận xét của trẻ này"),
     WEEKLY_COMMENT_NOTHING_TO_SEND(7399, HttpStatus.BAD_REQUEST, "Chưa có nhận xét nào viết xong để gửi phụ huynh"),
-    WEEKLY_COMMENT_NOT_SENT(
-            7400, HttpStatus.CONFLICT, "Nhận xét tuần của trẻ này chưa gửi phụ huynh, không cần mở lại"),
-    WEEKLY_COMMENT_REOPEN_REASON_REQUIRED(7401, HttpStatus.BAD_REQUEST, "Nhập lý do mở lại nhận xét tuần"),
-    WEEKLY_COMMENT_REOPEN_REASON_TOO_LONG(7402, HttpStatus.BAD_REQUEST, "Lý do mở lại tối đa {0} ký tự"),
+    WEEKLY_COMMENT_LOCKED(
+            7400, HttpStatus.CONFLICT, "Nhận xét tuần đã khóa từ {0}. Liên hệ PHT hoặc Hiệu trưởng để mở lại."),
+    WEEKLY_COMMENT_NOT_LOCKED_YET(7401, HttpStatus.CONFLICT, "Tuần này chưa khóa, giáo viên vẫn sửa và gửi được"),
+    WEEKLY_COMMENT_UNLOCK_ALREADY_ACTIVE(7402, HttpStatus.CONFLICT, "Lớp / tuần này đang có lần mở lại còn hiệu lực"),
+    WEEKLY_COMMENT_UNLOCK_NOT_FOUND(7403, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại nhận xét tuần"),
     WEEKLY_COMMENT_WEEK_NOT_ENDED(7398, HttpStatus.CONFLICT, "Tuần này chưa kết thúc. Nhận xét tuần mở từ ngày {0}"),
 
     // ========== 80xx AI & TỆP ==========

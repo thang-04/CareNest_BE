@@ -1,7 +1,9 @@
 package com.carenest.dto.observation;
 
 import com.carenest.utils.enums.WeeklyCommentSource;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -11,9 +13,9 @@ public final class WeeklyCommentDtos {
     private WeeklyCommentDtos() {}
 
     /**
-     * Bảng nhận xét tuần của lớp. aiEnabled: có dịch vụ AI để viết nháp; canEdit: GV đang dạy lớp, năm đang hoạt động.
-     * aiFallback: lần viết nháp này xin AI nhưng AI lỗi, đã viết theo mẫu câu. week: tuần đang xem; weeks: các tuần
-     * của năm học tới tuần hiện tại, mới nhất trước.
+     * Bảng nhận xét tuần của lớp. aiEnabled: có dịch vụ AI để viết nháp; canEdit: GV đang dạy lớp, năm đang hoạt động,
+     * tuần đã mở và chưa khóa (hoặc đang được mở lại). aiFallback: lần viết nháp này xin AI nhưng AI lỗi, đã viết theo
+     * mẫu câu. week: tuần đang xem; weeks: các tuần của năm học tới tuần hiện tại, mới nhất trước.
      */
     public record WeeklyCommentBoardResponse(
             Long classId,
@@ -29,7 +31,7 @@ public final class WeeklyCommentDtos {
 
     /**
      * status: NONE (chưa có), DRAFT, SENT. content null với người chỉ xem khi bản chưa gửi. absentAllWeek: trẻ không có
-     * mặt ngày nào trong tuần (không bắt buộc nhận xét).
+     * mặt ngày nào trong tuần (không bắt buộc nhận xét). reopened: đã gửi rồi được GV sửa lại, chưa gửi lại.
      */
     public record WeeklyCommentChildRow(
             Long childId,
@@ -47,7 +49,8 @@ public final class WeeklyCommentDtos {
     /**
      * Tuần nhận xét (OBS-29): weekStart = thứ Hai (khóa lưu); from–to = ngày học có giáo án tuần đã duyệt (source
      * LESSON_PLAN, label = tên tuần của giáo án) hoặc thứ Hai–Sáu khi chưa có giáo án (CALENDAR). Viết / gửi từ openFrom
-     * (ngày học cuối của tuần); open = hôm nay đã tới openFrom.
+     * (ngày học cuối của tuần); open = hôm nay đã tới openFrom. deadline: ngày học đầu tiên sau tuần, khóa sau 23:59:59
+     * ngày đó (locked); unlockedUntil: lớp – tuần đang được mở lại tới lúc này (null = không).
      */
     public record WeekOption(
             LocalDate weekStart,
@@ -56,7 +59,10 @@ public final class WeeklyCommentDtos {
             String label,
             String source,
             LocalDate openFrom,
-            boolean open) {}
+            boolean open,
+            LocalDate deadline,
+            boolean locked,
+            Instant unlockedUntil) {}
 
     /** Số liệu tuần từ điểm danh, đánh giá hằng ngày, phiếu bé ngoan (căn cứ của bản nháp). */
     public record WeekData(
@@ -100,30 +106,36 @@ public final class WeeklyCommentDtos {
             Instant sentAt,
             String teacherName) {}
 
-    /**
-     * Mở lại nhận xét tuần đã gửi (OBS-29): childIds trống / null = mọi bản đã gửi của lớp trong tuần; lý do bắt buộc,
-     * tối đa 300 ký tự.
-     */
-    public record WeeklyCommentReopenRequest(
-            @NotNull Long classId, @NotNull LocalDate weekStart, List<Long> childIds, String reason) {}
+    /** Mở lại nhận xét tuần đã khóa của lớp – tuần tới validUntil (sau hiện tại, không quá ngày kết thúc năm học). */
+    public record WeeklyCommentUnlockRequest(
+            @NotNull Long classId,
+            @NotNull LocalDate weekStart,
+            @NotNull Instant validUntil,
+            @NotBlank @Size(max = 300) String reason) {}
 
-    /** Một lần mở lại nhận xét tuần: nội dung, người gửi, lúc gửi trước khi mở lại. */
-    public record WeeklyCommentReopenResponse(
+    /** Một lần mở lại nhận xét tuần; active = còn hiệu lực lúc trả về. */
+    public record WeeklyCommentUnlockResponse(
             Long id,
-            Long commentId,
-            Long childId,
-            String childName,
             Long classId,
             String className,
             Long campusId,
             LocalDate weekStart,
             LocalDate weekFrom,
             LocalDate weekEnd,
+            Instant validUntil,
             String reason,
-            Long reopenedBy,
-            String reopenedByName,
-            Instant reopenedAt,
-            String previousContent,
-            Instant previousSentAt,
-            String previousSentByName) {}
+            Long unlockedBy,
+            String unlockedByName,
+            Instant unlockedAt,
+            Long revokedBy,
+            String revokedByName,
+            Instant revokedAt,
+            boolean active) {}
+
+    /**
+     * Tình hình nhận xét tuần của một lớp cho BGH: total = trẻ của lớp trong tuần, sent = đã gửi phụ huynh; overdue = đã
+     * khóa (quá hạn, không đang mở lại) mà chưa gửi đủ.
+     */
+    public record WeeklyCommentClassSummary(
+            Long classId, String className, Long campusId, WeekOption week, int total, int sent, boolean overdue) {}
 }

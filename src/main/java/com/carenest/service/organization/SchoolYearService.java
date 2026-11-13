@@ -28,6 +28,12 @@ public interface SchoolYearService {
     SchoolYearDetailResponse updateSemester(
             CurrentUser currentUser, Long schoolYearId, SchoolYearSemesterRequest request);
 
+    /** Cấu hình thời gian › Hạn gửi nhận xét tuần (OBS-29): HT đặt 0–5 ngày học sau tuần, năm chưa kết thúc. */
+    SchoolYearDetailResponse updateWeeklyCommentDeadline(CurrentUser currentUser, Long schoolYearId, int deadlineDays);
+
+    /** Số ngày học sau tuần trước khi nhận xét tuần khóa (OBS-29); năm không tìm thấy ⇒ mặc định 1. */
+    int weeklyCommentDeadlineDays(Long schoolYearId);
+
     /** Ngày nghỉ của năm học (SCH-05). */
     List<SchoolHolidayItem> getHolidays(CurrentUser currentUser, Long schoolYearId);
 
