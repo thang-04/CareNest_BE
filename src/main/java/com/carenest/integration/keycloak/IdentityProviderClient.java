@@ -41,6 +41,9 @@ public interface IdentityProviderClient {
     /** Đặt mật khẩu tạm mới (bắt đổi ở lần đăng nhập kế tiếp). */
     void resetTemporaryPassword(String userId, String temporaryPassword);
 
+    /** Đặt mật khẩu do chính người dùng chọn (không tạm, bỏ yêu cầu đổi mật khẩu); policy realm từ chối ⇒ REJECTED. */
+    void setPassword(String userId, String password);
+
     /** Thu hồi mọi session và refresh token của user. */
     void logoutUser(String userId);
 

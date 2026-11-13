@@ -123,6 +123,7 @@ erDiagram
     children ||--o{ child_health_declaration_history : "lịch sử khai báo"
     children ||--o{ child_history : "lịch sử hồ sơ"
     user_accounts ||--o{ parent_sms_logs : "SMS tài khoản"
+    user_accounts ||--o| parent_activation_codes : "mã kích hoạt"
 
     child_profiles {
         BIGINT child_id PK "FK children"
@@ -165,6 +166,13 @@ erDiagram
         BIGINT user_id FK
         VARCHAR purpose
         VARCHAR status "SENT|FAILED"
+    }
+    parent_activation_codes {
+        BIGINT user_id PK,FK
+        VARCHAR code_hash
+        TIMESTAMPTZ expires_at
+        SMALLINT failed_attempts
+        TIMESTAMPTZ activated_at
     }
 ```
 `child_code_sequences` (số thứ tự mã trẻ theo năm) không có quan hệ.

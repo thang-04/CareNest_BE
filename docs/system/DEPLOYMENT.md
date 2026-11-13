@@ -125,6 +125,19 @@ Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6
 
 **Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
 
+## SMS — cổng giả và Twilio trial
+
+Mặc định `CARENEST_SMS_PROVIDER=fake`: không gửi thật, chỉ log 2 số cuối SĐT. `twilio` gọi Twilio Messages REST API (`TwilioSmsGateway`), **chỉ dùng dev/demo** (AUTH-18, plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`). Tin kích hoạt có mật khẩu tạm luôn đi cổng giả, kể cả khi bật `twilio`.
+
+Bật Twilio trial ở máy dev (`compose.yaml` hoặc `mvnw`):
+1. Đăng ký tài khoản Twilio; Console → Account Info lấy **Account SID**, **Auth Token**.
+2. Lấy số trial (Phone Numbers → Buy a number, trả bằng tín dụng trial) hoặc tạo Messaging Service.
+3. Phone Numbers → Verified Caller IDs: thêm SĐT của thành viên team (trial chỉ gửi tới số đã xác minh; tin có tiền tố "Sent from your Twilio trial account").
+4. Messaging → Settings → Geo permissions: bật Việt Nam.
+5. `.env`: `CARENEST_SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` (E.164, vd. `+1...`) hoặc `TWILIO_MESSAGING_SERVICE_SID`. Thiếu biến ⇒ API dừng lúc khởi động, báo tên biến thiếu.
+
+Không commit `.env`; lộ token ⇒ rotate trên Console. `compose.vps.yaml`, `compose.dev.yaml` chưa truyền biến `TWILIO_*` nên VPS luôn dùng cổng giả. Nhà mạng Việt Nam có thể lọc tin không brandname; production chọn nhà cung cấp có brandname (D-2).
+
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 
 Điều kiện: review bảo mật gateway ADR-0013 xong; backup Postgres theo lịch đã thử khôi phục; người quản lý server đồng ý; SMTP thật. Xoá volume là **mất toàn bộ dữ liệu** của DB `carenest` và `keycloak`:

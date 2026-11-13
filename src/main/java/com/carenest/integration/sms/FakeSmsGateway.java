@@ -1,6 +1,7 @@
 package com.carenest.integration.sms;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "carenest.sms.provider", havingValue = SmsProperties.FAKE, matchIfMissing = true)
 public class FakeSmsGateway implements SmsGateway {
 
     @Override

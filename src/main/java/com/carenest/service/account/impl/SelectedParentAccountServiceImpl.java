@@ -30,6 +30,7 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
     private final AccountLifecycleOperations accountLifecycle;
     private final TemporaryPasswordGenerator passwordGenerator;
     private final ParentSmsSender smsSender;
+    private final ParentActivationCodes activationCodes;
     private final TransactionTemplate transactionTemplate;
 
     @Override
@@ -154,7 +155,10 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
                 return List.of(
                         new ActivationResult(parent.getId(), parent.getFullName(), parent.getUsername(), false, null));
             }
-            String temporaryPassword = passwordGenerator.generate(); // carenest:allow-secret
+            // AUTH-18: có nhà cung cấp SMS thật ⇒ không mật khẩu, gửi mã kích hoạt; cổng giả ⇒ mật khẩu tạm như cũ
+            boolean codeMode = smsSender.activationCodeMode();
+            String temporaryPassword = codeMode ? null : passwordGenerator.generate(); // carenest:allow-secret
+            String activationCode = codeMode ? activationCodes.generate() : null;
             UserAccount created = accountLifecycle.createIdentity(
                     logPrefix,
                     new NewIdentityUser(chosen.phone(), null, chosen.fullName(), temporaryPassword),
@@ -163,9 +167,12 @@ public class SelectedParentAccountServiceImpl implements SelectedParentAccountSe
                         UserAccount parent = userAccountRepository.saveAndFlush(UserAccount.createParent(
                                 identityId, chosen.phone(), chosen.email(), chosen.fullName(), chosen.idNumber()));
                         childIntakeService.linkAccountRecipient(childId, guardianId, parent.getId());
+                        if (codeMode) activationCodes.store(parent.getId(), activationCode);
                         return parent;
                     });
-            var smsStatus = smsSender.sendActivation(created, temporaryPassword);
+            var smsStatus = codeMode
+                    ? smsSender.sendActivationCode(created, activationCode)
+                    : smsSender.sendActivation(created, temporaryPassword);
             log.info("{}|END", logPrefix);
             return List.of(new ActivationResult(
                     created.getId(), created.getFullName(), created.getUsername(), true, smsStatus));

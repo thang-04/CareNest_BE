@@ -72,6 +72,7 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
     private final StaffAccessPolicy staffAccessPolicy;
     private final AccountLifecycleOperations accountLifecycle;
     private final TemporaryPasswordGenerator passwordGenerator;
+    private final ParentActivationCodes activationCodes;
     private final ParentSmsSender smsSender;
 
     @Override
@@ -204,12 +205,19 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                             .filter(g -> accounts.parentOf(g).isEmpty())
                             .toList()
                     : List.of();
-            List<String> passwords = newParents.stream()
-                    .map(g -> passwordGenerator.generate()) // carenest:allow-secret
+            // AUTH-18: có nhà cung cấp SMS thật ⇒ tài khoản không mật khẩu + mã kích hoạt; cổng giả ⇒ mật khẩu tạm
+            boolean codeMode = smsSender.activationCodeMode();
+            List<String> secrets = newParents.stream()
+                    .map(g -> codeMode
+                            ? activationCodes.generate()
+                            : passwordGenerator.generate()) // carenest:allow-secret
                     .toList();
             List<NewIdentityUser> identities = IntStream.range(0, newParents.size())
                     .mapToObj(i -> new NewIdentityUser(
-                            newParents.get(i).phone(), null, newParents.get(i).fullName(), passwords.get(i)))
+                            newParents.get(i).phone(),
+                            null,
+                            newParents.get(i).fullName(),
+                            codeMode ? null : secrets.get(i)))
                     .toList();
             EnrollmentDraft resolved = draft.withGuardians(guardians);
 
@@ -233,18 +241,22 @@ public class ChildEnrollmentServiceImpl implements ChildEnrollmentService {
                                     keycloakUserIds.get(i), g.phone(), g.email(), g.fullName(), g.citizenId()));
                             accountIds.put(g.position(), parent.getId());
                             created.add(parent);
+                            if (codeMode) activationCodes.store(parent.getId(), secrets.get(i));
                         }
                         Long childId = childIntakeService.createEnrolledChild(actor, resolved, accountIds);
                         childPhotoService.attachToEnrollment(childId, photos);
                         return new Enrolled(childId, created, accountIds);
                     });
 
-            // Sau commit: SMS mật khẩu tạm tới SĐT (L-15); mật khẩu không trả về giao diện
+            // Sau commit: SMS mã kích hoạt hoặc mật khẩu tạm tới SĐT; không trả về giao diện
             Map<Integer, SmsStatus> smsByPosition = new HashMap<>();
             for (int i = 0; i < newParents.size(); i++) {
+                UserAccount parent = enrolled.created().get(i);
                 smsByPosition.put(
                         newParents.get(i).position(),
-                        smsSender.sendActivation(enrolled.created().get(i), passwords.get(i)));
+                        codeMode
+                                ? smsSender.sendActivationCode(parent, secrets.get(i))
+                                : smsSender.sendActivation(parent, secrets.get(i)));
             }
             ChildViewResponse view = childIntakeService.getChildView(enrolled.childId());
             List<GuardianAccountResultResponse> results = guardians.stream()

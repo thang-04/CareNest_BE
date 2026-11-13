@@ -96,6 +96,10 @@ public class SecurityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers(PUBLIC_PATHS).permitAll();
+                    // ADR-0024: phụ huynh kích hoạt bằng mã SMS khi chưa có mật khẩu (chưa có token)
+                    auth.requestMatchers(PathPatternRequestMatcher.withDefaults()
+                                    .matcher(HttpMethod.POST, apiPrefix + "/parent-activation"))
+                            .permitAll();
                     if (authProperties.enabled())
                         auth.requestMatchers(authGet, authPost).permitAll();
                     // AUTH-21: token không còn role nào dùng được trên nền tảng của client ⇒ 403 mọi API
