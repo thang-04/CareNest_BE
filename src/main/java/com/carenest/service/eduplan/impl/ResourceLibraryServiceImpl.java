@@ -20,10 +20,10 @@ import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.ResourceLibraryService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
-import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.LearningResourcePolicy;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FileCategory;
+import com.carenest.utils.enums.NotificationType;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.LocalDate;
@@ -71,11 +71,12 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
             Viewer v = viewer(user);
             String view = query.view() == null ? "ALL" : query.view();
             String q = query.q() == null ? "" : query.q().strip().toLowerCase(Locale.ROOT);
-            List<EduResourceItem> found = items.findVisible(
-                            v.userId(), orNone(v.classIds()), v.vicePrincipal(), orNone(v.leaderAgeGroups()))
+            List<EduResourceItem> found = items
+                    .findVisible(v.userId(), orNone(v.classIds()), v.vicePrincipal(), orNone(v.leaderAgeGroups()))
                     .stream()
                     .filter(i -> inView(v, i, view))
-                    .filter(i -> q.isEmpty() || i.getTitle().toLowerCase(Locale.ROOT).contains(q))
+                    .filter(i ->
+                            q.isEmpty() || i.getTitle().toLowerCase(Locale.ROOT).contains(q))
                     .filter(i -> query.kind() == null || query.kind().equals(i.getKind()))
                     .filter(i -> query.ageGroupId() == null
                             || i.getAgeGroupId() == null
@@ -93,10 +94,18 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
                     .toList();
             int size = Math.max(1, Math.min(MAX_PAGE, query.size() <= 0 ? MAX_PAGE : query.size()));
             int page = Math.max(0, query.page());
-            List<Ranked> slice = ranked.stream().skip((long) page * size).limit(size).toList();
-            Map<Long, Long> usage = usageOf(slice.stream().map(r -> r.item().getId()).toList());
+            List<Ranked> slice =
+                    ranked.stream().skip((long) page * size).limit(size).toList();
+            Map<Long, Long> usage =
+                    usageOf(slice.stream().map(r -> r.item().getId()).toList());
             List<ResourceItemResponse> rows = slice.stream()
-                    .map(r -> response(v, r.item(), tagMap, usage, r.match(), attached.contains(r.item().getId())))
+                    .map(r -> response(
+                            v,
+                            r.item(),
+                            tagMap,
+                            usage,
+                            r.match(),
+                            attached.contains(r.item().getId())))
                     .toList();
             var result = new PageResponse<>(rows, page, size, ranked.size(), (ranked.size() + size - 1) / size);
             log.info("{}|END", p);
@@ -153,7 +162,8 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
         String p = LOG_PREFIX + "|addLink|userId=" + user.userId();
         log.info("{}|START", p);
         try {
-            var result = single(user, findOrCreateLink(user, request.url(), request.title(), request.ageGroupId(), null));
+            var result =
+                    single(user, findOrCreateLink(user, request.url(), request.title(), request.ageGroupId(), null));
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -233,7 +243,8 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
         String p = LOG_PREFIX + "|withdraw|userId=" + user.userId() + "|id=" + id;
         log.info("{}|START", p);
         try {
-            EduResourceItem item = items.findById(id).orElseThrow(() -> GlobalException.of(ApiCode.RESOURCE_ITEM_NOT_FOUND));
+            EduResourceItem item =
+                    items.findById(id).orElseThrow(() -> GlobalException.of(ApiCode.RESOURCE_ITEM_NOT_FOUND));
             if (!item.getOwnerId().equals(user.userId())) throw GlobalException.of(ApiCode.RESOURCE_ITEM_FORBIDDEN);
             if (!item.isPending()) throw GlobalException.of(ApiCode.RESOURCE_SHARE_STATE);
             item.withdraw(clock.instant());
@@ -254,11 +265,13 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
         log.info("{}|START", p);
         try {
             Viewer v = viewer(user);
-            EduResourceItem item = items.findById(id).orElseThrow(() -> GlobalException.of(ApiCode.RESOURCE_ITEM_NOT_FOUND));
+            EduResourceItem item =
+                    items.findById(id).orElseThrow(() -> GlobalException.of(ApiCode.RESOURCE_ITEM_NOT_FOUND));
             if (!item.isPending()) throw GlobalException.of(ApiCode.RESOURCE_SHARE_STATE);
             if (!canReview(v, item)) throw GlobalException.of(ApiCode.RESOURCE_ITEM_FORBIDDEN);
             String reason = request.reason() == null ? "" : request.reason().strip();
-            if (!request.approve() && reason.isEmpty()) throw GlobalException.of(ApiCode.RESOURCE_REVIEW_REASON_REQUIRED);
+            if (!request.approve() && reason.isEmpty())
+                throw GlobalException.of(ApiCode.RESOURCE_REVIEW_REASON_REQUIRED);
             item.reviewed(request.approve(), reason, v.userId(), clock.instant());
             items.saveAndFlush(item);
             // EDU-84: báo người tạo kết quả duyệt; trả lại kèm lý do
@@ -311,7 +324,9 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
             requireVisible(user, id);
             List<EduResourceAttachment> rows = attachments.findAllByItemIdOrderByIdAsc(id);
             Map<Long, EduClassDoc> docs = classDocRepository
-                    .findAllById(rows.stream().map(EduResourceAttachment::getClassDocId).collect(Collectors.toSet()))
+                    .findAllById(rows.stream()
+                            .map(EduResourceAttachment::getClassDocId)
+                            .collect(Collectors.toSet()))
                     .stream()
                     .collect(Collectors.toMap(EduClassDoc::getId, Function.identity()));
             var result = rows.stream()
@@ -322,7 +337,8 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
                                 a.getId(),
                                 d.getDocKey(),
                                 d.getClassroomId(),
-                                a.getActivityKey().substring(0, a.getActivityKey().indexOf('#')),
+                                a.getActivityKey()
+                                        .substring(0, a.getActivityKey().indexOf('#')),
                                 a.getActivityKey(),
                                 a.getActivityLabel());
                     })
@@ -420,7 +436,8 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
     /** EDU-84: PHT duyệt mọi đề nghị; tổ trưởng duyệt đề nghị của nhóm tuổi mình, không tự duyệt của mình. */
     static boolean canReview(Viewer v, EduResourceItem i) {
         if (!i.isPending() || i.getOwnerId().equals(v.userId())) return false;
-        return v.vicePrincipal() || (i.getAgeGroupId() != null && v.leaderAgeGroups().contains(i.getAgeGroupId()));
+        return v.vicePrincipal()
+                || (i.getAgeGroupId() != null && v.leaderAgeGroups().contains(i.getAgeGroupId()));
     }
 
     static boolean canEdit(Viewer v, EduResourceItem i) {
@@ -431,7 +448,10 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
         boolean mine = i.getOwnerId().equals(v.userId());
         return switch (view) {
             case "MINE" -> mine && !i.isHidden();
-            case "CLASS" -> EduResourceItem.CLASS.equals(i.getScope()) && !i.isHidden() && (mine || v.classIds().contains(i.getClassroomId()));
+            case "CLASS" ->
+                EduResourceItem.CLASS.equals(i.getScope())
+                        && !i.isHidden()
+                        && (mine || v.classIds().contains(i.getClassroomId()));
             case "SCHOOL" -> EduResourceItem.SCHOOL.equals(i.getScope()) && !i.isHidden();
             case "PENDING" -> canReview(v, i);
             case "HIDDEN" -> i.isHidden() && canEdit(v, i);
@@ -452,13 +472,15 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
     private void saveTags(EduResourceItem item, ResourceTagsRequest request) {
         if (request == null) return;
         List<EduResourceItemTag> rows = new ArrayList<>();
-        if (request.themeId() != null || (request.themeName() != null && !request.themeName().isBlank()))
+        if (request.themeId() != null
+                || (request.themeName() != null && !request.themeName().isBlank()))
             rows.add(EduResourceItemTag.of(
                     item.getId(), EduResourceItemTag.THEME, request.themeId(), null, blankToNull(request.themeName())));
         Set<Long> seen = new HashSet<>();
         for (EduPlanGoal g : goals.findAllById(request.goals())) {
             if (seen.add(g.getId()))
-                rows.add(EduResourceItemTag.of(item.getId(), EduResourceItemTag.GOAL, g.getId(), g.getCurriculumId(), null));
+                rows.add(EduResourceItemTag.of(
+                        item.getId(), EduResourceItemTag.GOAL, g.getId(), g.getCurriculumId(), null));
         }
         tags.saveAll(rows);
     }
@@ -481,7 +503,8 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
             boolean goal = itemTags.stream()
                     .anyMatch(t -> EduResourceItemTag.GOAL.equals(t.getKind())
                             && (goalIds.contains(t.getRefId())
-                                    || (t.getCurriculumGoalId() != null && curriculum.contains(t.getCurriculumGoalId()))));
+                                    || (t.getCurriculumGoalId() != null
+                                            && curriculum.contains(t.getCurriculumGoalId()))));
             if (goal) return "GOAL";
             boolean theme = itemTags.stream()
                     .anyMatch(t -> EduResourceItemTag.THEME.equals(t.getKind())
@@ -549,7 +572,8 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
                 i.getAgeGroupId(),
                 i.isHidden(),
                 tagMap.getOrDefault(i.getId(), List.of()).stream()
-                        .map(t -> new ResourceTagResponse(t.getKind(), t.getRefId(), t.getCurriculumGoalId(), t.getName()))
+                        .map(t -> new ResourceTagResponse(
+                                t.getKind(), t.getRefId(), t.getCurriculumGoalId(), t.getName()))
                         .toList(),
                 usage.getOrDefault(i.getId(), 0L),
                 match,

@@ -832,7 +832,8 @@ class EduClassDocServiceIntegrationTest {
         assertThat(learningResources.list(teacher, dayKey))
                 .extracting(r -> r.activityKey())
                 .containsExactly("2026-09-08#chieu");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class)).isEqualTo(itemsBefore);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class))
+                .isEqualTo(itemsBefore);
         // EDU-82: học liệu gắn sau đứng sau; người sửa đổi được thứ tự, danh sách cũ (thiếu dòng) bị từ chối
         var video = learningResources.addLink(
                 teacher,
@@ -846,13 +847,15 @@ class EduClassDocServiceIntegrationTest {
                 () -> learningResources.reorder(
                         teacher,
                         dayKey,
-                        new com.carenest.dto.eduplan.ResourceOrderRequest("2026-09-08#chieu", java.util.List.of(video.id()))),
+                        new com.carenest.dto.eduplan.ResourceOrderRequest(
+                                "2026-09-08#chieu", java.util.List.of(video.id()))),
                 ApiCode.RESOURCE_ORDER_STALE);
         learningResources.reorder(
                 teacher,
                 dayKey,
                 new com.carenest.dto.eduplan.ResourceOrderRequest(
-                        "2026-09-08#chieu", java.util.List.of(video.id(), again.get(0).id())));
+                        "2026-09-08#chieu",
+                        java.util.List.of(video.id(), again.get(0).id())));
         assertThat(learningResources.list(teacher, dayKey))
                 .extracting(r -> r.id())
                 .containsExactly(video.id(), again.get(0).id());
@@ -877,7 +880,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName("Spec 900 FR-018, SC-002: chuyển học liệu cũ sang kho — số học liệu = số dòng cũ, dòng gắn = dòng đang gắn")
+    @DisplayName(
+            "Spec 900 FR-018, SC-002: chuyển học liệu cũ sang kho — số học liệu = số dòng cũ, dòng gắn = dòng đang gắn")
     void legacyLearningResourcesMigrateToLibrary() throws Exception {
         approveBranch();
         String dayKey = "dd_" + classId + "_2026-09-07";
@@ -891,12 +895,32 @@ class EduClassDocServiceIntegrationTest {
         java.util.UUID request = java.util.UUID.randomUUID();
         String insert = "INSERT INTO edu_learning_resources (class_doc_id, activity_key, activity_label, original_name,"
                 + " content_type, byte_size, storage_key, upload_request_id, uploaded_by) VALUES (?,?,?,?,?,?,?,?,?)";
-        jdbc.update(insert, docId, "2026-09-07#hoc", "Hoạt động học", "bai.hat.pdf", "application/pdf", 10L,
-                "hoclieu/legacy-1", request, teacher.userId());
-        jdbc.update(insert, docId, null, "Hoạt động học", "anh.png", "image/png", 5L, "hoclieu/legacy-2",
-                java.util.UUID.randomUUID(), teacher.userId());
+        jdbc.update(
+                insert,
+                docId,
+                "2026-09-07#hoc",
+                "Hoạt động học",
+                "bai.hat.pdf",
+                "application/pdf",
+                10L,
+                "hoclieu/legacy-1",
+                request,
+                teacher.userId());
+        jdbc.update(
+                insert,
+                docId,
+                null,
+                "Hoạt động học",
+                "anh.png",
+                "image/png",
+                5L,
+                "hoclieu/legacy-2",
+                java.util.UUID.randomUUID(),
+                teacher.userId());
         String script = new String(
-                getClass().getResourceAsStream("/db/migration/V125__edu_resource_library.sql").readAllBytes(),
+                getClass()
+                        .getResourceAsStream("/db/migration/V125__edu_resource_library.sql")
+                        .readAllBytes(),
                 java.nio.charset.StandardCharsets.UTF_8);
         String data = script.substring(script.indexOf("ALTER TABLE edu_resource_items ADD COLUMN legacy_id"));
         for (String sql : data.split(";\\s*\\n")) if (!sql.isBlank()) jdbc.execute(sql);

@@ -9,7 +9,10 @@ import java.util.List;
 /** EDU-82: gắn học liệu có sẵn trong kho vào một mục hoạt động. */
 public record ResourceAttachRequest(
         @NotEmpty @Size(max = 20) List<Long> itemIds,
-        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN) String activityKey,
+
+        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN)
+        String activityKey,
+
         @NotBlank @Size(max = 1000) String activityLabel) {
 
     public LearningResourceBinding binding() {

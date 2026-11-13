@@ -154,8 +154,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                     throw ex;
                 }
             }
-            LearningResourceResponse result =
-                    commit(user, docKey, binding, requestId, name, stored, request.tags());
+            LearningResourceResponse result = commit(user, docKey, binding, requestId, name, stored, request.tags());
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -181,10 +180,11 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     private LearningResourceResponse replay(
             CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, UUID requestId) {
         return items.findByOwnerIdAndUploadRequestId(user.userId(), requestId)
-                .flatMap(item -> attachments.findAllByClassDocIdAndActivityKey(doc.getId(), binding.activityKey()).stream()
-                        .filter(a -> a.getItemId().equals(item.getId()))
-                        .findFirst()
-                        .map(a -> response(doc, a, item)))
+                .flatMap(item ->
+                        attachments.findAllByClassDocIdAndActivityKey(doc.getId(), binding.activityKey()).stream()
+                                .filter(a -> a.getItemId().equals(item.getId()))
+                                .findFirst()
+                                .map(a -> response(doc, a, item)))
                 .orElse(null);
     }
 
@@ -294,7 +294,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     private EduResourceAttachment saveAttachment(
             CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, Long itemId) {
         try {
-            // ponytail: số thứ tự = số dòng đang có; sau khi gỡ có thể trùng số, trùng thì id lớn hơn (gắn sau) đứng sau
+            // ponytail: số thứ tự = số dòng đang có; sau khi gỡ có thể trùng số, trùng thì id lớn hơn (gắn sau) đứng
+            // sau
             int position = (int) attachments.countByClassDocIdAndActivityKey(doc.getId(), binding.activityKey());
             return attachments.saveAndFlush(EduResourceAttachment.of(
                     doc.getId(),
@@ -346,7 +347,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             // EDU-82: phải gửi đủ đúng các dòng gắn đang có của mục; người khác vừa gắn/gỡ thì bắt tải lại
             if (request.ids().size() != rows.size() || !rows.keySet().containsAll(request.ids()))
                 throw GlobalException.of(ApiCode.RESOURCE_ORDER_STALE);
-            for (int i = 0; i < request.ids().size(); i++) rows.get(request.ids().get(i)).moveTo(i);
+            for (int i = 0; i < request.ids().size(); i++)
+                rows.get(request.ids().get(i)).moveTo(i);
             attachments.saveAllAndFlush(rows.values());
             workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
             log.info("{}|END", p);
@@ -413,7 +415,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     }
 
     private Long ageGroupOf(EduClassDoc doc) {
-        return classrooms.findClassroomInfo(doc.getClassroomId())
+        return classrooms
+                .findClassroomInfo(doc.getClassroomId())
                 .map(c -> c.ageGroupId())
                 .orElse(null);
     }
@@ -426,7 +429,9 @@ public class LearningResourceServiceImpl implements LearningResourceService {
 
     private Map<Long, EduResourceItem> itemsOf(List<EduResourceAttachment> rows) {
         if (rows.isEmpty()) return Map.of();
-        return items.findAllById(rows.stream().map(EduResourceAttachment::getItemId).collect(Collectors.toSet())).stream()
+        return items
+                .findAllById(rows.stream().map(EduResourceAttachment::getItemId).collect(Collectors.toSet()))
+                .stream()
                 .collect(Collectors.toMap(EduResourceItem::getId, Function.identity()));
     }
 

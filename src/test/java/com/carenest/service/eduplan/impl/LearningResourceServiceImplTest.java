@@ -76,8 +76,8 @@ class LearningResourceServiceImplTest {
         when(docs.requireDayAccess(teacher, KEY, true)).thenReturn(doc);
         when(docs.requireDayAccess(teacher, KEY, false)).thenReturn(doc);
         when(classrooms.findClassroomInfo(1L))
-                .thenReturn(Optional.of(new ClassroomInfoResponse(
-                        1L, "A1", 1L, 2L, null, null, null, 4L, List.of(), null, null)));
+                .thenReturn(Optional.of(
+                        new ClassroomInfoResponse(1L, "A1", 1L, 2L, null, null, null, 4L, List.of(), null, null)));
         when(attachments.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
     }
 
@@ -116,7 +116,8 @@ class LearningResourceServiceImplTest {
     void attachCreatesOnlyReferenceToLibraryItem() {
         EduResourceItem item = link(5L, 7L);
         when(library.requireVisible(teacher, 5L)).thenReturn(item);
-        var result = service.attach(teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học"));
+        var result =
+                service.attach(teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học"));
         // EDU-82: chỉ thêm dòng gắn, không tạo học liệu mới, không đụng kho tệp
         assertThat(result).singleElement().satisfies(r -> {
             assertThat(r.itemId()).isEqualTo(5L);
@@ -130,7 +131,8 @@ class LearningResourceServiceImplTest {
     @Test
     void attachSameItemTwiceInSectionRejected() {
         when(library.requireVisible(teacher, 5L)).thenReturn(link(5L, 7L));
-        when(attachments.existsByClassDocIdAndActivityKeyAndItemId(8L, "2026-09-08#hoc", 5L)).thenReturn(true);
+        when(attachments.existsByClassDocIdAndActivityKeyAndItemId(8L, "2026-09-08#hoc", 5L))
+                .thenReturn(true);
         assertThatThrownBy(() -> service.attach(
                         teacher, KEY, new ResourceAttachRequest(List.of(5L), "2026-09-08#hoc", "Hoạt động học")))
                 .isInstanceOf(GlobalException.class)
@@ -151,7 +153,8 @@ class LearningResourceServiceImplTest {
 
     @Test
     void detachRemovesOnlyThisAttachment() {
-        EduResourceAttachment a = EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 0, 7L, Instant.now());
+        EduResourceAttachment a =
+                EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 0, 7L, Instant.now());
         ReflectionTestUtils.setField(a, "id", 30L);
         when(attachments.findByIdAndClassDocId(30L, 8L)).thenReturn(Optional.of(a));
         service.detach(teacher, KEY, 30L);
@@ -166,16 +169,19 @@ class LearningResourceServiceImplTest {
         // EDU-86: học liệu "Của tôi" của người khác, đã ẩn — người xem giáo án vẫn mở được
         EduResourceItem item = link(5L, 99L);
         item.changeHidden(true, Instant.now());
-        EduResourceAttachment a = EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 0, 99L, Instant.now());
+        EduResourceAttachment a =
+                EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 0, 99L, Instant.now());
         ReflectionTestUtils.setField(a, "id", 30L);
         when(attachments.findByIdAndClassDocId(30L, 8L)).thenReturn(Optional.of(a));
         when(items.findById(5L)).thenReturn(Optional.of(item));
         when(assignments.findHomeroomTeacherIds(any(), any())).thenReturn(Map.of());
-        assertThat(service.contentUrl(teacher, KEY, 30L).url()).isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        assertThat(service.contentUrl(teacher, KEY, 30L).url())
+                .isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
     }
 
     private EduResourceAttachment row(long id, long itemId, int order) {
-        EduResourceAttachment a = EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", itemId, order, 7L, Instant.now());
+        EduResourceAttachment a =
+                EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", itemId, order, 7L, Instant.now());
         ReflectionTestUtils.setField(a, "id", id);
         return a;
     }
@@ -183,9 +189,11 @@ class LearningResourceServiceImplTest {
     @Test
     void reorderSetsPositionsInGivenOrder() {
         EduResourceAttachment a = row(30L, 5L, 0), b = row(31L, 6L, 1), c = row(32L, 7L, 2);
-        when(attachments.findAllByClassDocIdAndActivityKey(8L, "2026-09-08#hoc")).thenReturn(List.of(a, b, c));
+        when(attachments.findAllByClassDocIdAndActivityKey(8L, "2026-09-08#hoc"))
+                .thenReturn(List.of(a, b, c));
         service.reorder(teacher, KEY, new ResourceOrderRequest("2026-09-08#hoc", List.of(32L, 30L, 31L)));
-        assertThat(List.of(c.getSortOrder(), a.getSortOrder(), b.getSortOrder())).containsExactly(0, 1, 2);
+        assertThat(List.of(c.getSortOrder(), a.getSortOrder(), b.getSortOrder()))
+                .containsExactly(0, 1, 2);
         verify(attachments).saveAllAndFlush(any());
     }
 
@@ -194,7 +202,8 @@ class LearningResourceServiceImplTest {
         // EDU-82: người khác vừa gắn thêm ⇒ danh sách gửi lên thiếu một dòng
         when(attachments.findAllByClassDocIdAndActivityKey(8L, "2026-09-08#hoc"))
                 .thenReturn(List.of(row(30L, 5L, 0), row(31L, 6L, 1)));
-        assertThatThrownBy(() -> service.reorder(teacher, KEY, new ResourceOrderRequest("2026-09-08#hoc", List.of(30L))))
+        assertThatThrownBy(
+                        () -> service.reorder(teacher, KEY, new ResourceOrderRequest("2026-09-08#hoc", List.of(30L))))
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.RESOURCE_ORDER_STALE);

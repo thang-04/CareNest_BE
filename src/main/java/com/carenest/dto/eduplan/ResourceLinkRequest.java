@@ -9,7 +9,10 @@ import jakarta.validation.constraints.Size;
 public record ResourceLinkRequest(
         @NotBlank @Size(max = 2000) String url,
         @Size(max = 255) String title,
-        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN) String activityKey,
+
+        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN)
+        String activityKey,
+
         @NotBlank @Size(max = 1000) String activityLabel,
         @Valid ResourceTagsRequest tags) {
 

@@ -34,7 +34,11 @@ public interface ResourceLibraryService {
 
     /** Dùng cho giáo án ngày: tạo học liệu tệp "Của tôi" (trong giao dịch của người gọi) và gắn nhãn. */
     EduResourceItem createFileItem(
-            CurrentUser user, Long ageGroupId, FileStorage.StoredFile stored, String name, UUID requestId,
+            CurrentUser user,
+            Long ageGroupId,
+            FileStorage.StoredFile stored,
+            String name,
+            UUID requestId,
             ResourceTagsRequest tags);
 
     /** Dùng cho giáo án ngày: học liệu link của chính người dùng (dùng lại nếu đã có cùng url) — EDU-83. */

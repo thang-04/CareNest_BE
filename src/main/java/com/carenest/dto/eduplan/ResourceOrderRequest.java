@@ -8,5 +8,7 @@ import java.util.List;
 
 /** EDU-82: thứ tự mới của mọi dòng gắn trong một mục hoạt động (id dòng gắn, đầu danh sách = đứng đầu). */
 public record ResourceOrderRequest(
-        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN) String activityKey,
+        @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN)
+        String activityKey,
+
         @NotEmpty @Size(max = 20) List<Long> ids) {}

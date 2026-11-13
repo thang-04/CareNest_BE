@@ -17,9 +17,9 @@ import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.ResourceLibraryService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.StaffAssignmentService;
-import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.NotificationType;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -92,8 +92,8 @@ class ResourceLibraryServiceImplTest {
 
     @Test
     void deleteUnusedFileRemovesItemAndStoredFile() {
-        EduResourceItem file = EduResourceItem.file(
-                7L, "Tranh", 4L, "tranh.png", "image/png", 10, "hoclieu/k1", null, Instant.now());
+        EduResourceItem file =
+                EduResourceItem.file(7L, "Tranh", 4L, "tranh.png", "image/png", 10, "hoclieu/k1", null, Instant.now());
         ReflectionTestUtils.setField(file, "id", 6L);
         when(items.findById(6L)).thenReturn(Optional.of(file));
         service.delete(teacher, 6L);
@@ -118,7 +118,9 @@ class ResourceLibraryServiceImplTest {
                 .isInstanceOf(GlobalException.class)
                 .extracting("apiCode")
                 .isEqualTo(ApiCode.RESOURCE_ITEM_FORBIDDEN);
-        assertThat(service.share(teacher, 5L, new ResourceShareRequest("CLASS", 1L)).scope()).isEqualTo("CLASS");
+        assertThat(service.share(teacher, 5L, new ResourceShareRequest("CLASS", 1L))
+                        .scope())
+                .isEqualTo("CLASS");
     }
 
     @Test
@@ -136,14 +138,22 @@ class ResourceLibraryServiceImplTest {
         // Người tạo không tự duyệt
         assertThatThrownBy(() -> service.review(teacher, 5L, new ResourceReviewRequest(true, null)))
                 .isInstanceOf(GlobalException.class);
-        assertThat(service.review(leader, 5L, new ResourceReviewRequest(true, null)).scope())
+        assertThat(service.review(leader, 5L, new ResourceReviewRequest(true, null))
+                        .scope())
                 .isEqualTo("SCHOOL");
         // EDU-84: người tạo nhận thông báo đã duyệt
         verify(notifications)
-                .notifyUsers(eq(List.of(7L)), eq(NotificationType.EDU_RESOURCE_APPROVED), any(), any(), eq("/education/resources"), eq(false));
+                .notifyUsers(
+                        eq(List.of(7L)),
+                        eq(NotificationType.EDU_RESOURCE_APPROVED),
+                        any(),
+                        any(),
+                        eq("/education/resources"),
+                        eq(false));
         // PHT đưa thẳng
         EduResourceItem own = item(6L, 9L);
-        assertThat(service.share(vice, 6L, new ResourceShareRequest("SCHOOL", null)).scope())
+        assertThat(service.share(vice, 6L, new ResourceShareRequest("SCHOOL", null))
+                        .scope())
                 .isEqualTo("SCHOOL");
         assertThat(i.getShareBy()).isEqualTo(8L);
         assertThat(own.getShareStatus()).isNull();
@@ -166,7 +176,8 @@ class ResourceLibraryServiceImplTest {
         EduResourceItem lastYearGoal = item(3L, 7L);
         EduResourceItem hidden = item(4L, 7L);
         hidden.changeHidden(true, Instant.now());
-        when(items.findVisible(any(), any(), anyBoolean(), any())).thenReturn(List.of(plain, theme, lastYearGoal, hidden));
+        when(items.findVisible(any(), any(), anyBoolean(), any()))
+                .thenReturn(List.of(plain, theme, lastYearGoal, hidden));
         when(tags.findAllByItemIdIn(any()))
                 .thenReturn(List.of(
                         // năm trước: MT 500 có cùng mã mục tiêu Bộ 77 với MT 20 năm nay
@@ -192,7 +203,8 @@ class ResourceLibraryServiceImplTest {
             many.add(i);
         });
         List<EduResourceItemTag> manyTags = new ArrayList<>();
-        LongStream.rangeClosed(1, 2000).forEach(id -> manyTags.add(EduResourceItemTag.of(id, "THEME", id, null, "Chủ đề " + id)));
+        LongStream.rangeClosed(1, 2000)
+                .forEach(id -> manyTags.add(EduResourceItemTag.of(id, "THEME", id, null, "Chủ đề " + id)));
         when(items.findVisible(any(), any(), anyBoolean(), any())).thenReturn(many);
         when(tags.findAllByItemIdIn(any())).thenReturn(manyTags);
         when(attachments.countByItemIds(any())).thenReturn(List.of());
@@ -214,22 +226,25 @@ class ResourceLibraryServiceImplTest {
                 teacher,
                 5L,
                 new com.carenest.dto.eduplan.ResourceItemUpdateRequest(
-                        null, null, null, null, new com.carenest.dto.eduplan.ResourceTagsRequest(30L, "Bản thân", List.of())));
+                        null,
+                        null,
+                        null,
+                        null,
+                        new com.carenest.dto.eduplan.ResourceTagsRequest(30L, "Bản thân", List.of())));
         verify(tags).deleteAllByItemId(5L);
         var saved = org.mockito.ArgumentCaptor.forClass(List.class);
         verify(tags).saveAll(saved.capture());
-        assertThat((List<EduResourceItemTag>) saved.getValue())
-                .singleElement()
-                .satisfies(t -> {
-                    assertThat(t.getKind()).isEqualTo("THEME");
-                    assertThat(t.getName()).isEqualTo("Bản thân");
-                });
+        assertThat((List<EduResourceItemTag>) saved.getValue()).singleElement().satisfies(t -> {
+            assertThat(t.getKind()).isEqualTo("THEME");
+            assertThat(t.getName()).isEqualTo("Bản thân");
+        });
     }
 
     @Test
     void sameLinkPastedAgainReusesItem() {
         EduResourceItem existing = item(5L, 7L);
-        when(items.findFirstByOwnerIdAndKindAndUrlOrderByIdAsc(7L, "LINK", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
+        when(items.findFirstByOwnerIdAndKindAndUrlOrderByIdAsc(
+                        7L, "LINK", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"))
                 .thenReturn(Optional.of(existing));
         // EDU-83: dạng youtu.be của cùng video ⇒ dùng lại học liệu cũ
         assertThat(service.findOrCreateLink(teacher, "https://youtu.be/dQw4w9WgXcQ", null, 4L, null))
