@@ -228,6 +228,21 @@ class VicePrincipalAssignmentIntegrationTest {
     }
 
     @Test
+    void swapInPlannedYearWorksOnAssignmentsCarriedOverFromTheActiveYear() {
+        // Năm sau chưa phân công riêng: hai người đang theo phân công không hạn của năm đang học
+        service.assign(principal, activeYear, vp2, new VicePrincipalAssignmentRequest(campusB));
+
+        Map<Long, Long> planned = campusByUser(
+                service.assign(principal, plannedYear, vp1, new VicePrincipalAssignmentRequest(campusB, true)));
+
+        assertThat(planned.get(vp1)).isEqualTo(campusB);
+        assertThat(planned.get(vp2)).isEqualTo(campusA);
+        Map<Long, Long> active = campusByUser(service.getAssignments(principal, activeYear));
+        assertThat(active.get(vp1)).isEqualTo(campusA);
+        assertThat(active.get(vp2)).isEqualTo(campusB);
+    }
+
+    @Test
     void swapNeedsACampusToGiveBack() {
         // vp2 chưa phụ trách điểm trường nào trong năm ⇒ không có gì để đổi, vẫn chặn
         assertCode(
