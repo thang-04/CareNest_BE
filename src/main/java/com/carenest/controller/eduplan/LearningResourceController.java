@@ -5,6 +5,7 @@ import com.carenest.dto.common.PresignedUploadResponse;
 import com.carenest.dto.eduplan.LearningResourceBinding;
 import com.carenest.dto.eduplan.ResourceAttachRequest;
 import com.carenest.dto.eduplan.ResourceLinkRequest;
+import com.carenest.dto.eduplan.ResourceOrderRequest;
 import com.carenest.dto.eduplan.LearningResourceConfirmRequest;
 import com.carenest.dto.eduplan.LearningResourceResponse;
 import com.carenest.dto.eduplan.LearningResourceUploadUrlRequest;
@@ -118,6 +119,18 @@ public class LearningResourceController {
         var result = service.attach(user, docKey, request);
         log.info("{}|END", p);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Attach learning resources success", result);
+    }
+
+    /** EDU-82: đổi thứ tự học liệu trong một mục hoạt động (thứ tự xem/trình chiếu). */
+    @PutMapping("/order")
+    public ResponseEntity<ResponseJson<List<LearningResourceResponse>>> reorder(
+            @PathVariable String docKey, @Valid @RequestBody ResourceOrderRequest request, CurrentUser user) {
+        String p = LOG_PREFIX + "|reorder|userId=" + user.userId();
+        log.info("{}|START", p);
+        service.reorder(user, docKey, request);
+        var result = service.list(user, docKey);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reorder learning resources success", result);
     }
 
     @DeleteMapping("/{id}")

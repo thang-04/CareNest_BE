@@ -3494,6 +3494,30 @@ paths:
           description: OK
       tags:
       - learning-resource-controller
+  /api/education-plans/class-docs/day/{docKey}/learning-resources/order:
+    put:
+      operationId: reorder
+      parameters:
+      - in: path
+        name: docKey
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResourceOrderRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListLearningResourceResponse"
+          description: OK
+      tags:
+      - learning-resource-controller
   /api/education-plans/class-docs/day/{docKey}/learning-resources/upload-url:
     post:
       operationId: uploadUrl
@@ -16041,6 +16065,8 @@ components:
           - EDU_RETURNED
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
+          - EDU_RESOURCE_APPROVED
+          - EDU_RESOURCE_RETURNED
     NutritionTotals:
       type: object
       properties:
@@ -17531,6 +17557,23 @@ components:
       - activityKey
       - activityLabel
       - url
+    ResourceOrderRequest:
+      type: object
+      properties:
+        activityKey:
+          type: string
+          minLength: 1
+          pattern: "\\d{4}-\\d{2}-\\d{2}#(hoc|ngoai_troi|goc|chieu)"
+        ids:
+          type: array
+          items:
+            type: integer
+            format: int64
+          maxItems: 20
+          minItems: 0
+      required:
+      - activityKey
+      - ids
     ResourceReviewRequest:
       type: object
       properties:

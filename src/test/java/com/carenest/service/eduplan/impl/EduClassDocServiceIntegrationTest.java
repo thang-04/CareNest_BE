@@ -833,6 +833,29 @@ class EduClassDocServiceIntegrationTest {
                 .extracting(r -> r.activityKey())
                 .containsExactly("2026-09-08#chieu");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class)).isEqualTo(itemsBefore);
+        // EDU-82: học liệu gắn sau đứng sau; người sửa đổi được thứ tự, danh sách cũ (thiếu dòng) bị từ chối
+        var video = learningResources.addLink(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceLinkRequest(
+                        "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-08#chieu", "Hoạt động chiều", null));
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.id())
+                .containsExactly(again.get(0).id(), video.id());
+        assertApiError(
+                () -> learningResources.reorder(
+                        teacher,
+                        dayKey,
+                        new com.carenest.dto.eduplan.ResourceOrderRequest("2026-09-08#chieu", java.util.List.of(video.id()))),
+                ApiCode.RESOURCE_ORDER_STALE);
+        learningResources.reorder(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceOrderRequest(
+                        "2026-09-08#chieu", java.util.List.of(video.id(), again.get(0).id())));
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.id())
+                .containsExactly(video.id(), again.get(0).id());
         // Kế hoạch chủ đề không còn nhận học liệu
         String themeKey = "tp_" + classId + "_" + theme1;
         service.saveClassDoc(
@@ -850,7 +873,7 @@ class EduClassDocServiceIntegrationTest {
         assertApiError(
                 () -> learningResources.upload(teacher, dayKey, fake, binding, java.util.UUID.randomUUID()),
                 ApiCode.UNSUPPORTED_MEDIA_TYPE);
-        assertThat(learningResources.list(teacher, dayKey)).hasSize(1);
+        assertThat(learningResources.list(teacher, dayKey)).hasSize(2);
     }
 
     @Test
@@ -890,6 +913,9 @@ class EduClassDocServiceIntegrationTest {
                         "SELECT count(upload_request_id) FROM edu_resource_items WHERE storage_key LIKE 'hoclieu/legacy-%'",
                         Long.class))
                 .isEqualTo(2L);
+        assertThat(jdbc.queryForObject(
+                        "SELECT sort_order FROM edu_resource_attachments WHERE class_doc_id=?", Integer.class, docId))
+                .isZero();
         assertThat(learningResources.list(teacher, dayKey))
                 .singleElement()
                 .satisfies(r -> assertThat(r.fileName()).isEqualTo("bai.hat"));

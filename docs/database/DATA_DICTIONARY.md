@@ -773,7 +773,7 @@ User yêu cầu tất cả tệp dùng S3 private và đồng ý AWS SDK v2. Met
 ## Kho học liệu (module: education-plan, scope: người tạo / lớp / trường) — V125, spec 900
 - `edu_resource_items`: học liệu lưu một lần. `kind` FILE|LINK (CHECK: FILE có `storage_key` S3 `hoclieu/`, không `url`; LINK ngược lại), `title`, `owner_id`, `scope` MINE|CLASS|SCHOOL (`classroom_id` bắt buộc khi CLASS), `share_status` PENDING|REJECTED + `share_reason`, `share_by`, `share_at`, `age_group_id` (NULL = mọi nhóm tuổi), `hidden`, thông tin tệp, `upload_request_id` (UNIQUE với `owner_id`), `url` ≤2000.
 - `edu_resource_item_tags`: nhãn `kind` THEME|GOAL, `ref_id` (chủ đề / MT), `curriculum_goal_id` (mã mục tiêu Bộ để khớp năm sau), `name`; UNIQUE (item, kind, ref).
-- `edu_resource_attachments`: dòng gắn học liệu vào giáo án ngày: `class_doc_id`, `activity_key` (CHECK `yyyy-MM-dd#hoc|ngoai_troi|goc|chieu`), `activity_label`, `item_id` (ON DELETE RESTRICT), `created_by`; UNIQUE (doc, mục, học liệu).
+- `edu_resource_attachments`: dòng gắn học liệu vào giáo án ngày: `class_doc_id`, `activity_key` (CHECK `yyyy-MM-dd#hoc|ngoai_troi|goc|chieu`), `activity_label`, `item_id` (ON DELETE RESTRICT), `sort_order` (thứ tự trong mục, trùng thì theo id), `created_by`; UNIQUE (doc, mục, học liệu).
 - Chuyển dữ liệu: mỗi dòng `edu_learning_resources` → 1 học liệu MINE của người tải (giữ khóa S3), dòng đang gắn → 1 dòng gắn, nhãn chủ đề từ giáo án. Bảng cũ giữ lại không dùng (xóa bằng migration riêng sau khi kiểm tra).
 
 ## Danh mục Chương trình GDMN của Bộ (module: education-plan, scope: SYSTEM, chỉ đọc) — V33, V34

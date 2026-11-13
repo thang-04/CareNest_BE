@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import com.carenest.dto.eduplan.LearningResourceBinding;
 import com.carenest.dto.eduplan.ResourceAttachRequest;
+import com.carenest.dto.eduplan.ResourceOrderRequest;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduResourceAttachment;
@@ -150,7 +151,7 @@ class LearningResourceServiceImplTest {
 
     @Test
     void detachRemovesOnlyThisAttachment() {
-        EduResourceAttachment a = EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 7L, Instant.now());
+        EduResourceAttachment a = EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 0, 7L, Instant.now());
         ReflectionTestUtils.setField(a, "id", 30L);
         when(attachments.findByIdAndClassDocId(30L, 8L)).thenReturn(Optional.of(a));
         service.detach(teacher, KEY, 30L);
@@ -165,11 +166,38 @@ class LearningResourceServiceImplTest {
         // EDU-86: học liệu "Của tôi" của người khác, đã ẩn — người xem giáo án vẫn mở được
         EduResourceItem item = link(5L, 99L);
         item.changeHidden(true, Instant.now());
-        EduResourceAttachment a = EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 99L, Instant.now());
+        EduResourceAttachment a = EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", 5L, 0, 99L, Instant.now());
         ReflectionTestUtils.setField(a, "id", 30L);
         when(attachments.findByIdAndClassDocId(30L, 8L)).thenReturn(Optional.of(a));
         when(items.findById(5L)).thenReturn(Optional.of(item));
         when(assignments.findHomeroomTeacherIds(any(), any())).thenReturn(Map.of());
         assertThat(service.contentUrl(teacher, KEY, 30L).url()).isEqualTo("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+    }
+
+    private EduResourceAttachment row(long id, long itemId, int order) {
+        EduResourceAttachment a = EduResourceAttachment.of(8L, "2026-09-08#hoc", "Hoạt động học", itemId, order, 7L, Instant.now());
+        ReflectionTestUtils.setField(a, "id", id);
+        return a;
+    }
+
+    @Test
+    void reorderSetsPositionsInGivenOrder() {
+        EduResourceAttachment a = row(30L, 5L, 0), b = row(31L, 6L, 1), c = row(32L, 7L, 2);
+        when(attachments.findAllByClassDocIdAndActivityKey(8L, "2026-09-08#hoc")).thenReturn(List.of(a, b, c));
+        service.reorder(teacher, KEY, new ResourceOrderRequest("2026-09-08#hoc", List.of(32L, 30L, 31L)));
+        assertThat(List.of(c.getSortOrder(), a.getSortOrder(), b.getSortOrder())).containsExactly(0, 1, 2);
+        verify(attachments).saveAllAndFlush(any());
+    }
+
+    @Test
+    void reorderRejectsStaleList() {
+        // EDU-82: người khác vừa gắn thêm ⇒ danh sách gửi lên thiếu một dòng
+        when(attachments.findAllByClassDocIdAndActivityKey(8L, "2026-09-08#hoc"))
+                .thenReturn(List.of(row(30L, 5L, 0), row(31L, 6L, 1)));
+        assertThatThrownBy(() -> service.reorder(teacher, KEY, new ResourceOrderRequest("2026-09-08#hoc", List.of(30L))))
+                .isInstanceOf(GlobalException.class)
+                .extracting("apiCode")
+                .isEqualTo(ApiCode.RESOURCE_ORDER_STALE);
+        verify(attachments, never()).saveAllAndFlush(any());
     }
 }

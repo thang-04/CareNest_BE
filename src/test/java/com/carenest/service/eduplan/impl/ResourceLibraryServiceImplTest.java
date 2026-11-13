@@ -15,7 +15,9 @@ import com.carenest.repository.eduplan.*;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.ResourceLibraryService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.StaffAssignmentService;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
@@ -36,6 +38,7 @@ class ResourceLibraryServiceImplTest {
     private final EduPlanGoalRepository goals = mock(EduPlanGoalRepository.class);
     private final StaffAssignmentService assignments = mock(StaffAssignmentService.class);
     private final FileStorage storage = mock(FileStorage.class);
+    private final NotificationService notifications = mock(NotificationService.class);
     private final CurrentUser teacher = user(7L, CareNestRole.TEACHER);
     private final CurrentUser leader = user(8L, CareNestRole.TEACHER);
     private final CurrentUser vice = user(9L, CareNestRole.VICE_PRINCIPAL);
@@ -56,7 +59,8 @@ class ResourceLibraryServiceImplTest {
                 mock(EduClassDocService.class),
                 assignments,
                 storage,
-                Clock.systemUTC());
+                Clock.systemUTC(),
+                notifications);
         when(assignments.findCurrentTeacherClassroomIds(any(), any())).thenReturn(Set.of(1L));
         when(assignments.findActiveTeamLeaderAgeGroupIds(any(), any())).thenReturn(Set.of());
         when(assignments.findActiveTeamLeaderAgeGroupIds(eq(8L), any())).thenReturn(Set.of(4L));
@@ -134,6 +138,9 @@ class ResourceLibraryServiceImplTest {
                 .isInstanceOf(GlobalException.class);
         assertThat(service.review(leader, 5L, new ResourceReviewRequest(true, null)).scope())
                 .isEqualTo("SCHOOL");
+        // EDU-84: người tạo nhận thông báo đã duyệt
+        verify(notifications)
+                .notifyUsers(eq(List.of(7L)), eq(NotificationType.EDU_RESOURCE_APPROVED), any(), any(), eq("/education/resources"), eq(false));
         // PHT đưa thẳng
         EduResourceItem own = item(6L, 9L);
         assertThat(service.share(vice, 6L, new ResourceShareRequest("SCHOOL", null)).scope())
@@ -228,5 +235,20 @@ class ResourceLibraryServiceImplTest {
         assertThat(service.findOrCreateLink(teacher, "https://youtu.be/dQw4w9WgXcQ", null, 4L, null))
                 .isSameAs(existing);
         verify(items, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void returnedItemNotifiesOwnerWithReason() {
+        EduResourceItem i = item(5L, 7L);
+        i.requestSchool(Instant.now());
+        service.review(leader, 5L, new ResourceReviewRequest(false, "Video chưa phù hợp lứa tuổi"));
+        verify(notifications)
+                .notifyUsers(
+                        eq(List.of(7L)),
+                        eq(NotificationType.EDU_RESOURCE_RETURNED),
+                        any(),
+                        contains("Video chưa phù hợp lứa tuổi"),
+                        eq("/education/resources"),
+                        eq(false));
     }
 }

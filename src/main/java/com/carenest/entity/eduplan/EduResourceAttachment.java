@@ -28,20 +28,30 @@ public class EduResourceAttachment {
     @Column(nullable = false)
     private Long itemId;
 
+    /** Thứ tự trong mục; trùng số thì xếp theo id (học liệu gắn sau đứng sau). */
+    @Column(nullable = false)
+    private int sortOrder;
+
     @Column(nullable = false)
     private Long createdBy;
 
     @Column(nullable = false)
     private Instant createdAt;
 
-    public static EduResourceAttachment of(Long docId, String key, String label, Long itemId, Long userId, Instant now) {
+    public static EduResourceAttachment of(
+            Long docId, String key, String label, Long itemId, int sortOrder, Long userId, Instant now) {
         EduResourceAttachment a = new EduResourceAttachment();
         a.classDocId = docId;
         a.activityKey = key;
         a.activityLabel = label;
         a.itemId = itemId;
+        a.sortOrder = sortOrder;
         a.createdBy = userId;
         a.createdAt = now;
         return a;
+    }
+
+    public void moveTo(int position) {
+        sortOrder = position;
     }
 }

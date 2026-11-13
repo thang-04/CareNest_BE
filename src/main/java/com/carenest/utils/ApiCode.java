@@ -602,6 +602,7 @@ public enum ApiCode {
     RESOURCE_SHARE_STATE(7133, HttpStatus.CONFLICT, "Trạng thái chia sẻ học liệu đã đổi, tải lại trang"),
     RESOURCE_REVIEW_REASON_REQUIRED(7134, HttpStatus.BAD_REQUEST, "Cần ghi lý do trả lại"),
     RESOURCE_PENDING_REVIEW(7135, HttpStatus.CONFLICT, "Học liệu đang chờ duyệt lên kho trường, rút đề nghị trước"),
+    RESOURCE_ORDER_STALE(7136, HttpStatus.CONFLICT, "Học liệu của mục đã thay đổi, tải lại trang rồi sắp xếp lại"),
     ACTIVITY_CHANGED(7120, HttpStatus.CONFLICT, "Hoạt động đã thay đổi. Lưu và chọn lại hoạt động trước khi gắn tệp"),
     CLASS_DOC_VERSION_FIX_REQUIRED(
             7121, HttpStatus.CONFLICT, "Còn {0} mục đổi theo kế hoạch năm mới chưa sửa (ô đỏ). Sửa hết rồi mới gửi"),

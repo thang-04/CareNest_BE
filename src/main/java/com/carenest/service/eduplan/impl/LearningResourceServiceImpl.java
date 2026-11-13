@@ -60,7 +60,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
         try {
             EduClassDoc doc = classDocs.requireDayAccess(user, docKey, false);
             boolean editor = isEditor(user, doc);
-            List<EduResourceAttachment> rows = attachments.findAllByClassDocIdOrderByIdAsc(doc.getId());
+            List<EduResourceAttachment> rows = attachments.findAllByClassDocIdOrderBySortOrderAscIdAsc(doc.getId());
             Map<Long, EduResourceItem> byId = itemsOf(rows);
             List<LearningResourceResponse> result = rows.stream()
                     .filter(a -> byId.containsKey(a.getItemId()))
@@ -294,8 +294,16 @@ public class LearningResourceServiceImpl implements LearningResourceService {
     private EduResourceAttachment saveAttachment(
             CurrentUser user, EduClassDoc doc, LearningResourceBinding binding, Long itemId) {
         try {
+            // ponytail: số thứ tự = số dòng đang có; sau khi gỡ có thể trùng số, trùng thì id lớn hơn (gắn sau) đứng sau
+            int position = (int) attachments.countByClassDocIdAndActivityKey(doc.getId(), binding.activityKey());
             return attachments.saveAndFlush(EduResourceAttachment.of(
-                    doc.getId(), binding.activityKey(), binding.activityLabel(), itemId, user.userId(), clock.instant()));
+                    doc.getId(),
+                    binding.activityKey(),
+                    binding.activityLabel(),
+                    itemId,
+                    position,
+                    user.userId(),
+                    clock.instant()));
         } catch (DataIntegrityViolationException ex) {
             // Hai người gắn cùng lúc: ràng buộc duy nhất ở DB chặn bản thứ hai
             throw GlobalException.withCause(ApiCode.RESOURCE_ALREADY_ATTACHED, ex);
@@ -317,6 +325,29 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             // EDU-85: gỡ khỏi mục chỉ xóa dòng gắn; học liệu trong kho và ở ngày khác còn nguyên
             attachments.delete(requireAttachment(doc, id));
             attachments.flush();
+            workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
+            log.info("{}|END", p);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", p, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional
+    public void reorder(CurrentUser user, String docKey, ResourceOrderRequest request) {
+        String p = LOG_PREFIX + "|reorder|userId=" + user.userId();
+        log.info("{}|START", p);
+        try {
+            EduClassDoc doc = classDocs.requireDayAccess(user, docKey, true);
+            Map<Long, EduResourceAttachment> rows =
+                    attachments.findAllByClassDocIdAndActivityKey(doc.getId(), request.activityKey()).stream()
+                            .collect(Collectors.toMap(EduResourceAttachment::getId, Function.identity()));
+            // EDU-82: phải gửi đủ đúng các dòng gắn đang có của mục; người khác vừa gắn/gỡ thì bắt tải lại
+            if (request.ids().size() != rows.size() || !rows.keySet().containsAll(request.ids()))
+                throw GlobalException.of(ApiCode.RESOURCE_ORDER_STALE);
+            for (int i = 0; i < request.ids().size(); i++) rows.get(request.ids().get(i)).moveTo(i);
+            attachments.saveAllAndFlush(rows.values());
             workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());
             log.info("{}|END", p);
         } catch (RuntimeException ex) {

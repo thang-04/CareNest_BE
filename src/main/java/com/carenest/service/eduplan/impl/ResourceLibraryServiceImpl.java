@@ -20,6 +20,7 @@ import com.carenest.service.eduplan.EduClassDocService;
 import com.carenest.service.eduplan.ResourceLibraryService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.LearningResourcePolicy;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FileCategory;
@@ -54,6 +55,7 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
     private final StaffAssignmentService assignments;
     private final FileStorage storage;
     private final Clock clock;
+    private final com.carenest.service.notification.NotificationService notifications;
 
     /** Ngữ cảnh quyền của người xem, tính một lần mỗi yêu cầu (EDU-84). */
     private record Ranked(EduResourceItem item, String match) {}
@@ -259,6 +261,16 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
             if (!request.approve() && reason.isEmpty()) throw GlobalException.of(ApiCode.RESOURCE_REVIEW_REASON_REQUIRED);
             item.reviewed(request.approve(), reason, v.userId(), clock.instant());
             items.saveAndFlush(item);
+            // EDU-84: báo người tạo kết quả duyệt; trả lại kèm lý do
+            notifications.notifyUsers(
+                    List.of(item.getOwnerId()),
+                    request.approve() ? NotificationType.EDU_RESOURCE_APPROVED : NotificationType.EDU_RESOURCE_RETURNED,
+                    request.approve() ? "Học liệu đã lên kho trường" : "Học liệu bị trả lại",
+                    request.approve()
+                            ? "\"" + item.getTitle() + "\" đã được duyệt lên kho trường"
+                            : "\"" + item.getTitle() + "\": " + reason,
+                    "/education/resources",
+                    false);
             var result = single(user, item);
             log.info("{}|END", p);
             return result;

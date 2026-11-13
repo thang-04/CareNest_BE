@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface EduResourceAttachmentRepository extends JpaRepository<EduResourceAttachment, Long> {
-    List<EduResourceAttachment> findAllByClassDocIdOrderByIdAsc(Long classDocId);
+    List<EduResourceAttachment> findAllByClassDocIdOrderBySortOrderAscIdAsc(Long classDocId);
 
     Optional<EduResourceAttachment> findByIdAndClassDocId(Long id, Long classDocId);
 

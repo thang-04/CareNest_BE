@@ -8,6 +8,7 @@ import com.carenest.dto.eduplan.LearningResourceResponse;
 import com.carenest.dto.eduplan.LearningResourceUploadUrlRequest;
 import com.carenest.dto.eduplan.ResourceAttachRequest;
 import com.carenest.dto.eduplan.ResourceLinkRequest;
+import com.carenest.dto.eduplan.ResourceOrderRequest;
 import com.carenest.security.CurrentUser;
 import java.util.List;
 import java.util.UUID;
@@ -27,6 +28,8 @@ public interface LearningResourceService {
     List<LearningResourceResponse> attach(CurrentUser user, String docKey, ResourceAttachRequest request);
 
     void detach(CurrentUser user, String docKey, Long id);
+
+    void reorder(CurrentUser user, String docKey, ResourceOrderRequest request);
 
     Download content(CurrentUser user, String docKey, Long id);
 
