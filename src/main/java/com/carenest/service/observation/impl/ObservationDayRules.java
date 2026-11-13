@@ -101,7 +101,7 @@ class ObservationDayRules {
     /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay khi năm đã kết thúc. */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return canView(user, cls)
-                || (cls.yearStatus() == SchoolYearStatus.CLOSED
+                || (yearEnded(cls)
                         && user.hasRole(CareNestRole.TEACHER)
                         && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
     }
@@ -142,10 +142,21 @@ class ObservationDayRules {
                 && teamLeaderAgeGroupIds(user, cls.schoolYearId()).contains(cls.ageGroupId());
     }
 
+    // Giáo viên xem lại (chỉ xem) lớp mình từng dạy ở năm đã kết thúc, kể cả năm đã qua ngày kết thúc mà HT chưa đóng
     boolean taughtClosedYear(CurrentUser user, ClassroomInfoResponse cls) {
-        return cls.yearStatus() == SchoolYearStatus.CLOSED
+        return yearEnded(cls)
                 && user.hasRole(CareNestRole.TEACHER)
                 && staffAssignmentService.hasTeacherAssignmentHistory(user.userId(), cls.id(), today());
+    }
+
+    // CFG-YR-01: năm đã đóng, hoặc đã qua ngày kết thúc mà HT chưa đóng
+    boolean yearEnded(ClassroomInfoResponse cls) {
+        return cls.yearStatus() == SchoolYearStatus.CLOSED || (cls.yearEnd() != null && today().isAfter(cls.yearEnd()));
+    }
+
+    // OBS-06, CFG-YR-04: GV từng dạy lớp hoàn tất / xác nhận đánh giá cuối năm sau ngày kết thúc, tới khi HT đóng năm
+    boolean finishesYearEnd(CurrentUser user, ClassroomInfoResponse cls) {
+        return cls.yearStatus() == SchoolYearStatus.ACTIVE && yearEnded(cls) && taughtClosedYear(user, cls);
     }
 
     /** AUTH-03: ghi đánh giá = giáo viên đang được phân công lớp. */

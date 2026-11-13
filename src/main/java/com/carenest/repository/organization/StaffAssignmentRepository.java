@@ -133,8 +133,8 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
 
     // Nhóm tuổi người dùng là Tổ trưởng TRONG năm học :schoolYearId (null = năm đang hoạt động). Năm đang diễn ra /
     // sắp diễn ra: phân công chưa kết thúc tính tới :today (gồm năm chuẩn bị); năm đang chạy cần đã bắt đầu. Năm đã kết
-    // thúc: ai từng làm Tổ trưởng
-    // năm đó vẫn xem lại được. Bỏ phân công bị gỡ trước khi bắt đầu (valid_to < valid_from). Dòng cũ không có
+    // thúc (đã đóng, hoặc đã qua ngày kết thúc mà HT chưa đóng — CFG-YR-01): ai từng làm Tổ trưởng năm đó vẫn xem lại.
+    // Bỏ phân công bị gỡ trước khi bắt đầu (valid_to < valid_from). Dòng cũ không có
     // school_year_id thuộc năm đầu tiên chưa kết thúc tính từ valid_from (valid_to trống không tràn sang năm sau).
     @Query(value = """
                     select distinct a.age_group_id from staff_assignments a
@@ -145,7 +145,7 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
                            and not exists (select 1 from school_years p where p.id <> y.id
                                and p.end_date >= a.valid_from and p.start_date < y.start_date)))
                       and (a.valid_to is null or a.valid_to >= a.valid_from)
-                      and (y.status = 'CLOSED' or a.valid_to is null or a.valid_to >= :today)
+                      and (y.status = 'CLOSED' or y.end_date < :today or a.valid_to is null or a.valid_to >= :today)
                       and (y.status <> 'ACTIVE' or a.valid_from <= :today)
                     """, nativeQuery = true)
     List<Long> findScopedTeamLeaderAgeGroupIds(

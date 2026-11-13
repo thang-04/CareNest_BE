@@ -132,7 +132,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 // Chỉ GV đang dạy lớp mở danh sách mới tạo bản nháp kỳ đã kết thúc; BGH, tổ trưởng chỉ xem bản đã xác
                 // nhận
                 // nên lượt xem của họ không ghi DB, không khóa lớp
-                if (cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)) {
+                if (cls.yearStatus() == SchoolYearStatus.ACTIVE
+                        && (rules.canRecord(currentUser, cls)
+                                || (type == EvaluationPeriodType.YEAR && rules.finishesYearEnd(currentUser, cls)))) {
                     ensureDrafts(currentUser, cls, type);
                 }
             }
@@ -207,7 +209,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.name(),
                             cls.campusId(),
                             teacher,
-                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)),
+                            cls.yearStatus() == SchoolYearStatus.ACTIVE
+                                    && (rules.canRecord(currentUser, cls)
+                                            || (year && rules.finishesYearEnd(currentUser, cls)))),
                     data == null ? List.of() : data.days(),
                     cls.mealSessions(),
                     monthly,
@@ -812,7 +816,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
 
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {
         ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
-        if (!rules.canRecord(user, cls)) {
+        boolean yearEnd = ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.finishesYearEnd(user, cls);
+        if (!rules.canRecord(user, cls) && !yearEnd) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
