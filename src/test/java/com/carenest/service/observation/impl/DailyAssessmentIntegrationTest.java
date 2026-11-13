@@ -786,6 +786,24 @@ class DailyAssessmentIntegrationTest {
     private com.carenest.service.observation.ClassRatingService ratings;
 
     @Test
+    void classRatingIsBlockedForUpcomingYear() {
+        // CFG-YR-01: năm sắp tới chưa hoạt động ⇒ không xếp loại lớp, chỉ xem
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-06', '2028-05-31', 'PLANNED') RETURNING id");
+        long plannedClass = classroom(campusA, planned, "Lớp năm sau", ag3);
+        var tot = com.carenest.utils.enums.ClassRatingLevel.TOT;
+        var levels = new com.carenest.dto.observation.ClassRatingDtos.Levels(tot, tot, tot, tot, tot, tot, tot, tot);
+        var request = new com.carenest.dto.observation.ClassRatingDtos.ClassRatingSaveRequest(
+                com.carenest.utils.enums.ClassRatingPeriod.SEMESTER_1,
+                List.of(new com.carenest.dto.observation.ClassRatingDtos.ClassRatingItem(plannedClass, levels, null)));
+
+        expectCode(() -> ratings.save(principal, request), ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM class_ratings", Integer.class))
+                .isZero();
+    }
+
+    @Test
     void classRatingsAreScoredByLeadersOfTheCampusAndReadByTheClassTeacher() {
         var period = com.carenest.utils.enums.ClassRatingPeriod.SEMESTER_1;
         var tot = com.carenest.utils.enums.ClassRatingLevel.TOT;
@@ -950,6 +968,57 @@ class DailyAssessmentIntegrationTest {
                 .filteredOn(r -> r.classId().equals(classA))
                 .singleElement()
                 .satisfies(r -> assertThat(r.completed()).isZero());
+    }
+
+    @Autowired
+    private com.carenest.service.organization.StaffAssignmentService staffAssignments;
+
+    @Test
+    @DisplayName(
+            "CFG-YR-01: qua ngày kết thúc mà HT chưa đóng năm, GV vẫn xem lớp cũ và xác nhận cuối năm, không điểm danh")
+    void teacherFinishesYearEndAfterYearEndUntilYearCloses() {
+        var yearType = com.carenest.utils.enums.EvaluationPeriodType.YEAR;
+        // Năm 2026–2027 kết thúc 27/10 (trước hôm nay 28/10), vẫn ACTIVE; phân công hết ở ngày kết thúc năm
+        jdbc.update("UPDATE school_years SET end_date = '2026-10-27', semester1_start = start_date,"
+                + " semester1_end = '2026-09-30', semester2_start = '2026-10-01', semester2_end = '2026-10-20'"
+                + " WHERE status = 'ACTIVE'");
+        jdbc.update("UPDATE staff_assignments SET valid_to = '2026-10-27' WHERE classroom_id = ?", classA);
+        long yearId = jdbc.queryForObject("SELECT id FROM school_years WHERE status = 'ACTIVE'", Long.class);
+        long ag3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from, valid_to)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-09-01', '2026-10-27')",
+                teacherB.userId(),
+                ag3,
+                yearId);
+        entityManager.clear();
+
+        // Xem lại lớp cũ ở điểm danh; tổ trưởng năm đó vẫn giữ nhóm tuổi
+        assertThat(attendanceService.getClasses(teacherA, yearId))
+                .extracting(c -> c.id())
+                .contains(classA);
+        assertThat(staffAssignments.findScopedTeamLeaderAgeGroupIds(teacherB.userId(), yearId, TODAY))
+                .containsExactly(ag3);
+
+        // Hoàn tất đánh giá cuối năm
+        var row = evaluations.list(teacherA, yearType, null, classA, null).stream()
+                .filter(e -> e.childId().equals(child1))
+                .findFirst()
+                .orElseThrow();
+        evaluations.confirm(
+                teacherA, row.id(), "Nhận xét cuối năm hoàn tất sau ngày kết thúc năm học, trước khi đóng.");
+        assertThat(jdbc.queryForObject("SELECT status FROM child_evaluations WHERE id = ?", String.class, row.id()))
+                .isEqualTo("CONFIRMED");
+
+        // Điểm danh sau ngày kết thúc vẫn bị chặn
+        assertThatThrownBy(() -> attendanceService.saveClassAttendance(
+                        teacherA,
+                        classA,
+                        new SaveAttendanceRequest(
+                                TODAY,
+                                List.of(new SaveAttendanceRequest.Entry(
+                                        child1, AttendanceStatus.PRESENT, Map.of(MealSession.LUNCH, true))))))
+                .isInstanceOf(com.carenest.exception.GlobalException.class);
     }
 
     @Autowired

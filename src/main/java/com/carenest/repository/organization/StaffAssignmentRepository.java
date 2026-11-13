@@ -137,8 +137,8 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
 
     // Nhóm tuổi người dùng là Tổ trưởng TRONG năm học :schoolYearId (null = năm đang hoạt động). Năm đang diễn ra /
     // sắp diễn ra: phân công chưa kết thúc tính tới :today (gồm năm chuẩn bị); năm đang chạy cần đã bắt đầu. Năm đã kết
-    // thúc: ai từng làm Tổ trưởng
-    // năm đó vẫn xem lại được. Bỏ phân công bị gỡ trước khi bắt đầu (valid_to < valid_from). Dòng cũ không có
+    // thúc (đã đóng, hoặc đã qua ngày kết thúc mà HT chưa đóng — CFG-YR-01): ai từng làm Tổ trưởng năm đó vẫn xem lại.
+    // Bỏ phân công bị gỡ trước khi bắt đầu (valid_to < valid_from). Dòng cũ không có
     // school_year_id thuộc năm đầu tiên chưa kết thúc tính từ valid_from (valid_to trống không tràn sang năm sau).
     @Query(value = """
                     select distinct a.age_group_id from staff_assignments a
@@ -149,7 +149,7 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
                            and not exists (select 1 from school_years p where p.id <> y.id
                                and p.end_date >= a.valid_from and p.start_date < y.start_date)))
                       and (a.valid_to is null or a.valid_to >= a.valid_from)
-                      and (y.status = 'CLOSED' or a.valid_to is null or a.valid_to >= :today)
+                      and (y.status = 'CLOSED' or y.end_date < :today or a.valid_to is null or a.valid_to >= :today)
                       and (y.status <> 'ACTIVE' or a.valid_from <= :today)
                     """, nativeQuery = true)
     List<Long> findScopedTeamLeaderAgeGroupIds(
@@ -338,6 +338,19 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("staffRole") String staffRole,
             @Param("campusId") Long campusId,
             @Param("schoolYearId") Long schoolYearId);
+
+    // CFG-YR-05: GV / Tổ trưởng có phân công thuộc năm học (lớp của năm, hoặc tổ trưởng ghi năm) đã có hiệu lực tới
+    // :date
+    @Query(value = """
+                    select exists (select 1 from staff_assignments a
+                    left join classrooms c on c.id = a.classroom_id
+                    where a.user_id = :userId and a.staff_role in ('TEACHER', 'AGE_GROUP_TEAM_LEADER')
+                      and (c.school_year_id = :schoolYearId
+                           or (a.staff_role = 'AGE_GROUP_TEAM_LEADER' and a.school_year_id = :schoolYearId))
+                      and a.valid_from <= :date and (a.valid_to is null or a.valid_to >= a.valid_from))
+                    """, nativeQuery = true)
+    boolean existsStaffAssignmentInYear(
+            @Param("userId") Long userId, @Param("schoolYearId") Long schoolYearId, @Param("date") LocalDate date);
 
     interface VicePrincipalRow {
         Long getUserId();

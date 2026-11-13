@@ -158,6 +158,20 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public boolean hasStaffAssignmentInYear(Long userId, Long schoolYearId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|hasStaffAssignmentInYear|userId=" + userId + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean has = staffAssignmentRepository.existsStaffAssignmentInYear(userId, schoolYearId, date);
+            log.info("{}|END", logPrefix);
+            return has;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public boolean hasTeacherAssignmentHistory(Long userId, Long classroomId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|hasTeacherAssignmentHistory|userId=" + userId + "|classroomId=" + classroomId;
         log.info("{}|START", logPrefix);

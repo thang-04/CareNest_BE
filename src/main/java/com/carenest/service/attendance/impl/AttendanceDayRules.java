@@ -124,7 +124,7 @@ class AttendanceDayRules {
     /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay khi năm đã kết thúc. */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return canView(user, cls)
-                || (cls.yearStatus() == SchoolYearStatus.CLOSED
+                || (yearEnded(cls)
                         && user.hasRole(CareNestRole.TEACHER)
                         && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
     }
@@ -171,12 +171,17 @@ class AttendanceDayRules {
 
     /**
      * Cần chốt 23/10/2026: giáo viên xem lại (chỉ xem) lớp mình từng dạy ở năm đã kết thúc; năm đang hoạt động vẫn
-     * chỉ lớp đang được phân công (AUTH-03).
+     * chỉ lớp đang được phân công (AUTH-03). Năm đã qua ngày kết thúc nhưng HT chưa đóng cũng tính là đã kết thúc.
      */
     boolean taughtClosedYear(CurrentUser user, ClassroomInfoResponse cls) {
-        return cls.yearStatus() == SchoolYearStatus.CLOSED
+        return yearEnded(cls)
                 && user.hasRole(CareNestRole.TEACHER)
                 && staffAssignmentService.hasTeacherAssignmentHistory(user.userId(), cls.id(), today());
+    }
+
+    // CFG-YR-01: năm đã đóng, hoặc đã qua ngày kết thúc mà HT chưa đóng (GV, tổ trưởng năm đó vẫn xem lại lớp cũ)
+    boolean yearEnded(ClassroomInfoResponse cls) {
+        return cls.yearStatus() == SchoolYearStatus.CLOSED || (cls.yearEnd() != null && today().isAfter(cls.yearEnd()));
     }
 
     /** AUTH-03: ghi điểm danh = giáo viên đang được phân công lớp. */

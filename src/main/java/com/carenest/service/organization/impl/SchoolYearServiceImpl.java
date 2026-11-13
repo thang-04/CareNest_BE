@@ -74,7 +74,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             boolean leader = isSchoolLeader(currentUser);
             List<SchoolYear> schoolYears = schoolYearRepository.findAllByOrderByStartDateDesc().stream()
                     .filter(y -> status == null || y.getStatus() == status)
-                    .filter(y -> leader || isVisibleToStaff(y, today))
+                    .filter(y -> leader || isVisibleToStaff(currentUser, y, today))
                     .toList();
             Map<Long, Long> classCounts = schoolYears.isEmpty()
                     ? Map.of()
@@ -104,8 +104,8 @@ public class SchoolYearServiceImpl implements SchoolYearService {
         log.info("{}|START", logPrefix);
         try {
             SchoolYear schoolYear = findSchoolYear(schoolYearId);
-            // CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị
-            if (!isSchoolLeader(currentUser) && !isVisibleToStaff(schoolYear, LocalDate.now(clock))) {
+            // CFG-YR-05: GV chỉ thấy năm sắp diễn ra từ ngày mở chuẩn bị, khi có phân công năm đó
+            if (!isSchoolLeader(currentUser) && !isVisibleToStaff(currentUser, schoolYear, LocalDate.now(clock))) {
                 throw GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND);
             }
             SchoolYearDetailResponse response = toDetail(schoolYear);
@@ -189,13 +189,20 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             }
             LocalDate oldStart = schoolYear.getStartDate();
             LocalDate oldEnd = schoolYear.getEndDate();
+            LocalDate oldAssignmentStart = assignmentStart(schoolYear);
             LocalDate prepDate = resolvePrepDate(request, schoolYear);
             schoolYear.changeInfo(name, request.startDate(), request.endDate(), prepDate);
             schoolYearRepository.flush();
             // Phân công GV / tổ trưởng / PHT lưu theo ngày năm học: đổi ngày năm thì đổi theo, không để GV mất quyền
-            // lớp
+            // lớp. CFG-YR-05: năm sắp diễn ra tính từ ngày mở chuẩn bị, đổi ngày bắt đầu không đẩy phân công đã có
+            LocalDate newAssignmentStart = assignmentStart(schoolYear);
             staffAssignmentService.realignYearAssignments(
-                    schoolYearId, oldStart, oldEnd, request.startDate(), request.endDate());
+                    schoolYearId, oldAssignmentStart, oldEnd, newAssignmentStart, request.endDate());
+            if (!oldStart.equals(oldAssignmentStart) && !oldStart.equals(newAssignmentStart)) {
+                // Phân công tạo trước khi tính theo ngày chuẩn bị (bắt đầu ở ngày bắt đầu cũ) cũng theo ngày mới
+                staffAssignmentService.realignYearAssignments(
+                        schoolYearId, oldStart, request.endDate(), newAssignmentStart, request.endDate());
+            }
             log.info("{}|END", logPrefix);
             return schoolStructureMapper.toDetailResponse(schoolYear, classCount, LocalDate.now(clock));
         } catch (RuntimeException ex) {
@@ -300,6 +307,10 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                     && today.isBefore(schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS))) {
                 throw GlobalException.of(
                         ApiCode.ACTIVATION_TOO_EARLY, schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS));
+            }
+            // CFG-YR-05: phải qua giai đoạn chuẩn bị (GV, tổ trưởng năm mới soạn giáo án) rồi mới kích hoạt
+            if (!devActivation.skipDateWindow() && today.isBefore(schoolYear.getPrepDate())) {
+                throw GlobalException.of(ApiCode.ACTIVATION_BEFORE_PREP, DMY.format(schoolYear.getPrepDate()));
             }
             Instant now = clock.instant();
             // Chỉ một năm ACTIVE: đóng năm đang chạy trước (flush) rồi mới mở năm mới, cùng transaction
@@ -666,13 +677,33 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 schoolYear, classroomRepository.countBySchoolYearId(schoolYear.getId()), LocalDate.now(clock));
     }
 
+    // Ngày phân công năm học bắt đầu có hiệu lực (như TeacherAssignmentServiceImpl#effectiveStart): năm sắp diễn ra
+    // từ ngày mở chuẩn bị (CFG-YR-05, không chồng năm trước), năm khác từ ngày bắt đầu
+    private LocalDate assignmentStart(SchoolYear year) {
+        LocalDate today = LocalDate.now(clock);
+        if (year.getStatus() != SchoolYearStatus.PLANNED || today.isAfter(year.getStartDate())) {
+            return year.getStartDate();
+        }
+        LocalDate prep = year.getPrepDate().isAfter(year.getStartDate()) ? year.getStartDate() : year.getPrepDate();
+        for (SchoolYear other : schoolYearRepository.findAllByOrderByStartDateDesc()) {
+            if (other.getEndDate().isBefore(year.getStartDate()) && !prep.isAfter(other.getEndDate())) {
+                prep = other.getEndDate().plusDays(1);
+            }
+        }
+        return today.isAfter(prep) ? today : prep;
+    }
+
     // HT, PHT thấy mọi năm (cấu hình, xếp lớp); người khác không thấy năm sắp diễn ra chưa tới ngày mở chuẩn bị
     private static boolean isSchoolLeader(CurrentUser currentUser) {
         return currentUser.hasRole(CareNestRole.PRINCIPAL) || currentUser.hasRole(CareNestRole.VICE_PRINCIPAL);
     }
 
-    private static boolean isVisibleToStaff(SchoolYear schoolYear, LocalDate today) {
-        return schoolYear.getStatus() != SchoolYearStatus.PLANNED || schoolYear.isPreparing(today);
+    // CFG-YR-05: năm sắp diễn ra chỉ hiện cho GV / Tổ trưởng được phân công năm đó, từ ngày mở chuẩn bị
+    private boolean isVisibleToStaff(CurrentUser currentUser, SchoolYear schoolYear, LocalDate today) {
+        return schoolYear.getStatus() != SchoolYearStatus.PLANNED
+                || (schoolYear.isPreparing(today)
+                        && staffAssignmentService.hasStaffAssignmentInYear(
+                                currentUser.userId(), schoolYear.getId(), today));
     }
 
     // CFG-YR-05: ngày mở chuẩn bị trước ngày bắt đầu, sau ngày kết thúc năm liền trước, không trước hôm nay; trống khi

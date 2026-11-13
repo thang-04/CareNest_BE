@@ -168,6 +168,8 @@ public enum ApiCode {
     SCHOOL_YEAR_PREP_IN_PAST(2037, HttpStatus.BAD_REQUEST, "Ngày mở chuẩn bị không được trước hôm nay"),
     SCHOOL_YEAR_PREP_LOCKED(
             2038, HttpStatus.CONFLICT, "Năm học đã bắt đầu hoặc đã kết thúc, không đổi được ngày mở chuẩn bị"),
+    ACTIVATION_BEFORE_PREP(
+            2039, HttpStatus.CONFLICT, "Năm học chưa tới ngày mở chuẩn bị, chỉ kích hoạt được từ ngày {0}"),
     SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
