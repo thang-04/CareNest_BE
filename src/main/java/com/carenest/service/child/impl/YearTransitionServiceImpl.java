@@ -528,6 +528,14 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             blockers.add("Chỉ kích hoạt được từ " + DISPLAY_DATE.format(openFrom) + " (" + ACTIVATION_LEAD_DAYS
                     + " ngày trước ngày bắt đầu)");
         }
+        // CFG-YR-05: chưa tới ngày mở chuẩn bị thì chưa kích hoạt (giai đoạn chuẩn bị không bị bỏ qua)
+        LocalDate prepDate = prepDateOf(setup);
+        if (prepDate != null && prepDate.isAfter(openFrom)) {
+            openFrom = prepDate;
+            if (!devActivation.skipDateWindow() && LocalDate.now(clock).isBefore(prepDate)) {
+                blockers.add("Chưa tới ngày mở chuẩn bị " + DISPLAY_DATE.format(prepDate));
+            }
+        }
         long move = board.placements.values().stream()
                 .filter(p -> p.getAction().keepsChildInClass())
                 .count();
@@ -670,6 +678,15 @@ public class YearTransitionServiceImpl implements YearTransitionService {
             "teachers", "Giáo viên lớp",
             "placement", "Xếp lớp trẻ năm mới",
             "cutoff", "Giờ chốt điểm danh");
+
+    // Năm được kích hoạt luôn là năm PLANNED sớm nhất (CFG-YR-03) nên lấy ngày mở chuẩn bị của năm đó
+    private LocalDate prepDateOf(YearSetupResponse setup) {
+        if (setup.year().status() != SchoolYearStatus.PLANNED) {
+            return null;
+        }
+        SchoolYearDetailResponse next = schoolYearService.findNextPlannedYear();
+        return next != null && next.id().equals(setup.year().id()) ? next.prepDate() : null;
+    }
 
     private static YearReadinessResponse.Step step(String key, boolean required, boolean ok, String detail) {
         return new YearReadinessResponse.Step(key, STEP_LABELS.get(key), required, ok, false, detail);

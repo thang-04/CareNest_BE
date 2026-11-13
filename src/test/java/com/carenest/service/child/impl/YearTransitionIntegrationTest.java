@@ -173,6 +173,18 @@ class YearTransitionIntegrationTest {
         YearReadinessResponse after = service.getReadiness(principal, newYear);
         assertThat(after.canActivate()).isTrue();
         assertThat(after.impact().move()).isEqualTo(2);
+
+        // CFG-YR-05: chưa tới ngày mở chuẩn bị (01/09, hôm nay 30/08) ⇒ chưa kích hoạt dù đủ điều kiện khác
+        jdbc.update("UPDATE school_years SET prep_date = '2027-09-01' WHERE id = ?", newYear);
+        entityManager.clear();
+        YearReadinessResponse beforePrep = service.getReadiness(principal, newYear);
+        assertThat(beforePrep.canActivate()).isFalse();
+        assertThat(beforePrep.openFrom()).isEqualTo(LocalDate.of(2027, 9, 1));
+        assertThat(beforePrep.blockers()).anyMatch(b -> b.startsWith("Chưa tới ngày mở chuẩn bị"));
+        assertThatThrownBy(() -> service.activateSchoolYear(principal, newYear, "2027-2028"))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ACTIVATION_BEFORE_PREP);
     }
 
     @Test

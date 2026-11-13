@@ -392,6 +392,21 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
+    void activationBeforePrepDateIsRejected() {
+        // Trong cửa sổ 7 ngày (từ 18/10) nhưng ngày mở chuẩn bị 24/10 còn sau hôm nay 22/10
+        SchoolYear next = year(5L, "2026-2027", SchoolYearStatus.PLANNED, "2026-10-25");
+        ReflectionTestUtils.setField(next, "prepDate", LocalDate.of(2026, 10, 24));
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(next));
+
+        assertThatThrownBy(() -> service.activateSchoolYear(PRINCIPAL, 5L, "2026-2027"))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ACTIVATION_BEFORE_PREP);
+        assertThat(next.getStatus()).isEqualTo(SchoolYearStatus.PLANNED);
+        verify(schoolYearRepository, never()).findFirstByStatus(any());
+    }
+
+    @Test
     void onlyPlannedYearCanBeActivated() {
         given(schoolYearRepository.findById(1L))
                 .willReturn(Optional.of(year(1L, "2025-2026", SchoolYearStatus.CLOSED, "2025-09-01")));

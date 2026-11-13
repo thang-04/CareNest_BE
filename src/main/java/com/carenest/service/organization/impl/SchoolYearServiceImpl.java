@@ -308,6 +308,10 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 throw GlobalException.of(
                         ApiCode.ACTIVATION_TOO_EARLY, schoolYear.getStartDate().minusDays(ACTIVATION_LEAD_DAYS));
             }
+            // CFG-YR-05: phải qua giai đoạn chuẩn bị (GV, tổ trưởng năm mới soạn giáo án) rồi mới kích hoạt
+            if (!devActivation.skipDateWindow() && today.isBefore(schoolYear.getPrepDate())) {
+                throw GlobalException.of(ApiCode.ACTIVATION_BEFORE_PREP, DMY.format(schoolYear.getPrepDate()));
+            }
             Instant now = clock.instant();
             // Chỉ một năm ACTIVE: đóng năm đang chạy trước (flush) rồi mới mở năm mới, cùng transaction
             schoolYearRepository.findFirstByStatus(SchoolYearStatus.ACTIVE).ifPresent(current -> {
