@@ -122,10 +122,11 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " order by a.staffRole, a.id")
     List<StaffAssignment> findActiveByUserId(@Param("userId") Long userId, @Param("date") LocalDate date);
 
-    // Lớp GV đang dạy hoặc sắp dạy (phân công chưa kết thúc tính tới :date)
+    // Lớp GV đang dạy tính tới :date; phân công năm sắp tới bắt đầu từ ngày mở chuẩn bị (CFG-YR-05) nên chỉ hiện từ
+    // ngày đó
     @Query("select distinct a.classroomId from StaffAssignment a where a.userId = :userId"
             + " and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
-            + " and (a.validTo is null or a.validTo >= :date)")
+            + " and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
     List<Long> findCurrentTeacherClassroomIds(@Param("userId") Long userId, @Param("date") LocalDate date);
 
     // Nhóm tuổi Tổ trưởng phụ trách trong một năm học (kể cả năm sắp diễn ra), phân công chưa kết thúc tính tới :date
