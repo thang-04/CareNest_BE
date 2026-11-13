@@ -271,6 +271,18 @@ class VicePrincipalAssignmentIntegrationTest {
         assertCode(
                 () -> service.assign(principal, plannedYear, vp2, new VicePrincipalAssignmentRequest(campusA)),
                 ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
+
+        // CFG-YR-05: đổi điểm trường cho năm sau có hiệu lực từ ngày mở chuẩn bị (mặc định 1 tháng trước 01/08/2027)
+        service.assign(principal, plannedYear, vp2, new VicePrincipalAssignmentRequest(campusC));
+        LocalDate prepDay = LocalDate.of(2027, 7, 1);
+        assertThat(staffAssignmentService.hasActiveCampusAssignment(vp2, StaffRole.VICE_PRINCIPAL, campusC, prepDay))
+                .isTrue();
+        assertThat(staffAssignmentService.hasActiveCampusAssignment(
+                        vp2, StaffRole.VICE_PRINCIPAL, campusC, prepDay.minusDays(1)))
+                .isFalse();
+        assertThat(staffAssignmentService.hasActiveCampusAssignment(
+                        vp2, StaffRole.VICE_PRINCIPAL, campusB, prepDay.minusDays(1)))
+                .isTrue();
     }
 
     private Map<Long, Long> campusByUser(VicePrincipalAssignmentResponse response) {
