@@ -633,6 +633,32 @@ class TeacherAssignmentIntegrationTest {
                 + "', '" + username + "', '" + username + " IT') RETURNING id");
     }
 
+    @Test
+    @DisplayName("CFG-YR-05: GV và Tổ trưởng năm sau có quyền từ ngày mở chuẩn bị để soạn giáo án")
+    void plannedYearAssignmentsStartFromPreparationDate() {
+        long planned = insertId("INSERT INTO school_years (name, prep_date, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-08-05', '2027-09-06', '2028-05-31', 'PLANNED') RETURNING id");
+        long campusId = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classA1);
+        long plannedClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity)"
+                + " VALUES (" + campusId + ", " + planned + ", 'Lớp A1 năm sau', " + ageGroup4 + ", 25) RETURNING id");
+        LocalDate prep = LocalDate.of(2027, 8, 5);
+
+        service.assignClassTeachers(principal, plannedClass, new ClassTeachersRequest(List.of(teacher1), teacher1));
+        service.assignTeamLeader(principal, new TeamLeaderRequest(planned, ageGroup4, teacher2));
+
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, plannedClass, prep))
+                .isTrue();
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, plannedClass, prep.minusDays(1)))
+                .isFalse();
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, prep))
+                .containsExactly(teacher2);
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, prep.minusDays(1)))
+                .isEmpty();
+        // Năm đang chạy không đổi: GV lớp hiện tại vẫn còn quyền
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, classA1, TODAY))
+                .isTrue();
+    }
+
     private long classroom(long campusId, String name) {
         return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
                 + campusId + ", " + year + ", '" + name + "', " + ageGroup3 + ", 25) RETURNING id");
