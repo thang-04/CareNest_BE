@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.LongStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -113,6 +114,21 @@ class ResourceLibraryServiceImplTest {
 
     private static ResourceItemUpdateRequest rename(String title) {
         return new ResourceItemUpdateRequest(title, null, null, null, null, null);
+    }
+
+    @Test
+    void createFileItemUsesGivenTitleElseFileNameWithoutExtension() {
+        var stored = new FileStorage.StoredFile("hoclieu/a", "application/pdf", 8);
+        // Tên người dùng đặt khi tải lên (cắt khoảng trắng); trống ⇒ tên tệp bỏ đuôi
+        assertThat(service.createFileItem(teacher, 4L, stored, "bai-hat.pdf", "  Bài hát mùa thu  ", UUID.randomUUID())
+                        .getTitle())
+                .isEqualTo("Bài hát mùa thu");
+        assertThat(service.createFileItem(teacher, 4L, stored, "bai-hat.pdf", "  ", UUID.randomUUID())
+                        .getTitle())
+                .isEqualTo("bai-hat");
+        assertThat(service.createFileItem(teacher, 4L, stored, "bai-hat.pdf", null, UUID.randomUUID())
+                        .getTitle())
+                .isEqualTo("bai-hat");
     }
 
     @Test

@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 import com.carenest.dto.eduplan.LearningResourceBinding;
+import com.carenest.dto.eduplan.LearningResourceConfirmRequest;
 import com.carenest.dto.eduplan.ResourceAttachRequest;
 import com.carenest.dto.eduplan.ResourceOrderRequest;
 import com.carenest.dto.organization.ClassroomInfoResponse;
@@ -93,7 +94,7 @@ class LearningResourceServiceImplTest {
         when(storage.store(eq(FileCategory.LEARNING_RESOURCE), eq(8L), eq("demo.pdf"), any(), anyLong()))
                 .thenReturn(new FileStorage.StoredFile("hoclieu/new-object", "application/pdf", 8));
         when(items.findByOwnerIdAndUploadRequestId(any(), any())).thenReturn(Optional.empty());
-        when(library.createFileItem(any(), any(), any(), any(), any()))
+        when(library.createFileItem(any(), any(), any(), any(), any(), any()))
                 .thenThrow(new DataIntegrityViolationException("test failure"));
         TransactionSynchronizationManager.initSynchronization();
         try {
@@ -110,6 +111,36 @@ class LearningResourceServiceImplTest {
         } finally {
             TransactionSynchronizationManager.clearSynchronization();
         }
+    }
+
+    @Test
+    void confirmUploadPassesTitleAndReplaysSameKey() {
+        UUID key = UUID.randomUUID();
+        var request = new LearningResourceConfirmRequest(
+                "up/abc.pdf", "demo.pdf", "Bài hát mùa thu", "2026-09-08#goc", "Hoạt động góc", null);
+        EduResourceItem item = EduResourceItem.file(
+                7L, "Bài hát mùa thu", 4L, "demo.pdf", "application/pdf", 8, "hoclieu/a", key, Instant.now());
+        ReflectionTestUtils.setField(item, "id", 5L);
+        when(storage.confirm(FileCategory.LEARNING_RESOURCE, 8L, "up/abc.pdf"))
+                .thenReturn(new FileStorage.StoredFile("hoclieu/a", "application/pdf", 8));
+        when(items.findByOwnerIdAndUploadRequestId(7L, key)).thenReturn(Optional.empty());
+        when(library.createFileItem(any(), any(), any(), eq("demo.pdf"), eq("Bài hát mùa thu"), eq(key)))
+                .thenReturn(item);
+        TransactionSynchronizationManager.initSynchronization();
+        try {
+            assertThat(service.confirmUpload(teacher, KEY, request, key).title())
+                    .isEqualTo("Bài hát mùa thu");
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+
+        // Gửi lại cùng khóa ⇒ trả dòng gắn cũ, không tạo học liệu mới
+        var saved = EduResourceAttachment.of(8L, "2026-09-08#goc", "Hoạt động góc", 5L, 0, 7L, Instant.now());
+        when(items.findByOwnerIdAndUploadRequestId(7L, key)).thenReturn(Optional.of(item));
+        when(attachments.findAllByClassDocIdAndActivityKey(8L, "2026-09-08#goc"))
+                .thenReturn(List.of(saved));
+        assertThat(service.confirmUpload(teacher, KEY, request, key).itemId()).isEqualTo(5L);
+        verify(library, times(1)).createFileItem(any(), any(), any(), any(), any(), any());
     }
 
     @Test

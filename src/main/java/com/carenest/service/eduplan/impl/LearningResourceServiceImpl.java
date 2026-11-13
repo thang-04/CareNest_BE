@@ -95,7 +95,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             } catch (IOException ex) {
                 throw GlobalException.of(ApiCode.FILE_UNREADABLE);
             }
-            LearningResourceResponse result = commit(user, docKey, binding, requestId, name, stored, null);
+            LearningResourceResponse result = commit(user, docKey, binding, requestId, name, null, stored, null);
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -155,7 +155,8 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                     throw ex;
                 }
             }
-            LearningResourceResponse result = commit(user, docKey, binding, requestId, name, stored, request.tags());
+            LearningResourceResponse result =
+                    commit(user, docKey, binding, requestId, name, request.title(), stored, request.tags());
             log.info("{}|END", p);
             return result;
         } catch (RuntimeException ex) {
@@ -196,6 +197,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
             LearningResourceBinding binding,
             UUID requestId,
             String name,
+            String title,
             FileStorage.StoredFile stored,
             ResourceTagsRequest tags) {
         String key = stored.key();
@@ -215,7 +217,7 @@ public class LearningResourceServiceImpl implements LearningResourceService {
                     }
                 });
                 cleanupRegistered[0] = true;
-                EduResourceItem item = library.createFileItem(user, ageGroupOf(doc), stored, name, requestId);
+                EduResourceItem item = library.createFileItem(user, ageGroupOf(doc), stored, name, title, requestId);
                 EduResourceAttachment saved = saveAttachment(user, doc, binding, item.getId());
                 library.tagAttachment(item.getId(), saved.getId(), schoolYearOf(doc), tags);
                 workflow.recordAuthor(null, doc.getId(), user.userId(), "CONTENT_WRITE", clock.instant());

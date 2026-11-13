@@ -5,10 +5,14 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Xác nhận học liệu đã tải trực tiếp: {@code uploadId} từ bước xin liên kết, kèm tên gốc, mục hoạt động và nhãn (EDU-87). */
+/**
+ * Xác nhận học liệu đã tải trực tiếp: {@code uploadId} từ bước xin liên kết, kèm tên gốc, mục hoạt động và nhãn (EDU-87).
+ * {@code title} = tên học liệu người dùng đặt; trống ⇒ tên tệp bỏ đuôi.
+ */
 public record LearningResourceConfirmRequest(
         @NotBlank @Size(max = 120) String uploadId,
         @NotBlank @Size(max = 255) String fileName,
+        @Size(max = 255) String title,
 
         @NotBlank @Pattern(regexp = LearningResourceBinding.KEY_PATTERN)
         String activityKey,

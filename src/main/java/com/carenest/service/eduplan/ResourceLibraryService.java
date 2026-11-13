@@ -23,7 +23,12 @@ public interface ResourceLibraryService {
 
     /** Dùng cho giáo án ngày: tạo học liệu tệp trong kho của người dùng (trong giao dịch của người gọi). */
     EduResourceItem createFileItem(
-            CurrentUser user, Long ageGroupId, FileStorage.StoredFile stored, String name, UUID requestId);
+            CurrentUser user,
+            Long ageGroupId,
+            FileStorage.StoredFile stored,
+            String name,
+            String title,
+            UUID requestId);
 
     /** Dùng cho giáo án ngày: học liệu link của chính người dùng (dùng lại nếu đã có cùng url) — EDU-83. */
     EduResourceItem findOrCreateLink(CurrentUser user, String rawUrl, String title, Long ageGroupId);

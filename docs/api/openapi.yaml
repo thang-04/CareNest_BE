@@ -15037,6 +15037,10 @@ components:
           minLength: 0
         tags:
           $ref: "#/components/schemas/ResourceTagsRequest"
+        title:
+          type: string
+          maxLength: 255
+          minLength: 0
         uploadId:
           type: string
           maxLength: 120
@@ -16476,6 +16480,8 @@ components:
         canDelete:
           type: boolean
         canEdit:
+          type: boolean
+        canExport:
           type: boolean
         canIssue:
           type: boolean

@@ -209,10 +209,15 @@ public class ResourceLibraryServiceImpl implements ResourceLibraryService {
 
     @Override
     public EduResourceItem createFileItem(
-            CurrentUser user, Long ageGroupId, FileStorage.StoredFile stored, String name, UUID requestId) {
+            CurrentUser user,
+            Long ageGroupId,
+            FileStorage.StoredFile stored,
+            String name,
+            String title,
+            UUID requestId) {
         return items.saveAndFlush(EduResourceItem.file(
                 user.userId(),
-                stripExtension(name),
+                titleOr(title, stripExtension(name)),
                 ageGroupId,
                 name,
                 stored.contentType(),
