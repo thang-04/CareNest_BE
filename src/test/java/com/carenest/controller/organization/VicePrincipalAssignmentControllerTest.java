@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.carenest.config.SecurityConfig;
 import com.carenest.config.WebMvcConfig;
+import com.carenest.dto.organization.VicePrincipalAssignmentRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.CurrentUserService;
 import com.carenest.security.RestAccessDeniedHandler;
@@ -60,6 +61,20 @@ class VicePrincipalAssignmentControllerTest {
 
         verify(vicePrincipalAssignmentService).getAssignments(principal, 7L);
         verify(vicePrincipalAssignmentService).assign(eq(principal), eq(7L), eq(30L), any());
+    }
+
+    @Test
+    @DisplayName("AUTH-26: body của Web (campusId, note, swap) ⇒ service nhận đúng cờ hoán đổi")
+    void swapFlagReachesService() throws Exception {
+        CurrentUser principal = authenticate(TestPermissions.userWithDefaults(2L, CareNestRole.PRINCIPAL));
+
+        mockMvc.perform(put(URL + "/30")
+                        .with(token(CareNestRole.PRINCIPAL))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"campusId\":3,\"note\":\"\",\"swap\":true}"))
+                .andExpect(status().isOk());
+
+        verify(vicePrincipalAssignmentService).assign(principal, 7L, 30L, new VicePrincipalAssignmentRequest(3L, true));
     }
 
     @Test

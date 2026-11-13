@@ -8,6 +8,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import java.util.function.BiPredicate;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * Phạm vi trẻ: phụ huynh có liên kết, hoặc nhân sự có phạm vi lớp trẻ đang học hôm nay.
+ * Phạm vi trẻ: phụ huynh có liên kết, hoặc nhân sự có phạm vi lớp trẻ đang học hôm nay; trẻ chờ xếp lớp thì
+ * BGH theo điểm trường tiếp nhận.
  * Id không tồn tại và id ngoài phạm vi cho cùng kết quả (không lộ id để dò) — gọi trước khi load dữ liệu trẻ.
  */
 @Slf4j
@@ -30,10 +32,12 @@ public class ChildAccessPolicy {
     private final EnrollmentService enrollmentService;
     private final GuardianChildLinkService guardianChildLinkService;
     private final ClassroomAccessPolicy classroomAccessPolicy;
+    private final CampusAccessPolicy campusAccessPolicy;
     private final Clock clock;
 
     public boolean canViewChild(CurrentUser user, Long childId) {
-        return canAccessChild(user, childId, classroomAccessPolicy::canViewClassroom);
+        return canAccessChild(
+                user, childId, classroomAccessPolicy::canViewClassroom, campusAccessPolicy::canViewCampus);
     }
 
     public void checkCanViewChild(CurrentUser user, Long childId) {
@@ -45,7 +49,8 @@ public class ChildAccessPolicy {
 
     // Chỉ đọc: nhân sự theo phạm vi đọc của lớp (AUTH-20); phụ huynh giữ nguyên AUTH-04
     public boolean canReadChild(CurrentUser user, Long childId) {
-        return canAccessChild(user, childId, classroomAccessPolicy::canReadClassroom);
+        return canAccessChild(
+                user, childId, classroomAccessPolicy::canReadClassroom, campusAccessPolicy::canReadCampus);
     }
 
     public void checkCanReadChild(CurrentUser user, Long childId) {
@@ -55,7 +60,11 @@ public class ChildAccessPolicy {
         }
     }
 
-    private boolean canAccessChild(CurrentUser user, Long childId, BiPredicate<CurrentUser, Long> classroomScope) {
+    private boolean canAccessChild(
+            CurrentUser user,
+            Long childId,
+            BiPredicate<CurrentUser, Long> classroomScope,
+            BiPredicate<CurrentUser, Long> campusScope) {
         // AUTH-04: phụ huynh chỉ trẻ có liên kết với chính tài khoản; CHD-04: trẻ đã nghỉ học/ra trường thì không xem
         if (user.hasRole(CareNestRole.PARENT)
                 && guardianChildLinkService.isGuardianOf(user.userId(), childId)
@@ -67,7 +76,15 @@ public class ChildAccessPolicy {
         if (STAFF_ROLES_WITH_CHILD_SCOPE.stream().noneMatch(user::hasRole)) {
             return false;
         }
-        return enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock)).stream()
-                .anyMatch(classroomId -> classroomScope.test(user, classroomId));
+        List<Long> classroomIds = enrollmentService.findActiveClassroomIds(childId, LocalDate.now(clock));
+        if (classroomIds.isEmpty()) {
+            // Trẻ chờ xếp lớp chưa có lớp để xét: BGH theo điểm trường tiếp nhận (AUTH-01, AUTH-02); GV không có phạm
+            // vi này
+            return enrollmentService
+                    .findPendingPlacementCampusId(childId)
+                    .map(campusId -> campusScope.test(user, campusId))
+                    .orElse(false);
+        }
+        return classroomIds.stream().anyMatch(classroomId -> classroomScope.test(user, classroomId));
     }
 }
