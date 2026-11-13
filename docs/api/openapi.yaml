@@ -1468,6 +1468,61 @@ paths:
           description: OK
       tags:
       - weekly-comment-controller
+  /api/assessment/weekly-comments/reopen:
+    post:
+      operationId: reopen
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentReopenRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListWeeklyCommentReopenResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/reopens:
+    get:
+      operationId: getReopens
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: from
+        required: false
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: to
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListWeeklyCommentReopenResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
   /api/assessment/weekly-comments/send:
     post:
       operationId: send
@@ -18905,6 +18960,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListWeeklyCommentReopenResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyCommentReopenResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListYearPlanSummaryResponse:
       type: object
       properties:
@@ -22008,6 +22078,8 @@ components:
           - MANUAL
         fullName:
           type: string
+        reopened:
+          type: boolean
         sentAt:
           type: string
           format: date-time
@@ -22037,6 +22109,73 @@ components:
       required:
       - classId
       - weekStart
+    WeeklyCommentReopenRequest:
+      type: object
+      properties:
+        childIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        classId:
+          type: integer
+          format: int64
+        reason:
+          type: string
+        weekStart:
+          type: string
+          format: date
+      required:
+      - classId
+      - weekStart
+    WeeklyCommentReopenResponse:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        childId:
+          type: integer
+          format: int64
+        childName:
+          type: string
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        commentId:
+          type: integer
+          format: int64
+        id:
+          type: integer
+          format: int64
+        previousContent:
+          type: string
+        previousSentAt:
+          type: string
+          format: date-time
+        previousSentByName:
+          type: string
+        reason:
+          type: string
+        reopenedAt:
+          type: string
+          format: date-time
+        reopenedBy:
+          type: integer
+          format: int64
+        reopenedByName:
+          type: string
+        weekEnd:
+          type: string
+          format: date
+        weekFrom:
+          type: string
+          format: date
+        weekStart:
+          type: string
+          format: date
     WeeklyCommentSaveRequest:
       type: object
       properties:

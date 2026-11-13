@@ -105,6 +105,15 @@ public class WeeklyComment {
         this.updatedAt = at;
     }
 
+    /** Mở lại bản đã gửi: về nháp, giữ nội dung; phụ huynh không thấy tới khi GV gửi lại. */
+    public void reopen(Long by, Instant at) {
+        this.status = WeeklyCommentStatus.DRAFT;
+        this.sentBy = null;
+        this.sentAt = null;
+        this.updatedBy = by;
+        this.updatedAt = at;
+    }
+
     public void send(Long by, Instant at) {
         this.status = WeeklyCommentStatus.SENT;
         this.sentBy = by;

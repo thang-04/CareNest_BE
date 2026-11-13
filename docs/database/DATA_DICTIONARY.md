@@ -94,6 +94,16 @@ Mục đích: nhận xét tuần theo trẻ gửi phụ huynh. Migration: V126.
 | sent_by / sent_at | BIGINT, TIMESTAMPTZ | có | Người, lúc gửi; có ⇔ SENT (CHECK) | OBS-29 |
 | created_* / updated_* / version | BIGINT, TIMESTAMPTZ, BIGINT | có / không | Người tạo, lần lưu gần nhất, khóa lạc quan | OBS-29 |
 
+## weekly_comment_reopens  (module: learning-observation, scope: CHILD)
+Mục đích: lịch sử mở lại nhận xét tuần đã gửi (HT / PHT có quyền mở lại đánh giá). Migration: V127.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| weekly_comment_id | BIGINT FK weekly_comments | không | Bản nhận xét được mở lại | OBS-29 |
+| reopened_by / reopened_at | BIGINT FK user_accounts, TIMESTAMPTZ | không | Người, lúc mở lại | OBS-29 |
+| reason | VARCHAR(300) | không | Lý do, không trống (CHECK) | OBS-29 |
+| previous_content / previous_sent_at / previous_sent_by | TEXT, TIMESTAMPTZ, BIGINT FK | không | Nội dung, lúc gửi, người gửi trước khi mở lại | OBS-29 |
+Index: `idx_weekly_comment_reopens_comment (weekly_comment_id)`, `idx_weekly_comment_reopens_at (reopened_at DESC)`.
+
 ## attendance_cutoffs  (module: school-structure, scope: SCHOOL)
 Mục đích: giờ chốt điểm danh/báo ăn theo năm học (ATT-06, P-03 để cấu hình). Migration: `V17__create_attendance_cutoffs.sql`. Mỗi lần lưu thêm một dòng (lịch sử); giờ chốt của ngày D = dòng có `effective_from` ≤ D gần nhất, cùng ngày lấy dòng lưu sau. Xóa năm học PLANNED xóa luôn các dòng của năm đó.
 | Column | Type | Null | Ý nghĩa | Rule ID |

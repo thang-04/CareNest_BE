@@ -3,6 +3,8 @@ package com.carenest.controller.observation;
 import com.carenest.dto.observation.WeeklyCommentDtos.ParentWeeklyCommentResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentBoardResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentDraftRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
 import com.carenest.security.CurrentUser;
@@ -78,6 +80,34 @@ public class WeeklyCommentController {
         WeeklyCommentBoardResponse response = weeklyCommentService.send(currentUser, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Send weekly comment success", response);
+    }
+
+    /** Mở lại bản đã gửi (HT / PHT có quyền mở lại ở điểm trường của lớp): về nháp để GV sửa, gửi lại. */
+    @PostMapping("/assessment/weekly-comments/reopen")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_UNLOCK')")
+    public ResponseEntity<ResponseJson<List<WeeklyCommentReopenResponse>>> reopen(
+            @Valid @RequestBody WeeklyCommentReopenRequest request, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|reopen|userId=" + currentUser.userId() + "|classId=" + request.classId();
+        log.info("{}|START", logPrefix);
+        List<WeeklyCommentReopenResponse> response = weeklyCommentService.reopen(currentUser, request);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reopen weekly comments success", response);
+    }
+
+    @GetMapping("/assessment/weekly-comments/reopens")
+    @PreAuthorize("@permissionGuard.has('ASSESSMENT_VIEW')")
+    public ResponseEntity<ResponseJson<List<WeeklyCommentReopenResponse>>> getReopens(
+            @RequestParam(required = false) Long campusId,
+            @RequestParam(required = false) Long classId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getReopens|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        List<WeeklyCommentReopenResponse> response =
+                weeklyCommentService.getReopens(currentUser, campusId, classId, from, to);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get weekly comment reopens success", response);
     }
 
     @GetMapping("/children/{childId}/weekly-comments")

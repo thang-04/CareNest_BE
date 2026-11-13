@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 333 endpoint.
+Tổng: 335 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -73,6 +73,8 @@ GET /assessment/theme-evaluations/themes · src/main/java/com/carenest/controlle
 GET /assessment/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getBoard
 PUT /assessment/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#saveDraft
 POST /assessment/weekly-comments/drafts · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#writeDrafts
+POST /assessment/weekly-comments/reopen · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#reopen
+GET /assessment/weekly-comments/reopens · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getReopens
 POST /assessment/weekly-comments/send · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#send
 GET /attendance/classes · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClasses
 GET /attendance/day-info · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getDayInfo

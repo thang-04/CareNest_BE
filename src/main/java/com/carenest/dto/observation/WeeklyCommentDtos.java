@@ -41,6 +41,7 @@ public final class WeeklyCommentDtos {
             Instant sentAt,
             String sentByName,
             Instant updatedAt,
+            boolean reopened,
             WeekData data) {}
 
     /**
@@ -98,4 +99,31 @@ public final class WeeklyCommentDtos {
             String content,
             Instant sentAt,
             String teacherName) {}
+
+    /**
+     * Mở lại nhận xét tuần đã gửi (OBS-29): childIds trống / null = mọi bản đã gửi của lớp trong tuần; lý do bắt buộc,
+     * tối đa 300 ký tự.
+     */
+    public record WeeklyCommentReopenRequest(
+            @NotNull Long classId, @NotNull LocalDate weekStart, List<Long> childIds, String reason) {}
+
+    /** Một lần mở lại nhận xét tuần: nội dung, người gửi, lúc gửi trước khi mở lại. */
+    public record WeeklyCommentReopenResponse(
+            Long id,
+            Long commentId,
+            Long childId,
+            String childName,
+            Long classId,
+            String className,
+            Long campusId,
+            LocalDate weekStart,
+            LocalDate weekFrom,
+            LocalDate weekEnd,
+            String reason,
+            Long reopenedBy,
+            String reopenedByName,
+            Instant reopenedAt,
+            String previousContent,
+            Instant previousSentAt,
+            String previousSentByName) {}
 }

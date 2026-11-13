@@ -1,5 +1,6 @@
 package com.carenest.service.observation.impl;
 
+import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.child.ClassChildResponse;
 import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.eduplan.ApprovedDayLessonResponse;
@@ -11,16 +12,21 @@ import com.carenest.dto.observation.WeeklyCommentDtos.WeekOption;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentBoardResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentChildRow;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentDraftRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.observation.BehaviourTicket;
 import com.carenest.entity.observation.WeeklyComment;
+import com.carenest.entity.observation.WeeklyCommentReopen;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.observation.BehaviourTicketRepository;
+import com.carenest.repository.observation.WeeklyCommentReopenRepository;
 import com.carenest.repository.observation.WeeklyCommentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
+import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.eduplan.EduLessonQueryService;
@@ -39,10 +45,12 @@ import com.carenest.utils.enums.TicketType;
 import com.carenest.utils.enums.WeeklyCommentSource;
 import com.carenest.utils.enums.WeeklyCommentStatus;
 import java.time.DayOfWeek;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -67,6 +75,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter DM = DateTimeFormatter.ofPattern("dd/MM");
     static final int CONTENT_MAX = 2000;
+    static final int REOPEN_REASON_MAX = 300;
     private static final int SCHOOL_WEEK_DAYS = 4;
 
     private final ObservationDayRules rules;
@@ -79,6 +88,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     private final ClassroomService classroomService;
     private final StaffAssignmentService staffAssignmentService;
     private final WeeklyCommentRepository commentRepository;
+    private final WeeklyCommentReopenRepository reopenRepository;
+    private final ChildService childService;
     private final BehaviourTicketRepository ticketRepository;
     private final TemplateWeeklyCommentDraftGenerator templateGenerator;
     private final AiWeeklyCommentDraftGenerator aiGenerator;
@@ -242,7 +253,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             for (WeeklyComment comment : toSend) {
                 comment.send(currentUser.userId(), rules.now());
                 commentRepository.save(comment);
-                notifyParents(comment, roster.get(comment.getChildId()), weekRange(cls, week));
+                boolean updated = reopenRepository.existsByWeeklyCommentId(comment.getId());
+                notifyParents(comment, roster.get(comment.getChildId()), weekRange(cls, week), updated);
             }
             commentRepository.flush();
             WeeklyCommentBoardResponse response = board(currentUser, cls, week, false);
@@ -298,6 +310,184 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional
+    public List<WeeklyCommentReopenResponse> reopen(CurrentUser currentUser, WeeklyCommentReopenRequest request) {
+        String logPrefix = LOG_PREFIX + "|reopen|userId=" + currentUser.userId() + "|classId=" + request.classId();
+        log.info("{}|START", logPrefix);
+        try {
+            ClassroomInfoResponse cls = rules.findClass(request.classId());
+            // OBS-29: như mở lại ngày đánh giá — HT hoặc PHT có quyền mở lại ở điểm trường của lớp, năm đang hoạt động
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_UNLOCK)
+                    || !rules.leadsCampus(currentUser, Permission.ASSESSMENT_UNLOCK, cls.campusId())) {
+                throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_FORBIDDEN);
+            }
+            if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
+                throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_YEAR_NOT_ACTIVE);
+            }
+            String reason = checkReason(request.reason());
+            LocalDate week = weekOf(cls, request.weekStart());
+            rules.lockClassForUpdate(cls.id());
+            Map<Long, ClassChildResponse> roster = roster(cls, week);
+            Map<Long, WeeklyComment> existing = comments(roster.keySet(), week);
+            List<WeeklyComment> targets = new ArrayList<>();
+            if (request.childIds() == null || request.childIds().isEmpty()) {
+                existing.values().stream()
+                        .filter(c -> c.isSent() && cls.id().equals(c.getClassroomId()))
+                        .forEach(targets::add);
+                if (targets.isEmpty()) {
+                    throw GlobalException.of(ApiCode.WEEKLY_COMMENT_NOT_SENT);
+                }
+            } else {
+                for (Long childId : request.childIds().stream().distinct().toList()) {
+                    checkInClass(roster, childId);
+                    WeeklyComment comment = existing.get(childId);
+                    if (comment == null || !comment.isSent()) {
+                        throw GlobalException.of(ApiCode.WEEKLY_COMMENT_NOT_SENT);
+                    }
+                    checkSameClass(cls, comment);
+                    targets.add(comment);
+                }
+            }
+            Instant now = rules.now();
+            List<WeeklyCommentReopen> created = new ArrayList<>();
+            for (WeeklyComment comment : targets) {
+                created.add(reopenRepository.save(WeeklyCommentReopen.of(comment, reason, currentUser.userId(), now)));
+                comment.reopen(currentUser.userId(), now);
+                commentRepository.save(comment);
+            }
+            commentRepository.flush();
+            Map<Long, ClassroomInfoResponse> known = new HashMap<>();
+            known.put(cls.id(), cls);
+            List<WeeklyCommentReopenResponse> response = reopenViews(created, known);
+            log.info("{}|reopened={}|END", logPrefix, created.size());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WeeklyCommentReopenResponse> getReopens(
+            CurrentUser currentUser, Long campusId, Long classId, LocalDate from, LocalDate to) {
+        String logPrefix = LOG_PREFIX + "|getReopens|userId=" + currentUser.userId() + "|campusId=" + campusId;
+        log.info("{}|START", logPrefix);
+        try {
+            if (from != null && to != null && to.isBefore(from)) {
+                throw GlobalException.of(ApiCode.INVALID_DATE_RANGE);
+            }
+            List<WeeklyCommentReopen> all = reopenRepository.findAllByOrderByReopenedAtDescIdDesc();
+            Map<Long, WeeklyComment> byId = commentsById(all);
+            Map<Long, ClassroomInfoResponse> classes = new HashMap<>();
+            Map<Long, Boolean> allowed = new HashMap<>();
+            List<WeeklyCommentReopen> visible = all.stream()
+                    .filter(r -> {
+                        WeeklyComment c = byId.get(r.getWeeklyCommentId());
+                        if (c == null
+                                || (campusId != null && !campusId.equals(c.getCampusId()))
+                                || (classId != null && !classId.equals(c.getClassroomId()))
+                                || (from != null && c.getWeekStart().isBefore(from))
+                                || (to != null && c.getWeekStart().isAfter(to))) {
+                            return false;
+                        }
+                        ClassroomInfoResponse cls = classOf(classes, c.getClassroomId());
+                        // BGH: điểm trường trong phạm vi quyền mở lại hoặc quyền xem; GV: lớp đang dạy
+                        return cls != null
+                                && allowed.computeIfAbsent(
+                                        cls.id(),
+                                        id -> rules.leadsCampus(
+                                                        currentUser, Permission.ASSESSMENT_UNLOCK, cls.campusId())
+                                                || rules.readsCampus(currentUser, cls.campusId())
+                                                || rules.canRecord(currentUser, cls));
+                    })
+                    .toList();
+            List<WeeklyCommentReopenResponse> response = reopenViews(visible, classes);
+            log.info("{}|count={}|END", logPrefix, response.size());
+            return response;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private Map<Long, WeeklyComment> commentsById(List<WeeklyCommentReopen> reopens) {
+        return commentRepository
+                .findAllById(reopens.stream()
+                        .map(WeeklyCommentReopen::getWeeklyCommentId)
+                        .distinct()
+                        .toList())
+                .stream()
+                .collect(Collectors.toMap(WeeklyComment::getId, Function.identity()));
+    }
+
+    private ClassroomInfoResponse classOf(Map<Long, ClassroomInfoResponse> cache, Long classId) {
+        if (!cache.containsKey(classId)) {
+            cache.put(classId, classroomService.findClassroomInfo(classId).orElse(null));
+        }
+        return cache.get(classId);
+    }
+
+    private List<WeeklyCommentReopenResponse> reopenViews(
+            List<WeeklyCommentReopen> reopens, Map<Long, ClassroomInfoResponse> classes) {
+        if (reopens.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, WeeklyComment> comments = commentsById(reopens);
+        Map<Long, ChildBriefResponse> children = childService.findChildBriefs(comments.values().stream()
+                .map(WeeklyComment::getChildId)
+                .distinct()
+                .toList());
+        Collection<Long> users = reopens.stream()
+                .flatMap(r -> java.util.stream.Stream.of(r.getReopenedBy(), r.getPreviousSentBy()))
+                .distinct()
+                .toList();
+        Map<Long, String> names = accountService.findFullNames(List.copyOf(users));
+        Map<String, WeekOption> weeks = new HashMap<>();
+        return reopens.stream()
+                .map(r -> {
+                    WeeklyComment c = comments.get(r.getWeeklyCommentId());
+                    ClassroomInfoResponse cls = classOf(classes, c.getClassroomId());
+                    WeekOption week = cls == null
+                            ? null
+                            : weeks.computeIfAbsent(
+                                    cls.id() + ":" + c.getWeekStart(), k -> weekRange(cls, c.getWeekStart()));
+                    ChildBriefResponse child = children.get(c.getChildId());
+                    return new WeeklyCommentReopenResponse(
+                            r.getId(),
+                            c.getId(),
+                            c.getChildId(),
+                            child == null ? null : child.fullName(),
+                            c.getClassroomId(),
+                            cls == null ? null : cls.name(),
+                            c.getCampusId(),
+                            c.getWeekStart(),
+                            week == null ? c.getWeekStart() : week.from(),
+                            week == null ? c.getWeekStart().plusDays(SCHOOL_WEEK_DAYS) : week.to(),
+                            r.getReason(),
+                            r.getReopenedBy(),
+                            names.get(r.getReopenedBy()),
+                            r.getReopenedAt(),
+                            r.getPreviousContent(),
+                            r.getPreviousSentAt(),
+                            names.get(r.getPreviousSentBy()));
+                })
+                .toList();
+    }
+
+    // Lý do mở lại bắt buộc, tối đa 300 ký tự (như mở lại ngày đánh giá)
+    private static String checkReason(String reason) {
+        String text = reason == null ? "" : reason.trim();
+        if (text.isEmpty()) {
+            throw GlobalException.of(ApiCode.WEEKLY_COMMENT_REOPEN_REASON_REQUIRED);
+        }
+        if (text.length() > REOPEN_REASON_MAX) {
+            throw GlobalException.of(ApiCode.WEEKLY_COMMENT_REOPEN_REASON_TOO_LONG, REOPEN_REASON_MAX);
+        }
+        return text;
     }
 
     @Override
@@ -538,6 +728,15 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         Map<Long, ClassChildResponse> roster = roster(cls, week);
         Map<Long, ChildWeek> data = weekData(cls, roster.keySet(), week);
         Map<Long, WeeklyComment> comments = comments(roster.keySet(), week);
+        Set<Long> reopened = comments.isEmpty()
+                ? Set.of()
+                : reopenRepository
+                        .findByWeeklyCommentIdInOrderByReopenedAtDescIdDesc(comments.values().stream()
+                                .map(WeeklyComment::getId)
+                                .toList())
+                        .stream()
+                        .map(WeeklyCommentReopen::getWeeklyCommentId)
+                        .collect(Collectors.toSet());
         boolean teacher = rules.canRecord(user, cls);
         boolean canEdit = teacher
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
@@ -563,6 +762,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                             sent ? c.getSentAt() : null,
                             sent ? senders.get(c.getSentBy()) : null,
                             c == null ? null : c.getUpdatedAt(),
+                            c != null && !sent && reopened.contains(c.getId()),
                             w.data());
                 })
                 .toList();
@@ -659,7 +859,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         }
     }
 
-    private void notifyParents(WeeklyComment comment, ClassChildResponse child, WeekOption week) {
+    // Gửi lại sau khi BGH mở lại: báo phụ huynh "đã cập nhật" thay cho "đã gửi"
+    private void notifyParents(WeeklyComment comment, ClassChildResponse child, WeekOption week, boolean updated) {
         List<Long> parents = guardianChildLinkService.findLinksOfChild(comment.getChildId()).stream()
                 .map(GuardianLinkResponse::userId)
                 .filter(Objects::nonNull)
@@ -673,8 +874,9 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         notificationService.notifyUsers(
                 parents,
                 NotificationType.WEEKLY_COMMENT_SENT,
-                "Nhận xét tuần của con",
-                "Cô đã gửi nhận xét tuần " + range + " của " + name + ". Mở mục Nhận xét tuần để xem.",
+                updated ? "Nhận xét tuần của con đã cập nhật" : "Nhận xét tuần của con",
+                (updated ? "Cô đã cập nhật nhận xét tuần " : "Cô đã gửi nhận xét tuần ") + range + " của " + name
+                        + ". Mở mục Nhận xét tuần để xem.",
                 comment.getChildId());
     }
 

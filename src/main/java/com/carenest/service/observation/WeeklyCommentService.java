@@ -3,6 +3,8 @@ package com.carenest.service.observation;
 import com.carenest.dto.observation.WeeklyCommentDtos.ParentWeeklyCommentResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentBoardResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentDraftRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenRequest;
+import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentReopenResponse;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSaveRequest;
 import com.carenest.dto.observation.WeeklyCommentDtos.WeeklyCommentSendRequest;
 import com.carenest.security.CurrentUser;
@@ -29,4 +31,11 @@ public interface WeeklyCommentService {
 
     /** Sáng ngày học cuối của tuần: tạo nháp theo mẫu câu cho trẻ chưa có nhận xét ở mọi lớp năm đang hoạt động. */
     void createOpenWeekDrafts();
+
+    /** HT / PHT có quyền mở lại ở điểm trường của lớp đưa bản đã gửi về nháp (có lý do); trả các lần mở lại vừa tạo. */
+    List<WeeklyCommentReopenResponse> reopen(CurrentUser currentUser, WeeklyCommentReopenRequest request);
+
+    /** Lịch sử mở lại nhận xét tuần, mới nhất trước: BGH theo điểm trường trong phạm vi, GV theo lớp đang dạy. */
+    List<WeeklyCommentReopenResponse> getReopens(
+            CurrentUser currentUser, Long campusId, Long classId, LocalDate from, LocalDate to);
 }
