@@ -164,6 +164,54 @@ class SchoolYearServiceIntegrationTest {
         assertThat(service.getSchoolYears(teacher, null)).hasSize(2);
     }
 
+    @Test
+    @DisplayName("CFG-YR-05: đổi ngày bắt đầu năm sắp diễn ra giữ phân công tính từ ngày mở chuẩn bị")
+    void movingPlannedYearStartKeepsPreparationAssignments() {
+        SchoolYearDetailResponse next = service.createSchoolYear(
+                principal,
+                new SchoolYearRequest(
+                        "2027-2028", LocalDate.of(2027, 9, 10), LocalDate.of(2028, 5, 31), LocalDate.of(2027, 9, 1)));
+        long teacher = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-gv', 'gv.it', 'GV IT') RETURNING id");
+        long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-Y', 'Campus Y') RETURNING id");
+        long ageGroup = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
+        long cls = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
+                + campus + ", " + next.id() + ", 'Lớp Y', " + ageGroup + ", 25) RETURNING id");
+        long fromPrep = teacherRow(teacher, cls, "2027-09-01");
+        long legacy = teacherRow(teacher, cls, "2027-09-10");
+        long later = teacherRow(teacher, cls, "2027-09-20");
+
+        // Chỉ dời ngày bắt đầu: phân công từ ngày chuẩn bị giữ nguyên, dòng cũ ở ngày bắt đầu cũ về ngày chuẩn bị
+        service.updateSchoolYear(
+                principal,
+                next.id(),
+                new SchoolYearRequest(
+                        "2027-2028", LocalDate.of(2027, 9, 12), LocalDate.of(2028, 5, 31), LocalDate.of(2027, 9, 1)));
+        assertThat(validFrom(fromPrep)).isEqualTo(LocalDate.of(2027, 9, 1));
+        assertThat(validFrom(legacy)).isEqualTo(LocalDate.of(2027, 9, 1));
+        assertThat(validFrom(later)).isEqualTo(LocalDate.of(2027, 9, 20));
+
+        // Đổi ngày mở chuẩn bị: phân công đang tính từ ngày chuẩn bị cũ theo ngày mới; phân công sau đó giữ nguyên
+        service.updateSchoolYear(
+                principal,
+                next.id(),
+                new SchoolYearRequest(
+                        "2027-2028", LocalDate.of(2027, 9, 12), LocalDate.of(2028, 5, 31), LocalDate.of(2027, 9, 3)));
+        assertThat(validFrom(fromPrep)).isEqualTo(LocalDate.of(2027, 9, 3));
+        assertThat(validFrom(later)).isEqualTo(LocalDate.of(2027, 9, 20));
+    }
+
+    private long teacherRow(long userId, long classroomId, String from) {
+        return insertId(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to)" + " VALUES ("
+                        + userId + ", 'TEACHER', " + classroomId + ", '" + from + "', '2028-05-31') RETURNING id");
+    }
+
+    private LocalDate validFrom(long assignmentId) {
+        return jdbc.queryForObject(
+                "SELECT valid_from FROM staff_assignments WHERE id = ?", LocalDate.class, assignmentId);
+    }
+
     private static SchoolYearRequest request(LocalDate prepDate) {
         return new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 5), LocalDate.of(2028, 5, 31), prepDate);
     }

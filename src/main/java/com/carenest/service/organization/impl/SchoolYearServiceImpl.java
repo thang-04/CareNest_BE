@@ -189,13 +189,20 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             }
             LocalDate oldStart = schoolYear.getStartDate();
             LocalDate oldEnd = schoolYear.getEndDate();
+            LocalDate oldAssignmentStart = assignmentStart(schoolYear);
             LocalDate prepDate = resolvePrepDate(request, schoolYear);
             schoolYear.changeInfo(name, request.startDate(), request.endDate(), prepDate);
             schoolYearRepository.flush();
             // Phân công GV / tổ trưởng / PHT lưu theo ngày năm học: đổi ngày năm thì đổi theo, không để GV mất quyền
-            // lớp
+            // lớp. CFG-YR-05: năm sắp diễn ra tính từ ngày mở chuẩn bị, đổi ngày bắt đầu không đẩy phân công đã có
+            LocalDate newAssignmentStart = assignmentStart(schoolYear);
             staffAssignmentService.realignYearAssignments(
-                    schoolYearId, oldStart, oldEnd, request.startDate(), request.endDate());
+                    schoolYearId, oldAssignmentStart, oldEnd, newAssignmentStart, request.endDate());
+            if (!oldStart.equals(oldAssignmentStart) && !oldStart.equals(newAssignmentStart)) {
+                // Phân công tạo trước khi tính theo ngày chuẩn bị (bắt đầu ở ngày bắt đầu cũ) cũng theo ngày mới
+                staffAssignmentService.realignYearAssignments(
+                        schoolYearId, oldStart, request.endDate(), newAssignmentStart, request.endDate());
+            }
             log.info("{}|END", logPrefix);
             return schoolStructureMapper.toDetailResponse(schoolYear, classCount, LocalDate.now(clock));
         } catch (RuntimeException ex) {
@@ -664,6 +671,22 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private SchoolYearDetailResponse toDetail(SchoolYear schoolYear) {
         return schoolStructureMapper.toDetailResponse(
                 schoolYear, classroomRepository.countBySchoolYearId(schoolYear.getId()), LocalDate.now(clock));
+    }
+
+    // Ngày phân công năm học bắt đầu có hiệu lực (như TeacherAssignmentServiceImpl#effectiveStart): năm sắp diễn ra
+    // từ ngày mở chuẩn bị (CFG-YR-05, không chồng năm trước), năm khác từ ngày bắt đầu
+    private LocalDate assignmentStart(SchoolYear year) {
+        LocalDate today = LocalDate.now(clock);
+        if (year.getStatus() != SchoolYearStatus.PLANNED || today.isAfter(year.getStartDate())) {
+            return year.getStartDate();
+        }
+        LocalDate prep = year.getPrepDate().isAfter(year.getStartDate()) ? year.getStartDate() : year.getPrepDate();
+        for (SchoolYear other : schoolYearRepository.findAllByOrderByStartDateDesc()) {
+            if (other.getEndDate().isBefore(year.getStartDate()) && !prep.isAfter(other.getEndDate())) {
+                prep = other.getEndDate().plusDays(1);
+            }
+        }
+        return today.isAfter(prep) ? today : prep;
     }
 
     // HT, PHT thấy mọi năm (cấu hình, xếp lớp); người khác không thấy năm sắp diễn ra chưa tới ngày mở chuẩn bị
