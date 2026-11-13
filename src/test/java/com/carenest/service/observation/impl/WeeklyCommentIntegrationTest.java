@@ -171,8 +171,8 @@ class WeeklyCommentIntegrationTest {
     }
 
     @Test
-    @DisplayName("OBS-29: viết nháp cả lớp theo mẫu câu, bỏ trẻ nghỉ cả tuần; AI tắt thì không ghi AI")
-    void teacherWritesTemplateDraftsForPresentChildren() {
+    @DisplayName("OBS-29: viết nháp cả lớp theo mẫu câu, trẻ nghỉ cả tuần có nháp hỏi thăm; AI tắt thì không ghi AI")
+    void teacherWritesTemplateDraftsForWholeClass() {
         WeeklyCommentBoardResponse board =
                 service.writeDrafts(teacherA, new WeeklyCommentDraftRequest(classA, WEEK, null, false, true));
 
@@ -186,8 +186,10 @@ class WeeklyCommentIntegrationTest {
         assertThat(an.data().presentDays()).isEqualTo(2);
         assertThat(an.data().schoolDays()).isEqualTo(5);
         WeeklyCommentChildRow binh = row(board, child2);
-        assertThat(binh.status()).isEqualTo("NONE");
+        assertThat(binh.status()).isEqualTo("DRAFT");
         assertThat(binh.absentAllWeek()).isTrue();
+        assertThat(binh.draftSource()).isEqualTo(WeeklyCommentSource.TEMPLATE);
+        assertThat(binh.content()).contains("nghỉ học cả tuần").doesNotContain("Bình");
     }
 
     @Test
@@ -327,6 +329,7 @@ class WeeklyCommentIntegrationTest {
         assertThat(list).singleElement().satisfies(c -> {
             assertThat(c.content()).isEqualTo("Con học tốt.");
             assertThat(c.weekStart()).isEqualTo(WEEK);
+            assertThat(c.weekFrom()).isEqualTo(WEEK);
             assertThat(c.weekEnd()).isEqualTo(WEEK.plusDays(4));
             assertThat(c.className()).isEqualTo("Lớp A");
             assertThat(c.teacherName()).isEqualTo("teachera");
@@ -403,8 +406,10 @@ class WeeklyCommentIntegrationTest {
         assertThat(week.openFrom()).isEqualTo(WEEK.plusDays(3));
         assertThat(week.open()).isTrue();
         assertThat(board.canEdit()).isTrue();
-        // Mở tuần: GV vào xem thì có sẵn nháp theo mẫu câu cho trẻ đi học
+        // Mở tuần: GV vào xem thì có sẵn nháp theo mẫu câu cho cả lớp, kể cả trẻ nghỉ cả tuần
         assertThat(row(board, child1).status()).isEqualTo("DRAFT");
+        assertThat(row(board, child2).status()).isEqualTo("DRAFT");
+        assertThat(row(board, child2).content()).contains("nghỉ học cả tuần");
         assertThat(row(board, child1).draftSource()).isEqualTo(WeeklyCommentSource.TEMPLATE);
         assertThat(row(board, child1).data().schoolDays()).isEqualTo(4);
         // Danh sách tuần: mới nhất trước, không có tuần tương lai; tuần chưa có giáo án theo lịch thứ 2–6
@@ -424,12 +429,38 @@ class WeeklyCommentIntegrationTest {
 
         CLOCK.set(NOW);
         service.createOpenWeekDrafts();
-        assertThat(count(classA)).isEqualTo(1);
+        // Cả trẻ đi học lẫn trẻ nghỉ cả tuần đều có nháp
+        assertThat(count(classA)).isEqualTo(2);
         service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Cô tự viết."));
         service.createOpenWeekDrafts();
-        assertThat(count(classA)).isEqualTo(1);
+        assertThat(count(classA)).isEqualTo(2);
         assertThat(row(service.getBoard(teacherA, classA, WEEK), child1).content())
                 .isEqualTo("Cô tự viết.");
+    }
+
+    @Test
+    @DisplayName("OBS-29: nghỉ thứ 6 thì thông báo và nhận xét phụ huynh xem ghi tuần thứ 2–5 theo giáo án")
+    void parentSeesLessonWeekDates() {
+        Map<LocalDate, ApprovedDayLessonResponse> lessons = new java.util.TreeMap<>();
+        for (int i = 0; i < 4; i++) {
+            LocalDate d = WEEK.plusDays(i);
+            lessons.put(d, new ApprovedDayLessonResponse(1L, WEEK, d, "Tuần 9", List.of()));
+        }
+        when(lessonQueryService.findApprovedDayLessons(eq(classA), any(), any()))
+                .thenReturn(lessons);
+
+        service.send(teacherA, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt."));
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT body FROM notifications WHERE type = 'WEEKLY_COMMENT_SENT' AND user_id = ?",
+                        String.class,
+                        parent1.userId()))
+                .contains("26/10 – 29/10/2026");
+        assertThat(service.listForParent(parent1, child1)).singleElement().satisfies(c -> {
+            assertThat(c.weekFrom()).isEqualTo(WEEK);
+            assertThat(c.weekEnd()).isEqualTo(WEEK.plusDays(3));
+            assertThat(c.weekLabel()).isEqualTo("Tuần 9");
+        });
     }
 
     private int count(long classroomId) {

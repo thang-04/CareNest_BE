@@ -18,6 +18,12 @@ class TemplateWeeklyCommentDraftGenerator implements WeeklyCommentDraftGenerator
 
     @Override
     public String write(WeekFacts f) {
+        // Nghỉ cả tuần: vẫn có bản nháp để cô gửi lời hỏi thăm, không nhận xét hoạt động
+        if (f.presentDays() == 0) {
+            return "Tuần này con nghỉ học cả tuần nên cô chưa có nhận xét về các hoạt động của con ở lớp. Cô và các bạn"
+                    + " rất nhớ con và mong con sớm trở lại lớp.\n\nBố mẹ có thể cùng con đọc truyện, trò chuyện và giữ"
+                    + " nếp ăn ngủ đều đặn ở nhà để con vào lớp thật vui nhé.";
+        }
         List<String> first = new ArrayList<>();
         first.add(attendance(f));
         String daily = daily(f);
@@ -44,9 +50,6 @@ class TemplateWeeklyCommentDraftGenerator implements WeeklyCommentDraftGenerator
     }
 
     private static String attendance(WeekFacts f) {
-        if (f.presentDays() == 0) {
-            return "Tuần này con chưa đi học ngày nào.";
-        }
         String days = f.presentDays() >= f.schoolDays()
                 ? "Tuần này con đi học đều cả " + f.presentDays() + " ngày"
                 : "Tuần này con đi học " + f.presentDays() + "/" + f.schoolDays() + " ngày";

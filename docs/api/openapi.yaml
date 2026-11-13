@@ -16181,6 +16181,11 @@ components:
         weekEnd:
           type: string
           format: date
+        weekFrom:
+          type: string
+          format: date
+        weekLabel:
+          type: string
         weekStart:
           type: string
           format: date

@@ -140,14 +140,13 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 checkSameClass(cls, comment);
                 ChildWeek week1 = data.get(childId);
                 boolean hasText = comment != null && !comment.getContent().isBlank();
-                // Cả lớp: bỏ trẻ nghỉ cả tuần và bản cô đã viết (trừ khi cô chọn viết lại)
-                if ((request.childId() == null && week1.facts().presentDays() == 0)
-                        || (hasText && !request.overwrite())) {
+                // Bỏ bản cô đã viết (trừ khi cô chọn viết lại); trẻ nghỉ cả tuần vẫn có nháp hỏi thăm theo mẫu câu
+                if (hasText && !request.overwrite()) {
                     continue;
                 }
                 String text = null;
                 WeeklyCommentSource source = WeeklyCommentSource.TEMPLATE;
-                if (ai) {
+                if (ai && week1.facts().presentDays() > 0) {
                     try {
                         text = aiGenerator.write(week1.facts());
                         source = WeeklyCommentSource.AI;
@@ -243,7 +242,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             for (WeeklyComment comment : toSend) {
                 comment.send(currentUser.userId(), rules.now());
                 commentRepository.save(comment);
-                notifyParents(comment, roster.get(comment.getChildId()));
+                notifyParents(comment, roster.get(comment.getChildId()), weekRange(cls, week));
             }
             commentRepository.flush();
             WeeklyCommentBoardResponse response = board(currentUser, cls, week, false);
@@ -270,21 +269,28 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                     commentRepository.findByChildIdAndStatusOrderByWeekStartDesc(childId, WeeklyCommentStatus.SENT);
             Map<Long, String> teachers = accountService.findFullNames(
                     sent.stream().map(WeeklyComment::getSentBy).distinct().toList());
-            Map<Long, String> classNames = new HashMap<>();
+            Map<Long, ClassroomInfoResponse> classes = new HashMap<>();
             sent.stream()
                     .map(WeeklyComment::getClassroomId)
                     .distinct()
-                    .forEach(id -> classroomService.findClassroomInfo(id).ifPresent(c -> classNames.put(id, c.name())));
+                    .forEach(id -> classroomService.findClassroomInfo(id).ifPresent(c -> classes.put(id, c)));
             List<ParentWeeklyCommentResponse> response = sent.stream()
-                    .map(c -> new ParentWeeklyCommentResponse(
-                            c.getId(),
-                            c.getChildId(),
-                            c.getWeekStart(),
-                            c.getWeekStart().plusDays(SCHOOL_WEEK_DAYS),
-                            classNames.get(c.getClassroomId()),
-                            c.getContent(),
-                            c.getSentAt(),
-                            teachers.get(c.getSentBy())))
+                    .map(c -> {
+                        ClassroomInfoResponse cls = classes.get(c.getClassroomId());
+                        // OBS-29: cùng tuần giáo án như phía GV (ngày học đầu – cuối có giáo án đã duyệt)
+                        WeekOption range = cls == null ? null : weekRange(cls, c.getWeekStart());
+                        return new ParentWeeklyCommentResponse(
+                                c.getId(),
+                                c.getChildId(),
+                                c.getWeekStart(),
+                                range == null ? c.getWeekStart() : range.from(),
+                                range == null ? c.getWeekStart().plusDays(SCHOOL_WEEK_DAYS) : range.to(),
+                                range == null ? null : range.label(),
+                                cls == null ? null : cls.name(),
+                                c.getContent(),
+                                c.getSentAt(),
+                                teachers.get(c.getSentBy()));
+                    })
                     .toList();
             log.info("{}|count={}|END", logPrefix, response.size());
             return response;
@@ -332,7 +338,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         }
     }
 
-    // Nháp mẫu câu cho trẻ có mặt trong tuần mà chưa có nhận xét; không đụng bản đã có (nháp hay đã gửi)
+    // Nháp mẫu câu cho mọi trẻ của lớp trong tuần chưa có nhận xét (trẻ nghỉ cả tuần: lời hỏi thăm); không đụng bản đã
+    // có (nháp hay đã gửi)
     private int createMissingDrafts(ClassroomInfoResponse cls, LocalDate week, Long author) {
         Map<Long, ClassChildResponse> roster = roster(cls, week);
         if (roster.isEmpty() || comments(roster.keySet(), week).size() == roster.size()) {
@@ -344,7 +351,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         int created = 0;
         for (Long childId : roster.keySet()) {
             ChildWeek w = data.get(childId);
-            if (existing.containsKey(childId) || w.facts().presentDays() == 0) {
+            if (existing.containsKey(childId)) {
                 continue;
             }
             WeeklyComment comment = WeeklyComment.create(
@@ -652,7 +659,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         }
     }
 
-    private void notifyParents(WeeklyComment comment, ClassChildResponse child) {
+    private void notifyParents(WeeklyComment comment, ClassChildResponse child, WeekOption week) {
         List<Long> parents = guardianChildLinkService.findLinksOfChild(comment.getChildId()).stream()
                 .map(GuardianLinkResponse::userId)
                 .filter(Objects::nonNull)
@@ -662,8 +669,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             return;
         }
         String name = child == null ? "con" : child.fullName();
-        String range = DM.format(comment.getWeekStart()) + " – "
-                + DMY.format(comment.getWeekStart().plusDays(SCHOOL_WEEK_DAYS));
+        String range = DM.format(week.from()) + " – " + DMY.format(week.to());
         notificationService.notifyUsers(
                 parents,
                 NotificationType.WEEKLY_COMMENT_SENT,

@@ -83,12 +83,17 @@ public final class WeeklyCommentDtos {
     public record WeeklyCommentSendRequest(
             @NotNull Long classId, @NotNull LocalDate weekStart, Long childId, String content) {}
 
-    /** Nhận xét tuần đã gửi, phụ huynh xem trên App. */
+    /**
+     * Nhận xét tuần đã gửi, phụ huynh xem trên App. weekFrom / weekEnd: ngày học đầu, cuối của giáo án tuần đã duyệt
+     * (tuần chưa có giáo án: thứ Hai–Sáu); weekLabel: tên tuần trong giáo án.
+     */
     public record ParentWeeklyCommentResponse(
             Long id,
             Long childId,
             LocalDate weekStart,
+            LocalDate weekFrom,
             LocalDate weekEnd,
+            String weekLabel,
             String className,
             String content,
             Instant sentAt,

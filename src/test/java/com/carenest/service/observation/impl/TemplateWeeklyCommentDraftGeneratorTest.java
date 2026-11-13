@@ -53,4 +53,17 @@ class TemplateWeeklyCommentDraftGeneratorTest {
                 .doesNotContain("ăn", "cờ", "làm tốt", "lúng túng")
                 .endsWith("để con thêm tự tin nhé.");
     }
+
+    @Test
+    @DisplayName("OBS-29: nghỉ cả tuần thì nháp hỏi thăm và gợi ý gia đình, không nhận xét hoạt động")
+    void absentAllWeek() {
+        String text = generator.write(new WeeklyCommentDraftGenerator.WeekFacts(
+                0, 5, Map.of(), Map.of(), Map.of(), 0, 0, List.of(), List.of("MT1 – Kể chuyện"), 0, false));
+
+        assertThat(text.split("\n\n")).hasSize(2);
+        assertThat(text)
+                .startsWith("Tuần này con nghỉ học cả tuần")
+                .contains("mong con sớm trở lại lớp", "Bố mẹ có thể")
+                .doesNotContain("lúng túng", "kể chuyện", "cờ");
+    }
 }
