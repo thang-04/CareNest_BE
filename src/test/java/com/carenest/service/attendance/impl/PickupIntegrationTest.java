@@ -271,7 +271,8 @@ class PickupIntegrationTest {
     void parentUploadsPhotoThatClassTeacherSees() {
         when(photoStorage.store(any(), anyString())).thenReturn(PHOTO_KEY);
         when(photoStorage.load(PHOTO_KEY)).thenReturn(PNG);
-        assertThat(accounts.getMyAccount(parent).profileUpdateRequired()).isTrue();
+        assertThat(accounts.getMyAccount(parent).photoUploaded()).isFalse();
+        assertThat(accounts.getMyAccount(parent).profileUpdateRequired()).isFalse();
         assertThat(accounts.getMyAccount(teacherA).profileUpdateRequired()).isFalse();
 
         expectError(

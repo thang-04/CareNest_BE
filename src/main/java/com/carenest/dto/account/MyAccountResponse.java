@@ -6,8 +6,8 @@ import com.carenest.utils.enums.Permission;
 import java.util.List;
 
 /**
- * Thông tin để client ẩn/hiện menu theo quyền; quyền thật vẫn kiểm ở từng API. {@code profileUpdateRequired}: phụ huynh
- * chưa có ảnh chân dung ⇒ App bắt cập nhật hồ sơ trước khi dùng (PCK-02, user chốt 2026-10-31).
+ * Thông tin để client ẩn/hiện menu theo quyền; quyền thật vẫn kiểm ở từng API. {@code profileUpdateRequired} luôn
+ * {@code false}: ảnh phụ huynh lấy từ hồ sơ tiếp nhận, App không bắt tải ảnh (PCK-02, user chốt 2026-11-13).
  */
 public record MyAccountResponse(
         Long userId,

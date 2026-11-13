@@ -5,9 +5,9 @@ Module: attendance (→ notification). Rule: PCK-01..04, ATT-10, HLT-15, PAR-01.
 ## Ảnh phụ huynh
 
 ```text
-[S] Phụ huynh đăng nhập App lần đầu: đổi mật khẩu tạm ⇒ `/accounts/me` trả profileUpdateRequired
-[B] Phụ huynh chụp/chọn ảnh chân dung ⇒ [S] lưu ảnh vào tài khoản (dùng cho mọi con)           (PCK-02)
-    App chặn màn hình tới khi có ảnh; phụ huynh chưa có tài khoản thì không có ảnh
+[B] Nhà trường tải ảnh phụ huynh ở hồ sơ tiếp nhận                                           (PCK-02)
+[S] Phụ huynh đăng nhập App lần đầu: chỉ đổi mật khẩu tạm, không bắt tải ảnh (user chốt 13/11)
+    profileUpdateRequired luôn false; phụ huynh vẫn tự tải ảnh tài khoản được (dùng khi hồ sơ chưa có ảnh)
 ```
 
 ## Trả trẻ
