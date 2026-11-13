@@ -766,6 +766,14 @@ public enum ApiCode {
             HttpStatus.FORBIDDEN,
             "Chỉ Phó hiệu trưởng điểm trường xem xét, Hiệu trưởng phê duyệt danh sách khen thưởng"),
     EVALUATION_MONTH_INVALID(7344, HttpStatus.BAD_REQUEST, "Chọn tháng trong năm học, từ tháng {0} đến tháng {1}"),
+    // OBS-29 nhận xét tuần theo trẻ
+    WEEKLY_COMMENT_WEEK_INVALID(
+            7365, HttpStatus.BAD_REQUEST, "Chọn tuần trong năm học của lớp, từ tuần có ngày {0} đến tuần có ngày {1}"),
+    WEEKLY_COMMENT_FUTURE_WEEK(7366, HttpStatus.BAD_REQUEST, "Tuần này chưa bắt đầu, chưa viết nhận xét được"),
+    WEEKLY_COMMENT_ALREADY_SENT(7367, HttpStatus.CONFLICT, "Nhận xét tuần đã gửi phụ huynh, không sửa được nữa"),
+    WEEKLY_COMMENT_CHILD_NOT_IN_CLASS(7368, HttpStatus.BAD_REQUEST, "Trẻ không thuộc lớp trong tuần này"),
+    WEEKLY_COMMENT_PARENT_FORBIDDEN(7369, HttpStatus.FORBIDDEN, "Bạn không xem được nhận xét của trẻ này"),
+    WEEKLY_COMMENT_NOTHING_TO_SEND(7399, HttpStatus.BAD_REQUEST, "Chưa có nhận xét nào viết xong để gửi phụ huynh"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),

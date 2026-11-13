@@ -471,7 +471,7 @@ paths:
       - behaviour-ticket-controller
   /api/assessment/behaviour-tickets/board:
     get:
-      operationId: getBoard_1
+      operationId: getBoard_2
       parameters:
       - in: query
         name: classId
@@ -1408,6 +1408,84 @@ paths:
           description: OK
       tags:
       - theme-evaluation-controller
+  /api/assessment/weekly-comments:
+    get:
+      operationId: getBoard
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: weekStart
+        required: false
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+    put:
+      operationId: saveDraft
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentSaveRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/drafts:
+    post:
+      operationId: writeDrafts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentDraftRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
+  /api/assessment/weekly-comments/send:
+    post:
+      operationId: send
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WeeklyCommentSendRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonWeeklyCommentBoardResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
   /api/attendance/classes:
     get:
       operationId: getClasses
@@ -2867,6 +2945,25 @@ paths:
           description: OK
       tags:
       - child-enrollment-controller
+  /api/children/{childId}/weekly-comments:
+    get:
+      operationId: listForParent
+      parameters:
+      - in: path
+        name: childId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListParentWeeklyCommentResponse"
+          description: OK
+      tags:
+      - weekly-comment-controller
   /api/children/{childId}/withdraw:
     post:
       operationId: withdraw
@@ -3141,7 +3238,7 @@ paths:
       - daily-assessment-controller
   /api/classes/{classId}/pickups:
     get:
-      operationId: getBoard
+      operationId: getBoard_1
       parameters:
       - in: path
         name: classId
@@ -15745,6 +15842,7 @@ components:
           - EDU_RETURNED
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
+          - WEEKLY_COMMENT_SENT
     NutritionTotals:
       type: object
       properties:
@@ -16062,6 +16160,30 @@ components:
           format: int64
         username:
           type: string
+    ParentWeeklyCommentResponse:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        content:
+          type: string
+        id:
+          type: integer
+          format: int64
+        sentAt:
+          type: string
+          format: date-time
+        teacherName:
+          type: string
+        weekEnd:
+          type: string
+          format: date
+        weekStart:
+          type: string
+          format: date
     PermissionChangeLogResponse:
       type: object
       properties:
@@ -18553,6 +18675,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListParentWeeklyCommentResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParentWeeklyCommentResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListPermissionResponse:
       type: object
       properties:
@@ -19503,6 +19640,19 @@ components:
           type: integer
           format: int32
         data: {}
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonWeeklyCommentBoardResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/WeeklyCommentBoardResponse"
         desc:
           type: string
         errorCode:
@@ -21715,6 +21865,36 @@ components:
         row:
           type: integer
           format: int32
+    WeekData:
+      type: object
+      properties:
+        flagCount:
+          type: integer
+          format: int32
+        goalsMet:
+          type: integer
+          format: int32
+        goalsTotal:
+          type: integer
+          format: int32
+        lunchDays:
+          type: integer
+          format: int32
+        lunchFinished:
+          type: integer
+          format: int32
+        presentDays:
+          type: integer
+          format: int32
+        schoolDays:
+          type: integer
+          format: int32
+        unmetGoals:
+          type: array
+          items:
+            type: string
+        weeklyTicket:
+          type: boolean
     WeekMenu:
       type: object
       properties:
@@ -21752,6 +21932,114 @@ components:
       required:
       - key
       - label
+    WeeklyCommentBoardResponse:
+      type: object
+      properties:
+        aiEnabled:
+          type: boolean
+        aiFallback:
+          type: boolean
+        canEdit:
+          type: boolean
+        children:
+          type: array
+          items:
+            $ref: "#/components/schemas/WeeklyCommentChildRow"
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        weekEnd:
+          type: string
+          format: date
+        weekStart:
+          type: string
+          format: date
+    WeeklyCommentChildRow:
+      type: object
+      properties:
+        absentAllWeek:
+          type: boolean
+        childId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        data:
+          $ref: "#/components/schemas/WeekData"
+        draftSource:
+          type: string
+          enum:
+          - TEMPLATE
+          - AI
+          - MANUAL
+        fullName:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        sentByName:
+          type: string
+        status:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+    WeeklyCommentDraftRequest:
+      type: object
+      properties:
+        ai:
+          type: boolean
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        overwrite:
+          type: boolean
+        weekStart:
+          type: string
+          format: date
+      required:
+      - classId
+      - weekStart
+    WeeklyCommentSaveRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        weekStart:
+          type: string
+          format: date
+      required:
+      - childId
+      - classId
+      - weekStart
+    WeeklyCommentSendRequest:
+      type: object
+      properties:
+        childId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        content:
+          type: string
+        weekStart:
+          type: string
+          format: date
+      required:
+      - classId
+      - weekStart
     WindowInput:
       type: object
       properties:

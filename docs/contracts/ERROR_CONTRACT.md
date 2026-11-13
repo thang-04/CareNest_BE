@@ -85,6 +85,8 @@ Hồ sơ / tiến độ phát triển (30/10/2026): `GET /assessment/children` t
 
 Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và `CLASS_COMMENT_DIAGNOSTIC_TERM` 7323, HTTP 400, FE gắn lỗi vào `classComment`. Các lỗi ngày/khóa/quyền của đánh giá ngày tiếp tục dùng dải 7301–7321. PUT General cho phép `entries: []` khi gửi `classComment`; thiếu/null giữ nội dung cũ, chuỗi rỗng xóa nội dung.
 
+Nhận xét tuần theo trẻ (OBS-29, 13/11/2026), `/assessment/weekly-comments`: `WEEKLY_COMMENT_WEEK_INVALID` 7365 (400) khi tuần không có ngày nào trong năm học của lớp, `WEEKLY_COMMENT_FUTURE_WEEK` 7366 (400) khi tuần chưa bắt đầu, `WEEKLY_COMMENT_ALREADY_SENT` 7367 (409) khi sửa / viết nháp / gửi lại bản đã gửi, `WEEKLY_COMMENT_CHILD_NOT_IN_CLASS` 7368 (400) khi trẻ không thuộc lớp trong tuần, `WEEKLY_COMMENT_NOTHING_TO_SEND` 7399 (400) khi gửi cả lớp mà chưa bản nào có nội dung; `GET /children/{childId}/weekly-comments` trả `WEEKLY_COMMENT_PARENT_FORBIDDEN` 7369 (403) khi không phải phụ huynh đã liên kết với trẻ. Nội dung dùng lại `EVALUATION_CONTENT_REQUIRED` 7340 (gửi mà trống), `EVALUATION_CONTENT_TOO_LONG` 7342 (trên 2000 ký tự), `EVALUATION_DIAGNOSTIC_TERM` 7343; không phải GV đang dạy lớp trả 7338, xem lớp ngoài phạm vi 7337, năm học không hoạt động 7304. FE gắn 7340/7342/7343 vào ô `content`.
+
 | Tình huống | ApiCode (errorCode) | Rule |
 | --- | --- | --- |
 | Ngoài phạm vi campus/lớp/trẻ | `CAMPUS_ACCESS_DENIED` / `CLASS_ACCESS_DENIED` / `CHILD_ACCESS_DENIED` (403) | AUTH-07 |

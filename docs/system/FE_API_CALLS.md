@@ -207,6 +207,7 @@ GET /team-leader-assignments · src/services/school-config/api/schoolConfigApi.j
 GET /users · src/services/masterDataService.js [master-data: api] → (BE chưa có — pending)
 GET /users · src/services/school-config/api/schoolConfigApi.js [school-config: api] → (BE chưa có — pending)
 GET /users/{x}/role-change-impact · src/services/school-config/api/schoolConfigApi.js [school-config: api] → (BE chưa có — pending)
+PATCH /accounts/{x}/profile · src/services/school-config/schoolConfigService.js [school-config: api] → src/main/java/com/carenest/controller/account/AccountController.java#updateProfile
 PATCH /accounts/{x}/status · src/services/school-config/schoolConfigService.js [school-config: api] → src/main/java/com/carenest/controller/account/AccountController.java#updateAccountStatus
 PATCH /campuses/{x}/status · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/CampusController.java#changeCampusStatus
 PATCH /locations/{x}/status · src/services/masterDataService.js [master-data: api] → src/main/java/com/carenest/controller/organization/RoomController.java#changeRoomStatus
