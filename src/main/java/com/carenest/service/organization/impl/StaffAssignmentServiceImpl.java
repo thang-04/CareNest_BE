@@ -129,6 +129,35 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public boolean hasSubstituteAssignmentOn(Long userId, Long classroomId, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|hasSubstituteAssignmentOn|userId=" + userId + "|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean covered = staffAssignmentRepository.existsSubstituteOn(userId, classroomId, date);
+            log.info("{}|END", logPrefix);
+            return covered;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public boolean hadRoleInYear(Long userId, StaffRole staffRole, Long campusId, Long schoolYearId) {
+        String logPrefix =
+                LOG_PREFIX + "|hadRoleInYear|userId=" + userId + "|role=" + staffRole + "|schoolYearId=" + schoolYearId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean had = staffAssignmentRepository.existsRoleInYear(userId, staffRole.name(), campusId, schoolYearId);
+            log.info("{}|END", logPrefix);
+            return had;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public boolean hasTeacherAssignmentHistory(Long userId, Long classroomId, LocalDate date) {
         String logPrefix = LOG_PREFIX + "|hasTeacherAssignmentHistory|userId=" + userId + "|classroomId=" + classroomId;
         log.info("{}|START", logPrefix);

@@ -119,7 +119,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         try {
             boolean leader = rules.isLeader(currentUser);
             // Tổ trưởng chuyên môn xem các lớp nhóm tuổi mình (Cần chốt 04/11); GV khác không xem
-            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_OVERVIEW_FORBIDDEN);
             }
@@ -180,8 +180,7 @@ public class ClassAssessmentOverviewServiceImpl implements ClassAssessmentOvervi
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.readsCampus(currentUser, cls.campusId())
-                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
+            if (!rules.readsCampus(currentUser, cls.campusId()) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             String p = checkPeriod(period);

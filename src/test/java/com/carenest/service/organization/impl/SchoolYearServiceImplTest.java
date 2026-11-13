@@ -270,6 +270,28 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
+    void yearEndDataLocksOnlySemesterTwoDates() {
+        var year = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01");
+        year.changeSemesters(
+                LocalDate.of(2027, 9, 1),
+                LocalDate.of(2028, 1, 14),
+                LocalDate.of(2028, 1, 17),
+                LocalDate.of(2028, 5, 31));
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(year));
+        given(semesterUsage.usedByYearEnd(5L)).willReturn(true);
+
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-17", "2028-05-20")),
+                ApiCode.SEMESTER_DATES_LOCKED);
+        assertThat(service.getSemesterLocks(PRINCIPAL, 5L))
+                .isEqualTo(new com.carenest.dto.organization.SemesterLockResponse(false, true));
+        SchoolYearDetailResponse updated = service.updateSemester(
+                PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-13", "2028-01-17", "2028-05-31"));
+        assertThat(updated.semester1End()).isEqualTo(LocalDate.of(2028, 1, 13));
+    }
+
+    @Test
     void semesterDatesAreValidated() {
         given(schoolYearRepository.findById(5L))
                 .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));

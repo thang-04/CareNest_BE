@@ -16,6 +16,7 @@ import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
+import com.carenest.utils.enums.StaffRole;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -114,16 +115,54 @@ class AttendanceDayRules {
             return false;
         }
         if (user.hasRole(CareNestRole.PRINCIPAL) || user.hasRole(CareNestRole.VICE_PRINCIPAL)) {
-            return campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, cls.campusId());
+            return campusAccessPolicy.canEditCampus(user, Permission.ATTENDANCE_VIEW, cls.campusId())
+                    || ledClosedYear(user, cls, Permission.ATTENDANCE_VIEW);
         }
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
+    /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay khi năm đã kết thúc. */
+    boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
+        return canView(user, cls)
+                || (cls.yearStatus() == SchoolYearStatus.CLOSED
+                        && user.hasRole(CareNestRole.TEACHER)
+                        && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+    }
+
+    /**
+     * Năm đã kết thúc: HT / PHT xem lại (chỉ xem) nếu có phân công giao với năm đó (phân công PHT để trống ngày kết thúc
+     * giữ qua các năm), kể cả khi năm nay không còn phân công; PHT theo điểm trường, hoặc mọi điểm trường nếu quyền xem là
+     * toàn trường.
+     */
+    boolean ledClosedYear(CurrentUser user, ClassroomInfoResponse cls, Permission permission) {
+        if (cls.yearStatus() != SchoolYearStatus.CLOSED || !user.hasPermission(permission)) {
+            return false;
+        }
+        if (user.hasRole(CareNestRole.PRINCIPAL)
+                && staffAssignmentService.hadRoleInYear(user.userId(), StaffRole.PRINCIPAL, null, cls.schoolYearId())) {
+            return true;
+        }
+        return user.hasRole(CareNestRole.VICE_PRINCIPAL)
+                && staffAssignmentService.hadRoleInYear(
+                        user.userId(),
+                        StaffRole.VICE_PRINCIPAL,
+                        user.hasSchoolWidePermission(permission) ? null : cls.campusId(),
+                        cls.schoolYearId());
+    }
+
     /** Nhóm tuổi người dùng đang làm tổ trưởng chuyên môn; rỗng nếu không phải tổ trưởng. */
-    Set<Long> teamLeaderAgeGroupIds(CurrentUser user) {
+    Set<Long> teamLeaderAgeGroupIds(CurrentUser user, Long schoolYearId) {
+        // Tổ trưởng chỉ có quyền ở nhóm tuổi mình TRONG năm học được phân công (null = năm đang hoạt động)
         return user.hasRole(CareNestRole.TEACHER)
-                ? staffAssignmentService.findActiveTeamLeaderAgeGroupIds(user.userId(), LocalDate.now(clock))
+                ? staffAssignmentService.findScopedTeamLeaderAgeGroupIds(
+                        user.userId(), schoolYearId, LocalDate.now(clock))
                 : Set.of();
+    }
+
+    /** Người dùng là Tổ trưởng nhóm tuổi của lớp trong đúng năm học của lớp. */
+    boolean leadsClass(CurrentUser user, ClassroomInfoResponse cls) {
+        return cls.ageGroupId() != null
+                && teamLeaderAgeGroupIds(user, cls.schoolYearId()).contains(cls.ageGroupId());
     }
 
     boolean canReadCampus(CurrentUser user, Long campusId) {

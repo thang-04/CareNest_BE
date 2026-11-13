@@ -111,8 +111,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             List<ClassroomInfoResponse> years = classroomService.findYearClassrooms(schoolYearId);
-            Set<Long> ledGroups =
-                    type == EvaluationPeriodType.YEAR ? rules.teamLeaderAgeGroupIds(currentUser) : Set.of();
+            Set<Long> ledGroups = type == EvaluationPeriodType.YEAR
+                    ? rules.teamLeaderAgeGroupIds(currentUser, schoolYearId)
+                    : Set.of();
             List<ClassroomInfoResponse> visible = years.stream()
                     .filter(c -> teaches(currentUser, c)
                             || rules.readsCampus(currentUser, c.campusId())
@@ -408,7 +409,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem hồ sơ phát triển các lớp nhóm tuổi mình (chỉ xem)
-            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> teaches(currentUser, c)
                             || rules.readsCampus(currentUser, c.campusId())
@@ -471,11 +472,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             EnrollmentService.ChildClassStay chosen = null;
             ClassroomInfoResponse cls = null;
             boolean teacher = false;
-            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
             for (int i = stays.size() - 1; i >= 0 && chosen == null; i--) {
                 ClassroomInfoResponse c = rules.findClass(stays.get(i).classroomId());
                 boolean t = teaches(currentUser, c);
-                if (t || rules.readsCampus(currentUser, c.campusId()) || ledGroups.contains(c.ageGroupId())) {
+                if (t || rules.readsCampus(currentUser, c.campusId()) || rules.leadsClass(currentUser, c)) {
                     chosen = stays.get(i);
                     cls = c;
                     teacher = t;
@@ -807,7 +807,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     }
 
     private boolean leadsYearEnd(CurrentUser user, ChildEvaluation ev, ClassroomInfoResponse cls) {
-        return ev.getPeriodType() == EvaluationPeriodType.YEAR && leads(rules.teamLeaderAgeGroupIds(user), cls);
+        return ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.leadsClass(user, cls);
     }
 
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {

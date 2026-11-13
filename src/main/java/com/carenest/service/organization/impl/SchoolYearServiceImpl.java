@@ -221,14 +221,16 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                     schoolYear.getSemester1Start(),
                     schoolYear.getSemester1End(),
                     request.semester1Start(),
-                    request.semester1End());
+                    request.semester1End(),
+                    false);
             checkSemesterLocked(
                     schoolYear,
                     "Học kỳ II",
                     schoolYear.getSemester2Start(),
                     schoolYear.getSemester2End(),
                     request.semester2Start(),
-                    request.semester2End());
+                    request.semester2End(),
+                    yearEndUsed(schoolYear));
             schoolYear.changeSemesters(
                     request.semester1Start(), request.semester1End(), request.semester2Start(), request.semester2End());
             schoolYearRepository.flush();
@@ -585,7 +587,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             SchoolYear year = findSchoolYear(schoolYearId);
             SemesterLockResponse response = new SemesterLockResponse(
                     semesterUsed(year, year.getSemester1Start(), year.getSemester1End()),
-                    semesterUsed(year, year.getSemester2Start(), year.getSemester2End()));
+                    semesterUsed(year, year.getSemester2Start(), year.getSemester2End()) || yearEndUsed(year));
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
@@ -600,13 +602,24 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 && semesterUsageChecks.stream().anyMatch(c -> c.usedBySemester(year.getId(), start, end));
     }
 
+    // Đánh giá cuối năm, khen thưởng mở từ ngày kết thúc HK II: đã có thì dời ngày HK II làm chúng thành "chưa mở"
+    private boolean yearEndUsed(SchoolYear year) {
+        return semesterUsageChecks.stream().anyMatch(c -> c.usedByYearEnd(year.getId()));
+    }
+
     // Học kỳ đã có dữ liệu theo khoảng ngày cũ (đánh giá học kỳ) thì không đổi ngày học kỳ đó (OBS-06)
     private void checkSemesterLocked(
-            SchoolYear year, String label, LocalDate oldStart, LocalDate oldEnd, LocalDate newStart, LocalDate newEnd) {
+            SchoolYear year,
+            String label,
+            LocalDate oldStart,
+            LocalDate oldEnd,
+            LocalDate newStart,
+            LocalDate newEnd,
+            boolean lockedByYearEnd) {
         if (oldStart == null || oldEnd == null || (oldStart.equals(newStart) && oldEnd.equals(newEnd))) {
             return;
         }
-        if (semesterUsed(year, oldStart, oldEnd)) {
+        if (lockedByYearEnd || semesterUsed(year, oldStart, oldEnd)) {
             throw GlobalException.of(ApiCode.SEMESTER_DATES_LOCKED, label);
         }
     }

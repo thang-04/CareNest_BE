@@ -40,7 +40,7 @@ Gom 2 lớp lưu tệp đang có (`StorageService`, `PrivateImageStorage` + 4 l�
 | 2. BE giữ quyền theo campus/class/child | Đạt — endpoint `.../url` và upload-url/confirm dùng lại đúng hàm kiểm quyền của endpoint gốc |
 | 3. Không dữ liệu thật/secret trong test/log | Đạt — log chỉ id/loại; smoke dùng fixture tự tạo, không in key |
 | 4. Dùng lại integration/storage, không public ảnh trẻ | Đạt — gom về `integration/storage`; bucket private, liên kết có hạn |
-| 5. Tương thích consumer, schema qua Flyway mới | Đạt — endpoint cũ giữ; **V122 mới, chờ Tiền duyệt** (CLAUDE.md BE) |
+| 5. Tương thích consumer, schema qua Flyway mới | Đạt — endpoint cũ giữ; **V123 mới, chờ Tiền duyệt** (CLAUDE.md BE) |
 | 6. Spec → plan → tasks → implement; plan L cần duyệt | Làn L (integration, migration, API, ≥2 module) ⇒ **chờ Tiền duyệt plan** |
 | 7. Báo kiểm chứng thật, không commit/push | Giữ |
 
@@ -86,7 +86,7 @@ Thêm CORS origin vào tài liệu vận hành, không vào code (CORS của buc
 
 - `docs/system/EDUCATION_MEDIA_S3.md` → viết lại thành "Kho tệp S3": bảng loại, cách dùng `FileStorage` (ví dụ ngắn), thêm loại mới,
   mã lỗi, dựng bucket dev (Block public, CORS, IAM policy, lifecycle `imports/` 7 ngày + `tmp/` 1 ngày), biến môi trường.
-- `docs/modules/*` có liên quan: dòng "lưu tệp qua FileStorage loại X". `DATA_DICTIONARY.md`: độ dài cột V122. `docs/api/`: endpoint mới.
+- `docs/modules/*` có liên quan: dòng "lưu tệp qua FileStorage loại X". `DATA_DICTIONARY.md`: độ dài cột V123. `docs/api/`: endpoint mới.
 
 ## Project Structure
 

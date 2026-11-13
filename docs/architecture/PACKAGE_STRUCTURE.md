@@ -13,7 +13,7 @@ com.carenest
 ├── entity/<feature>/       # JPA entity — không trả qua API
 ├── dto/<feature>/          # request/response DTO (dto/common: PageResponse, FieldErrorResponse)
 ├── mapper/<feature>/       # Entity <-> DTO
-├── integration/            # adapter dịch vụ ngoài: keycloak (Admin API), storage (FileStorage), notification/push, sms; adapter AI chưa có
+├── integration/            # interface + adapter dịch vụ ngoài: keycloak (Admin API), storage (FileStorage), notification, push, sms; adapter AI (AiClient)
 ├── security/               # Resource Server Keycloak (ADR-0011): role converter, 401/403 handler; authorization/ = policy scope
 ├── config/                 # WebMvcConfig (prefix API), OpenApiConfig
 ├── exception/              # GlobalException, GlobalExceptionHandler

@@ -30,7 +30,7 @@ Enum giữ danh sách loại (kiểm tại biên dịch); cấu hình giữ số
 
 ## Thay đổi schema — **CẦN TIỀN DUYỆT TRƯỚC KHI LÀM** (CLAUDE.md BE, chốt 31/10/2026)
 
-Migration mới `V122__widen_storage_key_columns.sql`, chỉ nới độ dài, không đổi dữ liệu, không đổi ràng buộc khác:
+Migration mới `V123__widen_storage_key_columns.sql`, chỉ nới độ dài, không đổi dữ liệu, không đổi ràng buộc khác:
 
 | Bảng.cột | Hiện tại | Mới |
 |---|---|---|

@@ -181,8 +181,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
             // Tổ trưởng chuyên môn xem tổng hợp phiếu các lớp nhóm tuổi mình (AUTH-23)
-            if (!rules.canView(currentUser, cls)
-                    && !rules.teamLeaderAgeGroupIds(currentUser).contains(cls.ageGroupId())) {
+            if (!rules.canView(currentUser, cls) && !rules.leadsClass(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }
             checkMonth(month, cls.yearStart(), cls.yearEnd());
@@ -231,7 +230,7 @@ public class BehaviourTicketServiceImpl implements BehaviourTicketService {
         try {
             boolean leader = rules.isLeader(currentUser);
             // Tổ trưởng chuyên môn xem phiếu các lớp nhóm tuổi mình (Cần chốt 04/11)
-            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             if (!leader && ledGroups.isEmpty()) {
                 throw GlobalException.of(ApiCode.TICKET_VIEW_FORBIDDEN);
             }

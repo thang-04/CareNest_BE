@@ -1187,7 +1187,7 @@ class DailyAssessmentIntegrationTest {
     private void campusRole(CurrentUser user, long campusId) {
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
-                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-09-01')",
                 user.userId(),
                 campusId);
     }
