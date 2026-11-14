@@ -40,7 +40,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ObjectNode;
 
 /** Tài liệu của lớp EDU-12..18 qua service + policy thật trên PostgreSQL. Mỗi test rollback. Cần Docker. */
-@SpringBootTest
+@SpringBootTest(properties = "carenest.storage.bucket=test-bucket")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class EduClassDocServiceIntegrationTest {
@@ -73,8 +73,10 @@ class EduClassDocServiceIntegrationTest {
     @Autowired
     private com.carenest.service.eduplan.LearningResourceService learningResources;
 
-    @org.springframework.test.context.bean.override.mockito.MockitoBean
-    private com.carenest.integration.storage.StorageService storage;
+    // Kho thật trên bucket giả trong bộ nhớ: học liệu đi qua đủ kiểm định dạng/giới hạn
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(
+            answers = org.mockito.Answers.CALLS_REAL_METHODS)
+    software.amazon.awssdk.services.s3.S3Client s3;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -95,25 +97,13 @@ class EduClassDocServiceIntegrationTest {
     private YearPlanDetailResponse plan;
     private String theme1;
     private String theme2;
+    // MT duy nhất của kế hoạch tổ (tích cho chủ đề 1); EDU-80 cần MT được xếp vào ngày dạy
+    private long goal1;
+    private java.util.function.Predicate<String> pickGoal = ws -> true;
 
     @BeforeEach
     void setUp() {
-        java.util.Map<String, byte[]> stored = new java.util.HashMap<>();
-        org.mockito.Mockito.when(
-                        storage.store(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong()))
-                .thenAnswer(call -> {
-                    String key = java.util.UUID.randomUUID().toString();
-                    stored.put(key, ((java.io.InputStream) call.getArgument(0)).readAllBytes());
-                    return key;
-                });
-        org.mockito.Mockito.when(storage.load(org.mockito.ArgumentMatchers.anyString()))
-                .thenAnswer(call -> new org.springframework.core.io.ByteArrayResource(stored.get(call.getArgument(0))));
-        org.mockito.Mockito.doAnswer(call -> {
-                    stored.remove(call.getArgument(0));
-                    return null;
-                })
-                .when(storage)
-                .remove(org.mockito.ArgumentMatchers.anyString());
+        com.carenest.integration.storage.InMemoryS3.install(s3);
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
         schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
                 + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
@@ -266,6 +256,7 @@ class EduClassDocServiceIntegrationTest {
                 plan.id());
         entityManager.clear();
         theme1 = String.valueOf(plan.themes().get(0).id());
+        goal1 = jdbc.queryForObject("SELECT goal_id FROM edu_goal_contents WHERE id = ?", Long.class, contentId);
         theme2 = String.valueOf(plan.themes().get(1).id());
     }
 
@@ -794,29 +785,145 @@ class EduClassDocServiceIntegrationTest {
     private jakarta.persistence.EntityManager entityManager;
 
     @Test
-    @DisplayName("EDU-12: ZIP đổi đuôi Office không phải học liệu hợp lệ")
-    void learningResourcesRejectRenamedZipAndInvalidGoal() throws Exception {
+    @DisplayName("EDU-81: học liệu chỉ ở kế hoạch giáo dục ngày, gắn ngày + mục; ZIP đổi đuôi Office bị từ chối")
+    void learningResourcesBelongToDayPlanSections() throws Exception {
         approveBranch();
-        String key = "tp_" + classId + "_" + theme1;
-        String goal = String.valueOf(
-                jdbc.queryForObject("SELECT id FROM edu_plan_goals WHERE team_plan_id=?", Long.class, plan.id()));
-        ObjectNode doc = theme(theme1);
-        ((ObjectNode) doc.path("rows")).putObject(goal).put("activities", "A");
-        service.saveClassDoc(teacher, "theme", key, doc, versionOf(key), rootVersionOf("theme", doc));
-        var binding = new com.carenest.dto.eduplan.LearningResourceBinding(
-                goal + "#0", com.carenest.utils.LearningResourcePolicy.signature("A"), "A");
+        String dayKey = "dd_" + classId + "_2026-09-07";
+        ObjectNode day = base();
+        day.put("themeId", theme1);
+        day.put("weekStart", "2026-09-07");
+        day.putArray("days").addObject().put("date", "2026-09-07");
+        service.saveClassDoc(teacher, "day", dayKey, day, -1L, rootVersionOf("day", day));
+        var binding = new com.carenest.dto.eduplan.LearningResourceBinding("2026-09-07#hoc", "Hoạt động học");
+
+        var pdf = new org.springframework.mock.web.MockMultipartFile(
+                "file", "bai.pdf", "application/pdf", "%PDF-1.7 test".getBytes());
+        var saved = learningResources.upload(teacher, dayKey, pdf, binding, java.util.UUID.randomUUID());
+        assertThat(saved.active()).isTrue();
+        // EDU-82: tệp thành học liệu trong kho, giáo án chỉ giữ dòng gắn
+        assertThat(jdbc.queryForObject(
+                        "SELECT storage_key FROM edu_resource_items WHERE id=?", String.class, saved.itemId()))
+                .startsWith("hoclieu/hoclieu_");
+
+        // Ngày ngoài tuần của kế hoạch ngày, hoặc mục không có ⇒ không gắn được
+        assertApiError(
+                () -> learningResources.addLink(
+                        teacher,
+                        dayKey,
+                        new com.carenest.dto.eduplan.ResourceLinkRequest(
+                                "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-14#hoc", "x", null)),
+                ApiCode.ACTIVITY_CHANGED);
+        // Dùng lại học liệu ở mục khác của tuần: không tạo học liệu mới; gỡ ở mục đầu thì mục sau vẫn còn (EDU-85)
+        Long itemsBefore = jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class);
+        var again = learningResources.attach(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceAttachRequest(
+                        java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều", null));
+        assertThat(again).singleElement().satisfies(r -> assertThat(r.itemId()).isEqualTo(saved.itemId()));
+        assertApiError(
+                () -> learningResources.attach(
+                        teacher,
+                        dayKey,
+                        new com.carenest.dto.eduplan.ResourceAttachRequest(
+                                java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều", null)),
+                ApiCode.RESOURCE_ALREADY_ATTACHED);
+        learningResources.detach(teacher, dayKey, saved.id());
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.activityKey())
+                .containsExactly("2026-09-08#chieu");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class))
+                .isEqualTo(itemsBefore);
+        // EDU-82: học liệu gắn sau đứng sau; người sửa đổi được thứ tự, danh sách cũ (thiếu dòng) bị từ chối
+        var video = learningResources.addLink(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceLinkRequest(
+                        "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-08#chieu", "Hoạt động chiều", null));
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.id())
+                .containsExactly(again.get(0).id(), video.id());
+        assertApiError(
+                () -> learningResources.reorder(
+                        teacher,
+                        dayKey,
+                        new com.carenest.dto.eduplan.ResourceOrderRequest(
+                                "2026-09-08#chieu", java.util.List.of(video.id()))),
+                ApiCode.RESOURCE_ORDER_STALE);
+        learningResources.reorder(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceOrderRequest(
+                        "2026-09-08#chieu",
+                        java.util.List.of(video.id(), again.get(0).id())));
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.id())
+                .containsExactly(video.id(), again.get(0).id());
+        // Kế hoạch chủ đề không còn nhận học liệu
+        String themeKey = "tp_" + classId + "_" + theme1;
+        service.saveClassDoc(
+                teacher, "theme", themeKey, theme(theme1), versionOf(themeKey), rootVersionOf("theme", theme(theme1)));
+        assertApiError(() -> learningResources.list(teacher, themeKey), ApiCode.RESOURCE_DAY_ONLY);
+
         var bytes = new java.io.ByteArrayOutputStream();
         try (var zip = new java.util.zip.ZipOutputStream(bytes)) {
             zip.putNextEntry(new java.util.zip.ZipEntry("random.txt"));
             zip.write("x".getBytes());
             zip.closeEntry();
         }
-        var file = new org.springframework.mock.web.MockMultipartFile(
+        var fake = new org.springframework.mock.web.MockMultipartFile(
                 "file", "fake.pptx", "application/zip", bytes.toByteArray());
         assertApiError(
-                () -> learningResources.upload(teacher, key, file, binding, java.util.UUID.randomUUID()),
+                () -> learningResources.upload(teacher, dayKey, fake, binding, java.util.UUID.randomUUID()),
                 ApiCode.UNSUPPORTED_MEDIA_TYPE);
-        assertThat(learningResources.list(teacher, key)).isEmpty();
+        assertThat(learningResources.list(teacher, dayKey)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName(
+            "Spec 901 FR-004, FR-011: V128 đổi nhãn chủ đề cũ thành nhãn tự thêm theo dòng gắn (tên, năm học); gỡ là mất")
+    void v128ConvertsThemeTagsToAttachmentTags() throws Exception {
+        approveBranch();
+        String dayKey = "dd_" + classId + "_2026-09-07";
+        ObjectNode day = base();
+        day.put("themeId", theme1);
+        day.put("weekStart", "2026-09-07");
+        day.putArray("days").addObject().put("date", "2026-09-07");
+        service.saveClassDoc(teacher, "day", dayKey, day, -1L, rootVersionOf("day", day));
+        var saved = learningResources.addLink(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceLinkRequest(
+                        "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-07#hoc", "Hoạt động học", null));
+        // Như dữ liệu V126: một nhãn chủ đề không tên, không gắn dòng gắn
+        jdbc.update(
+                "INSERT INTO edu_resource_item_tags (item_id, kind, ref_id) VALUES (?, 'THEME', ?)",
+                saved.itemId(),
+                Long.valueOf(theme1));
+        String script = new String(
+                getClass()
+                        .getResourceAsStream("/db/migration/V128__edu_resource_personal_library.sql")
+                        .readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        String data = script.substring(script.indexOf("-- 3."), script.indexOf("-- 4."));
+        for (String sql : data.split(";\\s*\\n")) if (!sql.isBlank()) jdbc.execute(sql);
+        var tags = jdbc.queryForList(
+                "SELECT t.name, t.school_year_id, t.attachment_id FROM edu_resource_item_tags t WHERE t.item_id=?",
+                saved.itemId());
+        String themeName =
+                jdbc.queryForObject("SELECT name FROM edu_themes WHERE id=?", String.class, Long.valueOf(theme1));
+        assertThat(tags).singleElement().satisfies(t -> {
+            assertThat(t.get("name")).isEqualTo(themeName);
+            assertThat(t.get("school_year_id")).isNotNull();
+            assertThat(t.get("attachment_id")).isEqualTo(saved.id());
+        });
+        // EDU-87: gỡ dòng gắn ⇒ nhãn tự thêm mất theo
+        learningResources.detach(teacher, dayKey, saved.id());
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM edu_resource_item_tags WHERE item_id=?", Long.class, saved.itemId()))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT to_regclass('edu_learning_resources') IS NULL", Boolean.class))
+                .isTrue();
     }
 
     @Autowired
@@ -1015,7 +1122,16 @@ class EduClassDocServiceIntegrationTest {
         doc.put("themeId", theme1);
         doc.put("weekStart", weekStart);
         doc.putObject("aims").put("knowledge", "Trẻ biết tên trường");
+        if (pickGoal.test(weekStart)) doc.set("picks", picksOf(goal1));
         return doc;
+    }
+
+    /** Ô Hoạt động học Thứ 2 xếp một thẻ gắn MT (EDU-78); goal null = hoạt động gõ tay, không MT. */
+    private ObjectNode picksOf(Long goal) {
+        ObjectNode picks = objectMapper.createObjectNode();
+        ObjectNode pick = picks.putArray("hoc.0").addObject().put("text", "Trò chuyện về trường");
+        if (goal != null) pick.put("cardId", "c-mt").putArray("goalIds").add(String.valueOf(goal));
+        return picks;
     }
 
     private ObjectNode base() {
@@ -1343,10 +1459,20 @@ class EduClassDocServiceIntegrationTest {
                     assertThat(d.path("canExtend").asBoolean()).isTrue();
                     assertThat(d.path("branchNames").size()).isZero();
                 });
+        // Tiền 11/11/2026: PHT không soạn/duyệt chỉ thấy khung học kỳ (số học kỳ, chủ đề), không trạng thái, hạn, nút
         assertThat(service.getClassDocs(vicePrincipal, schoolYear).semesterPackages())
                 .filteredOn(d -> d.path("id").asString().equals(sp))
                 .singleElement()
-                .satisfies(d -> assertThat(d.path("canExtend").asBoolean()).isFalse());
+                .satisfies(d -> {
+                    assertThat(d.path("unreleased").asBoolean()).isTrue();
+                    assertThat(d.path("semesterNo").asInt()).isEqualTo(1);
+                    assertThat(d.path("themeIds").isArray()).isTrue();
+                    assertThat(d.has("status")).isFalse();
+                    assertThat(d.has("deadlineState")).isFalse();
+                    assertThat(d.has("branchNames")).isFalse();
+                    assertThat(d.has("history")).isFalse();
+                    assertThat(d.path("permissions").size()).isZero();
+                });
         assertErrorCode(
                 () -> service.actOnClassDoc(teacher, "semester", sp, extend("Lý do", "2026-10-28"), versionOf(sp)),
                 ApiCode.NOT_YOUR_REVIEW_STEP);
@@ -1560,9 +1686,8 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
-    @DisplayName(
-            "Spec 003 FR-015: người chỉ xem thấy tên nhánh của học kỳ có gói đã ban hành, học kỳ chưa duyệt thì báo")
-    void viewerSeesOnlyReleasedSemesterBranchNames() {
+    @DisplayName("Dự kiến chủ đề nhánh: người chỉ xem trong phạm vi lớp thấy đủ tên nhánh, kể cả học kỳ chưa ban hành")
+    void viewerSeesAllBranchNamesOfClassInScope() {
         CurrentUser second = user("second", CareNestRole.TEACHER);
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, is_homeroom) "
@@ -1582,17 +1707,9 @@ class EduClassDocServiceIntegrationTest {
         ObjectNode viewed =
                 service.getClassDocs(second, schoolYear).branchPlans().getFirst();
         assertThat(viewed.path("names").has("2026-09-07")).isTrue();
-        assertThat(viewed.path("names").has("2026-10-05")).isFalse();
-        assertThat(viewed.path("branchUnreleasedSemesters").toString()).isEqualTo("[2]");
-        // Web dựng tên từ branches ⇒ nhánh kỳ chưa ban hành không được lộ qua branches/effectiveCalendar
-        assertThat(viewed.findValues("startDate").stream().map(n -> n.asString("")))
-                .doesNotContain("2026-10-05");
-        assertThat(service.getClassDocs(teacher, schoolYear)
-                        .branchPlans()
-                        .getFirst()
-                        .path("names")
-                        .has("2026-10-05"))
-                .isTrue();
+        assertThat(viewed.path("names").has("2026-10-05")).isTrue();
+        assertThat(viewed.has("branchUnreleasedSemesters")).isFalse();
+        assertThat(viewed.path("permissions").path("canEdit").asBoolean()).isFalse();
     }
 
     @Test
@@ -1628,6 +1745,263 @@ class EduClassDocServiceIntegrationTest {
         service.remindNearDeadlines();
         assertThat(notificationsOf(otherTeacher, "EDU_DEADLINE_NEAR", link)).isEqualTo(1);
         assertThat(notificationsOf(teacher, "EDU_DEADLINE_NEAR", link)).isEqualTo(1);
+    }
+
+    // ===== Spec 006: thẻ hoạt động (EDU-78), kế hoạch tuần theo hồ sơ chủ đề (EDU-79), kiểm đủ MT (EDU-80) =====
+
+    private ObjectNode card(String id, String slot, String name, Long... goals) {
+        ObjectNode card = objectMapper.createObjectNode();
+        card.put("id", id).put("slot", slot).put("name", name);
+        var ids = card.putArray("goalIds");
+        for (Long g : goals) ids.add(String.valueOf(g));
+        return card;
+    }
+
+    private ObjectNode dayWith(String weekStart, tools.jackson.databind.JsonNode week) {
+        ObjectNode day = base();
+        day.put("themeId", theme1);
+        day.put("weekStart", weekStart);
+        var days = day.putArray("days");
+        for (int i = 0; i < 5; i++)
+            days.add(fullDay(LocalDate.parse(weekStart).plusDays(i).toString()));
+        if (week != null) day.set("week", week);
+        return day;
+    }
+
+    private ObjectNode saveDay(String weekStart, tools.jackson.databind.JsonNode week) {
+        String dayKey = "dd_" + classId + "_" + weekStart;
+        return service.saveClassDoc(
+                teacher,
+                "day",
+                dayKey,
+                dayWith(weekStart, week),
+                versionOf(dayKey),
+                versionOf("ds_" + classId + "_" + theme1));
+    }
+
+    @Test
+    @DisplayName(
+            "EDU-78 FR-005, FR-007: thẻ hợp lệ lưu được; thiếu tên, MT ngoài chủ đề, thẻ mới không loại giờ bị server từ chối")
+    void themeCardsAreValidatedOnServer() {
+        String themeKey = "tp_" + classId + "_" + theme1;
+        ObjectNode doc = theme(theme1);
+        doc.putArray("activities")
+                .add(card("c-1", "hoc", "Trò chuyện về ATGT", goal1))
+                .add(card(goal1 + "#0", "", "Bò chui", goal1).put("legacy", true));
+        ObjectNode saved = service.saveClassDoc(teacher, "theme", themeKey, doc, versionOf(themeKey), null);
+        assertThat(saved.path("activities")).hasSize(2);
+        assertThat(saved.path("activities").get(0).path("goalIds").get(0).asString())
+                .isEqualTo(String.valueOf(goal1));
+
+        ObjectNode noName = theme(theme1);
+        noName.putArray("activities").add(card("c-1", "hoc", " ", goal1));
+        assertErrorCode(
+                () -> service.saveClassDoc(teacher, "theme", themeKey, noName, versionOf(themeKey), null),
+                ApiCode.INVALID_VALUE);
+        ObjectNode foreignGoal = theme(theme1);
+        foreignGoal.putArray("activities").add(card("c-1", "hoc", "X", 999_999L));
+        assertErrorCode(
+                () -> service.saveClassDoc(teacher, "theme", themeKey, foreignGoal, versionOf(themeKey), null),
+                ApiCode.INVALID_VALUE);
+        ObjectNode newBlankSlot = theme(theme1);
+        newBlankSlot.putArray("activities").add(card("c-2", "", "Không loại giờ", goal1));
+        assertErrorCode(
+                () -> service.saveClassDoc(teacher, "theme", themeKey, newBlankSlot, versionOf(themeKey), null),
+                ApiCode.INVALID_VALUE);
+        // FR-007: giáo viên không chủ nhiệm lớp không lưu được thẻ
+        assertApiError(
+                () -> service.saveClassDoc(otherTeacher, "theme", themeKey, doc, versionOf(themeKey), null),
+                ApiCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("EDU-78 R2: kế hoạch chủ đề cũ (ô chữ) lưu lại thành thẻ id 'goalId#i', bỏ ô chữ")
+    void legacyActivitiesBecomeCards() {
+        String themeKey = "tp_" + classId + "_" + theme1;
+        ObjectNode doc = theme(theme1);
+        ((ObjectNode) doc.path("rows"))
+                .putObject(String.valueOf(goal1))
+                .put("activities", "Hoạt động học:\n+ Đi bước lùi");
+        ObjectNode saved = service.saveClassDoc(teacher, "theme", themeKey, doc, versionOf(themeKey), null);
+        assertThat(saved.path("activities").get(0).path("id").asString()).isEqualTo(goal1 + "#0");
+        assertThat(saved.path("activities").get(0).path("slot").asString()).isEqualTo("hoc");
+        assertThat(saved.path("rows").path(String.valueOf(goal1)).has("activities"))
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName(
+            "EDU-79 FR-015, FR-018: day.week lưu khi gói học kỳ đã ban hành; khóa lạ bị từ chối; hồ sơ ban hành ⇒ bản hiệu lực")
+    void dossierWeekSavesAfterSemesterReleaseAndBecomesEffective() {
+        String themeKey = "tp_" + classId + "_" + theme1;
+        service.saveClassDoc(teacher, "theme", themeKey, theme(theme1), versionOf(themeKey), null);
+        ObjectNode edited = objectMapper.createObjectNode();
+        edited.set("picks", picksOf(goal1));
+        edited.putObject("base");
+        String dayKey = "dd_" + classId + "_2026-09-07";
+        String ds = "ds_" + classId + "_" + theme1;
+        // EDU-14 (13/11/2026): tuần chưa có tên nhánh thì chưa tạo được kế hoạch tuần/ngày
+        assertErrorCode(
+                () -> service.saveClassDoc(teacher, "day", dayKey, dayWith("2026-09-07", edited), -1L, versionOf(ds)),
+                ApiCode.BRANCH_WEEKS_UNNAMED);
+        String branchKey = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(
+                teacher,
+                "branch",
+                branchKey,
+                branch(names("2026-09-07", "2026-09-21", "2026-09-28")),
+                versionOf(branchKey),
+                rootVersionOf("branch", branch(names("2026-09-07", "2026-09-21", "2026-09-28"))));
+        assertErrorCode(
+                () -> service.saveClassDoc(teacher, "day", dayKey, dayWith("2026-09-07", edited), -1L, versionOf(ds)),
+                ApiCode.SEMESTER_PACKAGE_NOT_RELEASED);
+
+        approveBranch();
+        ObjectNode saved = saveDay("2026-09-07", edited);
+        assertThat(saved.path("week").path("picks").has("hoc.0")).isTrue();
+        assertThat(saved.path("effectiveWeek").asString()).isEqualTo("semester");
+        ObjectNode unknown = dayWith("2026-09-07", edited);
+        unknown.put("foo", 1);
+        assertErrorCode(
+                () -> service.saveClassDoc(teacher, "day", dayKey, unknown, versionOf(dayKey), versionOf(ds)),
+                ApiCode.INVALID_VALUE);
+
+        act(teacher, "theme", themeKey, submit());
+        act(leader, "theme", themeKey, approve());
+        act(vicePrincipal, "theme", themeKey, approve());
+        assertThat(service.getClassDocs(teacher, schoolYear).dayPlans())
+                .filteredOn(d -> d.path("id").asString().equals(dayKey))
+                .singleElement()
+                .satisfies(d -> assertThat(d.path("effectiveWeek").asString()).isEqualTo("dossier"));
+    }
+
+    @Test
+    @DisplayName("EDU-79 + EDU-77: gói học kỳ ra bản mới đổi tuần ⇒ ngày về Nháp, bản tuần sửa theo hồ sơ vẫn giữ")
+    void newSemesterVersionKeepsDossierWeek() {
+        approveBranch();
+        String themeKey = "tp_" + classId + "_" + theme1;
+        String sp = "sp_" + classId + "_" + plan.id() + "_1";
+        String key = "bp_" + classId + "_" + plan.id();
+        act(teacher, "branch", key, submit());
+        act(leader, "branch", key, approve());
+        act(vicePrincipal, "branch", key, approve());
+        ObjectNode edited = objectMapper.createObjectNode();
+        edited.set("picks", picksOf(goal1));
+        saveDay("2026-09-07", edited);
+        act(teacher, "theme", themeKey, submit());
+        act(leader, "theme", themeKey, approve());
+        act(vicePrincipal, "theme", themeKey, approve());
+        service.actOnClassDoc(teacher, "semester", sp, new ClassDocActionRequest("revise", null), versionOf(sp));
+        String changed = "wp_" + classId + "_2026-09-07";
+        ObjectNode withCorners = week("2026-09-07");
+        withCorners.putArray("corners").addObject().put("id", "c1").put("name", "Góc xây dựng");
+        service.saveClassDoc(
+                teacher, "week", changed, withCorners, versionOf(changed), rootVersionOf("week", withCorners));
+        service.actOnClassDoc(teacher, "semester", sp, submit(), versionOf(sp));
+        service.actOnClassDoc(leader, "semester", sp, approve(), versionOf(sp));
+        service.actOnClassDoc(vicePrincipal, "semester", sp, approve(), versionOf(sp));
+        String dayKey = "dd_" + classId + "_2026-09-07";
+        assertThat(jdbc.queryForObject("SELECT status FROM edu_class_docs WHERE doc_key=?", String.class, dayKey))
+                .isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject(
+                        "SELECT content->'week' IS NOT NULL FROM edu_class_docs WHERE doc_key=?",
+                        Boolean.class,
+                        dayKey))
+                .isTrue();
+    }
+
+    @Test
+    @DisplayName("EDU-80 FR-030: hồ sơ chủ đề thiếu MT ⇒ 7396 kèm details; 7390 kiểm trước; gõ tay không tính MT")
+    void dossierSubmitRequiresThemeGoalsTaught() {
+        approveBranch();
+        String ds = "ds_" + classId + "_" + theme1;
+        ObjectNode typedOnly = objectMapper.createObjectNode();
+        typedOnly.set("picks", picksOf(null));
+        // Mục trống (7390) báo trước thiếu MT
+        ObjectNode emptySection = dayWith("2026-09-07", typedOnly);
+        ((ObjectNode) emptySection.path("days").get(0)).putObject("sections");
+        String dayKey = "dd_" + classId + "_2026-09-07";
+        service.saveClassDoc(teacher, "day", dayKey, emptySection, versionOf(dayKey), versionOf(ds));
+        saveDay("2026-09-21", typedOnly);
+        assertErrorCode(
+                () -> service.actOnClassDoc(teacher, "dossier", ds, submit(), versionOf(ds)),
+                ApiCode.DAY_PLAN_SECTION_EMPTY);
+        // Bản tuần sửa trong hồ sơ bỏ mất MT đã có ở bản theo kỳ ⇒ chặn
+        saveDay("2026-09-07", typedOnly);
+        assertThatThrownBy(() -> service.actOnClassDoc(teacher, "dossier", ds, submit(), versionOf(ds)))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.THEME_GOALS_NOT_COVERED);
+                    tools.jackson.databind.JsonNode details =
+                            objectMapper.valueToTree(ex.getData()).path("details");
+                    assertThat(details).hasSize(1);
+                    assertThat(details.get(0).path("goalId").asLong()).isEqualTo(goal1);
+                    assertThat(ex.getMessage())
+                            .contains("MT" + details.get(0).path("goalNo").asInt());
+                });
+        // Bỏ bản tuần sửa ⇒ dùng bản theo kỳ (có MT) ⇒ gửi được
+        saveDay("2026-09-07", null);
+        saveDay("2026-09-21", null);
+        assertThat(service.actOnClassDoc(teacher, "dossier", ds, submit(), versionOf(ds))
+                        .path("status")
+                        .asString())
+                .isEqualTo("REVIEW");
+    }
+
+    @Test
+    @DisplayName("EDU-80 FR-031: gói HK1 thiếu MT vẫn gửi được; gói HK2 (cuối năm) thiếu MT năm ⇒ 7397")
+    void yearGoalsCheckedOnlyAtLastSemester() {
+        pickGoal = ws -> false;
+        String key = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(
+                teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
+        fillSemesterPackage(teacher, String.valueOf(classId), 1);
+        fillSemesterPackage(teacher, String.valueOf(classId), 2);
+        String sp1 = "sp_" + classId + "_" + plan.id() + "_1";
+        assertThat(service.actOnClassDoc(teacher, "semester", sp1, submit(), versionOf(sp1))
+                        .path("status")
+                        .asString())
+                .isEqualTo("REVIEW");
+        String sp2 = "sp_" + classId + "_" + plan.id() + "_2";
+        assertThatThrownBy(() -> service.actOnClassDoc(teacher, "semester", sp2, submit(), versionOf(sp2)))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.YEAR_GOALS_NOT_COVERED);
+                    assertThat(objectMapper
+                                    .valueToTree(ex.getData())
+                                    .path("details")
+                                    .get(0)
+                                    .path("goalId")
+                                    .asLong())
+                            .isEqualTo(goal1);
+                });
+    }
+
+    @Test
+    @DisplayName("EDU-80 FR-031: hồ sơ của chủ đề cuối năm, bản tuần sửa bỏ MT duy nhất của năm ⇒ 7397")
+    void lastThemeDossierChecksYearGoals() {
+        String lastWeek = "2026-11-16";
+        pickGoal = lastWeek::equals;
+        String key = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(
+                teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
+        fillSemesterPackage(teacher, String.valueOf(classId), 2);
+        String sp2 = "sp_" + classId + "_" + plan.id() + "_2";
+        service.actOnClassDoc(teacher, "semester", sp2, submit(), versionOf(sp2));
+        service.actOnClassDoc(leader, "semester", sp2, approve(), versionOf(sp2));
+        service.actOnClassDoc(vicePrincipal, "semester", sp2, approve(), versionOf(sp2));
+        String lastTheme = String.valueOf(jdbc.queryForObject(
+                "SELECT id FROM edu_themes WHERE team_plan_id=? ORDER BY start_date DESC LIMIT 1",
+                Long.class,
+                plan.id()));
+        ObjectNode edited = objectMapper.createObjectNode();
+        edited.set("picks", picksOf(null));
+        ObjectNode day = dayWith(lastWeek, edited);
+        day.put("themeId", lastTheme);
+        String dayKey = "dd_" + classId + "_" + lastWeek;
+        String ds = "ds_" + classId + "_" + lastTheme;
+        service.saveClassDoc(teacher, "day", dayKey, day, versionOf(dayKey), versionOf(ds));
+        assertErrorCode(
+                () -> service.actOnClassDoc(teacher, "dossier", ds, submit(), versionOf(ds)),
+                ApiCode.YEAR_GOALS_NOT_COVERED);
     }
 
     private Long versionOf(String key) {

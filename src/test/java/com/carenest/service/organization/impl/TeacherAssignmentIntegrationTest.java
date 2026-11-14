@@ -633,6 +633,32 @@ class TeacherAssignmentIntegrationTest {
                 + "', '" + username + "', '" + username + " IT') RETURNING id");
     }
 
+    @Test
+    @DisplayName("CFG-YR-05: GV và Tổ trưởng năm sau có quyền từ ngày mở chuẩn bị để soạn giáo án")
+    void plannedYearAssignmentsStartFromPreparationDate() {
+        long planned = insertId("INSERT INTO school_years (name, prep_date, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-08-05', '2027-09-06', '2028-05-31', 'PLANNED') RETURNING id");
+        long campusId = jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, classA1);
+        long plannedClass = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity)"
+                + " VALUES (" + campusId + ", " + planned + ", 'Lớp A1 năm sau', " + ageGroup4 + ", 25) RETURNING id");
+        LocalDate prep = LocalDate.of(2027, 8, 5);
+
+        service.assignClassTeachers(principal, plannedClass, new ClassTeachersRequest(List.of(teacher1), teacher1));
+        service.assignTeamLeader(principal, new TeamLeaderRequest(planned, ageGroup4, teacher2));
+
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, plannedClass, prep))
+                .isTrue();
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, plannedClass, prep.minusDays(1)))
+                .isFalse();
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, prep))
+                .containsExactly(teacher2);
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, prep.minusDays(1)))
+                .isEmpty();
+        // Năm đang chạy không đổi: GV lớp hiện tại vẫn còn quyền
+        assertThat(staffAssignmentService.hasActiveTeacherAssignment(teacher1, classA1, TODAY))
+                .isTrue();
+    }
+
     private long classroom(long campusId, String name) {
         return insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
                 + campusId + ", " + year + ", '" + name + "', " + ageGroup3 + ", 25) RETURNING id");
@@ -667,5 +693,104 @@ class TeacherAssignmentIntegrationTest {
 
     private long insertId(String sql) {
         return jdbc.queryForObject(sql, Long.class);
+    }
+
+    @Test
+    @DisplayName(
+            "Tổ trưởng chỉ có quyền ở nhóm tuổi mình trong đúng năm được phân công (valid_to trống không tràn năm)")
+    void teamLeaderScopeFollowsSchoolYear() {
+        long closed = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2025-2026', '2025-09-01', '2026-05-31', 'CLOSED') RETURNING id");
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        // Dữ liệu thật hay để trống valid_to: teacher2 tổ trưởng năm nay, teacher1 năm sau, teacher3 năm trước
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-09-01')",
+                teacher2,
+                ageGroup4,
+                year);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2027-09-01')",
+                teacher1,
+                ageGroup4,
+                planned);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from,"
+                        + " valid_to) VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2025-09-01', '2026-05-31')",
+                teacher3,
+                ageGroup4,
+                closed);
+
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, year, TODAY))
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, null, TODAY))
+                .as("null = năm đang hoạt động")
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, planned, TODAY))
+                .isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, closed, TODAY))
+                .isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher1, year, TODAY))
+                .isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher1, planned, TODAY))
+                .as("năm sắp diễn ra: tổ trưởng năm đó (giai đoạn chuẩn bị)")
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, closed, TODAY))
+                .as("năm đã kết thúc: tổ trưởng năm đó vẫn xem lại được")
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, TODAY))
+                .isEmpty();
+
+        // Năm đang chạy: phân công bắt đầu sau hôm nay chưa có quyền
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2026-11-15')",
+                teacher3,
+                ageGroup4,
+                year);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, TODAY))
+                .isEmpty();
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher3, year, LocalDate.of(2026, 11, 15)))
+                .containsExactly(ageGroup4);
+
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, year, TODAY))
+                .containsExactly(teacher2);
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, LocalDate.of(2027, 10, 1)))
+                .containsExactly(teacher1);
+    }
+
+    @Test
+    @DisplayName("Phân công tổ trưởng cũ không ghi năm học, valid_to trống: chỉ thuộc năm đầu tiên tính từ valid_from")
+    void legacyTeamLeaderWithoutYearStaysInItsYear() {
+        long planned = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2027-09-01', '2028-05-31', 'PLANNED') RETURNING id");
+        // teacher2: tổ trưởng MG lớn 2026-2027 nhập trước khi có school_year_id; teacher1: tổ trưởng 2027-2028
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, '2026-09-01')",
+                teacher2,
+                ageGroup4);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from)"
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2027-09-01')",
+                teacher1,
+                ageGroup4,
+                planned);
+
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, year, TODAY))
+                .containsExactly(ageGroup4);
+        assertThat(staffAssignmentService.findScopedTeamLeaderAgeGroupIds(teacher2, planned, TODAY))
+                .as("năm sau không còn là tổ trưởng")
+                .isEmpty();
+        assertThat(staffAssignmentService.findYearTeamLeaderIds(ageGroup4, planned, LocalDate.of(2027, 10, 1)))
+                .containsExactly(teacher1);
+        assertThat(service.getTeamLeaders(principal, planned).teamLeaders())
+                .extracting(TeamLeaderResponse.Leader::userId)
+                .containsExactly(teacher1);
+        assertThat(service.getTeamLeaders(principal, year).teamLeaders())
+                .extracting(TeamLeaderResponse.Leader::userId)
+                .containsExactly(teacher2);
     }
 }

@@ -23,7 +23,9 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-@SpringBootTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
+@SpringBootTest(
+        properties = {"spring.jpa.properties.hibernate.generate_statistics=true", "carenest.storage.bucket=test-bucket"
+        })
 @Testcontainers(disabledWithoutDocker = true)
 class EduWorkflowConcurrencyIntegrationTest {
     @Container
@@ -49,8 +51,9 @@ class EduWorkflowConcurrencyIntegrationTest {
     @Autowired
     com.carenest.service.eduplan.LearningResourceService learningResources;
 
-    @org.springframework.test.context.bean.override.mockito.MockitoBean
-    com.carenest.integration.storage.StorageService storage;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean(
+            answers = org.mockito.Answers.CALLS_REAL_METHODS)
+    software.amazon.awssdk.services.s3.S3Client s3;
 
     @MockitoSpyBean
     com.carenest.repository.eduplan.EduPlanGoalRepository goals;

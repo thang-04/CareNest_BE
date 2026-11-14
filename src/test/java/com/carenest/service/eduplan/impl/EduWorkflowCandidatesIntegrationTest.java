@@ -71,7 +71,7 @@ class EduWorkflowCandidatesIntegrationTest {
         RolePolicy policy = new RolePolicy(List.of(Role.TEACHER), List.of(Role.TEAM_LEADER, Role.PRINCIPAL));
 
         Map<Role, Set<Long>> candidatesForAgeGroup1 =
-                workflowService.resolveActiveCandidates(policy, ageGroup1, null, today);
+                workflowService.resolveActiveCandidates(policy, ageGroup1, null, null, today);
 
         assertThat(candidatesForAgeGroup1.get(Role.PRINCIPAL))
                 .contains(activeHt)
@@ -105,7 +105,7 @@ class EduWorkflowCandidatesIntegrationTest {
                 otherCampus,
                 today);
         var classPolicy = new RolePolicy(List.of(Role.TEACHER), List.of(Role.TEAM_LEADER, Role.VICE_PRINCIPAL));
-        var candidatesForClass = workflowService.resolveActiveCandidates(classPolicy, null, classroom, today);
+        var candidatesForClass = workflowService.resolveActiveCandidates(classPolicy, null, null, classroom, today);
         assertThat(candidatesForClass.get(Role.VICE_PRINCIPAL)).contains(vpB).doesNotContain(vpA);
         assertThat(candidatesForClass.get(Role.TEAM_LEADER)).contains(activeTl1).doesNotContain(activeTl2);
     }

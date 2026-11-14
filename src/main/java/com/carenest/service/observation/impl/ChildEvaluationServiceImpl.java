@@ -111,8 +111,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             List<ClassroomInfoResponse> years = classroomService.findYearClassrooms(schoolYearId);
-            Set<Long> ledGroups =
-                    type == EvaluationPeriodType.YEAR ? rules.teamLeaderAgeGroupIds(currentUser) : Set.of();
+            Set<Long> ledGroups = type == EvaluationPeriodType.YEAR
+                    ? rules.teamLeaderAgeGroupIds(currentUser, schoolYearId)
+                    : Set.of();
             List<ClassroomInfoResponse> visible = years.stream()
                     .filter(c -> teaches(currentUser, c)
                             || rules.readsCampus(currentUser, c.campusId())
@@ -131,7 +132,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 // Chỉ GV đang dạy lớp mở danh sách mới tạo bản nháp kỳ đã kết thúc; BGH, tổ trưởng chỉ xem bản đã xác
                 // nhận
                 // nên lượt xem của họ không ghi DB, không khóa lớp
-                if (cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)) {
+                if (cls.yearStatus() == SchoolYearStatus.ACTIVE
+                        && (rules.canRecord(currentUser, cls)
+                                || (type == EvaluationPeriodType.YEAR && rules.finishesYearEnd(currentUser, cls)))) {
                     ensureDrafts(currentUser, cls, type);
                 }
             }
@@ -206,7 +209,9 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.name(),
                             cls.campusId(),
                             teacher,
-                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)),
+                            cls.yearStatus() == SchoolYearStatus.ACTIVE
+                                    && (rules.canRecord(currentUser, cls)
+                                            || (year && rules.finishesYearEnd(currentUser, cls)))),
                     data == null ? List.of() : data.days(),
                     cls.mealSessions(),
                     monthly,
@@ -408,7 +413,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         log.info("{}|START", logPrefix);
         try {
             // AUTH-23 (Cần chốt 10/11/2026): tổ trưởng xem hồ sơ phát triển các lớp nhóm tuổi mình (chỉ xem)
-            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             List<ClassroomInfoResponse> visible = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> teaches(currentUser, c)
                             || rules.readsCampus(currentUser, c.campusId())
@@ -471,11 +476,10 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             EnrollmentService.ChildClassStay chosen = null;
             ClassroomInfoResponse cls = null;
             boolean teacher = false;
-            Set<Long> ledGroups = rules.teamLeaderAgeGroupIds(currentUser);
             for (int i = stays.size() - 1; i >= 0 && chosen == null; i--) {
                 ClassroomInfoResponse c = rules.findClass(stays.get(i).classroomId());
                 boolean t = teaches(currentUser, c);
-                if (t || rules.readsCampus(currentUser, c.campusId()) || ledGroups.contains(c.ageGroupId())) {
+                if (t || rules.readsCampus(currentUser, c.campusId()) || rules.leadsClass(currentUser, c)) {
                     chosen = stays.get(i);
                     cls = c;
                     teacher = t;
@@ -807,12 +811,13 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     }
 
     private boolean leadsYearEnd(CurrentUser user, ChildEvaluation ev, ClassroomInfoResponse cls) {
-        return ev.getPeriodType() == EvaluationPeriodType.YEAR && leads(rules.teamLeaderAgeGroupIds(user), cls);
+        return ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.leadsClass(user, cls);
     }
 
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {
         ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
-        if (!rules.canRecord(user, cls)) {
+        boolean yearEnd = ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.finishesYearEnd(user, cls);
+        if (!rules.canRecord(user, cls) && !yearEnd) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {

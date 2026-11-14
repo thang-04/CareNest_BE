@@ -55,7 +55,7 @@ User muốn cấu hình OTP qua SMS bằng Twilio bản free (trial); luồng đ
 - **AC-3:** Given textbee trả 4xx/5xx hoặc timeout, When gửi, Then ném `SmsDeliveryException`; log chỉ có status và lý do đã che dãy số dài, không SĐT/nội dung/API key.
 - **AC-4:** Given `provider=textbee` thiếu `TEXTBEE_API_KEY`, When khởi động, Then app dừng, báo rõ thiếu biến nào.
 - **AC-5** (AUTH-18): Given nhà cung cấp thật đang bật, When gửi tin tạo tài khoản có mật khẩu tạm, Then tin đi cổng giả, không qua nhà cung cấp thật.
-- **AC-6..n** (AUTH-18, Phase 2): chi tiết trong Domain spec 017 — gửi mã khi tạo tài khoản mới, mã hết hạn sau 72 giờ, sai 5 lần hủy mã, HT/PHT gửi lại (60 giây), tài khoản đã có không gửi mã, SMS lỗi ⇒ phiếu in mã.
+- **AC-6..n** (AUTH-18, Phase 2): chi tiết trong Domain spec 018 — gửi mã khi tạo tài khoản mới, mã hết hạn sau 72 giờ, sai 5 lần hủy mã, HT/PHT gửi lại (60 giây), tài khoản đã có không gửi mã, SMS lỗi ⇒ phiếu in mã.
 
 ## Key decisions
 | Quyết định | Chọn (đề xuất) | Phương án khác | Vì sao |
@@ -79,7 +79,7 @@ User muốn cấu hình OTP qua SMS bằng Twilio bản free (trial); luồng đ
 - **Dừng chờ user review.**
 
 ### Phase 2 — Mã kích hoạt qua SMS (BE)
-- Feature mới ⇒ `.ai/workflows/feature-spec-loop.md`: Domain spec + `specs/017-parent-activation-code/` + ADR endpoint kích hoạt công khai. Phạm vi dự kiến: migration (mục đích `ACTIVATION`), tạo tài khoản không mật khẩu, tin SMS chứa mã, `POST` gửi lại mã (HT/PHT), endpoint công khai kiểm mã + đặt mật khẩu, bỏ SMS mật khẩu tạm, cập nhật `AUTH_CONTRACT.md`, `openapi.yaml`, `CROSS_REPO_MAP.md`. >8 file ⇒ spec riêng chia phase chi tiết.
+- Feature mới ⇒ `.ai/workflows/feature-spec-loop.md`: Domain spec + `specs/018-parent-activation-code/` + ADR endpoint kích hoạt công khai. Phạm vi dự kiến: migration (mục đích `ACTIVATION`), tạo tài khoản không mật khẩu, tin SMS chứa mã, `POST` gửi lại mã (HT/PHT), endpoint công khai kiểm mã + đặt mật khẩu, bỏ SMS mật khẩu tạm, cập nhật `AUTH_CONTRACT.md`, `openapi.yaml`, `CROSS_REPO_MAP.md`. >8 file ⇒ spec riêng chia phase chi tiết.
 - **Dừng chờ user review.**
 
 ### Phase 3 — Client (repo khác, plan riêng)
@@ -106,7 +106,7 @@ User muốn cấu hình OTP qua SMS bằng Twilio bản free (trial); luồng đ
 
 ## Validation log
 - [x] Khẳng định về code có `file:line`
-- [x] Đổi contract ⇒ consumer cụ thể: Phase 1 không đổi API; Phase 2 đổi APP (màn kích hoạt), FE `/children/activation` và form tiếp nhận — chi tiết ở spec 017
+- [x] Đổi contract ⇒ consumer cụ thể: Phase 1 không đổi API; Phase 2 đổi APP (màn kích hoạt), FE `/children/activation` và form tiếp nhận — chi tiết ở spec 018
 - [x] Mỗi AC Phase 1 có test; phase có Exit
 - [x] >8 file / 3 phase: Phase 1 chạm 10 file (2 test, 3 cấu hình/docs) giữ 1 phase vì cùng một adapter; Phase 2 tách spec riêng, Phase 3 plan client riêng
 - [x] Không dùng rule PENDING/OPEN như đã chốt (câu 5–9 ghi là đề xuất)
@@ -119,11 +119,11 @@ User muốn cấu hình OTP qua SMS bằng Twilio bản free (trial); luồng đ
 - Giả định (user soát): "twinblo" = Twilio; dùng REST không thêm SDK; trial chỉ dev/demo.
 
 ### 2026-11-10 — User chọn mã kích hoạt (draft)
-- Trả lời câu 1: mã kích hoạt tài khoản phụ huynh. Thêm câu 5–9, Phase 2 (BE, spec 017), Phase 3 (client).
+- Trả lời câu 1: mã kích hoạt tài khoản phụ huynh. Thêm câu 5–9, Phase 2 (BE, spec 018), Phase 3 (client).
 
 ### 2026-11-10 — User nhận hết đề xuất câu 3, 5–9 (draft)
 - Đóng mọi câu hỏi mở; câu 4 Jira tạm G94-60 theo nhánh. Ghi AUTH-18 (`BUSINESS_RULES.md:32`).
-- Tiếp: user duyệt plan ⇒ `approved` ⇒ Phase 1 (adapter Twilio). Phase 2 bắt đầu bằng Domain spec 017.
+- Tiếp: user duyệt plan ⇒ `approved` ⇒ Phase 1 (adapter Twilio). Phase 2 bắt đầu bằng Domain spec 018.
 
 ### 2026-11-11 — Phase 1 (chờ review)
 - Duyệt: user 2026-11-11 ("làm phase 1 đi") ⇒ `in-progress`.
@@ -131,17 +131,17 @@ User muốn cấu hình OTP qua SMS bằng Twilio bản free (trial); luồng đ
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 1200 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 568s | log target/verify.log`
 - Khác plan: AC-5 kiểm bằng unit `ParentSmsSenderTest` (không cần DB) thay `ChildEnrollmentIntegrationTest`; `ParentSmsSender` dùng một `FakeSmsGateway` nội bộ cho tin kích hoạt khi provider thật (giữ `@MockitoBean SmsGateway` của test cũ hoạt động); thêm biến `TWILIO_MESSAGING_SERVICE_SID`. `compose.vps.yaml`/`compose.dev.yaml` không truyền `TWILIO_*` ⇒ VPS luôn cổng giả (ghi ở `DEPLOYMENT.md`).
 - Chưa kiểm: gửi thật qua Twilio trial (cần secret của user).
-- Tiếp: user review Phase 1; smoke tay theo `docs/system/DEPLOYMENT.md` mục SMS; Phase 2 bắt đầu bằng Domain spec 017.
+- Tiếp: user review Phase 1; smoke tay theo `docs/system/DEPLOYMENT.md` mục SMS; Phase 2 bắt đầu bằng Domain spec 018.
 
 ### 2026-11-11 — Phase 2 (đang làm dở, dừng do hết hạn mức)
-- User: "làm phase 2 đi". Xong: ADR-0026, `specs/017-parent-activation-code/` (domain-spec, spec, plan, data-model, contract, tasks T001–T002); V123 `parent_activation_codes` (V83 trước khi gộp dev 13/11/2026), entity, repository; `IdentityProviderClient.setPassword`; `ParentActivationCodes`; `ApiCode.ACTIVATION_NOT_PENDING` (1136); `ParentSmsSender.sendActivationCode`; form tiếp nhận và kích hoạt sau tạo tài khoản không mật khẩu + mã khi bật SMS thật.
+- User: "làm phase 2 đi". Xong: ADR-0026, `specs/018-parent-activation-code/` (domain-spec, spec, plan, data-model, contract, tasks T001–T002); V129 `parent_activation_codes` (V83 trước khi gộp dev 13/11/2026), entity, repository; `IdentityProviderClient.setPassword`; `ParentActivationCodes`; `ApiCode.ACTIVATION_NOT_PENDING` (1136); `ParentSmsSender.sendActivationCode`; form tiếp nhận và kích hoạt sau tạo tài khoản không mật khẩu + mã khi bật SMS thật.
 - Khác plan: bảng riêng `parent_activation_codes` thay `password_tokens` (ràng buộc hạn ngắn + job dọn gateway) — ADR-0026.
 - Chưa làm: endpoint công khai `POST /parent-activation` + `SecurityConfig`; gửi lại mã `POST /parent-accounts/{userId}/activation-code`; test; snapshot OpenAPI; docs (AUTH_CONTRACT, DATA_DICTIONARY, CROSS_REPO_MAP, module card). Chưa compile/verify sau các sửa này.
 
 ### 2026-11-11 — Phase 2 xong (chờ review)
 - Commit: chưa commit
 - Verify: `node scripts/verify.mjs` → `VERIFY PASS full | tests 1221 fail 0 err 0 skip 0 | archunit ok | snapshot ok | spotless ok | 835s | log target/verify.log`
-- Làm thêm: `ParentActivationService(Impl)` + `ParentActivationController` `POST /parent-activation` (`permitAll` ở `SecurityConfig`); `GuardianAccountService.resendActivationCode` + `POST /parent-accounts/{userId}/activation-code`; DTO `ParentActivationRequest/Response`, `ActivationCodeResponse`; snapshot OpenAPI cập nhật có chủ đích (chỉ thêm 2 endpoint, 3 schema); docs AUTH_CONTRACT, DATA_DICTIONARY, ERD, CROSS_REPO_MAP, module card identity-access; spec 017 tasks T001–T007 + analyze/converge.
+- Làm thêm: `ParentActivationService(Impl)` + `ParentActivationController` `POST /parent-activation` (`permitAll` ở `SecurityConfig`); `GuardianAccountService.resendActivationCode` + `POST /parent-accounts/{userId}/activation-code`; DTO `ParentActivationRequest/Response`, `ActivationCodeResponse`; snapshot OpenAPI cập nhật có chủ đích (chỉ thêm 2 endpoint, 3 schema); docs AUTH_CONTRACT, DATA_DICTIONARY, ERD, CROSS_REPO_MAP, module card identity-access; spec 018 tasks T001–T007 + analyze/converge.
 - Test mới: `ParentActivationCodesTest` (9), `ParentActivationServiceImplTest` (6), `ParentActivationControllerTest` (3), `GuardianAccountServiceImplTest#resendActivationCode*` (3).
 - Khác plan/giả định (user soát): bật mã kích hoạt theo `CARENEST_SMS_PROVIDER` (cổng giả = mật khẩu tạm như cũ); `POST /children/{childId}/guardians` kiểu cũ vẫn trả mật khẩu tạm; method controller đặt `activateParentAccount` để không đổi `operationId` `activate` của API cũ; đặt mật khẩu Keycloak và đánh dấu mã đã dùng là hai bước (ADR-0026).
 - Chưa kiểm: test tích hợp có DB cho chế độ SMS thật (cần context cấu hình Twilio) — phủ bằng unit; gửi SMS thật; màn APP/FE (Phase 3, repo khác); giới hạn theo IP cho endpoint công khai (ADR-0026 Còn chờ).
@@ -149,5 +149,6 @@ User muốn cấu hình OTP qua SMS bằng Twilio bản free (trial); luồng đ
 
 ### 2026-11-14 — Đổi Twilio sang textbee
 - Lý do: Twilio trial chỉ gửi tới số Mỹ đã xác minh và 10 template có sẵn; gửi thử tới `+84` bị từ chối (`21612`), nội dung tự viết bị từ chối (`572006`). User chọn textbee (điện thoại Android gửi bằng SIM, dev/demo) ngày 2026-11-14.
-- Đã làm: xóa `TwilioSmsGateway` + test; thêm `TextbeeSmsGateway` (REST JSON, `x-api-key`, không thêm dependency), `SmsProperties.Textbee`, biến `TEXTBEE_API_KEY`/`TEXTBEE_DEVICE_ID`/`TEXTBEE_BASE_URL` trong `application.yml`, `.env.example`, `compose.yaml`; `DEPLOYMENT.md` mục SMS viết lại. ADR/spec đổi số sang ADR-0026, `specs/017-parent-activation-code` vì dev đã có ADR-0026 và spec 017 khác. Tên file plan giữ nguyên để không gãy liên kết.
+- Đã làm: xóa `TwilioSmsGateway` + test; thêm `TextbeeSmsGateway` (REST JSON, `x-api-key`, không thêm dependency), `SmsProperties.Textbee`, biến `TEXTBEE_API_KEY`/`TEXTBEE_DEVICE_ID`/`TEXTBEE_BASE_URL` trong `application.yml`, `.env.example`, `compose.yaml`; `DEPLOYMENT.md` mục SMS viết lại. ADR/spec đổi số sang ADR-0026, `specs/018-parent-activation-code` vì dev đã có ADR-0026 và spec 018 khác. Tên file plan giữ nguyên để không gãy liên kết.
 - Smoke thật 2026-11-14: gọi textbee API (cùng request `TextbeeSmsGateway`) tới SĐT của user ⇒ HTTP 200, user xác nhận đã nhận tin.
+- Gộp dev 2026-11-14 (PR #52 xung đột): migration đổi V123 → V129 vì dev đã có `V123__widen_storage_key_columns.sql`; cấu hình SMS (textbee) và email (Gmail, từ PR #55) giữ cả hai; `API_INDEX.md` sinh lại.

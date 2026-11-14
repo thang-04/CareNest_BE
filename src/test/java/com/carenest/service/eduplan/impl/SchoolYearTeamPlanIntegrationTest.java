@@ -91,8 +91,9 @@ class SchoolYearTeamPlanIntegrationTest {
     @BeforeEach
     void setUp() {
         long campus = insertId("INSERT INTO campuses (code, name) VALUES ('CS-A', 'Campus A') RETURNING id");
-        schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date) "
-                + "VALUES ('2026-2027', '2026-09-01', '2027-05-31') RETURNING id");
+        // Đồng hồ test 22/10/2026 nằm giữa năm học ⇒ năm đang hoạt động (Tổ trưởng tính theo năm và trạng thái năm)
+        schoolYear = insertId("INSERT INTO school_years (name, start_date, end_date, status) "
+                + "VALUES ('2026-2027', '2026-09-01', '2027-05-31', 'ACTIVE') RETURNING id");
         ageGroup3 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-3'", Long.class);
         ageGroup4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
         domainPhysical = jdbc.queryForObject("SELECT id FROM edu_domains WHERE sort_order = 1", Long.class);

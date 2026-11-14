@@ -1,6 +1,7 @@
 package com.carenest.controller.account;
 
 import com.carenest.dto.account.AccountPhotoResponse;
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.ParentPhotoService;
@@ -62,6 +63,28 @@ public class AccountPhotoController {
         ImageContent photo = parentPhotoService.getGuardianPhoto(currentUser, childId, userId);
         log.info("{}|END", logPrefix);
         return image(photo);
+    }
+
+    @GetMapping("/accounts/me/photo/url")
+    @PreAuthorize("hasRole('PARENT')")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getMyPhotoUrl(CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getMyPhotoUrl|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = parentPhotoService.getMyPhotoUrl(currentUser);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get photo url success", url);
+    }
+
+    @GetMapping("/children/{childId}/guardians/{userId}/photo/url")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getGuardianPhotoUrl(
+            @PathVariable Long childId, @PathVariable Long userId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getGuardianPhotoUrl|userId=" + currentUser.userId() + "|childId=" + childId
+                + "|guardianUserId=" + userId;
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = parentPhotoService.getGuardianPhotoUrl(currentUser, childId, userId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get guardian photo url success", url);
     }
 
     // Ảnh riêng tư: không lưu cache ở trình duyệt hay proxy

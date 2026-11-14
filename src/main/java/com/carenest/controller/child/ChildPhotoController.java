@@ -2,6 +2,7 @@ package com.carenest.controller.child;
 
 import com.carenest.dto.child.ChildPhotoProfileResponse;
 import com.carenest.dto.child.ChildViewResponse;
+import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.child.ChildPhotoService;
@@ -47,6 +48,28 @@ public class ChildPhotoController {
         ImageContent photo = photoService.getGuardianPhoto(currentUser, childId, guardianId);
         log.info("{}|END", logPrefix);
         return image(photo);
+    }
+
+    @GetMapping("/{childId}/photo/url")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getChildPhotoUrl(
+            @PathVariable Long childId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getChildPhotoUrl|childId=" + childId;
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = photoService.getChildPhotoUrl(currentUser, childId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get child photo url success", url);
+    }
+
+    @GetMapping("/{childId}/guardian-photos/{guardianId}/url")
+    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER', 'PARENT')")
+    public ResponseEntity<ResponseJson<FileUrlResponse>> getGuardianPhotoUrl(
+            @PathVariable Long childId, @PathVariable Long guardianId, CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|getGuardianPhotoUrl|childId=" + childId + "|guardianId=" + guardianId;
+        log.info("{}|START", logPrefix);
+        FileUrlResponse url = photoService.getGuardianPhotoUrl(currentUser, childId, guardianId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get guardian photo url success", url);
     }
 
     @GetMapping("/{childId}/profile")

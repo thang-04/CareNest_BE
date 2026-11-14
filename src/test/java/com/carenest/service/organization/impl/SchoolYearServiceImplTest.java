@@ -270,6 +270,28 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
+    void yearEndDataLocksOnlySemesterTwoDates() {
+        var year = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01");
+        year.changeSemesters(
+                LocalDate.of(2027, 9, 1),
+                LocalDate.of(2028, 1, 14),
+                LocalDate.of(2028, 1, 17),
+                LocalDate.of(2028, 5, 31));
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(year));
+        given(semesterUsage.usedByYearEnd(5L)).willReturn(true);
+
+        expectError(
+                () -> service.updateSemester(
+                        PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-14", "2028-01-17", "2028-05-20")),
+                ApiCode.SEMESTER_DATES_LOCKED);
+        assertThat(service.getSemesterLocks(PRINCIPAL, 5L))
+                .isEqualTo(new com.carenest.dto.organization.SemesterLockResponse(false, true));
+        SchoolYearDetailResponse updated = service.updateSemester(
+                PRINCIPAL, 5L, semesters("2027-09-01", "2028-01-13", "2028-01-17", "2028-05-31"));
+        assertThat(updated.semester1End()).isEqualTo(LocalDate.of(2028, 1, 13));
+    }
+
+    @Test
     void semesterDatesAreValidated() {
         given(schoolYearRepository.findById(5L))
                 .willReturn(Optional.of(year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2027-09-01")));
@@ -370,6 +392,21 @@ class SchoolYearServiceImplTest {
     }
 
     @Test
+    void activationBeforePrepDateIsRejected() {
+        // Trong cửa sổ 7 ngày (từ 18/10) nhưng ngày mở chuẩn bị 24/10 còn sau hôm nay 22/10
+        SchoolYear next = year(5L, "2026-2027", SchoolYearStatus.PLANNED, "2026-10-25");
+        ReflectionTestUtils.setField(next, "prepDate", LocalDate.of(2026, 10, 24));
+        given(schoolYearRepository.findById(5L)).willReturn(Optional.of(next));
+
+        assertThatThrownBy(() -> service.activateSchoolYear(PRINCIPAL, 5L, "2026-2027"))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ACTIVATION_BEFORE_PREP);
+        assertThat(next.getStatus()).isEqualTo(SchoolYearStatus.PLANNED);
+        verify(schoolYearRepository, never()).findFirstByStatus(any());
+    }
+
+    @Test
     void onlyPlannedYearCanBeActivated() {
         given(schoolYearRepository.findById(1L))
                 .willReturn(Optional.of(year(1L, "2025-2026", SchoolYearStatus.CLOSED, "2025-09-01")));
@@ -453,6 +490,33 @@ class SchoolYearServiceImplTest {
     private static SchoolYearRequest request(String name, String startDate) {
         LocalDate start = LocalDate.parse(startDate);
         return new SchoolYearRequest(name, start, LocalDate.of(start.getYear() + 1, 5, 31));
+    }
+
+    @Test
+    void planYearWritableOnlyWhenActiveOrPreparing() {
+        // EDU-89: hôm nay 22/10; năm sắp tới mở chuẩn bị 24/10 ⇒ chưa ghi được, tới 22/10 ⇒ ghi được; năm CLOSED chỉ
+        // xem
+        SchoolYear notYet = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2026-11-20");
+        ReflectionTestUtils.setField(notYet, "prepDate", LocalDate.of(2026, 10, 24));
+        SchoolYear preparing = year(6L, "2028-2029", SchoolYearStatus.PLANNED, "2026-11-20");
+        ReflectionTestUtils.setField(preparing, "prepDate", TODAY);
+        SchoolYear active = year(7L, "2026-2027", SchoolYearStatus.ACTIVE, "2026-09-01");
+        SchoolYear closed = year(8L, "2025-2026", SchoolYearStatus.CLOSED, "2025-09-01");
+        for (SchoolYear y : List.of(notYet, preparing, active, closed))
+            given(schoolYearRepository.findById(y.getId())).willReturn(Optional.of(y));
+
+        assertThatThrownBy(() -> service.checkPlanYearWritable(5L))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_NOT_PREPARING);
+        assertThatThrownBy(() -> service.checkPlanYearWritable(8L))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_CLOSED);
+        service.checkPlanYearWritable(6L);
+        service.checkPlanYearWritable(7L);
+        assertThat(service.isPlanYearWritable(5L)).isFalse();
+        assertThat(service.isPlanYearWritable(6L)).isTrue();
+        assertThat(service.isPlanYearWritable(7L)).isTrue();
+        assertThat(service.isPlanYearWritable(8L)).isFalse();
     }
 
     private static SchoolYear year(Long id, String name, SchoolYearStatus status, String startDate) {

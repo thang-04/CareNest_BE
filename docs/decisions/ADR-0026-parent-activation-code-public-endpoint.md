@@ -2,7 +2,7 @@
 
 - Status: ACCEPTED
 - Date: 2026-11-11
-- Liên quan: AUTH-18, AUTH-21, ADR-0011, ADR-0013; plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`; spec `specs/017-parent-activation-code/`
+- Liên quan: AUTH-18, AUTH-21, ADR-0011, ADR-0013; plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`; spec `specs/018-parent-activation-code/`
 
 ## Bối cảnh
 AUTH-18 (user chốt 30/10, 10/11): không gửi mật khẩu qua SMS; khi có nhà cung cấp SMS, gửi mã kích hoạt 6 số hạn 72 giờ, sai 5 lần hủy; phụ huynh nhập SĐT + mã trên App rồi tự đặt mật khẩu. Phụ huynh chưa có mật khẩu nên chưa đăng nhập được — bước kích hoạt phải là endpoint không cần token. Gateway Web `/auth/**` cấm phụ huynh (AUTH-21) và dùng cookie/CSRF cho trình duyệt.

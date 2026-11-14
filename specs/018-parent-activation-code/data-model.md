@@ -1,6 +1,6 @@
 # Data model — 014
 
-Bảng mới `parent_activation_codes` (V123), một dòng mỗi tài khoản phụ huynh (mã hiện hành):
+Bảng mới `parent_activation_codes` (V129), một dòng mỗi tài khoản phụ huynh (mã hiện hành):
 - `user_id` BIGINT PK, FK `user_accounts(id)`.
 - `code_hash` VARCHAR(64) NOT NULL — SHA-256 hex của `userId:code`; không lưu mã gốc.
 - `expires_at` TIMESTAMPTZ NOT NULL — `sent_at` + 72 giờ.

@@ -63,6 +63,8 @@ class YearCopyServiceImplTest {
     private final TeacherAssignmentService teacherAssignmentService = mock(TeacherAssignmentService.class);
     private final AttendanceCutoffService cutoffService = mock(AttendanceCutoffService.class);
     private final SchoolYearService schoolYearService = mock(SchoolYearService.class);
+    private final com.carenest.service.organization.VicePrincipalAssignmentService viceService =
+            mock(com.carenest.service.organization.VicePrincipalAssignmentService.class);
     private final YearCopyServiceImpl service = new YearCopyServiceImpl(
             schoolYearRepository,
             classroomRepository,
@@ -74,6 +76,7 @@ class YearCopyServiceImplTest {
             access,
             mock(ClassManagementService.class),
             teacherAssignmentService,
+            viceService,
             cutoffService,
             schoolYearService);
 
@@ -198,6 +201,46 @@ class YearCopyServiceImplTest {
                 .singleElement()
                 .extracting(YearCopyResponse.Skipped::part)
                 .isEqualTo(YearCopyPart.CUTOFF);
+    }
+
+    @Test
+    void vicePrincipalsMoveToTargetYearKeepingExistingAndSkippingLocked() {
+        given(viceService.getAssignments(PRINCIPAL, 1L))
+                .willReturn(viceRows(
+                        viceRow(30L, "PHT A", "ACTIVE", 7L),
+                        viceRow(31L, "PHT B", "ACTIVE", 8L),
+                        viceRow(32L, "PHT khóa", "INACTIVE", 9L),
+                        viceRow(33L, "PHT chưa phân công", "ACTIVE", null)));
+        // Năm đích đã có phân công của PHT B ⇒ giữ, không ghi đè
+        given(viceService.getAssignments(PRINCIPAL, 2L)).willReturn(viceRows(viceRow(31L, "PHT B", "ACTIVE", 9L)));
+
+        YearCopyResponse result =
+                service.copyYear(PRINCIPAL, 2L, new YearCopyRequest(1L, Set.of(YearCopyPart.VICE_PRINCIPALS)));
+
+        assertThat(result.vicePrincipals()).isEqualTo(1);
+        verify(viceService)
+                .assign(PRINCIPAL, 2L, 30L, new com.carenest.dto.organization.VicePrincipalAssignmentRequest(7L));
+        verify(viceService, never()).assign(eq(PRINCIPAL), eq(2L), eq(31L), any());
+        verify(viceService, never()).assign(eq(PRINCIPAL), eq(2L), eq(32L), any());
+        assertThat(result.skipped())
+                .singleElement()
+                .extracting(YearCopyResponse.Skipped::part, YearCopyResponse.Skipped::name)
+                .containsExactly(YearCopyPart.VICE_PRINCIPALS, "PHT khóa");
+    }
+
+    private static com.carenest.dto.organization.VicePrincipalAssignmentResponse viceRows(
+            com.carenest.dto.organization.VicePrincipalAssignmentResponse.Row... rows) {
+        return new com.carenest.dto.organization.VicePrincipalAssignmentResponse(null, List.of(rows));
+    }
+
+    private static com.carenest.dto.organization.VicePrincipalAssignmentResponse.Row viceRow(
+            Long id, String name, String status, Long campusId) {
+        return new com.carenest.dto.organization.VicePrincipalAssignmentResponse.Row(
+                new com.carenest.dto.organization.VicePrincipalAssignmentResponse.VicePrincipal(id, name, null, status),
+                campusId == null
+                        ? null
+                        : new com.carenest.dto.organization.VicePrincipalAssignmentResponse.Assignment(
+                                campusId, LocalDate.of(2026, 9, 5), LocalDate.of(2027, 5, 31), 2L));
     }
 
     private static SchoolYear year(Long id, String name, SchoolYearStatus status, String start, String end) {
