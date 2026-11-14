@@ -17,8 +17,8 @@ import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AccountPhotoService;
 import com.carenest.service.account.AccountService;
-import com.carenest.service.account.ParentPhotoService;
 import com.carenest.service.attendance.PickupService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildService;
@@ -77,7 +77,7 @@ public class PickupServiceImpl implements PickupService {
     private final ChildService childService;
     private final ChildIntakeService childIntakeService;
     private final GuardianChildLinkService guardianChildLinkService;
-    private final ParentPhotoService parentPhotoService;
+    private final AccountPhotoService accountPhotoService;
     private final NotificationService notificationService;
     private final AccountService accountService;
     private final Clock clock;
@@ -142,7 +142,7 @@ public class PickupServiceImpl implements PickupService {
             PickupBoardResponse.PickupRow row =
                     rows(List.of(childId), today, Map.of(cls.id(), cls.name())).getFirst();
             List<ChildGuardianContact> contacts = childIntakeService.findGuardianContacts(childId);
-            Set<Long> withPhoto = parentPhotoService.findUserIdsWithPhoto(contacts.stream()
+            Set<Long> withPhoto = accountPhotoService.findUserIdsWithPhoto(contacts.stream()
                     .map(ChildGuardianContact::userId)
                     .filter(Objects::nonNull)
                     .toList());

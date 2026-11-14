@@ -6,7 +6,7 @@ File sinh tự động, không sửa tay. Sinh lại: `node scripts/check-api-co
 - Path đã chuẩn hóa tham số thành `{x}`. `[module: api|demo]` theo `src/config/integrationModules.js`.
 - Lời gọi có đường dẫn không phải chuỗi literal (vd. ghép từ biến) không nằm trong bảng.
 
-Tổng: 361 lời gọi.
+Tổng: 365 lời gọi.
 
 ```text
 DELETE /age-groups/{x} · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/AgeGroupController.java#deleteAgeGroup
@@ -82,6 +82,7 @@ GET /children/{x}/daily-health · src/services/daily-health/api/dailyHealthApi.j
 GET /children/{x}/guardians · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/GuardianController.java#listGuardians
 GET /children/{x}/guardians/pending · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/SelectedParentAccountController.java#pending
 GET /children/{x}/health · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthMeasurementController.java#getHealthRecord
+GET /children/{x}/health/trend-analysis · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthTrendController.java#latestTrend
 GET /children/{x}/profile · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildPhotoController.java#getProfile
 GET /classes · src/services/schoolService.js [school-lookup: demo] → (BE chưa có)
 GET /classes/{x} · src/services/schoolService.js [school-lookup: demo] → (BE chưa có)
@@ -89,7 +90,7 @@ GET /classes/{x}/attendance · src/services/attendance/api/attendanceApi.js [att
 GET /classes/{x}/attendance/summary · src/services/attendance/api/attendanceApi.js [attendance: api] → src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClassSummary
 GET /classes/{x}/children/{x}/daily-health · src/services/daily-health/api/dailyHealthApi.js [daily-health: api] → src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getClassChildHealth
 GET /classes/{x}/daily-assessment · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/DailyAssessmentController.java#getDailySheet
-GET /classes/{x}/pickups · src/services/pickup/api/pickupApi.js [pickup: demo] → src/main/java/com/carenest/controller/attendance/PickupController.java#getBoard
+GET /classes/{x}/pickups · src/services/pickup/api/pickupApi.js [pickup: api] → src/main/java/com/carenest/controller/attendance/PickupController.java#getBoard
 GET /classes/{x}/teacher-assignments/history · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#getClassTeacherHistory
 GET /daily-health/overview · src/services/daily-health/api/dailyHealthApi.js [daily-health: api] → src/main/java/com/carenest/controller/attendance/DailyHealthController.java#getOverview
 GET /education-plans/class-docs · src/services/education-plan/api/educationPlanApi.js [education-plan: api] → src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocs
@@ -180,8 +181,9 @@ GET /nutrition/suppliers/{x} · src/services/nutritionCatalogApi.js [nutrition-c
 GET /permission-change-logs · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionChangeLogs
 GET /permissions · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
 GET /permissions · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
-GET /pickups · src/services/pickup/api/pickupApi.js [pickup: demo] → src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
-GET /pickups/children/{x} · src/services/pickup/api/pickupApi.js [pickup: demo] → src/main/java/com/carenest/controller/attendance/PickupController.java#getChild
+GET /pickups · src/services/pickup/api/pickupApi.js [pickup: api] → src/main/java/com/carenest/controller/attendance/PickupController.java#listResults
+GET /pickups/children/{x} · src/services/pickup/api/pickupApi.js [pickup: api] → src/main/java/com/carenest/controller/attendance/PickupController.java#getChild
+GET /pickups/classes · src/services/pickup/api/pickupApi.js [pickup: api] → src/main/java/com/carenest/controller/attendance/PickupController.java#listClasses
 GET /role-permissions · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermissions
 GET /role-permissions · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/account/PermissionController.java#getRolePermissions
 GET /school-structure · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/organization/ClassController.java#getSchoolStructure
@@ -244,6 +246,7 @@ POST /children/{x}/guardians/activate · src/services/account/api/guardianApi.js
 POST /children/{x}/guardians/lookup · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/GuardianController.java#findGuardianCandidate
 POST /children/{x}/health/measurements · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthMeasurementController.java#createMeasurement
 POST /children/{x}/health/trend-analysis · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthTrendController.java#analyzeTrend
+POST /children/{x}/health/trend-analysis/{x}/approve · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/health/HealthTrendController.java#approveTrend
 POST /children/{x}/placement · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
 POST /children/{x}/readmit · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#readmit
 POST /children/{x}/withdraw · src/services/children/api/childrenApi.js [children: api] → src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
@@ -300,7 +303,7 @@ POST /nutrition/stock/receipts/{x}/cancel · src/services/dryStockApi.js [dry-st
 POST /nutrition/stock/receipts/{x}/confirm · src/services/dryStockApi.js [dry-stock: api] → src/main/java/com/carenest/controller/meals/StockController.java#confirmReceipt
 POST /nutrition/suppliers · src/services/nutritionCatalogApi.js [nutrition-catalog: api] → src/main/java/com/carenest/controller/meals/SupplierController.java#createSupplier
 POST /parent-accounts/{x}/temporary-password · src/services/account/api/guardianApi.js [guardian: api] → src/main/java/com/carenest/controller/child/GuardianController.java#resetParentPassword
-POST /pickups · src/services/pickup/api/pickupApi.js [pickup: demo] → src/main/java/com/carenest/controller/attendance/PickupController.java#recordResult
+POST /pickups · src/services/pickup/api/pickupApi.js [pickup: api] → src/main/java/com/carenest/controller/attendance/PickupController.java#recordResult
 POST /school-years · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/SchoolYearController.java#createSchoolYear
 POST /school-years/{x}/activate · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/child/YearTransitionController.java#activateSchoolYear
 POST /school-years/{x}/classes/copy · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/ClassController.java#copyClasses

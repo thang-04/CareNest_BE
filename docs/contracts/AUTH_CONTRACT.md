@@ -252,6 +252,34 @@ Phạm vi (`StaffAccessPolicy`): HT mọi trẻ/phụ huynh; PHT trẻ đang h�
 | Khóa/mật khẩu: tài khoản không phải phụ huynh / của chính mình | 400 | `This account is not a parent account` / `You cannot manage your own account here` |
 | Khóa/mật khẩu: phụ huynh ngoài phạm vi | 403 | `You cannot manage this account` |
 
+### Mã kích hoạt qua SMS (đã có — AUTH-18, ADR-0026, từ 11/11/2026)
+
+Chỉ áp dụng khi `CARENEST_SMS_PROVIDER` là nhà cung cấp thật (vd. `textbee`); cổng giả `fake` (mặc định) giữ mật khẩu tạm như trên. Khi bật: tài khoản phụ huynh mới tạo ở `POST /children/enrollments` và `POST /children/{childId}/guardians/activate` không có mật khẩu; SMS chứa tên đăng nhập + mã 6 số, hạn 72 giờ, sai 5 lần thì mã hủy, dùng một lần. Response hai API đó không đổi shape. `POST /children/{childId}/guardians` (kiểu cũ) vẫn trả mật khẩu tạm.
+
+| Method + path | Body | `data` |
+| --- | --- | --- |
+| `POST /parent-activation` (công khai, không Bearer/cookie/CSRF — App) | `{ "phone", "code" (6 số), "newPassword", "confirmPassword" }` (mật khẩu 8–128) | `{ username }` ⇒ App đăng nhập PKCE bằng tên này + mật khẩu mới |
+| `POST /parent-accounts/{userId}/activation-code` (`PARENT_ACCOUNT_MANAGE`, phạm vi như trên) | — | `{ userId, username, smsStatus, expiresAt, activationCode }` — `activationCode` chỉ có khi không gửi được SMS thật (cổng giả hoặc `FAILED`) để in phiếu; mã cũ mất hiệu lực |
+
+| Tình huống | HTTP / `errorCode` |
+| --- | --- |
+| SĐT không có mã chờ, mã sai/hết hạn/hết lượt/đã dùng, tài khoản khóa (một lỗi chung) | 400 / 1006 `OTP_INVALID_OR_EXPIRED` |
+| Hai mật khẩu khác nhau | 400 / 9002 `MALFORMED_REQUEST` |
+| Keycloak từ chối mật khẩu (mã giữ nguyên, không tính lần sai) | 400 / 1009 `PASSWORD_POLICY_VIOLATION` |
+| Gửi lại trong 60 giây | 429 / 1007 `OTP_RESEND_TOO_SOON` |
+| Gửi lại cho tài khoản đã kích hoạt hoặc tạo bằng mật khẩu tạm | 409 / 1144 `ACTIVATION_NOT_PENDING` |
+
+### Ảnh đại diện tài khoản (AUTH-27, từ 14/11/2026)
+
+| Endpoint | Ai gọi | Ghi chú |
+| --- | --- | --- |
+| `PUT /accounts/me/photo` (multipart `file`) | mọi tài khoản đăng nhập | JPG/PNG/WEBP ≤ 2 MB, kho `USER_AVATAR` (`avatars/users/`); thay ảnh cũ |
+| `DELETE /accounts/me/photo` | mọi tài khoản đăng nhập | Bỏ ảnh; chưa có ảnh vẫn 200. Tài khoản có role phụ huynh ⇒ 403 / 1145 `ACCOUNT_PHOTO_REQUIRED` |
+| `GET /accounts/me/photo`, `GET /accounts/me/photo/url` | mọi tài khoản đăng nhập | Chưa có ảnh ⇒ 404 / 1132 |
+| `POST /accounts/photos/urls` `{ userIds: [1..100] }` | mọi tài khoản đăng nhập | `[{ userId, url, expiresAt }]` chỉ người có ảnh, là nhân sự (hoặc chính mình) và được xem theo AUTH-27; người khác bị bỏ qua, không báo lỗi. Rỗng/>100/id ≤ 0 ⇒ 400 |
+
+Quyền xem (`AccountPhotoAccessPolicy`): Admin/HT xem mọi nhân sự; PHT/GV/bếp xem nhân sự cùng điểm trường theo phân công hôm nay (GV qua lớp) và mọi HT; phụ huynh xem GV đang dạy lớp con; ai cũng xem ảnh mình. Ảnh phụ huynh vẫn chỉ xem qua `/children/{childId}/guardians/{userId}/photo[/url]`.
+
 ## Tác động FE/APP (BE không sửa repo khác)
 
 Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `FE:docs/integration/AUTH_FLOW.md`, `APP:docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):
@@ -266,6 +294,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
 - PHT xem mọi cơ sở (AUTH-20, chốt 31/10): mã `ALL_CAMPUS_VIEW` đã bỏ khỏi `Permission` (V39 xóa dòng ma trận/ngoại lệ cũ; lịch sử giữ chuỗi gốc). FE bỏ mã này ở danh mục quyền/ngoại lệ (`permissionConstants.js`, `permissionCatalog.js`) và luôn hiện bộ lọc điểm trường cho PHT; gửi mã cũ trong `PUT .../permission-overrides` ⇒ 400.
+- Mã kích hoạt (ADR-0026): APP thêm màn "Kích hoạt tài khoản" (chưa đăng nhập) gọi `POST /parent-activation`, xong thì vào đăng nhập PKCE với `username` trả về; 400 1006 ⇒ báo mã sai/hết hạn, liên hệ nhà trường gửi lại. FE màn Tài khoản phụ huynh thêm "Gửi lại mã" (`POST /parent-accounts/{userId}/activation-code`); có `activationCode` ⇒ in phiếu mã (không in mật khẩu); 409 1136 ⇒ dùng "Cấp lại mật khẩu tạm".
 - Types: sinh lại từ `docs/api/openapi.yaml`.
 
 ## Còn chờ

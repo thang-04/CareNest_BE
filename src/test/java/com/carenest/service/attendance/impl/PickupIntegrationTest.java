@@ -12,8 +12,8 @@ import com.carenest.dto.notification.DeviceTokenRequest;
 import com.carenest.dto.notification.NotificationListResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AccountPhotoService;
 import com.carenest.service.account.AccountService;
-import com.carenest.service.account.ParentPhotoService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.attendance.PickupService;
 import com.carenest.service.notification.NotificationService;
@@ -89,7 +89,7 @@ class PickupIntegrationTest {
     private NotificationService notifications;
 
     @Autowired
-    private ParentPhotoService photos;
+    private AccountPhotoService photos;
 
     @Autowired
     private AccountService accounts;
@@ -271,9 +271,7 @@ class PickupIntegrationTest {
             assertThat(c.name()).isEqualTo("Lớp A");
             assertThat(c.campusId()).isEqualTo(campus);
         });
-        assertThat(pickups.listClasses(teacherB))
-                .extracting(c -> c.name())
-                .containsExactly("Lớp B");
+        assertThat(pickups.listClasses(teacherB)).extracting(c -> c.name()).containsExactly("Lớp B");
 
         // Không có quyền đón trẻ hoặc không phải GV ⇒ không có lớp
         CurrentUser noPickup = new CurrentUser(
@@ -288,8 +286,10 @@ class PickupIntegrationTest {
         assertThat(pickups.listClasses(parent)).isEmpty();
 
         // Năm học không còn hoạt động ⇒ lớp không còn trong danh sách
-        jdbc.update("UPDATE school_years SET status = 'CLOSED' WHERE id = "
-                + "(SELECT school_year_id FROM classrooms WHERE id = ?)", classA);
+        jdbc.update(
+                "UPDATE school_years SET status = 'CLOSED' WHERE id = "
+                        + "(SELECT school_year_id FROM classrooms WHERE id = ?)",
+                classA);
         // Sửa bằng JDBC nên bỏ bản năm học Hibernate đã nạp trong transaction của test
         entityManager.clear();
         assertThat(pickups.listClasses(teacherA)).isEmpty();

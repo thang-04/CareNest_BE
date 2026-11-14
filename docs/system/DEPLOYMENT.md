@@ -109,6 +109,7 @@ dùng chung production:  Postgres 18330 (DB + role carenest_dev, keycloak_dev) �
 ```
 
 - `compose.dev.yaml` (project `carenest-be-dev`) chỉ có `keycloak` + `api`; thư mục VPS `/data/thangnd/CAPSTONE/CareNest_BE-dev`, `.env` theo `deploy/dev.env.example` với secret riêng.
+- S3, SMS (textbee), email BE, AI: `compose.dev.yaml` truyền `CARENEST_EDUCATION_MEDIA_BUCKET`, `AWS_*`, `CARENEST_SMS_PROVIDER`, `TEXTBEE_*`, `CARENEST_EMAIL_*`, `CARENEST_AI_*` từ `.env` dev; trống ⇒ S3 báo 8010, SMS/email giả, AI tắt. Đổi `.env` xong chạy lại `docker compose -f compose.dev.yaml up -d --no-build api` (kèm `API_IMAGE`, `KEYCLOAK_IMAGE` đang chạy).
 - Keycloak riêng vì seed `db/dev` gắn cứng ID user Keycloak (`user_accounts.keycloak_user_id`) mà ID user phải duy nhất trên cả instance ⇒ realm thứ hai cùng Keycloak không import được 8 user demo.
 - Postgres là của stack production: production dừng thì dev cũng dừng; `deploy-dev` báo lỗi rõ khi không thấy container Postgres.
 - GitHub: environment `dev` (deployment branch `dev`); `VPS_*` là repository secret hoặc chép vào environment `dev`.
@@ -124,6 +125,20 @@ REVOKE CONNECT ON DATABASE carenest, keycloak, carenest_dev, keycloak_dev FROM P
 Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6 nhưng tunnel `ssh -L 18322:127.0.0.1:18322`, `KEYCLOAK_URL=http://localhost:18322` và secret trong `.env` dev; rồi `CARENEST_AUTH_ENABLED=true` trong `.env` dev và `docker compose -f compose.dev.yaml up -d --no-build api` (kèm `API_IMAGE`, `KEYCLOAK_IMAGE` đang chạy).
 
 **Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
+
+## SMS — cổng giả và textbee
+
+Mặc định `CARENEST_SMS_PROVIDER=fake`: không gửi thật, chỉ log 2 số cuối SĐT. `textbee` gọi textbee.dev (`TextbeeSmsGateway`): điện thoại Android cài app textbee gửi tin bằng SIM của nó, **chỉ dùng dev/demo** (AUTH-18, plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`). Bật nhà cung cấp thật ⇒ tài khoản phụ huynh mới nhận mã kích hoạt; tin có mật khẩu tạm (tạo tài khoản, đổi SĐT) luôn đi cổng giả.
+
+Bật textbee ở máy dev (`compose.yaml` hoặc `mvnw`):
+1. Đăng ký tại textbee.dev, cài app textbee trên điện thoại Android có SIM, đăng nhập và cấp quyền gửi SMS.
+2. Dashboard textbee: tạo **API key**; lấy **Device ID** nếu tài khoản có nhiều máy (trống ⇒ textbee chọn máy mặc định).
+3. `.env`: `CARENEST_SMS_PROVIDER=textbee`, `TEXTBEE_API_KEY`, tùy chọn `TEXTBEE_DEVICE_ID`. Thiếu API key ⇒ API dừng lúc khởi động, báo tên biến thiếu.
+4. Khi demo: điện thoại bật app, có mạng. API trả 200 nghĩa là textbee đã nhận vào hàng đợi, chưa phải tin đã tới máy; xem trạng thái trên dashboard textbee. Cước SMS tính theo SIM.
+
+Không commit `.env`; lộ API key ⇒ thu hồi trên dashboard textbee. `compose.vps.yaml`, `compose.dev.yaml` chưa truyền biến `TEXTBEE_*` nên VPS luôn dùng cổng giả. Production chọn nhà cung cấp có brandname (D-2).
+
+Không dùng Twilio trial (thử 13–14/11/2026): trial chỉ gửi tới số Mỹ đã xác minh và chỉ 10 template có sẵn — số `+84` bị từ chối (lỗi `21612`), nội dung tự viết bị từ chối (lỗi `572006`).
 
 ## Email từ BE — Gmail SMTP
 

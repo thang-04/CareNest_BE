@@ -94,6 +94,10 @@ services:
       CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
       CARENEST_AI_API_KEY: ${CARENEST_AI_API_KEY:-}
       CARENEST_AI_MODEL: ${CARENEST_AI_MODEL:-gemini-2.0-flash}
+      # Mặc định cổng SMS giả; textbee cần TEXTBEE_API_KEY (thiếu thì API dừng lúc khởi động)
+      CARENEST_SMS_PROVIDER: ${CARENEST_SMS_PROVIDER:-fake}
+      TEXTBEE_API_KEY: ${TEXTBEE_API_KEY:-}
+      TEXTBEE_DEVICE_ID: ${TEXTBEE_DEVICE_ID:-}
       # Email từ BE: mặc định log (không gửi); smtp = Gmail (App Password), thiếu biến thì API dừng lúc khởi động
       CARENEST_EMAIL_PROVIDER: ${CARENEST_EMAIL_PROVIDER:-log}
       CARENEST_EMAIL_FROM: ${CARENEST_EMAIL_FROM:-}

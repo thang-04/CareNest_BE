@@ -13,8 +13,8 @@ import com.carenest.exception.GlobalException;
 import com.carenest.repository.attendance.AttendanceRecordRepository;
 import com.carenest.repository.attendance.PickupRecordRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AccountPhotoService;
 import com.carenest.service.account.AccountService;
-import com.carenest.service.account.ParentPhotoService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
@@ -82,7 +82,7 @@ class PickupServiceImplTest {
     private GuardianChildLinkService guardianChildLinkService;
 
     @Mock
-    private ParentPhotoService parentPhotoService;
+    private AccountPhotoService accountPhotoService;
 
     @Mock
     private NotificationService notificationService;
@@ -106,7 +106,7 @@ class PickupServiceImplTest {
                 childService,
                 childIntakeService,
                 guardianChildLinkService,
-                parentPhotoService,
+                accountPhotoService,
                 notificationService,
                 accountService,
                 CLOCK);
@@ -149,7 +149,7 @@ class PickupServiceImplTest {
                                 "0900000002",
                                 71L,
                                 null)));
-        when(parentPhotoService.findUserIdsWithPhoto(List.of(71L))).thenReturn(Set.of(71L));
+        when(accountPhotoService.findUserIdsWithPhoto(List.of(71L))).thenReturn(Set.of(71L));
         var response = service.getChild(teacher, CHILD_ID);
         assertThat(response.guardians().getFirst().photoUrl()).isEqualTo("/children/1/guardian-photos/11");
         assertThat(response.guardians().get(1).photoUrl()).isEqualTo("/children/1/guardians/71/photo");
