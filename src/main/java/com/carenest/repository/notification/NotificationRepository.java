@@ -40,5 +40,10 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("SELECT n FROM Notification n WHERE n.id = :id AND n.pushState = :state")
     Optional<Notification> lockForPush(@Param("id") Long id, @Param("state") PushState state);
 
+    @Query("SELECT n.userId FROM Notification n WHERE n.announcementId = :announcementId")
+    List<Long> findUserIdsByAnnouncementId(@Param("announcementId") Long announcementId);
+
+    boolean existsByUserIdAndAnnouncementId(Long userId, Long announcementId);
+
     boolean existsByUserIdAndTypeAndLink(Long userId, com.carenest.utils.enums.NotificationType type, String link);
 }

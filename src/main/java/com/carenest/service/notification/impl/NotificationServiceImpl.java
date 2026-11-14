@@ -17,9 +17,11 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
@@ -78,6 +80,35 @@ public class NotificationServiceImpl implements NotificationService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public int notifyAnnouncement(Long announcementId, Collection<Long> userIds, String title, String body) {
+        String logPrefix =
+                LOG_PREFIX + "|notifyAnnouncement|announcementId=" + announcementId + "|users=" + userIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Instant now = clock.instant();
+            Set<Long> done = new HashSet<>(notificationRepository.findUserIdsByAnnouncementId(announcementId));
+            int created = 0;
+            for (Long userId : new LinkedHashSet<>(userIds)) {
+                if (userId == null || !done.add(userId)) continue;
+                notificationRepository.save(Notification.ofAnnouncement(
+                        userId, announcementId, truncate(title, 150), truncate(body, 500), now));
+                created++;
+            }
+            log.info("{}|created={}|END", logPrefix, created);
+            return done.size();
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isAnnouncementRecipient(Long userId, Long announcementId) {
+        return notificationRepository.existsByUserIdAndAnnouncementId(userId, announcementId);
     }
 
     @Override
@@ -224,7 +255,8 @@ public class NotificationServiceImpl implements NotificationService {
                 n.getChildId(),
                 n.getCreatedAt(),
                 n.getReadAt(),
-                n.getLink());
+                n.getLink(),
+                n.getAnnouncementId());
     }
 
     private static String truncate(String text, int max) {

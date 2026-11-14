@@ -87,6 +87,9 @@ public interface StaffAssignmentService {
     /** PHT đang được phân công ở điểm trường tại ngày đó (không thay bằng HT khi trống). */
     Set<Long> findCampusVicePrincipalIds(Long campusId, LocalDate date);
 
+    /** Tài khoản bếp đang phân công tại điểm trường (AUTH-22: mỗi cơ sở một tài khoản dùng chung). */
+    Set<Long> findCampusKitchenIds(Long campusId, LocalDate date);
+
     /** HT đang có phân công tại ngày đó. */
     Set<Long> findPrincipalIds(LocalDate date);
 

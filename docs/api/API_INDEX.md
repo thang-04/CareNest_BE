@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 338 endpoint.
+Tổng: 350 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -31,6 +31,17 @@ POST /age-groups · src/main/java/com/carenest/controller/organization/AgeGroupC
 DELETE /age-groups/{ageGroupId} · src/main/java/com/carenest/controller/organization/AgeGroupController.java#deleteAgeGroup
 PUT /age-groups/{ageGroupId} · src/main/java/com/carenest/controller/organization/AgeGroupController.java#updateAgeGroup
 GET /age-groups/{ageGroupId}/team-leader-assignments/history · src/main/java/com/carenest/controller/organization/TeacherAssignmentController.java#getTeamLeaderHistory
+GET /announcement-attachments/{attachmentId}/content · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#downloadAttachment
+GET /announcement-templates · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#listTemplates
+POST /announcement-templates · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#createTemplate
+DELETE /announcement-templates/{templateId} · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#deleteTemplate
+PUT /announcement-templates/{templateId} · src/main/java/com/carenest/controller/announcement/AnnouncementTemplateController.java#updateTemplate
+GET /announcements · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#listAnnouncements
+POST /announcements · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#createAnnouncement
+GET /announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#getAnnouncement
+PUT /announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#updateAnnouncement
+POST /announcements/{announcementId}/cancel · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#cancelAnnouncement
+POST /announcements/recipient-preview · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#previewRecipients
 POST /assessment/behaviour-tickets · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#issue
 GET /assessment/behaviour-tickets/board · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#getBoard
 GET /assessment/behaviour-tickets/overview · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#getOverview
@@ -223,6 +234,7 @@ POST /locations · src/main/java/com/carenest/controller/organization/RoomContro
 DELETE /locations/{roomId} · src/main/java/com/carenest/controller/organization/RoomController.java#deleteRoom
 PUT /locations/{roomId} · src/main/java/com/carenest/controller/organization/RoomController.java#updateRoom
 PATCH /locations/{roomId}/status · src/main/java/com/carenest/controller/organization/RoomController.java#changeRoomStatus
+GET /me/announcements/{announcementId} · src/main/java/com/carenest/controller/announcement/AnnouncementController.java#getMyAnnouncement
 DELETE /me/devices · src/main/java/com/carenest/controller/notification/NotificationController.java#unregisterDevice
 PUT /me/devices · src/main/java/com/carenest/controller/notification/NotificationController.java#registerDevice
 GET /me/notifications · src/main/java/com/carenest/controller/notification/NotificationController.java#listMyNotifications

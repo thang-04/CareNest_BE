@@ -63,6 +63,10 @@ public class Notification {
     @Column(name = "push_next_at")
     private Instant pushNextAt;
 
+    // Thông báo của trường (spec 019): nội dung đầy đủ, tệp đọc qua /me/announcements/{id}
+    @Column(name = "announcement_id", updatable = false)
+    private Long announcementId;
+
     public static Notification of(
             Long userId, NotificationType type, String title, String body, Long childId, Instant at) {
         Notification n = new Notification();
@@ -80,6 +84,12 @@ public class Notification {
             Long userId, NotificationType type, String title, String body, Long childId, Instant at, String link) {
         Notification n = of(userId, type, title, body, childId, at);
         n.link = link;
+        return n;
+    }
+
+    public static Notification ofAnnouncement(Long userId, Long announcementId, String title, String body, Instant at) {
+        Notification n = of(userId, NotificationType.SCHOOL_ANNOUNCEMENT, title, body, null, at);
+        n.announcementId = announcementId;
         return n;
     }
 

@@ -32,5 +32,7 @@ public enum NotificationType {
     EDU_RELEASED,
     EDU_RETURNED,
     EDU_DEADLINE_EXTENDED,
-    EDU_DEADLINE_NEAR
+    EDU_DEADLINE_NEAR,
+    /** Thông báo của trường do BGH gửi (PAR-05, spec 019). */
+    SCHOOL_ANNOUNCEMENT
 }

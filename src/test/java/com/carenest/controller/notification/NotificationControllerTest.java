@@ -61,6 +61,7 @@ class NotificationControllerTest {
                         3L,
                         Instant.parse("2026-11-15T09:00:00Z"),
                         null,
+                        null,
                         null));
 
         mockMvc.perform(get("/api/me/notifications/11")

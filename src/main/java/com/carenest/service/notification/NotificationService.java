@@ -24,6 +24,15 @@ public interface NotificationService {
     void notifyUsers(
             Collection<Long> userIds, NotificationType type, String title, String body, String link, boolean once);
 
+    /**
+     * Thông báo của trường cho từng người nhận; bỏ người đã có dòng của thông báo này (chạy lại sau khi máy chết an toàn).
+     * Trả số người nhận.
+     */
+    int notifyAnnouncement(Long announcementId, Collection<Long> userIds, String title, String body);
+
+    /** Người dùng có nhận thông báo trường này không (quyền đọc nội dung, tải tệp — FR-016). */
+    boolean isAnnouncementRecipient(Long userId, Long announcementId);
+
     NotificationListResponse listMyNotifications(CurrentUser currentUser, int limit);
 
     /** Một thông báo của chính người dùng (mở từ banner); của người khác ⇒ NOTIFICATION_NOT_FOUND. */

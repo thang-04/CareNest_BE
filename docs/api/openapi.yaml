@@ -451,6 +451,240 @@ paths:
           description: OK
       tags:
       - teacher-assignment-controller
+  /api/announcement-attachments/{attachmentId}/content:
+    get:
+      operationId: downloadAttachment
+      parameters:
+      - in: path
+        name: attachmentId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcement-templates:
+    get:
+      operationId: listTemplates
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAnnouncementTemplateResponse"
+          description: OK
+      tags:
+      - announcement-template-controller
+    post:
+      operationId: createTemplate_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementTemplateRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementTemplateResponse"
+          description: Created
+      tags:
+      - announcement-template-controller
+  /api/announcement-templates/{templateId}:
+    delete:
+      operationId: deleteTemplate
+      parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - announcement-template-controller
+    put:
+      operationId: updateTemplate_1
+      parameters:
+      - in: path
+        name: templateId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementTemplateRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementTemplateResponse"
+          description: OK
+      tags:
+      - announcement-template-controller
+  /api/announcements:
+    get:
+      operationId: listAnnouncements
+      parameters:
+      - in: query
+        name: page
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 0
+      - in: query
+        name: size
+        required: false
+        schema:
+          type: integer
+          format: int32
+          default: 20
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonPageResponseAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
+    post:
+      operationId: createAnnouncement
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/AnnouncementRequest"
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - data
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementResponse"
+          description: Created
+      tags:
+      - announcement-controller
+  /api/announcements/recipient-preview:
+    post:
+      operationId: previewRecipients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipientTargetRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonRecipientPreviewResponse"
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcements/{announcementId}:
+    get:
+      operationId: getAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
+    put:
+      operationId: updateAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                data:
+                  $ref: "#/components/schemas/AnnouncementRequest"
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+              required:
+              - data
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
+  /api/announcements/{announcementId}/cancel:
+    post:
+      operationId: cancelAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
   /api/assessment/behaviour-tickets:
     post:
       operationId: issue
@@ -5356,6 +5590,25 @@ paths:
           description: OK
       tags:
       - room-controller
+  /api/me/announcements/{announcementId}:
+    get:
+      operationId: getMyAnnouncement
+      parameters:
+      - in: path
+        name: announcementId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonMyAnnouncementResponse"
+          description: OK
+      tags:
+      - announcement-controller
   /api/me/devices:
     delete:
       operationId: unregisterDevice
@@ -8943,6 +9196,107 @@ components:
             type: string
         state:
           type: string
+    AnnouncementAttachmentResponse:
+      type: object
+      properties:
+        contentType:
+          type: string
+        fileName:
+          type: string
+        id:
+          type: integer
+          format: int64
+        sizeBytes:
+          type: integer
+          format: int64
+    AnnouncementRequest:
+      type: object
+      properties:
+        body:
+          type: string
+        keepAttachmentIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+        sendAt:
+          type: string
+          format: date-time
+        target:
+          $ref: "#/components/schemas/RecipientTargetRequest"
+        title:
+          type: string
+    AnnouncementResponse:
+      type: object
+      properties:
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementAttachmentResponse"
+        body:
+          type: string
+        canEdit:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        recipientCount:
+          type: integer
+          format: int32
+        sendAt:
+          type: string
+          format: date-time
+        senderId:
+          type: integer
+          format: int64
+        senderName:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum:
+          - SCHEDULED
+          - SENDING
+          - SENT
+          - CANCELLED
+        target:
+          $ref: "#/components/schemas/RecipientTargetRequest"
+        title:
+          type: string
+    AnnouncementTemplateRequest:
+      type: object
+      properties:
+        body:
+          type: string
+        campusId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        title:
+          type: string
+    AnnouncementTemplateResponse:
+      type: object
+      properties:
+        body:
+          type: string
+        campusId:
+          type: integer
+          format: int64
+        canEdit:
+          type: boolean
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
     ApprovalItem:
       type: object
       properties:
@@ -15945,6 +16299,25 @@ components:
           format: int64
         username:
           type: string
+    MyAnnouncementResponse:
+      type: object
+      properties:
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementAttachmentResponse"
+        body:
+          type: string
+        id:
+          type: integer
+          format: int64
+        senderName:
+          type: string
+        sentAt:
+          type: string
+          format: date-time
+        title:
+          type: string
     NewItem:
       type: object
       properties:
@@ -15995,6 +16368,9 @@ components:
     NotificationResponse:
       type: object
       properties:
+        announcementId:
+          type: integer
+          format: int64
         body:
           type: string
         childId:
@@ -16034,6 +16410,7 @@ components:
           - EDU_RETURNED
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
+          - SCHOOL_ANNOUNCEMENT
     NutritionTotals:
       type: object
       properties:
@@ -16176,6 +16553,25 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AccountSummaryResponse"
+        page:
+          type: integer
+          format: int32
+        size:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+          format: int32
+    PageResponseAnnouncementResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementResponse"
         page:
           type: integer
           format: int32
@@ -17349,6 +17745,17 @@ components:
       - lotNo
       - quantity
       - unitPrice
+    RecipientPreviewResponse:
+      type: object
+      properties:
+        byRole:
+          type: object
+          additionalProperties:
+            type: integer
+            format: int32
+        total:
+          type: integer
+          format: int32
     RecipientRequest:
       type: object
       properties:
@@ -17357,6 +17764,35 @@ components:
           format: int64
       required:
       - guardianId
+    RecipientTargetRequest:
+      type: object
+      properties:
+        ageGroupId:
+          type: integer
+          format: int64
+        campusId:
+          type: integer
+          format: int64
+        classroomId:
+          type: integer
+          format: int64
+        roles:
+          type: array
+          items:
+            type: string
+            enum:
+            - PARENT
+            - TEACHER
+            - KITCHEN
+            - BGH
+          uniqueItems: true
+        scopeType:
+          type: string
+          enum:
+          - SCHOOL
+          - CAMPUS
+          - AGE_GROUP
+          - CLASSROOM
     Referral:
       type: object
       properties:
@@ -17742,6 +18178,32 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AgeGroupMealConfigResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAnnouncementResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AnnouncementResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonAnnouncementTemplateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AnnouncementTemplateResponse"
         desc:
           type: string
         errorCode:
@@ -18665,6 +19127,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListAnnouncementTemplateResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementTemplateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListAssessmentDayUnlockResponse:
       type: object
       properties:
@@ -19473,6 +19950,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonMyAnnouncementResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/MyAnnouncementResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonNotificationListResponse:
       type: object
       properties:
@@ -19533,6 +20023,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/PageResponseAccountSummaryResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonPageResponseAnnouncementResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/PageResponseAnnouncementResponse"
         desc:
           type: string
         errorCode:
@@ -19780,6 +20283,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/QualityReportResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonRecipientPreviewResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/RecipientPreviewResponse"
         desc:
           type: string
         errorCode:
