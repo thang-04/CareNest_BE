@@ -283,6 +283,21 @@ public class KeycloakIdentityProviderClient implements IdentityProviderClient {
     }
 
     @Override
+    public void setPassword(String userId, String password) {
+        // temporary=false: Keycloak gỡ required action UPDATE_PASSWORD đã gắn lúc tạo user
+        call(
+                "setPassword",
+                () -> restClient
+                        .put()
+                        .uri("/admin/realms/{realm}/users/{id}/reset-password", properties.realm(), userId)
+                        .headers(headers -> headers.setBearerAuth(adminToken()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(Map.of("type", "password", "value", password, "temporary", false))
+                        .retrieve()
+                        .toBodilessEntity());
+    }
+
+    @Override
     public void logoutUser(String userId) {
         call(
                 "logoutUser",

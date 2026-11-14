@@ -3,6 +3,7 @@ package com.carenest.controller.child;
 import com.carenest.dto.account.AccountResponse;
 import com.carenest.dto.account.PhoneLookupRequest;
 import com.carenest.dto.account.UpdateAccountStatusRequest;
+import com.carenest.dto.child.ActivationCodeResponse;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
 import com.carenest.dto.child.ChildGuardianOverviewResponse;
@@ -135,5 +136,17 @@ public class GuardianController {
         ParentPasswordResponse reset = guardianAccountService.resetParentPassword(currentUser, userId);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reset parent password success", reset);
+    }
+
+    @PostMapping("/parent-accounts/{userId}/activation-code")
+    @PreAuthorize("@permissionGuard.has('PARENT_ACCOUNT_MANAGE')")
+    public ResponseEntity<ResponseJson<ActivationCodeResponse>> resendActivationCode(
+            @PathVariable Long userId, CurrentUser currentUser) {
+        String logPrefix =
+                LOG_PREFIX + "|resendActivationCode|actorUserId=" + currentUser.userId() + "|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        ActivationCodeResponse issued = guardianAccountService.resendActivationCode(currentUser, userId);
+        log.info("{}|END", logPrefix);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Resend activation code success", issued);
     }
 }

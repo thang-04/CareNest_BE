@@ -125,6 +125,20 @@ Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6
 
 **Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
 
+## SMS — cổng giả và textbee
+
+Mặc định `CARENEST_SMS_PROVIDER=fake`: không gửi thật, chỉ log 2 số cuối SĐT. `textbee` gọi textbee.dev (`TextbeeSmsGateway`): điện thoại Android cài app textbee gửi tin bằng SIM của nó, **chỉ dùng dev/demo** (AUTH-18, plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`). Bật nhà cung cấp thật ⇒ tài khoản phụ huynh mới nhận mã kích hoạt; tin có mật khẩu tạm (tạo tài khoản, đổi SĐT) luôn đi cổng giả.
+
+Bật textbee ở máy dev (`compose.yaml` hoặc `mvnw`):
+1. Đăng ký tại textbee.dev, cài app textbee trên điện thoại Android có SIM, đăng nhập và cấp quyền gửi SMS.
+2. Dashboard textbee: tạo **API key**; lấy **Device ID** nếu tài khoản có nhiều máy (trống ⇒ textbee chọn máy mặc định).
+3. `.env`: `CARENEST_SMS_PROVIDER=textbee`, `TEXTBEE_API_KEY`, tùy chọn `TEXTBEE_DEVICE_ID`. Thiếu API key ⇒ API dừng lúc khởi động, báo tên biến thiếu.
+4. Khi demo: điện thoại bật app, có mạng. API trả 200 nghĩa là textbee đã nhận vào hàng đợi, chưa phải tin đã tới máy; xem trạng thái trên dashboard textbee. Cước SMS tính theo SIM.
+
+Không commit `.env`; lộ API key ⇒ thu hồi trên dashboard textbee. `compose.vps.yaml`, `compose.dev.yaml` chưa truyền biến `TEXTBEE_*` nên VPS luôn dùng cổng giả. Production chọn nhà cung cấp có brandname (D-2).
+
+Không dùng Twilio trial (thử 13–14/11/2026): trial chỉ gửi tới số Mỹ đã xác minh và chỉ 10 template có sẵn — số `+84` bị từ chối (lỗi `21612`), nội dung tự viết bị từ chối (lỗi `572006`).
+
 ## Email từ BE — Gmail SMTP
 
 BE gửi email qua `integration/email/EmailGateway`. Email Keycloak (đặt mật khẩu/OTP) do realm `smtpServer` gửi; `compose.yaml` local trỏ cả hai vào cùng Gmail (không còn Mailpit) (để trống username/password thì compose vẫn chạy, email Keycloak gửi thất bại). Mặc định `CARENEST_EMAIL_PROVIDER=log`: không gửi, chỉ log số người nhận. `smtp` ⇒ `SmtpEmailGateway`, mặc định `smtp.gmail.com:587` STARTTLS.

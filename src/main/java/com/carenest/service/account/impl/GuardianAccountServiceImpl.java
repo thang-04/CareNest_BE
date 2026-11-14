@@ -1,6 +1,7 @@
 package com.carenest.service.account.impl;
 
 import com.carenest.dto.account.AccountResponse;
+import com.carenest.dto.child.ActivationCodeResponse;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
 import com.carenest.dto.child.ChildGuardianOverviewResponse;
@@ -27,6 +28,7 @@ import com.carenest.utils.ApiCode;
 import com.carenest.utils.PersonNames;
 import com.carenest.utils.PhoneNumbers;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.SmsStatus;
 import com.carenest.utils.enums.UserStatus;
 import java.util.HashMap;
 import java.util.List;
@@ -61,6 +63,8 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
     private final AccountLifecycleOperations accountLifecycle;
     private final TemporaryPasswordGenerator passwordGenerator;
     private final AccountMapper accountMapper;
+    private final ParentActivationCodes activationCodes;
+    private final ParentSmsSender smsSender;
 
     @Override
     public List<GuardianResponse> listGuardians(CurrentUser actor, Long childId) {
@@ -278,6 +282,29 @@ public class GuardianAccountServiceImpl implements GuardianAccountService {
             accountLifecycle.resetTemporaryPassword(logPrefix, parent, temporaryPassword);
             log.info("{}|END", logPrefix);
             return new ParentPasswordResponse(parent.getId(), parent.getUsername(), temporaryPassword);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public ActivationCodeResponse resendActivationCode(CurrentUser actor, Long userId) {
+        String logPrefix = LOG_PREFIX + "|resendActivationCode|actorUserId=" + actor.userId() + "|userId=" + userId;
+        log.info("{}|START", logPrefix);
+        try {
+            UserAccount parent = loadManageableParent(actor, userId);
+            ParentActivationCodes.Issued issued = activationCodes.reissue(parent.getId());
+            SmsStatus smsStatus = smsSender.sendActivationCode(parent, issued.code());
+            // AUTH-18: không gửi được SMS thật (cổng giả hoặc lỗi) ⇒ trả mã để in phiếu, không in mật khẩu
+            boolean printable = !smsSender.activationCodeMode() || smsStatus != SmsStatus.SENT;
+            log.info("{}|smsStatus={}|END", logPrefix, smsStatus);
+            return new ActivationCodeResponse(
+                    parent.getId(),
+                    parent.getUsername(),
+                    smsStatus,
+                    issued.expiresAt(),
+                    printable ? issued.code() : null);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

@@ -151,6 +151,16 @@ carenest:
     model: ${CARENEST_AI_MODEL:gemini-2.0-flash}
     connect-timeout: 3s
     read-timeout: ${CARENEST_AI_READ_TIMEOUT:20s}
+  sms:
+    # D-2: mặc định cổng giả (không gửi thật); textbee = điện thoại Android gửi bằng SIM, chỉ dùng dev/demo
+    provider: ${CARENEST_SMS_PROVIDER:fake}
+    textbee:
+      base-url: ${TEXTBEE_BASE_URL:https://api.textbee.dev/api/v1}
+      api-key: ${TEXTBEE_API_KEY:}
+      # Trống ⇒ textbee chọn thiết bị mặc định của tài khoản
+      device-id: ${TEXTBEE_DEVICE_ID:}
+      connect-timeout: 5s
+      read-timeout: 10s
   email:
     # Mặc định log (không gửi thật); smtp = gửi qua SMTP, mặc định Gmail (cần App Password, xem DEPLOYMENT.md mục Email)
     provider: ${CARENEST_EMAIL_PROVIDER:log}

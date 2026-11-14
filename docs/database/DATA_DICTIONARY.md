@@ -673,6 +673,19 @@ Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi g�
 | sent_at | TIMESTAMPTZ | không | | — |
 Index: `idx_parent_sms_logs_user_id` (`user_id`, `sent_at DESC`).
 
+## parent_activation_codes  (module: identity-access, scope: ACCOUNT)
+Mục đích: mã kích hoạt hiện hành của tài khoản phụ huynh tạo khi bật nhà cung cấp SMS thật (AUTH-18, ADR-0026); một dòng mỗi tài khoản, gửi lại thay mã cũ. Chỉ lưu hash. Migration: V129.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| user_id | BIGINT PK, FK user_accounts | không | Tài khoản phụ huynh | AUTH-18 |
+| code_hash | VARCHAR(64) | không | SHA-256 hex của `userId:mã`, không lưu mã gốc | AUTH-18 |
+| expires_at | TIMESTAMPTZ | không | `sent_at` + 72 giờ | AUTH-18 |
+| failed_attempts | SMALLINT | không | Số lần nhập sai, 0–5; 5 ⇒ mã hủy | AUTH-18 |
+| sent_at | TIMESTAMPTZ | không | Lần cấp mã gần nhất; gửi lại cách 60 giây | AUTH-18 |
+| activated_at | TIMESTAMPTZ | có | Đã kích hoạt (mã đã dùng); khác NULL ⇒ không gửi lại | AUTH-18 |
+| created_at | TIMESTAMPTZ | không | | — |
+Ràng buộc: `ck_parent_activation_codes_attempts` (0–5), `ck_parent_activation_codes_expiry` (`expires_at > sent_at`).
+
 ## Danh mục bán trú (module: nutrition, feature `meals`, scope: SCHOOL) — V54, V55, V83
 Dùng chung hai điểm trường (SCH-06). Xóa = `status` `INACTIVE` (thực đơn, kho tham chiếu). Mọi bảng có `created_at`, `updated_at`; bảng sửa được có `created_by`, `updated_by` (FK `user_accounts`).
 

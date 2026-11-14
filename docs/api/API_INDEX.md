@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 335 endpoint.
+Tổng: 337 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -299,11 +299,13 @@ POST /nutrition/suppliers · src/main/java/com/carenest/controller/meals/Supplie
 GET /nutrition/suppliers/{supplierId} · src/main/java/com/carenest/controller/meals/SupplierController.java#getSupplier
 PUT /nutrition/suppliers/{supplierId} · src/main/java/com/carenest/controller/meals/SupplierController.java#updateSupplier
 PATCH /nutrition/suppliers/{supplierId}/status · src/main/java/com/carenest/controller/meals/SupplierController.java#changeSupplierStatus
+POST /parent-accounts/{userId}/activation-code · src/main/java/com/carenest/controller/child/GuardianController.java#resendActivationCode
 PATCH /parent-accounts/{userId}/status · src/main/java/com/carenest/controller/child/GuardianController.java#updateParentStatus
 POST /parent-accounts/{userId}/temporary-password · src/main/java/com/carenest/controller/child/GuardianController.java#resetParentPassword
 GET /parent-accounts/phone-change-requests · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#listPhoneChangeRequests
 POST /parent-accounts/phone-change-requests/{requestId}/approve · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#approve
 POST /parent-accounts/phone-change-requests/{requestId}/reject · src/main/java/com/carenest/controller/account/GuardianPhoneChangeController.java#reject
+POST /parent-activation · src/main/java/com/carenest/controller/account/ParentActivationController.java#activateParentAccount
 GET /permission-change-logs · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionChangeLogs
 GET /permissions · src/main/java/com/carenest/controller/account/PermissionController.java#getPermissionCatalog
 GET /pickups · src/main/java/com/carenest/controller/attendance/PickupController.java#listResults

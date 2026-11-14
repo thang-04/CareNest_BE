@@ -12,6 +12,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 
+import com.carenest.dto.child.ActivationCodeResponse;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
 import com.carenest.dto.child.GuardianCandidateResponse;
@@ -32,6 +33,7 @@ import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.GuardianRelationship;
+import com.carenest.utils.enums.SmsStatus;
 import com.carenest.utils.enums.UserStatus;
 import java.time.Instant;
 import java.util.List;
@@ -62,6 +64,8 @@ class GuardianAccountServiceImplTest {
     private final IdentityProviderClient identity = mock(IdentityProviderClient.class);
     private final AuthStateStore authState = mock(AuthStateStore.class);
     private final TemporaryPasswordGenerator passwords = mock(TemporaryPasswordGenerator.class);
+    private final ParentActivationCodes activationCodes = mock(ParentActivationCodes.class);
+    private final ParentSmsSender smsSender = mock(ParentSmsSender.class);
     private final GuardianAccountServiceImpl service = new GuardianAccountServiceImpl(
             selected,
             accounts,
@@ -73,7 +77,9 @@ class GuardianAccountServiceImplTest {
             new AccountLifecycleOperations(
                     accounts, identity, authState, new TransactionTemplate(mock(PlatformTransactionManager.class))),
             passwords,
-            new AccountMapper());
+            new AccountMapper(),
+            activationCodes,
+            smsSender);
 
     @BeforeEach
     void setUp() {
@@ -395,6 +401,49 @@ class GuardianAccountServiceImplTest {
         verify(authState).revokeAccountAuth(60L);
         verify(identity).logoutUser("kc-60");
         assertThat(response.temporaryPassword()).isEqualTo("Gen3rated7k");
+    }
+
+    @Test
+    @DisplayName("AUTH-18: gửi lại mã qua SMS thật thành công ⇒ không trả mã")
+    void resendActivationCodeHidesCodeWhenRealSmsSent() {
+        UserAccount parent = account(60L, CareNestRole.PARENT);
+        given(accounts.findById(60L)).willReturn(Optional.of(parent));
+        Instant expires = Instant.parse("2026-11-14T03:00:00Z");
+        given(activationCodes.reissue(60L)).willReturn(new ParentActivationCodes.Issued("654321", expires));
+        given(smsSender.sendActivationCode(parent, "654321")).willReturn(SmsStatus.SENT);
+        given(smsSender.activationCodeMode()).willReturn(true);
+
+        ActivationCodeResponse response = service.resendActivationCode(VICE, 60L);
+
+        verify(selected).checkParentScope(VICE, 60L);
+        assertThat(response.smsStatus()).isEqualTo(SmsStatus.SENT);
+        assertThat(response.expiresAt()).isEqualTo(expires);
+        assertThat(response.activationCode()).isNull();
+    }
+
+    @Test
+    @DisplayName("AUTH-18: SMS lỗi hoặc cổng giả ⇒ trả mã để in phiếu")
+    void resendActivationCodeReturnsCodeForPrintWhenSmsNotDelivered() {
+        UserAccount parent = account(60L, CareNestRole.PARENT);
+        given(accounts.findById(60L)).willReturn(Optional.of(parent));
+        given(activationCodes.reissue(60L))
+                .willReturn(new ParentActivationCodes.Issued("654321", Instant.parse("2026-11-14T03:00:00Z")));
+        given(smsSender.sendActivationCode(parent, "654321")).willReturn(SmsStatus.FAILED);
+        given(smsSender.activationCodeMode()).willReturn(true);
+
+        assertThat(service.resendActivationCode(VICE, 60L).activationCode()).isEqualTo("654321");
+    }
+
+    @Test
+    @DisplayName("AUTH-18: ngoài phạm vi điểm trường ⇒ không cấp mã")
+    void resendActivationCodeOutsideScopeDenied() {
+        given(accounts.findById(60L)).willReturn(Optional.of(account(60L, CareNestRole.PARENT)));
+        willThrow(GlobalException.of(ApiCode.ACCOUNT_MANAGE_DENIED))
+                .given(selected)
+                .checkParentScope(VICE, 60L);
+
+        assertThatThrownBy(() -> service.resendActivationCode(VICE, 60L)).isInstanceOf(GlobalException.class);
+        verifyNoInteractions(activationCodes, smsSender);
     }
 
     @Test
