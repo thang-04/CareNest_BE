@@ -23,8 +23,12 @@
   "smtpServer": {
     "host": "${CARENEST_SMTP_HOST:mailpit}",
     "port": "${CARENEST_SMTP_PORT:1025}",
-    "from": "noreply@carenest.local",
-    "fromDisplayName": "CareNest"
+    "from": "${CARENEST_SMTP_FROM:noreply@carenest.local}",
+    "fromDisplayName": "CareNest",
+    "auth": "${CARENEST_SMTP_AUTH:false}",
+    "starttls": "${CARENEST_SMTP_STARTTLS:false}",
+    "user": "${CARENEST_SMTP_USER:}",
+    "password": "${CARENEST_SMTP_PASSWORD:}"
   },
   "roles": {
     "realm": [

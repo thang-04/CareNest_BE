@@ -82,7 +82,7 @@ public class QualityReportServiceImpl implements QualityReportService {
             LocalDate today = rules.today();
             // HT, PHT mọi điểm trường (AUTH-20); GV lớp mình dạy, tổ trưởng thêm các lớp nhóm tuổi mình (Cần chốt
             // 03/11)
-            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser);
+            Set<Long> ledGroups = leader ? Set.of() : rules.teamLeaderAgeGroupIds(currentUser, schoolYearId);
             List<ClassroomInfoResponse> scoped = classroomService.findYearClassrooms(schoolYearId).stream()
                     .filter(c -> leader
                             ? rules.readsCampus(currentUser, c.campusId())

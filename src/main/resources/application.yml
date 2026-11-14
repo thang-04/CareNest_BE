@@ -28,16 +28,83 @@ carenest:
     region: ${AWS_REGION:ap-southeast-1}
     endpoint: ${CARENEST_EDUCATION_MEDIA_ENDPOINT:}
     path-style: ${CARENEST_EDUCATION_MEDIA_PATH_STYLE:false}
-    prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
-  # Ảnh chân dung phụ huynh (đối chiếu người đón khi trả trẻ): cùng bucket, prefix riêng
-  account-media:
-    prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
-  # Ảnh chữ ký của nhân sự Web (SIG-01): cùng bucket, prefix riêng
-  signature-media:
-    prefix: ${CARENEST_SIGNATURE_MEDIA_PREFIX:accounts/signatures/}
-  # Bản sao ảnh chữ ký trên biên bản kiểm thực đã ký (INS-03): prefix riêng để đổi/xóa chữ ký tài khoản không ảnh hưởng
-  inspection-signature-media:
-    prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
+  # Kho tệp dùng chung (spec 017): mỗi loại một thư mục, giới hạn và định dạng đổi ở đây, không sửa code.
+  # legacy-prefix: thư mục của tệp cũ (key UUID) — chỉ đọc/xóa, tệp mới theo thư mục + tên mới.
+  storage:
+    bucket: ${CARENEST_EDUCATION_MEDIA_BUCKET:}
+    presign-ttl: ${CARENEST_STORAGE_PRESIGN_TTL:15m}
+    # Vùng tạm cho tải trực tiếp chưa xác nhận; lifecycle bucket xóa sau 1 ngày
+    tmp-prefix: tmp/
+    categories:
+      user-avatar:
+        folder: avatars/users/
+        code: user
+        max-size: ${CARENEST_STORAGE_MAX_USER_AVATAR:2MB}
+        types: [jpg, png, webp]
+        legacy-prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
+      child-avatar:
+        folder: avatars/children/
+        code: child
+        max-size: ${CARENEST_STORAGE_MAX_CHILD_AVATAR:2MB}
+        types: [jpg, png, webp]
+        legacy-prefix: children/photos/
+      pickup:
+        folder: pickups/
+        code: pickup
+        max-size: ${CARENEST_STORAGE_MAX_PICKUP:3MB}
+        types: [jpg, png, webp]
+      plan-year-goal:
+        folder: plans/year-goals/
+        code: yeargoal
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      plan-theme:
+        folder: plans/themes/
+        code: theme
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      plan-lesson:
+        folder: plans/lessons/
+        code: lesson
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      meal:
+        folder: meals/
+        code: meal
+        max-size: ${CARENEST_STORAGE_MAX_MEAL:5MB}
+        types: [jpg, png, webp]
+        legacy-prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
+      food-sample:
+        folder: food-samples/
+        code: foodsample
+        max-size: ${CARENEST_STORAGE_MAX_FOOD_SAMPLE:5MB}
+        types: [jpg, png, webp]
+      import:
+        folder: imports/
+        code: import
+        max-size: ${CARENEST_STORAGE_MAX_IMPORT:5MB}
+        types: [xlsx]
+      learning-resource:
+        folder: hoclieu/
+        code: hoclieu
+        max-size: ${CARENEST_STORAGE_MAX_LEARNING_OTHER:20MB}
+        max-size-by-kind:
+          image: ${CARENEST_STORAGE_MAX_LEARNING_IMAGE:5MB}
+          video: ${CARENEST_STORAGE_MAX_LEARNING_VIDEO:100MB}
+        types: [jpg, jpeg, png, gif, webp, mp4, webm, pdf, pptx, docx, xlsx, txt, csv]
+        legacy-prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
+      user-signature:
+        folder: signatures/users/
+        code: sig
+        max-size: ${CARENEST_STORAGE_MAX_SIGNATURE:2MB}
+        types: [jpg, png]
+        legacy-prefix: ${CARENEST_SIGNATURE_MEDIA_PREFIX:accounts/signatures/}
+      inspection-signature:
+        folder: signatures/inspections/
+        code: inspsig
+        max-size: ${CARENEST_STORAGE_MAX_SIGNATURE:2MB}
+        types: [jpg, png]
+        legacy-prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}
@@ -84,6 +151,20 @@ carenest:
     model: ${CARENEST_AI_MODEL:gemini-2.0-flash}
     connect-timeout: 3s
     read-timeout: ${CARENEST_AI_READ_TIMEOUT:20s}
+  email:
+    # Mặc định log (không gửi thật); smtp = gửi qua SMTP, mặc định Gmail (cần App Password, xem DEPLOYMENT.md mục Email)
+    provider: ${CARENEST_EMAIL_PROVIDER:log}
+    # Trống ⇒ dùng username SMTP; Gmail chỉ cho gửi từ chính tài khoản hoặc alias đã xác minh
+    from: ${CARENEST_EMAIL_FROM:}
+    from-name: ${CARENEST_EMAIL_FROM_NAME:CareNest}
+    smtp:
+      host: ${CARENEST_EMAIL_SMTP_HOST:smtp.gmail.com}
+      port: ${CARENEST_EMAIL_SMTP_PORT:587}
+      username: ${CARENEST_EMAIL_SMTP_USERNAME:}
+      password: ${CARENEST_EMAIL_SMTP_PASSWORD:}
+      starttls: ${CARENEST_EMAIL_SMTP_STARTTLS:true}
+      connect-timeout: 5s
+      read-timeout: 10s
   edu-plan:
     # EDU-10: khóa "Đang sửa" kế hoạch năm tự nhả sau khoảng này kể từ lần lưu cuối
     edit-lock-ttl: ${CARENEST_EDU_EDIT_LOCK_TTL:90s}

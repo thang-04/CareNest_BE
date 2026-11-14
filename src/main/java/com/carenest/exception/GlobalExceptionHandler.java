@@ -130,12 +130,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
     public ResponseEntity<ResponseJson<Void>> handleUnsupportedMediaType(HttpMediaTypeNotSupportedException ex) {
-        return error(ApiCode.UNSUPPORTED_MEDIA_TYPE);
+        return ResponseJson.toJson(ApiCode.UNSUPPORTED_MEDIA_TYPE, ApiCode.UNSUPPORTED_MEDIA_TYPE.format(""));
     }
 
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ResponseJson<Void>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
-        return error(ApiCode.FILE_TOO_LARGE);
+        return ResponseJson.toJson(ApiCode.FILE_TOO_LARGE, ApiCode.FILE_TOO_LARGE.format(""));
     }
 
     // @PreAuthorize từ chối bên trong DispatcherServlet nên tới đây, không qua RestAccessDeniedHandler

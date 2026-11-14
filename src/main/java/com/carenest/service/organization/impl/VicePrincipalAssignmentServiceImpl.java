@@ -103,35 +103,26 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 log.info("{}|unchanged|END", logPrefix);
                 return toResponse(year);
             }
-            // Phân công đã đặt cho năm sau (bắt đầu sau năm này) giữ nguyên; phân công mới dừng trước nó
-            LocalDate nextStart = open.stream()
-                    .map(StaffAssignment::getValidFrom)
-                    .filter(from -> from.isAfter(year.getEndDate()))
-                    .min(LocalDate::compareTo)
-                    .orElse(null);
+            LocalDate end = endBeforeNextYear(open, year);
             // AUTH-26: mỗi điểm trường tối đa một PHT trong khoảng phân công mới
             if (campusId != null
                     && staffAssignmentRepository.existsOtherVicePrincipalAtCampusOpenEnded(
-                            campusId, userId, start, nextStart == null ? null : nextStart.minusDays(1))) {
-                throw GlobalException.of(ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
-            }
-            for (StaffAssignment a : open) {
-                if (a.getValidFrom().isAfter(year.getEndDate())) {
-                    continue;
+                            campusId, userId, start, end)) {
+                Long holderId = Boolean.TRUE.equals(request.swap()) && current != null && current.getCampusId() != null
+                        ? swapPartner(campusId, userId, start, year)
+                        : null;
+                if (holderId == null) {
+                    throw GlobalException.of(ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
                 }
-                if (a.getValidFrom().isBefore(start)) {
-                    a.endBefore(start);
-                } else {
-                    staffAssignmentRepository.delete(a);
-                }
+                swap(year, start, userId, campusId, holderId, current.getCampusId(), currentUser.userId());
+                VicePrincipalAssignmentResponse swapped = toResponse(year);
+                log.info("{}|swappedWith={}|END", logPrefix, holderId);
+                return swapped;
             }
+            closeOpen(open, year, start);
             if (campusId != null) {
-                staffAssignmentRepository.save(StaffAssignment.vicePrincipal(
-                        userId,
-                        campusId,
-                        start,
-                        nextStart == null ? null : nextStart.minusDays(1),
-                        currentUser.userId()));
+                staffAssignmentRepository.save(
+                        StaffAssignment.vicePrincipal(userId, campusId, start, end, currentUser.userId()));
             }
             staffAssignmentRepository.flush();
             VicePrincipalAssignmentResponse response = toResponse(year);
@@ -141,6 +132,73 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // Phân công đã đặt cho năm sau (bắt đầu sau năm này) giữ nguyên; phân công mới dừng trước nó (null = không hạn)
+    private static LocalDate endBeforeNextYear(List<StaffAssignment> open, SchoolYear year) {
+        return open.stream()
+                .map(StaffAssignment::getValidFrom)
+                .filter(from -> from.isAfter(year.getEndDate()))
+                .min(LocalDate::compareTo)
+                .map(next -> next.minusDays(1))
+                .orElse(null);
+    }
+
+    // Phân công của năm này: đã có hiệu lực thì kết thúc trước ngày áp dụng (giữ lịch sử), chưa có hiệu lực thì xóa
+    private void closeOpen(List<StaffAssignment> open, SchoolYear year, LocalDate start) {
+        for (StaffAssignment a : open) {
+            if (a.getValidFrom().isAfter(year.getEndDate())) {
+                continue;
+            }
+            if (a.getValidFrom().isBefore(start)) {
+                a.endBefore(start);
+            } else {
+                staffAssignmentRepository.delete(a);
+            }
+        }
+    }
+
+    // Người đổi chỗ: đúng một PHT khác đang giữ điểm trường đích trong năm này, tài khoản còn hoạt động
+    private Long swapPartner(Long campusId, Long userId, LocalDate start, SchoolYear year) {
+        List<Long> holders =
+                staffAssignmentRepository.findOtherVicePrincipalIdsAtCampus(campusId, userId, start, year.getEndDate());
+        if (holders.size() != 1) {
+            return null;
+        }
+        if (!staffAssignmentRepository.findInactiveUserIds(Set.copyOf(holders)).isEmpty()) {
+            throw GlobalException.of(ApiCode.VICE_PRINCIPAL_ACCOUNT_LOCKED);
+        }
+        return holders.get(0);
+    }
+
+    /**
+     * AUTH-26: hai PHT đổi điểm trường cho nhau trong một giao dịch. Kết thúc phân công năm này của cả hai trước rồi
+     * mới tạo hai phân công mới; sau khi đổi mà điểm trường vẫn trùng người khác (vd. phân công đã đặt cho năm sau)
+     * thì từ chối và không lưu gì.
+     */
+    private void swap(
+            SchoolYear year,
+            LocalDate start,
+            Long userId,
+            Long campusId,
+            Long holderId,
+            Long oldCampusId,
+            Long actorId) {
+        List<StaffAssignment> mine = staffAssignmentRepository.findOpenVicePrincipalAssignments(userId, start);
+        List<StaffAssignment> theirs = staffAssignmentRepository.findOpenVicePrincipalAssignments(holderId, start);
+        LocalDate myEnd = endBeforeNextYear(mine, year);
+        LocalDate theirEnd = endBeforeNextYear(theirs, year);
+        closeOpen(mine, year, start);
+        closeOpen(theirs, year, start);
+        staffAssignmentRepository.flush();
+        if (staffAssignmentRepository.existsOtherVicePrincipalAtCampusOpenEnded(campusId, userId, start, myEnd)
+                || staffAssignmentRepository.existsOtherVicePrincipalAtCampusOpenEnded(
+                        oldCampusId, holderId, start, theirEnd)) {
+            throw GlobalException.of(ApiCode.VICE_PRINCIPAL_CAMPUS_TAKEN);
+        }
+        staffAssignmentRepository.save(StaffAssignment.vicePrincipal(userId, campusId, start, myEnd, actorId));
+        staffAssignmentRepository.save(StaffAssignment.vicePrincipal(holderId, oldCampusId, start, theirEnd, actorId));
+        staffAssignmentRepository.flush();
     }
 
     private VicePrincipalAssignmentResponse toResponse(SchoolYear year) {
@@ -167,10 +225,23 @@ public class VicePrincipalAssignmentServiceImpl implements VicePrincipalAssignme
                 rows);
     }
 
-    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày bắt đầu năm học
+    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày mở chuẩn bị (CFG-YR-05) để PHT năm mới chuẩn bị được
     private LocalDate effectiveStart(SchoolYear year) {
         LocalDate today = schoolConfigAccess.today();
-        return today.isAfter(year.getStartDate()) ? today : year.getStartDate();
+        if (today.isAfter(year.getStartDate())) {
+            return today;
+        }
+        if (year.getStatus() == SchoolYearStatus.PLANNED) {
+            LocalDate prep = year.getPrepDate().isAfter(year.getStartDate()) ? year.getStartDate() : year.getPrepDate();
+            // Ngày mở chuẩn bị không được chồng lên năm trước (dữ liệu cũ thiếu ngày này)
+            for (SchoolYear other : schoolYearRepository.findAllByOrderByStartDateDesc()) {
+                if (other.getEndDate().isBefore(year.getStartDate()) && !prep.isAfter(other.getEndDate())) {
+                    prep = other.getEndDate().plusDays(1);
+                }
+            }
+            return today.isAfter(prep) ? today : prep;
+        }
+        return year.getStartDate();
     }
 
     private SchoolYear findYear(Long schoolYearId) {

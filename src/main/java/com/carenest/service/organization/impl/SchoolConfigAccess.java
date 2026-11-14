@@ -47,9 +47,13 @@ class SchoolConfigAccess {
         }
     }
 
-    Set<Long> teacherClassroomIds(CurrentUser user) {
+    /** Lớp GV đang dạy; upcoming = năm đang chuẩn bị (CFG-YR-05): gồm cả phân công lớp năm mới chưa tới ngày bắt đầu. */
+    Set<Long> teacherClassroomIds(CurrentUser user, boolean upcoming) {
         if (!user.hasRole(CareNestRole.TEACHER)) {
             return Set.of();
+        }
+        if (upcoming) {
+            return staffAssignmentService.findCurrentTeacherClassroomIds(user.userId(), today());
         }
         return staffAssignmentService.findActiveAssignments(user.userId(), today()).stream()
                 .filter(a -> a.staffRole() == StaffRole.TEACHER && a.classroomId() != null)

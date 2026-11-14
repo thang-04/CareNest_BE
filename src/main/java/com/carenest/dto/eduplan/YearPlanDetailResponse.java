@@ -302,7 +302,9 @@ public record YearPlanDetailResponse(
             boolean canIssue,
             boolean canReturn,
             boolean canDelete,
-            boolean canCreateVersion) {}
+            boolean canCreateVersion,
+            // EDU-90: người tạo và vai trò cao hơn người tạo được xuất file
+            boolean canExport) {}
 
     /** Một phiên bản trong chuỗi (spec 004); current = phiên bản ban hành mới nhất. */
     public record VersionSummary(

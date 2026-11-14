@@ -164,18 +164,19 @@ class FlowConsistencyIntegrationTest {
                 year,
                 new SchoolYearRequest("2027-2028", LocalDate.of(2027, 9, 1), LocalDate.of(2028, 6, 15)));
 
+        // CFG-YR-05: năm sắp diễn ra đang chuẩn bị (hôm nay 30/08) ⇒ phân công ở ngày bắt đầu cũ tính từ hôm nay
         for (long id : new long[] {teacherRow, leaderRow}) {
             assertThat(jdbc.queryForObject(
                             "SELECT valid_from || '..' || valid_to FROM staff_assignments WHERE id = ?",
                             String.class,
                             id))
-                    .isEqualTo("2027-09-01..2028-06-15");
+                    .isEqualTo("2027-08-30..2028-06-15");
         }
         assertThat(jdbc.queryForObject(
                         "SELECT valid_from || '..' || valid_to FROM staff_assignments WHERE id = ?",
                         String.class,
                         leftRow))
-                .isEqualTo("2027-09-01..2027-12-31");
+                .isEqualTo("2027-08-30..2027-12-31");
     }
 
     @Test

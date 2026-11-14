@@ -344,10 +344,23 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         }
     }
 
-    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày bắt đầu năm học
+    // Năm đang chạy: áp dụng từ hôm nay; năm sắp tới: từ ngày mở chuẩn bị (CFG-YR-05) để GV / Tổ trưởng soạn giáo án
     private LocalDate effectiveStart(SchoolYear year) {
         LocalDate today = schoolConfigAccess.today();
-        return today.isAfter(year.getStartDate()) ? today : year.getStartDate();
+        if (today.isAfter(year.getStartDate())) {
+            return today;
+        }
+        if (year.getStatus() == SchoolYearStatus.PLANNED) {
+            LocalDate prep = year.getPrepDate().isAfter(year.getStartDate()) ? year.getStartDate() : year.getPrepDate();
+            // Ngày mở chuẩn bị không được chồng lên năm trước (dữ liệu cũ thiếu ngày này)
+            for (SchoolYear other : schoolYearRepository.findAllByOrderByStartDateDesc()) {
+                if (other.getEndDate().isBefore(year.getStartDate()) && !prep.isAfter(other.getEndDate())) {
+                    prep = other.getEndDate().plusDays(1);
+                }
+            }
+            return today.isAfter(prep) ? today : prep;
+        }
+        return year.getStartDate();
     }
 
     private List<StaffAssignment> currentLeaders(SchoolYear year) {

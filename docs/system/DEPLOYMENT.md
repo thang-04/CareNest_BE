@@ -32,7 +32,8 @@ Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'
 | `compose.vps.yaml` | Stack VPS: postgres, keycloak (image có extension), mailpit, api; image qua `API_IMAGE`/`KEYCLOAK_IMAGE` |
 | `deploy/vps.env.example` | Mẫu `.env` trên VPS (tên biến, không giá trị thật) |
 | `deploy/caddy/carenest-auth.caddy` | Site `auth.carenest.edu.vn`; CI đẩy lên VPS, không sửa tay trên VPS |
-| `.github/workflows/deploy.yml` | verify → push image → chép file → pull + up + chờ health → Caddy → smoke |
+| `deploy/remote-deploy.sh` | Chạy trên VPS cho cả production và dev: kiểm key `.env` → dump DB → áp file mới → up → chờ health; fail ⇒ tự rollback (mục Rollback) |
+| `.github/workflows/deploy.yml` | verify → push image → chép file vào `.incoming/` → `remote-deploy.sh` → Caddy → smoke (fail ⇒ rollback) |
 | `.dockerignore` | Context image api không chứa `.env`, `target`, `docs`… |
 
 `compose.yaml` / `compose.auth.yaml` giữ cho máy dev.
@@ -68,6 +69,12 @@ Kiểm sau mỗi deploy: `sudo ss -ltnp | grep -E ':(183[1-4][0-9]|7800|9000)\b'
 - Lỗi: `cd /data/thangnd/CAPSTONE/CareNest_BE && docker compose -f compose.vps.yaml logs --tail 100 api keycloak`.
 
 ## Rollback
+
+**Tự động (`deploy/remote-deploy.sh`):** trước khi áp bản mới, script kiểm `.env` có đủ key của file mẫu, `docker compose config` đạt, chép file cũ vào `.rollback/`. Tag api hoặc Keycloak đổi thì dừng api, `pg_dump -Fc` DB ứng dụng (thêm DB Keycloak khi tag Keycloak đổi) vào `/data/thangnd/CAPSTONE/backups/<production|dev>/`, kiểm file đọc được, ghi `max(installed_rank)` của Flyway. Health không đạt trong 3 phút, hoặc smoke HTTPS fail ⇒ trả file cũ, nếu Flyway đã đổi thì khôi phục DB ứng dụng từ dump (trước đó dump trạng thái lỗi thành `*-failed-*.dump`), chạy lại image cũ. Job luôn đỏ; log ghi `ROLLED BACK` hoặc `ROLLBACK FAILED`. DB Keycloak **không** tự khôi phục (runbook 5.4). Giữ 5 dump mỗi loại; image liền trước được giữ trên VPS; tag đang chạy ghi ở `.deploy.env`. Script chỉ khôi phục DB đúng môi trường (dev chỉ `carenest_dev`, `keycloak_dev`).
+
+Rollback chỉ có hiệu lực khi `.env` đủ key: key thêm vào `deploy/*.env.example` mà thiếu trên VPS làm deploy dừng ở bước kiểm trước, bản cũ vẫn chạy.
+
+**Tay:** lệnh kiểm tra nhanh, restart, backup/khôi phục DB và đổi key khi có sự cố: `docs/system/INCIDENT_RUNBOOK.md`.
 
 Tag theo nội dung; tính tag của commit cũ bằng lệnh dưới (chạy trong repo BE), hoặc xem label `org.opencontainers.image.revision` của image trên Docker Hub:
 
@@ -117,6 +124,25 @@ REVOKE CONNECT ON DATABASE carenest, keycloak, carenest_dev, keycloak_dev FROM P
 Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6 nhưng tunnel `ssh -L 18322:127.0.0.1:18322`, `KEYCLOAK_URL=http://localhost:18322` và secret trong `.env` dev; rồi `CARENEST_AUTH_ENABLED=true` trong `.env` dev và `docker compose -f compose.dev.yaml up -d --no-build api` (kèm `API_IMAGE`, `KEYCLOAK_IMAGE` đang chạy).
 
 **Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
+
+## Email từ BE — Gmail SMTP
+
+BE gửi email qua `integration/email/EmailGateway`. Email Keycloak (đặt mật khẩu/OTP) do realm `smtpServer` gửi; `compose.yaml` local trỏ cả hai vào cùng Gmail (không còn Mailpit) (để trống username/password thì compose vẫn chạy, email Keycloak gửi thất bại). Mặc định `CARENEST_EMAIL_PROVIDER=log`: không gửi, chỉ log số người nhận. `smtp` ⇒ `SmtpEmailGateway`, mặc định `smtp.gmail.com:587` STARTTLS.
+
+Bật Gmail:
+1. Tài khoản Gmail dùng gửi (nên tạo tài khoản riêng cho team) → Google Account → Security → bật **2-Step Verification**.
+2. Security → **App passwords** → tạo mật khẩu ứng dụng (16 ký tự). Không dùng mật khẩu đăng nhập Gmail (bị từ chối 535).
+3. `.env`: `CARENEST_EMAIL_PROVIDER=smtp`, `CARENEST_EMAIL_SMTP_USERNAME=<gmail>`, `CARENEST_EMAIL_SMTP_PASSWORD=<app password, bỏ dấu cách>`; tùy chọn `CARENEST_EMAIL_FROM` (phải là chính tài khoản hoặc alias đã xác minh, trống ⇒ dùng username), `CARENEST_EMAIL_FROM_NAME`.
+4. Thiếu biến ⇒ API dừng lúc khởi động, báo tên biến thiếu.
+5. Keycloak local đã import realm từ trước (`--import-realm` bỏ qua realm có sẵn) ⇒ realm vẫn trỏ Mailpit. Sửa ở Admin Console → realm `carenest` → Realm settings → Email: host `smtp.gmail.com`, port `587`, StartTLS, Authentication = Gmail + App Password, From = Gmail; hoặc reset DB Keycloak (`KEYCLOAK.md`).
+
+Gmail cá nhân giới hạn ~500 email/ngày, chỉ hợp dev/demo. Lộ App Password ⇒ thu hồi trong App passwords. `compose.vps.yaml`, `compose.dev.yaml` chưa truyền biến `CARENEST_EMAIL_*` nên VPS: BE ở chế độ log, Keycloak vẫn gửi vào Mailpit.
+
+Gọi từ service (gửi đồng bộ; email không phải bước bắt buộc ⇒ bắt `EmailDeliveryException`, không làm hỏng nghiệp vụ đã lưu):
+
+```java
+emailGateway.send(EmailMessage.html(guardianEmail, "Thông báo từ CareNest", html));
+```
 
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 

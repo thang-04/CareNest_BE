@@ -852,14 +852,22 @@ class ThemeEvaluationIntegrationTest {
         assertThat(service.listClasses(principal, null))
                 .extracting(c -> c.classId())
                 .containsExactlyInAnyOrder(classA, classB, nurseryClass);
-        // Tên in dưới chỗ ký: GV lớp, tổ trưởng nhóm tuổi, PHT ban hành kế hoạch năm (không có thì để trống)
+        // Tên in dưới chỗ ký: GV lớp, tổ trưởng nhóm tuổi, PHT phụ trách điểm trường của lớp (không có thì để trống)
         assertThat(service.get(principal, classA, 9201L).signers().teachers()).containsExactly("teacher-t");
         assertThat(service.get(principal, classA, 9201L).signers().teamLeaders())
                 .containsExactly("teacher-b");
         assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
                 .isNull();
+        // HT ban hành kế hoạch năm: ô PHT không lấy tên HT
+        jdbc.update("UPDATE edu_team_plans SET issued_by = ? WHERE status = 'APPROVED'", principal.userId());
+        assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
+                .isNull();
         CurrentUser vp = user("vp-t", CareNestRole.VICE_PRINCIPAL);
-        jdbc.update("UPDATE edu_team_plans SET issued_by = ? WHERE status = 'APPROVED'", vp.userId());
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
+                        + "SELECT ?, 'VICE_PRINCIPAL', campus_id, '2026-01-01' FROM classrooms WHERE id = ?",
+                vp.userId(),
+                classA);
         assertThat(service.get(principal, classA, 9201L).signers().vicePrincipal())
                 .isEqualTo("vp-t");
     }

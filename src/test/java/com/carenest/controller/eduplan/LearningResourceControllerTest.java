@@ -37,37 +37,38 @@ class LearningResourceControllerTest {
         java.util.UUID requestId = java.util.UUID.randomUUID();
         var result = new com.carenest.dto.eduplan.LearningResourceResponse(
                 8L,
-                "tp_1_1",
-                "9#0",
-                "a".repeat(64),
+                "dd_1_1_2026-09-07",
+                "2026-09-07#hoc",
                 "A",
                 "demo.pdf",
                 "application/pdf",
                 8,
                 7L,
                 java.time.Instant.EPOCH,
-                true);
-        given(service.upload(eq(user), eq("tp_1_1"), any(), any(), eq(requestId)))
+                true,
+                3L,
+                "FILE",
+                "demo.pdf",
+                null);
+        given(service.upload(eq(user), eq("dd_1_1_2026-09-07"), any(), any(), eq(requestId)))
                 .willReturn(result);
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(BASE)
                         .file(new org.springframework.mock.web.MockMultipartFile(
                                 "file", "demo.pdf", "application/pdf", "%PDF-1.7".getBytes()))
-                        .part(new org.springframework.mock.web.MockPart("activityKey", "9#0".getBytes()))
-                        .part(new org.springframework.mock.web.MockPart(
-                                "activitySignature", "a".repeat(64).getBytes()))
+                        .part(new org.springframework.mock.web.MockPart("activityKey", "2026-09-07#hoc".getBytes()))
                         .part(new org.springframework.mock.web.MockPart("activityLabel", "A".getBytes()))
                         // proxy hosting đặt X-Request-Id dạng ULID; khóa chống gửi trùng phải lấy từ Idempotency-Key
                         .header("X-Request-Id", "01M6C4Y401Q2TBAJP49WXFHSVT")
                         .header("Idempotency-Key", requestId.toString())
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.activityKey").value("9#0"));
+                .andExpect(jsonPath("$.data.activityKey").value("2026-09-07#hoc"));
         org.mockito.Mockito.verify(service)
                 .upload(
                         eq(user),
-                        eq("tp_1_1"),
+                        eq("dd_1_1_2026-09-07"),
                         any(),
-                        eq(new com.carenest.dto.eduplan.LearningResourceBinding("9#0", "a".repeat(64), "A")),
+                        eq(new com.carenest.dto.eduplan.LearningResourceBinding("2026-09-07#hoc", "A")),
                         eq(requestId));
     }
 
@@ -78,13 +79,12 @@ class LearningResourceControllerTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart(BASE)
                         .file(new org.springframework.mock.web.MockMultipartFile(
                                 "file", "demo.pdf", "application/pdf", "%PDF-1.7".getBytes()))
-                        .part(new org.springframework.mock.web.MockPart("activityKey", "9#0".getBytes()))
-                        .part(new org.springframework.mock.web.MockPart("activityLabel", "A".getBytes()))
+                        .part(new org.springframework.mock.web.MockPart("activityKey", "2026-09-07#hoc".getBytes()))
                         .header("Idempotency-Key", java.util.UUID.randomUUID().toString())
                         .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_TEACHER"))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value(ApiCode.REQUIRED_FIELD_MISSING.getErrorCode()))
-                .andExpect(jsonPath("$.desc").value("Thiếu thông tin bắt buộc: activitySignature"));
+                .andExpect(jsonPath("$.desc").value("Thiếu thông tin bắt buộc: activityLabel"));
         org.mockito.Mockito.verifyNoInteractions(service);
     }
 
@@ -100,7 +100,7 @@ class LearningResourceControllerTest {
     @TempDir
     Path dir;
 
-    private static final String BASE = "/api/education-plans/class-docs/theme/tp_1_1/learning-resources";
+    private static final String BASE = "/api/education-plans/class-docs/day/dd_1_1_2026-09-07/learning-resources";
 
     @Test
     void protectedVideoSupportsRangeAndPrivateHeaders() throws Exception {
@@ -108,7 +108,7 @@ class LearningResourceControllerTest {
         given(currentUserService.getCurrentUser()).willReturn(user);
         Path file = dir.resolve("demo");
         Files.writeString(file, "0123456789");
-        given(service.content(eq(user), eq("tp_1_1"), eq(8L)))
+        given(service.content(eq(user), eq("dd_1_1_2026-09-07"), eq(8L)))
                 .willReturn(
                         new LearningResourceService.Download(new FileSystemResource(file), "demo.mp4", "video/mp4"));
         mvc.perform(get(BASE + "/8/content")
