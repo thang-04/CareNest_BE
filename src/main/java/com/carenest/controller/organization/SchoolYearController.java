@@ -6,7 +6,6 @@ import com.carenest.dto.organization.SchoolYearDetailResponse;
 import com.carenest.dto.organization.SchoolYearRequest;
 import com.carenest.dto.organization.SchoolYearSemesterRequest;
 import com.carenest.dto.organization.SemesterLockResponse;
-import com.carenest.dto.organization.WeeklyCommentDeadlineRequest;
 import com.carenest.dto.organization.YearCopyRequest;
 import com.carenest.dto.organization.YearCopyResponse;
 import com.carenest.security.CurrentUser;
@@ -145,22 +144,6 @@ public class SchoolYearController {
         SchoolYearDetailResponse schoolYear = schoolYearService.updateSemester(currentUser, schoolYearId, request);
         log.info("{}|END", logPrefix);
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update semester success", schoolYear);
-    }
-
-    // Cấu hình thời gian › Hạn gửi nhận xét tuần (OBS-29)
-    @PutMapping("/{schoolYearId}/weekly-comment-deadline")
-    @PreAuthorize("hasRole('PRINCIPAL')")
-    public ResponseEntity<ResponseJson<SchoolYearDetailResponse>> updateWeeklyCommentDeadline(
-            @PathVariable Long schoolYearId,
-            @Valid @RequestBody WeeklyCommentDeadlineRequest request,
-            CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|updateWeeklyCommentDeadline|userId=" + currentUser.userId() + "|schoolYearId="
-                + schoolYearId;
-        log.info("{}|START", logPrefix);
-        SchoolYearDetailResponse schoolYear =
-                schoolYearService.updateWeeklyCommentDeadline(currentUser, schoolYearId, request.deadlineDays());
-        log.info("{}|END", logPrefix);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Update weekly comment deadline success", schoolYear);
     }
 
     // Thiết lập năm học: chép lớp, GV, tổ trưởng, giờ chốt, học kỳ từ năm học khác sang năm chưa bắt đầu

@@ -24,7 +24,6 @@ import com.carenest.integration.ai.AiException;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.observation.WeeklyCommentService;
-import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Permission;
@@ -111,9 +110,6 @@ class WeeklyCommentIntegrationTest {
 
     @Autowired
     private WeeklyCommentService service;
-
-    @Autowired
-    private SchoolYearService schoolYearService;
 
     @Autowired
     private JdbcTemplate jdbc;
@@ -519,8 +515,8 @@ class WeeklyCommentIntegrationTest {
     }
 
     @Test
-    @DisplayName("OBS-29: ngày nghỉ sau tuần dời hạn sang ngày học kế tiếp; HT đặt hạn 0 / 2 ngày học")
-    void deadlineFollowsSchoolDaysAndYearSetting() {
+    @DisplayName("OBS-29: hạn cố định 1 ngày học sau tuần; ngày nghỉ sau tuần dời hạn sang ngày học kế tiếp")
+    void deadlineFollowsSchoolDays() {
         long yearId = jdbc.queryForObject("SELECT school_year_id FROM classrooms WHERE id = ?", Long.class, classA);
         jdbc.update(
                 "INSERT INTO school_holidays (school_year_id, start_date, end_date, name) VALUES (?, ?, ?, 'Nghỉ')",
@@ -528,20 +524,6 @@ class WeeklyCommentIntegrationTest {
                 LocalDate.of(2026, 11, 2),
                 LocalDate.of(2026, 11, 2));
         assertThat(service.getBoard(teacherA, classA, WEEK).week().deadline()).isEqualTo(LocalDate.of(2026, 11, 3));
-
-        schoolYearService.updateWeeklyCommentDeadline(principal, yearId, 0);
-        assertThat(service.getBoard(teacherA, classA, WEEK).week().deadline()).isEqualTo(WEEK.plusDays(4));
-        schoolYearService.updateWeeklyCommentDeadline(principal, yearId, 2);
-        // 02/11 nghỉ ⇒ ngày học thứ 2 sau tuần là 04/11
-        assertThat(service.getBoard(teacherA, classA, WEEK).week().deadline()).isEqualTo(LocalDate.of(2026, 11, 4));
-
-        expectCode(
-                () -> schoolYearService.updateWeeklyCommentDeadline(principal, yearId, 6),
-                ApiCode.WEEKLY_COMMENT_DEADLINE_DAYS_INVALID);
-        expectCode(
-                () -> schoolYearService.updateWeeklyCommentDeadline(principal, yearId, -1),
-                ApiCode.WEEKLY_COMMENT_DEADLINE_DAYS_INVALID);
-        assertThat(schoolYearService.weeklyCommentDeadlineDays(yearId)).isEqualTo(2);
     }
 
     @Test

@@ -22,50 +22,7 @@ public record SchoolYearDetailResponse(
         Instant createdAt,
         Instant updatedAt,
         LocalDate prepDate,
-        boolean preparing,
-        int weeklyCommentDeadlineDays) {
-
-    /** Hạn nhận xét tuần mặc định 1 ngày học sau tuần (OBS-29). */
-    public SchoolYearDetailResponse(
-            Long id,
-            String name,
-            LocalDate startDate,
-            LocalDate endDate,
-            LocalDate semester1Start,
-            LocalDate semester1End,
-            LocalDate semester2Start,
-            LocalDate semester2End,
-            SchoolYearStatus status,
-            long classCount,
-            Instant activatedAt,
-            Long activatedBy,
-            Instant closedAt,
-            Long closedBy,
-            Instant createdAt,
-            Instant updatedAt,
-            LocalDate prepDate,
-            boolean preparing) {
-        this(
-                id,
-                name,
-                startDate,
-                endDate,
-                semester1Start,
-                semester1End,
-                semester2Start,
-                semester2End,
-                status,
-                classCount,
-                activatedAt,
-                activatedBy,
-                closedAt,
-                closedBy,
-                createdAt,
-                updatedAt,
-                prepDate,
-                preparing,
-                1);
-    }
+        boolean preparing) {
 
     /** Không kèm ngày mở chuẩn bị (CFG-YR-05): cho nơi dựng sẵn dữ liệu năm học cũ (test, module khác). */
     public SchoolYearDetailResponse(

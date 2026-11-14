@@ -35,7 +35,6 @@ import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.observation.WeeklyCommentService;
 import com.carenest.service.organization.ClassroomService;
-import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
@@ -96,7 +95,6 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     private final WeeklyCommentRepository commentRepository;
     private final WeeklyCommentRevisionRepository revisionRepository;
     private final WeeklyCommentUnlockRepository unlockRepository;
-    private final SchoolYearService schoolYearService;
     private final Clock clock;
     private final ChildService childService;
     private final BehaviourTicketRepository ticketRepository;
@@ -842,11 +840,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 .findFirstByClassroomIdAndWeekStartAndValidUntilAfterOrderByIdDesc(cls.id(), week, rules.now())
                 .map(WeeklyCommentUnlock::getValidUntil)
                 .orElse(null);
-        return option(cls, week, lessonWeeks(cls, from, to).get(week), deadlineDays(cls), unlockedUntil);
-    }
-
-    private int deadlineDays(ClassroomInfoResponse cls) {
-        return schoolYearService.weeklyCommentDeadlineDays(cls.schoolYearId());
+        return option(cls, week, lessonWeeks(cls, from, to).get(week), AssessmentDeadlines.WEEKLY_COMMENT, unlockedUntil);
     }
 
     // Các tuần của năm học tới tuần hiện tại, mới nhất trước
@@ -858,7 +852,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
         LocalDate first = cls.yearStart().with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         Map<LocalDate, LessonWeek> byWeek =
                 lessonWeeks(cls, cls.yearStart(), min(last.plusDays(SCHOOL_WEEK_DAYS), cls.yearEnd()));
-        int days = deadlineDays(cls);
+        int days = AssessmentDeadlines.WEEKLY_COMMENT;
         Map<LocalDate, Instant> unlocked = new HashMap<>();
         unlockRepository
                 .findByClassroomIdAndValidUntilAfter(cls.id(), rules.now())
@@ -873,7 +867,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     }
 
     // Mở viết từ ngày học cuối của tuần (giáo án tuần kết thúc sớm vì nghỉ lễ ⇒ mở từ ngày đó); khóa sau 23:59:59 của
-    // ngày học thứ N sau ngày học cuối (N theo năm học, 0 = chính ngày học cuối)
+    // ngày học thứ N sau ngày học cuối (N cố định, xem AssessmentDeadlines)
     private WeekOption option(
             ClassroomInfoResponse cls, LocalDate monday, LessonWeek lesson, int deadlineDays, Instant unlockedUntil) {
         LocalDate from;

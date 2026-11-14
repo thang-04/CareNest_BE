@@ -52,9 +52,6 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private static final Pattern YEAR_NAME = Pattern.compile("(\\d{4})-(\\d{4})");
     // Đề xuất FE 13/10/2026 (ACTIVATION_LEAD_DAYS): được kích hoạt từ 7 ngày trước ngày bắt đầu
     private static final int ACTIVATION_LEAD_DAYS = 7;
-    // OBS-29: hạn gửi nhận xét tuần, số ngày học sau ngày học cuối của tuần
-    private static final int WEEKLY_COMMENT_DEADLINE_MIN = 0;
-    private static final int WEEKLY_COMMENT_DEADLINE_MAX = 5;
 
     private final SchoolYearRepository schoolYearRepository;
     private final ClassroomRepository classroomRepository;
@@ -212,43 +209,6 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
-    }
-
-    @Override
-    public SchoolYearDetailResponse updateWeeklyCommentDeadline(
-            CurrentUser currentUser, Long schoolYearId, int deadlineDays) {
-        String logPrefix = LOG_PREFIX + "|updateWeeklyCommentDeadline|userId=" + currentUser.userId() + "|schoolYearId="
-                + schoolYearId;
-        log.info("{}|START", logPrefix);
-        try {
-            checkCanManage(currentUser);
-            SchoolYear schoolYear = findSchoolYear(schoolYearId);
-            SchoolYearRules.checkOpen(schoolYear);
-            if (deadlineDays < WEEKLY_COMMENT_DEADLINE_MIN || deadlineDays > WEEKLY_COMMENT_DEADLINE_MAX) {
-                throw GlobalException.of(
-                        ApiCode.WEEKLY_COMMENT_DEADLINE_DAYS_INVALID,
-                        WEEKLY_COMMENT_DEADLINE_MIN,
-                        WEEKLY_COMMENT_DEADLINE_MAX);
-            }
-            schoolYear.changeWeeklyCommentDeadlineDays(deadlineDays);
-            schoolYearRepository.flush();
-            log.info("{}|END", logPrefix);
-            return toDetail(schoolYear);
-        } catch (RuntimeException ex) {
-            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
-            throw ex;
-        }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public int weeklyCommentDeadlineDays(Long schoolYearId) {
-        return schoolYearId == null
-                ? 1
-                : schoolYearRepository
-                        .findById(schoolYearId)
-                        .map(y -> (int) y.getWeeklyCommentDeadlineDays())
-                        .orElse(1);
     }
 
     @Override

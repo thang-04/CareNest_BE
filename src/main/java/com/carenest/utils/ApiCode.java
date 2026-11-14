@@ -170,8 +170,6 @@ public enum ApiCode {
             2038, HttpStatus.CONFLICT, "Năm học đã bắt đầu hoặc đã kết thúc, không đổi được ngày mở chuẩn bị"),
     ACTIVATION_BEFORE_PREP(
             2039, HttpStatus.CONFLICT, "Năm học chưa tới ngày mở chuẩn bị, chỉ kích hoạt được từ ngày {0}"),
-    WEEKLY_COMMENT_DEADLINE_DAYS_INVALID(
-            2040, HttpStatus.BAD_REQUEST, "Hạn gửi nhận xét tuần từ {0} đến {1} ngày học sau tuần"),
     SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
