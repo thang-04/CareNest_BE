@@ -7,7 +7,9 @@ import static org.mockito.Mockito.when;
 import com.carenest.dto.eduplan.ApprovedDayLessonResponse.Goal;
 import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
+import com.carenest.entity.eduplan.EduClassDocRelease;
 import com.carenest.entity.eduplan.EduPlanGoal;
+import com.carenest.repository.eduplan.EduClassDocReleaseRepository;
 import com.carenest.repository.eduplan.EduClassDocRepository;
 import com.carenest.repository.eduplan.EduPlanGoalRepository;
 import com.carenest.service.eduplan.EduConfigService;
@@ -20,10 +22,11 @@ import tools.jackson.databind.ObjectMapper;
 
 class EduLessonQueryServiceImplTest {
     private final EduClassDocRepository docs = mock(EduClassDocRepository.class);
+    private final EduClassDocReleaseRepository releases = mock(EduClassDocReleaseRepository.class);
     private final EduPlanGoalRepository goals = mock(EduPlanGoalRepository.class);
     private final EduConfigService config = mock(EduConfigService.class);
     private final EduLessonQueryServiceImpl service =
-            new EduLessonQueryServiceImpl(docs, goals, config, new ObjectMapper());
+            new EduLessonQueryServiceImpl(docs, releases, goals, config, new ObjectMapper());
 
     @Test
     void observationsKeepOldApprovedLessonUntilReplacementLessonIsApproved() {
@@ -31,7 +34,7 @@ class EduLessonQueryServiceImplTest {
         EduClassDoc old = week(100L, EduClassDocStatus.APPROVED, monday);
         EduClassDoc update = mock(EduClassDoc.class);
         when(update.getKind()).thenReturn(EduClassDoc.WEEK);
-        when(update.getStatus()).thenReturn(EduClassDocStatus.REVIEW, EduClassDocStatus.APPROVED);
+        when(update.getStatus()).thenReturn(EduClassDocStatus.REVIEW);
         when(update.getWeekStart()).thenReturn(monday);
         when(update.getId()).thenReturn(200L);
         when(update.getContent()).thenReturn("{}");
@@ -45,6 +48,7 @@ class EduLessonQueryServiceImplTest {
                         .get(monday)
                         .classDocId())
                 .isEqualTo(100L);
+        when(update.getStatus()).thenReturn(EduClassDocStatus.APPROVED);
         assertThat(service.findApprovedDayLessons(1L, monday, monday)
                         .get(monday)
                         .classDocId())
@@ -185,5 +189,46 @@ class EduLessonQueryServiceImplTest {
                 "{'week':{'picks':{'hoc.0':[{'cardId':'c-1','goalIds':['7'],'text':'Bật xa'},{'text':'gõ tay'}]}}}");
         when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(theme, week, day));
         assertThat(goalsOn(monday)).containsExactly(7L, 8L);
+    }
+
+    @Test
+    void reopenedDossierUsesLastReleasedContentNotDraftEdits() {
+        // EDU-19 + EDU-64: hồ sơ đã ban hành mở lại điều chỉnh ⇒ đánh giá theo bản ban hành, không theo bản Nháp đang
+        // sửa
+        LocalDate monday = LocalDate.of(2026, 11, 9);
+        when(config.getEduConfig())
+                .thenReturn(new EduConfigResponse(
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        null,
+                        List.of(new EduConfigResponse.WeekRow("hoc", "Hoạt động học", false, false, null)),
+                        null));
+        List<EduPlanGoal> found = List.of(goal(7, 3));
+        when(goals.findAllById(Set.of(7L))).thenReturn(found);
+        EduClassDoc theme = doc(
+                EduClassDoc.THEME,
+                5L,
+                null,
+                "{'activities':[{'id':'c-1','slot':'hoc','name':'Bật xa','goalIds':['7']},"
+                        + "{'id':'c-2','slot':'hoc','name':'Ném xa','goalIds':['8']}]}");
+        EduClassDoc week = doc(EduClassDoc.WEEK, 5L, monday, "{'picks':{}}");
+        EduClassDoc draftDay =
+                doc(EduClassDoc.DAY, 5L, monday, "{'week':{'picks':{'hoc.0':[{'cardId':'c-2','text':'Ném xa'}]}}}");
+        when(draftDay.getStatus()).thenReturn(EduClassDocStatus.DRAFT);
+        when(draftDay.getHistory()).thenReturn("[{\"action\":\"revise_future\"}]");
+        when(draftDay.getDocKey()).thenReturn("dp_1_5");
+        EduClassDoc dossier = mock(EduClassDoc.class);
+        when(dossier.getKind()).thenReturn(EduClassDoc.DOSSIER);
+        when(dossier.getStatus()).thenReturn(EduClassDocStatus.DRAFT);
+        when(dossier.getId()).thenReturn(50L);
+        EduClassDocRelease release = mock(EduClassDocRelease.class);
+        when(release.getPrintSnapshot())
+                .thenReturn("{\"members\":[{\"kind\":\"day\",\"docKey\":\"dp_1_5\",\"content\":"
+                        + "{\"week\":{\"picks\":{\"hoc.0\":[{\"cardId\":\"c-1\",\"text\":\"Bật xa\"}]}}}}]}");
+        when(releases.findAllByClassDocIdInOrderByReleasedAtAscIdAsc(List.of(50L)))
+                .thenReturn(List.of(release));
+        when(docs.findAllByClassroomIdInOrderByIdAsc(List.of(1L))).thenReturn(List.of(theme, week, draftDay, dossier));
+        assertThat(goalsOn(monday)).containsExactly(7L);
     }
 }

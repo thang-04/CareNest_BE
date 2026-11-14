@@ -7,6 +7,7 @@ import com.carenest.dto.eduplan.EduConfigResponse;
 import com.carenest.entity.eduplan.EduClassDoc;
 import com.carenest.entity.eduplan.EduGoalRow;
 import com.carenest.entity.eduplan.EduPlanGoal;
+import com.carenest.repository.eduplan.EduClassDocReleaseRepository;
 import com.carenest.repository.eduplan.EduClassDocRepository;
 import com.carenest.repository.eduplan.EduPlanGoalRepository;
 import com.carenest.service.eduplan.EduConfigService;
@@ -39,6 +40,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
     private static final int SCHOOL_DAYS = 5;
 
     private final EduClassDocRepository classDocRepository;
+    private final EduClassDocReleaseRepository releaseRepository;
     private final EduPlanGoalRepository goalRepository;
     private final EduConfigService eduConfigService;
     private final ObjectMapper objectMapper;
@@ -54,6 +56,7 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
             // trong
             // hồ sơ chủ đề); hồ sơ mở lại sửa phần tương lai vẫn giữ ngày đã dạy (phần đã qua khóa sửa, EDU-64)
             List<EduClassDoc> docs = classDocRepository.findAllByClassroomIdInOrderByIdAsc(List.of(classroomId));
+            Map<String, String> releasedContents = releasedContents(docs);
             Map<String, EduClassDoc> releasedDays = docs.stream()
                     .filter(d -> EduClassDoc.DAY.equals(d.getKind()) && released(d))
                     .collect(Collectors.toMap(d -> d.getYearPlanId() + ":" + d.getWeekStart(), d -> d, (a, b) -> a));
@@ -72,19 +75,19 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
                 List<JsonNode> contents = new ArrayList<>();
                 List<Map<String, JsonNode>> cards = new ArrayList<>();
                 for (EduClassDoc week : weeks) {
-                    JsonNode dayWeek = readContent(releasedDays
-                                    .get(week.getYearPlanId() + ":" + week.getWeekStart())
-                                    .getContent())
+                    JsonNode dayWeek = readContent(effectiveContent(
+                                    releasedDays.get(week.getYearPlanId() + ":" + week.getWeekStart()),
+                                    releasedContents))
                             .path("week");
                     boolean dossier = dayWeek.isObject();
-                    contents.add(dossier ? dayWeek : readContent(week.getContent()));
+                    contents.add(dossier ? dayWeek : readContent(effectiveContent(week, releasedContents)));
                     JsonNode theme = docs.stream()
                             .filter(d -> EduClassDoc.THEME.equals(d.getKind())
                                     && d.getYearPlanId().equals(week.getYearPlanId())
                                     && d.getThemeId() != null
                                     && d.getThemeId().equals(week.getThemeId()))
                             .findFirst()
-                            .map(d -> readContent(d.getContent()))
+                            .map(d -> readContent(effectiveContent(d, releasedContents)))
                             .orElse(null);
                     cards.add(EduActivityCards.cards(
                             theme instanceof tools.jackson.databind.node.ObjectNode o
@@ -131,6 +134,32 @@ public class EduLessonQueryServiceImpl implements EduLessonQueryService {
 
     private JsonNode readContent(String json) {
         return objectMapper.readTree(json == null || json.isBlank() ? "{}" : json);
+    }
+
+    /** Bản đang điều chỉnh (Nháp sau "revise_future") chưa duyệt ⇒ đánh giá dùng nội dung của lần ban hành gần nhất. */
+    private static String effectiveContent(EduClassDoc doc, Map<String, String> releasedContents) {
+        if (doc.getStatus() == EduClassDocStatus.APPROVED) return doc.getContent();
+        // ponytail: dữ liệu cũ chưa có bản ban hành trong bảng releases thì giữ nội dung hiện tại như trước
+        return releasedContents.getOrDefault(doc.getDocKey(), doc.getContent());
+    }
+
+    /** docKey → nội dung thành viên trong lần ban hành gần nhất của gói học kỳ / hồ sơ chủ đề. */
+    private Map<String, String> releasedContents(List<EduClassDoc> docs) {
+        if (docs.stream().noneMatch(d -> d.getStatus() != EduClassDocStatus.APPROVED && released(d))) return Map.of();
+        List<Long> rootIds = docs.stream()
+                .filter(d -> EduClassDoc.isRoot(d.getKind()))
+                .map(EduClassDoc::getId)
+                .toList();
+        Map<String, String> result = new LinkedHashMap<>();
+        // releases xếp theo thời gian tăng dần ⇒ lần ban hành sau ghi đè lần trước
+        releaseRepository
+                .findAllByClassDocIdInOrderByReleasedAtAscIdAsc(rootIds)
+                .forEach(r -> readContent(r.getPrintSnapshot()).path("members").forEach(m -> {
+                    if (m.hasNonNull("docKey"))
+                        result.put(
+                                m.path("docKey").asString(), m.path("content").toString());
+                }));
+        return result;
     }
 
     private static boolean released(EduClassDoc doc) {
