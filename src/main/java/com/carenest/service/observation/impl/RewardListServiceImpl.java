@@ -28,13 +28,16 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.AttendanceService.ClassChildDay;
 import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.observation.RewardListService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationPeriodType;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.RewardAction;
 import com.carenest.utils.enums.RewardStatus;
@@ -46,6 +49,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -101,6 +105,8 @@ public class RewardListServiceImpl implements RewardListService {
     private final RewardListEventRepository eventRepository;
     private final ChildEvaluationRepository evaluationRepository;
     private final BehaviourTicketRepository ticketRepository;
+    private final StaffAssignmentService staffAssignmentService;
+    private final NotificationService notificationService;
 
     @Override
     public List<RewardClassRow> classes(CurrentUser currentUser, Long schoolYearId) {
@@ -235,6 +241,10 @@ public class RewardListServiceImpl implements RewardListService {
                         currentUser.userId(),
                         at,
                         null));
+                notifyReward(
+                        staffAssignmentService.findCampusVicePrincipalIds(cls.campusId(), rules.today()),
+                        "Đề xuất khen thưởng chờ xét",
+                        "Lớp " + cls.name() + " gửi đề xuất khen thưởng cuối năm.");
             }
             log.info("{}|listId={}|items={}|status={}|END", logPrefix, listId, items.size(), list.getStatus());
             return toDetail(currentUser, cls, list);
@@ -242,6 +252,20 @@ public class RewardListServiceImpl implements RewardListService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    // OBS-31: luồng khen thưởng — GV gửi báo PHT, PHT chuyển báo HT, trả lại / duyệt báo GV lớp
+    private void notifyReward(Collection<Long> users, String title, String body) {
+        if (!users.isEmpty()) {
+            notificationService.notifyUsers(
+                    users, NotificationType.REWARD_LIST_UPDATED, title, body, "/assessment/rewards", false);
+        }
+    }
+
+    private List<Long> teachersOf(ClassroomInfoResponse cls) {
+        return staffAssignmentService
+                .findCurrentTeacherIds(List.of(cls.id()), rules.teachingDay(cls))
+                .getOrDefault(cls.id(), List.of());
     }
 
     @Override
@@ -274,6 +298,14 @@ public class RewardListServiceImpl implements RewardListService {
                     currentUser.userId(),
                     at,
                     comment));
+            if (forward) {
+                notifyReward(
+                        staffAssignmentService.findPrincipalIds(rules.today()),
+                        "Đề xuất khen thưởng chờ duyệt",
+                        "Phó hiệu trưởng đã xét đề xuất khen thưởng lớp " + cls.name() + ".");
+            } else {
+                notifyReward(teachersOf(cls), "Đề xuất khen thưởng bị trả lại", "Lý do: " + comment);
+            }
             log.info("{}|decision={}|END", logPrefix, decision);
             return toDetail(currentUser, cls, list);
         } catch (RuntimeException ex) {
@@ -315,6 +347,10 @@ public class RewardListServiceImpl implements RewardListService {
                     currentUser.userId(),
                     at,
                     comment));
+            notifyReward(
+                    teachersOf(cls),
+                    approve ? "Đề xuất khen thưởng đã duyệt" : "Đề xuất khen thưởng bị trả lại",
+                    approve ? "Hiệu trưởng đã duyệt đề xuất khen thưởng lớp " + cls.name() + "." : "Lý do: " + comment);
             log.info("{}|decision={}|END", logPrefix, decision);
             return toDetail(currentUser, cls, list);
         } catch (RuntimeException ex) {

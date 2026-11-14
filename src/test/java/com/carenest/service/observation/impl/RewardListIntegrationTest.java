@@ -158,6 +158,18 @@ class RewardListIntegrationTest {
 
         // Đã duyệt: GV không sửa được nữa
         expectCode(() -> service.save(teacherA, classA, list(item(kid1, GOOD)), false), ApiCode.REWARD_STATUS_CHANGED);
+
+        // OBS-31: gửi ⇒ PHT, chuyển ⇒ HT, trả lại / duyệt ⇒ GV lớp
+        assertThat(notifications(vpA.userId())).isEqualTo(2);
+        assertThat(notifications(principal.userId())).isEqualTo(1);
+        assertThat(notifications(teacherA.userId())).isEqualTo(2);
+    }
+
+    private int notifications(Long userId) {
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM notifications WHERE type = 'REWARD_LIST_UPDATED' AND user_id = ?",
+                Integer.class,
+                userId);
     }
 
     @Test
