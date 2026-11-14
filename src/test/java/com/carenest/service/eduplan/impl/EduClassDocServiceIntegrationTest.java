@@ -1634,6 +1634,37 @@ class EduClassDocServiceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Spec 005 khóa cứng: bản đã từng ban hành đang điều chỉnh qua hạn thì Hiệu trưởng không mở hạn")
+    void revisedReleasedPackageCannotBeExtendedAfterStart() {
+        jdbc.update("UPDATE classrooms SET created_at='2026-08-01' WHERE id=?", classId);
+        String key = "bp_" + classId + "_" + plan.id();
+        service.saveClassDoc(
+                teacher, "branch", key, branch(names("2026-09-07", "2026-09-21", "2026-09-28")), versionOf(key), null);
+        String sp = "sp_" + classId + "_" + plan.id() + "_1";
+        service.actOnClassDoc(principal, "semester", sp, extend("Lớp mới nhận", "2026-10-28"), versionOf(sp));
+        fillSemesterPackage(teacher, String.valueOf(classId), 1);
+        service.actOnClassDoc(teacher, "semester", sp, submit(), versionOf(sp));
+        service.actOnClassDoc(leader, "semester", sp, approve(), versionOf(sp));
+        service.actOnClassDoc(vicePrincipal, "semester", sp, approve(), versionOf(sp));
+        service.actOnClassDoc(teacher, "semester", sp, new ClassDocActionRequest("revise", null), versionOf(sp));
+        // Bản điều chỉnh còn Nháp khi tới hạn ⇒ khóa, bản ban hành cũ tiếp tục hiệu lực
+        jdbc.update(
+                "UPDATE edu_class_docs SET history = jsonb_set(history, '{0,deadline}', '\"2026-10-21\"') WHERE doc_key=?",
+                sp);
+        entityManager.clear();
+        assertThat(service.getClassDocs(principal, schoolYear).semesterPackages())
+                .filteredOn(d -> d.path("id").asString().equals(sp))
+                .singleElement()
+                .satisfies(d -> assertThat(d.path("canExtend").asBoolean()).isFalse());
+        assertThatThrownBy(() -> service.actOnClassDoc(
+                        principal, "semester", sp, extend("Sửa tiếp", "2026-10-30"), versionOf(sp)))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_VALUE);
+                    assertThat(ex.getMessage()).contains("đã ban hành");
+                });
+    }
+
+    @Test
     @DisplayName(
             "Spec 004 Q7 + spec 005 FR-017a: phiên bản mới đổi bảng góc ⇒ giáo án ngày tuần đó về Nháp; chỉ đổi chuẩn bị thì giữ")
     void newPackageVersionResetsOnlyChangedWeekDays() {

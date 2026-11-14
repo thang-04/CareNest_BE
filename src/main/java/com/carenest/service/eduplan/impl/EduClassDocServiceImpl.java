@@ -2110,6 +2110,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                             && accessPolicy.isPrincipal(currentUser)
                             && doc.getStatus() != EduClassDocStatus.REVIEW
                             && doc.getStatus() != EduClassDocStatus.APPROVED
+                            && !info.everReleased()
                             && locked);
             node.put(
                     "canRevise",
@@ -2617,7 +2618,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (!accessPolicy.isPrincipal(user)) throw GlobalException.of(ApiCode.NOT_YOUR_REVIEW_STEP, ACTION_EXTEND);
         if (note.isBlank()) throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "lý do mở hạn");
         if (deadline == null || !deadline.isAfter(today)) throw GlobalException.of(ApiCode.INVALID_VALUE, "hạn mới");
-        if (root.getStatus() == EduClassDocStatus.APPROVED)
+        // Spec 005 khóa cứng: đã từng ban hành (kể cả đang Nháp điều chỉnh) thì không mở hạn
+        if (root.getStatus() == EduClassDocStatus.APPROVED || info.everReleased())
             throw GlobalException.of(ApiCode.INVALID_VALUE, "tài liệu đã ban hành không mở khóa");
         if (root.getStatus() == EduClassDocStatus.REVIEW || !timeLocked(root, info, today))
             throw GlobalException.of(ApiCode.INVALID_VALUE, "chỉ mở hạn khi đã quá hạn");
