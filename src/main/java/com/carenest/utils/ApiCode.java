@@ -779,6 +779,11 @@ public enum ApiCode {
     WEEKLY_COMMENT_UNLOCK_ALREADY_ACTIVE(7402, HttpStatus.CONFLICT, "Lớp / tuần này đang có lần mở lại còn hiệu lực"),
     WEEKLY_COMMENT_UNLOCK_NOT_FOUND(7403, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại nhận xét tuần"),
     WEEKLY_COMMENT_WEEK_NOT_ENDED(7398, HttpStatus.CONFLICT, "Tuần này chưa kết thúc. Nhận xét tuần mở từ ngày {0}"),
+    EVALUATION_LOCKED(7404, HttpStatus.CONFLICT, "{0} đã khóa từ ngày {1}. Liên hệ PHT hoặc Hiệu trưởng để mở lại."),
+    EVALUATION_NOT_LOCKED_YET(7405, HttpStatus.CONFLICT, "{0} chưa quá hạn, chưa cần mở lại"),
+    EVALUATION_UNLOCK_ALREADY_ACTIVE(7406, HttpStatus.CONFLICT, "{0} của lớp này đang được mở lại"),
+    EVALUATION_UNLOCK_NOT_FOUND(7407, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại đánh giá"),
+    EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),

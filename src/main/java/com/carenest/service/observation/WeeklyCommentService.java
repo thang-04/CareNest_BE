@@ -45,4 +45,11 @@ public interface WeeklyCommentService {
 
     /** BGH: tình hình gửi nhận xét tuần của các lớp trong phạm vi, lớp quá hạn chưa gửi đủ. */
     List<WeeklyCommentClassSummary> getOverview(CurrentUser currentUser, Long campusId, LocalDate weekStart);
+
+    /**
+     * Tình hình một lớp – tuần cho việc nhắc (OBS-30), không kiểm quyền người xem; tuần ngoài năm học / chưa bắt đầu
+     * ⇒ rỗng.
+     */
+    java.util.Optional<WeeklyCommentClassSummary> summarize(
+            com.carenest.dto.organization.ClassroomInfoResponse cls, LocalDate weekStart);
 }

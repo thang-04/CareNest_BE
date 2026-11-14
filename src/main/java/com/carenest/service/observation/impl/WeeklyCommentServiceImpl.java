@@ -342,7 +342,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             }
             // Hạn do người mở chọn: sau hiện tại, không quá hết ngày kết thúc năm học
             Instant now = rules.now();
-            Instant yearEndAt = cls.yearEnd() == null
+            Instant yearEndAt = cls.yearEnd() == null || rules.today().isAfter(cls.yearEnd())
                     ? null
                     : cls.yearEnd()
                             .atTime(LocalTime.MAX)
@@ -369,6 +369,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                     now));
             WeeklyCommentUnlockResponse response =
                     unlockViews(List.of(unlock), Map.of(cls.id(), cls), now).getFirst();
+            notifyTeachersUnlocked(cls, response);
             log.info("{}|unlockId={}|END", logPrefix, unlock.getId());
             return response;
         } catch (RuntimeException ex) {
@@ -461,20 +462,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                         || !rules.canView(currentUser, cls)) {
                     continue;
                 }
-                LocalDate week;
-                try {
-                    week = weekOf(cls, weekStart);
-                } catch (GlobalException ex) {
-                    continue;
-                }
-                WeekOption range = weekRange(cls, week);
-                Map<Long, ClassChildResponse> roster = roster(cls, week);
-                int sent = (int) comments(roster.keySet(), week).values().stream()
-                        .filter(c -> c.isSent() && cls.id().equals(c.getClassroomId()))
-                        .count();
-                boolean overdue = range.locked() && range.unlockedUntil() == null && sent < roster.size();
-                result.add(new WeeklyCommentClassSummary(
-                        cls.id(), cls.name(), cls.campusId(), range, roster.size(), sent, overdue));
+                summaryOf(cls, weekStart).ifPresent(result::add);
             }
             log.info("{}|count={}|END", logPrefix, result.size());
             return result;
@@ -482,6 +470,30 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<WeeklyCommentClassSummary> summarize(ClassroomInfoResponse cls, LocalDate weekStart) {
+        return summaryOf(cls, weekStart);
+    }
+
+    // Đã gửi bao nhiêu / sĩ số tuần; quá hạn = đã khóa, không đang mở lại, chưa gửi đủ
+    private java.util.Optional<WeeklyCommentClassSummary> summaryOf(ClassroomInfoResponse cls, LocalDate weekStart) {
+        LocalDate week;
+        try {
+            week = weekOf(cls, weekStart);
+        } catch (GlobalException ex) {
+            return java.util.Optional.empty();
+        }
+        WeekOption range = weekRange(cls, week);
+        Map<Long, ClassChildResponse> roster = roster(cls, week);
+        int sent = (int) comments(roster.keySet(), week).values().stream()
+                .filter(c -> c.isSent() && cls.id().equals(c.getClassroomId()))
+                .count();
+        boolean overdue = range.locked() && range.unlockedUntil() == null && sent < roster.size();
+        return java.util.Optional.of(new WeeklyCommentClassSummary(
+                cls.id(), cls.name(), cls.campusId(), range, roster.size(), sent, overdue));
     }
 
     private List<WeeklyCommentUnlockResponse> unlockViews(
@@ -840,7 +852,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                 .findFirstByClassroomIdAndWeekStartAndValidUntilAfterOrderByIdDesc(cls.id(), week, rules.now())
                 .map(WeeklyCommentUnlock::getValidUntil)
                 .orElse(null);
-        return option(cls, week, lessonWeeks(cls, from, to).get(week), AssessmentDeadlines.WEEKLY_COMMENT, unlockedUntil);
+        return option(
+                cls, week, lessonWeeks(cls, from, to).get(week), AssessmentDeadlines.WEEKLY_COMMENT, unlockedUntil);
     }
 
     // Các tuần của năm học tới tuần hiện tại, mới nhất trước
@@ -948,6 +961,27 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
 
     private static boolean writable(WeekOption range) {
         return range.open() && (!range.locked() || range.unlockedUntil() != null);
+    }
+
+    // OBS-30: GV lớp biết lớp – tuần được mở lại tới khi nào
+    private void notifyTeachersUnlocked(ClassroomInfoResponse cls, WeeklyCommentUnlockResponse unlock) {
+        List<Long> teachers = staffAssignmentService
+                .findCurrentTeacherIds(List.of(cls.id()), rules.teachingDay(cls))
+                .getOrDefault(cls.id(), List.of());
+        if (teachers.isEmpty()) {
+            return;
+        }
+        String until = DateTimeFormatter.ofPattern("HH:mm dd/MM/yyyy")
+                .withZone(clock.getZone())
+                .format(unlock.validUntil());
+        String range = DM.format(unlock.weekFrom()) + " – " + DMY.format(unlock.weekEnd());
+        notificationService.notifyUsers(
+                teachers,
+                NotificationType.ASSESSMENT_REOPENED,
+                "Nhận xét tuần được mở lại",
+                "Nhận xét tuần " + range + " lớp " + cls.name() + " được mở lại đến " + until + ".",
+                AssessmentReminderLinks.weekly(cls.id(), unlock.weekStart()),
+                false);
     }
 
     // Gửi lại sau khi BGH mở lại: báo phụ huynh "đã cập nhật" thay cho "đã gửi"

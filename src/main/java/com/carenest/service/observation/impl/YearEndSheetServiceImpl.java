@@ -17,6 +17,7 @@ import com.carenest.repository.observation.ThemeEvaluationRepository.YearGoalRow
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.health.HealthMeasurementService;
+import com.carenest.service.observation.EvaluationDeadlineService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.observation.ThemeEvaluationService.ThemeGoalResult;
 import com.carenest.service.observation.YearEndSheetService;
@@ -24,6 +25,7 @@ import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -62,6 +64,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
     private final com.carenest.service.organization.SchoolYearService schoolYearService;
+    private final EvaluationDeadlineService evaluationDeadlineService;
 
     /** Ô lưu trong JSON: g = dòng gốc MT, m = đạt, x = GV sửa tay. */
     record StoredGoal(Long g, Boolean m, boolean x, Short n, String t, Long d, String dn, String s) {
@@ -390,6 +393,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         if (rules.today().isBefore(yearEndOpensOn(user, cls))) {
             throw GlobalException.of(ApiCode.YEAR_END_NOT_OPEN);
         }
+        evaluationDeadlineService.checkWritable(cls, EvaluationLockKind.YEAR, EvaluationDeadlineServiceImpl.YEAR_KEY);
         return cls;
     }
 

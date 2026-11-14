@@ -24,11 +24,13 @@ import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.eduplan.EduLessonQueryService;
 import com.carenest.service.eduplan.EduPlanCalendarQueryService;
+import com.carenest.service.observation.EvaluationDeadlineService;
 import com.carenest.service.observation.ThemeEvaluationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
@@ -72,6 +74,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
+    private final EvaluationDeadlineService evaluationDeadlineService;
 
     /** Ô lưu trong JSON: c = trẻ, g = dòng gốc MT, m = đạt, x = GV sửa tay. */
     record StoredCell(Long c, Long g, Boolean m, boolean x) {}
@@ -501,6 +504,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         if (rules.today().isBefore(theme.getStartDate())) {
             throw GlobalException.of(ApiCode.THEME_EVALUATION_NOT_STARTED);
         }
+        // OBS-27: quá hạn sau ngày kết thúc chủ đề thì khóa cả lớp, trừ khi BGH đang mở lại
+        evaluationDeadlineService.checkWritable(cls, EvaluationLockKind.THEME, String.valueOf(theme.getLineage()));
         rules.lockClassForUpdate(cls.id());
         ThemeEvaluation evaluation = evaluationRepository
                 .findByClassroomIdAndThemeId(cls.id(), theme.getLineage())

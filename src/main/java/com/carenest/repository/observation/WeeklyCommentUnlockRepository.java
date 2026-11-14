@@ -14,4 +14,6 @@ public interface WeeklyCommentUnlockRepository extends JpaRepository<WeeklyComme
     List<WeeklyCommentUnlock> findByClassroomIdAndValidUntilAfter(Long classroomId, Instant now);
 
     List<WeeklyCommentUnlock> findAllByOrderByUnlockedAtDescIdDesc();
+
+    List<WeeklyCommentUnlock> findByValidUntilBetween(Instant from, Instant to);
 }

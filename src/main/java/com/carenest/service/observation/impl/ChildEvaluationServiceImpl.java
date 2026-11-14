@@ -33,6 +33,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.observation.ChildEvaluationService;
+import com.carenest.service.observation.EvaluationDeadlineService;
 import com.carenest.service.observation.YearEndSheetService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.ClassroomService;
@@ -40,6 +41,7 @@ import com.carenest.service.organization.SchoolYearService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EvaluationAction;
+import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.EvaluationPeriodType;
 import com.carenest.utils.enums.EvaluationStatus;
 import com.carenest.utils.enums.SchoolYearStatus;
@@ -96,6 +98,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
     private final YearEndSheetService yearEndSheetService;
+    private final EvaluationDeadlineService evaluationDeadlineService;
 
     @Override
     @Transactional
@@ -829,6 +832,14 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
         // OBS-06 (Cần chốt 10/11/2026): cuối năm chỉ sửa / xác nhận từ ngày kết thúc HK II; trước đó chỉ xem
         if (ev.getPeriodType() == EvaluationPeriodType.YEAR && !yearEndOpen(user, cls)) {
             throw GlobalException.of(ApiCode.YEAR_END_NOT_OPEN);
+        }
+        // OBS-06, OBS-28: quá hạn sau ngày kết thúc học kỳ / HK II thì khóa cả lớp, trừ khi BGH đang mở lại
+        if (ev.getPeriodType() == EvaluationPeriodType.SEMESTER) {
+            evaluationDeadlineService.checkWritable(
+                    cls, EvaluationLockKind.SEMESTER, evaluationDeadlineService.semesterKey(cls, ev.getPeriodEnd()));
+        } else if (ev.getPeriodType() == EvaluationPeriodType.YEAR) {
+            evaluationDeadlineService.checkWritable(
+                    cls, EvaluationLockKind.YEAR, EvaluationDeadlineServiceImpl.YEAR_KEY);
         }
         return cls;
     }

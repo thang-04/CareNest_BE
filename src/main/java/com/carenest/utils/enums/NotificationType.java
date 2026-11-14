@@ -34,5 +34,11 @@ public enum NotificationType {
     EDU_DEADLINE_EXTENDED,
     EDU_DEADLINE_NEAR,
     /** GV gửi nhận xét tuần của trẻ, báo phụ huynh đã liên kết với trẻ (OBS-29). */
-    WEEKLY_COMMENT_SENT
+    WEEKLY_COMMENT_SENT,
+    // Nhắc việc (OBS-30): GV lớp — sắp tới giờ chốt điểm danh, chưa đánh giá ngày, đánh giá / nhận xét tuần mở,
+    // gần hạn, đã khóa; được mở lại, sắp hết thời gian mở lại. BGH — sổ báo ăn chưa xác nhận, lớp quá hạn đánh giá
+    ATTENDANCE_REMINDER,
+    ASSESSMENT_REMINDER,
+    ASSESSMENT_REOPENED,
+    LEADER_REMINDER
 }
