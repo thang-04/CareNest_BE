@@ -16168,6 +16168,11 @@ components:
           - ASSESSMENT_REMINDER
           - ASSESSMENT_REOPENED
           - LEADER_REMINDER
+          - STAFF_ASSIGNED
+          - CUTOFF_CHANGED
+          - LEAVE_REQUEST_CHANGED
+          - MEAL_COUNT_CONFIRMED
+          - REWARD_LIST_UPDATED
     NutritionTotals:
       type: object
       properties:
