@@ -34,7 +34,8 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 | POST `/auth/login` (mật khẩu tạm đã xác minh) | như trên | 428 `{expiresAt,passwordChangeRequired:true,changeToken}`; không phát cookie phiên/access/refresh token |
 | POST `/auth/refresh` | tùy chọn `{force:false}` | `{accessToken,expiresAt}` + `Set-Cookie` mới; đọc cookie `CARENEST_SESSION`, gộp request đồng thời; 401 kèm xóa cookie; `force` không còn tác dụng |
 | POST `/auth/logout` | — | 200, xóa cookie, best-effort logout Keycloak; cookie thiếu/hỏng vẫn 200 |
-| POST `/auth/password/forgot` | `{email}` | `{requestId,expiresAt,resendAvailableAt}`; cùng status/shape cho email không tồn tại, inactive, bị giới hạn hoặc thuộc tài khoản chỉ dùng App (bếp, phụ huynh — AUTH-21: không gửi OTP; mật khẩu mới do HT/PHT cấp lại mật khẩu tạm) |
+| POST `/auth/password/forgot` | `{email}` | `{requestId,expiresAt,resendAvailableAt}`; cùng status/shape cho email không tồn tại, inactive, bị giới hạn hoặc thuộc tài khoản chỉ dùng App (bếp, phụ huynh — AUTH-21: không gửi OTP; mật khẩu mới do HT/PHT cấp lại mật khẩu tạm hoặc tự đặt lại trên App, dòng dưới) |
+| POST `/auth/password/forgot/sms` | `{phone}` | App (AUTH-27): `{requestId,expiresAt,resendAvailableAt}`; OTP gửi SMS tới SĐT đăng nhập của phụ huynh/GV/bếp đang hoạt động. SĐT sai định dạng ⇒ 400 `INVALID_AUTH_REQUEST`; cùng status/shape cho SĐT không có tài khoản, tài khoản khóa, BGH/Admin, bị giới hạn. Resend/verify/reset dùng chung các dòng dưới; resend của yêu cầu này gửi lại qua SMS |
 | GET `/auth/password/otp/{requestId}` | — | metadata cùng shape, không chứa email/OTP |
 | POST `/auth/password/otp/{requestId}/resend` | — | metadata; khoảng cách 60 giây |
 | POST `/auth/password/otp/{requestId}/verify` | `{otp}` | `{resetToken,expiresAt}`; OTP một lần |
@@ -43,7 +44,7 @@ Endpoint OIDC lấy từ discovery: `{KEYCLOAK_HOSTNAME}/realms/carenest/.well-k
 
 Mọi response thành công dùng `{code,desc,data}` và `Cache-Control: no-store`. Cookie phiên `CARENEST_SESSION`: HttpOnly, SameSite=Lax, path `{API_PREFIX}/auth`, Secure theo cấu hình; remember bật thì Max-Age tối đa 10 giờ, tắt thì session cookie. Idle 30 phút và trần 10 giờ do Keycloak áp (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`); server chặn thêm absolute 10 giờ từ `loginAt` trong cookie. Refresh trả 503 khi provider tạm lỗi thì cookie được giữ, client thử lại được.
 
-OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; 5 lượt cấp/gửi lại trên email hash mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
+OTP: 6 số, hạn 5 phút, tối đa 5 lần sai trên cùng request kể cả resend; 5 lượt cấp/gửi lại trên hash email (Web) hoặc hash SĐT (App, AUTH-27) mỗi bucket 30 phút cố định. Request metadata sống tối đa 30 phút. Policy mật khẩu do Keycloak quyết định; policy từ chối giữ proof để sửa lại. Lỗi mutation không rõ kết quả tiêu hủy proof local; phải bắt đầu lại, không retry mù.
 
 Recovery/current-password dùng assertion HMAC hạn 60 giây, nonce một lần, ràng buộc realm/subject/issuer/audience/purpose để đổi lấy capability provider 10 phút. Không có API đổi mật khẩu chỉ bằng userId. Native MFA/required actions không được bỏ qua; gateway hiện chưa có UI nhận TOTP, tài khoản yêu cầu TOTP sẽ bị từ chối.
 
@@ -264,6 +265,7 @@ Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `
 - Sau đăng nhập gọi `GET /accounts/me` lấy `roles`, `permissions`, `assignments`, `childIds` để dựng menu/màn hình (menu/route theo `permissions`); ẩn nút ở UI không phải phân quyền (AUTH-07).
 - Web: màn ma trận quyền/ngoại lệ/lịch sử (`/school/roles`) đổi sang API phân quyền ở trên; bỏ mức F/R/N, mã dạng `user.manage` và role đăng nhập TEAM_LEADER của mock; tổ trưởng là GV có phân công, ma trận có cột `TEAM_LEADER` (AUTH-23).
 - Màn hình Admin (Web): `POST /accounts`, `PATCH /accounts/{userId}/status`; ẩn nút khóa trên chính tài khoản đang đăng nhập (BE trả 400, AUTH-09).
+- Quên mật khẩu App (AUTH-27, màn trong App — P-41): `GET /auth/csrf` ⇒ `POST /auth/password/forgot/sms` `{phone}` ⇒ `POST /auth/password/otp/{requestId}/verify` `{otp}` ⇒ `POST /auth/password/reset`; mọi POST gửi header `X-XSRF-TOKEN` và cookie `XSRF-TOKEN` lấy từ bước đầu. Cần `CARENEST_AUTH_ENABLED=true` ở môi trường đó. Sau reset, đăng nhập lại qua PKCE.
 - Logout: Web gateway gọi `/auth/logout` + CSRF và xóa access token trong memory; Web legacy gọi `end_session`; Mobile gọi `logout` + xóa token trong secure storage.
 - PHT xem mọi cơ sở (AUTH-20, chốt 31/10): mã `ALL_CAMPUS_VIEW` đã bỏ khỏi `Permission` (V39 xóa dòng ma trận/ngoại lệ cũ; lịch sử giữ chuỗi gốc). FE bỏ mã này ở danh mục quyền/ngoại lệ (`permissionConstants.js`, `permissionCatalog.js`) và luôn hiện bộ lọc điểm trường cho PHT; gửi mã cũ trong `PUT .../permission-overrides` ⇒ 400.
 - Types: sinh lại từ `docs/api/openapi.yaml`.

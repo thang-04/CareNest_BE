@@ -18,6 +18,8 @@ import com.carenest.dto.account.MyAccountResponse;
 import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.AuthGatewayClient;
+import com.carenest.integration.sms.SmsDeliveryException;
+import com.carenest.integration.sms.SmsGateway;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.AuthCrypto;
 import com.carenest.security.CurrentUser;
@@ -67,6 +69,9 @@ class AuthServiceImplTest {
 
     @Mock
     private AccountService accounts;
+
+    @Mock
+    private SmsGateway smsGateway;
 
     @InjectMocks
     private AuthServiceImpl service;
@@ -131,7 +136,8 @@ class AuthServiceImplTest {
                         false,
                         java.time.Duration.ofSeconds(3),
                         java.time.Duration.ofSeconds(5)),
-                new AuthRefreshCoalescer(clock));
+                new AuthRefreshCoalescer(clock),
+                smsGateway);
     }
 
     private static String key() {
@@ -561,6 +567,130 @@ class AuthServiceImplTest {
         assertThat(saved.getAllValues())
                 .allSatisfy(token -> assertThat(token.getUserId()).isNull());
         verify(keycloak, never()).sendOtp(any(), any());
+    }
+
+    @Test
+    @DisplayName("AUTH-27: quên mật khẩu App gửi OTP qua SMS; SĐT lạ trả cùng dạng, không gửi, không lưu mã thô")
+    void smsRecoveryKeepsOneShapeAndSendsOnlyToEligiblePhone() {
+        given(state.takeRate(any(), org.mockito.ArgumentMatchers.eq(5), any())).willReturn(true);
+        UserAccount parent = UserAccount.create("kc-parent", "0912345678", null, "Phụ huynh Demo", CareNestRole.PARENT);
+        given(userAccounts.findByUsername("0912345678")).willReturn(Optional.of(parent));
+        given(userAccounts.findByUsername("0987654321")).willReturn(Optional.empty());
+
+        var known = service.forgotBySms(new AuthRequests.ForgotSms("+84 912 345 678"));
+        var unknown = service.forgotBySms(new AuthRequests.ForgotSms("0987654321"));
+
+        assertThat(known.expiresAt()).isEqualTo(unknown.expiresAt());
+        assertThat(known.resendAvailableAt()).isEqualTo(unknown.resendAvailableAt());
+        assertThat(unknown.requestId()).hasSize(43).isNotEqualTo(known.requestId());
+        var text = ArgumentCaptor.forClass(String.class);
+        verify(smsGateway).send(org.mockito.ArgumentMatchers.eq("0912345678"), text.capture());
+        verifyNoMoreInteractions(smsGateway);
+        verify(keycloak, never()).sendOtp(any(), any());
+        var code = java.util.regex.Pattern.compile("\\d{6}").matcher(text.getValue());
+        assertThat(code.find()).isTrue();
+        var saved = ArgumentCaptor.forClass(com.carenest.entity.account.PasswordToken.class);
+        verify(state, times(2)).savePasswordToken(saved.capture());
+        var first = saved.getAllValues().getFirst();
+        assertThat(first.getLookupHash()).isEqualTo(crypto.keyedHash("phone:0912345678"));
+        assertThat(first.getOtpHmac()).hasSize(64).doesNotContain(code.group());
+        assertThat(saved.getAllValues().getLast().getUserId()).isNull();
+    }
+
+    @Test
+    @DisplayName("AUTH-27: chỉ phụ huynh, GV, bếp đang hoạt động nhận OTP SMS; BGH, tài khoản khóa không nhận")
+    void smsRecoveryOnlyForActiveAppAccounts() {
+        given(state.takeRate(any(), org.mockito.ArgumentMatchers.eq(5), any())).willReturn(true);
+        UserAccount teacher = UserAccount.create("kc-t", "0911111111", null, "Giáo viên Demo", CareNestRole.TEACHER);
+        UserAccount kitchen = UserAccount.create("kc-k", "0922222222", null, "Bếp Demo", CareNestRole.KITCHEN_STAFF);
+        UserAccount principal =
+                UserAccount.create("kc-p", "0933333333", null, "Hiệu trưởng Demo", CareNestRole.PRINCIPAL);
+        UserAccount locked = UserAccount.create("kc-l", "0944444444", null, "Phụ huynh Demo", CareNestRole.PARENT);
+        locked.lockBySystem();
+        for (UserAccount a : List.of(teacher, kitchen, principal, locked))
+            given(userAccounts.findByUsername(a.getUsername())).willReturn(Optional.of(a));
+
+        for (UserAccount a : List.of(teacher, kitchen, principal, locked))
+            service.forgotBySms(new AuthRequests.ForgotSms(a.getUsername()));
+
+        verify(smsGateway).send(org.mockito.ArgumentMatchers.eq("0911111111"), any());
+        verify(smsGateway).send(org.mockito.ArgumentMatchers.eq("0922222222"), any());
+        verifyNoMoreInteractions(smsGateway);
+    }
+
+    @Test
+    @DisplayName("AUTH-27: vượt giới hạn gửi theo SĐT thì không gửi SMS, phản hồi vẫn cùng dạng")
+    void smsRecoveryRespectsRateLimit() {
+        given(state.takeRate(any(), org.mockito.ArgumentMatchers.eq(5), any())).willReturn(false);
+
+        var reply = service.forgotBySms(new AuthRequests.ForgotSms("0912345678"));
+
+        assertThat(reply.requestId()).hasSize(43);
+        verify(userAccounts, never()).findByUsername(any());
+        verifyNoInteractions(smsGateway);
+    }
+
+    @Test
+    @DisplayName("AUTH-27: SĐT sai định dạng trả 400, không lưu token")
+    void smsRecoveryRejectsMalformedPhone() {
+        assertThatThrownBy(() -> service.forgotBySms(new AuthRequests.ForgotSms("12345")))
+                .isInstanceOf(GlobalException.class)
+                .hasMessage(ApiCode.INVALID_AUTH_REQUEST.getDefaultDesc());
+        verify(state, never()).savePasswordToken(any());
+        verifyNoInteractions(smsGateway);
+    }
+
+    @Test
+    @DisplayName("AUTH-27: cổng SMS lỗi không làm lộ lỗi ra phản hồi công khai")
+    void smsRecoveryHidesGatewayFailure() {
+        given(state.takeRate(any(), org.mockito.ArgumentMatchers.eq(5), any())).willReturn(true);
+        UserAccount parent = UserAccount.create("kc-parent", "0912345678", null, "Phụ huynh Demo", CareNestRole.PARENT);
+        given(userAccounts.findByUsername("0912345678")).willReturn(Optional.of(parent));
+        org.mockito.Mockito.doThrow(new SmsDeliveryException("down")).when(smsGateway).send(any(), any());
+
+        var reply = service.forgotBySms(new AuthRequests.ForgotSms("0912345678"));
+
+        assertThat(reply.requestId()).hasSize(43);
+    }
+
+    @Test
+    @DisplayName("AUTH-27: gửi lại mã của yêu cầu tạo qua SMS thì gửi SMS, của yêu cầu email thì gửi email")
+    void resendUsesTheChannelOfTheOriginalRequest() throws Exception {
+        UserAccount kitchen = UserAccount.create("kc-k", "0922222222", null, "Bếp Demo", CareNestRole.KITCHEN_STAFF);
+        Field id = UserAccount.class.getDeclaredField("id");
+        id.setAccessible(true);
+        id.set(kitchen, 93L);
+        given(userAccounts.findById(93L)).willReturn(Optional.of(kitchen));
+        given(userAccounts.findById(91L)).willReturn(Optional.of(account));
+        String smsToken = stubResend(93L, "kc-k", crypto.keyedHash("phone:0922222222"));
+        String emailToken = stubResend(91L, "kc-user-1", crypto.keyedHash("email:teacher@example.test"));
+
+        service.resend(smsToken);
+        service.resend(emailToken);
+
+        verify(smsGateway).send(org.mockito.ArgumentMatchers.eq("0922222222"), any());
+        verifyNoMoreInteractions(smsGateway);
+        verify(keycloak).sendOtp(org.mockito.ArgumentMatchers.eq("kc-user-1"), any());
+        verify(keycloak, never()).sendOtp(org.mockito.ArgumentMatchers.eq("kc-k"), any());
+    }
+
+    private String stubResend(Long userId, String subject, String lookup) {
+        String token = crypto.randomToken();
+        String hash = crypto.hash(token);
+        var challenge = new AuthStateStore.PasswordTokenState(
+                hash,
+                userId,
+                subject,
+                lookup,
+                null,
+                PasswordTokenPurpose.OTP,
+                clock.instant().plusSeconds(300),
+                clock.instant());
+        var ready = new AuthStateStore.Claim<>(AuthStateStore.Status.READY, challenge);
+        given(state.metadata(hash, clock.instant())).willReturn(ready);
+        given(state.resend(org.mockito.ArgumentMatchers.eq(hash), any(), any(), any(), any()))
+                .willReturn(ready);
+        return token;
     }
 
     private static CurrentUser userWithRoles(CareNestRole... roles) {

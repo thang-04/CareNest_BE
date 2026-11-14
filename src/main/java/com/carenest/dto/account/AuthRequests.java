@@ -24,6 +24,14 @@ public final class AuthRequests {
         }
     }
 
+    /** AUTH-27: quên mật khẩu trên App, mã OTP gửi SMS tới SĐT đăng nhập. */
+    public record ForgotSms(@NotBlank @Size(max = 20) String phone) {
+        @Override
+        public String toString() {
+            return "ForgotSms[redacted]";
+        }
+    }
+
     public record VerifyOtp(
             @NotNull @Pattern(regexp = "[0-9]{6}") String otp) {
         @Override

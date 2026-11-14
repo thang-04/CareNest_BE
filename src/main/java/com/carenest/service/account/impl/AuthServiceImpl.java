@@ -9,6 +9,7 @@ import com.carenest.entity.account.UserAccount;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.keycloak.AuthGatewayClient;
 import com.carenest.integration.keycloak.KeycloakProperties;
+import com.carenest.integration.sms.SmsGateway;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.AuthCrypto;
 import com.carenest.security.CurrentUser;
@@ -43,6 +44,9 @@ public class AuthServiceImpl implements AuthService {
     private static final int MAX_COOKIE_LENGTH = 4096;
     // AUTH-21: bếp và phụ huynh chỉ dùng App, gateway Web không cấp phiên cho họ
     private static final Set<CareNestRole> WEB_ROLES = ClientPlatform.WEB.allowedRoles();
+    // AUTH-27: chỉ phụ huynh, GV, bếp tự đặt lại mật khẩu bằng OTP SMS trên App
+    private static final Set<CareNestRole> SMS_RECOVERY_ROLES =
+            Set.of(CareNestRole.PARENT, CareNestRole.TEACHER, CareNestRole.KITCHEN_STAFF);
 
     private final AuthProperties properties;
     private final AuthCrypto crypto;
@@ -55,6 +59,7 @@ public class AuthServiceImpl implements AuthService {
     private final Clock clock;
     private final KeycloakProperties identity;
     private final AuthRefreshCoalescer refreshes;
+    private final SmsGateway sms;
 
     public AuthServiceImpl(
             AuthProperties properties,
@@ -67,7 +72,8 @@ public class AuthServiceImpl implements AuthService {
             AccountService accountService,
             Clock clock,
             KeycloakProperties identity,
-            AuthRefreshCoalescer refreshes) {
+            AuthRefreshCoalescer refreshes,
+            SmsGateway sms) {
         this.properties = properties;
         this.crypto = crypto;
         this.keycloak = keycloak;
@@ -79,6 +85,7 @@ public class AuthServiceImpl implements AuthService {
         this.clock = clock;
         this.identity = identity;
         this.refreshes = refreshes;
+        this.sms = sms;
     }
 
     @Override
@@ -273,35 +280,45 @@ public class AuthServiceImpl implements AuthService {
             Instant now = clock.instant();
             String email = request.email().trim().toLowerCase(Locale.ROOT);
             String lookup = crypto.keyedHash("email:" + email);
-            long window = now.getEpochSecond() / 1800;
-            boolean allowed = state.takeRate(
-                    crypto.keyedHash("recovery-rate:" + lookup + ":" + window),
-                    Auth.RATE_LIMIT,
-                    Instant.ofEpochSecond((window + 1) * 1800));
+            boolean allowed = takeRecoveryRate(lookup, now);
             // AUTH-21: bếp/phụ huynh không khôi phục mật khẩu qua Web; coi như email không tồn tại để không lộ loại TK
             List<UserAccount> matches = accounts.findByEmailIgnoreCase(email).stream()
                     .filter(UserAccount::isActive)
                     .filter(AuthServiceImpl::mayUseWeb)
                     .toList();
             UserAccount account = matches.size() == 1 && allowed ? matches.getFirst() : null;
-            String requestId = crypto.randomToken();
-            String hash = crypto.hash(requestId);
-            String code = crypto.randomOtp();
-            state.savePasswordToken(PasswordToken.create(
-                    hash,
-                    PasswordTokenPurpose.OTP,
-                    account == null ? null : account.getId(),
-                    account == null ? null : account.getKeycloakUserId(),
-                    lookup,
-                    null,
-                    crypto.otpDigest(requestId, code),
-                    now,
-                    now.plusSeconds(Auth.OTP_SECONDS),
-                    now.plusSeconds(Auth.OTP_RESEND_SECONDS)));
-            if (account != null) sendOtpQuietly(account.getKeycloakUserId(), code);
+            IssuedOtp issued = issueOtp(account, lookup, now);
+            if (account != null) sendOtpQuietly(account.getKeycloakUserId(), issued.code());
             log.info("{}|END", logPrefix);
-            return new AuthResponses.OtpRequest(
-                    requestId, now.plusSeconds(Auth.OTP_SECONDS), now.plusSeconds(Auth.OTP_RESEND_SECONDS));
+            return issuedResponse(issued.requestId(), now);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public AuthResponses.OtpRequest forgotBySms(AuthRequests.ForgotSms request) {
+        String logPrefix = LOG_PREFIX + "|forgotBySms";
+        log.info("{}|START", logPrefix);
+        try {
+            ensureEnabled();
+            if (request == null) throw malformed();
+            String phone = PhoneNumbers.normalize(request.phone()).orElseThrow(AuthServiceImpl::malformed);
+            Instant now = clock.instant();
+            String lookup = phoneLookup(phone);
+            boolean allowed = takeRecoveryRate(lookup, now);
+            // AUTH-27: SĐT không có tài khoản phụ huynh/GV/bếp đang hoạt động vẫn trả cùng dạng, không gửi SMS
+            UserAccount account = allowed
+                    ? accounts.findByUsername(phone)
+                            .filter(UserAccount::isActive)
+                            .filter(AuthServiceImpl::mayRecoverBySms)
+                            .orElse(null)
+                    : null;
+            IssuedOtp issued = issueOtp(account, lookup, now);
+            if (account != null) sendSmsOtpQuietly(phone, issued.code());
+            log.info("{}|END", logPrefix);
+            return issuedResponse(issued.requestId(), now);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -346,7 +363,7 @@ public class AuthServiceImpl implements AuthService {
             if (changed.status() == AuthStateStore.Status.THROTTLED)
                 throw GlobalException.of(ApiCode.OTP_RESEND_TOO_SOON);
             if (changed.status() != AuthStateStore.Status.READY) throw notFound();
-            if (changed.data().userId() != null) sendOtpQuietly(changed.data().subject(), code);
+            if (changed.data().userId() != null) resendCode(changed.data(), code);
             log.info("{}|END", logPrefix);
             return otpResponse(raw, changed.data());
         } catch (RuntimeException ex) {
@@ -491,6 +508,71 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
+    private void sendSmsOtpQuietly(String phone, String code) {
+        try {
+            // Tin không dấu để vừa một SMS; không log nội dung (có mã OTP)
+            sms.send(
+                    phone,
+                    "CareNest: Ma dat lai mat khau " + code + ", hieu luc " + Auth.OTP_SECONDS / 60
+                            + " phut. Khong chia se ma nay.");
+        } catch (RuntimeException ex) {
+            // Phản hồi công khai giữ một dạng; người dùng bấm gửi lại mã được
+            log.warn("{}|sendSmsOtp|ERROR|type={}", LOG_PREFIX, ex.getClass().getSimpleName());
+        }
+    }
+
+    // AUTH-27: yêu cầu tạo qua SMS có lookup theo SĐT đăng nhập ⇒ gửi lại qua SMS; còn lại qua email (Keycloak)
+    private void resendCode(AuthStateStore.PasswordTokenState otp, String code) {
+        UserAccount account = accounts.findById(otp.userId()).orElse(null);
+        if (account != null && phoneLookup(account.getUsername()).equals(otp.lookupHash())) {
+            sendSmsOtpQuietly(account.getUsername(), code);
+        } else {
+            sendOtpQuietly(otp.subject(), code);
+        }
+    }
+
+    private String phoneLookup(String phone) {
+        return crypto.keyedHash("phone:" + phone);
+    }
+
+    private boolean takeRecoveryRate(String lookup, Instant now) {
+        long window = now.getEpochSecond() / 1800;
+        return state.takeRate(
+                crypto.keyedHash("recovery-rate:" + lookup + ":" + window),
+                Auth.RATE_LIMIT,
+                Instant.ofEpochSecond((window + 1) * 1800));
+    }
+
+    /** Lưu token OTP (chỉ HMAC của mã); tài khoản null vẫn lưu để phản hồi cùng một dạng. */
+    private IssuedOtp issueOtp(UserAccount account, String lookup, Instant now) {
+        String requestId = crypto.randomToken();
+        String code = crypto.randomOtp();
+        state.savePasswordToken(PasswordToken.create(
+                crypto.hash(requestId),
+                PasswordTokenPurpose.OTP,
+                account == null ? null : account.getId(),
+                account == null ? null : account.getKeycloakUserId(),
+                lookup,
+                null,
+                crypto.otpDigest(requestId, code),
+                now,
+                now.plusSeconds(Auth.OTP_SECONDS),
+                now.plusSeconds(Auth.OTP_RESEND_SECONDS)));
+        return new IssuedOtp(requestId, code);
+    }
+
+    private static AuthResponses.OtpRequest issuedResponse(String requestId, Instant now) {
+        return new AuthResponses.OtpRequest(
+                requestId, now.plusSeconds(Auth.OTP_SECONDS), now.plusSeconds(Auth.OTP_RESEND_SECONDS));
+    }
+
+    private record IssuedOtp(String requestId, String code) {
+        @Override
+        public String toString() {
+            return "IssuedOtp[redacted]";
+        }
+    }
+
     private Jwt decode(String raw) {
         return jwtDecoder.decode(raw);
     }
@@ -515,6 +597,10 @@ public class AuthServiceImpl implements AuthService {
     // Tài khoản cũ chưa có primary_role cho qua, như nhánh đổi mật khẩu lần đầu
     private static boolean mayUseWeb(UserAccount account) {
         return account.getPrimaryRole() == null || WEB_ROLES.contains(account.getPrimaryRole());
+    }
+
+    private static boolean mayRecoverBySms(UserAccount account) {
+        return account.getPrimaryRole() != null && SMS_RECOVERY_ROLES.contains(account.getPrimaryRole());
     }
 
     private static GlobalException malformed() {

@@ -121,6 +121,16 @@ public class AuthController {
         return response(ApiCode.SUCCESSFUL, "If the account is eligible, a recovery code has been sent", accepted);
     }
 
+    @PostMapping("/password/forgot/sms")
+    public ResponseEntity<ResponseJson<AuthResponses.OtpRequest>> forgotBySms(
+            @Valid @RequestBody AuthRequests.ForgotSms request) {
+        String logPrefix = LOG_PREFIX + "|forgotBySms";
+        log.info("{}|START", logPrefix);
+        AuthResponses.OtpRequest accepted = service.forgotBySms(request);
+        log.info("{}|END", logPrefix);
+        return response(ApiCode.SUCCESSFUL, "If the account is eligible, a recovery code has been sent", accepted);
+    }
+
     @GetMapping("/password/otp/{requestId}")
     public ResponseEntity<ResponseJson<AuthResponses.OtpRequest>> otpMetadata(@PathVariable String requestId) {
         String logPrefix = LOG_PREFIX + "|otpMetadata";

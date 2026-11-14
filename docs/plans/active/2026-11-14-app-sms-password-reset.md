@@ -89,3 +89,9 @@ Tài liệu vs yêu cầu: lệch AUTH-21 (2026-10-30) — user chọn yêu cầ
 
 ### 2026-11-14 — approved
 - User duyệt plan, chọn phương án A, P-41 = màn trong App, Jira G94-87. Bắt đầu Phase 1.
+
+### 2026-11-14 — Phase 1 (chờ review)
+- Làm: `POST /auth/password/forgot/sms` (`AuthController#forgotBySms`), `AuthRequests.ForgotSms`, `AuthServiceImpl.forgotBySms` + `resendCode` (kênh suy từ `lookup_hash` = HMAC "phone:"+SĐT, không migration), tách helper `issueOtp`/`takeRecoveryRate` dùng chung với luồng email. Snapshot `openapi.yaml`, `API_INDEX.md`, `AUTH_CONTRACT.md`.
+- Khác plan: không sửa `utils/` (vùng dùng chung) — dùng hằng `Auth.*` có sẵn; tập role khôi phục SMS khai báo riêng trong `AuthServiceImpl` (không dùng `ClientPlatform.MOBILE` vì nhánh TBD-1 thêm BGH vào App).
+- `SecurityConfig.authPostMatcher` thêm `/auth/password/forgot/sms` (user duyệt bản tác động 14/11, phương án A): công khai khi gateway bật, kiểm CSRF. Test đặt ở `AuthControllerTest` (nơi đã test các path khôi phục với CSRF) thay `SecurityConfigTest`: thêm `smsRecoveryIsPublicWithCsrf`, thêm path vào `everyPublicMutationRequiresCsrfEvenWithBearer`; hai test fail (401) trước khi sửa config, pass sau.
+- Verify: `./mvnw -o test -Dtest='*Auth*Test,*Security*Test,ResponseContractTest,OpenApiSnapshotTest,ArchitectureRulesTest'` pass, 0 fail, 0 skip (AuthServiceImplTest 32/32 có 6 test AUTH-27, AuthControllerTest 16/16, SecurityConfigTest 15/15, OpenApiSnapshotTest 4/4 sau `-Dopenapi.snapshot.update=true`, ArchitectureRulesTest 14/14). Chưa chạy toàn bộ suite.

@@ -213,6 +213,8 @@ public class SecurityConfig {
                 paths.matcher(HttpMethod.POST, prefix + "/auth/refresh"),
                 paths.matcher(HttpMethod.POST, prefix + "/auth/logout"),
                 paths.matcher(HttpMethod.POST, prefix + "/auth/password/forgot"),
+                // AUTH-27: quên mật khẩu App qua SMS, công khai và kiểm CSRF như các bước khôi phục khác
+                paths.matcher(HttpMethod.POST, prefix + "/auth/password/forgot/sms"),
                 paths.matcher(HttpMethod.POST, prefix + "/auth/password/otp/{requestId}/resend"),
                 paths.matcher(HttpMethod.POST, prefix + "/auth/password/otp/{requestId}/verify"),
                 paths.matcher(HttpMethod.POST, prefix + "/auth/password/reset"));

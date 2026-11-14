@@ -38,6 +38,8 @@ public interface AuthService {
 
     AuthResponses.OtpRequest forgot(AuthRequests.Forgot request);
 
+    AuthResponses.OtpRequest forgotBySms(AuthRequests.ForgotSms request);
+
     AuthResponses.OtpRequest otpMetadata(String requestId);
 
     AuthResponses.OtpRequest resend(String requestId);

@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 335 endpoint.
+Tổng: 336 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -80,6 +80,7 @@ GET /auth/csrf · src/main/java/com/carenest/controller/account/AuthController.j
 POST /auth/login · src/main/java/com/carenest/controller/account/AuthController.java#login
 POST /auth/logout · src/main/java/com/carenest/controller/account/AuthController.java#logout
 POST /auth/password/forgot · src/main/java/com/carenest/controller/account/AuthController.java#forgot
+POST /auth/password/forgot/sms · src/main/java/com/carenest/controller/account/AuthController.java#forgotBySms
 GET /auth/password/otp/{requestId} · src/main/java/com/carenest/controller/account/AuthController.java#otpMetadata
 POST /auth/password/otp/{requestId}/resend · src/main/java/com/carenest/controller/account/AuthController.java#resend
 POST /auth/password/otp/{requestId}/verify · src/main/java/com/carenest/controller/account/AuthController.java#verifyOtp

@@ -260,12 +260,28 @@ class AuthControllerTest {
     }
 
     @Test
+    @DisplayName("AUTH-27: quên mật khẩu App qua SMS gọi được không cần Bearer, có CSRF, không trả OTP")
+    void smsRecoveryIsPublicWithCsrf() throws Exception {
+        given(service.forgotBySms(any()))
+                .willReturn(new AuthResponses.OtpRequest(
+                        OPAQUE, Instant.now().plusSeconds(300), Instant.now().plusSeconds(60)));
+        mvc.perform(csrf(post("/api/auth/password/forgot/sms"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"phone\":\"0912345678\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.requestId").value(OPAQUE))
+                .andExpect(jsonPath("$.data.otp").doesNotExist());
+        verify(service).forgotBySms(any());
+    }
+
+    @Test
     void everyPublicMutationRequiresCsrfEvenWithBearer() throws Exception {
         for (String path : java.util.List.of(
                 "login",
                 "refresh",
                 "logout",
                 "password/forgot",
+                "password/forgot/sms",
                 "password/reset",
                 "password/otp/" + OPAQUE + "/resend",
                 "password/otp/" + OPAQUE + "/verify")) {

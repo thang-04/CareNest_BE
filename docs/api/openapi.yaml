@@ -1613,6 +1613,25 @@ paths:
       security: []
       tags:
       - auth-controller
+  /api/auth/password/forgot/sms:
+    post:
+      operationId: forgotBySms
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotSms"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonOtpRequest"
+          description: OK
+      security: []
+      tags:
+      - auth-controller
   /api/auth/password/otp/{requestId}:
     get:
       operationId: otpMetadata
@@ -12719,6 +12738,15 @@ components:
           minLength: 0
       required:
       - email
+    ForgotSms:
+      type: object
+      properties:
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 0
+      required:
+      - phone
     FreshCheckLine:
       type: object
       properties:
