@@ -269,6 +269,17 @@ Chỉ áp dụng khi `CARENEST_SMS_PROVIDER` là nhà cung cấp thật (vd. `te
 | Gửi lại trong 60 giây | 429 / 1007 `OTP_RESEND_TOO_SOON` |
 | Gửi lại cho tài khoản đã kích hoạt hoặc tạo bằng mật khẩu tạm | 409 / 1144 `ACTIVATION_NOT_PENDING` |
 
+### Ảnh đại diện tài khoản (AUTH-27, từ 14/11/2026)
+
+| Endpoint | Ai gọi | Ghi chú |
+| --- | --- | --- |
+| `PUT /accounts/me/photo` (multipart `file`) | mọi tài khoản đăng nhập | JPG/PNG/WEBP ≤ 2 MB, kho `USER_AVATAR` (`avatars/users/`); thay ảnh cũ |
+| `DELETE /accounts/me/photo` | mọi tài khoản đăng nhập | Bỏ ảnh; chưa có ảnh vẫn 200. Tài khoản có role phụ huynh ⇒ 403 / 1145 `ACCOUNT_PHOTO_REQUIRED` |
+| `GET /accounts/me/photo`, `GET /accounts/me/photo/url` | mọi tài khoản đăng nhập | Chưa có ảnh ⇒ 404 / 1132 |
+| `POST /accounts/photos/urls` `{ userIds: [1..100] }` | mọi tài khoản đăng nhập | `[{ userId, url, expiresAt }]` chỉ người có ảnh, là nhân sự (hoặc chính mình) và được xem theo AUTH-27; người khác bị bỏ qua, không báo lỗi. Rỗng/>100/id ≤ 0 ⇒ 400 |
+
+Quyền xem (`AccountPhotoAccessPolicy`): Admin/HT xem mọi nhân sự; PHT/GV/bếp xem nhân sự cùng điểm trường theo phân công hôm nay (GV qua lớp) và mọi HT; phụ huynh xem GV đang dạy lớp con; ai cũng xem ảnh mình. Ảnh phụ huynh vẫn chỉ xem qua `/children/{childId}/guardians/{userId}/photo[/url]`.
+
 ## Tác động FE/APP (BE không sửa repo khác)
 
 Cần thống nhất và làm ở `CareNest_FE` / `CareNest_APP` (cập nhật `FE:docs/integration/AUTH_FLOW.md`, `APP:docs/integration/AUTH_FLOW.md`, `BACKEND_INTEGRATION.md` của từng repo):

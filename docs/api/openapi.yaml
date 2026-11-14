@@ -121,6 +121,17 @@ paths:
       tags:
       - account-controller
   /api/accounts/me/photo:
+    delete:
+      operationId: deleteMyPhoto
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAccountPhotoResponse"
+          description: OK
+      tags:
+      - account-photo-controller
     get:
       operationId: getMyPhoto
       responses:
@@ -164,6 +175,24 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ResponseJsonFileUrlResponse"
+          description: OK
+      tags:
+      - account-photo-controller
+  /api/accounts/photos/urls:
+    post:
+      operationId: findPhotoUrls
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AccountPhotoUrlsRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAccountPhotoUrlResponse"
           description: OK
       tags:
       - account-photo-controller
@@ -8257,6 +8286,30 @@ components:
           type: boolean
         profileUpdateRequired:
           type: boolean
+    AccountPhotoUrlResponse:
+      type: object
+      properties:
+        expiresAt:
+          type: string
+          format: date-time
+        url:
+          type: string
+        userId:
+          type: integer
+          format: int64
+    AccountPhotoUrlsRequest:
+      type: object
+      properties:
+        userIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+            exclusiveMinimum: 0
+          maxItems: 100
+          minItems: 0
+      required:
+      - userIds
     AccountResponse:
       type: object
       properties:
@@ -18581,6 +18634,21 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/LeaveRequestResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListAccountPhotoUrlResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountPhotoUrlResponse"
         desc:
           type: string
         errorCode:
