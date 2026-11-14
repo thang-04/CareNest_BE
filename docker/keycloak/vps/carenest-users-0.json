@@ -3,7 +3,7 @@
   "users": [
     {
       "id": "00000000-0000-4000-a000-000000000001",
-      "username": "0861723024",
+      "username": "admin",
       "enabled": true,
       "firstName": "Hoàng Công Lâm",
       "email": "lam.hoangcong@thuonghong.carenest.edu.vn",
@@ -21,7 +21,7 @@
     },
     {
       "id": "00000000-0000-4000-a000-000000000002",
-      "username": "0399825361",
+      "username": "principal",
       "enabled": true,
       "firstName": "Hoàng Minh Tuyết",
       "email": "tuyet.hoangminh@thuonghong.carenest.edu.vn",
@@ -39,7 +39,7 @@
     },
     {
       "id": "00000000-0000-4000-a000-000000000003",
-      "username": "0392274816",
+      "username": "viceprincipal",
       "enabled": true,
       "firstName": "Lê Thị Tâm",
       "email": "tam.lethi@thuonghong.carenest.edu.vn",
@@ -128,7 +128,7 @@
       ]
     },
     {
-      "id": "00000000-0000-4000-a000-000000000005",
+      "id": "00000000-0000-4000-b000-000000000005",
       "username": "0985648263",
       "enabled": true,
       "firstName": "Trần Mai Yến",
@@ -147,7 +147,7 @@
     },
     {
       "id": "00000000-0000-4000-a000-000000000004",
-      "username": "0902197238",
+      "username": "teacher1",
       "enabled": true,
       "firstName": "Nguyễn Kim Lan",
       "email": "lan.nguyenkim@thuonghong.carenest.edu.vn",
@@ -164,8 +164,8 @@
       ]
     },
     {
-      "id": "00000000-0000-4000-b000-000000000005",
-      "username": "0981293650",
+      "id": "00000000-0000-4000-a000-000000000005",
+      "username": "teacher2",
       "enabled": true,
       "firstName": "Phạm Thị Thanh",
       "email": "thanh.phamthi@thuonghong.carenest.edu.vn",
@@ -474,7 +474,7 @@
     },
     {
       "id": "00000000-0000-4000-a000-000000000008",
-      "username": "0987731447",
+      "username": "kitchen",
       "enabled": true,
       "firstName": "Nguyễn Thị Thơm",
       "email": "thom.nguyenthi@thuonghong.carenest.edu.vn",
@@ -817,7 +817,7 @@
     },
     {
       "id": "00000000-0000-4000-a000-000000000007",
-      "username": "0984066510",
+      "username": "parent2",
       "enabled": true,
       "firstName": "Nguyễn Thị Thơm",
       "realmRoles": [
@@ -1169,7 +1169,7 @@
     },
     {
       "id": "00000000-0000-4000-a000-000000000006",
-      "username": "0335869197",
+      "username": "parent1",
       "enabled": true,
       "firstName": "Trần Thị Hà",
       "realmRoles": [

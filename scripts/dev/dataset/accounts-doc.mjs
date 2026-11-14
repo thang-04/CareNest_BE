@@ -46,7 +46,7 @@ export function renderAccountsDoc(d) {
 
 > File sinh tự động bởi \`node scripts/dev/gen-dev-dataset.mjs\` — không sửa tay. Mọi tên, SĐT, CCCD là dữ liệu giả.
 
-- Đăng nhập bằng **SĐT** (tên đăng nhập) hoặc email (nhân sự). Mật khẩu:
+- Đăng nhập bằng tên đăng nhập: 8 tài khoản cố định dùng tên quen thuộc (\`admin\`, \`principal\`, \`viceprincipal\`, \`teacher1\`, \`teacher2\`, \`parent1\`, \`parent2\`, \`kitchen\`), còn lại là **SĐT**; nhân sự đăng nhập được cả bằng email. Mật khẩu:
   - Local (\`compose.yaml\`, file \`docker/keycloak/dev/carenest-users-0.json\`): \`${DEV_PASSWORD}\`.
   - VPS dev/prod (\`docker/keycloak/vps/carenest-users-0.json\`): giá trị \`KEYCLOAK_DEV_USER_PASSWORD\` trong \`.env\` của VPS (không ghi ở repo).
 - Keycloak chỉ import user khi realm còn mới: đổi bộ dữ liệu ⇒ tạo lại DB \`keycloak\` (local: \`docker compose down -v\`), xem \`docs/system/KEYCLOAK.md\` mục 5.

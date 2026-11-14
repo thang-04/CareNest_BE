@@ -119,7 +119,8 @@ class DevSeedIntegrationTest {
     @DisplayName("Không còn tài khoản/dữ liệu demo cũ: tên đăng nhập là SĐT, không tên chứa Demo")
     void datasetHasNoDemoIdentities() {
         assertThat(jdbc.queryForObject(
-                        "select count(*) from " + SCHEMA + ".user_accounts where username !~ '^0[0-9]{9}$'"
+                        "select count(*) from " + SCHEMA
+                                + ".user_accounts where username !~ '^0[0-9]{9}$' and username not in ('admin', 'principal', 'viceprincipal', 'teacher1', 'teacher2', 'parent1', 'parent2', 'kitchen')"
                                 + " or full_name ilike '%demo%'",
                         Long.class))
                 .isZero();

@@ -136,7 +136,7 @@ docker compose up --build
 
 Compose dựng PostgreSQL, Keycloak (import realm `carenest`, email gửi thật qua Gmail) và API với profile `dev` (nạp dữ liệu mẫu). Swagger UI: <http://localhost:8080/swagger-ui/index.html>.
 
-Bộ dữ liệu dev (Trường Mầm non Thượng Hồng: 2 cơ sở, 10 lớp, ~210 trẻ, đủ mọi vai trò, dữ liệu vận hành từ 01/09 tới hôm qua) sinh bằng `node scripts/dev/gen-dev-dataset.mjs`. Tài khoản đăng nhập (tên đăng nhập = SĐT) ở `docs/TAI_KHOAN_DEV.md`; mật khẩu `Carenest@2026` **chỉ ở máy local**. VPS dùng cùng user nhưng mật khẩu là `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` của VPS (`docs/system/DEPLOYMENT.md`).
+Bộ dữ liệu dev (Trường Mầm non Thượng Hồng: 2 cơ sở, 10 lớp, ~210 trẻ, đủ mọi vai trò, dữ liệu vận hành từ 01/09 tới hôm qua) sinh bằng `node scripts/dev/gen-dev-dataset.mjs`. Tài khoản đăng nhập (tên đăng nhập = SĐT) ở `docs/TAI_KHOAN_DEV.md`; mật khẩu `demo123` **chỉ ở máy local**. VPS dùng cùng user nhưng mật khẩu là `KEYCLOAK_DEV_USER_PASSWORD` trong `.env` của VPS (`docs/system/DEPLOYMENT.md`).
 
 Chạy API trong IDE để debug, chỉ để hạ tầng trong Docker:
 
