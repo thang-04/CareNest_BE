@@ -7158,6 +7158,25 @@ paths:
           description: OK
       tags:
       - guardian-phone-change-controller
+  /api/parent-accounts/{userId}/activation-code:
+    post:
+      operationId: resendActivationCode
+      parameters:
+      - in: path
+        name: userId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonActivationCodeResponse"
+          description: OK
+      tags:
+      - guardian-controller
   /api/parent-accounts/{userId}/status:
     patch:
       operationId: updateParentStatus
@@ -7202,6 +7221,24 @@ paths:
           description: OK
       tags:
       - guardian-controller
+  /api/parent-activation:
+    post:
+      operationId: activateParentAccount
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParentActivationRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonParentActivationResponse"
+          description: OK
+      tags:
+      - parent-activation-controller
   /api/permission-change-logs:
     get:
       operationId: getPermissionChangeLogs
@@ -8276,6 +8313,24 @@ components:
           minLength: 1
       required:
       - confirmName
+    ActivationCodeResponse:
+      type: object
+      properties:
+        activationCode:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        smsStatus:
+          type: string
+          enum:
+          - SENT
+          - FAILED
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
     ActivationResult:
       type: object
       properties:
@@ -16286,6 +16341,35 @@ components:
           format: int32
         username:
           type: string
+    ParentActivationRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          minLength: 1
+          pattern: "\\d{6}"
+        confirmPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+        newPassword:
+          type: string
+          maxLength: 128
+          minLength: 8
+        phone:
+          type: string
+          maxLength: 20
+          minLength: 0
+      required:
+      - code
+      - confirmPassword
+      - newPassword
+      - phone
+    ParentActivationResponse:
+      type: object
+      properties:
+        username:
+          type: string
     ParentPasswordResponse:
       type: object
       properties:
@@ -17587,6 +17671,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/AccountResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonActivationCodeResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ActivationCodeResponse"
         desc:
           type: string
         errorCode:
@@ -19508,6 +19605,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ParentAccountLookupResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonParentActivationResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/ParentActivationResponse"
         desc:
           type: string
         errorCode:

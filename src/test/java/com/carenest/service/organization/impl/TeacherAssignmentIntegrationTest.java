@@ -521,6 +521,27 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
+    @DisplayName("Dạy thay cùng lớp: đợt trước tạo sau đợt muộn hơn, không giao nhau thì không bị báo trùng")
+    void earlierSubstitutePeriodIsNotBlockedByLaterOne() {
+        staffAssignmentService.createAssignment(new NewStaffAssignment(
+                teacher1,
+                StaffRole.TEACHER,
+                null,
+                classA2,
+                TODAY.plusDays(10),
+                TODAY.plusDays(14),
+                principal.userId(),
+                true,
+                teacher3));
+
+        StaffAssignmentResponse earlier =
+                staffAssignmentService.createAssignment(substituteAssignment(teacher1, classA2, TODAY.plusDays(5)));
+
+        assertThat(earlier.validFrom()).isEqualTo(TODAY);
+        assertThat(earlier.validTo()).isEqualTo(TODAY.plusDays(5));
+    }
+
+    @Test
     @DisplayName("AUTH-16: HT xếp GV điểm trường khác vào lớp, chỉ còn chặn khi GV đang dạy chính lớp khác")
     void principalMayMoveTeacherAcrossCampuses() {
         // GV cơ sở B không bị chặn vì điểm trường; vẫn đang dạy chính lớp B1 nên bị chặn theo AUTH-24
