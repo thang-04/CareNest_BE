@@ -22,7 +22,6 @@ import java.util.List;
 import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +38,6 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final DeviceTokenRepository deviceTokenRepository;
-    private final ApplicationEventPublisher eventPublisher;
     private final Clock clock;
 
     @Override
@@ -75,11 +73,6 @@ public class NotificationServiceImpl implements NotificationService {
                 created.add(notificationRepository.save(
                         Notification.of(userId, type, truncate(title, 150), truncate(body, 500), childId, now, link)));
             }
-            if (!created.isEmpty()) {
-                // Đẩy tới thiết bị sau khi giao dịch tạo thông báo đã lưu (PushDispatchListener)
-                eventPublisher.publishEvent(new NotificationsCreatedEvent(
-                        created.stream().map(Notification::getId).toList()));
-            }
             log.info("{}|created={}|END", logPrefix, created.size());
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
@@ -96,6 +89,25 @@ public class NotificationServiceImpl implements NotificationService {
             NotificationListResponse list = listOf(currentUser.userId(), limit);
             log.info("{}|END", logPrefix);
             return list;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public NotificationResponse getMyNotification(CurrentUser currentUser, Long notificationId) {
+        String logPrefix =
+                LOG_PREFIX + "|getMyNotification|userId=" + currentUser.userId() + "|notificationId=" + notificationId;
+        log.info("{}|START", logPrefix);
+        try {
+            NotificationResponse view = notificationRepository
+                    .findByIdAndUserId(notificationId, currentUser.userId())
+                    .map(NotificationServiceImpl::toView)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.NOTIFICATION_NOT_FOUND));
+            log.info("{}|END", logPrefix);
+            return view;
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;

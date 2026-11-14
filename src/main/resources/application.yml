@@ -105,6 +105,19 @@ carenest:
         max-size: ${CARENEST_STORAGE_MAX_SIGNATURE:2MB}
         types: [jpg, png]
         legacy-prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
+      announcement:
+        folder: announcements/
+        code: announcement
+        max-size: ${CARENEST_STORAGE_MAX_ANNOUNCEMENT:10MB}
+        types: [jpg, jpeg, png, pdf]
+  # Thông báo đẩy (spec 019): hàng chờ trong bảng notifications; thiếu file khóa FCM ⇒ chỉ ghi log
+  push:
+    worker-delay: ${CARENEST_PUSH_WORKER_DELAY:5s}
+    batch-size: 100
+    max-age: 60m
+    device-max-idle: 270d
+    fcm:
+      credentials-file: ${CARENEST_PUSH_FCM_CREDENTIALS_FILE:}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}

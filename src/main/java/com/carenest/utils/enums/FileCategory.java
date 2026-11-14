@@ -15,7 +15,9 @@ public enum FileCategory {
     IMPORT,
     LEARNING_RESOURCE,
     USER_SIGNATURE,
-    INSPECTION_SIGNATURE;
+    INSPECTION_SIGNATURE,
+    /** Tệp đính kèm thông báo của trường (spec 019). */
+    ANNOUNCEMENT;
 
     /** Khóa cấu hình, vd. {@code learning-resource}. */
     public String configKey() {

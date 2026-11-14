@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 337 endpoint.
+Tổng: 338 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -226,6 +226,7 @@ PATCH /locations/{roomId}/status · src/main/java/com/carenest/controller/organi
 DELETE /me/devices · src/main/java/com/carenest/controller/notification/NotificationController.java#unregisterDevice
 PUT /me/devices · src/main/java/com/carenest/controller/notification/NotificationController.java#registerDevice
 GET /me/notifications · src/main/java/com/carenest/controller/notification/NotificationController.java#listMyNotifications
+GET /me/notifications/{notificationId} · src/main/java/com/carenest/controller/notification/NotificationController.java#getMyNotification
 POST /me/notifications/{notificationId}/read · src/main/java/com/carenest/controller/notification/NotificationController.java#markRead
 POST /me/notifications/read-all · src/main/java/com/carenest/controller/notification/NotificationController.java#markAllRead
 PUT /me/password · src/main/java/com/carenest/controller/account/PasswordController.java#changePassword

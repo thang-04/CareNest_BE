@@ -128,6 +128,21 @@ public enum ApiCode {
 
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),
+    ANNOUNCEMENT_NOT_FOUND(1202, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo của trường"),
+    ANNOUNCEMENT_SCOPE_DENIED(
+            1203, HttpStatus.FORBIDDEN, "Chỉ gửi được cho người nhận thuộc điểm trường bạn phụ trách"),
+    ANNOUNCEMENT_NOT_EDITABLE(1204, HttpStatus.CONFLICT, "Thông báo đã hoặc đang được gửi, không sửa hay hủy được nữa"),
+    ANNOUNCEMENT_NO_RECIPIENTS(1205, HttpStatus.BAD_REQUEST, "Không có người nhận nào trong phạm vi đã chọn"),
+    ANNOUNCEMENT_TOO_MANY_FILES(1206, HttpStatus.BAD_REQUEST, "Chỉ đính kèm tối đa {0} tệp"),
+    ANNOUNCEMENT_INVALID_SEND_AT(
+            1207, HttpStatus.BAD_REQUEST, "Giờ hẹn gửi phải sau thời điểm hiện tại và trong vòng {0} ngày tới"),
+    ANNOUNCEMENT_TEMPLATE_NOT_FOUND(1208, HttpStatus.NOT_FOUND, "Không tìm thấy mẫu thông báo"),
+    ANNOUNCEMENT_TEMPLATE_IN_USE(1209, HttpStatus.CONFLICT, "Mẫu đang được dùng cho lịch gửi lặp, xóa lịch trước"),
+    NOTIFICATION_RULE_MANDATORY(1210, HttpStatus.BAD_REQUEST, "Loại thông báo này bắt buộc, không tắt được"),
+    NOTIFICATION_RULE_READ_ONLY(1211, HttpStatus.BAD_REQUEST, "Loại thông báo này chỉ xem, không sửa câu chữ được"),
+    NOTIFICATION_RULE_UNKNOWN_VARIABLE(
+            1212, HttpStatus.BAD_REQUEST, "Câu chữ chỉ được dùng các biến cho phép của loại thông báo"),
+    ANNOUNCEMENT_SCHEDULE_NOT_FOUND(1213, HttpStatus.NOT_FOUND, "Không tìm thấy lịch gửi lặp"),
 
     // ========== 20xx NĂM HỌC ==========
     SCHOOL_YEAR_NOT_FOUND(2001, HttpStatus.NOT_FOUND, "Không tìm thấy năm học"),

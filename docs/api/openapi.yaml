@@ -5423,6 +5423,25 @@ paths:
           description: OK
       tags:
       - notification-controller
+  /api/me/notifications/{notificationId}:
+    get:
+      operationId: getMyNotification
+      parameters:
+      - in: path
+        name: notificationId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonNotificationResponse"
+          description: OK
+      tags:
+      - notification-controller
   /api/me/notifications/{notificationId}/read:
     post:
       operationId: markRead

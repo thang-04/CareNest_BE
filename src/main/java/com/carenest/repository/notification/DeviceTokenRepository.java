@@ -1,6 +1,7 @@
 package com.carenest.repository.notification;
 
 import com.carenest.entity.notification.DeviceToken;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -11,4 +12,8 @@ public interface DeviceTokenRepository extends JpaRepository<DeviceToken, Long> 
     Optional<DeviceToken> findByToken(String token);
 
     List<DeviceToken> findByUserIdIn(Collection<Long> userIds);
+
+    List<DeviceToken> findByUserId(Long userId);
+
+    long deleteByUpdatedAtBefore(Instant cutoff);
 }
