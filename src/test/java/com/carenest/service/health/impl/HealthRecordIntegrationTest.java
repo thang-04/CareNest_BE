@@ -266,7 +266,11 @@ class HealthRecordIntegrationTest {
         measure(round("Cân đo tháng 9 (giả)", "2026-09-10", "2026-09-20"), "2026-09-15", "98.0", "15.0");
         measure(round("Cân đo tháng 11 (giả)", "2026-11-01", "2026-11-20"), "2026-11-09", "99.5", "15.6");
         given(aiClient.isEnabled()).willReturn(true);
-        given(aiClient.complete(any())).willReturn(new AiClient.AiResult("Chiều cao, cân nặng tăng đều.", "model-x"));
+        given(aiClient.complete(any()))
+                .willReturn(new AiClient.AiResult(
+                        "{\"overview\": \"Chiều cao, cân nặng tăng đều.\", \"attentionPoints\": [],"
+                                + " \"positives\": [], \"followUps\": [], \"limitations\": null}",
+                        "model-x"));
 
         HealthTrendAnalysisResponse draft = trendService.analyze(teacher, child);
         entityManager.flush();
@@ -280,7 +284,7 @@ class HealthRecordIntegrationTest {
         entityManager.flush();
         PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child);
         assertThat(view.interpretation()).isNotNull();
-        assertThat(view.interpretation().summary()).isEqualTo("Chiều cao, cân nặng tăng đều.");
+        assertThat(view.interpretation().summary()).isEqualTo("Tổng quan: Chiều cao, cân nặng tăng đều.");
         assertThat(view.interpretation().warnings()).isNotEmpty();
     }
 

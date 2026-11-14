@@ -45,6 +45,11 @@ public class HealthInterpretation {
     @Column(nullable = false, columnDefinition = "text")
     private String summary;
 
+    /** Nội dung có cấu trúc (HLT-21, V129) dạng JSON của {@code HealthTrendContent}; null ở bản ghi trước V129. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private String content;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, updatable = false, columnDefinition = "jsonb")
     private String warnings;
@@ -82,6 +87,7 @@ public class HealthInterpretation {
     public static HealthInterpretation draft(
             Long childId,
             String summary,
+            String contentJson,
             String warningsJson,
             String measurementIdsJson,
             String model,
@@ -91,6 +97,7 @@ public class HealthInterpretation {
         i.childId = childId;
         i.status = InterpretationStatus.DRAFT;
         i.summary = summary;
+        i.content = contentJson;
         i.warnings = warningsJson;
         i.measurementIds = measurementIdsJson;
         i.source = SOURCE_AI;

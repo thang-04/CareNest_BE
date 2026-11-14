@@ -4,13 +4,17 @@ import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.dto.health.PublishedHealthResponse.GrowthPoint;
 import com.carenest.dto.health.PublishedHealthResponse.TrendWarning;
 import com.carenest.utils.enums.Gender;
+import com.carenest.utils.enums.HealthTrendFollowUpType;
+import com.carenest.utils.enums.HealthTrendWarningCode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Xu hướng tăng trưởng tính xác định từ kết quả đã công bố (HLT-02) theo chuẩn WHO (HLT-03): điểm biểu đồ và cảnh báo
@@ -69,6 +73,7 @@ final class HealthGrowth {
                 && prev.weightKg() != null
                 && prev.weightKg().subtract(last.weightKg()).compareTo(WEIGHT_DROP_KG) >= 0) {
             warnings.add(new TrendWarning(
+                    HealthTrendWarningCode.WEIGHT_DROP,
                     WARNING,
                     "Cân nặng lần đo ngày " + DMY.format(last.date()) + " giảm "
                             + prev.weightKg()
@@ -82,34 +87,62 @@ final class HealthGrowth {
                 && ChronoUnit.DAYS.between(prev.date(), last.date()) >= STALL_DAYS
                 && last.heightCm().compareTo(prev.heightCm()) <= 0) {
             warnings.add(new TrendWarning(
+                    HealthTrendWarningCode.HEIGHT_STALL,
                     WARNING,
                     "Chiều cao chưa tăng giữa hai lần đo ngày " + DMY.format(prev.date()) + " và "
                             + DMY.format(last.date()) + "."));
         }
         if (last.weightForAgeZ() != null && last.weightForAgeZ().compareTo(Z_LOW) < 0) {
-            warnings.add(new TrendWarning(WARNING, "Cân nặng theo tuổi lần đo gần nhất dưới mức -2SD của chuẩn WHO."));
+            warnings.add(new TrendWarning(
+                    HealthTrendWarningCode.WFA_LOW,
+                    WARNING,
+                    "Cân nặng theo tuổi lần đo gần nhất dưới mức -2SD của chuẩn WHO."));
         }
         if (last.heightForAgeZ() != null && last.heightForAgeZ().compareTo(Z_LOW) < 0) {
-            warnings.add(new TrendWarning(WARNING, "Chiều cao theo tuổi lần đo gần nhất dưới mức -2SD của chuẩn WHO."));
+            warnings.add(new TrendWarning(
+                    HealthTrendWarningCode.HFA_LOW,
+                    WARNING,
+                    "Chiều cao theo tuổi lần đo gần nhất dưới mức -2SD của chuẩn WHO."));
         }
         if (last.bmiZScore() != null
                 && (last.bmiZScore().compareTo(Z_LOW) < 0 || last.bmiZScore().compareTo(Z_HIGH) > 0)) {
             warnings.add(new TrendWarning(
-                    WARNING, "BMI theo tuổi lần đo gần nhất ngoài khoảng -2SD đến +2SD của chuẩn WHO."));
+                    HealthTrendWarningCode.BMI_OUT_OF_RANGE,
+                    WARNING,
+                    "BMI theo tuổi lần đo gần nhất ngoài khoảng -2SD đến +2SD của chuẩn WHO."));
         }
         if (last.bmiZScore() != null
                 && prev.bmiZScore() != null
                 && last.bmiZScore().subtract(prev.bmiZScore()).abs().compareTo(BMI_Z_JUMP) >= 0) {
             warnings.add(new TrendWarning(
+                    HealthTrendWarningCode.BMI_Z_JUMP,
                     INFO,
                     "BMI theo tuổi thay đổi nhanh giữa hai lần đo gần nhất (z-score từ "
                             + prev.bmiZScore().setScale(2, RoundingMode.HALF_UP) + " sang "
                             + last.bmiZScore().setScale(2, RoundingMode.HALF_UP) + ")."));
         }
         if (warnings.isEmpty()) {
-            warnings.add(
-                    new TrendWarning(INFO, "Các chỉ số lần đo gần nhất nằm trong khoảng bình thường theo chuẩn WHO."));
+            warnings.add(new TrendWarning(
+                    HealthTrendWarningCode.NORMAL,
+                    INFO,
+                    "Các chỉ số lần đo gần nhất nằm trong khoảng bình thường theo chuẩn WHO."));
         }
         return warnings;
+    }
+
+    /**
+     * Loại gợi ý theo dõi AI được dùng (HLT-21): theo dõi kỳ sau luôn được; có cảnh báo thêm trao đổi phụ huynh; đo lại chỉ
+     * khi {@code remeasurePossible} (kỳ cân đo của lần đo mới nhất đang diễn ra và chưa từng gợi ý đo lại lần đo đó).
+     */
+    static Set<HealthTrendFollowUpType> allowedFollowUps(List<TrendWarning> warnings, boolean remeasurePossible) {
+        Set<HealthTrendFollowUpType> allowed = EnumSet.of(HealthTrendFollowUpType.RECHECK_NEXT_ROUND);
+        boolean hasWarning = warnings.stream().anyMatch(w -> w.code() != HealthTrendWarningCode.NORMAL);
+        if (hasWarning) {
+            allowed.add(HealthTrendFollowUpType.TALK_TO_PARENT);
+            if (remeasurePossible) {
+                allowed.add(HealthTrendFollowUpType.REMEASURE);
+            }
+        }
+        return allowed;
     }
 }

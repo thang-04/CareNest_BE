@@ -1,7 +1,9 @@
 package com.carenest.integration.ai;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.net.SocketTimeoutException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +23,7 @@ import org.springframework.web.client.RestClientResponseException;
 @Component
 public class OpenAiCompatibleAiClient implements AiClient {
     private static final String LOG_PREFIX = "[OpenAiCompatibleAiClient]";
+    private static final String TRUNCATED = "AI output truncated";
 
     private final AiProperties properties;
     private final RestClient restClient;
@@ -50,14 +53,7 @@ public class OpenAiCompatibleAiClient implements AiClient {
         }
         long started = System.nanoTime();
         try {
-            Map<String, Object> body = Map.of(
-                    "model", properties.model(),
-                    "temperature", 0.2,
-                    "max_tokens", request.maxTokens(),
-                    "messages",
-                            List.of(
-                                    Map.of("role", "system", "content", request.systemPrompt()),
-                                    Map.of("role", "user", "content", request.userPrompt())));
+            Map<String, Object> body = requestBody(request, properties.model());
             ChatResponse response = restClient
                     .post()
                     .uri("/chat/completions")
@@ -66,19 +62,25 @@ public class OpenAiCompatibleAiClient implements AiClient {
                     .body(body)
                     .retrieve()
                     .body(ChatResponse.class);
-            String text = response == null
-                            || response.choices() == null
-                            || response.choices().isEmpty()
+            long latencyMs = (System.nanoTime() - started) / 1_000_000;
+            Integer completionTokens = response == null || response.usage() == null
                     ? null
-                    : response.choices().getFirst().message() == null
-                            ? null
-                            : response.choices().getFirst().message().content();
-            if (text == null || text.isBlank()) {
-                throw new AiException(AiException.Reason.UNAVAILABLE, "AI returned empty content", null);
+                    : response.usage().completionTokens();
+            String text;
+            try {
+                text = contentOf(response);
+            } catch (AiException ex) {
+                log.warn(
+                        "{}|latencyMs={}|completionTokens={}|result={}",
+                        logPrefix,
+                        latencyMs,
+                        completionTokens,
+                        TRUNCATED.equals(ex.getMessage()) ? "truncated" : "empty");
+                throw ex;
             }
             String model = response.model() == null ? properties.model() : response.model();
-            log.info("{}|latencyMs={}|result=ok", logPrefix, (System.nanoTime() - started) / 1_000_000);
-            return new AiResult(text.strip(), model);
+            log.info("{}|latencyMs={}|completionTokens={}|result=ok", logPrefix, latencyMs, completionTokens);
+            return new AiResult(text, model);
         } catch (ResourceAccessException ex) {
             boolean timeout = ex.getCause() instanceof SocketTimeoutException;
             log.warn(
@@ -97,11 +99,51 @@ public class OpenAiCompatibleAiClient implements AiClient {
         }
     }
 
-    @JsonIgnoreProperties(ignoreUnknown = true)
-    record ChatResponse(String model, List<Choice> choices) {}
+    /** Body chat completions; {@code jsonOutput} ⇒ {@code response_format: json_object} (Gemini, Groq đều nhận). */
+    static Map<String, Object> requestBody(AiRequest request, String model) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("model", model);
+        body.put("temperature", 0.2);
+        body.put("max_tokens", request.maxTokens());
+        body.put(
+                "messages",
+                List.of(
+                        Map.of("role", "system", "content", request.systemPrompt()),
+                        Map.of("role", "user", "content", request.userPrompt())));
+        if (request.jsonOutput()) {
+            body.put("response_format", Map.of("type", "json_object"));
+        }
+        return body;
+    }
+
+    /** Nội dung trả lời; bị cắt vì hết {@code max_tokens} hoặc rỗng ⇒ UNAVAILABLE (bản cắt dở không dùng được). */
+    static String contentOf(ChatResponse response) {
+        Choice choice = response == null
+                        || response.choices() == null
+                        || response.choices().isEmpty()
+                ? null
+                : response.choices().getFirst();
+        if (choice != null && "length".equals(choice.finishReason())) {
+            throw new AiException(AiException.Reason.UNAVAILABLE, TRUNCATED, null);
+        }
+        String text = choice == null || choice.message() == null
+                ? null
+                : choice.message().content();
+        if (text == null || text.isBlank()) {
+            throw new AiException(AiException.Reason.UNAVAILABLE, "AI returned empty content", null);
+        }
+        return text.strip();
+    }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    record Choice(Message message) {}
+    record ChatResponse(String model, List<Choice> choices, Usage usage) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Choice(
+            Message message, @JsonProperty("finish_reason") String finishReason) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Usage(@JsonProperty("completion_tokens") Integer completionTokens) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     record Message(String content) {}

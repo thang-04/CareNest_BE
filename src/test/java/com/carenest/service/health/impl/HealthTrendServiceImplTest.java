@@ -15,6 +15,7 @@ import com.carenest.dto.health.HealthTrendAnalysisResponse;
 import com.carenest.dto.health.HealthTrendApproveRequest;
 import com.carenest.dto.health.PublishedHealthResponse.GrowthPoint;
 import com.carenest.dto.health.PublishedHealthResponse.TrendWarning;
+import com.carenest.entity.health.HealthCheckCampaign;
 import com.carenest.entity.health.HealthInterpretation;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.ai.AiClient;
@@ -28,6 +29,10 @@ import com.carenest.service.child.ChildService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Gender;
+import com.carenest.utils.enums.HealthCheckKind;
+import com.carenest.utils.enums.HealthCheckStatus;
+import com.carenest.utils.enums.HealthTrendFollowUpType;
+import com.carenest.utils.enums.HealthTrendWarningCode;
 import com.carenest.utils.enums.InterpretationStatus;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -45,6 +50,10 @@ import tools.jackson.databind.json.JsonMapper;
 class HealthTrendServiceImplTest {
     private static final Long CHILD_ID = 1L;
     private static final CurrentUser TEACHER = TestPermissions.userWithDefaults(7L, CareNestRole.TEACHER);
+    private static final String AI_JSON = "{\"overview\": \"Trẻ tăng cân đều.\", \"attentionPoints\": [],"
+            + " \"positives\": [\"Chiều cao tăng 1,5 cm.\"],"
+            + " \"followUps\": [{\"type\": \"RECHECK_NEXT_ROUND\", \"text\": \"Theo dõi ở kỳ cân đo sau.\"}],"
+            + " \"limitations\": \"Mới có 2 lần đo.\"}";
 
     private final ChildAccessPolicy policy = mock(ChildAccessPolicy.class);
     private final ChildService childService = mock(ChildService.class);
@@ -98,15 +107,21 @@ class HealthTrendServiceImplTest {
     void savesAiDraftWithoutIdentity() {
         given(records.views(any(), any(), any(), any(), anyBoolean()))
                 .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
-        given(aiClient.complete(any())).willReturn(new AiClient.AiResult("Trẻ tăng cân đều.", "gemini-x"));
+        given(aiClient.complete(any())).willReturn(new AiClient.AiResult(AI_JSON, "gemini-x"));
 
         HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID);
 
         assertThat(response.draft()).isTrue();
-        assertThat(response.summary()).isEqualTo("Trẻ tăng cân đều.");
+        assertThat(response.content().overview()).isEqualTo("Trẻ tăng cân đều.");
+        assertThat(response.content().positives()).containsExactly("Chiều cao tăng 1,5 cm.");
+        assertThat(response.summary())
+                .startsWith("Tổng quan: Trẻ tăng cân đều.")
+                .contains("Điểm tích cực:");
         assertThat(response.warnings()).isNotEmpty();
         ArgumentCaptor<AiClient.AiRequest> request = ArgumentCaptor.forClass(AiClient.AiRequest.class);
         verify(aiClient).complete(request.capture());
+        assertThat(request.getValue().jsonOutput()).isTrue();
+        assertThat(request.getValue().maxTokens()).isEqualTo(1200);
         assertThat(request.getValue().userPrompt())
                 .doesNotContain("Bé An")
                 .doesNotContain("HS26001")
@@ -116,29 +131,39 @@ class HealthTrendServiceImplTest {
         assertThat(saved.getValue().getSource()).isEqualTo(HealthInterpretation.SOURCE_AI);
         assertThat(saved.getValue().getModel()).isEqualTo("gemini-x");
         assertThat(saved.getValue().getStatus()).isEqualTo(InterpretationStatus.DRAFT);
+        assertThat(saved.getValue().getContent()).contains("\"overview\"");
     }
 
     @Test
-    @DisplayName("AI-04: prompt không có ngày đo — câu cảnh báo đổi ngày thành tuổi tháng của lần đo")
+    @DisplayName("AI-04, HLT-21: prompt không có ngày đo; có mã cảnh báo, loại gợi ý được phép, số lần đo")
     void promptReplacesMeasurementDatesWithAge() {
         List<GrowthPoint> drop = List.of(growth("2026-06-01", "100.0", "16.0"), growth("2026-09-15", "100.0", "15.5"));
         List<TrendWarning> warnings = HealthGrowth.warnings(drop);
 
-        String prompt = HealthTrendServiceImpl.userPrompt(Gender.FEMALE, drop, warnings);
+        String prompt = HealthTrendServiceImpl.userPrompt(
+                Gender.FEMALE, drop, warnings, HealthGrowth.allowedFollowUps(warnings, false));
 
         assertThat(prompt)
                 .doesNotContain("2026")
                 .doesNotContain("/06/")
-                .contains("Cân nặng lần đo lúc 50 tháng tuổi giảm 0.5 kg");
+                .contains("[WEIGHT_DROP] Cân nặng lần đo lúc 50 tháng tuổi giảm 0.5 kg")
+                .contains("[HEIGHT_STALL]")
+                .contains("Số lần đo: 2")
+                .contains("RECHECK_NEXT_ROUND")
+                .contains("TALK_TO_PARENT")
+                .doesNotContain("REMEASURE");
     }
 
     @Test
-    @DisplayName("HLT-04: AI viết ngôn ngữ chẩn đoán ⇒ bỏ, 503, không lưu")
+    @DisplayName("HLT-04, HLT-21: tổng quan có ngôn ngữ chẩn đoán hoặc output không phải JSON ⇒ bỏ, 503, không lưu")
     void blocksDiagnosticLanguage() {
         given(records.views(any(), any(), any(), any(), anyBoolean()))
                 .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
-        given(aiClient.complete(any())).willReturn(new AiClient.AiResult("Có thể trẻ mắc bệnh tuyến giáp.", "m"));
+        given(aiClient.complete(any()))
+                .willReturn(new AiClient.AiResult("{\"overview\": \"Có thể trẻ mắc bệnh tuyến giáp.\"}", "m"));
+        expectCode(() -> service.analyze(TEACHER, CHILD_ID), ApiCode.AI_SERVICE_UNAVAILABLE);
 
+        given(aiClient.complete(any())).willReturn(new AiClient.AiResult("Trẻ tăng cân đều.", "m"));
         expectCode(() -> service.analyze(TEACHER, CHILD_ID), ApiCode.AI_SERVICE_UNAVAILABLE);
         verify(repository, never()).save(any());
     }
@@ -160,7 +185,7 @@ class HealthTrendServiceImplTest {
     @DisplayName("AI-02: duyệt có sửa câu chữ ⇒ APPROVED, source=HUMAN")
     void approveWithEdit() {
         HealthInterpretation draft =
-                HealthInterpretation.draft(CHILD_ID, "Bản AI", "[]", "[1,2]", "m", 7L, Instant.now());
+                HealthInterpretation.draft(CHILD_ID, "Bản AI", null, "[]", "[1,2]", "m", 7L, Instant.now());
         ReflectionTestUtils.setField(draft, "id", 90L);
         given(repository.findByIdAndChildId(90L, CHILD_ID)).willReturn(Optional.of(draft));
 
@@ -196,6 +221,116 @@ class HealthTrendServiceImplTest {
         assertThat(normal).singleElement().satisfies(w -> assertThat(w.level()).isEqualTo(HealthGrowth.INFO));
     }
 
+    @Test
+    @DisplayName(
+            "HLT-02, HLT-21: mỗi cảnh báo xác định có mã — sụt cân, chiều cao chững, z thấp, BMI ngoài ±2, BMI đổi nhanh, bình thường")
+    void warningCodes() {
+        List<GrowthPoint> drop = List.of(growth("2026-06-01", "100.0", "16.0"), growth("2026-09-15", "100.0", "15.5"));
+        assertThat(HealthGrowth.warnings(drop))
+                .extracting(TrendWarning::code)
+                .containsExactly(HealthTrendWarningCode.WEIGHT_DROP, HealthTrendWarningCode.HEIGHT_STALL);
+
+        List<GrowthPoint> lowZ =
+                List.of(zPoint("2026-06-01", "-1.00", "-1.00", "0.00"), zPoint("2026-07-01", "-2.10", "-2.20", "2.30"));
+        assertThat(HealthGrowth.warnings(lowZ))
+                .extracting(TrendWarning::code)
+                .containsExactly(
+                        HealthTrendWarningCode.WFA_LOW,
+                        HealthTrendWarningCode.HFA_LOW,
+                        HealthTrendWarningCode.BMI_OUT_OF_RANGE,
+                        HealthTrendWarningCode.BMI_Z_JUMP);
+
+        List<TrendWarning> normal = HealthGrowth.warnings(
+                List.of(growth("2026-06-01", "100.0", "16.0"), growth("2026-09-15", "102.0", "16.4")));
+        assertThat(normal).extracting(TrendWarning::code).containsExactly(HealthTrendWarningCode.NORMAL);
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-21: gợi ý được phép — bình thường chỉ theo dõi kỳ sau; có cảnh báo thêm trao đổi phụ huynh; đo lại chỉ khi còn đo lại được")
+    void followUpsAllowedByWarnings() {
+        TrendWarning normal = new TrendWarning(HealthTrendWarningCode.NORMAL, HealthGrowth.INFO, "bình thường");
+        TrendWarning drop = new TrendWarning(HealthTrendWarningCode.WEIGHT_DROP, HealthGrowth.WARNING, "sụt cân");
+
+        assertThat(HealthGrowth.allowedFollowUps(List.of(normal), true))
+                .containsExactly(HealthTrendFollowUpType.RECHECK_NEXT_ROUND);
+        assertThat(HealthGrowth.allowedFollowUps(List.of(drop), false))
+                .containsExactlyInAnyOrder(
+                        HealthTrendFollowUpType.RECHECK_NEXT_ROUND, HealthTrendFollowUpType.TALK_TO_PARENT);
+        assertThat(HealthGrowth.allowedFollowUps(List.of(drop), true))
+                .containsExactlyInAnyOrder(
+                        HealthTrendFollowUpType.RECHECK_NEXT_ROUND,
+                        HealthTrendFollowUpType.TALK_TO_PARENT,
+                        HealthTrendFollowUpType.REMEASURE);
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-21: kỳ cân đo đang diễn ra ⇒ gợi ý đo lại; đã gợi ý đo lại lần đo đó ⇒ lần phân tích sau không lặp")
+    void remeasureSuggestedOncePerMeasurement() {
+        givenWeightDropInRound(HealthCheckStatus.IN_PROGRESS);
+        given(repository.findByChildIdOrderByGeneratedAtDescIdDesc(CHILD_ID)).willReturn(List.of());
+
+        service.analyze(TEACHER, CHILD_ID);
+        assertThat(lastPrompt()).contains("REMEASURE");
+
+        HealthInterpretation previous = HealthInterpretation.draft(
+                CHILD_ID,
+                "Tổng quan",
+                "{\"overview\":\"Tổng quan\",\"attentionPoints\":[],\"positives\":[],"
+                        + "\"followUps\":[{\"type\":\"REMEASURE\",\"text\":\"Đo lại.\"}],\"limitations\":null}",
+                "[]",
+                "[1,2]",
+                "m",
+                7L,
+                Instant.now());
+        given(repository.findByChildIdOrderByGeneratedAtDescIdDesc(CHILD_ID)).willReturn(List.of(previous));
+
+        service.analyze(TEACHER, CHILD_ID);
+        assertThat(lastPrompt()).doesNotContain("REMEASURE").contains("TALK_TO_PARENT");
+    }
+
+    @Test
+    @DisplayName("HLT-21, HLT-13: kỳ cân đo của lần đo mới nhất đã kết thúc ⇒ không gợi ý đo lại")
+    void noRemeasureWhenRoundClosed() {
+        givenWeightDropInRound(HealthCheckStatus.CLOSED);
+        given(repository.findByChildIdOrderByGeneratedAtDescIdDesc(CHILD_ID)).willReturn(List.of());
+
+        service.analyze(TEACHER, CHILD_ID);
+
+        assertThat(lastPrompt()).doesNotContain("REMEASURE").contains("TALK_TO_PARENT");
+    }
+
+    private void givenWeightDropInRound(HealthCheckStatus status) {
+        given(records.views(any(), any(), any(), any(), anyBoolean()))
+                .willReturn(List.of(
+                        measurement(2L, "2026-11-01", "101.5", "15.5", HealthCheckKind.MEASUREMENT),
+                        measurement(1L, "2026-09-10", "100.0", "16.0", HealthCheckKind.MEASUREMENT)));
+        HealthCheckCampaign round = mock(HealthCheckCampaign.class);
+        given(round.statusOn(any())).willReturn(status);
+        given(snapshot.campaign(3L)).willReturn(round);
+        given(aiClient.complete(any())).willReturn(new AiClient.AiResult(AI_JSON, "m"));
+    }
+
+    private String lastPrompt() {
+        ArgumentCaptor<AiClient.AiRequest> request = ArgumentCaptor.forClass(AiClient.AiRequest.class);
+        verify(aiClient, org.mockito.Mockito.atLeastOnce()).complete(request.capture());
+        return request.getValue().userPrompt();
+    }
+
+    private static GrowthPoint zPoint(String date, String weightZ, String heightZ, String bmiZ) {
+        return new GrowthPoint(
+                null,
+                LocalDate.parse(date),
+                50,
+                new BigDecimal("100.0"),
+                new BigDecimal("16.0"),
+                null,
+                new BigDecimal(weightZ),
+                new BigDecimal(heightZ),
+                new BigDecimal(bmiZ));
+    }
+
     private static GrowthPoint growth(String date, String height, String weight) {
         return new GrowthPoint(
                 null,
@@ -210,14 +345,19 @@ class HealthTrendServiceImplTest {
     }
 
     private static HealthMeasurementResponse point(Long id, String date) {
-        BigDecimal height = id == 1L ? new BigDecimal("100.0") : new BigDecimal("101.5");
-        BigDecimal weight = id == 1L ? new BigDecimal("16.0") : new BigDecimal("16.4");
+        return id == 1L ? measurement(id, date, "100.0", "16.0", null) : measurement(id, date, "101.5", "16.4", null);
+    }
+
+    private static HealthMeasurementResponse measurement(
+            Long id, String date, String heightCm, String weightKg, HealthCheckKind kind) {
+        BigDecimal height = new BigDecimal(heightCm);
+        BigDecimal weight = new BigDecimal(weightKg);
         return new HealthMeasurementResponse(
                 id,
                 CHILD_ID,
                 3L,
                 "Kỳ cân đo",
-                null,
+                kind,
                 10L,
                 LocalDate.parse(date),
                 54,

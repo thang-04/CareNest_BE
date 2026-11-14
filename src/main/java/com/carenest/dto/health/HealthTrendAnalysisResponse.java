@@ -6,7 +6,8 @@ import java.util.List;
 /**
  * Phân tích xu hướng sức khỏe như BE giả của FE ({@code POST /children/{id}/health/trend-analysis}): {@code status}
  * {@code OK} | {@code NOT_ENOUGH_DATA} (dưới 2 lần đo — không gọi AI, không lưu). {@code draft} true tới khi nhân sự duyệt
- * (HLT-05); {@code warnings} tính xác định (HLT-02), {@code summary} do AI viết. Không chứa dữ liệu nhận diện trẻ.
+ * (HLT-05); {@code warnings} tính xác định (HLT-02); {@code content} có cấu trúc do AI viết (HLT-21, null ở bản trước V129),
+ * {@code summary} là bản văn ghép từ {@code content}. Không chứa dữ liệu nhận diện trẻ.
  */
 public record HealthTrendAnalysisResponse(
         Long id,
@@ -14,6 +15,7 @@ public record HealthTrendAnalysisResponse(
         boolean draft,
         Instant generatedAt,
         String summary,
+        HealthTrendContent content,
         List<PublishedHealthResponse.TrendWarning> warnings,
         String source,
         String model,
@@ -26,6 +28,6 @@ public record HealthTrendAnalysisResponse(
 
     public static HealthTrendAnalysisResponse notEnoughData() {
         return new HealthTrendAnalysisResponse(
-                null, NOT_ENOUGH_DATA, false, null, "", List.of(), null, null, null, null, null);
+                null, NOT_ENOUGH_DATA, false, null, "", null, List.of(), null, null, null, null, null);
     }
 }

@@ -467,14 +467,15 @@ Mục đích: lịch sử sửa số đo, chỉ thêm (HLT-13). Migration: V64.
 Index: `(measurement_id, created_at)`.
 
 ## health_interpretations  (module: health, scope: CHILD)
-Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V88.
+Mục đích: giải thích xu hướng sức khỏe (HLT-02..05, AI-07): đoạn diễn giải do AI viết + cảnh báo xác định, nháp tới khi nhân sự duyệt; phụ huynh chỉ thấy bản `APPROVED` mới nhất (PAR-03). Không chứa tên, ngày sinh, mã trẻ ngoài `child_id`. Migration: V88, V129 (`content`).
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | id | BIGINT identity | không | Khóa chính | — |
 | child_id | BIGINT FK children | không | | — |
 | status | VARCHAR(20) | không | `DRAFT` / `APPROVED` (CHECK) | HLT-05, AI-02 |
-| summary | TEXT | không | Đoạn diễn giải (AI viết; người duyệt sửa được, ≤ 2000 ký tự khi duyệt) — không ngôn ngữ chẩn đoán | HLT-03, HLT-04 |
-| warnings | JSONB | không | `[{ level: "warning" hoặc "info", text }]` tính xác định từ số đo lúc phân tích | HLT-02 |
+| summary | TEXT | không | Bản văn: từ V129 ghép từ `content` (khối Tổng quan / Cần chú ý / Điểm tích cực / Gợi ý theo dõi / Lưu ý về dữ liệu); bản trước V129 là đoạn AI viết — không ngôn ngữ chẩn đoán | HLT-03, HLT-04, HLT-21 |
+| content | JSONB | có | `{ overview, attentionPoints: [{ warningCode, text }], positives: [], followUps: [{ type, text }], limitations }`; mã cảnh báo, loại gợi ý do hệ thống cho phép; NULL ở bản trước V129 | HLT-21 |
+| warnings | JSONB | không | `[{ code, level: "warning" hoặc "info", text }]` (`code` từ HLT-21, thiếu ở bản cũ) tính xác định từ số đo lúc phân tích | HLT-02 |
 | measurement_ids | JSONB | không | Id các lần đo đã công bố dùng để phân tích | HLT-02 |
 | source | VARCHAR(10) | không | `AI` / `HUMAN` (người duyệt sửa câu chữ) (CHECK) | AI-01, AI-02 |
 | model | VARCHAR(100) | có | Model AI đã dùng | AI-01 |

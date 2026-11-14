@@ -5,8 +5,10 @@ import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.dto.health.HealthTrendAnalysisResponse;
 import com.carenest.dto.health.HealthTrendApproveRequest;
+import com.carenest.dto.health.HealthTrendContent;
 import com.carenest.dto.health.PublishedHealthResponse.GrowthPoint;
 import com.carenest.dto.health.PublishedHealthResponse.TrendWarning;
+import com.carenest.entity.health.HealthCheckCampaign;
 import com.carenest.entity.health.HealthInterpretation;
 import com.carenest.exception.GlobalException;
 import com.carenest.integration.ai.AiClient;
@@ -19,10 +21,12 @@ import com.carenest.service.child.ChildService;
 import com.carenest.service.health.HealthTrendService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.Gender;
+import com.carenest.utils.enums.HealthCheckKind;
+import com.carenest.utils.enums.HealthCheckStatus;
+import com.carenest.utils.enums.HealthTrendFollowUpType;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
@@ -43,25 +47,28 @@ public class HealthTrendServiceImpl implements HealthTrendService {
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     // Ngày đo trong câu cảnh báo của HealthGrowth ("lần đo ngày dd/MM/yyyy", "ngày … và dd/MM/yyyy")
     private static final Pattern MEASUREMENT_DATE = Pattern.compile("(?:ngày )?(\\d{2}/\\d{2}/\\d{4})");
-    // HLT-04: AI không chẩn đoán, không khuyên điều trị — output có các cụm này thì bỏ, không lưu
-    private static final List<String> FORBIDDEN = List.of(
-            "chẩn đoán",
-            "mắc bệnh",
-            "bị bệnh",
-            "căn bệnh",
-            "rối loạn",
-            "điều trị",
-            "dùng thuốc",
-            "uống thuốc",
-            "kê đơn",
-            "toa thuốc",
-            "bệnh lý");
+    private static final int MAX_TOKENS = 1200;
+    // HLT-21: AI chỉ viết lời theo khuôn JSON; cảnh báo và loại gợi ý do hệ thống quyết định (HLT-02, HLT-04)
     private static final String SYSTEM_PROMPT = String.join(
-            " ",
-            "Bạn viết giải thích ngắn về số đo tăng trưởng của một trẻ mầm non cho giáo viên.",
-            "Chỉ mô tả xu hướng dựa trên số liệu được cho và chuẩn WHO, nêu điểm cần chú ý.",
-            "Không chẩn đoán bệnh hay rối loạn phát triển, không khuyên điều trị hoặc dùng thuốc, không đoán nguyên",
-            "nhân. Viết 3 đến 5 câu tiếng Việt, giọng trung tính, không nhắc tên trẻ.");
+            "\n",
+            "Bạn viết giải thích ngắn về số đo tăng trưởng của một trẻ mầm non cho giáo viên, dựa trên số liệu được cho"
+                    + " và chuẩn WHO. Chỉ trả về một đối tượng JSON đúng dạng:",
+            "{\"overview\": \"...\", \"attentionPoints\": [{\"warningCode\": \"MÃ\", \"text\": \"...\"}],"
+                    + " \"positives\": [\"...\"], \"followUps\": [{\"type\": \"LOẠI\", \"text\": \"...\"}],"
+                    + " \"limitations\": \"...\"}",
+            "- overview: 1 đến 2 câu tổng quan xu hướng cân nặng, chiều cao, BMI.",
+            "- attentionPoints: mỗi cảnh báo có mã (trừ NORMAL) đúng một mục, giải thích kèm số liệu; chỉ dùng mã đã cho,"
+                    + " không thêm cảnh báo mới; không có cảnh báo thì để mảng rỗng.",
+            "- positives: tối đa 3 điểm tích cực có trong số liệu; không có thì để mảng rỗng.",
+            "- followUps: chỉ dùng loại trong danh sách được phép, mỗi loại tối đa một mục.",
+            "- limitations: một câu về giới hạn của dữ liệu (ít lần đo, khoảng thời gian ngắn) hoặc null.",
+            "Mỗi mục tối đa 1 câu tiếng Việt, giọng trung tính, dễ hiểu với phụ huynh; z-score chỉ ghi trong ngoặc.",
+            "Không chẩn đoán bệnh hay rối loạn phát triển, không khuyên điều trị hoặc dùng thuốc, không đoán nguyên nhân,"
+                    + " không gợi ý đưa trẻ đi khám hay chuyển y tế, không nhắc tên trẻ.");
+    private static final Map<HealthTrendFollowUpType, String> FOLLOW_UP_LABELS = Map.of(
+            HealthTrendFollowUpType.RECHECK_NEXT_ROUND, "theo dõi ở kỳ cân đo sau",
+            HealthTrendFollowUpType.TALK_TO_PARENT, "trao đổi với phụ huynh",
+            HealthTrendFollowUpType.REMEASURE, "đo lại để xác nhận trong kỳ cân đo đang diễn ra");
 
     private final ChildAccessPolicy childAccessPolicy;
     private final ChildService childService;
@@ -89,13 +96,19 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                 return HealthTrendAnalysisResponse.notEnoughData();
             }
             List<TrendWarning> warnings = HealthGrowth.warnings(points);
+            Set<HealthTrendFollowUpType> allowed =
+                    HealthGrowth.allowedFollowUps(warnings, remeasurePossible(s, published, points.getLast(), childId));
             if (!aiClient.isEnabled()) {
                 throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
             }
             AiClient.AiResult result;
             try {
                 result = aiClient.complete(new AiClient.AiRequest(
-                        "health-trend", SYSTEM_PROMPT, userPrompt(child.gender(), points, warnings), 400));
+                        "health-trend",
+                        SYSTEM_PROMPT,
+                        userPrompt(child.gender(), points, warnings, allowed),
+                        MAX_TOKENS,
+                        true));
             } catch (AiException ex) {
                 throw GlobalException.withCause(
                         ex.getReason() == AiException.Reason.TIMEOUT
@@ -103,13 +116,16 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                                 : ApiCode.AI_SERVICE_UNAVAILABLE,
                         ex);
             }
-            if (containsForbidden(result.text())) {
-                log.warn("{}|blocked=diagnosticLanguage", logPrefix);
+            HealthTrendContent content = HealthTrendContentRules.fromAi(result.text(), warnings, allowed)
+                    .orElse(null);
+            if (content == null) {
+                log.warn("{}|blocked=invalidOutput", logPrefix);
                 throw GlobalException.of(ApiCode.AI_SERVICE_UNAVAILABLE);
             }
             HealthInterpretation saved = interpretationRepository.save(HealthInterpretation.draft(
                     childId,
-                    result.text(),
+                    HealthTrendContentRules.render(content),
+                    objectMapper.writeValueAsString(content),
                     objectMapper.writeValueAsString(warnings),
                     objectMapper.writeValueAsString(
                             points.stream().map(GrowthPoint::measurementId).toList()),
@@ -185,6 +201,44 @@ public class HealthTrendServiceImpl implements HealthTrendService {
         return objectMapper.readValue(interpretation.getWarnings(), new TypeReference<List<TrendWarning>>() {});
     }
 
+    HealthTrendContent contentOf(HealthInterpretation interpretation) {
+        return interpretation.getContent() == null
+                ? null
+                : objectMapper.readValue(interpretation.getContent(), HealthTrendContent.class);
+    }
+
+    /**
+     * HLT-21: gợi ý đo lại chỉ khi lần đo mới nhất thuộc kỳ cân đo đang diễn ra (còn sửa được số đo — HLT-13) và chưa
+     * bản giải thích nào gợi ý đo lại chính lần đo đó (đo lại vẫn thế thì không lặp câu thừa).
+     */
+    private boolean remeasurePossible(
+            HealthRecords.Snapshot s, List<HealthMeasurementResponse> published, GrowthPoint latest, Long childId) {
+        HealthMeasurementResponse measurement = published.stream()
+                .filter(m -> m.id().equals(latest.measurementId()))
+                .findFirst()
+                .orElse(null);
+        if (measurement == null || measurement.campaignKind() != HealthCheckKind.MEASUREMENT) {
+            return false;
+        }
+        HealthCheckCampaign round = s.campaign(measurement.campaignId());
+        if (round == null || round.statusOn(rules.today()) != HealthCheckStatus.IN_PROGRESS) {
+            return false;
+        }
+        return interpretationRepository.findByChildIdOrderByGeneratedAtDescIdDesc(childId).stream()
+                .noneMatch(i -> suggestedRemeasure(i, measurement.id()));
+    }
+
+    private boolean suggestedRemeasure(HealthInterpretation interpretation, Long measurementId) {
+        HealthTrendContent content = contentOf(interpretation);
+        if (content == null
+                || content.followUps().stream().noneMatch(f -> f.type() == HealthTrendFollowUpType.REMEASURE)) {
+            return false;
+        }
+        return objectMapper
+                .readValue(interpretation.getMeasurementIds(), new TypeReference<List<Long>>() {})
+                .contains(measurementId);
+    }
+
     private HealthTrendAnalysisResponse toResponse(HealthInterpretation i) {
         String approvedByName = i.getApprovedBy() == null
                 ? null
@@ -195,6 +249,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                 !i.isApproved(),
                 i.getGeneratedAt(),
                 i.getSummary(),
+                contentOf(i),
                 warningsOf(i),
                 i.getSource(),
                 i.getModel(),
@@ -207,7 +262,11 @@ public class HealthTrendServiceImpl implements HealthTrendService {
      * AI-04: chỉ giới tính, tuổi tháng và số đo; không tên, ngày sinh, mã trẻ, không ngày đo (ngày đo cùng tuổi tháng suy
      * ra được tháng sinh) — câu cảnh báo đổi "ngày dd/MM/yyyy" thành tuổi tháng của lần đo đó.
      */
-    static String userPrompt(Gender gender, List<GrowthPoint> points, List<TrendWarning> warnings) {
+    static String userPrompt(
+            Gender gender,
+            List<GrowthPoint> points,
+            List<TrendWarning> warnings,
+            Set<HealthTrendFollowUpType> allowed) {
         Map<String, Integer> ageByDate = new HashMap<>();
         points.forEach(p -> ageByDate.put(DMY.format(p.date()), p.ageMonths()));
         StringBuilder sb = new StringBuilder();
@@ -230,23 +289,39 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                     .append(text(p.bmiZScore()))
                     .append('\n');
         }
-        sb.append("Điểm cần chú ý đã tính từ số liệu:\n");
-        warnings.forEach(w -> sb.append("- ")
+        GrowthPoint first = points.getFirst();
+        GrowthPoint last = points.getLast();
+        sb.append("Số lần đo: ")
+                .append(points.size())
+                .append("; từ ")
+                .append(first.ageMonths())
+                .append(" đến ")
+                .append(last.ageMonths())
+                .append(" tháng tuổi (")
+                .append(last.ageMonths() - first.ageMonths())
+                .append(" tháng).\n");
+        sb.append("Cảnh báo đã tính từ số liệu (mã trong ngoặc vuông):\n");
+        warnings.forEach(w -> sb.append("- [")
+                .append(w.code())
+                .append("] ")
                 .append(MEASUREMENT_DATE.matcher(w.text()).replaceAll(match -> {
                     Integer age = ageByDate.get(match.group(1));
                     return age == null ? "trước đó" : "lúc " + age + " tháng tuổi";
                 }))
                 .append('\n'));
+        sb.append("Loại gợi ý theo dõi được dùng:\n");
+        allowed.stream()
+                .sorted()
+                .forEach(t -> sb.append("- ")
+                        .append(t)
+                        .append(": ")
+                        .append(FOLLOW_UP_LABELS.get(t))
+                        .append('\n'));
         return sb.toString();
     }
 
     private static String text(Object value) {
         return value == null ? "không có" : value.toString();
-    }
-
-    static boolean containsForbidden(String text) {
-        String lower = text.toLowerCase(Locale.forLanguageTag("vi"));
-        return FORBIDDEN.stream().anyMatch(lower::contains);
     }
 
     private void checkCanView(CurrentUser actor, Long childId) {

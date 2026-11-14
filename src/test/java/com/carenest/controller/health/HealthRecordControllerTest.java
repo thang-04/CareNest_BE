@@ -134,6 +134,7 @@ class HealthRecordControllerTest {
                 true,
                 Instant.parse("2026-11-10T03:00:00Z"),
                 "Chiều cao, cân nặng tăng đều.",
+                null,
                 List.of(),
                 "AI",
                 "model-x",
