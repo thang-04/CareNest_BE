@@ -748,8 +748,8 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
                 assignment.userId(), assignment.classroomId(), assignment.validFrom(), assignment.validTo())) {
             throw GlobalException.of(ApiCode.ASSIGNMENT_OVERLAP);
         }
-        // Cần chốt 14/11/2026: người dạy thay không được đang dạy chính / dạy thay lớp khác trong khoảng ngày này
-        if (staffAssignmentRepository.existsTeacherInOtherClassBetween(
+        // Cần chốt 14/11/2026: không dạy thay 2 lớp trùng ngày; GV dạy chính lớp khác vẫn được dạy thay
+        if (staffAssignmentRepository.existsSubstituteInOtherClassBetween(
                 assignment.userId(), assignment.classroomId(), assignment.validFrom(), assignment.validTo())) {
             throw GlobalException.of(ApiCode.SUBSTITUTE_TEACHER_BUSY);
         }

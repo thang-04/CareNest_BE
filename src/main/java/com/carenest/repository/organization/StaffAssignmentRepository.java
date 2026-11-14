@@ -376,15 +376,15 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             @Param("from") LocalDate from,
             @Param("to") LocalDate to);
 
-    // Dạy thay: người này dạy chính hoặc dạy thay lớp khác giao với khoảng [from, to]
+    // Dạy thay: người này đang dạy thay lớp khác giao với khoảng [from, to] (dạy chính lớp khác không tính)
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
             where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER
-              and a.classroomId <> :classroomId
+              and a.substitute = true and a.classroomId <> :classroomId
               and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)
               and (a.validTo is null or a.validTo >= a.validFrom)
             """)
-    boolean existsTeacherInOtherClassBetween(
+    boolean existsSubstituteInOtherClassBetween(
             @Param("userId") Long userId,
             @Param("classroomId") Long classroomId,
             @Param("from") LocalDate from,

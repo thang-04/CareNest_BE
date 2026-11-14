@@ -267,7 +267,7 @@ public enum ApiCode {
     SUBSTITUTE_IS_CLASS_TEACHER(2332, HttpStatus.BAD_REQUEST, "Giáo viên đứng lớp này không dạy thay cho lớp mình"),
     SUBSTITUTE_ALREADY_COVERED(
             2333, HttpStatus.CONFLICT, "Giáo viên này đã có người dạy thay trong khoảng ngày đã chọn"),
-    SUBSTITUTE_TEACHER_BUSY(2334, HttpStatus.CONFLICT, "GV đã có lớp trong khoảng ngày này"),
+    SUBSTITUTE_TEACHER_BUSY(2334, HttpStatus.CONFLICT, "GV đang dạy thay lớp khác trong khoảng ngày này"),
     VICE_PRINCIPAL_CAMPUS_TAKEN(
             2327,
             HttpStatus.CONFLICT,

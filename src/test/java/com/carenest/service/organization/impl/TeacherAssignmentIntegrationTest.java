@@ -523,13 +523,20 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cần chốt 14/11/2026: người dạy thay đang dạy chính / dạy thay lớp khác trùng ngày bị từ chối")
+    @DisplayName("Cần chốt 14/11/2026: không dạy thay 2 lớp trùng ngày; GV dạy chính lớp khác vẫn được dạy thay")
     void busyTeacherCannotSubstitute() {
-        // teacher1 dạy chính lớp A1 suốt năm
-        expectCode(
-                () -> staffAssignmentService.createAssignment(
-                        substituteAssignment(teacher1, classA2, TODAY.plusDays(7))),
-                ApiCode.SUBSTITUTE_TEACHER_BUSY);
+        // teacher1 dạy chính lớp A1 suốt năm vẫn được dạy thay A2 (nới luật)
+        StaffAssignmentResponse main = staffAssignmentService.createAssignment(new NewStaffAssignment(
+                teacher1,
+                StaffRole.TEACHER,
+                null,
+                classA2,
+                TODAY.plusDays(20),
+                TODAY.plusDays(25),
+                principal.userId(),
+                true,
+                teacher3));
+        assertThat(main.substitute()).isTrue();
         // free đang dạy thay lớp A1 tới TODAY+3 ⇒ dạy thay A2 từ TODAY bị chặn
         long free = freeTeacher("teacherFree");
         staffAssignmentService.createAssignment(new NewStaffAssignment(
