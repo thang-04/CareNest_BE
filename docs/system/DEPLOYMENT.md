@@ -125,6 +125,25 @@ Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6
 
 **Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
 
+## Email từ BE — Gmail SMTP
+
+BE gửi email qua `integration/email/EmailGateway`. Email Keycloak (đặt mật khẩu/OTP) do realm `smtpServer` gửi; `compose.yaml` local trỏ cả hai vào cùng Gmail (không còn Mailpit) (để trống username/password thì compose vẫn chạy, email Keycloak gửi thất bại). Mặc định `CARENEST_EMAIL_PROVIDER=log`: không gửi, chỉ log số người nhận. `smtp` ⇒ `SmtpEmailGateway`, mặc định `smtp.gmail.com:587` STARTTLS.
+
+Bật Gmail:
+1. Tài khoản Gmail dùng gửi (nên tạo tài khoản riêng cho team) → Google Account → Security → bật **2-Step Verification**.
+2. Security → **App passwords** → tạo mật khẩu ứng dụng (16 ký tự). Không dùng mật khẩu đăng nhập Gmail (bị từ chối 535).
+3. `.env`: `CARENEST_EMAIL_PROVIDER=smtp`, `CARENEST_EMAIL_SMTP_USERNAME=<gmail>`, `CARENEST_EMAIL_SMTP_PASSWORD=<app password, bỏ dấu cách>`; tùy chọn `CARENEST_EMAIL_FROM` (phải là chính tài khoản hoặc alias đã xác minh, trống ⇒ dùng username), `CARENEST_EMAIL_FROM_NAME`.
+4. Thiếu biến ⇒ API dừng lúc khởi động, báo tên biến thiếu.
+5. Keycloak local đã import realm từ trước (`--import-realm` bỏ qua realm có sẵn) ⇒ realm vẫn trỏ Mailpit. Sửa ở Admin Console → realm `carenest` → Realm settings → Email: host `smtp.gmail.com`, port `587`, StartTLS, Authentication = Gmail + App Password, From = Gmail; hoặc reset DB Keycloak (`KEYCLOAK.md`).
+
+Gmail cá nhân giới hạn ~500 email/ngày, chỉ hợp dev/demo. Lộ App Password ⇒ thu hồi trong App passwords. `compose.vps.yaml`, `compose.dev.yaml` chưa truyền biến `CARENEST_EMAIL_*` nên VPS: BE ở chế độ log, Keycloak vẫn gửi vào Mailpit.
+
+Gọi từ service (gửi đồng bộ; email không phải bước bắt buộc ⇒ bắt `EmailDeliveryException`, không làm hỏng nghiệp vụ đã lưu):
+
+```java
+emailGateway.send(EmailMessage.html(guardianEmail, "Thông báo từ CareNest", html));
+```
+
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 
 Điều kiện: review bảo mật gateway ADR-0013 xong; backup Postgres theo lịch đã thử khôi phục; người quản lý server đồng ý; SMTP thật. Xoá volume là **mất toàn bộ dữ liệu** của DB `carenest` và `keycloak`:
