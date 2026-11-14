@@ -2,9 +2,6 @@ package com.carenest.service.attendance.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.when;
 
 import com.carenest.dto.attendance.DailyHealthRequest;
 import com.carenest.dto.attendance.PickupBoardResponse;
@@ -14,7 +11,6 @@ import com.carenest.dto.attendance.PickupRequest;
 import com.carenest.dto.notification.DeviceTokenRequest;
 import com.carenest.dto.notification.NotificationListResponse;
 import com.carenest.exception.GlobalException;
-import com.carenest.integration.storage.AccountPhotoStorage;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.account.ParentPhotoService;
@@ -58,7 +54,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Đón trẻ, ảnh phụ huynh, thông báo khi trẻ được đón (plan docs/plans/completed/2026-10-31-child-pickup.md). Dữ liệu giả. */
-@SpringBootTest
+@SpringBootTest(properties = "carenest.storage.bucket=test-bucket")
 @Transactional
 @Testcontainers(disabledWithoutDocker = true)
 class PickupIntegrationTest {
@@ -69,7 +65,6 @@ class PickupIntegrationTest {
     static PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 10);
-    private static final String PHOTO_KEY = "0f8fad5b-d9cb-469f-a165-70867728950e";
     // Ảnh PNG 1x1 (giả)
     private static final byte[] PNG = Base64.getDecoder()
             .decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
@@ -83,8 +78,9 @@ class PickupIntegrationTest {
         }
     }
 
-    @MockitoBean
-    private AccountPhotoStorage photoStorage;
+    // Kho thật trên bucket giả trong bộ nhớ: ảnh chân dung đi qua đủ kiểm định dạng/giới hạn
+    @MockitoBean(answers = org.mockito.Answers.CALLS_REAL_METHODS)
+    private software.amazon.awssdk.services.s3.S3Client s3;
 
     @Autowired
     private PickupService pickups;
@@ -269,15 +265,14 @@ class PickupIntegrationTest {
 
     @Test
     void parentUploadsPhotoThatClassTeacherSees() {
-        when(photoStorage.store(any(), anyString())).thenReturn(PHOTO_KEY);
-        when(photoStorage.load(PHOTO_KEY)).thenReturn(PNG);
+        com.carenest.integration.storage.InMemoryS3.install(s3);
         assertThat(accounts.getMyAccount(parent).profileUpdateRequired()).isTrue();
         assertThat(accounts.getMyAccount(teacherA).profileUpdateRequired()).isFalse();
 
         expectError(
                 () -> photos.updateMyPhoto(
                         parent, new MockMultipartFile("file", "note.txt", "image/png", "không phải ảnh".getBytes())),
-                ApiCode.ACCOUNT_PHOTO_INVALID);
+                ApiCode.UNSUPPORTED_MEDIA_TYPE);
         assertThat(photos.updateMyPhoto(parent, new MockMultipartFile("file", "me.png", "image/png", PNG))
                         .photoUploaded())
                 .isTrue();

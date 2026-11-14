@@ -39,7 +39,7 @@ public interface EduWorkflowService {
     void activateLegacyPending(Instant now);
 
     Map<EduWorkflowPolicy.Role, Set<Long>> resolveActiveCandidates(
-            EduWorkflowPolicy.RolePolicy policy, Long ageGroupId, Long classroomId, LocalDate date);
+            EduWorkflowPolicy.RolePolicy policy, Long ageGroupId, Long schoolYearId, Long classroomId, LocalDate date);
 
     void validateClassDocVersion(EduClassDoc doc, Long expectedVersion, Long expectedRootVersion);
 
@@ -52,6 +52,14 @@ public interface EduWorkflowService {
             com.carenest.security.CurrentUser user, String docType, Long ageGroupId, Long classroomId);
 
     boolean isAuthorEligible(com.carenest.security.CurrentUser user, String docType, Long ageGroupId, Long classroomId);
+
+    /** Như trên trong đúng năm học (Tổ trưởng năm khác không tính); schoolYearId null ⇒ mọi năm. */
+    boolean isAuthorEligible(
+            com.carenest.security.CurrentUser user,
+            String docType,
+            Long schoolYearId,
+            Long ageGroupId,
+            Long classroomId);
 
     String buildPrintSnapshot(
             String docType,

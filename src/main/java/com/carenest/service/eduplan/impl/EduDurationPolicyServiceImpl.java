@@ -80,8 +80,10 @@ public class EduDurationPolicyServiceImpl implements EduDurationPolicyService {
         String logPrefix = LOG_PREFIX + "|getEffectivePolicy";
         log.info("{}|START", logPrefix);
         try {
-            EduSettings settings =
-                    settingsRepository.findForShare().orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
+            // Chỉ đọc để hiển thị/xem trước: không khóa FOR SHARE (Postgres từ chối trong giao dịch readOnly)
+            EduSettings settings = settingsRepository
+                    .findById((short) 1)
+                    .orElseThrow(() -> GlobalException.of(ApiCode.CONFIG_MISSING));
             EduDurationPolicyResponse result = response(settings, null);
             log.info("{}|END", logPrefix);
             return result;

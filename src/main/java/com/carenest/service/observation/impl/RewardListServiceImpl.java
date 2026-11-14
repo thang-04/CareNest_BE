@@ -258,6 +258,7 @@ public class RewardListServiceImpl implements RewardListService {
                 }
                 throw GlobalException.of(ApiCode.REWARD_REVIEW_FORBIDDEN);
             }
+            checkYearActive(cls);
             String decision = request == null ? null : request.decision();
             if (!"FORWARD".equals(decision) && !"RETURN".equals(decision)) {
                 throw GlobalException.of(ApiCode.REWARD_DECISION_INVALID);
@@ -293,6 +294,7 @@ public class RewardListServiceImpl implements RewardListService {
             if (!currentUser.hasRole(CareNestRole.PRINCIPAL) || !rules.leadsCampus(currentUser, cls.campusId())) {
                 throw GlobalException.of(ApiCode.REWARD_REVIEW_FORBIDDEN);
             }
+            checkYearActive(cls);
             if (!canDecide(currentUser, list)) {
                 throw GlobalException.of(ApiCode.REWARD_STATUS_CHANGED);
             }
@@ -352,6 +354,13 @@ public class RewardListServiceImpl implements RewardListService {
         return user.hasRole(CareNestRole.VICE_PRINCIPAL)
                 && user.hasPermission(Permission.REWARD_REVIEW)
                 && rules.leadsCampus(user, Permission.REWARD_REVIEW, list.getCampusId());
+    }
+
+    // Năm học đã kết thúc: danh sách khen thưởng chỉ xem, không xét / duyệt tiếp
+    private static void checkYearActive(ClassroomInfoResponse cls) {
+        if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
+            throw GlobalException.of(ApiCode.ASSESSMENT_YEAR_NOT_ACTIVE);
+        }
     }
 
     private boolean canReview(CurrentUser user, RewardList list) {
@@ -631,8 +640,8 @@ public class RewardListServiceImpl implements RewardListService {
                                 e.getNote()))
                         .toList(),
                 canEdit(user, cls, list),
-                canReview(user, list),
-                canDecide(user, list),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE && canReview(user, list),
+                cls.yearStatus() == SchoolYearStatus.ACTIVE && canDecide(user, list),
                 cls.yearStatus() == SchoolYearStatus.ACTIVE ? rules.yearEndOpensOn(user, cls) : null,
                 schoolDays.stream()
                         .filter(day -> day.isBefore(today)

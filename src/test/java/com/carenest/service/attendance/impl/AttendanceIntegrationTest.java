@@ -167,6 +167,35 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Năm đã kết thúc: PHT năm đó xem lại lớp điểm trường mình, dạy thay chỉ xem đúng ngày mình dạy")
+    void closedYearReadsFollowThatYearsAssignments() {
+        // PHT điểm trường A năm 2025-2026, năm nay không còn phân công
+        CurrentUser oldVp = user("vpold", CareNestRole.VICE_PRINCIPAL);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2025-09-01', '2026-05-31')",
+                oldVp.userId(),
+                jdbc.queryForObject("SELECT campus_id FROM classrooms WHERE id = ?", Long.class, oldClass));
+        LocalDate oldDay = LocalDate.of(2026, 3, 4);
+        assertThat(service.getClassAttendance(oldVp, oldClass, oldDay)).isNotNull();
+        expectCode(() -> service.getClassAttendance(oldVp, classA, TODAY), ApiCode.CLASS_ACCESS_DENIED);
+        // PHT điểm trường B năm nay không có phân công năm 2025-2026 ⇒ không xem lớp năm đó
+        expectCode(() -> service.getClassAttendance(vpB, oldClass, oldDay), ApiCode.CLASS_ACCESS_DENIED);
+
+        // Cô dạy thay lớp cũ 02/03–06/03/2026: chỉ xem lại đúng những ngày đó
+        CurrentUser sub = user("subold", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_substitute) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-03-02', '2026-03-06', TRUE)",
+                sub.userId(),
+                oldClass);
+        assertThat(service.getClassAttendance(sub, oldClass, oldDay)).isNotNull();
+        expectCode(
+                () -> service.getClassAttendance(sub, oldClass, LocalDate.of(2026, 3, 10)),
+                ApiCode.CLASS_ACCESS_DENIED);
+    }
+
+    @Test
     @DisplayName("HT thu hồi quyền Xem điểm danh: GV có quyền ghi vẫn thấy và ghi lớp đang dạy, không thấy lớp khác")
     void teacherWithoutViewPermissionStillRecordsOwnClass() {
         CurrentUser recordOnly = new CurrentUser(
@@ -743,7 +772,7 @@ class AttendanceIntegrationTest {
     private void campusRole(CurrentUser user, long campusId) {
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
-                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-09-01')",
                 user.userId(),
                 campusId);
     }

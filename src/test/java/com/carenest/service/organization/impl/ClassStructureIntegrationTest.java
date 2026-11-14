@@ -375,6 +375,35 @@ class ClassStructureIntegrationTest {
                 .contains(campusA, campusB);
     }
 
+    @Test
+    @DisplayName("CFG-YR-05: GV chỉ thấy lớp năm sắp diễn ra từ ngày mở chuẩn bị, kể cả khi gọi kèm năm học")
+    void teacherSeesUpcomingClassOnlyFromPreparationDate() {
+        long teacherId = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name) "
+                + "VALUES ('kc-gv', 'gv.it', 'GV IT') RETURNING id");
+        CurrentUser teacher =
+                new CurrentUser(teacherId, "kc-gv", "gv.it", "GV", null, Set.of(CareNestRole.TEACHER), Set.of());
+        // Hôm nay 22/10/2026: năm sau mở chuẩn bị 01/12/2026 (chưa tới) rồi đổi thành 20/10/2026 (đã tới)
+        long planned = insertId("INSERT INTO school_years (name, prep_date, start_date, end_date, status) "
+                + "VALUES ('2027-2028', '2026-12-01', '2027-09-06', '2028-05-31', 'PLANNED') RETURNING id");
+        long cls = insertId("INSERT INTO classrooms (campus_id, school_year_id, name, age_group_id, capacity) VALUES ("
+                + campusA + ", " + planned + ", 'Lớp năm sau', " + ageGroup3 + ", 25) RETURNING id");
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to)"
+                        + " VALUES (?, 'TEACHER', ?, '2026-12-01', '2028-05-31')",
+                teacherId,
+                cls);
+
+        // Trước ngày mở chuẩn bị: GV chưa có lớp nào được xem ⇒ bị từ chối, không lộ lớp năm sau
+        assertThatThrownBy(() -> classService.getSchoolStructure(teacher, planned, null))
+                .isInstanceOf(GlobalException.class);
+
+        jdbc.update("UPDATE school_years SET prep_date = '2026-10-20' WHERE id = ?", planned);
+        jdbc.update("UPDATE staff_assignments SET valid_from = '2026-10-20' WHERE user_id = ?", teacherId);
+        assertThat(classService.getSchoolStructure(teacher, planned, null).classes())
+                .extracting(ClassResponse::id)
+                .containsExactly(cls);
+    }
+
     private RoomResponse createRoom(long campusId, String code, int capacity) {
         return createRoomAs(principal, campusId, code, capacity);
     }
