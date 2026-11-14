@@ -18,9 +18,12 @@ import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.LeaveRequestService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -63,6 +66,8 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
     private final AttendanceProperties attendanceProperties;
+    private final StaffAssignmentService staffAssignmentService;
+    private final NotificationService notificationService;
 
     @Override
     public LeaveRequestResponse createLeaveRequest(CurrentUser currentUser, CreateLeaveRequest request) {
@@ -119,6 +124,11 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             for (LocalDate d : applied) {
                 markExcused(request.childId(), classOf.get(d), d, currentUser.userId(), at);
             }
+            notifyTeachers(
+                    classOf.get(applied.getFirst()),
+                    request.childId(),
+                    "Phụ huynh gửi đơn nghỉ",
+                    "Phụ huynh gửi đơn nghỉ từ " + from.format(DD_MM_YYYY) + " đến " + to.format(DD_MM_YYYY) + ".");
             LeaveRequestResponse response = toResponse(saved, classOf.get(applied.getFirst()), applied, skipped);
             log.info("{}|leaveRequestId={}|days={}|END", logPrefix, saved.getId(), applied.size());
             return response;
@@ -145,6 +155,19 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
+        }
+    }
+
+    // OBS-31: báo GV lớp khi phụ huynh gửi hoặc hủy đơn nghỉ
+    private void notifyTeachers(ClassroomInfoResponse cls, Long childId, String title, String body) {
+        if (cls == null) {
+            return;
+        }
+        List<Long> teachers = staffAssignmentService
+                .findCurrentTeacherIds(List.of(cls.id()), rules.today())
+                .getOrDefault(cls.id(), List.of());
+        if (!teachers.isEmpty()) {
+            notificationService.notifyUsers(teachers, NotificationType.LEAVE_REQUEST_CHANGED, title, body, childId);
         }
     }
 
@@ -191,6 +214,11 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
                         });
             }
             leaveRequestRepository.flush();
+            notifyTeachers(
+                    classOnOrNull(leave.getChildId(), first),
+                    leave.getChildId(),
+                    "Phụ huynh hủy đơn nghỉ",
+                    "Phụ huynh hủy đơn nghỉ từ ngày " + first.format(DD_MM_YYYY) + ", cô điểm danh lại các ngày này.");
             LeaveRequestResponse response =
                     toResponse(leave, classOnOrNull(leave.getChildId(), leave.getFromDate()), null, null);
             log.info("{}|cancelledFrom={}|END", logPrefix, first);
