@@ -727,7 +727,7 @@ paths:
       - class-rating-controller
   /api/assessment/day-unlocks:
     get:
-      operationId: getUnlocks_2
+      operationId: getUnlocks_3
       parameters:
       - in: query
         name: campusId
@@ -786,7 +786,7 @@ paths:
       - assessment-day-unlock-controller
   /api/assessment/day-unlocks/{unlockId}/revoke:
     post:
-      operationId: revokeUnlock_2
+      operationId: revokeUnlock_3
       parameters:
       - in: path
         name: unlockId
@@ -803,6 +803,100 @@ paths:
           description: OK
       tags:
       - assessment-day-unlock-controller
+  /api/assessment/evaluation-periods:
+    get:
+      operationId: getPeriods
+      parameters:
+      - in: query
+        name: classId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListEvaluationPeriod"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
+  /api/assessment/evaluation-unlocks:
+    get:
+      operationId: getUnlocks_2
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: classId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      - in: query
+        name: kind
+        required: false
+        schema:
+          type: string
+          enum:
+          - THEME
+          - SEMESTER
+          - YEAR
+      - in: query
+        name: active
+        required: false
+        schema:
+          type: boolean
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListEvaluationUnlockResponse"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
+    post:
+      operationId: unlock_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvaluationUnlockRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEvaluationUnlockResponse"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
+  /api/assessment/evaluation-unlocks/{unlockId}/revoke:
+    post:
+      operationId: revokeUnlock_2
+      parameters:
+      - in: path
+        name: unlockId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonEvaluationUnlockResponse"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
   /api/assessment/evaluations:
     get:
       operationId: list_1
@@ -999,6 +1093,25 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
+  /api/assessment/overdue:
+    get:
+      operationId: getOverdue
+      parameters:
+      - in: query
+        name: campusId
+        required: false
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListOverdueClassItem"
+          description: OK
+      tags:
+      - evaluation-deadline-controller
   /api/assessment/overview:
     get:
       operationId: getOverview_2
@@ -7891,31 +8004,6 @@ paths:
           description: OK
       tags:
       - vice-principal-assignment-controller
-  /api/school-years/{schoolYearId}/weekly-comment-deadline:
-    put:
-      operationId: updateWeeklyCommentDeadline
-      parameters:
-      - in: path
-        name: schoolYearId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/WeeklyCommentDeadlineRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonSchoolYearDetailResponse"
-          description: OK
-      tags:
-      - school-year-controller
   /api/signatures/me:
     get:
       operationId: listSignatures
@@ -12279,6 +12367,35 @@ components:
             $ref: "#/components/schemas/EvaluationRow"
         summary:
           $ref: "#/components/schemas/SummaryInfo"
+    EvaluationPeriod:
+      type: object
+      properties:
+        deadline:
+          type: string
+          format: date
+        kind:
+          type: string
+          enum:
+          - THEME
+          - SEMESTER
+          - YEAR
+        label:
+          type: string
+        locked:
+          type: boolean
+        open:
+          type: boolean
+        openFrom:
+          type: string
+          format: date
+        periodKey:
+          type: string
+        themeId:
+          type: integer
+          format: int64
+        unlockedUntil:
+          type: string
+          format: date-time
     EvaluationRow:
       type: object
       properties:
@@ -12341,6 +12458,82 @@ components:
           enum:
           - AWAITING_REVIEW
           - CONFIRMED
+    EvaluationUnlockRequest:
+      type: object
+      properties:
+        classId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - THEME
+          - SEMESTER
+          - YEAR
+        periodKey:
+          type: string
+          maxLength: 40
+          minLength: 0
+        reason:
+          type: string
+          maxLength: 300
+          minLength: 0
+        validUntil:
+          type: string
+          format: date-time
+      required:
+      - classId
+      - kind
+      - periodKey
+      - reason
+      - validUntil
+    EvaluationUnlockResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        id:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum:
+          - THEME
+          - SEMESTER
+          - YEAR
+        periodKey:
+          type: string
+        periodLabel:
+          type: string
+        reason:
+          type: string
+        revokedAt:
+          type: string
+          format: date-time
+        revokedBy:
+          type: integer
+          format: int64
+        revokedByName:
+          type: string
+        unlockedAt:
+          type: string
+          format: date-time
+        unlockedBy:
+          type: integer
+          format: int64
+        unlockedByName:
+          type: string
+        validUntil:
+          type: string
+          format: date-time
     Event:
       type: object
       properties:
@@ -15971,6 +16164,10 @@ components:
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
           - WEEKLY_COMMENT_SENT
+          - ATTENDANCE_REMINDER
+          - ASSESSMENT_REMINDER
+          - ASSESSMENT_REOPENED
+          - LEADER_REMINDER
     NutritionTotals:
       type: object
       properties:
@@ -16036,6 +16233,32 @@ components:
         resendAvailableAt:
           type: string
           format: date-time
+    OverdueClassItem:
+      type: object
+      properties:
+        campusId:
+          type: integer
+          format: int64
+        classId:
+          type: integer
+          format: int64
+        className:
+          type: string
+        deadline:
+          type: string
+          format: date
+        done:
+          type: integer
+          format: int32
+        kind:
+          type: string
+        label:
+          type: string
+        periodKey:
+          type: string
+        total:
+          type: integer
+          format: int32
     OverrideItem:
       type: object
       properties:
@@ -17960,6 +18183,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonEvaluationUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/EvaluationUnlockResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonFileUrlResponse:
       type: object
       properties:
@@ -18568,6 +18804,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListEvaluationPeriod:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluationPeriod"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListEvaluationRow:
       type: object
       properties:
@@ -18578,6 +18829,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/EvaluationRow"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListEvaluationUnlockResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/EvaluationUnlockResponse"
         desc:
           type: string
         errorCode:
@@ -18788,6 +19054,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/MenuTemplateResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonListOverdueClassItem:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/OverdueClassItem"
         desc:
           type: string
         errorCode:
@@ -20489,9 +20770,6 @@ components:
         updatedAt:
           type: string
           format: date-time
-        weeklyCommentDeadlineDays:
-          type: integer
-          format: int32
     SchoolYearRequest:
       type: object
       properties:
@@ -22223,14 +22501,6 @@ components:
           format: int32
         week:
           $ref: "#/components/schemas/WeekOption"
-    WeeklyCommentDeadlineRequest:
-      type: object
-      properties:
-        deadlineDays:
-          type: integer
-          format: int32
-      required:
-      - deadlineDays
     WeeklyCommentDraftRequest:
       type: object
       properties:

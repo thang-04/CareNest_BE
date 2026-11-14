@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 338 endpoint.
+Tổng: 342 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -45,6 +45,10 @@ PUT /assessment/class-ratings · src/main/java/com/carenest/controller/observati
 GET /assessment/day-unlocks · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#getUnlocks
 POST /assessment/day-unlocks · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#unlockDay
 POST /assessment/day-unlocks/{unlockId}/revoke · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#revokeUnlock
+GET /assessment/evaluation-periods · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#getPeriods
+GET /assessment/evaluation-unlocks · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#getUnlocks
+POST /assessment/evaluation-unlocks · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#unlock
+POST /assessment/evaluation-unlocks/{unlockId}/revoke · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#revokeUnlock
 GET /assessment/evaluations · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#list
 GET /assessment/evaluations/{id} · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#get
 POST /assessment/evaluations/{id}/confirm · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#confirm
@@ -53,6 +57,7 @@ PUT /assessment/evaluations/{id}/program-completion · src/main/java/com/carenes
 POST /assessment/evaluations/{id}/redraft · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#redraft
 GET /assessment/evaluations/{id}/year-sheet · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#getYearSheet
 PUT /assessment/evaluations/{id}/year-sheet · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#saveYearSheet
+GET /assessment/overdue · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#getOverdue
 GET /assessment/overview · src/main/java/com/carenest/controller/observation/ClassAssessmentOverviewController.java#getOverview
 GET /assessment/overview/classes/{classId} · src/main/java/com/carenest/controller/observation/ClassAssessmentOverviewController.java#getClassDetail
 GET /assessment/program-completion · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#programReport
@@ -337,7 +342,6 @@ PUT /school-years/{schoolYearId}/semester · src/main/java/com/carenest/controll
 GET /school-years/{schoolYearId}/semester-locks · src/main/java/com/carenest/controller/organization/SchoolYearController.java#getSemesterLocks
 GET /school-years/{schoolYearId}/vice-principal-assignments · src/main/java/com/carenest/controller/organization/VicePrincipalAssignmentController.java#getAssignments
 PUT /school-years/{schoolYearId}/vice-principal-assignments/{userId} · src/main/java/com/carenest/controller/organization/VicePrincipalAssignmentController.java#assign
-PUT /school-years/{schoolYearId}/weekly-comment-deadline · src/main/java/com/carenest/controller/organization/SchoolYearController.java#updateWeeklyCommentDeadline
 GET /signatures/me · src/main/java/com/carenest/controller/account/UserSignatureController.java#listSignatures
 POST /signatures/me · src/main/java/com/carenest/controller/account/UserSignatureController.java#uploadSignature
 DELETE /signatures/me/{signatureId} · src/main/java/com/carenest/controller/account/UserSignatureController.java#deleteSignature
