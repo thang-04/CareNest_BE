@@ -1,5 +1,7 @@
 package com.carenest.service.meals.impl;
 
+import com.carenest.dto.child.ClassChildResponse;
+import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.meals.MealPlanRequest;
 import com.carenest.dto.meals.MealPlanResponse;
 import com.carenest.dto.meals.MealPlanSummaryResponse;
@@ -22,6 +24,8 @@ import com.carenest.repository.meals.DishRepository;
 import com.carenest.repository.meals.MealCountRepository;
 import com.carenest.repository.meals.MealPlanWeekRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.child.GuardianChildLinkService;
 import com.carenest.service.meals.MealPlanService;
 import com.carenest.service.meals.StockLedgerService;
 import com.carenest.service.meals.impl.MealPlanEvaluator.AgeGroupInfo;
@@ -32,6 +36,7 @@ import com.carenest.service.meals.impl.MealPlanEvaluator.ItemPlan;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Norm;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Portion;
 import com.carenest.service.meals.impl.MealPlanEvaluator.Range;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.AgeGroupService;
 import com.carenest.service.organization.CampusService;
 import com.carenest.service.organization.ClassroomService;
@@ -41,12 +46,14 @@ import com.carenest.utils.enums.FoodStorage;
 import com.carenest.utils.enums.MealSession;
 import com.carenest.utils.enums.MenuBlock;
 import com.carenest.utils.enums.Micronutrient;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
@@ -85,6 +92,9 @@ public class MealPlanServiceImpl implements MealPlanService {
     private final MealDemandCalculator demandCalculator;
     private final DryStockOutlook dryStockOutlook;
     private final CampusService campusService;
+    private final EnrollmentService enrollmentService;
+    private final GuardianChildLinkService guardianChildLinkService;
+    private final NotificationService notificationService;
     private final Clock clock;
 
     @Override
@@ -178,6 +188,7 @@ public class MealPlanServiceImpl implements MealPlanService {
             week.publish(currentUser.userId(), clock.instant());
             weekRepository.flush();
             syncConfirmedDays(weekStart);
+            notifyParents(weekStart);
             MealPlanResponse response = toResponse(currentUser, weekStart, week);
             log.info("{}|END", logPrefix);
             return response;
@@ -185,6 +196,28 @@ public class MealPlanServiceImpl implements MealPlanService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /** NUT-08: công bố thực đơn tuần ⇒ báo phụ huynh của trẻ đang học (HT tắt được — PAR-09). */
+    private void notifyParents(LocalDate weekStart) {
+        LocalDate today = LocalDate.now(clock);
+        Set<Long> childIds = new LinkedHashSet<>();
+        for (var cls : classroomService.findActiveYearClassrooms()) {
+            enrollmentService.findChildrenInClassroom(cls.id(), today).stream()
+                    .map(ClassChildResponse::id)
+                    .forEach(childIds::add);
+        }
+        if (childIds.isEmpty()) {
+            return;
+        }
+        DateTimeFormatter dm = DateTimeFormatter.ofPattern("dd/MM");
+        notificationService.notifyEvent(
+                guardianChildLinkService.findLinksOfChildren(childIds).stream()
+                        .map(GuardianLinkResponse::userId)
+                        .toList(),
+                NotificationType.MENU_PUBLISHED,
+                Map.of("tuan", dm.format(weekStart) + " – " + dm.format(weekStart.plusDays(SCHOOL_DAYS - 1))),
+                null);
     }
 
     // P-38: suất đã chốt trước khi tuần được công bố (hiếm) ⇒ trừ kho ngay khi công bố

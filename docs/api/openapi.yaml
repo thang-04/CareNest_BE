@@ -471,6 +471,78 @@ paths:
           description: OK
       tags:
       - announcement-controller
+  /api/announcement-schedules:
+    get:
+      operationId: listSchedules
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListAnnouncementScheduleResponse"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+    post:
+      operationId: createSchedule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementScheduleRequest"
+        required: true
+      responses:
+        "201":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
+          description: Created
+      tags:
+      - announcement-schedule-controller
+  /api/announcement-schedules/{scheduleId}:
+    delete:
+      operationId: deleteSchedule
+      parameters:
+      - in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonVoid"
+          description: OK
+      tags:
+      - announcement-schedule-controller
+    put:
+      operationId: updateSchedule
+      parameters:
+      - in: path
+        name: scheduleId
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnnouncementScheduleRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonAnnouncementScheduleResponse"
+          description: OK
+      tags:
+      - announcement-schedule-controller
   /api/announcement-templates:
     get:
       operationId: listTemplates
@@ -5831,6 +5903,67 @@ paths:
           description: OK
       tags:
       - meal-count-controller
+  /api/notification-rules:
+    get:
+      operationId: listRules
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonListNotificationRuleResponse"
+          description: OK
+      tags:
+      - notification-rule-controller
+  /api/notification-rules/{type}:
+    put:
+      operationId: updateRule
+      parameters:
+      - in: path
+        name: type
+        required: true
+        schema:
+          type: string
+          enum:
+          - CHILD_PICKED_UP
+          - MEAL_COUNT_RECONFIRM
+          - CHILD_WITHDRAWN
+          - GUARDIAN_PHONE_CHANGE_REQUESTED
+          - GUARDIAN_PHONE_CHANGE_DECIDED
+          - CHILD_TB_CONTACT
+          - CHILD_TB_CONTACT_DATE_CHANGED
+          - HEALTH_RESULT_PUBLISHED
+          - HEALTH_RESULT_UPDATED
+          - HEALTH_CHECK_OPENED
+          - CHILD_PLACED
+          - ATTENDANCE_DAY_UNLOCKED
+          - EDU_SUBMITTED
+          - EDU_STEP_APPROVED
+          - EDU_RELEASED
+          - EDU_RETURNED
+          - EDU_DEADLINE_EXTENDED
+          - EDU_DEADLINE_NEAR
+          - SCHOOL_ANNOUNCEMENT
+          - DAILY_HEALTH_NOTED
+          - MENU_PUBLISHED
+          - LEAVE_REQUEST_CREATED
+          - CHILD_EVALUATION_CONFIRMED
+          - THEME_EVALUATION_CONFIRMED
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NotificationRuleRequest"
+        required: true
+      responses:
+        "200":
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ResponseJsonNotificationRuleResponse"
+          description: OK
+      tags:
+      - notification-rule-controller
   /api/nutrition/age-group-configs:
     get:
       operationId: getEffectiveConfigs
@@ -9264,6 +9397,62 @@ components:
         target:
           $ref: "#/components/schemas/RecipientTargetRequest"
         title:
+          type: string
+    AnnouncementScheduleRequest:
+      type: object
+      properties:
+        active:
+          type: boolean
+        dayOfMonth:
+          type: integer
+          format: int32
+        dayOfWeek:
+          type: integer
+          format: int32
+        frequency:
+          type: string
+          enum:
+          - WEEKLY
+          - MONTHLY
+        sendTime:
+          type: string
+          format: time-local
+        target:
+          $ref: "#/components/schemas/RecipientTargetRequest"
+        templateId:
+          type: integer
+          format: int64
+    AnnouncementScheduleResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        dayOfMonth:
+          type: integer
+          format: int32
+        dayOfWeek:
+          type: integer
+          format: int32
+        frequency:
+          type: string
+          enum:
+          - WEEKLY
+          - MONTHLY
+        id:
+          type: integer
+          format: int64
+        nextRunAt:
+          type: string
+          format: date-time
+        sendTime:
+          type: string
+          format: time-local
+        target:
+          $ref: "#/components/schemas/RecipientTargetRequest"
+        templateId:
+          type: integer
+          format: int64
+        templateName:
           type: string
     AnnouncementTemplateRequest:
       type: object
@@ -16411,6 +16600,70 @@ components:
           - EDU_DEADLINE_EXTENDED
           - EDU_DEADLINE_NEAR
           - SCHOOL_ANNOUNCEMENT
+          - DAILY_HEALTH_NOTED
+          - MENU_PUBLISHED
+          - LEAVE_REQUEST_CREATED
+          - CHILD_EVALUATION_CONFIRMED
+          - THEME_EVALUATION_CONFIRMED
+    NotificationRuleRequest:
+      type: object
+      properties:
+        bodyTemplate:
+          type: string
+        enabled:
+          type: boolean
+        titleTemplate:
+          type: string
+    NotificationRuleResponse:
+      type: object
+      properties:
+        bodyTemplate:
+          type: string
+        customized:
+          type: boolean
+        editable:
+          type: boolean
+        enabled:
+          type: boolean
+        label:
+          type: string
+        mandatory:
+          type: boolean
+        ruleCode:
+          type: string
+        titleTemplate:
+          type: string
+        type:
+          type: string
+          enum:
+          - CHILD_PICKED_UP
+          - MEAL_COUNT_RECONFIRM
+          - CHILD_WITHDRAWN
+          - GUARDIAN_PHONE_CHANGE_REQUESTED
+          - GUARDIAN_PHONE_CHANGE_DECIDED
+          - CHILD_TB_CONTACT
+          - CHILD_TB_CONTACT_DATE_CHANGED
+          - HEALTH_RESULT_PUBLISHED
+          - HEALTH_RESULT_UPDATED
+          - HEALTH_CHECK_OPENED
+          - CHILD_PLACED
+          - ATTENDANCE_DAY_UNLOCKED
+          - EDU_SUBMITTED
+          - EDU_STEP_APPROVED
+          - EDU_RELEASED
+          - EDU_RETURNED
+          - EDU_DEADLINE_EXTENDED
+          - EDU_DEADLINE_NEAR
+          - SCHOOL_ANNOUNCEMENT
+          - DAILY_HEALTH_NOTED
+          - MENU_PUBLISHED
+          - LEAVE_REQUEST_CREATED
+          - CHILD_EVALUATION_CONFIRMED
+          - THEME_EVALUATION_CONFIRMED
+        variables:
+          type: array
+          items:
+            type: string
     NutritionTotals:
       type: object
       properties:
@@ -18196,6 +18449,19 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonAnnouncementScheduleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/AnnouncementScheduleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonAnnouncementTemplateResponse:
       type: object
       properties:
@@ -19127,6 +19393,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListAnnouncementScheduleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnnouncementScheduleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListAnnouncementTemplateResponse:
       type: object
       properties:
@@ -19577,6 +19858,21 @@ components:
         errorCode:
           type: integer
           format: int32
+    ResponseJsonListNotificationRuleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/NotificationRuleResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
     ResponseJsonListParentAccountRowResponse:
       type: object
       properties:
@@ -19984,6 +20280,19 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/NotificationResponse"
+        desc:
+          type: string
+        errorCode:
+          type: integer
+          format: int32
+    ResponseJsonNotificationRuleResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          format: int32
+        data:
+          $ref: "#/components/schemas/NotificationRuleResponse"
         desc:
           type: string
         errorCode:

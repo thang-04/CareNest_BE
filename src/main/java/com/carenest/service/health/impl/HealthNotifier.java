@@ -11,6 +11,7 @@ import com.carenest.utils.enums.NotificationType;
 import java.time.format.DateTimeFormatter;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -35,14 +36,17 @@ class HealthNotifier {
         Set<Long> parents = guardianChildLinkService.findLinksOfChild(childId).stream()
                 .map(GuardianLinkResponse::userId)
                 .collect(Collectors.toSet());
+        if (!updated) {
+            // Công bố lần đầu theo quy tắc PAR-03 (HT tắt được, sửa câu chữ — PAR-09)
+            notificationService.notifyEvent(
+                    parents, NotificationType.HEALTH_RESULT_PUBLISHED, Map.of("tenTre", childName), childId);
+            return;
+        }
         notificationService.notifyUsers(
                 parents,
-                updated ? NotificationType.HEALTH_RESULT_UPDATED : NotificationType.HEALTH_RESULT_PUBLISHED,
-                updated ? "Kết quả sức khỏe đã cập nhật" : "Kết quả sức khỏe mới",
-                updated
-                        ? "Kết quả cân đo, khám sức khỏe của " + childName
-                                + " đã được cập nhật. Mở mục Sức khỏe để xem."
-                        : "Đã có kết quả cân đo, khám sức khỏe mới của " + childName + ". Mở mục Sức khỏe để xem.",
+                NotificationType.HEALTH_RESULT_UPDATED,
+                "Kết quả sức khỏe đã cập nhật",
+                "Kết quả cân đo, khám sức khỏe của " + childName + " đã được cập nhật. Mở mục Sức khỏe để xem.",
                 childId);
     }
 

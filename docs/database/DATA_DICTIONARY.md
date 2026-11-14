@@ -307,27 +307,84 @@ Mục đích: mỗi lần GV xác minh người đón khi trả trẻ (PCK-02, P
 Index: `uk_pickup_records_child_date_handed_over`, `(classroom_id, date)`, `(child_id, date)`.
 
 ## notifications  (module: notification, scope: USER)
-Mục đích: thông báo theo người nhận để App/Web hiện danh sách; đẩy tới thiết bị sau khi lưu. Migration: V66, V78, V104.
+Mục đích: thông báo theo người nhận để App/Web hiện danh sách; đồng thời là hàng chờ đẩy (outbox, spec 019) — worker đẩy tới thiết bị sau khi lưu. Migration: V66, V78, V104, V130.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | Người nhận | PAR-06 |
-| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ. CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08 |
+| type | VARCHAR(40) | không | `CHILD_PICKED_UP`, `MEAL_COUNT_RECONFIRM` (V79), `CHILD_WITHDRAWN`, `GUARDIAN_PHONE_CHANGE_REQUESTED`, `GUARDIAN_PHONE_CHANGE_DECIDED` (V87), `CHILD_TB_CONTACT`, `CHILD_TB_CONTACT_DATE_CHANGED`, `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED`, `HEALTH_CHECK_OPENED` (V88), `CHILD_PLACED` (V89), `EDU_SUBMITTED`, `EDU_STEP_APPROVED`, `EDU_RELEASED`, `EDU_RETURNED`, `EDU_DEADLINE_EXTENDED`, `EDU_DEADLINE_NEAR` (V109), `ATTENDANCE_DAY_UNLOCKED` (V119); V121 đặt lại danh sách đủ; `SCHOOL_ANNOUNCEMENT` (V131); `DAILY_HEALTH_NOTED`, `MENU_PUBLISHED`, `LEAVE_REQUEST_CREATED`, `CHILD_EVALUATION_CONFIRMED`, `THEME_EVALUATION_CONFIRMED` (V132). CHECK `ck_notifications_type` liệt kê đủ — thêm loại phải tạo lại trong migration mới | PCK-04, NUT-03, G94-180/CHD-03, AUTH-21, G94-180/CHD-07, HLT-08, HLT-11, PAR-03, CHD-10, EDU-74, ATT-08 |
 | title, body | VARCHAR(150), VARCHAR(500) | không | Nội dung hiển thị (có tên trẻ — không ghi log) | — |
 | child_id | BIGINT FK children | có | Trẻ liên quan (App mở đúng màn hình) | — |
 | link | VARCHAR(255) | có | V109: đường dẫn Web mở thẳng hồ sơ kế hoạch giáo dục; nhắc "Gần đến hạn" không tạo trùng cùng người + loại + link | EDU-74 |
 | created_at | TIMESTAMPTZ | không | | — |
 | read_at | TIMESTAMPTZ | có | Người nhận đã xem (chỉ cho badge của chính họ; trường không theo dõi — PAR-05) | PAR-05 |
-Index: `(user_id, created_at DESC, id DESC)`; V109 `(user_id, type, link) WHERE link IS NOT NULL`.
+| push_state | VARCHAR(10) | không | V130: `PENDING` (chờ đẩy/thử lại), `SENT`, `FAILED` (quá 60 phút hoặc lỗi vĩnh viễn), `SKIPPED` (không thiết bị; mọi dòng có trước V130) | PAR-05 |
+| push_attempts | SMALLINT | không | V130: số lượt đã đẩy | — |
+| push_next_at | TIMESTAMPTZ | có | V130: lần thử lại kế tiếp (lùi dần 1→30 phút) | — |
+| announcement_id | BIGINT FK school_announcements | có | V131: thông báo của trường; duy nhất cùng `user_id` | PAR-05 |
+Index: `(user_id, created_at DESC, id DESC)`; V109 `(user_id, type, link) WHERE link IS NOT NULL`; V130 `(id) WHERE push_state = 'PENDING'`.
+
+## school_announcements  (module: announcement, scope: SCHOOL/CAMPUS)
+Mục đích: thông báo của trường do BGH soạn (PAR-05, PAR-07, PAR-08). Migration: V131, V132 (FK lịch).
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| sender_id | BIGINT FK user_accounts | không | HT/PHT gửi; lịch lặp = HT tạo lịch | PAR-07 |
+| title, body | VARCHAR(150), VARCHAR(4000) | không | Nội dung | PAR-07 |
+| scope_type | VARCHAR(10) | không | `SCHOOL`, `CAMPUS`, `AGE_GROUP`, `CLASSROOM` | PAR-07 |
+| scope_campus_id, scope_age_group_id, scope_classroom_id | BIGINT FK | có | Theo phạm vi; lớp thì lưu cả điểm trường của lớp | PAR-07 |
+| roles | VARCHAR(60) | không | `PARENT,TEACHER,KITCHEN,BGH` | PAR-07 |
+| status | VARCHAR(10) | không | `SCHEDULED` → `SENDING` → `SENT`; `SCHEDULED` → `CANCELLED` | PAR-08 |
+| send_at, sent_at | TIMESTAMPTZ | không / có | Giờ hẹn (≤ 30 ngày) / lúc gửi xong | PAR-08 |
+| recipient_count | INT | không | Số người nhận (không theo dõi ai đã đọc) | PAR-05 |
+| schedule_id | BIGINT FK announcement_schedules | có | Tạo từ lịch gửi lặp | PAR-10 |
+| created_at, updated_at | TIMESTAMPTZ | không | | — |
+Index: `(send_at) WHERE status IN ('SCHEDULED','SENDING')`, `(created_at DESC, id DESC)`.
+
+## announcement_attachments  (module: announcement)
+Mục đích: tệp đính kèm thông báo của trường, tối đa 5, JPG/PNG/PDF ≤ 10 MB, lưu S3 riêng tư (`announcements/`). Migration: V131.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| announcement_id | BIGINT FK school_announcements ON DELETE CASCADE | không | | PAR-07 |
+| file_key, file_name, content_type, size_bytes | | không | Khóa trên kho, tên gốc, loại, dung lượng | PAR-07 |
+| created_at | TIMESTAMPTZ | không | | — |
+
+## announcement_templates  (module: announcement)
+Mục đích: mẫu soạn sẵn; `campus_id` null = mẫu toàn trường. Migration: V131.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| name, title, body | VARCHAR(100), VARCHAR(150), VARCHAR(4000) | không | | PAR-08 |
+| campus_id | BIGINT FK campuses | có | Mẫu của điểm trường (PHT chỉ sửa mẫu điểm trường mình) | PAR-08 |
+| created_by, created_at, updated_at | | không | | — |
+
+## announcement_schedules  (module: announcement)
+Mục đích: lịch gửi lặp một mẫu theo tuần/tháng, chỉ HT. Migration: V132.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| template_id | BIGINT FK announcement_templates | không | Mẫu đang dùng thì không xóa được | PAR-10 |
+| scope_*, roles | như school_announcements | | Người nhận | PAR-07 |
+| frequency | VARCHAR(10) | không | `WEEKLY` (day_of_week 1–7) / `MONTHLY` (day_of_month 1–31, tháng thiếu ngày ⇒ ngày cuối tháng) | PAR-10 |
+| send_time | TIME | không | Giờ gửi (múi giờ trường) | PAR-10 |
+| next_run_at | TIMESTAMPTZ | không | Lần chạy kế tiếp; ngày nghỉ bị bỏ khi tới lượt | PAR-10, SCH-05 |
+| active | BOOLEAN | không | | — |
+Index: `(next_run_at) WHERE active`.
+
+## notification_rules  (module: notification)
+Mục đích: phần HT đã chỉnh của quy tắc thông báo tự động; danh mục loại nằm trong code `NotificationRuleCatalog`. Migration: V132.
+| Column | Type | Null | Ý nghĩa | Rule ID |
+| --- | --- | --- | --- | --- |
+| type | VARCHAR(40) PK | không | Loại thông báo | PAR-09 |
+| enabled | BOOLEAN | không | Loại bắt buộc luôn coi là bật | PAR-09 |
+| title_template, body_template | VARCHAR(150), VARCHAR(500) | có | Câu chữ có biến `{ten}`; null = mặc định | PAR-09 |
+| updated_by, updated_at | | không | | — |
 
 ## device_tokens  (module: notification, scope: USER)
-Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một người dùng, máy đăng nhập người khác thì chuyển. Migration: V66.
+Mục đích: thiết bị nhận thông báo đẩy; một token thuộc một người dùng, máy đăng nhập người khác thì chuyển; token bị FCM báo hỏng hoặc không cập nhật quá 270 ngày thì xóa. Migration: V66, V130.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT FK user_accounts | không | | — |
 | token | VARCHAR(512) | không | Token của dịch vụ đẩy; UNIQUE. Bí mật thiết bị — không ghi log | — |
 | platform | VARCHAR(20) | không | `ANDROID` / `IOS` | — |
 | created_at, updated_at | TIMESTAMPTZ | không | | — |
-Index: `uk_device_tokens_token`, `(user_id)`.
+Index: `uk_device_tokens_token`, `(user_id)`, V130 `(updated_at)`.
 
 ## daily_observations  (module: learning-observation, scope: CHILD)
 Mục đích: đánh giá hằng ngày view Hoạt động chung + nhận xét chung của trẻ trong ngày. Migration: `V41__create_daily_observations.sql`. Dữ liệu quan sát — không log.

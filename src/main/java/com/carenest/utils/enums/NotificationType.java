@@ -34,5 +34,15 @@ public enum NotificationType {
     EDU_DEADLINE_EXTENDED,
     EDU_DEADLINE_NEAR,
     /** Thông báo của trường do BGH gửi (PAR-05, spec 019). */
-    SCHOOL_ANNOUNCEMENT
+    SCHOOL_ANNOUNCEMENT,
+    /** Sức khỏe trong ngày có biểu hiện, báo phụ huynh ngay (HLT-14). */
+    DAILY_HEALTH_NOTED,
+    /** Công bố thực đơn tuần, báo phụ huynh (NUT-08). */
+    MENU_PUBLISHED,
+    /** Phụ huynh gửi đơn nghỉ, báo GV lớp (ATT-05). */
+    LEAVE_REQUEST_CREATED,
+    /** Xác nhận đánh giá trẻ, báo phụ huynh (PAR-03). */
+    CHILD_EVALUATION_CONFIRMED,
+    /** Xác nhận đánh giá chủ đề của lớp, báo phụ huynh (PAR-03). */
+    THEME_EVALUATION_CONFIRMED
 }

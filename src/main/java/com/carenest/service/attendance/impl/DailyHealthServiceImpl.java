@@ -12,6 +12,7 @@ import com.carenest.dto.attendance.DailyHealthResponse.Options;
 import com.carenest.dto.attendance.DailyHealthResponse.Overview;
 import com.carenest.dto.attendance.DailyHealthResponse.Totals;
 import com.carenest.dto.child.ClassChildResponse;
+import com.carenest.dto.child.GuardianLinkResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.DailyHealthEntry;
@@ -25,6 +26,8 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.service.child.EnrollmentService;
+import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolStructureService;
 import com.carenest.utils.ApiCode;
@@ -33,11 +36,13 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.HealthAction;
 import com.carenest.utils.enums.HealthObservation;
 import com.carenest.utils.enums.HealthSymptom;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.PickupOutcome;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -70,6 +75,8 @@ public class DailyHealthServiceImpl implements DailyHealthService {
     private final ChildIntakeService childIntakeService;
     private final SchoolStructureService schoolStructureService;
     private final AccountService accountService;
+    private final GuardianChildLinkService guardianChildLinkService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -127,7 +134,7 @@ public class DailyHealthServiceImpl implements DailyHealthService {
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
                 throw GlobalException.of(ApiCode.HEALTH_YEAR_NOT_ACTIVE);
             }
-            childInClass(cls.id(), request.childId(), request.date());
+            ClassChildResponse child = childInClass(cls.id(), request.childId(), request.date());
             // HLT-15: ghi cả sau giờ chốt, khóa khi hết ngày; ngày cũ đang được mở lại điểm danh (ATT-08) thì ghi được
             if (!writableDay(cls.id(), request.date())) {
                 throw GlobalException.of(ApiCode.HEALTH_TODAY_ONLY);
@@ -174,6 +181,20 @@ public class DailyHealthServiceImpl implements DailyHealthService {
                     .recordedBy(currentUser.userId())
                     .recordedAt(rules.now())
                     .build());
+            if (noted) {
+                // HLT-14: có biểu hiện ⇒ báo phụ huynh ngay; câu chữ không chứa triệu chứng, banner chỉ câu chung
+                notificationService.notifyEvent(
+                        guardianChildLinkService.findLinksOfChild(request.childId()).stream()
+                                .map(GuardianLinkResponse::userId)
+                                .toList(),
+                        NotificationType.DAILY_HEALTH_NOTED,
+                        Map.of(
+                                "tenTre",
+                                "Bé " + child.fullName(),
+                                "ngay",
+                                DateTimeFormatter.ofPattern("dd/MM/yyyy").format(request.date())),
+                        request.childId());
+            }
             DailyHealthEntryResponse saved = toViews(List.of(entry)).getFirst();
             log.info("{}|END", logPrefix);
             return saved;

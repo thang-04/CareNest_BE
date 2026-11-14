@@ -6,6 +6,7 @@ import com.carenest.dto.notification.NotificationResponse;
 import com.carenest.security.CurrentUser;
 import com.carenest.utils.enums.NotificationType;
 import java.util.Collection;
+import java.util.Map;
 
 /**
  * Thông báo cho người dùng: lưu để App/Web hiện danh sách, đánh dấu đã đọc. Mỗi dòng lưu ở trạng thái chờ đẩy; worker
@@ -23,6 +24,12 @@ public interface NotificationService {
      */
     void notifyUsers(
             Collection<Long> userIds, NotificationType type, String title, String body, String link, boolean once);
+
+    /**
+     * Thông báo tự động theo quy tắc (PAR-09): loại đang tắt thì bỏ; câu chữ theo mẫu HT đã sửa hoặc mặc định, điền
+     * {@code values} vào các biến. Chạy trong giao dịch của người gọi.
+     */
+    void notifyEvent(Collection<Long> userIds, NotificationType type, Map<String, String> values, Long childId);
 
     /**
      * Thông báo của trường cho từng người nhận; bỏ người đã có dòng của thông báo này (chạy lại sau khi máy chết an toàn).

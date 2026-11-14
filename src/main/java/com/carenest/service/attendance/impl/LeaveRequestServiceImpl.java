@@ -3,6 +3,7 @@ package com.carenest.service.attendance.impl;
 import com.carenest.config.AttendanceProperties;
 import com.carenest.dto.attendance.LeaveRequestDtos.CreateLeaveRequest;
 import com.carenest.dto.attendance.LeaveRequestDtos.LeaveRequestResponse;
+import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.attendance.AttendanceRecord;
 import com.carenest.entity.attendance.AttendanceRecordHistory;
@@ -16,11 +17,15 @@ import com.carenest.security.authorization.CampusAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceService;
 import com.carenest.service.attendance.LeaveRequestService;
+import com.carenest.service.child.ChildService;
 import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.child.GuardianChildLinkService;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.AttendanceStatus;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -29,6 +34,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -63,6 +69,9 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
     private final AccountService accountService;
     private final ApplicationEventPublisher eventPublisher;
     private final AttendanceProperties attendanceProperties;
+    private final ChildService childService;
+    private final StaffAssignmentService staffAssignmentService;
+    private final NotificationService notificationService;
 
     @Override
     public LeaveRequestResponse createLeaveRequest(CurrentUser currentUser, CreateLeaveRequest request) {
@@ -119,6 +128,7 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             for (LocalDate d : applied) {
                 markExcused(request.childId(), classOf.get(d), d, currentUser.userId(), at);
             }
+            notifyTeachers(request.childId(), classOf.get(applied.getFirst()), from, to);
             LeaveRequestResponse response = toResponse(saved, classOf.get(applied.getFirst()), applied, skipped);
             log.info("{}|leaveRequestId={}|days={}|END", logPrefix, saved.getId(), applied.size());
             return response;
@@ -126,6 +136,28 @@ public class LeaveRequestServiceImpl implements LeaveRequestService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    /** ATT-05: đơn nghỉ mới ⇒ báo GV lớp (HT tắt được — PAR-09). */
+    private void notifyTeachers(Long childId, ClassroomInfoResponse cls, LocalDate from, LocalDate to) {
+        Set<Long> teachers = new LinkedHashSet<>();
+        staffAssignmentService
+                .findCurrentTeacherIds(List.of(cls.id()), rules.today())
+                .values()
+                .forEach(teachers::addAll);
+        if (teachers.isEmpty()) {
+            return;
+        }
+        ChildBriefResponse child =
+                childService.findChildBriefs(List.of(childId)).get(childId);
+        notificationService.notifyEvent(
+                teachers,
+                NotificationType.LEAVE_REQUEST_CREATED,
+                Map.of(
+                        "tenTre", child == null ? "Bé" : "Bé " + child.fullName(),
+                        "tuNgay", from.format(DD_MM_YYYY),
+                        "denNgay", to.format(DD_MM_YYYY)),
+                childId);
     }
 
     @Override

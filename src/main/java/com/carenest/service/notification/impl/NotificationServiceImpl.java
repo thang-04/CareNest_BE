@@ -6,9 +6,11 @@ import com.carenest.dto.notification.NotificationListResponse;
 import com.carenest.dto.notification.NotificationResponse;
 import com.carenest.entity.notification.DeviceToken;
 import com.carenest.entity.notification.Notification;
+import com.carenest.entity.notification.NotificationRule;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.notification.DeviceTokenRepository;
 import com.carenest.repository.notification.NotificationRepository;
+import com.carenest.repository.notification.NotificationRuleRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.utils.ApiCode;
@@ -20,6 +22,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +43,7 @@ public class NotificationServiceImpl implements NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final DeviceTokenRepository deviceTokenRepository;
+    private final NotificationRuleRepository ruleRepository;
     private final Clock clock;
 
     @Override
@@ -80,6 +84,28 @@ public class NotificationServiceImpl implements NotificationService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public void notifyEvent(Collection<Long> userIds, NotificationType type, Map<String, String> values, Long childId) {
+        NotificationRuleCatalog.Rule rule = NotificationRuleCatalog.of(type);
+        NotificationRule saved = ruleRepository.findById(type).orElse(null);
+        // Loại tắt được mà HT đã tắt ⇒ không tạo thông báo (PAR-09)
+        if (saved != null && !saved.isEnabled() && !rule.mandatory()) {
+            log.info("{}|notifyEvent|type={}|disabled", LOG_PREFIX, type);
+            return;
+        }
+        String title =
+                saved != null && saved.getTitleTemplate() != null ? saved.getTitleTemplate() : rule.defaultTitle();
+        String body = saved != null && saved.getBodyTemplate() != null ? saved.getBodyTemplate() : rule.defaultBody();
+        save(
+                userIds,
+                type,
+                NotificationRuleCatalog.render(title, values),
+                NotificationRuleCatalog.render(body, values),
+                childId,
+                null,
+                false);
     }
 
     @Override

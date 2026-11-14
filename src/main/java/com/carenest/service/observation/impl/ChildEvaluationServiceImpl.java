@@ -96,6 +96,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private final DailyObservationRepository observationRepository;
     private final BehaviourTicketRepository ticketRepository;
     private final YearEndSheetService yearEndSheetService;
+    private final EvaluationNotifier evaluationNotifier;
 
     @Override
     @Transactional
@@ -269,6 +270,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
             evaluationRepository.saveAndFlush(ev);
             eventRepository.save(
                     ChildEvaluationEvent.of(ev.getId(), EvaluationAction.CONFIRMED, currentUser.userId(), at));
+            evaluationNotifier.childEvaluationConfirmed(ev.getChildId());
             log.info("{}|END", logPrefix);
             return toRows(currentUser, List.of(ev), Map.of(cls.id(), cls), true).getFirst();
         } catch (RuntimeException ex) {

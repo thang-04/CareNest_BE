@@ -72,6 +72,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
     private final ObjectMapper objectMapper;
+    private final EvaluationNotifier evaluationNotifier;
 
     /** Ô lưu trong JSON: c = trẻ, g = dòng gốc MT, m = đạt, x = GV sửa tay. */
     record StoredCell(Long c, Long g, Boolean m, boolean x) {}
@@ -244,6 +245,8 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
             ThemeEvaluationResponse response = view(currentUser, cls, theme, evaluation);
             evaluation.setPresentationSnapshot(objectMapper.writeValueAsString(response));
             evaluationRepository.saveAndFlush(evaluation);
+            evaluationNotifier.themeEvaluationConfirmed(
+                    all.stream().map(StoredCell::c).distinct().toList(), cls.name());
             log.info("{}|END", logPrefix);
             return response;
         } catch (RuntimeException ex) {
