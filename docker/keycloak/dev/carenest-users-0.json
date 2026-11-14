@@ -3,83 +3,3729 @@
   "users": [
     {
       "id": "00000000-0000-4000-a000-000000000001",
-      "username": "admin",
+      "username": "0861723024",
       "enabled": true,
-      "firstName": "Quản trị Demo",
-      "email": "admin@gmail.com",
+      "firstName": "Hoàng Công Lâm",
+      "email": "lam.hoangcong@thuonghong.carenest.edu.vn",
       "emailVerified": true,
-      "realmRoles": ["ADMIN"],
-      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
+      "realmRoles": [
+        "ADMIN"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
     },
     {
       "id": "00000000-0000-4000-a000-000000000002",
-      "username": "principal",
+      "username": "0399825361",
       "enabled": true,
-      "firstName": "Hiệu trưởng Demo",
-      "email": "principal@gmail.com",
+      "firstName": "Hoàng Minh Tuyết",
+      "email": "tuyet.hoangminh@thuonghong.carenest.edu.vn",
       "emailVerified": true,
-      "realmRoles": ["PRINCIPAL"],
-      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
+      "realmRoles": [
+        "PRINCIPAL"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
     },
     {
       "id": "00000000-0000-4000-a000-000000000003",
-      "username": "viceprincipal",
+      "username": "0392274816",
       "enabled": true,
-      "firstName": "Hiệu phó Cơ sở A Demo",
-      "email": "viceprincipal@gmail.com",
+      "firstName": "Lê Thị Tâm",
+      "email": "tam.lethi@thuonghong.carenest.edu.vn",
       "emailVerified": true,
-      "realmRoles": ["VICE_PRINCIPAL"],
-      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
+      "realmRoles": [
+        "VICE_PRINCIPAL"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
     },
     {
-      "id": "00000000-0000-4000-a000-000000000004",
-      "username": "teacher1",
+      "id": "00000000-0000-4000-b000-000000000001",
+      "username": "0376860053",
       "enabled": true,
-      "firstName": "Giáo viên A Demo",
-      "email": "teacher1@gmail.com",
+      "firstName": "Bùi Thị Phương",
+      "email": "phuong.buithi@thuonghong.carenest.edu.vn",
       "emailVerified": true,
-      "realmRoles": ["TEACHER"],
-      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
+      "realmRoles": [
+        "VICE_PRINCIPAL"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000002",
+      "username": "0343484905",
+      "enabled": true,
+      "firstName": "Kiều Thu Nga",
+      "email": "nga.kieuthu@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000003",
+      "username": "0961275843",
+      "enabled": true,
+      "firstName": "Nguyễn Thu Mai",
+      "email": "mai.nguyenthu@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000004",
+      "username": "0934952716",
+      "enabled": true,
+      "firstName": "Lê Mai Tuyết",
+      "email": "tuyet.lemai@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
     },
     {
       "id": "00000000-0000-4000-a000-000000000005",
-      "username": "teacher2",
+      "username": "0985648263",
       "enabled": true,
-      "firstName": "Giáo viên B Demo",
-      "email": "teacher2@gmail.com",
+      "firstName": "Trần Mai Yến",
+      "email": "yen.tranmai@thuonghong.carenest.edu.vn",
       "emailVerified": true,
-      "realmRoles": ["TEACHER"],
-      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
     },
     {
-      "id": "00000000-0000-4000-a000-000000000006",
-      "username": "parent1",
+      "id": "00000000-0000-4000-a000-000000000004",
+      "username": "0902197238",
       "enabled": true,
-      "firstName": "Phụ huynh A Demo",
-      "email": "parent1@gmail.com",
+      "firstName": "Nguyễn Kim Lan",
+      "email": "lan.nguyenkim@thuonghong.carenest.edu.vn",
       "emailVerified": true,
-      "realmRoles": ["PARENT"],
-      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
     },
     {
-      "id": "00000000-0000-4000-a000-000000000007",
-      "username": "parent2",
+      "id": "00000000-0000-4000-b000-000000000005",
+      "username": "0981293650",
       "enabled": true,
-      "firstName": "Phụ huynh B Demo",
-      "email": "parent2@gmail.com",
+      "firstName": "Phạm Thị Thanh",
+      "email": "thanh.phamthi@thuonghong.carenest.edu.vn",
       "emailVerified": true,
-      "realmRoles": ["PARENT"],
-      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000006",
+      "username": "0366013137",
+      "enabled": true,
+      "firstName": "Đoàn Diệu Quyên",
+      "email": "quyen.doandieu@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000007",
+      "username": "0864473293",
+      "enabled": true,
+      "firstName": "Trần Thanh Tâm",
+      "email": "tam.tranthanh@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000008",
+      "username": "0366700036",
+      "enabled": true,
+      "firstName": "Phạm Lan Uyên",
+      "email": "uyen.phamlan@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000009",
+      "username": "0849803594",
+      "enabled": true,
+      "firstName": "Bùi Thùy Dung",
+      "email": "dung.buithuy@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000010",
+      "username": "0974439286",
+      "enabled": true,
+      "firstName": "Nguyễn Hải Trang",
+      "email": "trang.nguyenhai@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000011",
+      "username": "0978529818",
+      "enabled": true,
+      "firstName": "Nguyễn Thùy Huyền",
+      "email": "huyen.nguyenthuy@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000012",
+      "username": "0911288423",
+      "enabled": true,
+      "firstName": "Nguyễn Hồng Lan",
+      "email": "lan.nguyenhong@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000013",
+      "username": "0340732314",
+      "enabled": true,
+      "firstName": "Bùi Thanh Hà",
+      "email": "ha.buithanh@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000014",
+      "username": "0964083992",
+      "enabled": true,
+      "firstName": "Vũ Thị Liên",
+      "email": "lien.vuthi@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000015",
+      "username": "0887441235",
+      "enabled": true,
+      "firstName": "Nguyễn Kim Linh",
+      "email": "linh.nguyenkim@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000016",
+      "username": "0867787889",
+      "enabled": true,
+      "firstName": "Trần Kim Liên",
+      "email": "lien.trankim@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000017",
+      "username": "0818139472",
+      "enabled": true,
+      "firstName": "Nguyễn Hồng Thanh",
+      "email": "thanh.nguyenhong@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000018",
+      "username": "0913869187",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Hoa",
+      "email": "hoa.nguyenthi@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000019",
+      "username": "0932323131",
+      "enabled": true,
+      "firstName": "Hoàng Thị Oanh",
+      "email": "oanh.hoangthi@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000020",
+      "username": "0945827330",
+      "enabled": false,
+      "firstName": "Bùi Thu Phương",
+      "email": "phuong.buithu@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000021",
+      "username": "0392692992",
+      "enabled": true,
+      "firstName": "Phạm Thị Nhàn",
+      "email": "nhan.phamthi@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "TEACHER"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
     },
     {
       "id": "00000000-0000-4000-a000-000000000008",
-      "username": "kitchen",
+      "username": "0987731447",
       "enabled": true,
-      "firstName": "Nhà bếp Cơ sở A Demo",
-      "email": "kitchen@gmail.com",
+      "firstName": "Nguyễn Thị Thơm",
+      "email": "thom.nguyenthi@thuonghong.carenest.edu.vn",
       "emailVerified": true,
-      "realmRoles": ["KITCHEN_STAFF"],
-      "credentials": [{"type":"password","secretData":"{\"value\":\"Q2EqALBF6a1yDA+5HAWm4TFyPB4pMpNKuTrBbOlrSJvVlwaIs/2DstoCz0K3UvUfxA8S5hyC8uIfIdqb0qLWIA==\",\"salt\":\"30o2b5k56Z6SQyVnAwu88w==\",\"additionalParameters\":{}}","credentialData":"{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"}]
+      "realmRoles": [
+        "KITCHEN_STAFF"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-b000-000000000022",
+      "username": "0965968997",
+      "enabled": true,
+      "firstName": "Nguyễn Minh Hương",
+      "email": "huong.nguyenminh@thuonghong.carenest.edu.vn",
+      "emailVerified": true,
+      "realmRoles": [
+        "KITCHEN_STAFF"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000001",
+      "username": "0985950454",
+      "enabled": true,
+      "firstName": "Nguyễn Thùy Linh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "requiredActions": [
+        "UPDATE_PASSWORD"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000002",
+      "username": "0335474254",
+      "enabled": true,
+      "firstName": "Lê Phương Liên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000003",
+      "username": "0886509855",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Huy",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000004",
+      "username": "0384234102",
+      "enabled": true,
+      "firstName": "Lê Thị Mai",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000005",
+      "username": "0948445265",
+      "enabled": true,
+      "firstName": "Phạm Thị Hiền",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000006",
+      "username": "0917867534",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Trang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000007",
+      "username": "0399144334",
+      "enabled": true,
+      "firstName": "Tạ Hữu Long",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000008",
+      "username": "0796447649",
+      "enabled": true,
+      "firstName": "Nguyễn Thanh Hạnh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000009",
+      "username": "0361828499",
+      "enabled": true,
+      "firstName": "Trần Hồng Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000010",
+      "username": "0970172805",
+      "enabled": true,
+      "firstName": "Lê Thu Xuân",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000011",
+      "username": "0977375673",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Hoàng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000012",
+      "username": "0942231487",
+      "enabled": true,
+      "firstName": "Quách Xuân Trung",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000013",
+      "username": "0933438520",
+      "enabled": true,
+      "firstName": "Nguyễn Tiến Thắng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000014",
+      "username": "0964156254",
+      "enabled": true,
+      "firstName": "Lê Quang Tâm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000015",
+      "username": "0973532637",
+      "enabled": true,
+      "firstName": "Trần Kim Lan",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000016",
+      "username": "0369689000",
+      "enabled": true,
+      "firstName": "Trần Kim Tuyết",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000017",
+      "username": "0931823658",
+      "enabled": true,
+      "firstName": "Hoàng Minh Giang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000018",
+      "username": "0395409445",
+      "enabled": true,
+      "firstName": "Hà Mạnh Nam",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000019",
+      "username": "0346421142",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Minh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000007",
+      "username": "0984066510",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Thơm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000020",
+      "username": "0333882757",
+      "enabled": true,
+      "firstName": "Trần Đức Đông",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000021",
+      "username": "0866894290",
+      "enabled": true,
+      "firstName": "Phạm Thùy Thảo",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000022",
+      "username": "0893121226",
+      "enabled": true,
+      "firstName": "Phạm Ngọc Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000023",
+      "username": "0761650718",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Ngọc",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000024",
+      "username": "0973611343",
+      "enabled": true,
+      "firstName": "Nguyễn Hải Hồng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000025",
+      "username": "0854276886",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Hiền",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000026",
+      "username": "0372766108",
+      "enabled": true,
+      "firstName": "Phạm Hồng Trinh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000027",
+      "username": "0913225316",
+      "enabled": true,
+      "firstName": "Dương Thanh Mạnh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000028",
+      "username": "0899018682",
+      "enabled": true,
+      "firstName": "Phạm Thị Minh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000029",
+      "username": "0865391008",
+      "enabled": true,
+      "firstName": "Đặng Duy Quân",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000030",
+      "username": "0969246574",
+      "enabled": true,
+      "firstName": "Nguyễn Đức Tú",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000031",
+      "username": "0913411420",
+      "enabled": true,
+      "firstName": "Trần Thị Hằng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000032",
+      "username": "0865173522",
+      "enabled": true,
+      "firstName": "Nguyễn Hải Mai",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000033",
+      "username": "0766436373",
+      "enabled": true,
+      "firstName": "Lê Phương Trang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000034",
+      "username": "0988810686",
+      "enabled": true,
+      "firstName": "Phan Lan Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000035",
+      "username": "0338561830",
+      "enabled": true,
+      "firstName": "Nguyễn Thanh Hằng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000036",
+      "username": "0984326081",
+      "enabled": true,
+      "firstName": "Trần Hữu Lâm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000037",
+      "username": "0979102601",
+      "enabled": true,
+      "firstName": "Lương Mai Anh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000038",
+      "username": "0973195073",
+      "enabled": true,
+      "firstName": "Nguyễn Minh Hiếu",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000039",
+      "username": "0909630466",
+      "enabled": true,
+      "firstName": "Lê Hữu Tùng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000040",
+      "username": "0829120778",
+      "enabled": false,
+      "firstName": "Nguyễn Mạnh Trung",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-a000-000000000006",
+      "username": "0335869197",
+      "enabled": true,
+      "firstName": "Trần Thị Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000041",
+      "username": "0941907297",
+      "enabled": true,
+      "firstName": "Vũ Thị Giang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000042",
+      "username": "0378999582",
+      "enabled": true,
+      "firstName": "Nguyễn Minh Xuân",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000043",
+      "username": "0948193659",
+      "enabled": true,
+      "firstName": "Nguyễn Kim Tuyết",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000044",
+      "username": "0390701099",
+      "enabled": true,
+      "firstName": "Nguyễn Anh Hưng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000045",
+      "username": "0977258723",
+      "enabled": true,
+      "firstName": "Bùi Trọng Giang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000046",
+      "username": "0918557680",
+      "enabled": true,
+      "firstName": "Trịnh Bích Thảo",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000047",
+      "username": "0939265014",
+      "enabled": true,
+      "firstName": "Lê Thanh Định",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000048",
+      "username": "0330770264",
+      "enabled": true,
+      "firstName": "Trần Văn Dũng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000049",
+      "username": "0358965460",
+      "enabled": true,
+      "firstName": "Nguyễn Trọng Chiến",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000050",
+      "username": "0977883659",
+      "enabled": true,
+      "firstName": "Hoàng Thu Lan",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000051",
+      "username": "0966005566",
+      "enabled": true,
+      "firstName": "Nguyễn Đức Tâm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000052",
+      "username": "0326068416",
+      "enabled": true,
+      "firstName": "Trần Văn Toàn",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000053",
+      "username": "0324117285",
+      "enabled": true,
+      "firstName": "Lê Thị Ngọc",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000054",
+      "username": "0334170773",
+      "enabled": true,
+      "firstName": "Nguyễn Đức Dũng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000055",
+      "username": "0917800379",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Liên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000056",
+      "username": "0981607042",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Lan",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000057",
+      "username": "0984042374",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Diệp",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000058",
+      "username": "0398806134",
+      "enabled": true,
+      "firstName": "Nguyễn Quang Tuấn",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000059",
+      "username": "0327040549",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000060",
+      "username": "0963597076",
+      "enabled": true,
+      "firstName": "Đào Đức Phong",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000061",
+      "username": "0913692658",
+      "enabled": true,
+      "firstName": "Hoàng Văn Thắng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000062",
+      "username": "0903280617",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Uyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000063",
+      "username": "0882654855",
+      "enabled": true,
+      "firstName": "Trần Thị Linh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000064",
+      "username": "0966790912",
+      "enabled": true,
+      "firstName": "Nguyễn Mạnh Khánh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000065",
+      "username": "0331359459",
+      "enabled": true,
+      "firstName": "Hoàng Bích Thu",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000066",
+      "username": "0379201259",
+      "enabled": true,
+      "firstName": "Bùi Thùy Hương",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000067",
+      "username": "0967854662",
+      "enabled": true,
+      "firstName": "Đỗ Ngọc Thu",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000068",
+      "username": "0970966581",
+      "enabled": true,
+      "firstName": "Nguyễn Minh Dũng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000069",
+      "username": "0963058432",
+      "enabled": true,
+      "firstName": "Nguyễn Thùy Tuyết",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000070",
+      "username": "0375124613",
+      "enabled": true,
+      "firstName": "Nguyễn Mạnh Tâm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000071",
+      "username": "0765626468",
+      "enabled": true,
+      "firstName": "Nguyễn Đức Cường",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000072",
+      "username": "0899909595",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Tuấn",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000073",
+      "username": "0329218850",
+      "enabled": true,
+      "firstName": "Lê Văn Lực",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000074",
+      "username": "0326362831",
+      "enabled": true,
+      "firstName": "Hoàng Thị Thơm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000075",
+      "username": "0980031636",
+      "enabled": true,
+      "firstName": "Vũ Hữu Hùng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000076",
+      "username": "0986135515",
+      "enabled": true,
+      "firstName": "Trần Thị Nga",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000077",
+      "username": "0886830128",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Vân",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000078",
+      "username": "0861053086",
+      "enabled": true,
+      "firstName": "Lê Minh Hùng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000079",
+      "username": "0890008111",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Mai",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000080",
+      "username": "0960885568",
+      "enabled": true,
+      "firstName": "Trần Anh Nghĩa",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000081",
+      "username": "0861362135",
+      "enabled": true,
+      "firstName": "Lê Thị Dung",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000082",
+      "username": "0329974740",
+      "enabled": true,
+      "firstName": "Nguyễn Diệu Hương",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000083",
+      "username": "0893891696",
+      "enabled": true,
+      "firstName": "Nguyễn Minh Long",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000084",
+      "username": "0970195565",
+      "enabled": true,
+      "firstName": "Phạm Thị Lan",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000085",
+      "username": "0897899943",
+      "enabled": true,
+      "firstName": "Trần Đức Sơn",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000086",
+      "username": "0884814520",
+      "enabled": true,
+      "firstName": "Vũ Minh Đông",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000087",
+      "username": "0826037899",
+      "enabled": true,
+      "firstName": "Đinh Phương Thảo",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000088",
+      "username": "0336914520",
+      "enabled": true,
+      "firstName": "Ngô Tiến Lực",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000089",
+      "username": "0989781496",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Thu",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000090",
+      "username": "0355454572",
+      "enabled": true,
+      "firstName": "Phan Thị Nhàn",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000091",
+      "username": "0818840509",
+      "enabled": true,
+      "firstName": "Chu Hải Diệp",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000092",
+      "username": "0342122498",
+      "enabled": true,
+      "firstName": "Lê Thanh Vân",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000093",
+      "username": "0827524756",
+      "enabled": true,
+      "firstName": "Hoàng Văn Công",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000094",
+      "username": "0977850050",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Thu",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000095",
+      "username": "0907583099",
+      "enabled": true,
+      "firstName": "Nguyễn Duy Nghĩa",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000096",
+      "username": "0880036245",
+      "enabled": true,
+      "firstName": "Nguyễn Thùy Giang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000097",
+      "username": "0865514862",
+      "enabled": true,
+      "firstName": "Nguyễn Bích Hiền",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000098",
+      "username": "0341901953",
+      "enabled": true,
+      "firstName": "Trần Văn Việt",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000099",
+      "username": "0331998075",
+      "enabled": true,
+      "firstName": "Bùi Thu Oanh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000100",
+      "username": "0864017983",
+      "enabled": true,
+      "firstName": "Lê Thị Ly",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000101",
+      "username": "0987261339",
+      "enabled": false,
+      "firstName": "Trần Quang Đạt",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000102",
+      "username": "0895863554",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Thủy",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000103",
+      "username": "0961363223",
+      "enabled": true,
+      "firstName": "Lê Thu Linh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000104",
+      "username": "0960742611",
+      "enabled": true,
+      "firstName": "Vũ Thị Tuyết",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000105",
+      "username": "0885333679",
+      "enabled": true,
+      "firstName": "Lê Thu Linh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000106",
+      "username": "0902175102",
+      "enabled": true,
+      "firstName": "Đỗ Văn Đạt",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000107",
+      "username": "0814418031",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000108",
+      "username": "0914398176",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Hạnh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000109",
+      "username": "0904213413",
+      "enabled": true,
+      "firstName": "Nguyễn Phương Trang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000110",
+      "username": "0328803530",
+      "enabled": true,
+      "firstName": "Nguyễn Trọng Lâm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000111",
+      "username": "0850046611",
+      "enabled": true,
+      "firstName": "Nguyễn Bích Hạnh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000112",
+      "username": "0841275433",
+      "enabled": true,
+      "firstName": "Hoàng Thị Thảo",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000113",
+      "username": "0359636563",
+      "enabled": true,
+      "firstName": "Nguyễn Lan Nhàn",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000114",
+      "username": "0338253609",
+      "enabled": true,
+      "firstName": "Đinh Thanh Yến",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000115",
+      "username": "0976578533",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Quyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000116",
+      "username": "0331475355",
+      "enabled": true,
+      "firstName": "Quách Thị Mai",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000117",
+      "username": "0986222649",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Hải",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000118",
+      "username": "0326865447",
+      "enabled": true,
+      "firstName": "Lê Thu Thu",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000119",
+      "username": "0974825462",
+      "enabled": false,
+      "firstName": "Đào Thanh Uyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000120",
+      "username": "0946269170",
+      "enabled": true,
+      "firstName": "Phạm Văn Thắng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000121",
+      "username": "0908344228",
+      "enabled": true,
+      "firstName": "Nguyễn Minh Phương",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000122",
+      "username": "0888075797",
+      "enabled": true,
+      "firstName": "Đỗ Minh Định",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000123",
+      "username": "0365475475",
+      "enabled": true,
+      "firstName": "Phạm Thị Oanh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000124",
+      "username": "0376654925",
+      "enabled": true,
+      "firstName": "Hoàng Thị Linh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000125",
+      "username": "0343059823",
+      "enabled": true,
+      "firstName": "Phạm Trọng Tú",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000126",
+      "username": "0976769745",
+      "enabled": true,
+      "firstName": "Nguyễn Mạnh Hoàng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000127",
+      "username": "0890973110",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Lan",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000128",
+      "username": "0328200299",
+      "enabled": true,
+      "firstName": "Trần Diệu Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000129",
+      "username": "0918016604",
+      "enabled": true,
+      "firstName": "Ngô Thị Quyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000130",
+      "username": "0975215285",
+      "enabled": true,
+      "firstName": "Lê Ngọc Nga",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000131",
+      "username": "0763551756",
+      "enabled": true,
+      "firstName": "Phan Phương Hạnh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000132",
+      "username": "0911740401",
+      "enabled": true,
+      "firstName": "Hoàng Phương Huyền",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000133",
+      "username": "0905798394",
+      "enabled": true,
+      "firstName": "Nguyễn Kim Tâm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000134",
+      "username": "0844262265",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Định",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000135",
+      "username": "0868412657",
+      "enabled": true,
+      "firstName": "Nguyễn Lan Diệp",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000136",
+      "username": "0965013102",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Thủy",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000137",
+      "username": "0339533238",
+      "enabled": true,
+      "firstName": "Nguyễn Thanh Trang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000138",
+      "username": "0978380479",
+      "enabled": true,
+      "firstName": "Quách Hải Giang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000139",
+      "username": "0886825392",
+      "enabled": true,
+      "firstName": "Trần Lan Nhung",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000140",
+      "username": "0968174143",
+      "enabled": true,
+      "firstName": "Lê Thị Hồng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000141",
+      "username": "0355255963",
+      "enabled": true,
+      "firstName": "Lê Thị Thơm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000142",
+      "username": "0933482506",
+      "enabled": true,
+      "firstName": "Lê Thu Mai",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000143",
+      "username": "0389771804",
+      "enabled": true,
+      "firstName": "Phạm Minh Vân",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000144",
+      "username": "0935976247",
+      "enabled": true,
+      "firstName": "Trần Thị Nga",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000145",
+      "username": "0836379618",
+      "enabled": true,
+      "firstName": "Trần Đức Hoàng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000146",
+      "username": "0352285018",
+      "enabled": true,
+      "firstName": "Lưu Thị Uyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000147",
+      "username": "0863712559",
+      "enabled": true,
+      "firstName": "Nguyễn Diệu Tuyết",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000148",
+      "username": "0364037742",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Dũng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000149",
+      "username": "0974022955",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Thủy",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000150",
+      "username": "0346957951",
+      "enabled": true,
+      "firstName": "Lê Hồng Ngọc",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000151",
+      "username": "0766546987",
+      "enabled": true,
+      "firstName": "Nguyễn Thanh Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000152",
+      "username": "0902284468",
+      "enabled": true,
+      "firstName": "Nguyễn Thùy Trang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000153",
+      "username": "0936324865",
+      "enabled": true,
+      "firstName": "Lê Lan Giang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000154",
+      "username": "0821639647",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Tuyết",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000155",
+      "username": "0964306413",
+      "enabled": true,
+      "firstName": "Nguyễn Hữu Hiếu",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000156",
+      "username": "0976601502",
+      "enabled": true,
+      "firstName": "Dương Đức Hải",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000157",
+      "username": "0322185612",
+      "enabled": true,
+      "firstName": "Ngô Mai Tuyết",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000158",
+      "username": "0979994520",
+      "enabled": true,
+      "firstName": "Nguyễn Bích Tâm",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000159",
+      "username": "0977461538",
+      "enabled": true,
+      "firstName": "Phạm Ngọc Quyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000160",
+      "username": "0853348257",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Mai",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000161",
+      "username": "0859642252",
+      "enabled": true,
+      "firstName": "Trần Quang Phúc",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000162",
+      "username": "0343623192",
+      "enabled": true,
+      "firstName": "Trần Thị Phương",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000163",
+      "username": "0372105740",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Uyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000164",
+      "username": "0911048978",
+      "enabled": true,
+      "firstName": "Vũ Đức Mạnh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000165",
+      "username": "0814666395",
+      "enabled": true,
+      "firstName": "Lê Minh Nhàn",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000166",
+      "username": "0387103793",
+      "enabled": true,
+      "firstName": "Phạm Văn Vinh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000167",
+      "username": "0982791409",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Thảo",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000168",
+      "username": "0938606772",
+      "enabled": true,
+      "firstName": "Trần Ngọc Ngọc",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000169",
+      "username": "0868507874",
+      "enabled": true,
+      "firstName": "Đặng Thị Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000170",
+      "username": "0396035394",
+      "enabled": true,
+      "firstName": "Phạm Kim Uyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000171",
+      "username": "0336540915",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Hải",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000172",
+      "username": "0985186730",
+      "enabled": true,
+      "firstName": "Nguyễn Minh Thắng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000173",
+      "username": "0392188447",
+      "enabled": true,
+      "firstName": "Nguyễn Ngọc Linh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000174",
+      "username": "0325529869",
+      "enabled": true,
+      "firstName": "Phạm Minh Công",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000175",
+      "username": "0814490849",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Hà",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000176",
+      "username": "0398624596",
+      "enabled": true,
+      "firstName": "Lê Ngọc Anh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000177",
+      "username": "0941348249",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Giang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000178",
+      "username": "0324969901",
+      "enabled": true,
+      "firstName": "Dương Thị Huyền",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000179",
+      "username": "0357551080",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Nhung",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000180",
+      "username": "0977744500",
+      "enabled": true,
+      "firstName": "Đỗ Mạnh Đông",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000181",
+      "username": "0966630146",
+      "enabled": true,
+      "firstName": "Dương Thị Huyền",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000182",
+      "username": "0907155257",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Hiếu",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000183",
+      "username": "0894804787",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Hồng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000184",
+      "username": "0326665118",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Xuân",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000185",
+      "username": "0868734633",
+      "enabled": true,
+      "firstName": "Trần Thu Duyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000186",
+      "username": "0969260863",
+      "enabled": true,
+      "firstName": "Nguyễn Kim Giang",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000187",
+      "username": "0349418910",
+      "enabled": true,
+      "firstName": "Nguyễn Bích Hoa",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000188",
+      "username": "0364653822",
+      "enabled": true,
+      "firstName": "Đào Thị Nhung",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000189",
+      "username": "0357611676",
+      "enabled": true,
+      "firstName": "Lê Thị Duyên",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000190",
+      "username": "0932722371",
+      "enabled": true,
+      "firstName": "Đỗ Thị Lan",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000191",
+      "username": "0383974473",
+      "enabled": true,
+      "firstName": "Nguyễn Ngọc Hương",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000192",
+      "username": "0982484720",
+      "enabled": true,
+      "firstName": "Nguyễn Văn Vinh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000193",
+      "username": "0365788396",
+      "enabled": true,
+      "firstName": "Lưu Thùy Trinh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000194",
+      "username": "0868899205",
+      "enabled": true,
+      "firstName": "Nguyễn Trọng Quân",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000195",
+      "username": "0974014897",
+      "enabled": true,
+      "firstName": "Nguyễn Kim Hồng",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000196",
+      "username": "0961987716",
+      "enabled": true,
+      "firstName": "Trịnh Thị Tuyết",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000197",
+      "username": "0985488815",
+      "enabled": true,
+      "firstName": "Nguyễn Thu Lan",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000198",
+      "username": "0934335831",
+      "enabled": true,
+      "firstName": "Trần Ngọc Thanh",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
+    },
+    {
+      "id": "00000000-0000-4000-e000-000000000199",
+      "username": "0916571074",
+      "enabled": true,
+      "firstName": "Nguyễn Thị Huyền",
+      "realmRoles": [
+        "PARENT"
+      ],
+      "credentials": [
+        {
+          "type": "password",
+          "secretData": "{\"value\":\"vTmVjRY7b23wA9QgtCbinr8pAr80KuYFSPOP1oe59zWYFnDVvkTtV3Ej0KISRdHWpiGAdcOJ6Gq8iVnV06Ar+Q==\",\"salt\":\"Y2FyZW5lc3QtZGV2LWRhdA==\",\"additionalParameters\":{}}",
+          "credentialData": "{\"hashIterations\":210000,\"algorithm\":\"pbkdf2-sha512\",\"additionalParameters\":{}}"
+        }
+      ]
     }
   ]
 }

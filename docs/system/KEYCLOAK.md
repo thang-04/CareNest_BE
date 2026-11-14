@@ -136,36 +136,13 @@ curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/accounts/me
 
 ### User dev và dữ liệu giả
 
-Compose mount `docker/keycloak/dev/carenest-users-0.json` (8 user, id cố định, đăng nhập bằng email `<user>@gmail.com` hoặc username, mật khẩu chung `demo123` lưu dạng hash nên không bị chính sách `length(8)` chặn lúc import) và API chạy profile `dev` nạp `db/dev/R__dev_seed.sql` (hồ sơ `user_accounts` cùng id, 2 campus, 2 lớp, 3 trẻ, phân công, liên kết). Chạy API ngoài compose thì bật profile: `mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev`.
+Bộ dữ liệu dev do `node scripts/dev/gen-dev-dataset.mjs` sinh (tất định): seed `db/dev/R__dev_0*.sql` (API chạy profile `dev`) và file user Keycloak `docker/keycloak/dev/carenest-users-0.json` (local, mật khẩu chung `Carenest@2026` lưu dạng hash) / `docker/keycloak/vps/carenest-users-0.json` (VPS, mật khẩu `KEYCLOAK_DEV_USER_PASSWORD`). Hai file user cùng id/username/role, id khớp `user_accounts.keycloak_user_id`. Tên đăng nhập = SĐT; nhân sự đăng nhập được cả bằng email. Danh sách tài khoản theo vai trò và trạng thái: `docs/TAI_KHOAN_DEV.md`. Chạy API ngoài compose thì bật profile: `mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev`.
 
-Keycloak đã có realm thì `--import-realm` bỏ qua file user dev: đổi file này ⇒ partial import `ifResourceExists=OVERWRITE` (`docs/knowledge/TROUBLESHOOTING.md`) hoặc tạo lại DB `keycloak`.
+- Phủ đủ ma trận vai trò: Admin, Hiệu trưởng, 2 PHT (mỗi cơ sở 1), GV chủ nhiệm/GV thứ hai, 4 GV kiêm tổ trưởng (mỗi nhóm tuổi 1), GV chưa phân lớp, 2 tài khoản bếp, phụ huynh 1 con / 2 con khác cơ sở / ông bà giám hộ. Trạng thái: 1 GV đã khóa (nghỉ việc, Keycloak `enabled=false`), 1 GV + 1 phụ huynh phải đổi mật khẩu lần đầu, 1 GV được cấp thêm quyền và 1 GV bị bớt quyền (`permission_grants`).
+- 8 id cố định `00000000-0000-4000-a000-00000000000{1..8}` (giữ từ bộ cũ): Admin, HT, PHT Cơ sở 1, GV chủ nhiệm Lớp Chồi 1 kiêm tổ trưởng, GV Lớp Mầm 1, phụ huynh 1 con, phụ huynh 2 con, bếp Cơ sở 1.
+- Dữ liệu vận hành neo theo ngày nạp (`CURRENT_DATE`): từ ngày học đầu tiên 03/09/2026 tới hôm qua đủ, hôm nay đang làm dở; có bản ghi chờ duyệt ở mọi luồng duyệt.
 
-| User | Role | Phạm vi trong seed (năm học 2026-2027) |
-| --- | --- | --- |
-| `admin` | ADMIN | Không có phạm vi dữ liệu trẻ |
-| `principal` | PRINCIPAL | Toàn trường |
-| `viceprincipal` | VICE_PRINCIPAL | Cơ sở A |
-| `teacher1` | TEACHER | Lớp A1 |
-| `teacher2` | TEACHER | Lớp A1 tới 30/09/2026 (đã hết), Lớp B1 từ 01/10/2026 |
-| `parent1` | PARENT | Trẻ Demo A1-01 |
-| `parent2` | PARENT | Trẻ Demo B1-01 |
-| `kitchen` | KITCHEN_STAFF | Bếp Cơ sở A |
-
-Lớp A1 có `Trẻ Demo A1-01`, `Trẻ Demo A1-02`; lớp B1 có `Trẻ Demo B1-01`. Tất cả là dữ liệu giả.
-
-Dữ liệu thử màn G94-180 (`db/dev/R__dev_seed_thuong_hong_records_health.sql`): `principal` có 2 yêu cầu đổi SĐT phụ huynh chờ duyệt, `viceprincipal` 1 (tài khoản phụ huynh seed không có user Keycloak ⇒ chỉ xem/từ chối; thử duyệt bằng yêu cầu mới cho `parent1`/`parent2`); 3 trẻ chờ xếp lớp mới (1 trẻ chưa khai báo sức khỏe), 1 trẻ đã nghỉ học; 2 trẻ chuyển lớp 09/11/2026 (`teacher1` nhận "Lớp có trẻ mới"), 1 trẻ Lớp A1 khai tiếp xúc lao; 2 kỳ cân đo đã đóng mỗi điểm trường. `parent1` xem được giải thích xu hướng đã duyệt của `Trẻ Demo A1-01`; giải thích của `Trẻ Demo B1-01` (sụt cân) còn nháp, `teacher2` duyệt.
-
-Thử phân quyền với `GET /api/children/{id}` (id thật xem bằng `docker compose exec postgres psql -U carenest -d carenest -c "select id, full_name from children"`) — kết quả đã kiểm e2e:
-
-| User | A1-01 | A1-02 | B1-01 | id không tồn tại |
-| --- | --- | --- | --- | --- |
-| `teacher1` | 200 | 200 | 403 | 403 |
-| `teacher2` (A1 đã hết hạn) | 403 | 403 | 200 | 403 |
-| `viceprincipal` | 200 | 200 | 403 | 403 |
-| `principal` | 200 | 200 | 200 | 403 |
-| `parent1` | 200 | 403 | 403 | 403 |
-| `parent2` | 403 | 403 | 200 | 403 |
-| `kitchen`, `admin` | 403 | 403 | 403 | 403 |
+Keycloak chỉ import user khi realm chưa có: `--import-realm` bỏ qua file user nếu DB `keycloak` đã có realm. Đổi bộ dữ liệu ⇒ tạo lại DB `keycloak` (local `docker compose down -v`; VPS xem `docs/system/DEPLOYMENT.md`) hoặc partial import `ifResourceExists=OVERWRITE` (`docs/knowledge/TROUBLESHOOTING.md`). Seed `R__` chỉ chạy lại khi file đổi checksum và không xóa dữ liệu cũ ⇒ muốn bộ dữ liệu sạch thì tạo lại cả DB ứng dụng.
 
 User tạo tay trên console (mục 4 bước 10) chưa có hồ sơ CareNest ⇒ `/api/accounts/me` trả 403 `Account is not provisioned`; thêm tay khi cần thử:
 
