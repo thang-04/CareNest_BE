@@ -37,9 +37,6 @@ GET /assessment/behaviour-tickets/overview · src/main/java/com/carenest/control
 GET /assessment/behaviour-tickets/summary · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#getSummary
 GET /assessment/children · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#developmentChildren
 GET /assessment/children/{childId}/development · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#development
-GET /assessment/class-monthly-comments · src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#getComment
-PUT /assessment/class-monthly-comments · src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#saveComment
-POST /assessment/class-monthly-comments/confirm · src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#confirmComment
 GET /assessment/class-ratings · src/main/java/com/carenest/controller/observation/ClassRatingController.java#listRatings
 PUT /assessment/class-ratings · src/main/java/com/carenest/controller/observation/ClassRatingController.java#saveRatings
 GET /assessment/day-unlocks · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#getUnlocks

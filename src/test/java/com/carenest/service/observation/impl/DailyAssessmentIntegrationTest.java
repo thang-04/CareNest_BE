@@ -746,47 +746,6 @@ class DailyAssessmentIntegrationTest {
     }
 
     @Autowired
-    private com.carenest.service.observation.ClassMonthlyCommentService monthlyComments;
-
-    @Test
-    void classMonthlyCommentIsDraftedConfirmedByTeacherAndReadByLeaders() {
-        attendance(child1, classA, LocalDate.of(2026, 9, 15));
-        LocalDate september = LocalDate.of(2026, 9, 1);
-        // PHT chưa thấy nội dung khi GV chưa xác nhận
-        CurrentUser schoolViewer = withSchoolWide(vpB, Permission.ASSESSMENT_VIEW);
-        assertThat(monthlyComments.get(schoolViewer, classA, september).content())
-                .isNull();
-
-        var draft = monthlyComments.get(teacherA, classA, september);
-        assertThat(draft.status()).isEqualTo("AWAITING_REVIEW");
-        assertThat(draft.draft()).contains("Tháng 09/2026").contains("Lớp A");
-        assertThat(draft.canEdit()).isTrue();
-        var request = new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
-                classA, september, "Lớp đi học đều, các bé mạnh dạn tham gia hoạt động, cần rèn thêm nề nếp ăn.");
-        monthlyComments.save(teacherA, request);
-        var confirmed = monthlyComments.confirm(teacherA, request);
-        assertThat(confirmed.status()).isEqualTo("CONFIRMED");
-        expectCode(() -> monthlyComments.save(teacherA, request), ApiCode.EVALUATION_ALREADY_CONFIRMED);
-
-        var leaderView = monthlyComments.get(schoolViewer, classA, september);
-        assertThat(leaderView.content()).startsWith("Lớp đi học đều");
-        assertThat(leaderView.draft()).isNull();
-        assertThat(leaderView.canEdit()).isFalse();
-        // Tháng đang diễn ra: chưa viết được
-        assertThat(monthlyComments
-                        .get(teacherA, classA, LocalDate.of(2026, 10, 1))
-                        .status())
-                .isEqualTo("NOT_READY");
-        expectCode(
-                () -> monthlyComments.confirm(
-                        teacherA,
-                        new com.carenest.dto.observation.ClassMonthlyCommentDtos.ClassMonthlyCommentRequest(
-                                classA, LocalDate.of(2026, 10, 1), "Nhận xét tháng mười còn đang diễn ra.")),
-                ApiCode.CLASS_MONTHLY_COMMENT_NOT_READY);
-        expectCode(() -> monthlyComments.save(vpB, request), ApiCode.EVALUATION_EDIT_FORBIDDEN);
-    }
-
-    @Autowired
     private com.carenest.service.observation.ClassRatingService ratings;
 
     @Test

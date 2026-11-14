@@ -43,7 +43,6 @@ GET /assessment/behaviour-tickets/overview · src/services/assessment/api/assess
 GET /assessment/behaviour-tickets/summary · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#getSummary
 GET /assessment/children · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#developmentChildren
 GET /assessment/children/{x}/development · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#development
-GET /assessment/class-monthly-comments · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#getComment
 GET /assessment/class-ratings · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ClassRatingController.java#listRatings
 GET /assessment/day-unlocks · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#getUnlocks
 GET /assessment/evaluation-periods · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#getPeriods
@@ -229,7 +228,6 @@ POST /accounts · src/services/school-config/schoolConfigService.js [school-conf
 POST /accounts/{x}/temporary-password · src/services/school-config/schoolConfigService.js [school-config: api] → src/main/java/com/carenest/controller/account/AccountController.java#resetTemporaryPassword
 POST /age-groups · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/AgeGroupController.java#createAgeGroup
 POST /assessment/behaviour-tickets · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#issue
-POST /assessment/class-monthly-comments/confirm · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#confirmComment
 POST /assessment/day-unlocks · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#unlockDay
 POST /assessment/day-unlocks/{x}/revoke · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#revokeUnlock
 POST /assessment/evaluation-unlocks · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#unlock
@@ -324,7 +322,6 @@ POST /staff-assignments · src/services/school-config/api/schoolConfigApi.js [sc
 POST /users · src/services/school-config/api/schoolConfigApi.js [school-config: api] → (BE chưa có — pending)
 PUT /accounts/{x}/permission-overrides · src/services/account/api/permissionApi.js [permission: api] → src/main/java/com/carenest/controller/account/PermissionController.java#updatePermissionOverrides
 PUT /age-groups/{x} · src/services/school-config/api/schoolConfigApi.js [school-config: api] → src/main/java/com/carenest/controller/organization/AgeGroupController.java#updateAgeGroup
-PUT /assessment/class-monthly-comments · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#saveComment
 PUT /assessment/class-ratings · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ClassRatingController.java#saveRatings
 PUT /assessment/evaluations/{x}/content · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#saveContent
 PUT /assessment/evaluations/{x}/program-completion · src/services/assessment/api/assessmentApi.js [assessment: api] → src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#markProgram
