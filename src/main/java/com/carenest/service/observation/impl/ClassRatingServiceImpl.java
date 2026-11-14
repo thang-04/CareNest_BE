@@ -255,7 +255,8 @@ public class ClassRatingServiceImpl implements ClassRatingService {
                 && rules.leadsCampus(user, Permission.ASSESSMENT_CLASS_REVIEW, cls.campusId());
     }
 
-    // Xem: HT, PHT mọi điểm trường (AUTH-20); GV lớp đang dạy hoặc từng dạy ở năm đã kết thúc; tổ trưởng thêm các lớp
+    // Xem: HT mọi điểm trường, PHT điểm trường mình hoặc cả trường theo quyền HT cấp (AUTH-20); GV lớp đang dạy hoặc
+    // từng dạy ở năm đã kết thúc; tổ trưởng thêm các lớp
     // nhóm tuổi mình (xem ở listOf, Cần chốt 04/11)
     private boolean canRead(CurrentUser user, ClassroomInfoResponse cls) {
         return rules.readsCampus(user, cls.campusId())

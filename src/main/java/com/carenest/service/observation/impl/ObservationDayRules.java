@@ -98,11 +98,10 @@ class ObservationDayRules {
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
-    /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay khi năm đã kết thúc. */
+    /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return canView(user, cls)
-                || (yearEnded(cls)
-                        && user.hasRole(CareNestRole.TEACHER)
+                || (user.hasRole(CareNestRole.TEACHER)
                         && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
     }
 
@@ -149,6 +148,12 @@ class ObservationDayRules {
                 && staffAssignmentService.hasTeacherAssignmentHistory(user.userId(), cls.id(), today());
     }
 
+    /** Ngày xét GV của lớp: hôm nay, hoặc ngày kết thúc năm nếu đã qua (GV năm đó làm nốt việc kỳ cuối). */
+    LocalDate teachingDay(ClassroomInfoResponse cls) {
+        LocalDate today = today();
+        return cls.yearEnd() != null && today.isAfter(cls.yearEnd()) ? cls.yearEnd() : today;
+    }
+
     // CFG-YR-01: năm đã đóng, hoặc đã qua ngày kết thúc mà HT chưa đóng
     boolean yearEnded(ClassroomInfoResponse cls) {
         return cls.yearStatus() == SchoolYearStatus.CLOSED || (cls.yearEnd() != null && today().isAfter(cls.yearEnd()));
@@ -159,10 +164,53 @@ class ObservationDayRules {
         return cls.yearStatus() == SchoolYearStatus.ACTIVE && yearEnded(cls) && taughtClosedYear(user, cls);
     }
 
-    /** AUTH-03: ghi đánh giá = giáo viên đang được phân công lớp. */
+    /**
+     * AUTH-03: ghi đánh giá = giáo viên đang được phân công lớp; sau ngày kết thúc năm mà HT chưa đóng năm, GV từng dạy
+     * lớp vẫn làm nốt việc kỳ cuối (OBS-06, CFG-YR-04). Ngày / kỳ đã khóa vẫn chặn riêng (OBS-18, OBS-30).
+     */
     boolean canRecord(CurrentUser user, ClassroomInfoResponse cls) {
         return user.hasRole(CareNestRole.TEACHER)
-                && staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today());
+                && (staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today())
+                        || finishesYearEnd(user, cls));
+    }
+
+    /**
+     * Cần chốt 14/11/2026: việc theo kỳ (chủ đề, học kỳ, cuối năm, nhận xét tuần, khen thưởng) chỉ GV dạy chính
+     * ghi; người dạy thay chỉ xem.
+     */
+    boolean canRecordPeriod(CurrentUser user, ClassroomInfoResponse cls) {
+        return user.hasRole(CareNestRole.TEACHER)
+                && (staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), today())
+                        || finishesYearEnd(user, cls));
+    }
+
+    /**
+     * Cần chốt 14/11/2026: việc theo ngày (đánh giá ngày, phiếu bé ngoan) xét theo NGÀY được ghi: GV dạy chính đang dạy
+     * lớp, hoặc người dạy thay có đợt dạy thay chứa ngày đó (kể cả đợt đã hết khi ngày được mở lại).
+     */
+    boolean canRecordDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
+        return canRecordPeriod(user, cls)
+                || (user.hasRole(CareNestRole.TEACHER)
+                        && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+    }
+
+    /** Người nhận nhắc việc / thông báo mở lại việc theo ngày: GV dạy chính hiện tại và người dạy thay ngày đó. */
+    List<Long> dayTeacherIds(ClassroomInfoResponse cls, LocalDate date) {
+        return Stream.concat(
+                        periodTeacherIds(cls).stream(),
+                        staffAssignmentService
+                                .findSubstituteTeacherIdsOn(List.of(cls.id()), date)
+                                .getOrDefault(cls.id(), List.of())
+                                .stream())
+                .distinct()
+                .toList();
+    }
+
+    /** Người nhận nhắc việc / thông báo mở lại việc theo kỳ: chỉ GV dạy chính (xét tới ngày kết thúc năm nếu đã qua). */
+    List<Long> periodTeacherIds(ClassroomInfoResponse cls) {
+        return staffAssignmentService
+                .findCurrentMainTeacherIds(List.of(cls.id()), teachingDay(cls))
+                .getOrDefault(cls.id(), List.of());
     }
 
     boolean isLeader(CurrentUser user) {

@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -121,12 +122,20 @@ class AttendanceDayRules {
         return classroomAccessPolicy.canReadClassroom(user, cls.id()) || taughtClosedYear(user, cls);
     }
 
-    /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay khi năm đã kết thúc. */
+    /** Xem một ngày của lớp: như canView, thêm người dạy thay xem lại đúng ngày mình dạy thay (kể cả đã hết đợt). */
     boolean canViewDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
         return canView(user, cls)
-                || (yearEnded(cls)
-                        && user.hasRole(CareNestRole.TEACHER)
+                || (user.hasRole(CareNestRole.TEACHER)
                         && staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date));
+    }
+
+    /** Người dạy thay có đợt trong năm của lớp: lớp vẫn có trong danh sách để mở lại đúng ngày mình dạy thay. */
+    boolean substitutedInYear(CurrentUser user, ClassroomInfoResponse cls) {
+        return user.hasRole(CareNestRole.TEACHER)
+                && cls.yearStart() != null
+                && cls.yearEnd() != null
+                && staffAssignmentService.hasSubstituteAssignmentBetween(
+                        user.userId(), cls.id(), cls.yearStart(), cls.yearEnd());
     }
 
     /**
@@ -185,13 +194,48 @@ class AttendanceDayRules {
     }
 
     /** AUTH-03: ghi điểm danh = giáo viên đang được phân công lớp. */
+    // GV đang dạy lớp; sau ngày kết thúc năm mà HT chưa đóng năm, GV từng dạy ghi được ngày BGH mở lại (ATT-08)
     boolean canRecord(CurrentUser user, ClassroomInfoResponse cls) {
         return user.hasRole(CareNestRole.TEACHER)
-                && staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today());
+                && (staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today())
+                        || (cls.yearStatus() == SchoolYearStatus.ACTIVE && taughtClosedYear(user, cls)));
     }
 
     boolean canRecordAttendance(CurrentUser user, ClassroomInfoResponse cls) {
         return user.hasPermission(Permission.ATTENDANCE_RECORD) && canRecord(user, cls);
+    }
+
+    /**
+     * Cần chốt 14/11/2026: việc theo ngày (điểm danh, báo ăn, sức khỏe ngày) xét theo NGÀY được ghi — GV dạy chính đang
+     * dạy lớp, hoặc người dạy thay có đợt dạy thay chứa ngày đó (kể cả đợt đã hết khi ngày được mở lại).
+     */
+    boolean canRecordDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
+        return user.hasRole(CareNestRole.TEACHER)
+                && (staffAssignmentService.hasActiveMainTeacherAssignment(user.userId(), cls.id(), today())
+                        || staffAssignmentService.hasSubstituteAssignmentOn(user.userId(), cls.id(), date)
+                        || (cls.yearStatus() == SchoolYearStatus.ACTIVE && taughtClosedYear(user, cls)));
+    }
+
+    boolean canRecordAttendanceDay(CurrentUser user, ClassroomInfoResponse cls, LocalDate date) {
+        return user.hasPermission(Permission.ATTENDANCE_RECORD) && canRecordDay(user, cls, date);
+    }
+
+    /** Người nhận thông báo việc theo ngày: GV dạy chính hiện tại và người dạy thay ngày đó. */
+    List<Long> dayTeacherIds(ClassroomInfoResponse cls, LocalDate date) {
+        Long id = cls.id();
+        // Đã qua ngày kết thúc năm: GV dạy chính năm đó (ngày mở lại vẫn trong năm)
+        LocalDate at = cls.yearEnd() != null && today().isAfter(cls.yearEnd()) ? cls.yearEnd() : today();
+        return Stream.concat(
+                        staffAssignmentService
+                                .findCurrentMainTeacherIds(List.of(id), at)
+                                .getOrDefault(id, List.of())
+                                .stream(),
+                        staffAssignmentService
+                                .findSubstituteTeacherIdsOn(List.of(id), date)
+                                .getOrDefault(id, List.of())
+                                .stream())
+                .distinct()
+                .toList();
     }
 
     /** Cần chốt 21/10/2026: HT mở lại mọi lớp, PHT chỉ lớp điểm trường mình (AUTH-01, AUTH-02). */

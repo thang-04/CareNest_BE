@@ -13,16 +13,19 @@ import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.mapper.organization.SchoolStructureMapper;
 import com.carenest.repository.organization.AttendanceCutoffRepository;
+import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.ClassroomRepository;
 import com.carenest.repository.organization.SchoolHolidayRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.SchoolDayUsageCheck;
 import com.carenest.service.organization.SchoolYearService;
 import com.carenest.service.organization.SemesterUsageCheck;
 import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -32,6 +35,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -63,6 +67,8 @@ public class SchoolYearServiceImpl implements SchoolYearService {
     private final List<SemesterUsageCheck> semesterUsageChecks;
     private final SchoolHolidayRepository schoolHolidayRepository;
     private final List<SchoolDayUsageCheck> schoolDayUsageChecks;
+    private final CampusRepository campusRepository;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -323,6 +329,7 @@ public class SchoolYearServiceImpl implements SchoolYearService {
             });
             schoolYear.activate(currentUser.userId(), now);
             schoolYearRepository.flush();
+            notifyActivated(schoolYear, today);
             SchoolYearDetailResponse response = toDetail(schoolYear);
             log.info("{}|END", logPrefix);
             return response;
@@ -412,6 +419,26 @@ public class SchoolYearServiceImpl implements SchoolYearService {
                 .findFirstByStatusOrderByStartDateAsc(SchoolYearStatus.PLANNED)
                 .map(this::toDetail)
                 .orElse(null);
+    }
+
+    // Báo GV, PHT, bếp có phân công tại ngày bắt đầu năm mới (hoặc hôm nay nếu đã vào năm)
+    private void notifyActivated(SchoolYear year, LocalDate today) {
+        LocalDate at = today.isAfter(year.getStartDate()) ? today : year.getStartDate();
+        List<Long> campusIds = campusRepository.findAllByOrderByMainDescCodeAsc().stream()
+                .map(c -> c.getId())
+                .toList();
+        Set<Long> staff = staffAssignmentService.findActiveStaffUserIds(campusIds, at);
+        if (staff.isEmpty()) {
+            return;
+        }
+        notificationService.notifyUsers(
+                staff,
+                NotificationType.SCHOOL_YEAR_ACTIVATED,
+                "Năm học " + year.getName() + " đã bắt đầu",
+                "Năm học " + year.getName() + " đã được kích hoạt, bắt đầu từ ngày " + DMY.format(year.getStartDate())
+                        + ".",
+                "/",
+                false);
     }
 
     // Năm mới nối tiếp năm mới nhất: tên = năm mới nhất + 1, bắt đầu sau ngày kết thúc năm đó

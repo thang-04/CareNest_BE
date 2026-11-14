@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 335 endpoint.
+Tổng: 346 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -37,14 +37,15 @@ GET /assessment/behaviour-tickets/overview · src/main/java/com/carenest/control
 GET /assessment/behaviour-tickets/summary · src/main/java/com/carenest/controller/observation/BehaviourTicketController.java#getSummary
 GET /assessment/children · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#developmentChildren
 GET /assessment/children/{childId}/development · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#development
-GET /assessment/class-monthly-comments · src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#getComment
-PUT /assessment/class-monthly-comments · src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#saveComment
-POST /assessment/class-monthly-comments/confirm · src/main/java/com/carenest/controller/observation/ClassMonthlyCommentController.java#confirmComment
 GET /assessment/class-ratings · src/main/java/com/carenest/controller/observation/ClassRatingController.java#listRatings
 PUT /assessment/class-ratings · src/main/java/com/carenest/controller/observation/ClassRatingController.java#saveRatings
 GET /assessment/day-unlocks · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#getUnlocks
 POST /assessment/day-unlocks · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#unlockDay
 POST /assessment/day-unlocks/{unlockId}/revoke · src/main/java/com/carenest/controller/observation/AssessmentDayUnlockController.java#revokeUnlock
+GET /assessment/evaluation-periods · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#getPeriods
+GET /assessment/evaluation-unlocks · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#getUnlocks
+POST /assessment/evaluation-unlocks · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#unlock
+POST /assessment/evaluation-unlocks/{unlockId}/revoke · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#revokeUnlock
 GET /assessment/evaluations · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#list
 GET /assessment/evaluations/{id} · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#get
 POST /assessment/evaluations/{id}/confirm · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#confirm
@@ -53,6 +54,7 @@ PUT /assessment/evaluations/{id}/program-completion · src/main/java/com/carenes
 POST /assessment/evaluations/{id}/redraft · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#redraft
 GET /assessment/evaluations/{id}/year-sheet · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#getYearSheet
 PUT /assessment/evaluations/{id}/year-sheet · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#saveYearSheet
+GET /assessment/overdue · src/main/java/com/carenest/controller/observation/EvaluationDeadlineController.java#getOverdue
 GET /assessment/overview · src/main/java/com/carenest/controller/observation/ClassAssessmentOverviewController.java#getOverview
 GET /assessment/overview/classes/{classId} · src/main/java/com/carenest/controller/observation/ClassAssessmentOverviewController.java#getClassDetail
 GET /assessment/program-completion · src/main/java/com/carenest/controller/observation/ChildEvaluationController.java#programReport
@@ -70,6 +72,14 @@ PUT /assessment/theme-evaluations · src/main/java/com/carenest/controller/obser
 GET /assessment/theme-evaluations/classes · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#getClasses
 POST /assessment/theme-evaluations/confirm · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#confirmEvaluation
 GET /assessment/theme-evaluations/themes · src/main/java/com/carenest/controller/observation/ThemeEvaluationController.java#getThemes
+GET /assessment/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getBoard
+PUT /assessment/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#saveDraft
+POST /assessment/weekly-comments/drafts · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#writeDrafts
+GET /assessment/weekly-comments/overview · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getOverview
+POST /assessment/weekly-comments/send · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#send
+GET /assessment/weekly-comments/unlocks · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#getUnlocks
+POST /assessment/weekly-comments/unlocks · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#unlock
+POST /assessment/weekly-comments/unlocks/{unlockId}/revoke · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#revokeUnlock
 GET /attendance/classes · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getClasses
 GET /attendance/day-info · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getDayInfo
 GET /attendance/day-unlocks · src/main/java/com/carenest/controller/attendance/AttendanceController.java#getUnlocks
@@ -122,6 +132,7 @@ GET /children/{childId}/photo/url · src/main/java/com/carenest/controller/child
 POST /children/{childId}/placement · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#placeChild
 GET /children/{childId}/profile · src/main/java/com/carenest/controller/child/ChildPhotoController.java#getProfile
 POST /children/{childId}/readmit · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#readmit
+GET /children/{childId}/weekly-comments · src/main/java/com/carenest/controller/observation/WeeklyCommentController.java#listForParent
 POST /children/{childId}/withdraw · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#withdraw
 GET /children/duplicate-check · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#checkDuplicate
 POST /children/enrollments · src/main/java/com/carenest/controller/child/ChildEnrollmentController.java#enroll

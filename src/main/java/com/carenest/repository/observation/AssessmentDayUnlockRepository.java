@@ -17,4 +17,6 @@ public interface AssessmentDayUnlockRepository extends JpaRepository<AssessmentD
             Collection<Long> classroomIds, LocalDate from, LocalDate to, Instant now);
 
     List<AssessmentDayUnlock> findAllByOrderByUnlockedAtDescIdDesc();
+
+    List<AssessmentDayUnlock> findByValidUntilBetween(Instant from, Instant to);
 }

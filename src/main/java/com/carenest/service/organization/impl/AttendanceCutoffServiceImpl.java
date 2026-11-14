@@ -6,14 +6,19 @@ import com.carenest.entity.organization.AttendanceCutoff;
 import com.carenest.entity.organization.SchoolYear;
 import com.carenest.exception.GlobalException;
 import com.carenest.repository.organization.AttendanceCutoffRepository;
+import com.carenest.repository.organization.CampusRepository;
 import com.carenest.repository.organization.RoomRepository;
 import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.AttendanceCutoffService;
+import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.NotificationType;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +42,9 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
     private final SchoolYearRepository schoolYearRepository;
     private final SchoolConfigAccess schoolConfigAccess;
     private final Clock clock;
+    private final CampusRepository campusRepository;
+    private final StaffAssignmentService staffAssignmentService;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -84,7 +92,10 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
                     request.effectiveFrom(),
                     request.note() == null ? "" : request.note().trim(),
                     currentUser.userId()));
-            // TODO(Cần): báo các PHT khi đổi giờ chốt — chờ module notification
+            // OBS-31: báo PHT, GV, bếp đang phân công khi đổi giờ chốt (lần đặt đầu của năm không báo)
+            if (!history.isEmpty()) {
+                notifyCutoffChanged(year, time, request.effectiveFrom());
+            }
             CutoffResponse response = toResponse(year);
             log.info("{}|END", logPrefix);
             return response;
@@ -92,6 +103,25 @@ public class AttendanceCutoffServiceImpl implements AttendanceCutoffService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    private void notifyCutoffChanged(SchoolYear year, LocalTime time, LocalDate from) {
+        LocalDate today = LocalDate.now(clock);
+        List<Long> campusIds = campusRepository.findAllByOrderByMainDescCodeAsc().stream()
+                .map(c -> c.getId())
+                .toList();
+        Set<Long> staff = staffAssignmentService.findActiveStaffUserIds(campusIds, today);
+        if (staff.isEmpty()) {
+            return;
+        }
+        notificationService.notifyUsers(
+                staff,
+                NotificationType.CUTOFF_CHANGED,
+                "Đổi giờ chốt điểm danh",
+                "Giờ chốt điểm danh và báo ăn năm học " + year.getName() + " đổi thành " + time + " từ ngày "
+                        + DateTimeFormatter.ofPattern("dd/MM/yyyy").format(from) + ".",
+                "/attendance",
+                false);
     }
 
     @Override

@@ -294,6 +294,12 @@ class YearTransitionIntegrationTest {
 
     @Test
     void activationMovesChildrenAndClosesOldYear() {
+        long parent = user("parent1");
+        jdbc.update(
+                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
+                        + " linked_at) VALUES (?, 0, 'Mẹ', 'MOTHER', '0918888101', '999900000581', ?, now())",
+                child1,
+                parent);
         service.savePlacements(
                 principal,
                 newYear,
@@ -311,6 +317,17 @@ class YearTransitionIntegrationTest {
         assertThat(enrollmentService.findActiveClassroomIds(child1, firstDay.minusDays(1)))
                 .containsExactly(oldClass);
         assertThat(enrollmentService.findActiveClassroomIds(child2, firstDay)).isEmpty();
+        // Cần chốt 14/11/2026: phụ huynh biết lớp năm mới; GV, PHT năm mới biết năm học đã kích hoạt
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'CHILD_PLACED' AND child_id = ?",
+                        Long.class,
+                        child1))
+                .containsExactly(parent);
+        assertThat(jdbc.queryForList(
+                        "SELECT u.username FROM notifications n JOIN user_accounts u ON u.id = n.user_id"
+                                + " WHERE n.type = 'SCHOOL_YEAR_ACTIVATED'",
+                        String.class))
+                .contains("teacher1", "vp");
         // CHD-04: trẻ nghỉ học là "đã rời trường" từ ngày bắt đầu năm mới; module tài khoản nhận event để khóa phụ
         // huynh
         assertThat(enrollmentService.findChildIdsLeftSchool(List.of(child1, child2), firstDay))

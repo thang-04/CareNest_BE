@@ -267,6 +267,7 @@ public enum ApiCode {
     SUBSTITUTE_IS_CLASS_TEACHER(2332, HttpStatus.BAD_REQUEST, "Giáo viên đứng lớp này không dạy thay cho lớp mình"),
     SUBSTITUTE_ALREADY_COVERED(
             2333, HttpStatus.CONFLICT, "Giáo viên này đã có người dạy thay trong khoảng ngày đã chọn"),
+    SUBSTITUTE_TEACHER_BUSY(2334, HttpStatus.CONFLICT, "GV đang dạy thay lớp khác trong khoảng ngày này"),
     VICE_PRINCIPAL_CAMPUS_TAKEN(
             2327,
             HttpStatus.CONFLICT,
@@ -772,12 +773,29 @@ public enum ApiCode {
     // EDU-80: data.details = [{ goalId, goalNo }]
     THEME_GOALS_NOT_COVERED(7396, HttpStatus.BAD_REQUEST, "Chủ đề còn mục tiêu chưa được dạy ngày nào: {0}"),
     YEAR_GOALS_NOT_COVERED(7397, HttpStatus.BAD_REQUEST, "Năm học còn mục tiêu chưa được dạy: {0}"),
-    CLASS_MONTHLY_COMMENT_NOT_READY(7375, HttpStatus.CONFLICT, "Tháng chưa kết thúc, chưa viết nhận xét chung của lớp"),
     REWARD_REVIEW_FORBIDDEN(
             7364,
             HttpStatus.FORBIDDEN,
             "Chỉ Phó hiệu trưởng điểm trường xem xét, Hiệu trưởng phê duyệt danh sách khen thưởng"),
     EVALUATION_MONTH_INVALID(7344, HttpStatus.BAD_REQUEST, "Chọn tháng trong năm học, từ tháng {0} đến tháng {1}"),
+    // OBS-29 nhận xét tuần theo trẻ
+    WEEKLY_COMMENT_WEEK_INVALID(
+            7365, HttpStatus.BAD_REQUEST, "Chọn tuần trong năm học của lớp, từ tuần có ngày {0} đến tuần có ngày {1}"),
+    WEEKLY_COMMENT_FUTURE_WEEK(7366, HttpStatus.BAD_REQUEST, "Tuần này chưa bắt đầu, chưa viết nhận xét được"),
+    WEEKLY_COMMENT_CHILD_NOT_IN_CLASS(7368, HttpStatus.BAD_REQUEST, "Trẻ không thuộc lớp trong tuần này"),
+    WEEKLY_COMMENT_PARENT_FORBIDDEN(7369, HttpStatus.FORBIDDEN, "Bạn không xem được nhận xét của trẻ này"),
+    WEEKLY_COMMENT_NOTHING_TO_SEND(7399, HttpStatus.BAD_REQUEST, "Chưa có nhận xét nào viết xong để gửi phụ huynh"),
+    WEEKLY_COMMENT_LOCKED(
+            7400, HttpStatus.CONFLICT, "Nhận xét tuần đã khóa từ {0}. Liên hệ PHT hoặc Hiệu trưởng để mở lại."),
+    WEEKLY_COMMENT_NOT_LOCKED_YET(7401, HttpStatus.CONFLICT, "Tuần này chưa khóa, giáo viên vẫn sửa và gửi được"),
+    WEEKLY_COMMENT_UNLOCK_ALREADY_ACTIVE(7402, HttpStatus.CONFLICT, "Lớp / tuần này đang có lần mở lại còn hiệu lực"),
+    WEEKLY_COMMENT_UNLOCK_NOT_FOUND(7403, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại nhận xét tuần"),
+    WEEKLY_COMMENT_WEEK_NOT_ENDED(7398, HttpStatus.CONFLICT, "Tuần này chưa kết thúc. Nhận xét tuần mở từ ngày {0}"),
+    EVALUATION_LOCKED(7404, HttpStatus.CONFLICT, "{0} đã khóa từ ngày {1}. Liên hệ PHT hoặc Hiệu trưởng để mở lại."),
+    EVALUATION_NOT_LOCKED_YET(7405, HttpStatus.CONFLICT, "{0} chưa quá hạn, chưa cần mở lại"),
+    EVALUATION_UNLOCK_ALREADY_ACTIVE(7406, HttpStatus.CONFLICT, "{0} của lớp này đang được mở lại"),
+    EVALUATION_UNLOCK_NOT_FOUND(7407, HttpStatus.NOT_FOUND, "Không tìm thấy lần mở lại đánh giá"),
+    EVALUATION_PERIOD_NOT_FOUND(7408, HttpStatus.BAD_REQUEST, "Chọn chủ đề / học kỳ / cuối năm của lớp"),
 
     // ========== 80xx AI & TỆP ==========
     AI_SERVICE_UNAVAILABLE(8001, HttpStatus.SERVICE_UNAVAILABLE, "Trợ lý AI đang không khả dụng, vui lòng thử lại sau"),
