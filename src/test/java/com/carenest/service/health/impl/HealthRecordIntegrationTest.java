@@ -269,7 +269,8 @@ class HealthRecordIntegrationTest {
         given(aiClient.complete(any()))
                 .willReturn(new AiClient.AiResult(
                         "{\"overview\": \"Chiều cao, cân nặng tăng đều.\", \"attentionPoints\": [],"
-                                + " \"positives\": [], \"followUps\": [], \"limitations\": null}",
+                                + " \"positives\": [], \"followUps\": [{\"type\": \"RECHECK_NEXT_ROUND\","
+                                + " \"text\": \"Theo dõi ở kỳ cân đo sau.\"}], \"limitations\": null}",
                         "model-x"));
 
         HealthTrendAnalysisResponse draft = trendService.analyze(teacher, child);
@@ -285,7 +286,20 @@ class HealthRecordIntegrationTest {
         PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child);
         assertThat(view.interpretation()).isNotNull();
         assertThat(view.interpretation().summary()).isEqualTo("Tổng quan: Chiều cao, cân nặng tăng đều.");
+        assertThat(view.interpretation().content().overview()).isEqualTo("Chiều cao, cân nặng tăng đều.");
+        // HLT-21: gợi ý theo dõi là việc nội bộ — phụ huynh không thấy, kể cả trong bản văn
+        assertThat(view.interpretation().content().followUps()).isEmpty();
+        assertThat(view.interpretation().summary()).doesNotContain("Gợi ý theo dõi");
         assertThat(view.interpretation().warnings()).isNotEmpty();
+        assertThat(view.interpretation().stale()).isFalse();
+        assertThat(trendService.latest(teacher, child).content().followUps()).hasSize(1);
+
+        // HLT-21: có số đo mới công bố ⇒ bản đã duyệt cũ đánh dấu stale, phụ huynh vẫn thấy (Q6 = A)
+        measure(round("Cân đo tháng 10 (giả)", "2026-10-01", "2026-10-10"), "2026-10-05", "98.8", "15.3");
+        PublishedHealthResponse later = measurementService.getPublishedHealth(parent, child);
+        assertThat(later.interpretation()).isNotNull();
+        assertThat(later.interpretation().stale()).isTrue();
+        assertThat(trendService.latest(teacher, child).stale()).isTrue();
     }
 
     @Test

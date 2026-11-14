@@ -111,12 +111,15 @@ public class HealthInterpretation {
         return status == InterpretationStatus.APPROVED;
     }
 
-    /** Duyệt (AI-02); {@code editedSummary} khác bản AI ⇒ nhân sự chịu trách nhiệm nội dung ({@code source=HUMAN}). */
-    public void approve(String editedSummary, Long userId, Instant at) {
-        if (editedSummary != null && !editedSummary.equals(summary)) {
-            this.summary = editedSummary;
-            this.source = SOURCE_HUMAN;
-        }
+    /** Nhân sự sửa nội dung trước khi duyệt ⇒ chịu trách nhiệm nội dung ({@code source=HUMAN}, AI-02). */
+    public void editContent(String contentJson, String renderedSummary) {
+        this.content = contentJson;
+        this.summary = renderedSummary;
+        this.source = SOURCE_HUMAN;
+    }
+
+    /** Duyệt (AI-02, HLT-05): từ đây phụ huynh thấy bản này. */
+    public void approve(Long userId, Instant at) {
         this.status = InterpretationStatus.APPROVED;
         this.approvedBy = userId;
         this.approvedAt = at;

@@ -13,6 +13,9 @@ import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.health.HealthMeasurementResponse;
 import com.carenest.dto.health.HealthTrendAnalysisResponse;
 import com.carenest.dto.health.HealthTrendApproveRequest;
+import com.carenest.dto.health.HealthTrendContent;
+import com.carenest.dto.health.HealthTrendContent.AttentionPoint;
+import com.carenest.dto.health.HealthTrendContent.FollowUp;
 import com.carenest.dto.health.PublishedHealthResponse.GrowthPoint;
 import com.carenest.dto.health.PublishedHealthResponse.TrendWarning;
 import com.carenest.entity.health.HealthCheckCampaign;
@@ -182,20 +185,101 @@ class HealthTrendServiceImplTest {
     }
 
     @Test
-    @DisplayName("AI-02: duyệt có sửa câu chữ ⇒ APPROVED, source=HUMAN")
+    @DisplayName("AI-02, HLT-21: duyệt có sửa từng mục ⇒ APPROVED, source=HUMAN, summary ghép lại từ bản sửa")
     void approveWithEdit() {
-        HealthInterpretation draft =
-                HealthInterpretation.draft(CHILD_ID, "Bản AI", null, "[]", "[1,2]", "m", 7L, Instant.now());
-        ReflectionTestUtils.setField(draft, "id", 90L);
-        given(repository.findByIdAndChildId(90L, CHILD_ID)).willReturn(Optional.of(draft));
+        HealthInterpretation draft = aiDraft();
+        HealthTrendContent edited = new HealthTrendContent(
+                " Cân nặng giảm nhẹ. ",
+                List.of(new AttentionPoint(HealthTrendWarningCode.WEIGHT_DROP, "Giảm 0,5 kg.")),
+                null,
+                List.of(new FollowUp(HealthTrendFollowUpType.TALK_TO_PARENT, "Trao đổi với phụ huynh.")),
+                " ");
 
         HealthTrendAnalysisResponse response =
-                service.approve(TEACHER, CHILD_ID, 90L, new HealthTrendApproveRequest(" Bản đã sửa "));
+                service.approve(TEACHER, CHILD_ID, 90L, new HealthTrendApproveRequest(edited));
 
         assertThat(response.draft()).isFalse();
-        assertThat(draft.getSummary()).isEqualTo("Bản đã sửa");
+        assertThat(response.stale()).isFalse();
+        assertThat(response.content().overview()).isEqualTo("Cân nặng giảm nhẹ.");
+        assertThat(response.content().positives()).isEmpty();
+        assertThat(response.content().limitations()).isNull();
+        assertThat(draft.getSummary())
+                .startsWith("Tổng quan: Cân nặng giảm nhẹ.")
+                .contains("- Giảm 0,5 kg.");
         assertThat(draft.getSource()).isEqualTo(HealthInterpretation.SOURCE_HUMAN);
         assertThat(draft.getApprovedBy()).isEqualTo(TEACHER.userId());
+    }
+
+    @Test
+    @DisplayName("AI-02: duyệt không gửi nội dung, hoặc gửi đúng bản AI ⇒ giữ source=AI")
+    void approveWithoutEditKeepsAiSource() {
+        HealthInterpretation draft = aiDraft();
+
+        service.approve(TEACHER, CHILD_ID, 90L, null);
+
+        assertThat(draft.getStatus()).isEqualTo(InterpretationStatus.APPROVED);
+        assertThat(draft.getSource()).isEqualTo(HealthInterpretation.SOURCE_AI);
+        assertThat(draft.getSummary()).isEqualTo("Tổng quan: Trẻ tăng cân đều.");
+    }
+
+    @Test
+    @DisplayName("AI-02, HLT-21: bản sửa sai (tổng quan trống, mã cảnh báo lạ, mục quá dài) ⇒ 400, không duyệt")
+    void approveRejectsInvalidContent() {
+        HealthInterpretation draft = aiDraft();
+        HealthTrendContent invalid = new HealthTrendContent(
+                " ",
+                List.of(new AttentionPoint(HealthTrendWarningCode.WFA_LOW, "Cảnh báo không có trong lần phân tích.")),
+                List.of("x".repeat(HealthTrendContentRules.MAX_ITEM + 1)),
+                List.of(),
+                null);
+
+        assertThatThrownBy(() -> service.approve(TEACHER, CHILD_ID, 90L, new HealthTrendApproveRequest(invalid)))
+                .isInstanceOfSatisfying(GlobalException.class, ex -> {
+                    assertThat(ex.getApiCode()).isEqualTo(ApiCode.INVALID_REQUEST_DATA);
+                    assertThat(ex.getFieldErrors())
+                            .extracting(e -> e.field())
+                            .containsExactly(
+                                    "content.overview",
+                                    "content.attentionPoints[0].warningCode",
+                                    "content.positives[0]");
+                });
+        assertThat(draft.getStatus()).isEqualTo(InterpretationStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("HLT-21: có số đo công bố mới sau lần phân tích ⇒ bản mới nhất đánh dấu stale")
+    void latestMarksStaleAfterNewMeasurement() {
+        HealthInterpretation draft = aiDraft();
+        given(repository.findFirstByChildIdOrderByGeneratedAtDescIdDesc(CHILD_ID))
+                .willReturn(Optional.of(draft));
+
+        assertThat(service.latest(TEACHER, CHILD_ID).stale()).isFalse();
+
+        given(records.views(any(), any(), any(), any(), anyBoolean()))
+                .willReturn(List.of(
+                        measurement(3L, "2026-12-01", "102.0", "16.6", null),
+                        point(2L, "2026-11-01"),
+                        point(1L, "2026-09-10")));
+        assertThat(service.latest(TEACHER, CHILD_ID).stale()).isTrue();
+    }
+
+    /** Nháp AI dùng lần đo 1, 2 có cảnh báo sụt cân; số đo đã công bố hiện tại cũng là 1, 2. */
+    private HealthInterpretation aiDraft() {
+        HealthInterpretation draft = HealthInterpretation.draft(
+                CHILD_ID,
+                "Tổng quan: Trẻ tăng cân đều.",
+                "{\"overview\":\"Trẻ tăng cân đều.\",\"attentionPoints\":[],\"positives\":[],"
+                        + "\"followUps\":[],\"limitations\":null}",
+                "[{\"code\":\"WEIGHT_DROP\",\"level\":\"warning\",\"text\":\"Cân nặng giảm.\"}]",
+                "[1,2]",
+                "m",
+                7L,
+                Instant.now());
+        ReflectionTestUtils.setField(draft, "id", 90L);
+        given(repository.findByIdAndChildId(90L, CHILD_ID)).willReturn(Optional.of(draft));
+        given(records.views(any(), any(), any(), any(), anyBoolean()))
+                .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
+        return draft;
     }
 
     @Test

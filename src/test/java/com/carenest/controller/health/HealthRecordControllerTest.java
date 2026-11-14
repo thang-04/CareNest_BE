@@ -132,6 +132,7 @@ class HealthRecordControllerTest {
                 90L,
                 HealthTrendAnalysisResponse.OK,
                 true,
+                false,
                 Instant.parse("2026-11-10T03:00:00Z"),
                 "Chiều cao, cân nặng tăng đều.",
                 null,

@@ -191,8 +191,8 @@ updated: 2026-11-14
 | AC-3 | AI-05, AI-06 | `OpenAiCompatibleAiClientTest` (unit) | 1 | PASS; smoke test provider chưa chạy |
 | AC-4, AC-5 | HLT-21, HLT-04 | `HealthTrendContentRulesTest` (unit) | 2 | PASS 9/9 |
 | AC-6, AC-7 | AI-04, HLT-05 | `HealthTrendServiceImplTest` (unit) | 2 | PASS 12/12 (gồm AC-2 đo lại một lần, kỳ đóng) |
-| AC-8 | AI-02 | `HealthTrendServiceImplTest` (unit) | 3 | |
-| AC-9, AC-10 | PAR-03, HLT-21 | `HealthRecordIntegrationTest` (Testcontainers) | 3 | |
+| AC-8 | AI-02 | `HealthTrendServiceImplTest` (unit) | 3 | PASS (`#approveWithEdit`, `#approveWithoutEditKeepsAiSource`, `#approveRejectsInvalidContent`) |
+| AC-9, AC-10 | PAR-03, HLT-21 | `HealthRecordIntegrationTest` (Testcontainers), `HealthTrendServiceImplTest#latestMarksStaleAfterNewMeasurement` | 3 | PASS |
 
 ## Rủi ro & rollback
 | Rủi ro | Tác động | Giảm thiểu | Rollback |
@@ -242,3 +242,14 @@ Ngoài phạm vi: UI FE (plan FE riêng); luật `HEIGHT_DECREASE`; bản giải
 - Còn treo tới Phase 3: `approve` vẫn nhận `summary` (sửa `summary` chưa đồng bộ `content`); `OpenApiSnapshotTest` sẽ lệch (thêm `code`, `content`) — cập nhật snapshot ở Phase 3.
 - Chưa kiểm chứng: gọi Gemini/Groq thật.
 - Tiếp: Phase 3.
+
+### 2026-11-14 — Phase 3 (chờ review)
+- Commit Phase 1–2: `19a10820` (đã push). Phase 3: chưa commit.
+- Verify:
+  - `./mvnw -q test -Dtest=HealthTrendContentRulesTest,HealthTrendServiceImplTest,OpenAiCompatibleAiClientTest,HealthRecordControllerTest,HealthRecordIntegrationTest` → exit 0 (surefire 9/15/3/6/4, 0 lỗi).
+  - `./mvnw -q test -Dtest=OpenApiSnapshotTest -Dopenapi.snapshot.update=true` → exit 0; `openapi.yaml` +64/−1 (`code`, `content`, `stale`, schema `HealthTrendContent`, `AttentionPoint`, `FollowUp`; body approve `summary` → `content`).
+  - `./mvnw test` (toàn bộ): xem entry kế tiếp.
+- Khác plan:
+  - AC-10 kiểm trong `HealthRecordIntegrationTest#interpretationVisibleToParentOnlyAfterApproval` (mở rộng) và unit `#latestMarksStaleAfterNewMeasurement`, không tạo test tích hợp riêng.
+  - Thêm `HealthTrendContentRules.normalize` (bỏ khoảng trắng, danh sách null ⇒ rỗng) trước `checkEdited`; `HealthGrowth.stale` dùng chung cho nhân sự và phụ huynh.
+  - `stale` thêm vào `HealthTrendAnalysisResponse` ngay sau `draft`.

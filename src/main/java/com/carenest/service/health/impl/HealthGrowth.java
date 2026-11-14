@@ -15,6 +15,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Xu hướng tăng trưởng tính xác định từ kết quả đã công bố (HLT-02) theo chuẩn WHO (HLT-03): điểm biểu đồ và cảnh báo
@@ -128,6 +129,12 @@ final class HealthGrowth {
                     "Các chỉ số lần đo gần nhất nằm trong khoảng bình thường theo chuẩn WHO."));
         }
         return warnings;
+    }
+
+    /** HLT-21: tập lần đo dùng lúc phân tích khác tập lần đo đã công bố hiện tại ⇒ bản giải thích cần phân tích lại. */
+    static boolean stale(List<Long> analyzedMeasurementIds, List<GrowthPoint> current) {
+        return !Set.copyOf(analyzedMeasurementIds)
+                .equals(current.stream().map(GrowthPoint::measurementId).collect(Collectors.toSet()));
     }
 
     /**

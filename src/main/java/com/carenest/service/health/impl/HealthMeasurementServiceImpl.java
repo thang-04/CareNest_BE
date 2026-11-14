@@ -4,9 +4,11 @@ import com.carenest.dto.child.ChildBriefResponse;
 import com.carenest.dto.health.ChildHealthRecordResponse;
 import com.carenest.dto.health.HealthMeasurementRequest;
 import com.carenest.dto.health.HealthMeasurementResponse;
+import com.carenest.dto.health.HealthTrendContent;
 import com.carenest.dto.health.PublishedHealthResponse;
 import com.carenest.dto.organization.ClassroomInfoResponse;
 import com.carenest.entity.health.HealthCheckCampaign;
+import com.carenest.entity.health.HealthInterpretation;
 import com.carenest.entity.health.HealthMeasurement;
 import com.carenest.entity.health.HealthMeasurementEdit;
 import com.carenest.exception.GlobalException;
@@ -211,6 +213,24 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
         }
     }
 
+    private PublishedHealthResponse.ApprovedInterpretation approvedForParent(
+            HealthInterpretation i, List<PublishedHealthResponse.GrowthPoint> growth) {
+        HealthTrendContent content = i.getContent() == null
+                ? null
+                : objectMapper
+                        .readValue(i.getContent(), HealthTrendContent.class)
+                        .forParent();
+        return new PublishedHealthResponse.ApprovedInterpretation(
+                i.getId(),
+                content == null ? i.getSummary() : HealthTrendContentRules.render(content),
+                content,
+                objectMapper.readValue(
+                        i.getWarnings(), new TypeReference<List<PublishedHealthResponse.TrendWarning>>() {}),
+                HealthGrowth.stale(
+                        objectMapper.readValue(i.getMeasurementIds(), new TypeReference<List<Long>>() {}), growth),
+                i.getApprovedAt());
+    }
+
     @Override
     @Transactional(readOnly = true)
     public PublishedHealthResponse getPublishedHealth(CurrentUser currentUser, Long childId) {
@@ -243,21 +263,16 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                             m.conclusion(),
                             m.publishedAt()))
                     .toList();
-            // HLT-05, PAR-03: phụ huynh chỉ thấy giải thích đã duyệt
+            List<PublishedHealthResponse.GrowthPoint> growth = HealthGrowth.points(published, child.gender());
+            // HLT-05, PAR-03: phụ huynh chỉ thấy giải thích đã duyệt; HLT-21: không có gợi ý theo dõi (việc nội bộ)
             PublishedHealthResponse.ApprovedInterpretation interpretation = interpretationRepository
                     .findFirstByChildIdAndStatusOrderByApprovedAtDescIdDesc(childId, InterpretationStatus.APPROVED)
-                    .map(i -> new PublishedHealthResponse.ApprovedInterpretation(
-                            i.getId(),
-                            i.getSummary(),
-                            objectMapper.readValue(
-                                    i.getWarnings(),
-                                    new TypeReference<List<PublishedHealthResponse.TrendWarning>>() {}),
-                            i.getApprovedAt()))
+                    .map(i -> approvedForParent(i, growth))
                     .orElse(null);
             PublishedHealthResponse response = new PublishedHealthResponse(
                     childId,
                     results,
-                    HealthGrowth.points(published, child.gender()),
+                    growth,
                     s.latestExam(childId),
                     s.latestBmi(childId, child.dateOfBirth(), child.gender()),
                     interpretation);

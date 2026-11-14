@@ -43,7 +43,6 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class HealthTrendServiceImpl implements HealthTrendService {
     private static final String LOG_PREFIX = "[HealthTrendServiceImpl]";
-    private static final int MAX_SUMMARY = 2000;
     private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     // Ngày đo trong câu cảnh báo của HealthGrowth ("lần đo ngày dd/MM/yyyy", "ngày … và dd/MM/yyyy")
     private static final Pattern MEASUREMENT_DATE = Pattern.compile("(?:ngày )?(\\d{2}/\\d{2}/\\d{4})");
@@ -132,7 +131,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                     result.model(),
                     actor.userId(),
                     rules.now()));
-            HealthTrendAnalysisResponse response = toResponse(saved);
+            HealthTrendAnalysisResponse response = toResponse(saved, false);
             log.info("{}|points={}|warnings={}|id={}|END", logPrefix, points.size(), warnings.size(), saved.getId());
             return response;
         } catch (RuntimeException ex) {
@@ -150,7 +149,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
             checkCanView(actor, childId);
             HealthTrendAnalysisResponse response = interpretationRepository
                     .findFirstByChildIdOrderByGeneratedAtDescIdDesc(childId)
-                    .map(this::toResponse)
+                    .map(i -> toResponse(i, stale(i)))
                     .orElse(null);
             log.info("{}|found={}|END", logPrefix, response != null);
             return response;
@@ -173,21 +172,22 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                     .findByIdAndChildId(interpretationId, childId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_INTERPRETATION_NOT_FOUND));
             if (!interpretation.isApproved()) {
-                String edited = request == null || request.summary() == null
-                        ? null
-                        : request.summary().strip();
-                if (edited != null && edited.isEmpty()) {
-                    edited = null;
+                if (request != null && request.content() != null) {
+                    HealthTrendContent edited = HealthTrendContentRules.normalize(request.content());
+                    List<FieldErrorResponse> errors =
+                            HealthTrendContentRules.checkEdited(edited, warningsOf(interpretation));
+                    if (!errors.isEmpty()) {
+                        throw GlobalException.withFieldErrors(ApiCode.INVALID_REQUEST_DATA, errors);
+                    }
+                    if (!edited.equals(contentOf(interpretation))) {
+                        interpretation.editContent(
+                                objectMapper.writeValueAsString(edited), HealthTrendContentRules.render(edited));
+                    }
                 }
-                if (edited != null && edited.length() > MAX_SUMMARY) {
-                    throw GlobalException.withFieldErrors(
-                            ApiCode.INVALID_REQUEST_DATA,
-                            List.of(new FieldErrorResponse("summary", "Nội dung tối đa " + MAX_SUMMARY + " ký tự")));
-                }
-                interpretation.approve(edited, actor.userId(), rules.now());
+                interpretation.approve(actor.userId(), rules.now());
                 interpretationRepository.save(interpretation);
             }
-            HealthTrendAnalysisResponse response = toResponse(interpretation);
+            HealthTrendAnalysisResponse response = toResponse(interpretation, stale(interpretation));
             log.info("{}|source={}|END", logPrefix, interpretation.getSource());
             return response;
         } catch (RuntimeException ex) {
@@ -239,7 +239,19 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                 .contains(measurementId);
     }
 
-    private HealthTrendAnalysisResponse toResponse(HealthInterpretation i) {
+    /** HLT-21: so lần đo dùng lúc phân tích với lần đo đã công bố hiện tại của trẻ. */
+    private boolean stale(HealthInterpretation interpretation) {
+        ChildBriefResponse child = brief(interpretation.getChildId());
+        HealthRecords.Snapshot s = records.load(List.of(interpretation.getChildId()));
+        List<GrowthPoint> current = HealthGrowth.points(
+                records.views(s, s.results(interpretation.getChildId()), child.dateOfBirth(), child.gender(), false),
+                child.gender());
+        return HealthGrowth.stale(
+                objectMapper.readValue(interpretation.getMeasurementIds(), new TypeReference<List<Long>>() {}),
+                current);
+    }
+
+    private HealthTrendAnalysisResponse toResponse(HealthInterpretation i, boolean stale) {
         String approvedByName = i.getApprovedBy() == null
                 ? null
                 : accountService.findFullNames(Set.of(i.getApprovedBy())).get(i.getApprovedBy());
@@ -247,6 +259,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                 i.getId(),
                 HealthTrendAnalysisResponse.OK,
                 !i.isApproved(),
+                stale,
                 i.getGeneratedAt(),
                 i.getSummary(),
                 contentOf(i),

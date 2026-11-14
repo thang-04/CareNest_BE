@@ -8923,9 +8923,13 @@ components:
         approvedAt:
           type: string
           format: date-time
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
         id:
           type: integer
           format: int64
+        stale:
+          type: boolean
         summary:
           type: string
         warnings:
@@ -9161,6 +9165,21 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DailyHealthEntryResponse"
+    AttentionPoint:
+      type: object
+      properties:
+        text:
+          type: string
+        warningCode:
+          type: string
+          enum:
+          - WEIGHT_DROP
+          - HEIGHT_STALL
+          - WFA_LOW
+          - HFA_LOW
+          - BMI_OUT_OF_RANGE
+          - BMI_Z_JUMP
+          - NORMAL
     AutoPlaceRequest:
       type: object
       properties:
@@ -12377,6 +12396,17 @@ components:
           format: date-time
         url:
           type: string
+    FollowUp:
+      type: object
+      properties:
+        text:
+          type: string
+        type:
+          type: string
+          enum:
+          - RECHECK_NEXT_ROUND
+          - TALK_TO_PARENT
+          - REMEASURE
     FoodImportRequest:
       type: object
       properties:
@@ -14601,6 +14631,8 @@ components:
           format: int64
         approvedByName:
           type: string
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
         draft:
           type: boolean
         generatedAt:
@@ -14613,6 +14645,8 @@ components:
           type: string
         source:
           type: string
+        stale:
+          type: boolean
         status:
           type: string
         summary:
@@ -14624,8 +14658,27 @@ components:
     HealthTrendApproveRequest:
       type: object
       properties:
-        summary:
+        content:
+          $ref: "#/components/schemas/HealthTrendContent"
+    HealthTrendContent:
+      type: object
+      properties:
+        attentionPoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttentionPoint"
+        followUps:
+          type: array
+          items:
+            $ref: "#/components/schemas/FollowUp"
+        limitations:
           type: string
+        overview:
+          type: string
+        positives:
+          type: array
+          items:
+            type: string
     History:
       type: object
       properties:
@@ -21986,6 +22039,16 @@ components:
     TrendWarning:
       type: object
       properties:
+        code:
+          type: string
+          enum:
+          - WEIGHT_DROP
+          - HEIGHT_STALL
+          - WFA_LOW
+          - HFA_LOW
+          - BMI_OUT_OF_RANGE
+          - BMI_Z_JUMP
+          - NORMAL
         level:
           type: string
         text:

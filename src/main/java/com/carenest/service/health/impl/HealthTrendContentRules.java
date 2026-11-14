@@ -1,5 +1,6 @@
 package com.carenest.service.health.impl;
 
+import com.carenest.dto.common.FieldErrorResponse;
 import com.carenest.dto.health.HealthTrendContent;
 import com.carenest.dto.health.HealthTrendContent.AttentionPoint;
 import com.carenest.dto.health.HealthTrendContent.FollowUp;
@@ -8,6 +9,7 @@ import com.carenest.utils.enums.HealthTrendFollowUpType;
 import com.carenest.utils.enums.HealthTrendWarningCode;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -16,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -106,6 +109,85 @@ final class HealthTrendContentRules {
                         .map(e -> new FollowUp(e.getKey(), e.getValue()))
                         .toList(),
                 item(text(root.path("limitations")))));
+    }
+
+    /** Nội dung nhân sự gửi khi duyệt: bỏ khoảng trắng thừa, danh sách null ⇒ rỗng, câu trống ⇒ null. */
+    static HealthTrendContent normalize(HealthTrendContent c) {
+        return new HealthTrendContent(
+                trim(c.overview()),
+                c.attentionPoints() == null
+                        ? List.of()
+                        : c.attentionPoints().stream()
+                                .map(a -> new AttentionPoint(a.warningCode(), trim(a.text())))
+                                .toList(),
+                c.positives() == null
+                        ? List.of()
+                        : c.positives().stream()
+                                .map(HealthTrendContentRules::trim)
+                                .toList(),
+                c.followUps() == null
+                        ? List.of()
+                        : c.followUps().stream()
+                                .map(f -> new FollowUp(f.type(), trim(f.text())))
+                                .toList(),
+                trim(c.limitations()));
+    }
+
+    /**
+     * Kiểm bản nhân sự sửa (AI-02, HLT-21): cùng giới hạn độ dài như bản AI; điểm cần chú ý chỉ gắn mã có trong cảnh báo
+     * của lần phân tích, mỗi mã một mục; mỗi loại gợi ý một mục. Không kiểm từ cấm — nhân sự chịu trách nhiệm nội dung.
+     */
+    static List<FieldErrorResponse> checkEdited(HealthTrendContent c, List<TrendWarning> warnings) {
+        List<FieldErrorResponse> errors = new ArrayList<>();
+        if (c.overview() == null) {
+            errors.add(new FieldErrorResponse("content.overview", "Tổng quan không được để trống"));
+        } else if (c.overview().length() > MAX_OVERVIEW) {
+            errors.add(new FieldErrorResponse("content.overview", "Tổng quan tối đa " + MAX_OVERVIEW + " ký tự"));
+        }
+        Set<HealthTrendWarningCode> warned = warnings.stream()
+                .map(TrendWarning::code)
+                .filter(code -> code != null && code != HealthTrendWarningCode.NORMAL)
+                .collect(Collectors.toSet());
+        Set<HealthTrendWarningCode> seenCodes = EnumSet.noneOf(HealthTrendWarningCode.class);
+        for (int i = 0; i < c.attentionPoints().size(); i++) {
+            AttentionPoint a = c.attentionPoints().get(i);
+            String field = "content.attentionPoints[" + i + "]";
+            if (a.warningCode() == null || !warned.contains(a.warningCode()) || !seenCodes.add(a.warningCode())) {
+                errors.add(new FieldErrorResponse(field + ".warningCode", "Mã cảnh báo không có trong lần phân tích"));
+            }
+            checkItem(errors, field + ".text", a.text());
+        }
+        if (c.positives().size() > MAX_POSITIVES) {
+            errors.add(new FieldErrorResponse("content.positives", "Tối đa " + MAX_POSITIVES + " điểm tích cực"));
+        }
+        for (int i = 0; i < c.positives().size(); i++) {
+            checkItem(errors, "content.positives[" + i + "]", c.positives().get(i));
+        }
+        Set<HealthTrendFollowUpType> seenTypes = EnumSet.noneOf(HealthTrendFollowUpType.class);
+        for (int i = 0; i < c.followUps().size(); i++) {
+            FollowUp f = c.followUps().get(i);
+            String field = "content.followUps[" + i + "]";
+            if (f.type() == null || !seenTypes.add(f.type())) {
+                errors.add(new FieldErrorResponse(field + ".type", "Loại gợi ý trống hoặc bị trùng"));
+            }
+            checkItem(errors, field + ".text", f.text());
+        }
+        if (c.limitations() != null && c.limitations().length() > MAX_ITEM) {
+            errors.add(new FieldErrorResponse("content.limitations", "Tối đa " + MAX_ITEM + " ký tự"));
+        }
+        return errors;
+    }
+
+    private static void checkItem(List<FieldErrorResponse> errors, String field, String text) {
+        if (text == null) {
+            errors.add(new FieldErrorResponse(field, "Không được để trống"));
+        } else if (text.length() > MAX_ITEM) {
+            errors.add(new FieldErrorResponse(field, "Tối đa " + MAX_ITEM + " ký tự"));
+        }
+    }
+
+    private static String trim(String value) {
+        return value == null || value.isBlank() ? null : value.strip();
     }
 
     /** Bản văn ghép từ nội dung có cấu trúc (lưu ở {@code summary}); khối rỗng bị bỏ. */
