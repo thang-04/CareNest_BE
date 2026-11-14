@@ -306,7 +306,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
                 .orElse(null);
         boolean canEdit = !ev.isConfirmed()
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
-                && rules.canRecord(user, cls)
+                && rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && !rules.today().isBefore(yearEndOpensOn(user, cls));
         return new YearEndSheetResponse(
@@ -340,7 +340,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
         List<Long> ids = homeroom != null
                 ? List.of(homeroom)
                 : staffAssignmentService
-                        .findCurrentTeacherIds(List.of(cls.id()), at)
+                        .findCurrentMainTeacherIds(List.of(cls.id()), at)
                         .getOrDefault(cls.id(), List.of());
         Map<Long, String> names = accountService.findFullNames(ids);
         return ids.stream().map(names::get).filter(Objects::nonNull).toList();
@@ -380,7 +380,7 @@ public class YearEndSheetServiceImpl implements YearEndSheetService {
 
     private ClassroomInfoResponse editable(CurrentUser user, ChildEvaluation ev) {
         ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
-        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(user, cls)) {
+        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecordPeriod(user, cls)) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {

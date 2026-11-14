@@ -143,6 +143,36 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
     }
 
     @Override
+    public boolean hasSubstituteAssignmentBetween(Long userId, Long classroomId, LocalDate from, LocalDate to) {
+        String logPrefix =
+                LOG_PREFIX + "|hasSubstituteAssignmentBetween|userId=" + userId + "|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean found = staffAssignmentRepository.existsSubstituteBetween(userId, classroomId, from, to);
+            log.info("{}|END", logPrefix);
+            return found;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public boolean hasActiveMainTeacherAssignment(Long userId, Long classroomId, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|hasActiveMainTeacherAssignment|userId=" + userId + "|classroomId=" + classroomId;
+        log.info("{}|START", logPrefix);
+        try {
+            boolean active = staffAssignmentRepository.existsActiveMainTeacherForClassroom(userId, classroomId, date);
+            log.info("{}|END", logPrefix);
+            return active;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
     public boolean hadRoleInYear(Long userId, StaffRole staffRole, Long campusId, Long schoolYearId) {
         String logPrefix =
                 LOG_PREFIX + "|hadRoleInYear|userId=" + userId + "|role=" + staffRole + "|schoolYearId=" + schoolYearId;
@@ -333,6 +363,46 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public Map<Long, List<Long>> findCurrentMainTeacherIds(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix = LOG_PREFIX + "|findCurrentMainTeacherIds|classCount=" + classroomIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, List<Long>> teachers = classroomIds.isEmpty()
+                    ? Map.of()
+                    : groupTeachers(staffAssignmentRepository.findCurrentMainTeachers(classroomIds, date));
+            log.info("{}|END", logPrefix);
+            return teachers;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public Map<Long, List<Long>> findSubstituteTeacherIdsOn(Collection<Long> classroomIds, LocalDate date) {
+        String logPrefix =
+                LOG_PREFIX + "|findSubstituteTeacherIdsOn|classCount=" + classroomIds.size() + "|date=" + date;
+        log.info("{}|START", logPrefix);
+        try {
+            Map<Long, List<Long>> teachers = classroomIds.isEmpty()
+                    ? Map.of()
+                    : groupTeachers(staffAssignmentRepository.findSubstitutesOn(classroomIds, date));
+            log.info("{}|END", logPrefix);
+            return teachers;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    private static Map<Long, List<Long>> groupTeachers(List<StaffAssignment> assignments) {
+        return assignments.stream()
+                .collect(Collectors.groupingBy(
+                        StaffAssignment::getClassroomId,
+                        Collectors.mapping(StaffAssignment::getUserId, Collectors.toList())));
     }
 
     @Override
@@ -549,12 +619,14 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             LocalDate validTo = assignment.staffRole() == StaffRole.TEACHER
                     ? checkTeacherAssignment(assignment)
                     : assignment.validTo();
-            if (staffAssignmentRepository.existsOverlapping(
-                    assignment.userId(),
-                    assignment.staffRole(),
-                    assignment.campusId(),
-                    assignment.classroomId(),
-                    assignment.validFrom())) {
+            // Dạy thay kiểm trùng theo khoảng ngày ở checkReplacedTeacher
+            if (!assignment.substitute()
+                    && staffAssignmentRepository.existsOverlapping(
+                            assignment.userId(),
+                            assignment.staffRole(),
+                            assignment.campusId(),
+                            assignment.classroomId(),
+                            assignment.validFrom())) {
                 throw GlobalException.of(ApiCode.ASSIGNMENT_OVERLAP);
             }
             // AUTH-26: mỗi điểm trường tối đa một PHT (mọi đường tạo phân công PHT áp cùng luật)
@@ -672,6 +744,16 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
         if (staffAssignmentRepository.existsSubstituteFor(
                 assignment.classroomId(), replaced, assignment.validFrom(), assignment.validTo())) {
             throw GlobalException.of(ApiCode.SUBSTITUTE_ALREADY_COVERED);
+        }
+        // Cùng người đã có phân công GV ở lớp này giao với khoảng dạy thay
+        if (staffAssignmentRepository.existsTeacherInClassBetween(
+                assignment.userId(), assignment.classroomId(), assignment.validFrom(), assignment.validTo())) {
+            throw GlobalException.of(ApiCode.ASSIGNMENT_OVERLAP);
+        }
+        // Cần chốt 14/11/2026: người dạy thay không được đang dạy chính / dạy thay lớp khác trong khoảng ngày này
+        if (staffAssignmentRepository.existsTeacherInOtherClassBetween(
+                assignment.userId(), assignment.classroomId(), assignment.validFrom(), assignment.validTo())) {
+            throw GlobalException.of(ApiCode.SUBSTITUTE_TEACHER_BUSY);
         }
     }
 

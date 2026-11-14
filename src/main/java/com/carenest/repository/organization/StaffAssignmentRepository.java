@@ -315,6 +315,72 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
     boolean existsSubstituteOn(
             @Param("userId") Long userId, @Param("classroomId") Long classroomId, @Param("date") LocalDate date);
 
+    // Dạy chính lớp :classroomId vào ngày :date (không tính phân công dạy thay)
+    @Query("""
+            select case when count(a) > 0 then true else false end from StaffAssignment a
+            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER
+              and a.substitute = false and a.classroomId = :classroomId
+              and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)
+            """)
+    boolean existsActiveMainTeacherForClassroom(
+            @Param("userId") Long userId, @Param("classroomId") Long classroomId, @Param("date") LocalDate date);
+
+    // Người dạy thay có phân công hiệu lực đúng ngày :date
+    @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
+            + " and a.substitute = true and a.classroomId in :classroomIds and a.validFrom <= :date"
+            + " and (a.validTo is null or a.validTo >= :date) order by a.id")
+    List<StaffAssignment> findSubstitutesOn(
+            @Param("classroomIds") Collection<Long> classroomIds, @Param("date") LocalDate date);
+
+    // GV dạy chính của lớp có phân công hiệu lực ngày :date (bỏ dạy thay, bỏ phân công chưa bắt đầu)
+    @Query("select a from StaffAssignment a where a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER"
+            + " and a.substitute = false and a.classroomId in :classroomIds and a.validFrom <= :date"
+            + " and (a.validTo is null or a.validTo >= :date) order by a.id")
+    List<StaffAssignment> findCurrentMainTeachers(
+            @Param("classroomIds") Collection<Long> classroomIds, @Param("date") LocalDate date);
+
+    // Dạy thay: cùng người đã có phân công GV ở lớp này giao với khoảng [from, to] (bỏ phân công gỡ trước khi bắt đầu)
+    @Query("""
+            select case when count(a) > 0 then true else false end from StaffAssignment a
+            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER
+              and a.classroomId = :classroomId
+              and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)
+              and (a.validTo is null or a.validTo >= a.validFrom)
+            """)
+    boolean existsTeacherInClassBetween(
+            @Param("userId") Long userId,
+            @Param("classroomId") Long classroomId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    // Có đợt dạy thay lớp :classroomId giao với khoảng [from, to] (bỏ phân công gỡ trước khi bắt đầu)
+    @Query("""
+            select case when count(a) > 0 then true else false end from StaffAssignment a
+            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER
+              and a.substitute = true and a.classroomId = :classroomId
+              and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)
+              and (a.validTo is null or a.validTo >= a.validFrom)
+            """)
+    boolean existsSubstituteBetween(
+            @Param("userId") Long userId,
+            @Param("classroomId") Long classroomId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
+    // Dạy thay: người này dạy chính hoặc dạy thay lớp khác giao với khoảng [from, to]
+    @Query("""
+            select case when count(a) > 0 then true else false end from StaffAssignment a
+            where a.userId = :userId and a.staffRole = com.carenest.utils.enums.StaffRole.TEACHER
+              and a.classroomId <> :classroomId
+              and a.validFrom <= :to and (a.validTo is null or a.validTo >= :from)
+              and (a.validTo is null or a.validTo >= a.validFrom)
+            """)
+    boolean existsTeacherInOtherClassBetween(
+            @Param("userId") Long userId,
+            @Param("classroomId") Long classroomId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
+
     // Có phân công vai trò (HT / PHT điểm trường :campusId, null = điểm trường nào cũng được) giao với năm học
     // :schoolYearId; phân công để trống valid_to còn hiệu lực tới khi HT đổi
     @Query(value = """

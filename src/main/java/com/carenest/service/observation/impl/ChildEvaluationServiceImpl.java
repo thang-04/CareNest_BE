@@ -136,7 +136,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                 // nhận
                 // nên lượt xem của họ không ghi DB, không khóa lớp
                 if (cls.yearStatus() == SchoolYearStatus.ACTIVE
-                        && (rules.canRecord(currentUser, cls)
+                        && (rules.canRecordPeriod(currentUser, cls)
                                 || (type == EvaluationPeriodType.YEAR && rules.finishesYearEnd(currentUser, cls)))) {
                     ensureDrafts(currentUser, cls, type);
                 }
@@ -213,7 +213,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.campusId(),
                             teacher,
                             cls.yearStatus() == SchoolYearStatus.ACTIVE
-                                    && rules.canRecord(currentUser, cls)
+                                    && rules.canRecordPeriod(currentUser, cls)
                                     && (!year || yearEndOpen(currentUser, cls))),
                     data == null ? List.of() : data.days(),
                     cls.mealSessions(),
@@ -541,7 +541,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.name(),
                             cls.campusId(),
                             teacher,
-                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecord(currentUser, cls)),
+                            cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordPeriod(currentUser, cls)),
                     new DateRange(from, to),
                     data == null ? 0 : data.presentDays(),
                     data == null ? 0 : data.flagCount(),
@@ -820,7 +820,7 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
     private ClassroomInfoResponse checkEditable(CurrentUser user, ChildEvaluation ev) {
         ClassroomInfoResponse cls = rules.findClass(ev.getClassroomId());
         boolean yearEnd = ev.getPeriodType() == EvaluationPeriodType.YEAR && rules.finishesYearEnd(user, cls);
-        if (!rules.canRecord(user, cls) && !yearEnd) {
+        if (!rules.canRecordPeriod(user, cls) && !yearEnd) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {

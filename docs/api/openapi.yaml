@@ -614,66 +614,6 @@ paths:
           description: OK
       tags:
       - child-evaluation-controller
-  /api/assessment/class-monthly-comments:
-    get:
-      operationId: getComment
-      parameters:
-      - in: query
-        name: classId
-        required: true
-        schema:
-          type: integer
-          format: int64
-      - in: query
-        name: month
-        required: true
-        schema:
-          type: string
-          format: date
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
-          description: OK
-      tags:
-      - class-monthly-comment-controller
-    put:
-      operationId: saveComment
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
-          description: OK
-      tags:
-      - class-monthly-comment-controller
-  /api/assessment/class-monthly-comments/confirm:
-    post:
-      operationId: confirmComment
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ClassMonthlyCommentRequest"
-        required: true
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ResponseJsonClassMonthlyCommentResponse"
-          description: OK
-      tags:
-      - class-monthly-comment-controller
   /api/assessment/class-ratings:
     get:
       operationId: listRatings
@@ -10384,47 +10324,6 @@ components:
         today:
           type: string
           format: date
-    ClassMonthlyCommentRequest:
-      type: object
-      properties:
-        classId:
-          type: integer
-          format: int64
-        content:
-          type: string
-        month:
-          type: string
-          format: date
-      required:
-      - classId
-      - month
-    ClassMonthlyCommentResponse:
-      type: object
-      properties:
-        canEdit:
-          type: boolean
-        classId:
-          type: integer
-          format: int64
-        className:
-          type: string
-        confirmedAt:
-          type: string
-          format: date-time
-        confirmedByName:
-          type: string
-        content:
-          type: string
-        draft:
-          type: string
-        month:
-          type: string
-          format: date
-        status:
-          type: string
-        updatedAt:
-          type: string
-          format: date-time
     ClassOption:
       type: object
       properties:
@@ -16173,6 +16072,8 @@ components:
           - LEAVE_REQUEST_CHANGED
           - MEAL_COUNT_CONFIRMED
           - REWARD_LIST_UPDATED
+          - DAILY_HEALTH_NOTED
+          - SCHOOL_YEAR_ACTIVATED
     NutritionTotals:
       type: object
       properties:
@@ -17884,19 +17785,6 @@ components:
           format: int32
         data:
           $ref: "#/components/schemas/ClassMealCountResponse"
-        desc:
-          type: string
-        errorCode:
-          type: integer
-          format: int32
-    ResponseJsonClassMonthlyCommentResponse:
-      type: object
-      properties:
-        code:
-          type: integer
-          format: int32
-        data:
-          $ref: "#/components/schemas/ClassMonthlyCommentResponse"
         desc:
           type: string
         errorCode:

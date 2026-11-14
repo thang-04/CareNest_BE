@@ -191,7 +191,7 @@ public class RewardListServiceImpl implements RewardListService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(currentUser, cls)) {
+            if (!currentUser.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecordPeriod(currentUser, cls)) {
                 throw GlobalException.of(ApiCode.REWARD_EDIT_FORBIDDEN);
             }
             if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -263,9 +263,7 @@ public class RewardListServiceImpl implements RewardListService {
     }
 
     private List<Long> teachersOf(ClassroomInfoResponse cls) {
-        return staffAssignmentService
-                .findCurrentTeacherIds(List.of(cls.id()), rules.teachingDay(cls))
-                .getOrDefault(cls.id(), List.of());
+        return rules.periodTeacherIds(cls);
     }
 
     @Override
@@ -380,7 +378,7 @@ public class RewardListServiceImpl implements RewardListService {
 
     private boolean canEdit(CurrentUser user, ClassroomInfoResponse cls, RewardList list) {
         return user.hasPermission(Permission.ASSESSMENT_RECORD)
-                && rules.canRecord(user, cls)
+                && rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && !rules.today().isBefore(rules.yearEndOpensOn(user, cls))
                 && (list == null || list.isEditable());

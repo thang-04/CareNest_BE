@@ -97,7 +97,7 @@ class ClassCommentServiceTest {
         when(classes.findClassroomInfo(anyLong()))
                 .thenAnswer(i -> Optional.of(i.<Long>getArgument(0) == 10L ? classroom : other));
         when(classes.findYearClassrooms(any())).thenAnswer(i -> List.of(classroom, other));
-        when(staff.hasActiveTeacherAssignment(eq(1L), eq(10L), eq(TODAY))).thenReturn(true);
+        when(staff.hasActiveMainTeacherAssignment(eq(1L), eq(10L), eq(TODAY))).thenReturn(true);
         when(classPolicy.canReadClassroom(teacher, 10L)).thenReturn(true);
         when(campusPolicy.canViewCampus(eq(principal), anyLong())).thenReturn(true);
         when(campusPolicy.canViewCampus(vp, 100L)).thenReturn(true);
@@ -208,8 +208,12 @@ class ClassCommentServiceTest {
     @DisplayName("OBS-22: clear is explicit and invalid text/no-op does not replace a comment")
     void validatesAndClearsWithoutImplicitDeletion() {
         service.saveGeneral(teacher, 10L, request(TODAY, "Keep"));
-        service.saveGeneral(teacher, 10L, request(TODAY, "x".repeat(10000)));
-        assertThat(stored.values().iterator().next().getText()).hasSize(10000);
+        service.saveGeneral(teacher, 10L, request(TODAY, "x".repeat(500)));
+        assertThat(stored.values().iterator().next().getText()).hasSize(500);
+        assertCode(
+                () -> service.saveGeneral(teacher, 10L, request(TODAY, "x".repeat(501))),
+                ApiCode.CLASS_COMMENT_TOO_LONG);
+        assertThat(stored.values().iterator().next().getText()).hasSize(500);
         service.saveGeneral(teacher, 10L, request(TODAY, "Keep"));
         assertCode(
                 () -> service.saveGeneral(teacher, 10L, request(TODAY, "tự kỷ")),

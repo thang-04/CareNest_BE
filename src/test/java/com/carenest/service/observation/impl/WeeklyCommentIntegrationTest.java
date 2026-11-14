@@ -312,6 +312,26 @@ class WeeklyCommentIntegrationTest {
     }
 
     @Test
+    @DisplayName("Cần chốt 14/11/2026: người dạy thay chỉ xem nhận xét tuần (việc theo kỳ), không viết / gửi")
+    void substituteOnlyViewsWeeklyComments() {
+        CurrentUser sub = user("subw", CareNestRole.TEACHER);
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_substitute)"
+                        + " VALUES (?, 'TEACHER', ?, '2026-09-01', '2026-12-31', TRUE)",
+                sub.userId(),
+                classA);
+        WeeklyCommentBoardResponse board = service.getBoard(sub, classA, WEEK);
+        assertThat(board.canEdit()).isFalse();
+        expectCode(
+                () -> service.writeDrafts(sub, new WeeklyCommentDraftRequest(classA, WEEK, null, false, false)),
+                ApiCode.EVALUATION_EDIT_FORBIDDEN);
+        expectCode(
+                () -> service.send(sub, new WeeklyCommentSendRequest(classA, WEEK, child1, "Con học tốt.")),
+                ApiCode.EVALUATION_EDIT_FORBIDDEN);
+        assertThat(service.getBoard(teacherA, classA, WEEK).canEdit()).isTrue();
+    }
+
+    @Test
     @DisplayName("AUTH-04: phụ huynh đã liên kết xem bản đã gửi; phụ huynh khác bị chặn; bản nháp không hiện")
     void parentSeesOnlySentCommentsOfLinkedChild() {
         service.saveDraft(teacherA, new WeeklyCommentSaveRequest(classA, WEEK, child1, "Nháp chưa gửi."));

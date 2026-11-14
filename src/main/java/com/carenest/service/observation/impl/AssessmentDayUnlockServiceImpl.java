@@ -11,7 +11,6 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.observation.AssessmentDayUnlockService;
 import com.carenest.service.organization.ClassroomService;
-import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
@@ -44,7 +43,6 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
     private final ClassroomService classroomService;
     private final AccountService accountService;
     private final Clock clock;
-    private final StaffAssignmentService staffAssignmentService;
     private final NotificationService notificationService;
 
     @Override
@@ -194,9 +192,8 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
 
     // OBS-30: GV lớp biết ngày đánh giá được mở lại tới khi nào
     private void notifyTeachers(ClassroomInfoResponse cls, LocalDate date, Instant until) {
-        List<Long> teachers = staffAssignmentService
-                .findCurrentTeacherIds(List.of(cls.id()), rules.teachingDay(cls))
-                .getOrDefault(cls.id(), List.of());
+        // Việc theo ngày: GV dạy chính và người dạy thay đúng ngày mở lại (Cần chốt 14/11/2026)
+        List<Long> teachers = rules.dayTeacherIds(cls, date);
         if (teachers.isEmpty()) {
             return;
         }

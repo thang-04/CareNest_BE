@@ -116,7 +116,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
             int created = 0;
             if (cls.yearStatus() == SchoolYearStatus.ACTIVE
                     && currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
-                    && rules.canRecord(currentUser, cls)
+                    && rules.canRecordPeriod(currentUser, cls)
                     && writable(weekRange(cls, week))) {
                 created = createMissingDrafts(cls, week, currentUser.userId());
             }
@@ -560,7 +560,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                     .toList();
             Map<Long, Long> homeroom = staffAssignmentService.findHomeroomTeacherIds(
                     classes.stream().map(ClassroomInfoResponse::id).toList(), today);
-            Map<Long, List<Long>> teachers = staffAssignmentService.findCurrentTeacherIds(
+            Map<Long, List<Long>> teachers = staffAssignmentService.findCurrentMainTeacherIds(
                     classes.stream().map(ClassroomInfoResponse::id).toList(), today);
             int created = 0;
             for (ClassroomInfoResponse cls : classes) {
@@ -610,7 +610,7 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
     // AUTH-03: chỉ GV đang dạy lớp ghi; năm học phải đang hoạt động (CFG-YR-01)
     private ClassroomInfoResponse editableClass(CurrentUser user, Long classId) {
         ClassroomInfoResponse cls = rules.findClass(classId);
-        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(user, cls)) {
+        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecordPeriod(user, cls)) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -798,7 +798,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
                         .map(WeeklyCommentRevision::getWeeklyCommentId)
                         .collect(Collectors.toSet());
         boolean teacher = rules.canRecord(user, cls);
-        boolean canEdit = teacher
+        // Người dạy thay xem được nhận xét nháp, không sửa (việc theo kỳ, Cần chốt 14/11/2026)
+        boolean canEdit = rules.canRecordPeriod(user, cls)
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE;
         Map<Long, String> senders = accountService.findFullNames(comments.values().stream()
@@ -965,9 +966,8 @@ public class WeeklyCommentServiceImpl implements WeeklyCommentService {
 
     // OBS-30: GV lớp biết lớp – tuần được mở lại tới khi nào
     private void notifyTeachersUnlocked(ClassroomInfoResponse cls, WeeklyCommentUnlockResponse unlock) {
-        List<Long> teachers = staffAssignmentService
-                .findCurrentTeacherIds(List.of(cls.id()), rules.teachingDay(cls))
-                .getOrDefault(cls.id(), List.of());
+        // Việc theo kỳ: chỉ GV dạy chính (Cần chốt 14/11/2026)
+        List<Long> teachers = rules.periodTeacherIds(cls);
         if (teachers.isEmpty()) {
             return;
         }

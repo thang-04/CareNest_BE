@@ -35,12 +35,14 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -90,7 +92,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                     Set<Long> taken = attendanceService.findClassDays(ids(classes), today, today).stream()
                             .map(ClassChildDay::classroomId)
                             .collect(Collectors.toSet());
-                    Map<Long, List<Long>> teachers = teachersOf(classes, today);
+                    Map<Long, List<Long>> teachers = dayTeachersOf(classes, today);
                     for (ClassroomInfoResponse cls : classes) {
                         if (taken.contains(cls.id())) {
                             continue;
@@ -128,7 +130,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                         .collect(Collectors.groupingBy(
                                 ClassChildDay::classroomId,
                                 Collectors.mapping(ClassChildDay::childId, Collectors.toList())));
-                Map<Long, List<Long>> teachers = teachersOf(classes, today);
+                Map<Long, List<Long>> teachers = dayTeachersOf(classes, today);
                 for (ClassroomInfoResponse cls : classes) {
                     List<Long> children = present.getOrDefault(cls.id(), List.of());
                     if (children.isEmpty()) {
@@ -172,7 +174,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
             if (rules.isSchoolDay(today)) {
                 LocalDate nextSchoolDay = nextSchoolDay(today);
                 List<ClassroomInfoResponse> classes = activeClasses(today);
-                Map<Long, List<Long>> teachers = teachersOf(classes, today);
+                Map<Long, List<Long>> teachers = periodTeachersOf(classes, today);
                 for (ClassroomInfoResponse cls : classes) {
                     List<Long> to = teachers.getOrDefault(cls.id(), List.of());
                     if (to.isEmpty()) {
@@ -283,7 +285,6 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
         try {
             Instant now = rules.now();
             Instant until = now.plus(UNLOCK_ENDING_LEAD);
-            LocalDate today = rules.today();
             int sent = 0;
             for (AssessmentDayUnlock u : dayUnlockRepository.findByValidUntilBetween(now, until)) {
                 sent += remindEnding(
@@ -292,7 +293,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                         u.getValidUntil(),
                         AssessmentReminderLinks.daily(u.getClassroomId(), u.getDate()),
                         "ending-D" + u.getId(),
-                        today);
+                        u.getDate());
             }
             for (WeeklyCommentUnlock u : weeklyUnlockRepository.findByValidUntilBetween(now, until)) {
                 sent += remindEnding(
@@ -301,7 +302,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                         u.getValidUntil(),
                         AssessmentReminderLinks.weekly(u.getClassroomId(), u.getWeekStart()),
                         "ending-W" + u.getId(),
-                        today);
+                        null);
             }
             for (EvaluationUnlock u : evaluationUnlockRepository.findByValidUntilBetween(now, until)) {
                 sent += remindEnding(
@@ -315,7 +316,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                                         ? null
                                         : u.getPeriodKey()),
                         "ending-E" + u.getId(),
-                        today);
+                        null);
             }
             log.info("{}|sent={}|END", logPrefix, sent);
             return sent;
@@ -325,12 +326,13 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
         }
     }
 
-    private int remindEnding(Long classId, String label, Instant validUntil, String link, String key, LocalDate today) {
+    private int remindEnding(Long classId, String label, Instant validUntil, String link, String key, LocalDate day) {
         ClassroomInfoResponse cls = classroomService.findClassroomInfo(classId).orElse(null);
         if (cls == null || cls.yearStatus() != SchoolYearStatus.ACTIVE) {
             return 0;
         }
-        List<Long> to = teachersOf(List.of(cls), rules.teachingDay(cls)).getOrDefault(cls.id(), List.of());
+        // Mở lại ngày đánh giá: thêm người dạy thay ngày đó; nhận xét tuần, đánh giá kỳ: chỉ GV dạy chính
+        List<Long> to = day == null ? rules.periodTeacherIds(cls) : rules.dayTeacherIds(cls, day);
         String at = HM.withZone(clock.getZone()).format(validUntil);
         return notifyOnce(
                 to,
@@ -414,8 +416,25 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                 .toList();
     }
 
-    private Map<Long, List<Long>> teachersOf(List<ClassroomInfoResponse> classes, LocalDate today) {
-        return classes.isEmpty() ? Map.of() : staffAssignmentService.findCurrentTeacherIds(ids(classes), today);
+    // Cần chốt 14/11/2026: việc theo kỳ chỉ nhắc GV dạy chính
+    private Map<Long, List<Long>> periodTeachersOf(List<ClassroomInfoResponse> classes, LocalDate today) {
+        return classes.isEmpty() ? Map.of() : staffAssignmentService.findCurrentMainTeacherIds(ids(classes), today);
+    }
+
+    // Việc theo ngày: GV dạy chính và người dạy thay đúng ngày đó
+    private Map<Long, List<Long>> dayTeachersOf(List<ClassroomInfoResponse> classes, LocalDate day) {
+        Map<Long, List<Long>> teachers = new HashMap<>(periodTeachersOf(classes, day));
+        if (!classes.isEmpty()) {
+            staffAssignmentService
+                    .findSubstituteTeacherIdsOn(ids(classes), day)
+                    .forEach((classId, subs) -> teachers.merge(
+                            classId,
+                            subs,
+                            (a, b) -> Stream.concat(a.stream(), b.stream())
+                                    .distinct()
+                                    .toList()));
+        }
+        return teachers;
     }
 
     private static List<Long> ids(List<ClassroomInfoResponse> classes) {

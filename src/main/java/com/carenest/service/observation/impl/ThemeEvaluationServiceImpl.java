@@ -495,7 +495,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
     // Sửa: GV lớp, năm học đang hoạt động, chủ đề đã bắt đầu, bảng chưa xác nhận; tạo bảng tuần tự theo lớp
     private ThemeEvaluation editable(
             CurrentUser user, ClassroomInfoResponse cls, ThemeRow theme, Permission requiredPermission) {
-        if (!user.hasPermission(requiredPermission) || !rules.canRecord(user, cls)) {
+        if (!user.hasPermission(requiredPermission) || !rules.canRecordPeriod(user, cls)) {
             throw GlobalException.of(ApiCode.EVALUATION_EDIT_FORBIDDEN);
         }
         if (cls.yearStatus() != SchoolYearStatus.ACTIVE) {
@@ -698,7 +698,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         boolean confirmed = saved != null && saved.isConfirmed();
         boolean canEdit = !confirmed
                 && user.hasPermission(Permission.ASSESSMENT_RECORD)
-                && rules.canRecord(user, cls)
+                && rules.canRecordPeriod(user, cls)
                 && cls.yearStatus() == SchoolYearStatus.ACTIVE
                 && !today.isBefore(theme.getStartDate());
         List<ChildRow> rows = new ArrayList<>();
@@ -780,7 +780,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
                 canEdit,
                 !confirmed
                         && user.hasPermission(Permission.ASSESSMENT_CONFIRM)
-                        && rules.canRecord(user, cls)
+                        && rules.canRecordPeriod(user, cls)
                         && cls.yearStatus() == SchoolYearStatus.ACTIVE
                         && !today.isBefore(theme.getEndDate()),
                 confirmedByName,
@@ -816,7 +816,7 @@ public class ThemeEvaluationServiceImpl implements ThemeEvaluationService {
         List<Long> teacherIds = homeroom != null
                 ? List.of(homeroom)
                 : staffAssignmentService
-                        .findCurrentTeacherIds(List.of(cls.id()), at)
+                        .findCurrentMainTeacherIds(List.of(cls.id()), at)
                         .getOrDefault(cls.id(), List.of());
         Set<Long> leaderIds = cls.ageGroupId() == null
                 ? Set.of()

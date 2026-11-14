@@ -23,7 +23,6 @@ import com.carenest.service.observation.EvaluationDeadlineService;
 import com.carenest.service.observation.WeeklyCommentService;
 import com.carenest.service.organization.ClassroomService;
 import com.carenest.service.organization.SchoolYearService;
-import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.EvaluationLockKind;
 import com.carenest.utils.enums.EvaluationPeriodType;
@@ -67,7 +66,6 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
     private final SchoolYearService schoolYearService;
     private final ClassroomService classroomService;
     private final EnrollmentService enrollmentService;
-    private final StaffAssignmentService staffAssignmentService;
     private final AccountService accountService;
     private final NotificationService notificationService;
     private final WeeklyCommentService weeklyCommentService;
@@ -281,9 +279,8 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
 
     // OBS-30: GV lớp biết lớp được mở lại tới khi nào
     private void notifyTeachers(ClassroomInfoResponse cls, EvaluationPeriod period, Instant until) {
-        List<Long> teachers = staffAssignmentService
-                .findCurrentTeacherIds(List.of(cls.id()), rules.teachingDay(cls))
-                .getOrDefault(cls.id(), List.of());
+        // Việc theo kỳ: chỉ GV dạy chính (Cần chốt 14/11/2026)
+        List<Long> teachers = rules.periodTeacherIds(cls);
         if (teachers.isEmpty()) {
             return;
         }

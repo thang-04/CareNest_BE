@@ -42,6 +42,7 @@ class EvaluationLockOrderTest {
         when(classes.findYearClassrooms(null)).thenReturn(List.of(cls(20L, "A"), cls(10L, "Z")));
         when(rules.today()).thenReturn(LocalDate.of(2026, 10, 28));
         when(rules.canRecord(eq(user), any())).thenReturn(true);
+        when(rules.canRecordPeriod(eq(user), any())).thenReturn(true);
         service.list(user, EvaluationPeriodType.YEAR, null, null, null);
         var order = inOrder(classes);
         order.verify(classes).lockForUpdate(10L);

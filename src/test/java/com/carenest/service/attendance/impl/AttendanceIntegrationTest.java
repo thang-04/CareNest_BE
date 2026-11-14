@@ -431,6 +431,51 @@ class AttendanceIntegrationTest {
     }
 
     @Test
+    @DisplayName("Cần chốt 14/11/2026: dạy thay ghi điểm danh theo ngày được ghi, kể cả khi đợt dạy thay đã hết")
+    void substituteRecordsReopenedDaysOfOwnStintOnly() {
+        CurrentUser sub = user("subnow", CareNestRole.TEACHER);
+        // Dạy thay lớp A 15/10–20/10 (đã hết đợt vào hôm nay 21/10)
+        jdbc.update(
+                "INSERT INTO staff_assignments (user_id, staff_role, classroom_id, valid_from, valid_to, is_substitute) "
+                        + "VALUES (?, 'TEACHER', ?, '2026-10-15', '2026-10-20', TRUE)",
+                sub.userId(),
+                classA);
+        LocalDate inStint = LocalDate.of(2026, 10, 19);
+        LocalDate outside = LocalDate.of(2026, 10, 14);
+        Instant until = BEFORE_CUTOFF.plus(Duration.ofHours(4));
+        unlockService.unlockDay(vpA, new DayUnlockRequest(classA, inStint, until, "Bổ sung"));
+        unlockService.unlockDay(vpA, new DayUnlockRequest(classA, outside, until, "Bổ sung"));
+
+        // Luồng thật: lớp vẫn có trong danh sách, mở được thông tin ngày, sổ, sức khỏe trẻ của ngày trong đợt
+        assertThat(service.getClasses(sub, null))
+                .extracting(AttendanceClassResponse::id)
+                .containsExactly(classA);
+        assertThat(service.getDayInfo(sub, inStint, classA).unlock()).isNotNull();
+        expectCode(() -> service.getDayInfo(sub, outside, classA), ApiCode.CLASS_ACCESS_DENIED);
+        assertThat(service.getClassAttendance(sub, classA, inStint).canRecord()).isTrue();
+        service.saveClassAttendance(sub, classA, request(inStint, present(child1)));
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'ATTENDANCE_DAY_UNLOCKED' AND body LIKE ?",
+                        Long.class,
+                        "%19/10/2026%"))
+                .containsExactlyInAnyOrder(teacherA.userId(), sub.userId());
+        // Ngày ngoài đợt: không ghi, không được báo
+        expectCode(
+                () -> service.saveClassAttendance(sub, classA, request(outside, present(child1))),
+                ApiCode.CLASS_ACCESS_DENIED);
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'ATTENDANCE_DAY_UNLOCKED' AND body LIKE ?",
+                        Long.class,
+                        "%14/10/2026%"))
+                .containsExactly(teacherA.userId());
+        assertThat(healthService.getClassChildHealth(sub, classA, child1, inStint))
+                .isNotNull();
+        expectCode(() -> healthService.getClassChildHealth(sub, classA, child1, outside), ApiCode.CLASS_ACCESS_DENIED);
+        // GV dạy chính ghi được mọi ngày được mở lại
+        service.saveClassAttendance(teacherA, classA, request(outside, present(child1)));
+    }
+
+    @Test
     void unlockNeedsLockedDayAndValidDeadline() {
         expectError(
                 () -> unlockService.unlockDay(
@@ -544,6 +589,13 @@ class AttendanceIntegrationTest {
                                 null)),
                 ApiCode.BAD_REQUEST);
 
+        long parent = insertId("INSERT INTO user_accounts (keycloak_user_id, username, full_name)"
+                + " VALUES ('kc-parent1', 'parent1', 'parent1') RETURNING id");
+        jdbc.update(
+                "INSERT INTO child_guardians (child_id, position, full_name, relationship, phone, citizen_id, user_id,"
+                        + " linked_at) VALUES (?, 0, 'Mẹ', 'MOTHER', '0918888101', '999900000581', ?, now())",
+                child1,
+                parent);
         healthService.addEntry(
                 teacherA,
                 new DailyHealthRequest(
@@ -560,6 +612,29 @@ class AttendanceIntegrationTest {
         DailyHealthResponse.ChildDay day = healthService.getClassChildHealth(teacherA, classA, child1, TODAY);
         assertThat(day.canRecord()).isTrue();
         assertThat(day.entries()).hasSize(2);
+        // Cần chốt 14/11/2026: "cần lưu ý" báo phụ huynh đã liên kết, một lần mỗi trẻ mỗi ngày
+        assertThat(jdbc.queryForList(
+                        "SELECT user_id FROM notifications WHERE type = 'DAILY_HEALTH_NOTED' AND child_id = ?",
+                        Long.class,
+                        child1))
+                .containsExactly(parent);
+        healthService.addEntry(
+                teacherA,
+                new DailyHealthRequest(
+                        "r8",
+                        classA,
+                        child1,
+                        TODAY,
+                        new BigDecimal("38.0"),
+                        HealthObservation.NOTED,
+                        List.of(HealthSymptom.FEVER),
+                        "",
+                        List.of(),
+                        null));
+        assertThat(count(
+                        "SELECT count(*) FROM notifications WHERE type = 'DAILY_HEALTH_NOTED' AND child_id = ?",
+                        child1))
+                .isEqualTo(1);
         assertThat(day.entries().getFirst().observation()).isEqualTo(HealthObservation.NOTED);
         assertThat(healthService
                         .getClassChildHealth(teacherA, classA, child2, TODAY)
