@@ -47,5 +47,9 @@ public enum NotificationType {
     CUTOFF_CHANGED,
     LEAVE_REQUEST_CHANGED,
     MEAL_COUNT_CONFIRMED,
-    REWARD_LIST_UPDATED
+    REWARD_LIST_UPDATED,
+    /** GV ghi sức khỏe đầu ngày "cần lưu ý", báo phụ huynh đã liên kết với trẻ (HLT-15). */
+    DAILY_HEALTH_NOTED,
+    /** Kích hoạt năm học mới: báo GV, PHT, bếp có phân công năm mới (CFG-YR-02). */
+    SCHOOL_YEAR_ACTIVATED
 }
