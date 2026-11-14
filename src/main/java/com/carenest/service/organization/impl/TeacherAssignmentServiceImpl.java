@@ -21,12 +21,15 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.repository.organization.StaffAssignmentRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.CampusAccessPolicy;
+import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.TeacherAssignmentService;
 import com.carenest.service.organization.TeacherDirectory;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.NotificationType;
 import com.carenest.utils.enums.Permission;
 import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -43,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional
 public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
+    private static final DateTimeFormatter DMY = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final String LOG_PREFIX = "[TeacherAssignmentServiceImpl]";
 
     private final StaffAssignmentRepository staffAssignmentRepository;
@@ -56,6 +60,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final CampusAccessPolicy campusAccessPolicy;
     private final SchoolStructureMapper schoolStructureMapper;
     private final TeacherClassRules teacherClassRules;
+    private final NotificationService notificationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -180,7 +185,17 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 }
             }
             staffAssignmentRepository.flush();
-            // TODO(Cần): thông báo giáo viên mới được phân công — chờ module notification
+            // OBS-31: báo giáo viên mới được phân công vào lớp
+            if (!added.isEmpty()) {
+                notificationService.notifyUsers(
+                        added,
+                        NotificationType.STAFF_ASSIGNED,
+                        "Phân công lớp mới",
+                        "Cô được phân công dạy lớp " + classroom.getName() + " năm học " + year.getName() + ", từ ngày "
+                                + DMY.format(start) + ".",
+                        "/attendance",
+                        false);
+            }
             ClassTeachersResponse response = toClassTeachers(List.of(classroom), schoolConfigAccess.today())
                     .getFirst();
             log.info("{}|END", logPrefix);
@@ -253,6 +268,21 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                         currentUser.userId()));
             }
             staffAssignmentRepository.flush();
+            // OBS-31: báo tổ trưởng mới được phân công
+            if (request.userId() != null) {
+                String group = ageGroupRepository
+                        .findById(request.ageGroupId())
+                        .map(g -> g.getName())
+                        .orElse("");
+                notificationService.notifyUsers(
+                        Set.of(request.userId()),
+                        NotificationType.STAFF_ASSIGNED,
+                        "Phân công tổ trưởng",
+                        "Cô được phân công làm tổ trưởng " + group + " năm học " + year.getName() + ", từ ngày "
+                                + DMY.format(start) + ".",
+                        "/education/plan-reviews",
+                        false);
+            }
             TeamLeaderResponse response = toTeamLeaderResponse(year);
             log.info("{}|END", logPrefix);
             return response;

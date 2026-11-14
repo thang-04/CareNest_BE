@@ -40,5 +40,12 @@ public enum NotificationType {
     ATTENDANCE_REMINDER,
     ASSESSMENT_REMINDER,
     ASSESSMENT_REOPENED,
-    LEADER_REMINDER
+    LEADER_REMINDER,
+    // Thông báo việc (OBS-31): phân công GV / tổ trưởng, đổi giờ chốt, đơn nghỉ của phụ huynh, sổ báo ăn đã xác nhận
+    // (báo bếp), luồng đề xuất khen thưởng
+    STAFF_ASSIGNED,
+    CUTOFF_CHANGED,
+    LEAVE_REQUEST_CHANGED,
+    MEAL_COUNT_CONFIRMED,
+    REWARD_LIST_UPDATED
 }
