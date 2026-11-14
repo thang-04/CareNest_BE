@@ -184,8 +184,8 @@ public class AccountPhotoServiceImpl implements AccountPhotoService {
                     : userAccountRepository.findAllById(visible).stream()
                             .filter(UserAccount::hasPhoto)
                             // Ảnh phụ huynh chỉ xem qua hồ sơ trẻ (PCK-02), trừ ảnh của chính mình
-                            .filter(a -> a.getId().equals(currentUser.userId())
-                                    || a.getPrimaryRole() != CareNestRole.PARENT)
+                            .filter(a ->
+                                    a.getId().equals(currentUser.userId()) || a.getPrimaryRole() != CareNestRole.PARENT)
                             .map(this::urlResponse)
                             .toList();
             log.info("{}|END|returned={}", logPrefix, urls.size());

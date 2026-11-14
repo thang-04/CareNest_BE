@@ -76,13 +76,17 @@ public class AccountPhotoAccessPolicy {
         if (childIds.isEmpty()) {
             return Set.of();
         }
-        Set<Long> classroomIds =
-                new HashSet<>(enrollmentService.findActiveClassroomIdByChildIds(childIds, today).values());
+        Set<Long> classroomIds = new HashSet<>(enrollmentService
+                .findActiveClassroomIdByChildIds(childIds, today)
+                .values());
         if (classroomIds.isEmpty()) {
             return Set.of();
         }
         Set<Long> teacherIds = new HashSet<>();
-        staffAssignmentService.findCurrentTeacherIds(classroomIds, today).values().forEach(teacherIds::addAll);
+        staffAssignmentService
+                .findCurrentTeacherIds(classroomIds, today)
+                .values()
+                .forEach(teacherIds::addAll);
         return teacherIds;
     }
 }

@@ -35,7 +35,8 @@ class AccountPhotoAccessPolicyTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 11, 14);
     private static final long CAMPUS_A = 1L;
     private static final long CAMPUS_B = 2L;
-    // Nhân sự giả: HT 10, Admin 11, PHT A 20, PHT B 21, GV A 30 (lớp 300), GV B 31 (lớp 310), bếp A 40, chưa phân công 50
+    // Nhân sự giả: HT 10, Admin 11, PHT A 20, PHT B 21, GV A 30 (lớp 300), GV B 31 (lớp 310), bếp A 40, chưa phân công
+    // 50
     private static final long HT = 10L;
     private static final long ADMIN = 11L;
     private static final long PHT_A = 20L;
@@ -71,8 +72,10 @@ class AccountPhotoAccessPolicyTest {
         given(assignments.findActiveStaffUserIds(Set.of(CAMPUS_A), TODAY)).willReturn(Set.of(PHT_A, GV_A, BEP_A));
         given(assignments.findActiveStaffUserIds(Set.of(CAMPUS_B), TODAY)).willReturn(Set.of(PHT_B, GV_B));
         given(assignments.findPrincipalIds(TODAY)).willReturn(Set.of(HT));
-        given(assignments.findActiveCampusIds(PHT_A, StaffRole.VICE_PRINCIPAL, TODAY)).willReturn(Set.of(CAMPUS_A));
-        given(assignments.findActiveCampusIds(BEP_A, StaffRole.KITCHEN_STAFF, TODAY)).willReturn(Set.of(CAMPUS_A));
+        given(assignments.findActiveCampusIds(PHT_A, StaffRole.VICE_PRINCIPAL, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
+        given(assignments.findActiveCampusIds(BEP_A, StaffRole.KITCHEN_STAFF, TODAY))
+                .willReturn(Set.of(CAMPUS_A));
         given(assignments.findCurrentTeacherClassroomIds(GV_A, TODAY)).willReturn(Set.of(300L));
         given(classrooms.findCampusIds(Set.of(300L))).willReturn(Map.of(300L, CAMPUS_A));
     }
@@ -159,7 +162,6 @@ class AccountPhotoAccessPolicyTest {
         given(enrollments.findActiveClassroomIdByChildIds(List.of(901L), TODAY)).willReturn(Map.of(901L, 310L));
         given(assignments.findCurrentTeacherIds(any(), any())).willReturn(Map.of(310L, List.of(GV_B)));
 
-        assertThat(policy.visibleUserIds(gvParent, Set.of(GV_B, PHT_A, PHT_B)))
-                .containsExactlyInAnyOrder(GV_B, PHT_A);
+        assertThat(policy.visibleUserIds(gvParent, Set.of(GV_B, PHT_A, PHT_B))).containsExactlyInAnyOrder(GV_B, PHT_A);
     }
 }

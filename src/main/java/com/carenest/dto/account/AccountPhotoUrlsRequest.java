@@ -7,4 +7,5 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /** Danh sách tài khoản cần link ảnh đại diện trên một màn (AUTH-27); tối đa 100 người một lần. */
-public record AccountPhotoUrlsRequest(@NotEmpty @Size(max = 100) List<@NotNull @Positive Long> userIds) {}
+public record AccountPhotoUrlsRequest(
+        @NotEmpty @Size(max = 100) List<@NotNull @Positive Long> userIds) {}

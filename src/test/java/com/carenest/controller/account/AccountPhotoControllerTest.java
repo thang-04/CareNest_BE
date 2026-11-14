@@ -90,8 +90,7 @@ class AccountPhotoControllerTest {
         given(users.getCurrentUser()).willReturn(parent);
         given(photos.deleteMyPhoto(parent)).willThrow(GlobalException.of(ApiCode.ACCOUNT_PHOTO_REQUIRED));
 
-        mvc.perform(delete("/api/accounts/me/photo")
-                        .with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PARENT"))))
+        mvc.perform(delete("/api/accounts/me/photo").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_PARENT"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value(1145));
     }
