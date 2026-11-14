@@ -45,6 +45,10 @@ const AGE_MONTHS = { 'ag-2': [24, 36], 'ag-3': [36, 48], 'ag-4': [48, 60], 'ag-5
 
 // 8 id Keycloak cố định giữ từ bộ cũ để liên kết/test không gãy; còn lại id tất định theo nhóm
 const fixedId = (n) => `00000000-0000-4000-a000-${String(n).padStart(12, '0')}`;
+// 8 tài khoản cố định giữ tên đăng nhập quen thuộc của team (đăng nhập nhanh khi thử); còn lại đăng nhập bằng SĐT
+const FIXED_USERNAMES = { 1: 'admin', 2: 'principal', 3: 'viceprincipal', 4: 'teacher1', 5: 'teacher2', 6: 'parent1',
+  7: 'parent2', 8: 'kitchen' };
+const fixedUsername = (id) => (id.startsWith('00000000-0000-4000-a000-') ? FIXED_USERNAMES[Number(id.slice(-12))] : null);
 const staffId = (n) => `00000000-0000-4000-b000-${String(n).padStart(12, '0')}`;
 const parentId = (n) => `00000000-0000-4000-e000-${String(n).padStart(12, '0')}`;
 
@@ -94,7 +98,7 @@ export function buildDataset(seed = 20260901) {
     const p = phone();
     const person = {
       key: `S${staff.length + 1}`, keycloakId: id ?? staffId(++staffSeq), role, title, gender,
-      fullName: name.fullName, username: p, phone: p, email: email(name), citizenId: citizenId(gender, year),
+      fullName: name.fullName, username: fixedUsername(id ?? '') ?? p, phone: p, email: email(name), citizenId: citizenId(gender, year),
       status, pendingPassword, assignments: [],
     };
     staff.push(person);
@@ -114,7 +118,7 @@ export function buildDataset(seed = 20260901) {
   const teacherFor = {};
   for (const cls of CLASSES) {
     const homeroomId = cls.key === 'C1' ? fixedId(4) : undefined;
-    const secondId = cls.key === 'M1' ? fixedId(5) : undefined;
+    const secondId = cls.key === 'C1' ? fixedId(5) : undefined;
     const homeroom = addStaff({ id: homeroomId, role: 'TEACHER', title: `Giáo viên chủ nhiệm ${cls.name}` });
     const second = addStaff({ id: secondId, role: 'TEACHER', title: `Giáo viên ${cls.name}`,
       pendingPassword: cls.key === 'NT2' });
@@ -344,7 +348,7 @@ export function buildDataset(seed = 20260901) {
       if (c === fixedParent.a6) id = fixedId(6);
       else if (c === fixedParent.a7 || c.siblingOf === fixedParent.a7.code) id = fixedId(7);
       else id = parentId(++parentSeq);
-      account = { keycloakId: id, role: 'PARENT', username: g.phone, phone: g.phone, fullName: g.fullName,
+      account = { keycloakId: id, role: 'PARENT', username: fixedUsername(id) ?? g.phone, phone: g.phone, fullName: g.fullName,
         citizenId: g.citizenId, status: c.lockedParent ? 'INACTIVE' : 'ACTIVE', lockedBySystem: !!c.lockedParent,
         pendingPassword: false, childCodes: [] };
       accountByCitizen.set(g.citizenId, account);

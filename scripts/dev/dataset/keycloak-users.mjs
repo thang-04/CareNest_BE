@@ -2,7 +2,7 @@
 import { pbkdf2Sync } from 'node:crypto';
 
 // Mật khẩu chung của mọi tài khoản trên máy dev/local; VPS dùng KEYCLOAK_DEV_USER_PASSWORD (không commit)
-export const DEV_PASSWORD = 'Carenest@2026'; // carenest:allow-secret — mật khẩu giả chỉ dùng local, VPS lấy từ biến môi trường
+export const DEV_PASSWORD = 'demo123'; // carenest:allow-secret — mật khẩu giả dùng chung khi thử, VPS lấy từ biến môi trường
 const SALT = Buffer.from('carenest-dev-dataset-salt').subarray(0, 16);
 const ITERATIONS = 210000;
 

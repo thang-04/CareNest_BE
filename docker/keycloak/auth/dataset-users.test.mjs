@@ -19,7 +19,7 @@ test('committed dataset files equal generator output', () => {
 test('every seeded account has a matching Keycloak user with the same id, username and role', () => {
   const sql = read('src/main/resources/db/dev/R__dev_01_people_structure.sql');
   const block = sql.slice(sql.indexOf('INSERT INTO user_accounts'), sql.indexOf('ON CONFLICT (keycloak_user_id)'));
-  const seeded = [...block.matchAll(/\('([0-9a-f-]{36})', '(\d{10})', (?:'[^']*'|NULL), '[^']*', '([A-Z_]+)'/g)]
+  const seeded = [...block.matchAll(/\('([0-9a-f-]{36})', '(\d{10}|[a-z0-9]+)', (?:'[^']*'|NULL), '[^']*', '([A-Z_]+)'/g)]
     .map(([, id, username, role]) => [id, username, role]);
   const users = JSON.parse(read('docker/keycloak/dev/carenest-users-0.json')).users
     .map((u) => [u.id, u.username, u.realmRoles[0]]);
@@ -61,6 +61,10 @@ test('phones and citizen ids are unique and well formed', () => {
   const ids = new Set([...people.map((p) => p.citizenId), ...d.children.map((c) => c.profile.idNumber)]);
   assert.equal(phones.size, new Set(d.staff.map((s) => s.phone)).size + new Set(d.children.flatMap((c) => c.guardians.map((g) => g.phone))).size);
   for (const p of phones) assert.match(p, /^0(3[2-9]|7[06-9]|8[1-689]|9[0134678])\d{7}$/);
+  // 8 tài khoản cố định giữ tên đăng nhập cũ; còn lại tên đăng nhập = SĐT
+  const usernames = [...d.staff, ...d.parentAccounts].map((a) => a.username);
+  assert.deepEqual(usernames.filter((u) => !/^0\d{9}$/.test(u)).sort(),
+    ['admin', 'kitchen', 'parent1', 'parent2', 'principal', 'teacher1', 'teacher2', 'viceprincipal']);
   for (const id of ids) assert.match(id, /^03[01][0-3]\d{8}$/);
 });
 
