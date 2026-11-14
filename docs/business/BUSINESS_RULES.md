@@ -334,6 +334,7 @@ Loại theo Report 1 v2 (17/10) và khảo sát team 27/10 (FAC-01, FAC-02), use
 | PAR-04 | Không có chat thay Zalo. Không có kênh gửi ý kiến của phụ huynh trên App; phụ huynh liên lạc trường qua Zalo/điện thoại (đóng P-32) | CONFIRMED | Report 1; khảo sát team 27/10 (PAR-04); user chốt 2026-11-14 trong phiên APP (P-32) |
 | PAR-05 | Thông báo của trường chỉ BGH gửi; gửi qua thông báo đẩy và trong App; không theo dõi phụ huynh đã đọc | CONFIRMED | Khảo sát team 27/10 (PAR-02, PAR-03, PAR-05) |
 | PAR-06 | Một tài khoản phụ huynh xem tất cả các con của mình | CONFIRMED | Khảo sát team 27/10 (PAR-07) |
+| PAR-07 | Mọi thông báo BE tạo cho người dùng đều đẩy tới thiết bị App đã đăng ký và hiện trong danh sách thông báo của App; không có loại chỉ hiện trong App. Nội dung đẩy không chứa dữ liệu nhạy cảm. Danh mục theo role: `docs/modules/notification.md`. Phụ huynh nhận nhận xét tuần (OBS-29); không có thông báo khi công bố nhận xét tháng/học kỳ/cuối năm (OBS-06) | CONFIRMED | User chốt 2026-11-14 trong phiên APP (thay bảng 7 sự kiện "ngoài bảng không push" của APP 14/11) |
 
 ## RPT — Báo cáo (module: reporting)
 

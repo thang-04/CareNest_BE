@@ -4,6 +4,7 @@
 ## Quyết định APP 14/11/2026 — tác động client
 
 - Quên mật khẩu trên App bằng OTP SMS cho phụ huynh, GV, bếp (AUTH-27; AUTH-21 thêm dẫn chiếu). APP: màn Quên mật khẩu sẽ gọi endpoint mới theo plan `docs/plans/active/2026-11-14-app-sms-password-reset.md` (duyệt 2026-11-14; màn nằm trong App — P-41 đã đóng). Web không đổi: `src/services/account/api/accountApi.js` vẫn gọi `POST /auth/password/forgot` theo email.
+- Push (PAR-07): mọi thông báo BE tạo đều đẩy tới App, App không lọc loại; danh mục theo role ở `docs/modules/notification.md`. APP sửa bảng sự kiện `APP:docs/integration/PUSH_NOTIFICATION.md` theo danh mục đó (gồm loại trên nhánh G94-236); deep link theo `NotificationType`.
 - Đóng P-19, P-21, P-22, P-23, P-32, P-40 và làm rõ ATT-04 (hủy phần còn lại của đơn): chỉ đổi tài liệu, code `dev` đã đúng; Web và App không cần đổi API.
 
 ## Mốc nghiệp vụ giáo dục ghi nhận09/11/2026 — contract hiện hành và đích

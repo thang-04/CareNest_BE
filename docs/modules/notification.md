@@ -12,7 +12,28 @@ Notification, DeliveryStatus, tham chiếu device token, thông báo chung của
 Quyết định khi nào gửi (domain quyết định qua event), nội dung nghiệp vụ chi tiết, chat (không thay Zalo).
 
 ## Rules
-PAR-05 (BGH gửi; push + trong App; không theo dõi đã đọc), PAR-06 (một tài khoản phụ huynh nhận cho mọi con). Event chính: sức khỏe trong ngày (HLT-14, gửi ngay), đã đón trẻ (PCK-04), công bố kết quả (PAR-03).
+PAR-05 (BGH gửi; push + trong App; không theo dõi đã đọc), PAR-06 (một tài khoản phụ huynh nhận cho mọi con), PAR-07 (mọi thông báo đều đẩy tới App, danh mục theo role ở mục dưới). Event chính: sức khỏe trong ngày (HLT-14, gửi ngay), đã đón trẻ (PCK-04), công bố kết quả (PAR-03).
+
+## Danh mục thông báo trên App theo role (PAR-07, user chốt 2026-11-14)
+Mọi thông báo BE tạo đều đẩy tới thiết bị đã đăng ký (`PUT /me/devices`, chỉ App đăng ký) và hiện trong danh sách thông báo; App không lọc loại. Cột "Ở đâu": `dev` = đã có; `G94-236` = nhánh daily-attendance (OBS-29..31, chưa vào `dev`).
+
+| Role nhận | Loại (`NotificationType`) | Rule | Ở đâu |
+| --- | --- | --- | --- |
+| Phụ huynh | `CHILD_PICKED_UP` | PCK-04 | dev |
+| Phụ huynh | `HEALTH_RESULT_PUBLISHED`, `HEALTH_RESULT_UPDATED` (nội dung đẩy chung "Thông tin sức khỏe") | HLT-11, PAR-03 | dev |
+| Phụ huynh | `DAILY_HEALTH_NOTED` — GV ghi sức khỏe trong ngày "cần lưu ý", không kèm triệu chứng | HLT-14, OBS-31 | G94-236 |
+| Phụ huynh | `WEEKLY_COMMENT_SENT` — nhận xét tuần; nhận xét tháng/học kỳ/cuối năm (OBS-06) không có thông báo | OBS-29 | G94-236 |
+| Phụ huynh | `CHILD_PLACED` — con lên lớp/ở lại khi kích hoạt năm học | OBS-31 | G94-236 |
+| GV | `LEAVE_REQUEST_CHANGED` — phụ huynh gửi/hủy đơn nghỉ | ATT-05, OBS-31 | G94-236 |
+| GV | `CHILD_PLACED` — trẻ được xếp/chuyển vào lớp | CHD-10 | dev |
+| GV | `CHILD_WITHDRAWN`, `CHILD_TB_CONTACT`, `HEALTH_CHECK_OPENED`, `ATTENDANCE_DAY_UNLOCKED` | CHD-03, CHD-07, HLT-08, ATT-08 | dev |
+| GV | `EDU_*` (kế hoạch giáo dục) | EDU (spec 003) | dev |
+| GV | `ATTENDANCE_REMINDER`, `ASSESSMENT_REMINDER`, `ASSESSMENT_REOPENED`, `STAFF_ASSIGNED`, `CUTOFF_CHANGED`, `REWARD_LIST_UPDATED`, `SCHOOL_YEAR_ACTIVATED` | OBS-30, OBS-31, CFG-YR-02 | G94-236 |
+| Bếp | `MEAL_COUNT_CONFIRMED` — sổ báo ăn điểm trường được xác nhận / xác nhận lại | NUT-02, ATT-08, OBS-31 | G94-236 |
+| Bếp | `CUTOFF_CHANGED`, `SCHOOL_YEAR_ACTIVATED` | OBS-31, CFG-YR-02 | G94-236 |
+
+- Loại chỉ cho BGH (`MEAL_COUNT_RECONFIRM`, `GUARDIAN_PHONE_CHANGE_*`, `LEADER_REMINDER`, `CHILD_TB_CONTACT_DATE_CHANGED`) chỉ tới App khi BGH dùng App (chỉ xem — nhánh TBD-1).
+- Chưa có: thông báo của trường do BGH gửi (PAR-05) — hoãn, task riêng (user 2026-11-14).
 
 ## Phụ thuộc
 - Nghe event từ domain (sau commit). Resolve người nhận qua `identity` + `AccessScopeService`.
