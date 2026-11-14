@@ -1,6 +1,6 @@
 ---
 title: Giải thích xu hướng sức khỏe có cấu trúc (AI)
-status: in-progress        # draft → approved (chỉ user duyệt) → in-progress → done | blocked | cancelled
+status: done        # draft → approved (chỉ user duyệt) → in-progress → done | blocked | cancelled
 owner: carenestg94@gmail.com
 jira: G94-180 / BE-FEAT-43
 branch: feature/G94-180-BE-FEAT-43-child-health-pickup
@@ -253,3 +253,12 @@ Ngoài phạm vi: UI FE (plan FE riêng); luật `HEIGHT_DECREASE`; bản giải
   - AC-10 kiểm trong `HealthRecordIntegrationTest#interpretationVisibleToParentOnlyAfterApproval` (mở rộng) và unit `#latestMarksStaleAfterNewMeasurement`, không tạo test tích hợp riêng.
   - Thêm `HealthTrendContentRules.normalize` (bỏ khoảng trắng, danh sách null ⇒ rỗng) trước `checkEdited`; `HealthGrowth.stale` dùng chung cho nhân sự và phụ huynh.
   - `stale` thêm vào `HealthTrendAnalysisResponse` ngay sau `draft`.
+
+### 2026-11-14 — Toàn bộ test suite
+- Verify: `./mvnw test` → `BUILD SUCCESS`, `Tests run: 1749, Failures: 0, Errors: 0, Skipped: 0` (chạy trên đúng nội dung commit `a52edb60`).
+- Tiếp: smoke test Gemini/Groq thật; user duyệt Phase 3 ⇒ plan `done`, chuyển `completed/`; PR vào `dev`.
+
+### 2026-11-14 — Đóng plan
+- User duyệt kết quả, yêu cầu đóng plan; không tạo PR vào `dev` (user 14/11).
+- Chưa kiểm chứng: smoke test Gemini/Groq thật (`response_format`, `completionTokens`) — làm khi có khóa API.
+- Việc FE (hiển thị theo khối, màn duyệt, ghi chú `stale`, dùng GET latest) ⇒ plan FE riêng.
