@@ -136,3 +136,13 @@ Plan liên repo: BE (phase 1–2), Web `CareNest_FE` (phase 3), App `carenest_ap
 - Khác plan: mock Web không tạo thông báo phụ huynh (phụ huynh không dùng Web). `FE_API_CALLS.md` không đổi (endpoint giữ nguyên, chỉ thêm query).
 - Tiếp: Phase 4 (App).
 
+### 2026-11-14 — Commit phase 1–3
+- BE: `f97faabb` (đổi số migration, user tự cho phép cờ hook trong lượt này), `e0061985` (khoảng thời gian + thông báo). Push BE bị công cụ chặn vì lượt này user chỉ yêu cầu commit ⇒ chưa push.
+- Web: `901ef1d0`, chưa push.
+
+### 2026-11-14 — Phase 4 App (chờ review)
+- Commit: chưa commit (repo `carenest_app`, nhánh `feature/G94-194-FE-FEAT-49-app-ui-redraw`, mã G94-334)
+- Verify: `flutter test test/features/notifications` → 9 pass; `flutter analyze` → No issues; `flutter test` → 220 pass.
+- Thay đổi: `NotificationType.healthTrendApproved('HEALTH_TREND_APPROVED')`, icon sức khỏe, lối mở "Xem sức khỏe của bé"; dữ liệu giả `p5`; `PUSH_NOTIFICATION.md` thêm dòng loại mới (BE: nhánh G94-180).
+- Chưa chạy `node scripts/verify.mjs`/`check-ai-layer.mjs` của App.
+
