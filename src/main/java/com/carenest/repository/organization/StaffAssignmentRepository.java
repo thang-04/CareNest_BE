@@ -400,19 +400,34 @@ public interface StaffAssignmentRepository extends JpaRepository<StaffAssignment
             + " and c.campusId in :campusIds and a.validFrom <= :date and (a.validTo is null or a.validTo >= :date)")
     List<Long> findActiveTeacherUserIds(@Param("campusIds") Collection<Long> campusIds, @Param("date") LocalDate date);
 
-    // Phân công cùng người, cùng role, cùng phạm vi chưa kết thúc trước ngày bắt đầu mới ⇒ trùng
+    // Phân công cùng người, cùng role, cùng phạm vi giao với khoảng [validFrom, validTo] ⇒ trùng
+    // (xét cả hai đầu để đợt trước không bị chặn bởi đợt sau; bỏ phân công gỡ trước khi bắt đầu)
     @Query("""
             select case when count(a) > 0 then true else false end from StaffAssignment a
             where a.userId = :userId and a.staffRole = :staffRole
               and a.campusId is not distinct from :campusId and a.classroomId is not distinct from :classroomId
-              and (a.validTo is null or a.validTo >= :validFrom)
+              and a.validFrom <= :validTo and (a.validTo is null or a.validTo >= :validFrom)
+              and (a.validTo is null or a.validTo >= a.validFrom)
             """)
     boolean existsOverlapping(
             @Param("userId") Long userId,
             @Param("staffRole") StaffRole staffRole,
             @Param("campusId") Long campusId,
             @Param("classroomId") Long classroomId,
-            @Param("validFrom") LocalDate validFrom);
+            @Param("validFrom") LocalDate validFrom,
+            @Param("validTo") LocalDate validTo);
+
+    // Phân công mới không ngày kết thúc ⇒ so tới ngày xa nhất PostgreSQL date nhận được, tránh tham số null trong query
+    default boolean existsOverlappingOpenEnded(
+            Long userId, StaffRole staffRole, Long campusId, Long classroomId, LocalDate validFrom, LocalDate validTo) {
+        return existsOverlapping(
+                userId,
+                staffRole,
+                campusId,
+                classroomId,
+                validFrom,
+                validTo == null ? LocalDate.of(9999, 12, 31) : validTo);
+    }
 
     // Phân công gắn với năm học (lớp của năm, tổ trưởng / PHT ghi school_year_id) theo ngày năm học khi đổi ngày năm
     @Modifying

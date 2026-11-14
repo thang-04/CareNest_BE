@@ -41,6 +41,7 @@ class DevSeedIntegrationTest {
             "flyway_schema_history",
             "password_tokens",
             "otp_send_limits",
+            "parent_activation_codes",
             "device_tokens",
             "user_signatures",
             "meal_photos",

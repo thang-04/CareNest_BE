@@ -12,8 +12,8 @@ import com.carenest.dto.notification.DeviceTokenRequest;
 import com.carenest.dto.notification.NotificationListResponse;
 import com.carenest.exception.GlobalException;
 import com.carenest.security.CurrentUser;
+import com.carenest.service.account.AccountPhotoService;
 import com.carenest.service.account.AccountService;
-import com.carenest.service.account.ParentPhotoService;
 import com.carenest.service.attendance.DailyHealthService;
 import com.carenest.service.attendance.PickupService;
 import com.carenest.service.notification.NotificationService;
@@ -89,7 +89,7 @@ class PickupIntegrationTest {
     private NotificationService notifications;
 
     @Autowired
-    private ParentPhotoService photos;
+    private AccountPhotoService photos;
 
     @Autowired
     private AccountService accounts;

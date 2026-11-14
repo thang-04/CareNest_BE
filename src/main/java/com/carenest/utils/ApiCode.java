@@ -121,6 +121,13 @@ public enum ApiCode {
             1143,
             HttpStatus.SERVICE_UNAVAILABLE,
             "Hệ thống đăng nhập chưa cho đổi tên đăng nhập. Báo quản trị viên, chưa đổi số điện thoại."),
+    ACTIVATION_NOT_PENDING(
+            1144,
+            HttpStatus.CONFLICT,
+            "Tài khoản không chờ kích hoạt bằng mã; dùng cấp lại mật khẩu tạm nếu phụ huynh quên mật khẩu"),
+    // AUTH-27: ảnh phụ huynh bắt buộc (App chặn khi thiếu) ⇒ tài khoản có role phụ huynh chỉ thay, không xóa
+    ACCOUNT_PHOTO_REQUIRED(
+            1145, HttpStatus.FORBIDDEN, "Tài khoản phụ huynh bắt buộc có ảnh chân dung, chỉ đổi được sang ảnh khác"),
 
     // ========== 12xx THÔNG BÁO ==========
     NOTIFICATION_NOT_FOUND(1201, HttpStatus.NOT_FOUND, "Không tìm thấy thông báo"),

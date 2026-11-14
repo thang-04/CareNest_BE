@@ -8,7 +8,7 @@ modules: [identity-access, child]
 rules: [AUTH-04, AUTH-17, AUTH-18, AUTH-19, AUTH-21, AUTH-22]
 risk: high
 created: 2026-10-30
-updated: 2026-10-30
+updated: 2026-11-02
 ---
 # Một tài khoản nhiều vai trò, chặn theo nền tảng, đăng nhập bằng SĐT, đổi SĐT
 
@@ -25,7 +25,7 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 - Không có import Excel ở BE.
 
 ## Quyết định đã chốt
-1. HT/PHT đổi SĐT cho người dùng, giữ tài khoản/liên kết/lịch sử — user, 30/10/2026. **Hoãn tới khi có nhà cung cấp SMS** (SĐT mới phải xác minh qua OTP SMS, không xác minh bằng gọi điện) — user, 30/10/2026.
+1. HT/PHT đổi SĐT cho người dùng, giữ tài khoản/liên kết/lịch sử — user, 30/10/2026. ~~Hoãn tới khi có nhà cung cấp SMS~~ (user, 30/10/2026) ⇒ **làm ngay, xác minh trực tiếp tại trường** (người dùng có mặt, đối chiếu giấy tờ, bắt buộc lý do + người xác minh; vẫn không xác minh bằng gọi điện); có SMS thì thêm OTP — user, 02/11/2026 (AUTH-18).
 2. Một người một tài khoản, nhiều role; Web chỉ quyền nhân sự, phụ huynh-only không vào Web; App chuyển chế độ GV/phụ huynh, BE không tin `activeRole` client gửi — user (spec 30/10/2026).
 3. Ưu tiên SĐT + mật khẩu làm thông tin đăng nhập; email bổ sung; SĐT không phải định danh — user (spec 30/10/2026).
 4. Không gửi mật khẩu plaintext qua SMS — user (spec 30/10/2026), thay phần "gửi mật khẩu tạm qua SMS" của AUTH-18.
@@ -43,6 +43,7 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 | 3. Phụ huynh xem trẻ đã ra trường | Không xem trẻ đã ra trường; hết con đang học ⇒ tài khoản INACTIVE; còn con khác học thì xem được con đó | user | 2026-10-30 | CHD-04, `AUTH_CONTRACT.md` |
 | 1. Tên đăng nhập tài khoản bếp dùng chung | SĐT bếp của cơ sở | user | 2026-10-30 | AUTH-15, `AUTH_CONTRACT.md` |
 | 4. Chưa có SMS | Chờ có SMS: Phase 4 (đổi SĐT) hoãn; kích hoạt giữ mật khẩu tạm in phiếu như hiện tại | user | 2026-10-30 | plan này |
+| 4b. Đổi SĐT khi chưa có SMS (thay dòng 4 phần Phase 4) | HT/PHT đổi tại trường, xác minh trực tiếp; kích hoạt vẫn in phiếu | user | 2026-11-02 | AUTH-18, plan này |
 | 2. Xác nhận đúng người khi SĐT đã có tài khoản | Cả phụ huynh có sẵn lẫn nhân sự | user | 2026-10-30 | AUTH-18, `AUTH_CONTRACT.md` |
 
 ## Giả định (ghi để user soát)
@@ -65,6 +66,7 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 - **AC-9**: Given Keycloak đổi username lỗi When đổi SĐT Then DB không đổi, yêu cầu `FAILED`; Given DB lỗi sau khi Keycloak đã đổi Then trả Keycloak về username cũ (compensation), không được thì `RECONCILE_REQUIRED` + log.
 - **AC-10**: Given hai yêu cầu đổi SĐT đồng thời cho một tài khoản When xử lý Then chỉ một thành công.
 - **AC-11**: Given người không có quyền / ngoài phạm vi / chính mình When đổi SĐT Then 403/400.
+- **AC-12** (AUTH-18, 02/11): Given thiếu lý do, hai lần nhập SĐT mới không khớp, SĐT mới sai định dạng hoặc trùng SĐT hiện tại When đổi Then 400, không đổi gì; Given đổi thành công Then bản ghi lịch sử có SĐT cũ/mới, lý do, người xác minh (= người thao tác), phương thức `IN_PERSON`, không có số giấy tờ.
 
 ## Key decisions
 | Quyết định | Chọn | Phương án khác | Vì sao |
@@ -88,7 +90,9 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 ### Phase 3 — Nhân sự đăng nhập bằng SĐT (theo câu hỏi 1)
 - Files: M `CreateAccountRequest` (`phone` thay `username`), `AccountServiceImpl.create`, test, `AUTH_CONTRACT.md`, `openapi.yaml`.
 - **Dừng chờ review.**
-### Phase 4 — Đổi SĐT (AC-7..11) — hoãn: chờ nhà cung cấp SMS
+### Phase 4 — Đổi SĐT (AC-7..12) — mở lại 02/11: xác minh trực tiếp, chưa cần SMS
+- Spec (user chốt 02/11, chi tiết là giả định agent — soát ở Progress log 02/11): `PUT /accounts/{id}/phone` body `newPhone`, `confirmNewPhone`, `reason` (bắt buộc); phương thức xác minh do BE ghi `IN_PERSON` (enum chừa `SMS_OTP`), người xác minh = người thao tác; áp cho phụ huynh và nhân sự; HT/Admin đổi theo AUTH-17 (tài khoản HT chỉ Admin); số cũ được dùng lại ngay cho tài khoản khác.
+- Migration lấy số kế tiếp lúc làm (hiện mới nhất V53), không dùng V39.
 - Spike: Keycloak 26.8 Admin API đổi username khi `editUsernameAllowed=false`; nếu cần bật thì user profile chỉ cho admin sửa username.
 - Files: C migration `V47__create_user_phone_changes.sql` (lịch sử + trạng thái + permission seed), service/controller đổi SĐT · M `IdentityProviderClient` (đổi username), `Permission`, realm json · test.
 - **Dừng chờ review.**
@@ -165,3 +169,8 @@ Yêu cầu user 30/10/2026: một người một tài khoản (GV kiêm phụ hu
 
 
 Cập nhật tham chiếu P-28 ngày 05/11/2026: quyết định tiếp nhận mới một người nhận tài khoản, giữ liên kết cũ, đã triển khai theo [Spec013](../../../specs/013-selected-parent-account/domain-spec.md); các ghi nhận trước trong plan này là lịch sử.
+### 2026-11-02 — Phase 4 mở lại (chưa code)
+- User chọn phương án B (thay "chờ SMS" 30/10): HT/PHT đổi SĐT tại trường, xác minh trực tiếp; đã ghi AUTH-18. Phương án loại: A giữ chờ SMS (SĐT là số liên lạc duy nhất — `guardian_child_links` không có cột SĐT — nên số sai/số cũ bị nhà mạng cấp lại vẫn còn), C phụ huynh tự đổi trong App (thêm màn APP, nhân sự Web không dùng được, vẫn không xác minh số mới).
+- Giả định để soát: BE nhận cả `confirmNewPhone` (không chỉ FE kiểm); không lưu số/ảnh giấy tờ; tài khoản đang khóa vẫn đổi được SĐT; không thông báo số cũ (không có kênh).
+- Tác động dự kiến: FE — HT/PHT có nút "Đổi SĐT" ở màn nhân sự và màn tài khoản phụ huynh (form nhập 2 lần + lý do). APP — không đổi (đăng nhập bằng số mới).
+- Tiếp: làm Phase 4 khi user yêu cầu; commit cần mã Jira (câu hỏi 5).
