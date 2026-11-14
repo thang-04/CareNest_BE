@@ -440,12 +440,13 @@ public class StaffAssignmentServiceImpl implements StaffAssignmentService {
             LocalDate validTo = assignment.staffRole() == StaffRole.TEACHER
                     ? checkTeacherAssignment(assignment)
                     : assignment.validTo();
-            if (staffAssignmentRepository.existsOverlapping(
+            if (staffAssignmentRepository.existsOverlappingOpenEnded(
                     assignment.userId(),
                     assignment.staffRole(),
                     assignment.campusId(),
                     assignment.classroomId(),
-                    assignment.validFrom())) {
+                    assignment.validFrom(),
+                    validTo)) {
                 throw GlobalException.of(ApiCode.ASSIGNMENT_OVERLAP);
             }
             // AUTH-26: mỗi điểm trường tối đa một PHT (mọi đường tạo phân công PHT áp cùng luật)
