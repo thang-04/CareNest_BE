@@ -7,14 +7,15 @@ final class AssessmentReminderLinks {
 
     private AssessmentReminderLinks() {}
 
-    static String evaluation(EvaluationLockKind kind, Long classId, String periodKey) {
+    /** period: id chủ đề (màn Đánh giá chủ đề chọn theo id), 1 | 2, Y; null ⇒ chỉ chọn lớp. */
+    static String evaluation(EvaluationLockKind kind, Long classId, String period) {
         String page =
                 switch (kind) {
                     case THEME -> "/assessment/themes";
                     case SEMESTER -> "/assessment/semester";
                     case YEAR -> "/assessment/year-end";
                 };
-        return page + "?classId=" + classId + "&period=" + periodKey;
+        return page + "?classId=" + classId + (period == null ? "" : "&period=" + period);
     }
 
     static String weekly(Long classId, java.time.LocalDate weekStart) {

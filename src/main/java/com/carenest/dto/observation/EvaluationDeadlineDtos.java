@@ -14,7 +14,7 @@ public final class EvaluationDeadlineDtos {
 
     /**
      * Một kỳ đánh giá của lớp: mở từ openFrom, khóa sau 23:59:59 ngày deadline; unlockedUntil = đang được mở lại tới lúc
-     * đó (null nếu không).
+     * đó (null nếu không). periodKey của chủ đề là dòng gốc (giữ qua các bản kế hoạch); themeId = id chủ đề hiện hành.
      */
     public record EvaluationPeriod(
             EvaluationLockKind kind,
@@ -24,10 +24,16 @@ public final class EvaluationDeadlineDtos {
             LocalDate deadline,
             boolean open,
             boolean locked,
-            Instant unlockedUntil) {
+            Instant unlockedUntil,
+            Long themeId) {
 
         public boolean writable() {
             return !locked || unlockedUntil != null;
+        }
+
+        /** Tham số chọn kỳ trên màn Web: id chủ đề hiện hành, hoặc periodKey. */
+        public String pageKey() {
+            return themeId != null ? String.valueOf(themeId) : periodKey;
         }
     }
 

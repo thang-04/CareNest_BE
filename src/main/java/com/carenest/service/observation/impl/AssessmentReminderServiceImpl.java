@@ -184,7 +184,7 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                         }
                         int[] progress = evaluationDeadlineService.progress(cls, p);
                         boolean unfinished = progress[1] > 0 && progress[0] < progress[1];
-                        String link = AssessmentReminderLinks.evaluation(p.kind(), cls.id(), p.periodKey());
+                        String link = AssessmentReminderLinks.evaluation(p.kind(), cls.id(), p.pageKey());
                         sent += remindStep(
                                 to,
                                 cls,
@@ -308,7 +308,12 @@ public class AssessmentReminderServiceImpl implements AssessmentReminderService 
                         u.getClassroomId(),
                         "Đánh giá đã mở lại",
                         u.getValidUntil(),
-                        AssessmentReminderLinks.evaluation(u.getKind(), u.getClassroomId(), u.getPeriodKey()),
+                        AssessmentReminderLinks.evaluation(
+                                u.getKind(),
+                                u.getClassroomId(),
+                                u.getKind() == com.carenest.utils.enums.EvaluationLockKind.THEME
+                                        ? null
+                                        : u.getPeriodKey()),
                         "ending-E" + u.getId(),
                         today);
             }

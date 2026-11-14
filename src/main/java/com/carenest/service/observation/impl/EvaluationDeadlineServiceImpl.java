@@ -115,7 +115,7 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
                         "Đánh giá cuối chủ đề " + t.name(),
                         t.endDate(),
                         AssessmentDeadlines.THEME,
-                        null,
+                        t.themeId(),
                         unlocked)));
         if (year.semester1End() != null) {
             out.add(period(
@@ -161,12 +161,9 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
             String label,
             LocalDate openFrom,
             int deadlineDays,
-            LocalDate cap,
+            Long themeId,
             Map<String, Instant> unlocked) {
         LocalDate deadline = nthSchoolDayAfter(openFrom, deadlineDays);
-        if (cap != null && deadline.isAfter(cap)) {
-            deadline = cap.isBefore(openFrom) ? openFrom : cap;
-        }
         LocalDate today = rules.today();
         return new EvaluationPeriod(
                 kind,
@@ -176,7 +173,8 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
                 deadline,
                 !today.isBefore(openFrom),
                 today.isAfter(deadline),
-                unlocked.get(kind + ":" + key));
+                unlocked.get(kind + ":" + key),
+                themeId);
     }
 
     private LocalDate nthSchoolDayAfter(LocalDate day, int n) {
@@ -297,7 +295,7 @@ public class EvaluationDeadlineServiceImpl implements EvaluationDeadlineService 
                 NotificationType.ASSESSMENT_REOPENED,
                 period.label() + " được mở lại",
                 period.label() + " lớp " + cls.name() + " được mở lại đến " + untilText + ".",
-                AssessmentReminderLinks.evaluation(period.kind(), cls.id(), period.periodKey()),
+                AssessmentReminderLinks.evaluation(period.kind(), cls.id(), period.pageKey()),
                 false);
     }
 

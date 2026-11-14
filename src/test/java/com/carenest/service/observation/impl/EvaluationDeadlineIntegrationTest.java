@@ -248,6 +248,14 @@ class EvaluationDeadlineIntegrationTest {
         assertThat(unlock.active()).isTrue();
         service.checkWritable(cls(), EvaluationLockKind.SEMESTER, "1");
         assertThat(notifications(teacherA, "ASSESSMENT_REOPENED")).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT link FROM notifications WHERE user_id = ? AND type = 'ASSESSMENT_REOPENED'",
+                        String.class,
+                        teacherA.userId()))
+                .isEqualTo("/assessment/semester?classId=" + classA + "&period=1");
+        assertThat(period(EvaluationLockKind.THEME, String.valueOf(THEME_LINEAGE))
+                        .pageKey())
+                .isEqualTo("1");
         expectCode(
                 () -> service.unlock(principal, request(EvaluationLockKind.SEMESTER, "1", until)),
                 ApiCode.EVALUATION_UNLOCK_ALREADY_ACTIVE);
