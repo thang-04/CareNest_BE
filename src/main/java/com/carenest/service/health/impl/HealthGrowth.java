@@ -5,9 +5,11 @@ import com.carenest.dto.health.PublishedHealthResponse.GrowthPoint;
 import com.carenest.dto.health.PublishedHealthResponse.TrendWarning;
 import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.HealthTrendFollowUpType;
+import com.carenest.utils.enums.HealthTrendPeriod;
 import com.carenest.utils.enums.HealthTrendWarningCode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -129,6 +131,14 @@ final class HealthGrowth {
                     "Các chỉ số lần đo gần nhất nằm trong khoảng bình thường theo chuẩn WHO."));
         }
         return warnings;
+    }
+
+    /** HLT-21: lần đo trong khoảng phân tích, tính lùi từ {@code today} như bộ lọc biểu đồ. */
+    static List<GrowthPoint> within(List<GrowthPoint> points, HealthTrendPeriod period, LocalDate today) {
+        LocalDate since = period.since(today);
+        return since == null
+                ? points
+                : points.stream().filter(p -> !p.date().isBefore(since)).toList();
     }
 
     /** HLT-21: tập lần đo dùng lúc phân tích khác tập lần đo đã công bố hiện tại ⇒ bản giải thích cần phân tích lại. */

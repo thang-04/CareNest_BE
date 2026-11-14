@@ -6,6 +6,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.service.health.HealthTrendService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.ResponseJson;
+import com.carenest.utils.enums.HealthTrendPeriod;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -31,12 +33,16 @@ public class HealthTrendController {
 
     private final HealthTrendService healthTrendService;
 
+    // HLT-21: khoảng phân tích theo bộ lọc biểu đồ; không gửi ⇒ toàn bộ (client cũ)
     @PostMapping
     public ResponseEntity<ResponseJson<HealthTrendAnalysisResponse>> analyzeTrend(
-            @PathVariable Long childId, CurrentUser currentUser) {
-        String logPrefix = LOG_PREFIX + "|analyzeTrend|userId=" + currentUser.userId() + "|childId=" + childId;
+            @PathVariable Long childId,
+            @RequestParam(defaultValue = "ALL") HealthTrendPeriod period,
+            CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|analyzeTrend|userId=" + currentUser.userId() + "|childId=" + childId
+                + "|period=" + period;
         log.info("{}|START", logPrefix);
-        HealthTrendAnalysisResponse analysis = healthTrendService.analyze(currentUser, childId);
+        HealthTrendAnalysisResponse analysis = healthTrendService.analyze(currentUser, childId, period);
         log.info("{}|status={}|END", logPrefix, analysis.status());
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Analyze health trend success", analysis);
     }

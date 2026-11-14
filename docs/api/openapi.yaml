@@ -2720,6 +2720,16 @@ paths:
         schema:
           type: integer
           format: int64
+      - in: query
+        name: period
+        required: false
+        schema:
+          type: string
+          default: ALL
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
       responses:
         "200":
           content:
@@ -8928,6 +8938,12 @@ components:
         id:
           type: integer
           format: int64
+        period:
+          type: string
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
         stale:
           type: boolean
         summary:
@@ -14643,6 +14659,12 @@ components:
           format: int64
         model:
           type: string
+        period:
+          type: string
+          enum:
+          - MONTHS_6
+          - MONTHS_12
+          - ALL
         source:
           type: string
         stale:
@@ -16017,6 +16039,7 @@ components:
           - HEALTH_RESULT_PUBLISHED
           - HEALTH_RESULT_UPDATED
           - HEALTH_CHECK_OPENED
+          - HEALTH_TREND_APPROVED
           - CHILD_PLACED
           - ATTENDANCE_DAY_UNLOCKED
           - EDU_SUBMITTED

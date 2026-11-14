@@ -25,6 +25,7 @@ import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.HealthTrendFollowUpType;
+import com.carenest.utils.enums.HealthTrendPeriod;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
@@ -56,8 +57,9 @@ public class HealthTrendServiceImpl implements HealthTrendService {
             "{\"overview\": \"...\", \"attentionPoints\": [{\"warningCode\": \"MÃ\", \"text\": \"...\"}],"
                     + " \"positives\": [\"...\"], \"followUps\": [{\"type\": \"LOẠI\", \"text\": \"...\"}],"
                     + " \"limitations\": \"...\"}",
-            "- overview: 1 đến 2 câu tổng quan xu hướng cân nặng, chiều cao, BMI. Nếu cảnh báo chỉ có NORMAL, mở đầu bằng"
-                    + " 'Trẻ phát triển ổn định' rồi nêu số liệu (tăng bao nhiêu, trong khoảng chuẩn WHO); có cảnh báo khác"
+            "- overview: 1 đến 2 câu tổng quan xu hướng cân nặng, chiều cao, BMI trong khoảng phân tích; mở đầu bằng"
+                    + " 'Trong <khoảng phân tích>,' (vd. 'Trong 6 tháng qua,'). Nếu cảnh báo chỉ có NORMAL, viết tiếp"
+                    + " 'trẻ phát triển ổn định' rồi nêu số liệu (tăng bao nhiêu, trong khoảng chuẩn WHO); có cảnh báo khác"
                     + " thì không dùng cụm 'phát triển ổn định'. Không dùng 'khỏe mạnh', 'phát triển tốt'.",
             "- attentionPoints: mỗi cảnh báo có mã (trừ NORMAL) đúng một mục, giải thích kèm số liệu; chỉ dùng mã đã cho,"
                     + " không thêm cảnh báo mới; không có cảnh báo thì để mảng rỗng.",
@@ -81,11 +83,13 @@ public class HealthTrendServiceImpl implements HealthTrendService {
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
     private final EnrollmentService enrollmentService;
+    private final HealthNotifier notifier;
 
     @Override
     @Transactional
-    public HealthTrendAnalysisResponse analyze(CurrentUser actor, Long childId) {
-        String logPrefix = LOG_PREFIX + "|analyze|userId=" + actor.userId() + "|childId=" + childId;
+    public HealthTrendAnalysisResponse analyze(CurrentUser actor, Long childId, HealthTrendPeriod period) {
+        String logPrefix =
+                LOG_PREFIX + "|analyze|userId=" + actor.userId() + "|childId=" + childId + "|period=" + period;
         log.info("{}|START", logPrefix);
         try {
             checkCanView(actor, childId);
@@ -93,10 +97,12 @@ public class HealthTrendServiceImpl implements HealthTrendService {
             HealthRecords.Snapshot s = records.load(List.of(childId));
             List<HealthMeasurementResponse> published =
                     records.views(s, s.results(childId), child.dateOfBirth(), child.gender(), false);
-            List<GrowthPoint> points = HealthGrowth.points(published, child.gender());
+            // HLT-21: AI chỉ đọc lần đo trong khoảng đang chọn trên biểu đồ
+            List<GrowthPoint> points =
+                    HealthGrowth.within(HealthGrowth.points(published, child.gender()), period, rules.today());
             if (points.size() < 2) {
                 log.info("{}|points={}|notEnoughData|END", logPrefix, points.size());
-                return HealthTrendAnalysisResponse.notEnoughData();
+                return HealthTrendAnalysisResponse.notEnoughData(period);
             }
             List<TrendWarning> warnings = HealthGrowth.warnings(points);
             Set<HealthTrendFollowUpType> allowed =
@@ -109,7 +115,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                 result = aiClient.complete(new AiClient.AiRequest(
                         "health-trend",
                         SYSTEM_PROMPT,
-                        userPrompt(child.gender(), points, warnings, allowed),
+                        userPrompt(child.gender(), period, points, warnings, allowed),
                         MAX_TOKENS,
                         true));
             } catch (AiException ex) {
@@ -127,6 +133,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
             }
             HealthInterpretation saved = interpretationRepository.save(HealthInterpretation.draft(
                     childId,
+                    period,
                     HealthTrendContentRules.render(content),
                     objectMapper.writeValueAsString(content),
                     objectMapper.writeValueAsString(warnings),
@@ -194,6 +201,9 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                 }
                 interpretation.approve(actor.userId(), rules.now());
                 interpretationRepository.save(interpretation);
+                // HLT-21: chỉ lần duyệt bản nháp mới báo phụ huynh; bấm duyệt lại bản đã duyệt không gửi thêm
+                HealthTrendContent approved = contentOf(interpretation);
+                notifier.trendApproved(childId, approved == null ? null : approved.overview());
             }
             HealthTrendAnalysisResponse response = toResponse(interpretation, stale(interpretation));
             log.info("{}|source={}|END", logPrefix, interpretation.getSource());
@@ -247,13 +257,17 @@ public class HealthTrendServiceImpl implements HealthTrendService {
                 .contains(measurementId);
     }
 
-    /** HLT-21: so lần đo dùng lúc phân tích với lần đo đã công bố hiện tại của trẻ. */
+    /** HLT-21: so lần đo dùng lúc phân tích với lần đo đã công bố hiện tại của trẻ trong cùng khoảng. */
     private boolean stale(HealthInterpretation interpretation) {
         ChildBriefResponse child = brief(interpretation.getChildId());
         HealthRecords.Snapshot s = records.load(List.of(interpretation.getChildId()));
-        List<GrowthPoint> current = HealthGrowth.points(
-                records.views(s, s.results(interpretation.getChildId()), child.dateOfBirth(), child.gender(), false),
-                child.gender());
+        List<GrowthPoint> current = HealthGrowth.within(
+                HealthGrowth.points(
+                        records.views(
+                                s, s.results(interpretation.getChildId()), child.dateOfBirth(), child.gender(), false),
+                        child.gender()),
+                interpretation.getPeriod(),
+                rules.today());
         return HealthGrowth.stale(
                 objectMapper.readValue(interpretation.getMeasurementIds(), new TypeReference<List<Long>>() {}),
                 current);
@@ -266,6 +280,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
         return new HealthTrendAnalysisResponse(
                 i.getId(),
                 HealthTrendAnalysisResponse.OK,
+                i.getPeriod(),
                 !i.isApproved(),
                 stale,
                 i.getGeneratedAt(),
@@ -285,6 +300,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
      */
     static String userPrompt(
             Gender gender,
+            HealthTrendPeriod period,
             List<GrowthPoint> points,
             List<TrendWarning> warnings,
             Set<HealthTrendFollowUpType> allowed) {
@@ -292,6 +308,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
         points.forEach(p -> ageByDate.put(DMY.format(p.date()), p.ageMonths()));
         StringBuilder sb = new StringBuilder();
         sb.append("Giới tính: ").append(gender == Gender.MALE ? "nam" : "nữ").append(".\n");
+        sb.append("Khoảng phân tích: ").append(period.phrase()).append(".\n");
         sb.append("Các lần đo (cũ đến mới):\n");
         for (GrowthPoint p : points) {
             sb.append("- ")

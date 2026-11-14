@@ -222,12 +222,14 @@ public class HealthMeasurementServiceImpl implements HealthMeasurementService {
                         .forParent();
         return new PublishedHealthResponse.ApprovedInterpretation(
                 i.getId(),
+                i.getPeriod(),
                 content == null ? i.getSummary() : HealthTrendContentRules.render(content),
                 content,
                 objectMapper.readValue(
                         i.getWarnings(), new TypeReference<List<PublishedHealthResponse.TrendWarning>>() {}),
                 HealthGrowth.stale(
-                        objectMapper.readValue(i.getMeasurementIds(), new TypeReference<List<Long>>() {}), growth),
+                        objectMapper.readValue(i.getMeasurementIds(), new TypeReference<List<Long>>() {}),
+                        HealthGrowth.within(growth, i.getPeriod(), rules.today())),
                 i.getApprovedAt());
     }
 

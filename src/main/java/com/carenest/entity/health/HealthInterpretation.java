@@ -1,5 +1,6 @@
 package com.carenest.entity.health;
 
+import com.carenest.utils.enums.HealthTrendPeriod;
 import com.carenest.utils.enums.InterpretationStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -45,7 +46,7 @@ public class HealthInterpretation {
     @Column(nullable = false, columnDefinition = "text")
     private String summary;
 
-    /** Nội dung có cấu trúc (HLT-21, V129) dạng JSON của {@code HealthTrendContent}; null ở bản ghi trước V129. */
+    /** Nội dung có cấu trúc (HLT-21, V130) dạng JSON của {@code HealthTrendContent}; null ở bản ghi trước V130. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String content;
@@ -53,6 +54,11 @@ public class HealthInterpretation {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(nullable = false, updatable = false, columnDefinition = "jsonb")
     private String warnings;
+
+    // HLT-21: khoảng thời gian đã phân tích (V131; bản cũ = ALL)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, updatable = false, length = 20)
+    private HealthTrendPeriod period;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "measurement_ids", nullable = false, updatable = false, columnDefinition = "jsonb")
@@ -86,6 +92,7 @@ public class HealthInterpretation {
 
     public static HealthInterpretation draft(
             Long childId,
+            HealthTrendPeriod period,
             String summary,
             String contentJson,
             String warningsJson,
@@ -95,6 +102,7 @@ public class HealthInterpretation {
             Instant generatedAt) {
         HealthInterpretation i = new HealthInterpretation();
         i.childId = childId;
+        i.period = period;
         i.status = InterpretationStatus.DRAFT;
         i.summary = summary;
         i.content = contentJson;

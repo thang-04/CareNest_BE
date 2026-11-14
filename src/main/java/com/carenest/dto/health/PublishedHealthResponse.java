@@ -4,6 +4,7 @@ import com.carenest.utils.enums.HealthBmiStatus;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthConclusionCategory;
 import com.carenest.utils.enums.HealthFollowUpLevel;
+import com.carenest.utils.enums.HealthTrendPeriod;
 import com.carenest.utils.enums.HealthTrendWarningCode;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -57,11 +58,12 @@ public record PublishedHealthResponse(
 
     /** Giải thích xu hướng đã được nhân sự duyệt (HLT-05); null khi chưa có. */
     /**
-     * {@code content} bản cho phụ huynh (không có gợi ý theo dõi — HLT-21), null ở bản trước V129; {@code summary} ghép từ
+     * {@code content} bản cho phụ huynh (không có gợi ý theo dõi — HLT-21), null ở bản trước V130; {@code summary} ghép từ
      * {@code content} đó. {@code stale}: đã có số đo mới hơn lần phân tích, giải thích theo các lần đo trước.
      */
     public record ApprovedInterpretation(
             Long id,
+            HealthTrendPeriod period,
             String summary,
             HealthTrendContent content,
             List<TrendWarning> warnings,

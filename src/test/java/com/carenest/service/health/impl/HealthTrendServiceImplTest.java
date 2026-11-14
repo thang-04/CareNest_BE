@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.carenest.dto.child.ChildBriefResponse;
@@ -36,6 +37,7 @@ import com.carenest.utils.enums.Gender;
 import com.carenest.utils.enums.HealthCheckKind;
 import com.carenest.utils.enums.HealthCheckStatus;
 import com.carenest.utils.enums.HealthTrendFollowUpType;
+import com.carenest.utils.enums.HealthTrendPeriod;
 import com.carenest.utils.enums.HealthTrendWarningCode;
 import com.carenest.utils.enums.InterpretationStatus;
 import java.math.BigDecimal;
@@ -67,6 +69,7 @@ class HealthTrendServiceImplTest {
     private final AccountService accountService = mock(AccountService.class);
     private final AiClient aiClient = mock(AiClient.class);
     private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
+    private final HealthNotifier notifier = mock(HealthNotifier.class);
     private final HealthTrendServiceImpl service = new HealthTrendServiceImpl(
             policy,
             childService,
@@ -76,7 +79,8 @@ class HealthTrendServiceImplTest {
             accountService,
             aiClient,
             JsonMapper.builder().build(),
-            enrollmentService);
+            enrollmentService,
+            notifier);
     private final HealthRecords.Snapshot snapshot = mock(HealthRecords.Snapshot.class);
 
     @BeforeEach
@@ -103,7 +107,7 @@ class HealthTrendServiceImplTest {
     void notEnoughData() {
         given(records.views(any(), any(), any(), any(), anyBoolean())).willReturn(List.of(point(1L, "2026-09-10")));
 
-        HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID);
+        HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL);
 
         assertThat(response.status()).isEqualTo(HealthTrendAnalysisResponse.NOT_ENOUGH_DATA);
         verify(aiClient, never()).complete(any());
@@ -117,7 +121,7 @@ class HealthTrendServiceImplTest {
                 .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
         given(aiClient.complete(any())).willReturn(new AiClient.AiResult(AI_JSON, "gemini-x"));
 
-        HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID);
+        HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL);
 
         assertThat(response.draft()).isTrue();
         assertThat(response.content().overview()).isEqualTo("Trẻ tăng cân đều.");
@@ -130,10 +134,12 @@ class HealthTrendServiceImplTest {
         verify(aiClient).complete(request.capture());
         assertThat(request.getValue().jsonOutput()).isTrue();
         assertThat(request.getValue().maxTokens()).isEqualTo(1200);
-        // HLT-21: chỉ NORMAL mới mở đầu "Trẻ phát triển ổn định"
+        // HLT-21: tổng quan mở đầu bằng khoảng phân tích; chỉ NORMAL mới "trẻ phát triển ổn định"
         assertThat(request.getValue().systemPrompt())
-                .contains("Trẻ phát triển ổn định")
+                .contains("'Trong 6 tháng qua,'")
+                .contains("trẻ phát triển ổn định")
                 .contains("chỉ có NORMAL");
+        assertThat(response.period()).isEqualTo(HealthTrendPeriod.ALL);
         assertThat(request.getValue().userPrompt())
                 .doesNotContain("Bé An")
                 .doesNotContain("HS26001")
@@ -147,13 +153,64 @@ class HealthTrendServiceImplTest {
     }
 
     @Test
+    @DisplayName("HLT-21: khoảng 6 tháng ⇒ AI chỉ nhận lần đo trong 6 tháng tính lùi từ hôm nay; lưu khoảng đã chọn")
+    void analyzeOnlyMeasurementsInPeriod() {
+        given(rules.today()).willReturn(LocalDate.of(2026, 11, 10));
+        given(records.views(any(), any(), any(), any(), anyBoolean()))
+                .willReturn(List.of(
+                        point(2L, "2026-11-01"),
+                        point(1L, "2026-09-10"),
+                        measurement(4L, "2026-01-10", "95.0", "14.0", null)));
+        given(aiClient.complete(any())).willReturn(new AiClient.AiResult(AI_JSON, "m"));
+
+        HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.MONTHS_6);
+
+        assertThat(lastPrompt()).contains("Khoảng phân tích: 6 tháng qua.").contains("Số lần đo: 2");
+        assertThat(response.period()).isEqualTo(HealthTrendPeriod.MONTHS_6);
+        ArgumentCaptor<HealthInterpretation> saved = ArgumentCaptor.forClass(HealthInterpretation.class);
+        verify(repository).save(saved.capture());
+        assertThat(saved.getValue().getPeriod()).isEqualTo(HealthTrendPeriod.MONTHS_6);
+        assertThat(saved.getValue().getMeasurementIds()).isEqualTo("[1,2]");
+    }
+
+    @Test
+    @DisplayName("HLT-21: khoảng đang chọn có dưới 2 lần đo ⇒ NOT_ENOUGH_DATA kèm khoảng, không gọi AI")
+    void notEnoughDataInPeriod() {
+        given(rules.today()).willReturn(LocalDate.of(2026, 11, 10));
+        given(records.views(any(), any(), any(), any(), anyBoolean()))
+                .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-01-10")));
+
+        HealthTrendAnalysisResponse response = service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.MONTHS_6);
+
+        assertThat(response.status()).isEqualTo(HealthTrendAnalysisResponse.NOT_ENOUGH_DATA);
+        assertThat(response.period()).isEqualTo(HealthTrendPeriod.MONTHS_6);
+        verify(aiClient, never()).complete(any());
+    }
+
+    @Test
+    @DisplayName("HLT-21: bản 6 tháng — lần đo cũ trôi khỏi khoảng ⇒ stale; bản toàn bộ cùng số đo ⇒ không stale")
+    void staleWhenMeasurementLeavesPeriod() {
+        given(records.views(any(), any(), any(), any(), anyBoolean()))
+                .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
+        HealthInterpretation sixMonths = HealthInterpretation.draft(
+                CHILD_ID, HealthTrendPeriod.MONTHS_6, "Tổng quan", null, "[]", "[1,2]", "m", 7L, Instant.now());
+        given(repository.findFirstByChildIdOrderByGeneratedAtDescIdDesc(CHILD_ID))
+                .willReturn(Optional.of(sixMonths));
+
+        given(rules.today()).willReturn(LocalDate.of(2026, 11, 10));
+        assertThat(service.latest(TEACHER, CHILD_ID).stale()).isFalse();
+        given(rules.today()).willReturn(LocalDate.of(2027, 3, 20));
+        assertThat(service.latest(TEACHER, CHILD_ID).stale()).isTrue();
+    }
+
+    @Test
     @DisplayName("AI-04, HLT-21: prompt không có ngày đo; có mã cảnh báo, loại gợi ý được phép, số lần đo")
     void promptReplacesMeasurementDatesWithAge() {
         List<GrowthPoint> drop = List.of(growth("2026-06-01", "100.0", "16.0"), growth("2026-09-15", "100.0", "15.5"));
         List<TrendWarning> warnings = HealthGrowth.warnings(drop);
 
         String prompt = HealthTrendServiceImpl.userPrompt(
-                Gender.FEMALE, drop, warnings, HealthGrowth.allowedFollowUps(warnings, false));
+                Gender.FEMALE, HealthTrendPeriod.ALL, drop, warnings, HealthGrowth.allowedFollowUps(warnings, false));
 
         assertThat(prompt)
                 .doesNotContain("2026")
@@ -161,6 +218,7 @@ class HealthTrendServiceImplTest {
                 .contains("[WEIGHT_DROP] Cân nặng lần đo lúc 50 tháng tuổi giảm 0.5 kg")
                 .contains("[HEIGHT_STALL]")
                 .contains("Số lần đo: 2")
+                .contains("Khoảng phân tích: toàn bộ quá trình theo dõi.")
                 .contains("RECHECK_NEXT_ROUND")
                 .contains("TALK_TO_PARENT")
                 .doesNotContain("REMEASURE");
@@ -173,10 +231,10 @@ class HealthTrendServiceImplTest {
                 .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
         given(aiClient.complete(any()))
                 .willReturn(new AiClient.AiResult("{\"overview\": \"Có thể trẻ mắc bệnh tuyến giáp.\"}", "m"));
-        expectCode(() -> service.analyze(TEACHER, CHILD_ID), ApiCode.AI_SERVICE_UNAVAILABLE);
+        expectCode(() -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.AI_SERVICE_UNAVAILABLE);
 
         given(aiClient.complete(any())).willReturn(new AiClient.AiResult("Trẻ tăng cân đều.", "m"));
-        expectCode(() -> service.analyze(TEACHER, CHILD_ID), ApiCode.AI_SERVICE_UNAVAILABLE);
+        expectCode(() -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.AI_SERVICE_UNAVAILABLE);
         verify(repository, never()).save(any());
     }
 
@@ -186,11 +244,11 @@ class HealthTrendServiceImplTest {
         given(records.views(any(), any(), any(), any(), anyBoolean()))
                 .willReturn(List.of(point(2L, "2026-11-01"), point(1L, "2026-09-10")));
         given(aiClient.isEnabled()).willReturn(false);
-        expectCode(() -> service.analyze(TEACHER, CHILD_ID), ApiCode.AI_SERVICE_UNAVAILABLE);
+        expectCode(() -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.AI_SERVICE_UNAVAILABLE);
 
         given(aiClient.isEnabled()).willReturn(true);
         given(aiClient.complete(any())).willThrow(new AiException(AiException.Reason.TIMEOUT, "slow", null));
-        expectCode(() -> service.analyze(TEACHER, CHILD_ID), ApiCode.AI_TIMEOUT);
+        expectCode(() -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.AI_TIMEOUT);
     }
 
     @Test
@@ -217,6 +275,8 @@ class HealthTrendServiceImplTest {
                 .contains("- Giảm 0,5 kg.");
         assertThat(draft.getSource()).isEqualTo(HealthInterpretation.SOURCE_HUMAN);
         assertThat(draft.getApprovedBy()).isEqualTo(TEACHER.userId());
+        // HLT-21: phụ huynh nhận tổng quan đã sửa
+        verify(notifier).trendApproved(CHILD_ID, "Cân nặng giảm nhẹ.");
     }
 
     @Test
@@ -229,6 +289,17 @@ class HealthTrendServiceImplTest {
         assertThat(draft.getStatus()).isEqualTo(InterpretationStatus.APPROVED);
         assertThat(draft.getSource()).isEqualTo(HealthInterpretation.SOURCE_AI);
         assertThat(draft.getSummary()).isEqualTo("Tổng quan: Trẻ tăng cân đều.");
+    }
+
+    @Test
+    @DisplayName("HLT-21: duyệt bản nháp ⇒ báo phụ huynh một lần; bấm duyệt lại bản đã duyệt ⇒ không báo thêm")
+    void approveNotifiesParentsOnce() {
+        aiDraft();
+
+        service.approve(TEACHER, CHILD_ID, 90L, null);
+        service.approve(TEACHER, CHILD_ID, 90L, null);
+
+        verify(notifier, times(1)).trendApproved(CHILD_ID, "Trẻ tăng cân đều.");
     }
 
     @Test
@@ -251,6 +322,7 @@ class HealthTrendServiceImplTest {
                                     "content.overview", "content.attentionPoints.0.warningCode", "content.positives.0");
                 });
         assertThat(draft.getStatus()).isEqualTo(InterpretationStatus.DRAFT);
+        verify(notifier, never()).trendApproved(any(), any());
     }
 
     @Test
@@ -288,6 +360,7 @@ class HealthTrendServiceImplTest {
     private HealthInterpretation aiDraft() {
         HealthInterpretation draft = HealthInterpretation.draft(
                 CHILD_ID,
+                HealthTrendPeriod.ALL,
                 "Tổng quan: Trẻ tăng cân đều.",
                 "{\"overview\":\"Trẻ tăng cân đều.\",\"attentionPoints\":[],\"positives\":[],"
                         + "\"followUps\":[],\"limitations\":null}",
@@ -308,7 +381,8 @@ class HealthTrendServiceImplTest {
     void outOfScopeDenied() {
         given(policy.canViewChild(TEACHER, CHILD_ID)).willReturn(false);
 
-        expectCode(() -> service.analyze(TEACHER, CHILD_ID), ApiCode.HEALTH_RECORD_ACCESS_DENIED);
+        expectCode(
+                () -> service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL), ApiCode.HEALTH_RECORD_ACCESS_DENIED);
     }
 
     @Test
@@ -376,11 +450,12 @@ class HealthTrendServiceImplTest {
         givenWeightDropInRound(HealthCheckStatus.IN_PROGRESS);
         given(repository.findByChildIdOrderByGeneratedAtDescIdDesc(CHILD_ID)).willReturn(List.of());
 
-        service.analyze(TEACHER, CHILD_ID);
+        service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL);
         assertThat(lastPrompt()).contains("REMEASURE");
 
         HealthInterpretation previous = HealthInterpretation.draft(
                 CHILD_ID,
+                HealthTrendPeriod.ALL,
                 "Tổng quan",
                 "{\"overview\":\"Tổng quan\",\"attentionPoints\":[],\"positives\":[],"
                         + "\"followUps\":[{\"type\":\"REMEASURE\",\"text\":\"Đo lại.\"}],\"limitations\":null}",
@@ -391,7 +466,7 @@ class HealthTrendServiceImplTest {
                 Instant.now());
         given(repository.findByChildIdOrderByGeneratedAtDescIdDesc(CHILD_ID)).willReturn(List.of(previous));
 
-        service.analyze(TEACHER, CHILD_ID);
+        service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL);
         assertThat(lastPrompt()).doesNotContain("REMEASURE").contains("TALK_TO_PARENT");
     }
 
@@ -401,7 +476,7 @@ class HealthTrendServiceImplTest {
         givenWeightDropInRound(HealthCheckStatus.CLOSED);
         given(repository.findByChildIdOrderByGeneratedAtDescIdDesc(CHILD_ID)).willReturn(List.of());
 
-        service.analyze(TEACHER, CHILD_ID);
+        service.analyze(TEACHER, CHILD_ID, HealthTrendPeriod.ALL);
 
         assertThat(lastPrompt()).doesNotContain("REMEASURE").contains("TALK_TO_PARENT");
     }

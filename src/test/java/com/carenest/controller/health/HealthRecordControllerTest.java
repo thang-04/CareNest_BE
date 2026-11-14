@@ -24,6 +24,7 @@ import com.carenest.service.health.HealthExamService;
 import com.carenest.service.health.HealthMeasurementService;
 import com.carenest.service.health.HealthTrendService;
 import com.carenest.utils.enums.CareNestRole;
+import com.carenest.utils.enums.HealthTrendPeriod;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -84,13 +85,33 @@ class HealthRecordControllerTest {
     @DisplayName("HLT-05: GV phân tích xu hướng ⇒ 200 trả bản nháp")
     void teacherAnalyzesTrend() throws Exception {
         CurrentUser teacher = authenticate(CareNestRole.TEACHER);
-        given(healthTrendService.analyze(teacher, 5L)).willReturn(draft());
+        given(healthTrendService.analyze(teacher, 5L, HealthTrendPeriod.ALL)).willReturn(draft());
 
         mockMvc.perform(post("/api/children/{childId}/health/trend-analysis", 5).with(token(CareNestRole.TEACHER)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.desc").value("Analyze health trend success"))
                 .andExpect(jsonPath("$.data.status").value("OK"))
+                .andExpect(jsonPath("$.data.period").value("ALL"))
                 .andExpect(jsonPath("$.data.draft").value(true));
+    }
+
+    @Test
+    @DisplayName("HLT-21: gửi period=MONTHS_6 ⇒ service nhận khoảng 6 tháng; giá trị lạ ⇒ 400")
+    void analyzeTrendWithPeriod() throws Exception {
+        CurrentUser teacher = authenticate(CareNestRole.TEACHER);
+        given(healthTrendService.analyze(teacher, 5L, HealthTrendPeriod.MONTHS_6))
+                .willReturn(draft());
+
+        mockMvc.perform(post("/api/children/{childId}/health/trend-analysis", 5)
+                        .param("period", "MONTHS_6")
+                        .with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/children/{childId}/health/trend-analysis", 5)
+                        .param("period", "MONTHS_3")
+                        .with(token(CareNestRole.TEACHER)))
+                .andExpect(status().isBadRequest());
+
+        verify(healthTrendService).analyze(teacher, 5L, HealthTrendPeriod.MONTHS_6);
     }
 
     @Test
@@ -131,6 +152,7 @@ class HealthRecordControllerTest {
         return new HealthTrendAnalysisResponse(
                 90L,
                 HealthTrendAnalysisResponse.OK,
+                HealthTrendPeriod.ALL,
                 true,
                 false,
                 Instant.parse("2026-11-10T03:00:00Z"),
