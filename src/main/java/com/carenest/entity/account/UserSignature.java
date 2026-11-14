@@ -25,7 +25,7 @@ public class UserSignature {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "storage_key", nullable = false, length = 36)
+    @Column(name = "storage_key", nullable = false, length = 255)
     private String storageKey;
 
     @Column(name = "content_type", nullable = false, length = 30)

@@ -86,10 +86,10 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = rules.findClass(classId);
-            if (!rules.canView(currentUser, cls)) {
+            LocalDate date = day == null ? latestSchoolDay(cls) : day;
+            if (!rules.canViewDay(currentUser, cls, date)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
-            LocalDate date = day == null ? latestSchoolDay(cls) : day;
             checkDate(cls, date);
             List<ClassChildResponse> children = enrollmentService.findChildrenInClassroom(classId, date);
             Map<Long, AttendanceStatus> statuses = statusesOf(children, date);

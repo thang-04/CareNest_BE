@@ -14,6 +14,7 @@ import com.carenest.repository.organization.SchoolYearRepository;
 import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.StaffAccessPolicy;
 import com.carenest.service.organization.SchoolStructureService;
+import com.carenest.utils.RequestMemo;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Collection;
@@ -79,9 +80,11 @@ public class SchoolStructureServiceImpl implements SchoolStructureService {
         String logPrefix = LOG_PREFIX + "|findAgeGroups";
         log.info("{}|START", logPrefix);
         try {
-            List<AgeGroupResponse> ageGroups = ageGroupRepository.findAllByOrderBySortOrderAsc().stream()
-                    .map(schoolStructureMapper::toResponse)
-                    .toList();
+            List<AgeGroupResponse> ageGroups = RequestMemo.get(
+                    "ageGroups",
+                    () -> ageGroupRepository.findAllByOrderBySortOrderAsc().stream()
+                            .map(schoolStructureMapper::toResponse)
+                            .toList());
             log.info("{}|END", logPrefix);
             return ageGroups;
         } catch (RuntimeException ex) {

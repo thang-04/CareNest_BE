@@ -28,16 +28,83 @@ carenest:
     region: ${AWS_REGION:ap-southeast-1}
     endpoint: ${CARENEST_EDUCATION_MEDIA_ENDPOINT:}
     path-style: ${CARENEST_EDUCATION_MEDIA_PATH_STYLE:false}
-    prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
-  # Ảnh chân dung phụ huynh (đối chiếu người đón khi trả trẻ): cùng bucket, prefix riêng
-  account-media:
-    prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
-  # Ảnh chữ ký của nhân sự Web (SIG-01): cùng bucket, prefix riêng
-  signature-media:
-    prefix: ${CARENEST_SIGNATURE_MEDIA_PREFIX:accounts/signatures/}
-  # Bản sao ảnh chữ ký trên biên bản kiểm thực đã ký (INS-03): prefix riêng để đổi/xóa chữ ký tài khoản không ảnh hưởng
-  inspection-signature-media:
-    prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
+  # Kho tệp dùng chung (spec 017): mỗi loại một thư mục, giới hạn và định dạng đổi ở đây, không sửa code.
+  # legacy-prefix: thư mục của tệp cũ (key UUID) — chỉ đọc/xóa, tệp mới theo thư mục + tên mới.
+  storage:
+    bucket: ${CARENEST_EDUCATION_MEDIA_BUCKET:}
+    presign-ttl: ${CARENEST_STORAGE_PRESIGN_TTL:15m}
+    # Vùng tạm cho tải trực tiếp chưa xác nhận; lifecycle bucket xóa sau 1 ngày
+    tmp-prefix: tmp/
+    categories:
+      user-avatar:
+        folder: avatars/users/
+        code: user
+        max-size: ${CARENEST_STORAGE_MAX_USER_AVATAR:2MB}
+        types: [jpg, png, webp]
+        legacy-prefix: ${CARENEST_ACCOUNT_MEDIA_PREFIX:accounts/photos/}
+      child-avatar:
+        folder: avatars/children/
+        code: child
+        max-size: ${CARENEST_STORAGE_MAX_CHILD_AVATAR:2MB}
+        types: [jpg, png, webp]
+        legacy-prefix: children/photos/
+      pickup:
+        folder: pickups/
+        code: pickup
+        max-size: ${CARENEST_STORAGE_MAX_PICKUP:3MB}
+        types: [jpg, png, webp]
+      plan-year-goal:
+        folder: plans/year-goals/
+        code: yeargoal
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      plan-theme:
+        folder: plans/themes/
+        code: theme
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      plan-lesson:
+        folder: plans/lessons/
+        code: lesson
+        max-size: ${CARENEST_STORAGE_MAX_PLAN:10MB}
+        types: [pdf, docx]
+      meal:
+        folder: meals/
+        code: meal
+        max-size: ${CARENEST_STORAGE_MAX_MEAL:5MB}
+        types: [jpg, png, webp]
+        legacy-prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
+      food-sample:
+        folder: food-samples/
+        code: foodsample
+        max-size: ${CARENEST_STORAGE_MAX_FOOD_SAMPLE:5MB}
+        types: [jpg, png, webp]
+      import:
+        folder: imports/
+        code: import
+        max-size: ${CARENEST_STORAGE_MAX_IMPORT:5MB}
+        types: [xlsx]
+      learning-resource:
+        folder: hoclieu/
+        code: hoclieu
+        max-size: ${CARENEST_STORAGE_MAX_LEARNING_OTHER:20MB}
+        max-size-by-kind:
+          image: ${CARENEST_STORAGE_MAX_LEARNING_IMAGE:5MB}
+          video: ${CARENEST_STORAGE_MAX_LEARNING_VIDEO:100MB}
+        types: [jpg, jpeg, png, gif, webp, mp4, webm, pdf, pptx, docx, xlsx, txt, csv]
+        legacy-prefix: ${CARENEST_EDUCATION_MEDIA_PREFIX:education/learning-resources/}
+      user-signature:
+        folder: signatures/users/
+        code: sig
+        max-size: ${CARENEST_STORAGE_MAX_SIGNATURE:2MB}
+        types: [jpg, png]
+        legacy-prefix: ${CARENEST_SIGNATURE_MEDIA_PREFIX:accounts/signatures/}
+      inspection-signature:
+        folder: signatures/inspections/
+        code: inspsig
+        max-size: ${CARENEST_STORAGE_MAX_SIGNATURE:2MB}
+        types: [jpg, png]
+        legacy-prefix: ${CARENEST_INSPECTION_SIGNATURE_MEDIA_PREFIX:meals/inspection-signatures/}
   api:
     # Prefix gắn cho mọi controller trong com.carenest.controller (xem WebMvcConfig)
     prefix: ${API_PREFIX:/api}

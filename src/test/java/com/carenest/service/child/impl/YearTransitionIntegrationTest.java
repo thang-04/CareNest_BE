@@ -129,9 +129,13 @@ class YearTransitionIntegrationTest {
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, valid_from) VALUES (?, 'PRINCIPAL', '2026-01-01')",
                 principalId);
+        // PHT theo năm học: năm 2026-2027 (hết hạn 31/05/2027) và năm 2027-2028 từ ngày mở chuẩn bị (hôm nay
+        // 30/08/2027)
         jdbc.update(
-                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from) "
-                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-01-01')",
+                "INSERT INTO staff_assignments (user_id, staff_role, campus_id, valid_from, valid_to) "
+                        + "VALUES (?, 'VICE_PRINCIPAL', ?, '2026-09-01', NULL), (?, 'VICE_PRINCIPAL', ?, '2027-08-05', '2028-05-31')",
+                vpId,
+                campus,
                 vpId,
                 campus);
         for (long classId : List.of(newClass4, newClass3)) {
@@ -169,6 +173,18 @@ class YearTransitionIntegrationTest {
         YearReadinessResponse after = service.getReadiness(principal, newYear);
         assertThat(after.canActivate()).isTrue();
         assertThat(after.impact().move()).isEqualTo(2);
+
+        // CFG-YR-05: chưa tới ngày mở chuẩn bị (01/09, hôm nay 30/08) ⇒ chưa kích hoạt dù đủ điều kiện khác
+        jdbc.update("UPDATE school_years SET prep_date = '2027-09-01' WHERE id = ?", newYear);
+        entityManager.clear();
+        YearReadinessResponse beforePrep = service.getReadiness(principal, newYear);
+        assertThat(beforePrep.canActivate()).isFalse();
+        assertThat(beforePrep.openFrom()).isEqualTo(LocalDate.of(2027, 9, 1));
+        assertThat(beforePrep.blockers()).anyMatch(b -> b.startsWith("Chưa tới ngày mở chuẩn bị"));
+        assertThatThrownBy(() -> service.activateSchoolYear(principal, newYear, "2027-2028"))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.ACTIVATION_BEFORE_PREP);
     }
 
     @Test
@@ -217,7 +233,9 @@ class YearTransitionIntegrationTest {
         CurrentUser teacher =
                 new CurrentUser(teacherId, "kc-teacher1", "teacher1", "T", null, Set.of(CareNestRole.TEACHER));
 
-        // Hôm nay 30/08/2027 ≥ ngày mở chuẩn bị mặc định 05/08/2027
+        // Hôm nay 30/08/2027 ≥ ngày mở chuẩn bị mặc định 05/08/2027; phân công năm mới tính từ ngày chuẩn bị
+        // (CFG-YR-05)
+        jdbc.update("UPDATE staff_assignments SET valid_from = '2027-08-05' WHERE user_id = ?", teacherId);
         var prep = service.getPrepClasses(teacher, newYear);
         assertThat(prep.prepDate()).isEqualTo(LocalDate.of(2027, 8, 5));
         assertThat(prep.classes()).extracting(c -> c.id()).containsExactlyInAnyOrder(newClass4, newClass3);
@@ -229,14 +247,18 @@ class YearTransitionIntegrationTest {
 
         CurrentUser stranger =
                 new CurrentUser(user("stranger"), "kc-stranger", "stranger", "S", null, Set.of(CareNestRole.TEACHER));
-        assertThat(service.getPrepClasses(stranger, newYear).classes()).isEmpty();
+        // GV không có phân công năm mới không thấy năm đó
+        assertThatThrownBy(() -> service.getPrepClasses(stranger, newYear))
+                .isInstanceOf(GlobalException.class)
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_NOT_FOUND);
 
         // Tổ trưởng nhóm tuổi 4 năm mới (không dạy lớp nào): thấy mọi lớp nhóm tuổi đó, chỉ xem
         long leaderId = user("leader");
         long ag4 = jdbc.queryForObject("SELECT id FROM age_groups WHERE code = 'ag-4'", Long.class);
         jdbc.update(
                 "INSERT INTO staff_assignments (user_id, staff_role, age_group_id, school_year_id, valid_from, valid_to)"
-                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2027-09-05', '2028-05-31')",
+                        + " VALUES (?, 'AGE_GROUP_TEAM_LEADER', ?, ?, '2027-08-05', '2028-05-31')",
                 leaderId,
                 ag4,
                 newYear);

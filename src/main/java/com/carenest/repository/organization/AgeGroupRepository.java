@@ -1,7 +1,6 @@
 package com.carenest.repository.organization;
 
 import com.carenest.entity.organization.AgeGroup;
-import java.time.LocalDate;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -22,20 +21,4 @@ public interface AgeGroupRepository extends JpaRepository<AgeGroup, Long> {
 
     @Query(value = "select count(*) from staff_assignments where age_group_id = :ageGroupId", nativeQuery = true)
     long countStaffAssignments(@Param("ageGroupId") Long ageGroupId);
-
-    @Query(
-            value = "select a.age_group_id as ageGroupId, u.id as userId, u.full_name as fullName"
-                    + " from staff_assignments a join user_accounts u on u.id = a.user_id"
-                    + " where a.staff_role = 'AGE_GROUP_TEAM_LEADER' and a.valid_from <= :date"
-                    + " and (a.valid_to is null or a.valid_to >= :date)",
-            nativeQuery = true)
-    List<TeamLeaderRow> findActiveTeamLeaders(@Param("date") LocalDate date);
-
-    interface TeamLeaderRow {
-        Long getAgeGroupId();
-
-        Long getUserId();
-
-        String getFullName();
-    }
 }
