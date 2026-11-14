@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 337 endpoint.
+Tổng: 339 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -23,9 +23,11 @@ PATCH /accounts/{userId}/status · src/main/java/com/carenest/controller/account
 POST /accounts/{userId}/temporary-password · src/main/java/com/carenest/controller/account/AccountController.java#resetTemporaryPassword
 POST /accounts/lookup · src/main/java/com/carenest/controller/account/AccountController.java#findAccountCandidate
 GET /accounts/me · src/main/java/com/carenest/controller/account/AccountController.java#getMyAccount
+DELETE /accounts/me/photo · src/main/java/com/carenest/controller/account/AccountPhotoController.java#deleteMyPhoto
 GET /accounts/me/photo · src/main/java/com/carenest/controller/account/AccountPhotoController.java#getMyPhoto
 PUT /accounts/me/photo · src/main/java/com/carenest/controller/account/AccountPhotoController.java#updateMyPhoto
 GET /accounts/me/photo/url · src/main/java/com/carenest/controller/account/AccountPhotoController.java#getMyPhotoUrl
+POST /accounts/photos/urls · src/main/java/com/carenest/controller/account/AccountPhotoController.java#findPhotoUrls
 GET /age-groups · src/main/java/com/carenest/controller/organization/AgeGroupController.java#getAgeGroups
 POST /age-groups · src/main/java/com/carenest/controller/organization/AgeGroupController.java#createAgeGroup
 DELETE /age-groups/{ageGroupId} · src/main/java/com/carenest/controller/organization/AgeGroupController.java#deleteAgeGroup

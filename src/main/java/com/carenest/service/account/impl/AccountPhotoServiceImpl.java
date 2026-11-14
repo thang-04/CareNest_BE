@@ -1,6 +1,7 @@
 package com.carenest.service.account.impl;
 
 import com.carenest.dto.account.AccountPhotoResponse;
+import com.carenest.dto.account.AccountPhotoUrlResponse;
 import com.carenest.dto.child.ChildGuardianContact;
 import com.carenest.dto.common.FileUrlResponse;
 import com.carenest.dto.common.ImageContent;
@@ -9,15 +10,18 @@ import com.carenest.exception.GlobalException;
 import com.carenest.integration.storage.FileStorage;
 import com.carenest.repository.account.UserAccountRepository;
 import com.carenest.security.CurrentUser;
+import com.carenest.security.authorization.AccountPhotoAccessPolicy;
 import com.carenest.security.authorization.ChildAccessPolicy;
-import com.carenest.service.account.ParentPhotoService;
+import com.carenest.service.account.AccountPhotoService;
 import com.carenest.service.child.ChildIntakeService;
 import com.carenest.utils.ApiCode;
+import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.FileCategory;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
@@ -32,12 +36,13 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class ParentPhotoServiceImpl implements ParentPhotoService {
-    private static final String LOG_PREFIX = "[ParentPhotoServiceImpl]";
+public class AccountPhotoServiceImpl implements AccountPhotoService {
+    private static final String LOG_PREFIX = "[AccountPhotoServiceImpl]";
 
     private final UserAccountRepository userAccountRepository;
     private final FileStorage fileStorage;
     private final ChildAccessPolicy childAccessPolicy;
+    private final AccountPhotoAccessPolicy accountPhotoAccessPolicy;
     private final ChildIntakeService childIntakeService;
     private final Clock clock;
 
@@ -72,6 +77,31 @@ public class ParentPhotoServiceImpl implements ParentPhotoService {
             }
             log.info("{}|END", logPrefix);
             return new AccountPhotoResponse(true, now, false);
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    public AccountPhotoResponse deleteMyPhoto(CurrentUser currentUser) {
+        String logPrefix = LOG_PREFIX + "|deleteMyPhoto|userId=" + currentUser.userId();
+        log.info("{}|START", logPrefix);
+        try {
+            // AUTH-27: ảnh phụ huynh bắt buộc, kể cả tài khoản vừa là nhân sự vừa là phụ huynh
+            if (currentUser.hasRole(CareNestRole.PARENT)) {
+                throw GlobalException.of(ApiCode.ACCOUNT_PHOTO_REQUIRED);
+            }
+            UserAccount account = userAccountRepository
+                    .findById(currentUser.userId())
+                    .orElseThrow(() -> GlobalException.of(ApiCode.ACCOUNT_NOT_FOUND));
+            String old = account.clearPhoto();
+            if (old != null) {
+                userAccountRepository.saveAndFlush(account);
+                afterCommit(() -> fileStorage.removeQuietly(FileCategory.USER_AVATAR, old));
+            }
+            log.info("{}|END", logPrefix);
+            return new AccountPhotoResponse(false, null, false);
         } catch (RuntimeException ex) {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
@@ -144,6 +174,30 @@ public class ParentPhotoServiceImpl implements ParentPhotoService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<AccountPhotoUrlResponse> findPhotoUrls(CurrentUser currentUser, Collection<Long> userIds) {
+        String logPrefix = LOG_PREFIX + "|findPhotoUrls|userId=" + currentUser.userId() + "|count=" + userIds.size();
+        log.info("{}|START", logPrefix);
+        try {
+            Set<Long> visible = accountPhotoAccessPolicy.visibleUserIds(currentUser, userIds);
+            List<AccountPhotoUrlResponse> urls = visible.isEmpty()
+                    ? List.of()
+                    : userAccountRepository.findAllById(visible).stream()
+                            .filter(UserAccount::hasPhoto)
+                            // Ảnh phụ huynh chỉ xem qua hồ sơ trẻ (PCK-02), trừ ảnh của chính mình
+                            .filter(a ->
+                                    a.getId().equals(currentUser.userId()) || a.getPrimaryRole() != CareNestRole.PARENT)
+                            .map(this::urlResponse)
+                            .toList();
+            log.info("{}|END|returned={}", logPrefix, urls.size());
+            return urls;
+        } catch (RuntimeException ex) {
+            log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
+            throw ex;
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Set<Long> findUserIdsWithPhoto(Collection<Long> userIds) {
         if (userIds.isEmpty()) {
             return Set.of();
@@ -173,6 +227,12 @@ public class ParentPhotoServiceImpl implements ParentPhotoService {
                 .findById(userId)
                 .filter(UserAccount::hasPhoto)
                 .orElseThrow(() -> GlobalException.of(ApiCode.ACCOUNT_PHOTO_NOT_FOUND));
+    }
+
+    private AccountPhotoUrlResponse urlResponse(UserAccount account) {
+        var url = fileStorage.presignGet(
+                FileCategory.USER_AVATAR, account.getPhotoKey(), account.getPhotoContentType(), null);
+        return new AccountPhotoUrlResponse(account.getId(), url.url(), url.expiresAt());
     }
 
     private FileUrlResponse urlOf(Long userId) {
