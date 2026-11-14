@@ -42,8 +42,15 @@ services:
       CARENEST_MOBILE_REDIRECT_URI: ${CARENEST_MOBILE_REDIRECT_URI:-carenest://oauth/callback}
       # Client carenest-dev (password grant) chỉ bật ở dev; realm import mặc định tắt
       CARENEST_DEV_CLIENT_ENABLED: ${CARENEST_DEV_CLIENT_ENABLED:-true}
-      CARENEST_SMTP_HOST: ${CARENEST_SMTP_HOST:-mailpit}
-      CARENEST_SMTP_PORT: ${CARENEST_SMTP_PORT:-1025}
+      # Email Keycloak (đặt mật khẩu, OTP) gửi thật qua Gmail, dùng chung tài khoản/App Password với email BE
+      CARENEST_SMTP_HOST: ${CARENEST_EMAIL_SMTP_HOST:-smtp.gmail.com}
+      CARENEST_SMTP_PORT: ${CARENEST_EMAIL_SMTP_PORT:-587}
+      CARENEST_SMTP_STARTTLS: ${CARENEST_EMAIL_SMTP_STARTTLS:-true}
+      CARENEST_SMTP_AUTH: "true"
+      # Để trống vẫn khởi động được, chỉ là Keycloak gửi email thất bại (setupEmailSent=false)
+      CARENEST_SMTP_USER: ${CARENEST_EMAIL_SMTP_USERNAME:-}
+      CARENEST_SMTP_PASSWORD: ${CARENEST_EMAIL_SMTP_PASSWORD:-}
+      CARENEST_SMTP_FROM: ${CARENEST_EMAIL_FROM:-${CARENEST_EMAIL_SMTP_USERNAME}}
     ports:
       - "${KEYCLOAK_PORT:-8180}:8080"
     volumes:
@@ -51,12 +58,6 @@ services:
       - ./docker/keycloak/import/carenest-realm.json:/opt/keycloak/data/import/carenest-realm.json:ro
       # User dev cố định id, khớp seed db/dev/R__dev_seed.sql; server thật không mount file này
       - ./docker/keycloak/dev/carenest-users-0.json:/opt/keycloak/data/import/carenest-users-0.json:ro
-
-  mailpit:
-    image: axllent/mailpit:v1.31.4
-    # Hộp thư giả cho dev: Keycloak gửi SMTP tới mailpit:1025, xem email tại http://localhost:8025
-    ports:
-      - "${MAILPIT_UI_PORT:-8025}:8025"
 
   api:
     image: carenest_be:latest
@@ -87,7 +88,7 @@ services:
       # Cấp/khóa tài khoản qua Keycloak Admin API (service account carenest-backend)
       KEYCLOAK_BASE_URL: http://keycloak:8080
       KEYCLOAK_ADMIN_CLIENT_SECRET: ${KEYCLOAK_ADMIN_CLIENT_SECRET}
-      # Compose có Mailpit làm SMTP nên bật gửi email đặt mật khẩu
+      # Keycloak đã có SMTP Gmail nên bật gửi email đặt mật khẩu
       KEYCLOAK_ACTIONS_EMAIL_ENABLED: ${KEYCLOAK_ACTIONS_EMAIL_ENABLED:-true}
       # Trợ lý AI (AI-09); khóa trống ⇒ AI tắt (AI-03)
       CARENEST_AI_BASE_URL: ${CARENEST_AI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
