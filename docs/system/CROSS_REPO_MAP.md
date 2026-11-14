@@ -1,6 +1,11 @@
 # Cross-Repo Map
 
 > Tra nhanh bằng grep (file sinh tự động, mỗi dòng 1 endpoint): `docs/api/API_INDEX.md` — endpoint → controller#method; `docs/system/FE_API_CALLS.md` — file Web gọi endpoint nào → controller. File này giữ ownership, quy ước và các quyết định liên repo.
+## Quyết định APP 14/11/2026 — tác động client
+
+- Quên mật khẩu trên App bằng OTP SMS cho phụ huynh, GV, bếp (AUTH-27; AUTH-21 thêm dẫn chiếu). APP: màn Quên mật khẩu sẽ gọi endpoint mới theo plan `docs/plans/active/2026-11-14-app-sms-password-reset.md` (duyệt 2026-11-14; màn nằm trong App — P-41 đã đóng). Web không đổi: `src/services/account/api/accountApi.js` vẫn gọi `POST /auth/password/forgot` theo email.
+- Đóng P-19, P-21, P-22, P-23, P-32, P-40 và làm rõ ATT-04 (hủy phần còn lại của đơn): chỉ đổi tài liệu, code `dev` đã đúng; Web và App không cần đổi API.
+
 ## Mốc nghiệp vụ giáo dục ghi nhận09/11/2026 — contract hiện hành và đích
 
 Nguồn: [12 câu trả lời](../business/education-plan-confirmation-2026-11-09.md), user xác nhận giáo viên phía trường đã xác nhận. Không đổi endpoint/DTO hoặc ghi đã triển khai từ việc chốt nghiệp vụ.

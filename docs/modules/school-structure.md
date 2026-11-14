@@ -32,7 +32,7 @@ AUTH-01..03, AUTH-05, AUTH-15, AUTH-16, AUTH-23, CFG-YR-01..03, CFG-CP-01. ADR-0
 - API đọc cho form tài khoản/phân công: `GET /campuses/options` (tách khỏi `GET /campuses` của `CampusController`), `GET /classrooms?campusId=` (lớp của năm học đang diễn ra) — `SchoolStructureService`, lọc theo `StaffAccessPolicy`. Ghi phân công: `StaffAssignmentService.createAssignment/endAssignment` (kiểm hình dạng theo V2 CHECK, campus/lớp tồn tại, trùng phân công mở ⇒ 409), gọi từ `StaffingService` (feature account — kiểm quyền ở đó).
 
 ## PENDING
-P-18 (học kỳ, trông hè), P-19 (ngày nghỉ tự khóa điểm danh). Đã đóng: P-14 (2026-10-27 — AUTH-02, AUTH-20), P-06 (2026-10-28 — mỗi cơ sở một bếp, AUTH-05). Cấu hình HT cần cho nghiệp vụ: giờ chốt theo mùa (ATT-06), số bữa theo nhóm tuổi (NUT-17), giá suất theo nhóm tuổi (NUT-19).
+P-18 (học kỳ, trông hè). Đã đóng: P-19 (2026-11-14 — ngày nghỉ không điểm danh, ATT-06), P-14 (2026-10-27 — AUTH-02, AUTH-20), P-06 (2026-10-28 — mỗi cơ sở một bếp, AUTH-05). Cấu hình HT cần cho nghiệp vụ: giờ chốt theo mùa (ATT-06), số bữa theo nhóm tuổi (NUT-17), giá suất theo nhóm tuổi (NUT-19).
 
 ## Known pitfalls
 

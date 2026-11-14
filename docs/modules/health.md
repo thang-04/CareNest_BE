@@ -12,7 +12,7 @@ HealthRecord (mỗi lần đo; sửa kèm lý do, có lịch sử — HLT-13), p
 Dị ứng (child — HLT-06), chẩn đoán/điều trị (exclusion), quy trình can thiệp dinh dưỡng (HLT-12), quy trình xử lý cảnh báo (trao đổi phụ huynh, kết quả chuyên khoa — phiếu theo dõi HLT-16 đã bỏ 2026-11-04).
 
 ## Rules
-HLT-01..05, HLT-07..14, HLT-17..20, AI-01..06, AI-07 (giải thích xu hướng sức khỏe). Flow: `docs/business/flows/health-check.md`. G94-180/HLT-08 (lọc đợt khám theo năm học, chốt 2026-10-28 — `BUSINESS_RULES` mục G94-180): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9. Còn mở: P-40 (điều chỉnh tay mức BMI).
+HLT-01..05, HLT-07..14, HLT-17..20, AI-01..06, AI-07 (giải thích xu hướng sức khỏe). Flow: `docs/business/flows/health-check.md`. G94-180/HLT-08 (lọc đợt khám theo năm học, chốt 2026-10-28 — `BUSINESS_RULES` mục G94-180): plan `docs/plans/active/2026-10-28-child-enrollment-guardian-accounts.md` mục 9. P-40 đóng 14/11: không chỉnh tay mức BMI (HLT-18).
 
 ## Phụ thuộc
 - Dùng: service `child` (mã trẻ, hồ sơ, ngày sinh, giới tính, lớp hiện tại; đọc/ghi tiền sử khai báo `ChildIntakeService.findMedicalHistory`/`updateMedicalHistory` — đổi ngày tiếp xúc lao từ phiếu khám thì child báo CHD-07), `account` (phụ huynh liên kết `GuardianChildLinkService.findLinksOfChild` để báo kết quả), `notification` (`HealthNotifier`), `organization` (lớp, điểm trường `SchoolStructureService.listCampuses`, nhóm tuổi `AgeGroupService.getAgeGroups` cho cấp học của báo cáo), identity (scope), `AiClient` (`integration/`).
@@ -31,10 +31,10 @@ Plan: `docs/plans/completed/2026-10-31-health-check-rounds.md` (phạm vi B1, m�
 - `/children/{childId}/health/published` (GET; phụ huynh liên kết, nhân sự xem trước — PAR-01, PAR-03, HLT-11): kết quả đã công bố (lần đo, nguồn kỳ cân đo/đợt khám, mức BMI, kết luận bác sĩ), `growth` (điểm biểu đồ có z cân nặng/tuổi, chiều cao/tuổi, BMI/tuổi WHO), `latestExam`, `latestBmi`, `interpretation` (chỉ bản đã duyệt, kèm cảnh báo). Không có nháp phiếu khám, lịch sử sửa, người đo.
 - `/children/{childId}/health/trend-analysis` (POST phân tích, GET bản mới nhất; POST `/{interpretationId}/approve` body `{ summary }` tùy chọn) — HT, PHT, GV xem được trẻ (HLT-02..05, AI-07). Dưới 2 lần đo đã công bố ⇒ `status: NOT_ENOUGH_DATA`, không gọi AI. Có ⇒ `warnings` xác định + `summary` AI, lưu DRAFT; duyệt (sửa câu chữ ⇒ `source: HUMAN`) thì phụ huynh mới thấy.
 - Mã lỗi 5040 (bản giải thích không tìm thấy), AI 8001/8002.
-- Chưa có: điều chỉnh tay mức BMI (P-40), báo cáo 5.3 (hoãn). Sức khỏe trong ngày, kiểm tra đầu ngày (HLT-07, HLT-14) ghi ở module attendance (`DailyHealthController`, bảng `daily_health_entries`); chưa báo phụ huynh (`notification_status` luôn `PENDING`).
+- Không làm: điều chỉnh tay mức BMI (P-40 đóng 14/11). Chưa có: báo cáo 5.3 (hoãn). Sức khỏe trong ngày, kiểm tra đầu ngày (HLT-07, HLT-14) ghi ở module attendance (`DailyHealthController`, bảng `daily_health_entries`); chưa báo phụ huynh (`notification_status` luôn `PENDING`).
 
 ## PENDING
-P-21 (triệu chứng chọn nhanh), P-22 (trẻ bất thường lúc nhận), P-23 (ưu tiên sức khỏe đầu ngày), P-40 (điều chỉnh tay mức BMI).
+Không còn. Đã đóng 14/11: P-21, P-22, P-23 (HLT-07), P-40 (HLT-13, HLT-18).
 
 ## Known pitfalls
 - Mức theo dõi chỉ từ kết luận bác sĩ của phiếu đã kết luận (`HealthExamOutcome`); số đo của kỳ cân đo, phiếu nháp luôn `UNAVAILABLE`. Kỳ cân đo cảnh báo bằng `bmiStatus` (HLT-18); phiếu khám không có `bmiStatus` (bác sĩ kết luận).

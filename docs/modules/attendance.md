@@ -23,7 +23,7 @@ ATT-01..11, ATT-05b, PCK-01..04, HLT-07, HLT-15 (sức khỏe trong ngày ghi sa
 Bảng `attendance_records`, `attendance_record_history`, `attendance_day_unlocks` (V21). API: `docs/api/FE_MAPPING.md` mục 3. Nhập theo batch (cả lớp/ngày). Giờ chốt mặc định khi năm chưa cấu hình: `carenest.attendance.default-cutoff` (ATT-06). Ngày học tạm thứ 2–6. Sức khỏe trong ngày (`daily_health_entries`, V22) cũng ở module này: GV lớp ghi khi tiếp nhận trẻ đã lưu Có mặt hôm nay (HLT-15). Chưa có: đơn nghỉ, đón trẻ, thông báo phụ huynh. Code viết theo rule trước khảo sát 28/10 (ATT-02 tham gia ăn, ATT-03 đến muộn, ATT-08 HT/PHT mở lại ngày) — đối chiếu lại ATT-01..11. Thiết kế bảng phần chưa có (PROPOSED): `MEAL_NUTRITION_AI_SCHEMA.md` (file thiết kế của dev, chưa có trong repo) §3.
 
 ## PENDING
-P-19 (ngày nghỉ tự khóa điểm danh), P-20 (trẻ có đơn nghỉ vẫn đến lớp), P-21, P-22 (sức khỏe đầu ngày). Đã đóng 31/10: P-33 (ảnh phụ huynh ở hồ sơ, phụ huynh tải khi đăng nhập App lần đầu). Đã đóng 28/10: P-03 (giờ chốt — ATT-06), P-04 (đến muộn — ATT-03). Đơn nghỉ: thông báo, không duyệt, GV không tạo thay (ATT-05).
+Không còn. Đã đóng 14/11: P-19 (ngày nghỉ không điểm danh — ATT-06), P-21, P-22 (sức khỏe đầu ngày — HLT-07). Đã đóng 03/11: P-20 (ATT-04). Đã đóng 31/10: P-33 (ảnh phụ huynh ở hồ sơ, phụ huynh tải khi đăng nhập App lần đầu). Đã đóng 28/10: P-03 (giờ chốt — ATT-06), P-04 (đến muộn — ATT-03). Đơn nghỉ: thông báo, không duyệt, GV không tạo thay (ATT-05).
 
 ## Known pitfalls
 

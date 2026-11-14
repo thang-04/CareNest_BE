@@ -5,12 +5,12 @@ Module: health (→ learning-observation đọc cho DevelopmentProfile; → noti
 ## Đầu ngày (HLT-07)
 
 ```text
-[B] GV nhận trẻ, quan sát, đo nhiệt độ bằng nhiệt kế
-[S] GV nhập nhiệt độ, biểu hiện cùng màn điểm danh (App hoặc Web) — flow attendance.md
+[B] GV nhận trẻ, quan sát; đo thân nhiệt bằng nhiệt kế khi cần
+[S] GV chọn quan sát (bắt buộc), nhập thân nhiệt (không bắt buộc), triệu chứng, việc đã làm cùng màn điểm danh (App hoặc Web) — flow attendance.md
     Không chụp ảnh trẻ; dặn dò miệng của phụ huynh không ghi
 ```
 
-Còn mở: danh sách triệu chứng chọn nhanh (P-21), trẻ có dấu hiệu bất thường có nhận không (P-22), mức ưu tiên Capstone (P-23).
+Đã đóng 2026-11-14 (HLT-07): triệu chứng chọn nhanh (P-21), trẻ có dấu hiệu bất thường vẫn nhận (P-22), Must trong Capstone (P-23).
 
 ## Trong ngày (HLT-14)
 

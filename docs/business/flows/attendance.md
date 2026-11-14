@@ -6,7 +6,7 @@ Module: attendance → nutrition (health nhận ghi nhận đầu ngày). Rule: 
 
 ```text
 [B] Phụ huynh đưa trẻ tới lớp trước giờ chốt (ATT-06)
-[B] GV quan sát, đo nhiệt độ bằng nhiệt kế (HLT-07)
+[B] GV quan sát trẻ có mặt, đo thân nhiệt khi cần (HLT-07)
 [S] GV mở lớp/ngày trên App → danh sách trẻ đang học (child);
     trẻ có đơn nghỉ đã hiện sẵn "Vắng có phép" (ATT-04, ATT-09)
 [S] GV ghi Có mặt / Vắng + nhiệt độ, biểu hiện cho từng trẻ (ATT-01, ATT-09, HLT-07)
@@ -36,7 +36,7 @@ Module: attendance → nutrition (health nhận ghi nhận đầu ngày). Rule: 
 
 ## Còn mở
 
-Ngày nghỉ tự khóa điểm danh: P-19. Trẻ có đơn nghỉ vẫn đến lớp: P-20. Triệu chứng chọn nhanh, trẻ bất thường có nhận không: P-21, P-22.
+Không còn. Đã đóng: P-19 (ngày nghỉ không điểm danh — ATT-06), P-20 (trẻ có đơn nghỉ vẫn đến lớp — ATT-04), P-21, P-22 (triệu chứng chọn nhanh, trẻ bất thường vẫn nhận — HLT-07).
 
 ## Lưu ý cho implementation
 

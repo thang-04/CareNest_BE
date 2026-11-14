@@ -44,7 +44,7 @@ Scope cột: dữ liệu thuộc cấp nào để áp access scope.
 | nutrition | Supplier (name, phone, address, idCard, deliveryPerson) | SCHOOL | Dùng chung hai cơ sở (NUT-12) |
 | nutrition | Kho khô: phiếu nhận theo lô, bút toán trừ theo ngày khi suất cơ sở được xác nhận (NUT-11) + điều chỉnh khi xác nhận lại suất, phần thiếu chờ phiếu bổ sung | CAMPUS | ADR-0009, NUT-11 |
 | nutrition | Kiểm nhận hàng tươi (2 lần), FoodSample (lưu/hủy, PHT duyệt), ảnh mẫu bữa theo cơ sở | CAMPUS | NUT-12, NUT-16, NUT-21 |
-| health | HealthRecord (childId, campaignId, date, height, weight, headCircumference, note, exam, published) | CHILD | Mọi lần đo, sửa có lý do + lịch sử (HLT-13); mức BMI theo tuổi WHO của kỳ cân đo tính khi đọc, không lưu (HLT-18; GV chỉnh tay còn mở — P-40); cảnh báo ở sổ sức khỏe (HLT-19); công bố (HLT-11) |
+| health | HealthRecord (childId, campaignId, date, height, weight, headCircumference, note, exam, published) | CHILD | Mọi lần đo, sửa có lý do + lịch sử (HLT-13); mức BMI theo tuổi WHO của kỳ cân đo tính khi đọc, không lưu (HLT-18; không chỉnh tay — P-40 đóng 14/11); cảnh báo ở sổ sức khỏe (HLT-19); công bố (HLT-11) |
 | health | Đợt khám bác sĩ | CHILD | 2 lần/năm (HLT-08); nội dung ghi: chưa có rule |
 | health | Ghi nhận sức khỏe trong ngày (childId, time, symptom, handling, note) | CHILD | Báo phụ huynh ngay (HLT-14) |
 | health | HealthInterpretation (childId, period, text, source, status) | CHILD | AI DRAFT → APPROVED |

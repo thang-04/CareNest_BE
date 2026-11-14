@@ -69,7 +69,7 @@ Principal (Hiệu trưởng), Vice Principal (Hiệu phó), Teacher, Parent, Kit
 | Report 1 | Tính năng | Status | Module | Flow |
 | --- | --- | --- | --- | --- |
 | FE-01 | Điểm danh (có mặt là ăn) → số suất PHT cơ sở xác nhận → bếp; một giờ chốt HT cấu hình; PHT mở lại có lý do; xác nhận trả trẻ | CONFIRMED (khảo sát team 27/10, user chốt 28/10) | attendance, nutrition | attendance |
-| — | Kiểm tra sức khỏe đầu ngày (nhiệt độ, biểu hiện) cùng màn điểm danh | CONFIRMED (HLT-07); ưu tiên Must/Should PENDING P-23 | health, attendance | health-check |
+| — | Kiểm tra sức khỏe đầu ngày (nhiệt độ, biểu hiện) cùng màn điểm danh | CONFIRMED (HLT-07); Must (P-23 đóng 14/11) | health, attendance | health-check |
 | — | Báo nghỉ của phụ huynh (không duyệt, GV không tạo thay) → vắng có phép tự động; suất theo điểm danh | CONFIRMED (02/10; khảo sát team 27/10) | attendance | leave-request |
 | FE-02 | Thực đơn chung hai cơ sở (bộ 4 tuần xoay vòng), cân đối dinh dưỡng chặn công bố, định lượng, giá suất, dị ứng 2 mức | CONFIRMED (khảo sát team 27/10, user chốt 28/10) | nutrition | meal-management |
 | — | ~~Chuẩn bị bếp + bàn giao suất cho lớp~~ — thay bằng ảnh mẫu bữa + sổ lưu mẫu trên App (NUT-16, NUT-21) | REMOVED (NUT-14, NUT-15) | nutrition | meal-management |
