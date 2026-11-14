@@ -151,7 +151,7 @@ final class HealthTrendContentRules {
         Set<HealthTrendWarningCode> seenCodes = EnumSet.noneOf(HealthTrendWarningCode.class);
         for (int i = 0; i < c.attentionPoints().size(); i++) {
             AttentionPoint a = c.attentionPoints().get(i);
-            String field = "content.attentionPoints[" + i + "]";
+            String field = "content.attentionPoints." + i;
             if (a.warningCode() == null || !warned.contains(a.warningCode()) || !seenCodes.add(a.warningCode())) {
                 errors.add(new FieldErrorResponse(field + ".warningCode", "Mã cảnh báo không có trong lần phân tích"));
             }
@@ -161,12 +161,12 @@ final class HealthTrendContentRules {
             errors.add(new FieldErrorResponse("content.positives", "Tối đa " + MAX_POSITIVES + " điểm tích cực"));
         }
         for (int i = 0; i < c.positives().size(); i++) {
-            checkItem(errors, "content.positives[" + i + "]", c.positives().get(i));
+            checkItem(errors, "content.positives." + i, c.positives().get(i));
         }
         Set<HealthTrendFollowUpType> seenTypes = EnumSet.noneOf(HealthTrendFollowUpType.class);
         for (int i = 0; i < c.followUps().size(); i++) {
             FollowUp f = c.followUps().get(i);
-            String field = "content.followUps[" + i + "]";
+            String field = "content.followUps." + i;
             if (f.type() == null || !seenTypes.add(f.type())) {
                 errors.add(new FieldErrorResponse(field + ".type", "Loại gợi ý trống hoặc bị trùng"));
             }

@@ -29,6 +29,7 @@ import com.carenest.security.TestPermissions;
 import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.ChildService;
+import com.carenest.service.child.EnrollmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.Gender;
@@ -65,6 +66,7 @@ class HealthTrendServiceImplTest {
     private final HealthInterpretationRepository repository = mock(HealthInterpretationRepository.class);
     private final AccountService accountService = mock(AccountService.class);
     private final AiClient aiClient = mock(AiClient.class);
+    private final EnrollmentService enrollmentService = mock(EnrollmentService.class);
     private final HealthTrendServiceImpl service = new HealthTrendServiceImpl(
             policy,
             childService,
@@ -73,7 +75,8 @@ class HealthTrendServiceImplTest {
             repository,
             accountService,
             aiClient,
-            JsonMapper.builder().build());
+            JsonMapper.builder().build(),
+            enrollmentService);
     private final HealthRecords.Snapshot snapshot = mock(HealthRecords.Snapshot.class);
 
     @BeforeEach
@@ -91,6 +94,8 @@ class HealthTrendServiceImplTest {
             return i;
         });
         given(aiClient.isEnabled()).willReturn(true);
+        given(enrollmentService.findActiveClassroomIds(any(), any())).willReturn(List.of(10L));
+        given(rules.teaches(TEACHER, 10L)).willReturn(true);
     }
 
     @Test
@@ -239,10 +244,22 @@ class HealthTrendServiceImplTest {
                     assertThat(ex.getFieldErrors())
                             .extracting(e -> e.field())
                             .containsExactly(
-                                    "content.overview",
-                                    "content.attentionPoints[0].warningCode",
-                                    "content.positives[0]");
+                                    "content.overview", "content.attentionPoints.0.warningCode", "content.positives.0");
                 });
+        assertThat(draft.getStatus()).isEqualTo(InterpretationStatus.DRAFT);
+    }
+
+    @Test
+    @DisplayName("HLT-21: không phải GV đang phân công lớp hiện tại của trẻ (HT, PHT, GV lớp khác) ⇒ 403, không duyệt")
+    void approveDeniedForNonClassTeacher() {
+        HealthInterpretation draft = aiDraft();
+        CurrentUser principal = TestPermissions.userWithDefaults(9L, CareNestRole.PRINCIPAL);
+        given(policy.canViewChild(principal, CHILD_ID)).willReturn(true);
+
+        expectCode(() -> service.approve(principal, CHILD_ID, 90L, null), ApiCode.HEALTH_INTERPRETATION_APPROVE_DENIED);
+
+        given(rules.teaches(TEACHER, 10L)).willReturn(false);
+        expectCode(() -> service.approve(TEACHER, CHILD_ID, 90L, null), ApiCode.HEALTH_INTERPRETATION_APPROVE_DENIED);
         assertThat(draft.getStatus()).isEqualTo(InterpretationStatus.DRAFT);
     }
 

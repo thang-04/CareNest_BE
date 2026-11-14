@@ -18,6 +18,7 @@ import com.carenest.security.CurrentUser;
 import com.carenest.security.authorization.ChildAccessPolicy;
 import com.carenest.service.account.AccountService;
 import com.carenest.service.child.ChildService;
+import com.carenest.service.child.EnrollmentService;
 import com.carenest.service.health.HealthTrendService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.Gender;
@@ -77,6 +78,7 @@ public class HealthTrendServiceImpl implements HealthTrendService {
     private final AccountService accountService;
     private final AiClient aiClient;
     private final ObjectMapper objectMapper;
+    private final EnrollmentService enrollmentService;
 
     @Override
     @Transactional
@@ -168,6 +170,10 @@ public class HealthTrendServiceImpl implements HealthTrendService {
         log.info("{}|START", logPrefix);
         try {
             checkCanView(actor, childId);
+            // HLT-21: chỉ GV đang phân công lớp hiện tại của trẻ được sửa, duyệt (cùng điều kiện nhập số đo HLT-09)
+            if (!teachesChild(actor, childId)) {
+                throw GlobalException.of(ApiCode.HEALTH_INTERPRETATION_APPROVE_DENIED);
+            }
             HealthInterpretation interpretation = interpretationRepository
                     .findByIdAndChildId(interpretationId, childId)
                     .orElseThrow(() -> GlobalException.of(ApiCode.HEALTH_INTERPRETATION_NOT_FOUND));
@@ -335,6 +341,11 @@ public class HealthTrendServiceImpl implements HealthTrendService {
 
     private static String text(Object value) {
         return value == null ? "không có" : value.toString();
+    }
+
+    private boolean teachesChild(CurrentUser actor, Long childId) {
+        return enrollmentService.findActiveClassroomIds(childId, rules.today()).stream()
+                .anyMatch(classId -> rules.teaches(actor, classId));
     }
 
     private void checkCanView(CurrentUser actor, Long childId) {

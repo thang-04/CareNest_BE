@@ -281,6 +281,11 @@ class HealthRecordIntegrationTest {
         assertThat(measurementService.getPublishedHealth(parent, child).interpretation())
                 .isNull();
 
+        // HLT-21: chỉ GV đang phân công lớp hiện tại của trẻ được duyệt
+        assertThatThrownBy(() -> trendService.approve(principal, child, draft.id(), null))
+                .isInstanceOfSatisfying(
+                        GlobalException.class,
+                        ex -> assertThat(ex.getApiCode()).isEqualTo(ApiCode.HEALTH_INTERPRETATION_APPROVE_DENIED));
         trendService.approve(teacher, child, draft.id(), null);
         entityManager.flush();
         PublishedHealthResponse view = measurementService.getPublishedHealth(parent, child);

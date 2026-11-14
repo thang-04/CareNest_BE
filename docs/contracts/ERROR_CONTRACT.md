@@ -39,6 +39,8 @@ Bổ sung 10/11/2026 (G94-180, yêu cầu đổi SĐT phụ huynh — AUTH-21): 
 
 Bổ sung 10/11/2026 (G94-180, hồ sơ sức khỏe đầy đủ): bản giải thích xu hướng sức khỏe không tìm thấy 5040 (404). Dùng lại 8001/8002 cho AI giải thích xu hướng, 5025 cho nhân sự ngoài phạm vi, 9001 + ô cho sửa khai báo sức khỏe (bảng dưới). Cần thêm vào bản Word của Cần.
 
+Bổ sung 14/11/2026 (G94-180, HLT-21): chỉ GV đang phân công lớp hiện tại của trẻ được sửa, duyệt giải thích xu hướng — người khác 5041 `HEALTH_INTERPRETATION_APPROVE_DENIED` (403). Cần thêm vào bản Word của Cần.
+
 Lỗi theo ô do service kiểm (C-5, từ 29/10/2026): service ném `GlobalException.withFieldErrors(ApiCode.X, [{field, message}])` ⇒ `data` là danh sách như validation, `field` theo đường dẫn ô FE (`guardians.0.phone`, `profile.address.ward`, `declaration.medicalHistory.tbContactDate`; không tiền tố `child.`). Dùng cho 400 `INVALID_REQUEST_DATA` (9001) và 409 có ô (`GUARDIAN_IDENTITY_CONFLICT` 3008). Lỗi khác `data = null` như trước.
 
 | Dải | Phân hệ |
@@ -110,6 +112,7 @@ Nhận xét chung lớp (OBS-22, 29/10/2026): `CLASS_COMMENT_TOO_LONG` 7322 và 
 | Sửa khai báo sức khỏe: form sai (ô theo khai báo, không tiền tố `declaration.`: `allergies`, `medicalHistory.tbContactDate`…), thiếu lý do khi đã có khai báo (`reason`, ≤ 300) | `INVALID_REQUEST_DATA` (9001) + ô | G94-180/CHD-06 |
 | Giải thích xu hướng sức khỏe: AI chưa cấu hình hoặc viết ngôn ngữ chẩn đoán (bỏ, không lưu) / quá thời gian | `AI_SERVICE_UNAVAILABLE` (8001, 503) / `AI_TIMEOUT` (8002, 504) | HLT-04, AI-03 |
 | Duyệt bản giải thích xu hướng không tồn tại hoặc của trẻ khác / nhân sự ngoài phạm vi trẻ | `HEALTH_INTERPRETATION_NOT_FOUND` (5040, 404) / `HEALTH_RECORD_ACCESS_DENIED` (5025, 403) | HLT-05 |
+| Sửa, duyệt bản giải thích xu hướng mà không phải GV đang phân công lớp hiện tại của trẻ (HT, PHT, GV lớp khác) | `HEALTH_INTERPRETATION_APPROVE_DENIED` (5041, 403) | HLT-21 |
 | Phụ huynh xem kết quả sức khỏe của trẻ không liên kết | `CHILD_ACCESS_DENIED` (403) | PAR-03, AUTH-07 |
 | Upload quá cỡ / sai loại | `FILE_TOO_LARGE` (413) / `UNSUPPORTED_MEDIA_TYPE` (415) | — |
 | Tạo phiên bản kế hoạch năm sai nguồn / còn bản đang soạn | `YEAR_PLAN_VERSION_SOURCE_INVALID` (7027, 409) / `YEAR_PLAN_OPEN_VERSION_EXISTS` (7028, 409) | EDU-25 |
