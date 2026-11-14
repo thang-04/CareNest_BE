@@ -130,6 +130,10 @@ class HealthTrendServiceImplTest {
         verify(aiClient).complete(request.capture());
         assertThat(request.getValue().jsonOutput()).isTrue();
         assertThat(request.getValue().maxTokens()).isEqualTo(1200);
+        // HLT-21: chỉ NORMAL mới mở đầu "Trẻ phát triển ổn định"
+        assertThat(request.getValue().systemPrompt())
+                .contains("Trẻ phát triển ổn định")
+                .contains("chỉ có NORMAL");
         assertThat(request.getValue().userPrompt())
                 .doesNotContain("Bé An")
                 .doesNotContain("HS26001")

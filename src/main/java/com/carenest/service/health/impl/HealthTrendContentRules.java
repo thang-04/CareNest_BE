@@ -7,6 +7,7 @@ import com.carenest.dto.health.HealthTrendContent.FollowUp;
 import com.carenest.dto.health.PublishedHealthResponse.TrendWarning;
 import com.carenest.utils.enums.HealthTrendFollowUpType;
 import com.carenest.utils.enums.HealthTrendWarningCode;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -44,6 +45,10 @@ final class HealthTrendContentRules {
             "kê đơn",
             "toa thuốc",
             "bệnh lý");
+    // HLT-21: chỉ trẻ không có cảnh báo (NORMAL) mới được mô tả "phát triển ổn định"
+    static final String STABLE_PHRASE = "phát triển ổn định";
+    static final String WARNED_OVERVIEW =
+            "Số đo gần nhất có điểm cần chú ý so với lần đo trước hoặc chuẩn WHO, xem mục Cần chú ý.";
     private static final Pattern FENCE = Pattern.compile("^```[a-zA-Z]*\\s*(.*?)\\s*```$", Pattern.DOTALL);
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -70,6 +75,10 @@ final class HealthTrendContentRules {
         warnings.stream()
                 .filter(w -> w.code() != null && w.code() != HealthTrendWarningCode.NORMAL)
                 .forEach(w -> warned.putIfAbsent(w.code(), w));
+        // Có cảnh báo mà AI vẫn viết "phát triển ổn định" ⇒ thay bằng câu hệ thống, không gửi bản mâu thuẫn cảnh báo
+        if (!warned.isEmpty() && claimsStable(overview)) {
+            overview = WARNED_OVERVIEW;
+        }
         Map<HealthTrendWarningCode, String> points = new EnumMap<>(HealthTrendWarningCode.class);
         for (JsonNode node : root.path("attentionPoints")) {
             HealthTrendWarningCode code = enumOf(HealthTrendWarningCode.class, text(node.path("warningCode")));
@@ -203,6 +212,12 @@ final class HealthTrendContentRules {
             sb.append("\n\nLưu ý về dữ liệu: ").append(c.limitations());
         }
         return sb.toString();
+    }
+
+    static boolean claimsStable(String text) {
+        return Normalizer.normalize(text, Normalizer.Form.NFC)
+                .toLowerCase(Locale.forLanguageTag("vi"))
+                .contains(STABLE_PHRASE);
     }
 
     static boolean containsForbidden(String text) {

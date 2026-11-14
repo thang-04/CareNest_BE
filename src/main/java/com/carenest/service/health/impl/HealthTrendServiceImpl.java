@@ -56,7 +56,9 @@ public class HealthTrendServiceImpl implements HealthTrendService {
             "{\"overview\": \"...\", \"attentionPoints\": [{\"warningCode\": \"MÃ\", \"text\": \"...\"}],"
                     + " \"positives\": [\"...\"], \"followUps\": [{\"type\": \"LOẠI\", \"text\": \"...\"}],"
                     + " \"limitations\": \"...\"}",
-            "- overview: 1 đến 2 câu tổng quan xu hướng cân nặng, chiều cao, BMI.",
+            "- overview: 1 đến 2 câu tổng quan xu hướng cân nặng, chiều cao, BMI. Nếu cảnh báo chỉ có NORMAL, mở đầu bằng"
+                    + " 'Trẻ phát triển ổn định' rồi nêu số liệu (tăng bao nhiêu, trong khoảng chuẩn WHO); có cảnh báo khác"
+                    + " thì không dùng cụm 'phát triển ổn định'. Không dùng 'khỏe mạnh', 'phát triển tốt'.",
             "- attentionPoints: mỗi cảnh báo có mã (trừ NORMAL) đúng một mục, giải thích kèm số liệu; chỉ dùng mã đã cho,"
                     + " không thêm cảnh báo mới; không có cảnh báo thì để mảng rỗng.",
             "- positives: tối đa 3 điểm tích cực có trong số liệu; không có thì để mảng rỗng.",

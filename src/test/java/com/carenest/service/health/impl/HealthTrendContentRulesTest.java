@@ -84,6 +84,40 @@ class HealthTrendContentRulesTest {
     }
 
     @Test
+    @DisplayName("HLT-21: chỉ cảnh báo bình thường ⇒ giữ tổng quan \"Trẻ phát triển ổn định\" của AI")
+    void normalKeepsStableOverview() {
+        HealthTrendContent c = parse("""
+                {"overview": "Trẻ phát triển ổn định: cân nặng tăng 0,6 kg, chiều cao tăng 3 cm, trong khoảng chuẩn WHO."}
+                """, List.of(NORMAL)).orElseThrow();
+
+        assertThat(c.overview()).startsWith("Trẻ phát triển ổn định");
+    }
+
+    @Test
+    @DisplayName(
+            "HLT-21: có cảnh báo (kể cả mức info) mà tổng quan nói \"phát triển ổn định\" ⇒ thay bằng câu hệ thống")
+    void warnedOverviewCannotClaimStable() {
+        TrendWarning jump =
+                new TrendWarning(HealthTrendWarningCode.BMI_Z_JUMP, HealthGrowth.INFO, "BMI thay đổi nhanh.");
+        HealthTrendContent c = parse("""
+                {"overview": "Nhìn chung trẻ PHÁT TRIỂN ỔN ĐỊNH, cân nặng giảm nhẹ."}
+                """, List.of(DROP)).orElseThrow();
+        HealthTrendContent info = parse("""
+                {"overview": "Trẻ phát triển ổn định."}
+                """, List.of(jump)).orElseThrow();
+        HealthTrendContent bmiStable = parse("""
+                {"overview": "Cân nặng giảm nhẹ, BMI ổn định."}
+                """, List.of(DROP)).orElseThrow();
+
+        assertThat(c.overview()).isEqualTo(HealthTrendContentRules.WARNED_OVERVIEW);
+        assertThat(info.overview()).isEqualTo(HealthTrendContentRules.WARNED_OVERVIEW);
+        assertThat(bmiStable.overview()).isEqualTo("Cân nặng giảm nhẹ, BMI ổn định.");
+        assertThat(c.attentionPoints())
+                .extracting(AttentionPoint::warningCode)
+                .containsExactly(HealthTrendWarningCode.WEIGHT_DROP);
+    }
+
+    @Test
     @DisplayName("HLT-21: loại gợi ý không được phép (đo lại khi kỳ đã đóng) hoặc trùng loại bị bỏ")
     void followUpsLimitedToAllowed() {
         HealthTrendContent c = parse("""
