@@ -125,18 +125,19 @@ Sau deploy dev đầu tiên: bật gateway như mục Cài một lần bước 6
 
 **Reset DB dev** (vd. sửa migration đã chạy trên dev làm Flyway báo checksum mismatch; chỉ mất dữ liệu dev): dừng `api` dev, `DROP DATABASE carenest_dev; CREATE DATABASE carenest_dev OWNER carenest_dev;` rồi chạy lại `deploy-dev`.
 
-## SMS — cổng giả và Twilio trial
+## SMS — cổng giả và textbee
 
-Mặc định `CARENEST_SMS_PROVIDER=fake`: không gửi thật, chỉ log 2 số cuối SĐT. `twilio` gọi Twilio Messages REST API (`TwilioSmsGateway`), **chỉ dùng dev/demo** (AUTH-18, plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`). Tin kích hoạt có mật khẩu tạm luôn đi cổng giả, kể cả khi bật `twilio`.
+Mặc định `CARENEST_SMS_PROVIDER=fake`: không gửi thật, chỉ log 2 số cuối SĐT. `textbee` gọi textbee.dev (`TextbeeSmsGateway`): điện thoại Android cài app textbee gửi tin bằng SIM của nó, **chỉ dùng dev/demo** (AUTH-18, plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`). Bật nhà cung cấp thật ⇒ tài khoản phụ huynh mới nhận mã kích hoạt; tin có mật khẩu tạm (tạo tài khoản, đổi SĐT) luôn đi cổng giả.
 
-Bật Twilio trial ở máy dev (`compose.yaml` hoặc `mvnw`):
-1. Đăng ký tài khoản Twilio; Console → Account Info lấy **Account SID**, **Auth Token**.
-2. Lấy số trial (Phone Numbers → Buy a number, trả bằng tín dụng trial) hoặc tạo Messaging Service.
-3. Phone Numbers → Verified Caller IDs: thêm SĐT của thành viên team (trial chỉ gửi tới số đã xác minh; tin có tiền tố "Sent from your Twilio trial account").
-4. Messaging → Settings → Geo permissions: bật Việt Nam.
-5. `.env`: `CARENEST_SMS_PROVIDER=twilio`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` (E.164, vd. `+1...`) hoặc `TWILIO_MESSAGING_SERVICE_SID`. Thiếu biến ⇒ API dừng lúc khởi động, báo tên biến thiếu.
+Bật textbee ở máy dev (`compose.yaml` hoặc `mvnw`):
+1. Đăng ký tại textbee.dev, cài app textbee trên điện thoại Android có SIM, đăng nhập và cấp quyền gửi SMS.
+2. Dashboard textbee: tạo **API key**; lấy **Device ID** nếu tài khoản có nhiều máy (trống ⇒ textbee chọn máy mặc định).
+3. `.env`: `CARENEST_SMS_PROVIDER=textbee`, `TEXTBEE_API_KEY`, tùy chọn `TEXTBEE_DEVICE_ID`. Thiếu API key ⇒ API dừng lúc khởi động, báo tên biến thiếu.
+4. Khi demo: điện thoại bật app, có mạng. API trả 200 nghĩa là textbee đã nhận vào hàng đợi, chưa phải tin đã tới máy; xem trạng thái trên dashboard textbee. Cước SMS tính theo SIM.
 
-Không commit `.env`; lộ token ⇒ rotate trên Console. `compose.vps.yaml`, `compose.dev.yaml` chưa truyền biến `TWILIO_*` nên VPS luôn dùng cổng giả. Nhà mạng Việt Nam có thể lọc tin không brandname; production chọn nhà cung cấp có brandname (D-2).
+Không commit `.env`; lộ API key ⇒ thu hồi trên dashboard textbee. `compose.vps.yaml`, `compose.dev.yaml` chưa truyền biến `TEXTBEE_*` nên VPS luôn dùng cổng giả. Production chọn nhà cung cấp có brandname (D-2).
+
+Không dùng Twilio trial (thử 13–14/11/2026): trial chỉ gửi tới số Mỹ đã xác minh và chỉ 10 template có sẵn — số `+84` bị từ chối (lỗi `21612`), nội dung tự viết bị từ chối (lỗi `572006`).
 
 ## Chuyển sang dữ liệu thật (Phase 3 — chưa làm)
 

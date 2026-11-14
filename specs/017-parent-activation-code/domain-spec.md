@@ -1,6 +1,6 @@
 # Domain spec — Mã kích hoạt tài khoản phụ huynh qua SMS
 
-Nguồn: AUTH-18 (`docs/business/BUSINESS_RULES.md:32`, user chốt 30/10 và 10/11/2026), AUTH-21; plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`; ADR-0024.
+Nguồn: AUTH-18 (`docs/business/BUSINESS_RULES.md:32`, user chốt 30/10 và 10/11/2026), AUTH-21; plan `docs/plans/active/2026-11-10-twilio-sms-otp.md`; ADR-0026.
 
 ## 1. Domain Overview
 Khi trường có nhà cung cấp SMS, phụ huynh nhận mã kích hoạt thay cho mật khẩu tạm và tự đặt mật khẩu trên App. Không ai ngoài phụ huynh biết mật khẩu.

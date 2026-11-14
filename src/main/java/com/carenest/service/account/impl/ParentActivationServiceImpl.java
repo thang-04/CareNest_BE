@@ -36,7 +36,7 @@ public class ParentActivationServiceImpl implements ParentActivationService {
             if (!request.newPassword().equals(request.confirmPassword())) {
                 throw GlobalException.of(ApiCode.MALFORMED_REQUEST);
             }
-            // ADR-0024: SĐT không có tài khoản, khóa, mã sai/hết hạn/hết lượt ⇒ cùng một lỗi
+            // ADR-0026: SĐT không có tài khoản, khóa, mã sai/hết hạn/hết lượt ⇒ cùng một lỗi
             UserAccount account = PhoneNumbers.normalize(request.phone())
                     .flatMap(userAccountRepository::findByUsername)
                     .filter(a -> a.getStatus() == UserStatus.ACTIVE)

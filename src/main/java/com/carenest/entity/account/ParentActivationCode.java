@@ -9,7 +9,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-/** Mã kích hoạt hiện hành của một tài khoản phụ huynh (AUTH-18, ADR-0024). Chỉ lưu hash, không lưu mã gốc. */
+/** Mã kích hoạt hiện hành của một tài khoản phụ huynh (AUTH-18, ADR-0026). Chỉ lưu hash, không lưu mã gốc. */
 @Getter
 @Entity
 @Table(name = "parent_activation_codes")

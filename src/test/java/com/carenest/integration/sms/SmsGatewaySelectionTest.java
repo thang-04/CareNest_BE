@@ -24,30 +24,26 @@ class SmsGatewaySelectionTest {
     }
 
     @Test
-    @DisplayName("SMS: provider=twilio đủ cấu hình ⇒ chỉ có TwilioSmsGateway")
-    void selectsTwilioWhenConfigured() {
-        runner.withPropertyValues(
-                        "carenest.sms.provider=twilio",
-                        "carenest.sms.twilio.account-sid=ACtest",
-                        "carenest.sms.twilio.auth-token=test-token",
-                        "carenest.sms.twilio.from=+15005550006")
+    @DisplayName("SMS: provider=textbee có API key ⇒ chỉ có TextbeeSmsGateway")
+    void selectsTextbeeWhenConfigured() {
+        runner.withPropertyValues("carenest.sms.provider=textbee", "carenest.sms.textbee.api-key=test-key")
                 .run(context -> {
                     assertThat(context).hasSingleBean(SmsGateway.class);
-                    assertThat(context).getBean(SmsGateway.class).isInstanceOf(TwilioSmsGateway.class);
+                    assertThat(context).getBean(SmsGateway.class).isInstanceOf(TextbeeSmsGateway.class);
                 });
     }
 
     @Test
-    @DisplayName("SMS: provider=twilio thiếu cấu hình ⇒ không khởi động được")
-    void twilioWithoutSecretsFailsStartup() {
-        runner.withPropertyValues("carenest.sms.provider=twilio").run(context -> {
+    @DisplayName("SMS: provider=textbee thiếu API key ⇒ không khởi động được")
+    void textbeeWithoutApiKeyFailsStartup() {
+        runner.withPropertyValues("carenest.sms.provider=textbee").run(context -> {
             assertThat(context).hasFailed();
-            assertThat(context.getStartupFailure()).rootCause().hasMessageContaining("TWILIO_ACCOUNT_SID");
+            assertThat(context.getStartupFailure()).rootCause().hasMessageContaining("TEXTBEE_API_KEY");
         });
     }
 
     @Configuration(proxyBeanMethods = false)
     @EnableConfigurationProperties(SmsProperties.class)
-    @Import({FakeSmsGateway.class, TwilioSmsGateway.class})
+    @Import({FakeSmsGateway.class, TextbeeSmsGateway.class})
     static class SmsConfig {}
 }

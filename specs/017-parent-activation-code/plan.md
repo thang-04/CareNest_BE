@@ -1,6 +1,6 @@
 # Implementation plan — 014
 
-Java 21/Spring/PostgreSQL/Flyway sẵn có, không dependency mới. Plan quản trị: `docs/plans/active/2026-11-10-twilio-sms-otp.md` Phase 2. Kiến trúc: ADR-0024.
+Java 21/Spring/PostgreSQL/Flyway sẵn có, không dependency mới. Plan quản trị: `docs/plans/active/2026-11-10-twilio-sms-otp.md` Phase 2. Kiến trúc: ADR-0026.
 
 1. Migration `V83__parent_activation_codes.sql`, entity + repository (khóa dòng khi kiểm).
 2. `ParentActivationCodes` (impl, package-private): sinh mã `SecureRandom`, hash SHA-256 gắn userId, lưu/thay mã trong transaction tạo tài khoản. `ParentSmsSender.sendActivationCode`.

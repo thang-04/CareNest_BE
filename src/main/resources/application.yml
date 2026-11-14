@@ -85,14 +85,13 @@ carenest:
     connect-timeout: 3s
     read-timeout: ${CARENEST_AI_READ_TIMEOUT:20s}
   sms:
-    # D-2: mặc định cổng giả (không gửi thật); twilio chỉ dùng dev/demo — trial chỉ gửi tới số đã xác minh
+    # D-2: mặc định cổng giả (không gửi thật); textbee = điện thoại Android gửi bằng SIM, chỉ dùng dev/demo
     provider: ${CARENEST_SMS_PROVIDER:fake}
-    twilio:
-      account-sid: ${TWILIO_ACCOUNT_SID:}
-      auth-token: ${TWILIO_AUTH_TOKEN:}
-      # Số gửi Twilio dạng E.164; đặt TWILIO_MESSAGING_SERVICE_SID thì dùng service thay số gửi
-      from: ${TWILIO_FROM:}
-      messaging-service-sid: ${TWILIO_MESSAGING_SERVICE_SID:}
+    textbee:
+      base-url: ${TEXTBEE_BASE_URL:https://api.textbee.dev/api/v1}
+      api-key: ${TEXTBEE_API_KEY:}
+      # Trống ⇒ textbee chọn thiết bị mặc định của tài khoản
+      device-id: ${TEXTBEE_DEVICE_ID:}
       connect-timeout: 5s
       read-timeout: 10s
   edu-plan:

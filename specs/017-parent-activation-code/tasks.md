@@ -1,5 +1,5 @@
 # Tasks — 014
-- [x] T001 Domain spec, ADR-0024, kiểm constitution (`.specify/memory/constitution.md` dùng lại, không đổi).
+- [x] T001 Domain spec, ADR-0026, kiểm constitution (`.specify/memory/constitution.md` dùng lại, không đổi).
 - [x] T002 Spec/plan/data model/contract/tasks và analyze trước code.
 - [x] T003 Migration V123, entity, repository khóa dòng; `ParentActivationCodes` sinh/hash/lưu mã (AC-6, AC-8, AC-9) — `ParentActivationCodesTest`.
 - [x] T004 `IdentityProviderClient.setPassword`; tạo tài khoản không mật khẩu + SMS mã ở form tiếp nhận và kích hoạt sau khi bật SMS thật; cổng giả giữ mật khẩu tạm (AC-6, AC-14) — `ParentSmsSenderTest`, `ChildEnrollmentIntegrationTest` (cổng giả, không đổi).

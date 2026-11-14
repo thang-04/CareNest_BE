@@ -96,7 +96,7 @@ public class SecurityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> {
                     auth.requestMatchers(PUBLIC_PATHS).permitAll();
-                    // ADR-0024: phụ huynh kích hoạt bằng mã SMS khi chưa có mật khẩu (chưa có token)
+                    // ADR-0026: phụ huynh kích hoạt bằng mã SMS khi chưa có mật khẩu (chưa có token)
                     auth.requestMatchers(PathPatternRequestMatcher.withDefaults()
                                     .matcher(HttpMethod.POST, apiPrefix + "/parent-activation"))
                             .permitAll();

@@ -29,7 +29,7 @@ class ParentSmsSenderTest {
     @DisplayName("AUTH-18: bật nhà cung cấp thật ⇒ tin có mật khẩu tạm không qua nhà cung cấp")
     void realProviderNeverReceivesTemporaryPassword() {
         var sender =
-                new ParentSmsSender(smsGateway, new SmsProperties(SmsProperties.TWILIO, null), logRepository, clock);
+                new ParentSmsSender(smsGateway, new SmsProperties(SmsProperties.TEXTBEE, null), logRepository, clock);
 
         SmsStatus status = sender.sendActivation(parent(), "Temp-Pass-1");
 

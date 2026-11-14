@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Phụ huynh kích hoạt tài khoản trên App bằng SĐT + mã SMS rồi tự đặt mật khẩu (AUTH-18, ADR-0024). */
+/** Phụ huynh kích hoạt tài khoản trên App bằng SĐT + mã SMS rồi tự đặt mật khẩu (AUTH-18, ADR-0026). */
 public record ParentActivationRequest(
         @NotBlank @Size(max = 20) String phone,
         @NotBlank @Pattern(regexp = "\\d{6}") String code,

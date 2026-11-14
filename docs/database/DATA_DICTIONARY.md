@@ -674,7 +674,7 @@ Mục đích: lần gửi SMS tài khoản phụ huynh; FE hiện lần gửi g�
 Index: `idx_parent_sms_logs_user_id` (`user_id`, `sent_at DESC`).
 
 ## parent_activation_codes  (module: identity-access, scope: ACCOUNT)
-Mục đích: mã kích hoạt hiện hành của tài khoản phụ huynh tạo khi bật nhà cung cấp SMS thật (AUTH-18, ADR-0024); một dòng mỗi tài khoản, gửi lại thay mã cũ. Chỉ lưu hash. Migration: V123.
+Mục đích: mã kích hoạt hiện hành của tài khoản phụ huynh tạo khi bật nhà cung cấp SMS thật (AUTH-18, ADR-0026); một dòng mỗi tài khoản, gửi lại thay mã cũ. Chỉ lưu hash. Migration: V123.
 | Column | Type | Null | Ý nghĩa | Rule ID |
 | --- | --- | --- | --- | --- |
 | user_id | BIGINT PK, FK user_accounts | không | Tài khoản phụ huynh | AUTH-18 |

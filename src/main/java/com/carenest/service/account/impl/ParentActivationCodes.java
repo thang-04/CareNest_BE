@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Mã kích hoạt tài khoản phụ huynh (AUTH-18, ADR-0024): 6 số, hạn 72 giờ, tối đa 5 lần sai, gửi lại cách 60 giây.
+ * Mã kích hoạt tài khoản phụ huynh (AUTH-18, ADR-0026): 6 số, hạn 72 giờ, tối đa 5 lần sai, gửi lại cách 60 giây.
  * Chỉ lưu hash; mã gốc chỉ nằm trong bộ nhớ tới khi gửi SMS. Không log mã.
  */
 @Component

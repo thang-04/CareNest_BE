@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-// ADR-0024: phụ huynh chưa có mật khẩu nên chưa có token; App gọi trực tiếp, không cookie/CSRF
+// ADR-0026: phụ huynh chưa có mật khẩu nên chưa có token; App gọi trực tiếp, không cookie/CSRF
 @RestController
 @RequestMapping("/parent-activation")
 @PreAuthorize("permitAll()")
