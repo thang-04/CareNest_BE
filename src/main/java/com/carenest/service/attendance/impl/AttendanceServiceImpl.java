@@ -232,6 +232,11 @@ public class AttendanceServiceImpl implements AttendanceService {
             if (!rules.isSchoolDay(date)) {
                 throw GlobalException.of(ApiCode.NOT_SCHOOL_DAY);
             }
+            // Ngày ngoài năm học của lớp không ghi điểm danh (sau ngày kết thúc chỉ ghi ngày trong năm được mở lại)
+            if ((cls.yearStart() != null && date.isBefore(cls.yearStart()))
+                    || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
+                throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
+            }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
             // Ngày khác hôm nay chỉ ghi được khi lớp/ngày đang được mở lại
             if (!date.equals(info.today()) && info.unlock() == null) {

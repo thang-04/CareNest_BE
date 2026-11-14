@@ -112,7 +112,8 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             LocalDate today = rules.today();
             if (!rules.isSchoolDay(date)
                     || date.isAfter(today)
-                    || (cls.yearStart() != null && date.isBefore(cls.yearStart()))) {
+                    || (cls.yearStart() != null && date.isBefore(cls.yearStart()))
+                    || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
                 throw GlobalException.of(ApiCode.ASSESSMENT_UNLOCK_DATE_OUT_OF_RANGE);
             }
             if (!rules.isBaseLocked(date)) {
@@ -120,7 +121,7 @@ public class AssessmentDayUnlockServiceImpl implements AssessmentDayUnlockServic
             }
             // Hạn do người mở chọn: sau hiện tại, không quá hết ngày kết thúc năm học (không giới hạn số ngày)
             Instant now = rules.now();
-            Instant yearEndAt = cls.yearEnd() == null
+            Instant yearEndAt = cls.yearEnd() == null || rules.today().isAfter(cls.yearEnd())
                     ? null
                     : cls.yearEnd()
                             .atTime(LocalTime.MAX)

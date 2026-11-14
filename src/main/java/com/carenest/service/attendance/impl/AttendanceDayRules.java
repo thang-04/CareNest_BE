@@ -185,9 +185,11 @@ class AttendanceDayRules {
     }
 
     /** AUTH-03: ghi điểm danh = giáo viên đang được phân công lớp. */
+    // GV đang dạy lớp; sau ngày kết thúc năm mà HT chưa đóng năm, GV từng dạy ghi được ngày BGH mở lại (ATT-08)
     boolean canRecord(CurrentUser user, ClassroomInfoResponse cls) {
         return user.hasRole(CareNestRole.TEACHER)
-                && staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today());
+                && (staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today())
+                        || (cls.yearStatus() == SchoolYearStatus.ACTIVE && taughtClosedYear(user, cls)));
     }
 
     boolean canRecordAttendance(CurrentUser user, ClassroomInfoResponse cls) {

@@ -106,7 +106,8 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             LocalDate today = rules.today();
             if (!rules.isSchoolDay(date)
                     || date.isAfter(today)
-                    || (cls.yearStart() != null && date.isBefore(cls.yearStart()))) {
+                    || (cls.yearStart() != null && date.isBefore(cls.yearStart()))
+                    || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
                 throw GlobalException.of(ApiCode.UNLOCK_DATE_OUT_OF_RANGE);
             }
             if (!rules.isBaseLocked(date, rules.cutoff(cls.schoolYearId(), date))) {
@@ -114,7 +115,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             }
             // hạn do người mở chọn, sau hiện tại và không quá hết ngày kết thúc năm học
             Instant now = rules.now();
-            Instant yearEndAt = cls.yearEnd() == null
+            Instant yearEndAt = cls.yearEnd() == null || rules.today().isAfter(cls.yearEnd())
                     ? null
                     : cls.yearEnd()
                             .atTime(LocalTime.MAX)

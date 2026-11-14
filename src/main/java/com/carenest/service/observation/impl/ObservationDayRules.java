@@ -149,6 +149,12 @@ class ObservationDayRules {
                 && staffAssignmentService.hasTeacherAssignmentHistory(user.userId(), cls.id(), today());
     }
 
+    /** Ngày xét GV của lớp: hôm nay, hoặc ngày kết thúc năm nếu đã qua (GV năm đó làm nốt việc kỳ cuối). */
+    LocalDate teachingDay(ClassroomInfoResponse cls) {
+        LocalDate today = today();
+        return cls.yearEnd() != null && today.isAfter(cls.yearEnd()) ? cls.yearEnd() : today;
+    }
+
     // CFG-YR-01: năm đã đóng, hoặc đã qua ngày kết thúc mà HT chưa đóng
     boolean yearEnded(ClassroomInfoResponse cls) {
         return cls.yearStatus() == SchoolYearStatus.CLOSED || (cls.yearEnd() != null && today().isAfter(cls.yearEnd()));
@@ -159,10 +165,14 @@ class ObservationDayRules {
         return cls.yearStatus() == SchoolYearStatus.ACTIVE && yearEnded(cls) && taughtClosedYear(user, cls);
     }
 
-    /** AUTH-03: ghi đánh giá = giáo viên đang được phân công lớp. */
+    /**
+     * AUTH-03: ghi đánh giá = giáo viên đang được phân công lớp; sau ngày kết thúc năm mà HT chưa đóng năm, GV từng dạy
+     * lớp vẫn làm nốt việc kỳ cuối (OBS-06, CFG-YR-04). Ngày / kỳ đã khóa vẫn chặn riêng (OBS-18, OBS-30).
+     */
     boolean canRecord(CurrentUser user, ClassroomInfoResponse cls) {
         return user.hasRole(CareNestRole.TEACHER)
-                && staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today());
+                && (staffAssignmentService.hasActiveTeacherAssignment(user.userId(), cls.id(), today())
+                        || finishesYearEnd(user, cls));
     }
 
     boolean isLeader(CurrentUser user) {

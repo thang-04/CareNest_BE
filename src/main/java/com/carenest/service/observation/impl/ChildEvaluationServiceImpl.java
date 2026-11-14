@@ -210,8 +210,8 @@ public class ChildEvaluationServiceImpl implements ChildEvaluationService {
                             cls.campusId(),
                             teacher,
                             cls.yearStatus() == SchoolYearStatus.ACTIVE
-                                    && (rules.canRecord(currentUser, cls)
-                                            || (year && rules.finishesYearEnd(currentUser, cls)))),
+                                    && rules.canRecord(currentUser, cls)
+                                    && (!year || yearEndOpen(currentUser, cls))),
                     data == null ? List.of() : data.days(),
                     cls.mealSessions(),
                     monthly,
