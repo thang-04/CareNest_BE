@@ -494,9 +494,8 @@ class TeacherAssignmentIntegrationTest {
     @Test
     @DisplayName("AUTH-24: phân công đánh dấu dạy thay được miễn, ghi người phân công")
     void substituteWithEndDateIsExemptAndRecordsAssigner() {
-        long free = freeTeacher("teacherFree");
         StaffAssignmentResponse created =
-                staffAssignmentService.createAssignment(substituteAssignment(free, classA2, TODAY.plusDays(14)));
+                staffAssignmentService.createAssignment(substituteAssignment(teacher1, classA2, TODAY.plusDays(14)));
 
         assertThat(created.validTo()).isEqualTo(TODAY.plusDays(14));
         assertThat(created.substitute()).isTrue();
@@ -508,8 +507,8 @@ class TeacherAssignmentIntegrationTest {
         service.assignClassTeachers(
                 principal, classA1, new ClassTeachersRequest(List.of(teacher1, teacher2), teacher2));
         ClassTeachersResponse a2 = service.assignClassTeachers(
-                principal, classA2, new ClassTeachersRequest(List.of(teacher3, free), teacher3));
-        assertThat(a2.teacherIds()).containsExactlyInAnyOrder(teacher3, free);
+                principal, classA2, new ClassTeachersRequest(List.of(teacher3, teacher1), teacher3));
+        assertThat(a2.teacherIds()).containsExactlyInAnyOrder(teacher3, teacher1);
     }
 
     @Test
@@ -553,11 +552,12 @@ class TeacherAssignmentIntegrationTest {
     }
 
     @Test
-    @DisplayName("Dạy thay cùng lớp: trùng khoảng ngày bị chặn, khoảng sau không bị chặn bởi đợt trước")
+    @DisplayName("Dạy thay cùng lớp: trùng khoảng ngày bị chặn, hai đợt nối tiếp không giao nhau thì được")
     void substituteOverlapUsesDateRange() {
         long free = freeTeacher("teacherFree");
-        // Đợt sau đăng ký trước: TODAY+10..TODAY+14
-        staffAssignmentService.createAssignment(new NewStaffAssignment(
+        // Hai đợt không giao nhau của cùng người, cùng lớp: đều được
+        staffAssignmentService.createAssignment(substituteAssignment(free, classA2, TODAY.plusDays(5)));
+        StaffAssignmentResponse later = staffAssignmentService.createAssignment(new NewStaffAssignment(
                 free,
                 StaffRole.TEACHER,
                 null,
@@ -567,10 +567,7 @@ class TeacherAssignmentIntegrationTest {
                 principal.userId(),
                 true,
                 teacher3));
-        // Đợt trước TODAY..TODAY+5 không giao ⇒ được (truy vấn cũ chặn nhầm vì valid_to >= ngày bắt đầu mới)
-        StaffAssignmentResponse first =
-                staffAssignmentService.createAssignment(substituteAssignment(free, classA2, TODAY.plusDays(5)));
-        assertThat(first.validTo()).isEqualTo(TODAY.plusDays(5));
+        assertThat(later.validFrom()).isEqualTo(TODAY.plusDays(10));
         // Giao với đợt TODAY+10..14 (dạy thay cho GV đứng lớp khác của A2) ⇒ cùng người trùng khoảng ngày
         long teacherA2 = freeTeacher("teacherA2");
         teacherOf(teacherA2, classA2);
