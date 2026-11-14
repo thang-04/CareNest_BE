@@ -800,18 +800,65 @@ class EduClassDocServiceIntegrationTest {
                 "file", "bai.pdf", "application/pdf", "%PDF-1.7 test".getBytes());
         var saved = learningResources.upload(teacher, dayKey, pdf, binding, java.util.UUID.randomUUID());
         assertThat(saved.active()).isTrue();
+        // EDU-82: tệp thành học liệu trong kho, giáo án chỉ giữ dòng gắn
         assertThat(jdbc.queryForObject(
-                        "SELECT storage_key FROM edu_learning_resources WHERE id=?", String.class, saved.id()))
+                        "SELECT storage_key FROM edu_resource_items WHERE id=?", String.class, saved.itemId()))
                 .startsWith("hoclieu/hoclieu_");
 
         // Ngày ngoài tuần của kế hoạch ngày, hoặc mục không có ⇒ không gắn được
         assertApiError(
-                () -> learningResources.bind(
+                () -> learningResources.addLink(
                         teacher,
                         dayKey,
-                        saved.id(),
-                        new com.carenest.dto.eduplan.LearningResourceBinding("2026-09-14#hoc", "x")),
+                        new com.carenest.dto.eduplan.ResourceLinkRequest(
+                                "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-14#hoc", "x", null)),
                 ApiCode.ACTIVITY_CHANGED);
+        // Dùng lại học liệu ở mục khác của tuần: không tạo học liệu mới; gỡ ở mục đầu thì mục sau vẫn còn (EDU-85)
+        Long itemsBefore = jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class);
+        var again = learningResources.attach(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceAttachRequest(
+                        java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều", null));
+        assertThat(again).singleElement().satisfies(r -> assertThat(r.itemId()).isEqualTo(saved.itemId()));
+        assertApiError(
+                () -> learningResources.attach(
+                        teacher,
+                        dayKey,
+                        new com.carenest.dto.eduplan.ResourceAttachRequest(
+                                java.util.List.of(saved.itemId()), "2026-09-08#chieu", "Hoạt động chiều", null)),
+                ApiCode.RESOURCE_ALREADY_ATTACHED);
+        learningResources.detach(teacher, dayKey, saved.id());
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.activityKey())
+                .containsExactly("2026-09-08#chieu");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM edu_resource_items", Long.class))
+                .isEqualTo(itemsBefore);
+        // EDU-82: học liệu gắn sau đứng sau; người sửa đổi được thứ tự, danh sách cũ (thiếu dòng) bị từ chối
+        var video = learningResources.addLink(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceLinkRequest(
+                        "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-08#chieu", "Hoạt động chiều", null));
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.id())
+                .containsExactly(again.get(0).id(), video.id());
+        assertApiError(
+                () -> learningResources.reorder(
+                        teacher,
+                        dayKey,
+                        new com.carenest.dto.eduplan.ResourceOrderRequest(
+                                "2026-09-08#chieu", java.util.List.of(video.id()))),
+                ApiCode.RESOURCE_ORDER_STALE);
+        learningResources.reorder(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceOrderRequest(
+                        "2026-09-08#chieu",
+                        java.util.List.of(video.id(), again.get(0).id())));
+        assertThat(learningResources.list(teacher, dayKey))
+                .extracting(r -> r.id())
+                .containsExactly(video.id(), again.get(0).id());
         // Kế hoạch chủ đề không còn nhận học liệu
         String themeKey = "tp_" + classId + "_" + theme1;
         service.saveClassDoc(
@@ -829,7 +876,54 @@ class EduClassDocServiceIntegrationTest {
         assertApiError(
                 () -> learningResources.upload(teacher, dayKey, fake, binding, java.util.UUID.randomUUID()),
                 ApiCode.UNSUPPORTED_MEDIA_TYPE);
-        assertThat(learningResources.list(teacher, dayKey)).hasSize(1);
+        assertThat(learningResources.list(teacher, dayKey)).hasSize(2);
+    }
+
+    @Test
+    @DisplayName(
+            "Spec 901 FR-004, FR-011: V128 đổi nhãn chủ đề cũ thành nhãn tự thêm theo dòng gắn (tên, năm học); gỡ là mất")
+    void v128ConvertsThemeTagsToAttachmentTags() throws Exception {
+        approveBranch();
+        String dayKey = "dd_" + classId + "_2026-09-07";
+        ObjectNode day = base();
+        day.put("themeId", theme1);
+        day.put("weekStart", "2026-09-07");
+        day.putArray("days").addObject().put("date", "2026-09-07");
+        service.saveClassDoc(teacher, "day", dayKey, day, -1L, rootVersionOf("day", day));
+        var saved = learningResources.addLink(
+                teacher,
+                dayKey,
+                new com.carenest.dto.eduplan.ResourceLinkRequest(
+                        "https://youtu.be/dQw4w9WgXcQ", null, "2026-09-07#hoc", "Hoạt động học", null));
+        // Như dữ liệu V126: một nhãn chủ đề không tên, không gắn dòng gắn
+        jdbc.update(
+                "INSERT INTO edu_resource_item_tags (item_id, kind, ref_id) VALUES (?, 'THEME', ?)",
+                saved.itemId(),
+                Long.valueOf(theme1));
+        String script = new String(
+                getClass()
+                        .getResourceAsStream("/db/migration/V128__edu_resource_personal_library.sql")
+                        .readAllBytes(),
+                java.nio.charset.StandardCharsets.UTF_8);
+        String data = script.substring(script.indexOf("-- 3."), script.indexOf("-- 4."));
+        for (String sql : data.split(";\\s*\\n")) if (!sql.isBlank()) jdbc.execute(sql);
+        var tags = jdbc.queryForList(
+                "SELECT t.name, t.school_year_id, t.attachment_id FROM edu_resource_item_tags t WHERE t.item_id=?",
+                saved.itemId());
+        String themeName =
+                jdbc.queryForObject("SELECT name FROM edu_themes WHERE id=?", String.class, Long.valueOf(theme1));
+        assertThat(tags).singleElement().satisfies(t -> {
+            assertThat(t.get("name")).isEqualTo(themeName);
+            assertThat(t.get("school_year_id")).isNotNull();
+            assertThat(t.get("attachment_id")).isEqualTo(saved.id());
+        });
+        // EDU-87: gỡ dòng gắn ⇒ nhãn tự thêm mất theo
+        learningResources.detach(teacher, dayKey, saved.id());
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM edu_resource_item_tags WHERE item_id=?", Long.class, saved.itemId()))
+                .isZero();
+        assertThat(jdbc.queryForObject("SELECT to_regclass('edu_learning_resources') IS NULL", Boolean.class))
+                .isTrue();
     }
 
     @Autowired

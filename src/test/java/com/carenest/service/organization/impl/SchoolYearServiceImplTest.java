@@ -494,6 +494,33 @@ class SchoolYearServiceImplTest {
         return new SchoolYearRequest(name, start, LocalDate.of(start.getYear() + 1, 5, 31));
     }
 
+    @Test
+    void planYearWritableOnlyWhenActiveOrPreparing() {
+        // EDU-89: hôm nay 22/10; năm sắp tới mở chuẩn bị 24/10 ⇒ chưa ghi được, tới 22/10 ⇒ ghi được; năm CLOSED chỉ
+        // xem
+        SchoolYear notYet = year(5L, "2027-2028", SchoolYearStatus.PLANNED, "2026-11-20");
+        ReflectionTestUtils.setField(notYet, "prepDate", LocalDate.of(2026, 10, 24));
+        SchoolYear preparing = year(6L, "2028-2029", SchoolYearStatus.PLANNED, "2026-11-20");
+        ReflectionTestUtils.setField(preparing, "prepDate", TODAY);
+        SchoolYear active = year(7L, "2026-2027", SchoolYearStatus.ACTIVE, "2026-09-01");
+        SchoolYear closed = year(8L, "2025-2026", SchoolYearStatus.CLOSED, "2025-09-01");
+        for (SchoolYear y : List.of(notYet, preparing, active, closed))
+            given(schoolYearRepository.findById(y.getId())).willReturn(Optional.of(y));
+
+        assertThatThrownBy(() -> service.checkPlanYearWritable(5L))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_NOT_PREPARING);
+        assertThatThrownBy(() -> service.checkPlanYearWritable(8L))
+                .extracting(ex -> ((GlobalException) ex).getApiCode())
+                .isEqualTo(ApiCode.SCHOOL_YEAR_CLOSED);
+        service.checkPlanYearWritable(6L);
+        service.checkPlanYearWritable(7L);
+        assertThat(service.isPlanYearWritable(5L)).isFalse();
+        assertThat(service.isPlanYearWritable(6L)).isTrue();
+        assertThat(service.isPlanYearWritable(7L)).isTrue();
+        assertThat(service.isPlanYearWritable(8L)).isFalse();
+    }
+
     private static SchoolYear year(Long id, String name, SchoolYearStatus status, String startDate) {
         LocalDate start = LocalDate.parse(startDate);
         SchoolYear year = SchoolYear.plan(name, start, LocalDate.of(start.getYear() + 1, 5, 31));

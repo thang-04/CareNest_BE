@@ -6,6 +6,9 @@ import com.carenest.dto.eduplan.LearningResourceBinding;
 import com.carenest.dto.eduplan.LearningResourceConfirmRequest;
 import com.carenest.dto.eduplan.LearningResourceResponse;
 import com.carenest.dto.eduplan.LearningResourceUploadUrlRequest;
+import com.carenest.dto.eduplan.ResourceAttachRequest;
+import com.carenest.dto.eduplan.ResourceLinkRequest;
+import com.carenest.dto.eduplan.ResourceOrderRequest;
 import com.carenest.security.CurrentUser;
 import com.carenest.service.eduplan.LearningResourceService;
 import com.carenest.utils.ApiCode;
@@ -96,18 +99,38 @@ public class LearningResourceController {
         return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Get learning resource url success", result);
     }
 
-    @PatchMapping("/{id}/activity")
-    @PreAuthorize("hasAnyRole('PRINCIPAL', 'VICE_PRINCIPAL', 'TEACHER')")
-    public ResponseEntity<ResponseJson<LearningResourceResponse>> bind(
-            @PathVariable String docKey,
-            @PathVariable Long id,
-            @Valid @RequestBody LearningResourceBinding binding,
-            CurrentUser user) {
-        String p = LOG_PREFIX + "|bind|userId=" + user.userId() + "|id=" + id;
+    /** EDU-83: dán link YouTube/Google vào một mục hoạt động. */
+    @PostMapping("/links")
+    public ResponseEntity<ResponseJson<LearningResourceResponse>> addLink(
+            @PathVariable String docKey, @Valid @RequestBody ResourceLinkRequest request, CurrentUser user) {
+        String p = LOG_PREFIX + "|addLink|userId=" + user.userId();
         log.info("{}|START", p);
-        var result = service.bind(user, docKey, id, binding);
+        var result = service.addLink(user, docKey, request);
         log.info("{}|END", p);
-        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Bind learning resource success", result);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Add learning resource link success", result);
+    }
+
+    /** EDU-82: gắn học liệu có sẵn trong kho vào một mục hoạt động. */
+    @PostMapping("/attach")
+    public ResponseEntity<ResponseJson<List<LearningResourceResponse>>> attach(
+            @PathVariable String docKey, @Valid @RequestBody ResourceAttachRequest request, CurrentUser user) {
+        String p = LOG_PREFIX + "|attach|userId=" + user.userId();
+        log.info("{}|START", p);
+        var result = service.attach(user, docKey, request);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Attach learning resources success", result);
+    }
+
+    /** EDU-82: đổi thứ tự học liệu trong một mục hoạt động (thứ tự xem/trình chiếu). */
+    @PutMapping("/order")
+    public ResponseEntity<ResponseJson<List<LearningResourceResponse>>> reorder(
+            @PathVariable String docKey, @Valid @RequestBody ResourceOrderRequest request, CurrentUser user) {
+        String p = LOG_PREFIX + "|reorder|userId=" + user.userId();
+        log.info("{}|START", p);
+        service.reorder(user, docKey, request);
+        var result = service.list(user, docKey);
+        log.info("{}|END", p);
+        return ResponseJson.toJsonWithData(ApiCode.SUCCESSFUL, "Reorder learning resources success", result);
     }
 
     @DeleteMapping("/{id}")

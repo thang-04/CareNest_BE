@@ -39,7 +39,7 @@ public interface EduWorkflowService {
     void activateLegacyPending(Instant now);
 
     Map<EduWorkflowPolicy.Role, Set<Long>> resolveActiveCandidates(
-            EduWorkflowPolicy.RolePolicy policy, Long ageGroupId, Long classroomId, LocalDate date);
+            EduWorkflowPolicy.RolePolicy policy, Long ageGroupId, Long schoolYearId, Long classroomId, LocalDate date);
 
     void validateClassDocVersion(EduClassDoc doc, Long expectedVersion, Long expectedRootVersion);
 

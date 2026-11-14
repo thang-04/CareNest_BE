@@ -123,6 +123,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
     private final com.carenest.service.eduplan.EduTeamPlanService teamService;
     private final EduTeamUpdateGenerator teamUpdates;
     private final EduPlanTimeLock timeLock;
+    private final com.carenest.service.organization.SchoolYearService schoolYearService;
     private final com.carenest.service.notification.NotificationService notificationService;
 
     @Override
@@ -293,6 +294,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             SchoolYearResponse schoolYear = schoolStructureService
                     .findSchoolYear(request.schoolYearId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.SCHOOL_YEAR_NOT_FOUND));
+            schoolYearService.checkPlanYearWritable(schoolYear.id()); // EDU-89
             AgeGroupResponse ageGroup = schoolStructureService
                     .findAgeGroup(request.ageGroupId())
                     .orElseThrow(() -> GlobalException.of(ApiCode.AGE_GROUP_NOT_FOUND));
@@ -568,8 +570,8 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
             String updatedApprovalsJson = eduWorkflowService.serializeApprovals(approvals);
 
             Set<Long> excludedAuthors = eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId());
-            Map<EduWorkflowPolicy.Role, Set<Long>> candidates =
-                    eduWorkflowService.resolveActiveCandidates(policy, plan.getAgeGroupId(), null, today);
+            Map<EduWorkflowPolicy.Role, Set<Long>> candidates = eduWorkflowService.resolveActiveCandidates(
+                    policy, plan.getAgeGroupId(), plan.getSchoolYearId(), null, today);
             EduWorkflowPolicy.Evaluation nextEval =
                     evaluator.evaluate(policy, plan.getReviewRound(), approvals, excludedAuthors, candidates);
 
@@ -1109,6 +1111,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
                 .findForUpdateById(planId)
                 .orElseThrow(() -> GlobalException.of(ApiCode.YEAR_PLAN_NOT_FOUND));
         if (checkViewable) requireViewable(user, plan);
+        schoolYearService.checkPlanYearWritable(plan.getSchoolYearId()); // EDU-89
         return plan;
     }
 
@@ -1143,7 +1146,7 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         if (plan.publicStatus() != EduPlanStatus.DRAFT) {
             return false;
         }
-        return isEditor(user, plan);
+        return isEditor(user, plan) && schoolYearService.isPlanYearWritable(plan.getSchoolYearId());
     }
 
     // Điều kiện của bước "Chủ đề và sự kiện" + "Mục tiêu" trên UI, kiểm khi gửi /
@@ -1977,20 +1980,31 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         boolean author = isEditor(user, plan);
         boolean excluded =
                 eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId()).contains(user.userId());
-        boolean canApprove = isReview && !excluded && isUserWaitingRole(user, plan);
+        // EDU-89: năm đã kết thúc / chưa tới ngày mở chuẩn bị ⇒ chỉ xem
+        boolean yearOpen = schoolYearService.isPlanYearWritable(plan.getSchoolYearId());
+        boolean canApprove = yearOpen && isReview && !excluded && isUserWaitingRole(user, plan);
         boolean canReturn = canApprove;
         return new YearPlanDetailResponse.Permissions(
                 canEdit(user, plan, now),
-                isDraft && author && !timeLock.locked(plan),
+                yearOpen && isDraft && author && !timeLock.locked(plan),
                 canApprove,
                 canApprove,
                 canReturn,
-                isDraft && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR && accessPolicy.isVicePrincipal(user),
-                plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
+                yearOpen
+                        && isDraft
+                        && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
+                        && accessPolicy.isVicePrincipal(user),
+                yearOpen
+                        && plan.getPlanLevel() == EduPlanLevel.SCHOOL_YEAR
                         && plan.getId().equals(currentId)
                         && chain.stream().allMatch(p -> p.publicStatus() == EduPlanStatus.APPROVED)
                         && author
-                        && !timeLock.locked(plan));
+                        && !timeLock.locked(plan),
+                EduPlanAccessPolicy.canExport(
+                        user.userId(),
+                        accessPolicy.effectiveRoles(user, plan.getSchoolYearId()),
+                        plan.getOwnerId(),
+                        accessPolicy.creatorRole(plan.getOwnerId(), plan.getSchoolYearId(), plan.getCreatedAt())));
     }
 
     private final EduWorkflowPolicy evaluator = new EduWorkflowPolicy();
@@ -2029,7 +2043,11 @@ public class EduYearPlanServiceImpl implements EduYearPlanService {
         if (eval.waitingRole() == null) return;
         Set<Long> to = new java.util.HashSet<>(eduWorkflowService
                 .resolveActiveCandidates(
-                        eduWorkflowService.loadPolicy(plan.workflowKey()), plan.getAgeGroupId(), null, today)
+                        eduWorkflowService.loadPolicy(plan.workflowKey()),
+                        plan.getAgeGroupId(),
+                        plan.getSchoolYearId(),
+                        null,
+                        today)
                 .getOrDefault(eval.waitingRole(), Set.of()));
         to.removeAll(eduWorkflowService.getAuthorUserIdsForYearPlan(plan.getId()));
         to.remove(user.userId());

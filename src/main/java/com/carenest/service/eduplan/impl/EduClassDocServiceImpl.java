@@ -39,6 +39,7 @@ import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.EduClassDocStatus;
 import com.carenest.utils.enums.EduPlanLevel;
 import com.carenest.utils.enums.EduPlanStatus;
+import com.carenest.utils.enums.SchoolYearStatus;
 import java.time.Clock;
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -88,7 +89,9 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             Map<Long, EduClassDoc> docsById,
             Map<String, EduClassDoc> docsByKey,
             Map<Long, SchoolYearDetailResponse> years,
-            Map<Long, LocalDate> opened) {}
+            Map<Long, LocalDate> opened,
+            // EDU-90: vai trò người tạo theo (người tạo, ngày tạo), tránh truy vấn lặp cho cả danh sách
+            Map<String, Optional<EduWorkflowPolicy.Role>> creatorRoles) {}
 
     private static final String ACTION_SUBMIT = "submit";
     private static final String ACTION_APPROVE = "approve";
@@ -452,12 +455,11 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             if (visibleClasses(currentUser, cls.schoolYearId(), today).stream().noneMatch(c -> c.id().equals(cls.id())))
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             if (write) {
+                schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
                 requireClassDocAuthor(currentUser, cls);
                 // Như lưu giáo án ngày: hồ sơ chủ đề chứa nó phải còn Nháp (chờ duyệt/ban hành ⇒ khóa)
-                boolean dossierDraft = classDocRepository
-                        .findByDocKey(dossierKey(doc.getClassroomId(), doc.getThemeId()))
-                        .map(r -> r.getStatus().editable())
-                        .orElse(false);
+                boolean dossierDraft =
+                        dossierOf(doc).map(r -> r.getStatus().editable()).orElse(false);
                 if (doc.getStatus() == EduClassDocStatus.REVIEW || !dossierDraft)
                     throw GlobalException.of(ApiCode.CLASS_DOC_LOCKED);
                 // EDU-26: học liệu của tài liệu trên phiên bản đã thay thế cũng chỉ xem
@@ -469,6 +471,16 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             log.warn("{}|ERROR|type={}", logPrefix, ex.getClass().getSimpleName());
             throw ex;
         }
+    }
+
+    @Override
+    public EduClassDocStatus dayStatus(EduClassDoc day) {
+        if (day.getStatus() == EduClassDocStatus.REVIEW) return EduClassDocStatus.REVIEW;
+        return dossierOf(day).map(EduClassDoc::getStatus).orElse(day.getStatus());
+    }
+
+    private Optional<EduClassDoc> dossierOf(EduClassDoc day) {
+        return classDocRepository.findByDocKey(dossierKey(day.getClassroomId(), day.getThemeId()));
     }
 
     @Override
@@ -579,7 +591,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     docsById,
                     docsByKey,
                     years,
-                    classroomService.findOpenedDates(classIds));
+                    classroomService.findOpenedDates(classIds),
+                    new HashMap<>());
             ClassDocsResponse response = new ClassDocsResponse(
                     toNodes(currentUser, docs, EduClassDoc.BRANCH, evaluations, context),
                     toNodes(currentUser, docs, EduClassDoc.THEME, evaluations, context),
@@ -599,25 +612,25 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
     }
 
+    // EDU-89: năm đang hoạt động, hoặc năm sắp tới đã tới ngày mở chuẩn bị (CFG-YR-05)
+    private static boolean planYearOpen(SchoolYearDetailResponse year) {
+        return year == null || year.status() == SchoolYearStatus.ACTIVE || year.preparing();
+    }
+
     private List<ClassDocsResponse.CreationCapability> buildCreationCapabilities(
             List<ClassDocsResponse.ClassItem> classItems, ClassListContext context) {
         List<ClassDocsResponse.CreationCapability> list = new ArrayList<>();
         for (ClassDocsResponse.ClassItem cls : classItems) {
             Long classId = Long.parseLong(cls.id());
-            boolean canAuthorBranch = context.scope().canAuthor(classId);
-            boolean canAuthorTheme = context.scope().canAuthor(classId);
-            list.add(new ClassDocsResponse.CreationCapability(
-                    classId,
-                    "branch",
-                    canAuthorBranch,
-                    "ISSUED_YEAR_PLAN",
-                    canAuthorBranch ? null : "AUTHOR_FORBIDDEN"));
-            list.add(new ClassDocsResponse.CreationCapability(
-                    classId, "theme", canAuthorTheme, "ISSUED_TEAM_PLAN", canAuthorTheme ? null : "AUTHOR_FORBIDDEN"));
-            list.add(new ClassDocsResponse.CreationCapability(
-                    classId, "week", canAuthorTheme, "THEME_DOSSIER", canAuthorTheme ? null : "AUTHOR_FORBIDDEN"));
-            list.add(new ClassDocsResponse.CreationCapability(
-                    classId, "day", canAuthorTheme, "THEME_DOSSIER", canAuthorTheme ? null : "AUTHOR_FORBIDDEN"));
+            // EDU-89: năm của lớp chỉ xem ⇒ không tạo
+            boolean yearOpen = planYearOpen(context.years().get(classId));
+            boolean canAuthor = yearOpen && context.scope().canAuthor(classId);
+            String reason = canAuthor ? null : yearOpen ? "AUTHOR_FORBIDDEN" : "YEAR_READ_ONLY";
+            list.add(
+                    new ClassDocsResponse.CreationCapability(classId, "branch", canAuthor, "ISSUED_YEAR_PLAN", reason));
+            list.add(new ClassDocsResponse.CreationCapability(classId, "theme", canAuthor, "ISSUED_TEAM_PLAN", reason));
+            list.add(new ClassDocsResponse.CreationCapability(classId, "week", canAuthor, "THEME_DOSSIER", reason));
+            list.add(new ClassDocsResponse.CreationCapability(classId, "day", canAuthor, "THEME_DOSSIER", reason));
         }
         return list;
     }
@@ -648,6 +661,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                     : null;
 
             ClassroomInfoResponse cls = requireClass(classId);
+            schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
             LocalDate today = LocalDate.now(clock);
             // EDU-12: author eligibility according to policy and reviewer precedence
             requireClassDocAuthor(currentUser, cls);
@@ -917,6 +931,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                 throw GlobalException.of(ApiCode.REQUIRED_FIELD_MISSING, "X-Class-Doc-Version");
             if (!expectedVersion.equals(doc.getVersion())) throw GlobalException.of(ApiCode.CONCURRENT_UPDATE);
             ClassroomInfoResponse cls = requireClass(doc.getClassroomId());
+            schoolYearService.checkPlanYearWritable(cls.schoolYearId()); // EDU-89
             Instant at = clock.instant();
             LocalDate today = LocalDate.now(clock);
             var policy = eduWorkflowService.loadPolicy(kind);
@@ -984,7 +999,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
                                     approvals,
                                     eduWorkflowService.getUnionAuthorUserIdsForDossier(doc),
                                     eduWorkflowService.resolveActiveCandidates(
-                                            policy, cls.ageGroupId(), cls.id(), today));
+                                            policy, cls.ageGroupId(), null, cls.id(), today));
                     if (after.complete()) next = EduClassDocStatus.APPROVED;
                 } else if (ACTION_REJECT.equals(request.action())) {
                     if (note.isBlank()) throw GlobalException.of(ApiCode.RETURN_REASON_REQUIRED);
@@ -2020,6 +2035,8 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         }
         node.put("dossierVersion", root.getVersion() == null ? 0L : root.getVersion());
         boolean author = isHomeroomAuthor(currentUser, cls);
+        // EDU-89: năm đã kết thúc / năm sắp tới chưa tới ngày mở chuẩn bị ⇒ chỉ xem
+        boolean yearOpen = planYearOpen(year);
         boolean activeVersion = context == null
                 ? !isSuperseded(doc.getYearPlanId())
                 : !context.supersededPlanIds().contains(doc.getYearPlanId());
@@ -2089,11 +2106,14 @@ public class EduClassDocServiceImpl implements EduClassDocService {
             node.put("timeLocked", locked);
             node.put(
                     "canExtend",
-                    accessPolicy.isPrincipal(currentUser)
+                    yearOpen
+                            && accessPolicy.isPrincipal(currentUser)
                             && doc.getStatus() != EduClassDocStatus.REVIEW
                             && doc.getStatus() != EduClassDocStatus.APPROVED
                             && locked);
-            node.put("canRevise", author && activeVersion && doc.getStatus() == EduClassDocStatus.APPROVED && !locked);
+            node.put(
+                    "canRevise",
+                    yearOpen && author && activeVersion && doc.getStatus() == EduClassDocStatus.APPROVED && !locked);
             if (EduClassDoc.SEMESTER.equals(doc.getKind()) && author)
                 node.set("missing", missingParts(doc, planDocs, year));
             if (!author) node.putNull("blockedReason");
@@ -2102,18 +2122,42 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         ObjectNode permissions = node.putObject("permissions");
         permissions.put(
                 "canEdit",
-                author
+                yearOpen
+                        && author
                         && activeVersion
                         && !rootKind
                         && doc.getStatus() != EduClassDocStatus.REVIEW
                         && root.getStatus() != EduClassDocStatus.REVIEW
                         && memberEditable(doc, root, planDocs, year, context));
         permissions.put(
-                "canSubmit", author && activeVersion && doc.getStatus().editable() && rootKind && blocked == null);
-        permissions.put("canApprove", reviewable && rootKind);
-        permissions.put("canReturn", reviewable && rootKind);
-        permissions.put("canReject", reviewable && rootKind);
+                "canSubmit",
+                yearOpen && author && activeVersion && doc.getStatus().editable() && rootKind && blocked == null);
+        permissions.put("canApprove", yearOpen && reviewable && rootKind);
+        permissions.put("canReturn", yearOpen && reviewable && rootKind);
+        permissions.put("canReject", yearOpen && reviewable && rootKind);
+        // EDU-90: mỗi tài liệu (cả gói/hồ sơ) xét theo người tạo của chính nó
+        permissions.put(
+                "canExport",
+                EduPlanAccessPolicy.canExport(
+                        currentUser.userId(),
+                        context == null
+                                ? accessPolicy.effectiveRoles(currentUser, cls.schoolYearId())
+                                : context.scope().roles(),
+                        doc.getCreatedBy(),
+                        creatorRole(doc, cls.schoolYearId(), context)));
         return node;
+    }
+
+    private EduWorkflowPolicy.Role creatorRole(EduClassDoc doc, Long schoolYearId, ClassListContext context) {
+        if (context == null) return accessPolicy.creatorRole(doc.getCreatedBy(), schoolYearId, doc.getCreatedAt());
+        String key = doc.getCreatedBy() + ":" + schoolYearId + ":"
+                + (doc.getCreatedAt() == null ? null : LocalDate.ofInstant(doc.getCreatedAt(), clock.getZone()));
+        return context.creatorRoles()
+                .computeIfAbsent(
+                        key,
+                        k -> Optional.ofNullable(
+                                accessPolicy.creatorRole(doc.getCreatedBy(), schoolYearId, doc.getCreatedAt())))
+                .orElse(null);
     }
 
     // Nội dung kế hoạch chủ đề + giáo án tuần lúc ban hành, kèm chuỗi ký
@@ -2635,7 +2679,7 @@ public class EduClassDocServiceImpl implements EduClassDocService {
         if (evaluation.waitingRole() == null) return Set.of();
         var policy = eduWorkflowService.loadPolicy(root.getKind());
         Set<Long> ids = new HashSet<>(eduWorkflowService
-                .resolveActiveCandidates(policy, cls.ageGroupId(), cls.id(), today)
+                .resolveActiveCandidates(policy, cls.ageGroupId(), null, cls.id(), today)
                 .getOrDefault(evaluation.waitingRole(), Set.of()));
         ids.removeAll(eduWorkflowService.getUnionAuthorUserIdsForDossier(root));
         return ids;

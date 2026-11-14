@@ -18,4 +18,9 @@ final class SchoolYearRules {
             throw GlobalException.of(ApiCode.SCHOOL_YEAR_CLOSED, year.getName());
         }
     }
+
+    /** EDU-89: kế hoạch giáo dục ghi được khi năm đang hoạt động, hoặc năm sắp tới đã tới ngày mở chuẩn bị (CFG-YR-05). */
+    static boolean planWritable(SchoolYear year, java.time.LocalDate today) {
+        return year.getStatus() == SchoolYearStatus.ACTIVE || year.isPreparing(today);
+    }
 }

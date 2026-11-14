@@ -19,6 +19,9 @@ public interface EduClassDocService {
 
     com.carenest.entity.eduplan.EduClassDoc requireDayAccess(CurrentUser currentUser, String docKey, boolean write);
 
+    /** Trạng thái hiệu lực của giáo án ngày: Chờ duyệt nếu ngày hoặc hồ sơ chủ đề chứa nó Chờ duyệt; ban hành theo hồ sơ. */
+    com.carenest.utils.enums.EduClassDocStatus dayStatus(com.carenest.entity.eduplan.EduClassDoc day);
+
     /** Tài liệu, lớp và giáo viên của năm học (null = năm đang hoạt động) trong phạm vi người xem. */
     ClassDocsResponse getClassDocs(CurrentUser currentUser, Long schoolYearId);
 

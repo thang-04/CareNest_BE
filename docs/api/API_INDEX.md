@@ -8,7 +8,7 @@ File sinh tự động từ `BE:docs/api/openapi.yaml`, không sửa tay. Sinh l
 
 Nguồn: repo CareNest_BE (bản đang làm việc)
 
-Tổng: 339 endpoint.
+Tổng: 346 endpoint.
 
 ```text
 GET /accounts · src/main/java/com/carenest/controller/account/AccountController.java#searchAccounts
@@ -167,10 +167,12 @@ POST /education-plans/class-docs/branch/file-preview · src/main/java/com/carene
 GET /education-plans/class-docs/day/{docKey}/learning-resources · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#list
 POST /education-plans/class-docs/day/{docKey}/learning-resources · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#upload
 DELETE /education-plans/class-docs/day/{docKey}/learning-resources/{id} · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#detach
-PATCH /education-plans/class-docs/day/{docKey}/learning-resources/{id}/activity · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#bind
 GET /education-plans/class-docs/day/{docKey}/learning-resources/{id}/content · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#content
 GET /education-plans/class-docs/day/{docKey}/learning-resources/{id}/url · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#contentUrl
+POST /education-plans/class-docs/day/{docKey}/learning-resources/attach · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#attach
 POST /education-plans/class-docs/day/{docKey}/learning-resources/confirm · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#confirmUpload
+POST /education-plans/class-docs/day/{docKey}/learning-resources/links · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#addLink
+PUT /education-plans/class-docs/day/{docKey}/learning-resources/order · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#reorder
 POST /education-plans/class-docs/day/{docKey}/learning-resources/upload-url · src/main/java/com/carenest/controller/eduplan/LearningResourceController.java#uploadUrl
 GET /education-plans/class-docs/releases/{releaseId} · src/main/java/com/carenest/controller/eduplan/EduClassDocController.java#getClassDocRelease
 GET /education-plans/config · src/main/java/com/carenest/controller/eduplan/EduConfigController.java#getEduConfig
@@ -197,6 +199,11 @@ POST /education-plans/goals/{planId}/unlock · src/main/java/com/carenest/contro
 POST /education-plans/goals/{planId}/versions · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#createVersion
 POST /education-plans/goals/file-preview · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#previewGoalFile
 GET /education-plans/goals/review-queue · src/main/java/com/carenest/controller/eduplan/EduYearPlanController.java#getReviewQueue
+GET /education-plans/resources · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#list
+DELETE /education-plans/resources/{id} · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#delete
+PATCH /education-plans/resources/{id} · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#update
+GET /education-plans/resources/{id}/url · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#contentUrl
+GET /education-plans/resources/{id}/usages · src/main/java/com/carenest/controller/eduplan/ResourceLibraryController.java#usages
 GET /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#getWorkflowPolicy
 PUT /education-plans/workflow-policy · src/main/java/com/carenest/controller/eduplan/EduWorkflowController.java#updateWorkflowPolicy
 GET /health-checks · src/main/java/com/carenest/controller/health/HealthCheckController.java#listHealthChecks

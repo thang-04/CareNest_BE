@@ -170,6 +170,8 @@ public enum ApiCode {
             2038, HttpStatus.CONFLICT, "Năm học đã bắt đầu hoặc đã kết thúc, không đổi được ngày mở chuẩn bị"),
     ACTIVATION_BEFORE_PREP(
             2039, HttpStatus.CONFLICT, "Năm học chưa tới ngày mở chuẩn bị, chỉ kích hoạt được từ ngày {0}"),
+    SCHOOL_YEAR_NOT_PREPARING(
+            2040, HttpStatus.CONFLICT, "Năm học {0} chưa tới ngày mở chuẩn bị, lập và sửa kế hoạch từ ngày {1}"),
     SEMESTER_DATES_LOCKED(2027, HttpStatus.CONFLICT, "{0} đã có đánh giá học kỳ, không đổi được ngày của học kỳ này"),
 
     // ========== 21xx ĐIỂM TRƯỜNG & PHÒNG ==========
@@ -596,6 +598,16 @@ public enum ApiCode {
     CLASS_DOC_LOCKED(7117, HttpStatus.CONFLICT, "Tài liệu đã khóa chỉnh sửa"),
     LEARNING_RESOURCE_NOT_FOUND(7118, HttpStatus.NOT_FOUND, "Không tìm thấy học liệu"),
     LEARNING_RESOURCE_UNBOUND(7119, HttpStatus.NOT_FOUND, "Học liệu chưa gắn với hoạt động hiện tại"),
+    // Spec 900 kho học liệu (EDU-82…88)
+    RESOURCE_LINK_INVALID(7127, HttpStatus.BAD_REQUEST, "Chỉ nhận link YouTube hoặc Google Drive/Docs (https)"),
+    RESOURCE_ITEM_NOT_FOUND(7128, HttpStatus.NOT_FOUND, "Không tìm thấy học liệu trong kho"),
+    RESOURCE_ALREADY_ATTACHED(7130, HttpStatus.CONFLICT, "Học liệu đã gắn vào mục này"),
+    RESOURCE_SECTION_FULL(7131, HttpStatus.CONFLICT, "Mỗi mục hoạt động gắn tối đa {0} học liệu"),
+    RESOURCE_ITEM_FORBIDDEN(7132, HttpStatus.FORBIDDEN, "Bạn không có quyền thao tác học liệu này"),
+    RESOURCE_ORDER_STALE(7136, HttpStatus.CONFLICT, "Học liệu của mục đã thay đổi, tải lại trang rồi sắp xếp lại"),
+    // EDU-85/88: đang gắn giáo án Chờ duyệt hoặc đã ban hành chưa qua ngày dạy ⇒ không xóa, không đổi tên
+    RESOURCE_ITEM_LOCKED(
+            7137, HttpStatus.CONFLICT, "Học liệu đang dùng ở giáo án chờ duyệt hoặc chưa qua ngày dạy: {0}. {1}"),
     ACTIVITY_CHANGED(7120, HttpStatus.CONFLICT, "Hoạt động đã thay đổi. Lưu và chọn lại hoạt động trước khi gắn tệp"),
     CLASS_DOC_VERSION_FIX_REQUIRED(
             7121, HttpStatus.CONFLICT, "Còn {0} mục đổi theo kế hoạch năm mới chưa sửa (ô đỏ). Sửa hết rồi mới gửi"),
