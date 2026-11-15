@@ -79,7 +79,7 @@ class AuthOperationsTest {
                 })
                 .when(email)
                 .send(anyString(), anyString(), anyMap());
-        assertDoesNotThrow(() -> operations.sendOtp("user-unit", "012345"));
+        assertDoesNotThrow(() -> operations.sendOtp("user-unit", "012345", "https://web.example.test"));
     }
 
     @BeforeEach
@@ -239,12 +239,101 @@ class AuthOperationsTest {
         when(session.getProvider(EmailTemplateProvider.class)).thenReturn(email);
         when(email.setRealm(realm)).thenReturn(email);
         when(email.setUser(user)).thenReturn(email);
-        assertDoesNotThrow(() -> operations.sendOtp("user-unit", "012345"));
+        when(user.getFirstName()).thenReturn("Nguyễn Thị Lan");
+        when(user.getUsername()).thenReturn("0369666456");
+        assertDoesNotThrow(() -> operations.sendOtp("user-unit", "012345", "https://web.example.test/"));
         verify(email)
                 .send(
                         eq("carenestRecoverySubject"),
                         eq("carenest-recovery-code.ftl"),
-                        eq(Map.of("code", "012345", "minutes", 5)));
-        assertThrows(BadRequestException.class, () -> operations.sendOtp("user-unit", "<script>"));
+                        eq(Map.of(
+                                "code", "012345",
+                                "minutes", 5,
+                                "fullName", "Nguyễn Thị Lan",
+                                "username", "0369666456",
+                                "schoolName", AuthOperations.DEFAULT_SCHOOL_NAME,
+                                "logoUrl", "https://web.example.test/email/logo-mark.png")));
+        assertThrows(
+                BadRequestException.class,
+                () -> operations.sendOtp("user-unit", "<script>", "https://web.example.test"));
+    }
+
+    @Test
+    void otpEmailStillSendsWithoutLogoWhenWebOriginIsInvalid() throws Exception {
+        var email = emailProvider();
+        assertDoesNotThrow(() -> operations.sendOtp("user-unit", "012345", "javascript:alert(1)"));
+        verify(email).send(anyString(), anyString(), argThat(attributes -> !attributes.containsKey("logoUrl")));
+    }
+
+    @Test
+    void setupEmailCarriesAccountDetailsForTheTemplate() throws Exception {
+        var email = emailProvider();
+        when(user.getFirstName()).thenReturn("  Nguyễn Thị Lan ");
+        when(user.getUsername()).thenReturn("0369666456");
+        grantRoles("TEACHER");
+        var withSchool = new AuthOperations(
+                session, realm, clock, name -> "CARENEST_SCHOOL_NAME".equals(name) ? "MN Test" : null);
+        assertDoesNotThrow(() -> withSchool.sendSetupEmail("user-unit", "https://web.example.test"));
+        verify(email)
+                .send(
+                        eq("carenestSetupSubject"),
+                        eq("carenest-setup.ftl"),
+                        eq(Map.of(
+                                "fullName", "Nguyễn Thị Lan",
+                                "username", "0369666456",
+                                "schoolName", "MN Test",
+                                "roleLabel", "Giáo viên",
+                                "link", "https://web.example.test/forgot-password",
+                                "logoUrl", "https://web.example.test/email/logo-mark.png")));
+    }
+
+    @Test
+    void setupEmailPrefersStaffRoleOverParentAndFallsBackToDefaultSchool() throws Exception {
+        var email = emailProvider();
+        grantRoles("PARENT", "TEACHER");
+        var noSchool = new AuthOperations(session, realm, clock, name -> "  ");
+        assertDoesNotThrow(() -> noSchool.sendSetupEmail("user-unit", "https://web.example.test"));
+        verify(email)
+                .send(
+                        anyString(),
+                        anyString(),
+                        argThat(attributes -> "Giáo viên".equals(attributes.get("roleLabel"))
+                                && AuthOperations.DEFAULT_SCHOOL_NAME.equals(attributes.get("schoolName"))
+                                && "".equals(attributes.get("fullName"))));
+    }
+
+    @Test
+    void setupEmailOmitsRoleWhenAccountHasNoStaffRole() throws Exception {
+        var email = emailProvider();
+        grantRoles("PARENT");
+        assertDoesNotThrow(() -> operations.sendSetupEmail("user-unit", "https://web.example.test"));
+        verify(email).send(anyString(), anyString(), argThat(attributes -> attributes.get("roleLabel") == null));
+    }
+
+    @Test
+    void setupEmailRejectsUnsafeWebOrigin() {
+        emailProvider();
+        assertThrows(
+                jakarta.ws.rs.ServiceUnavailableException.class,
+                () -> operations.sendSetupEmail("user-unit", "http://evil.example.test"));
+    }
+
+    private EmailTemplateProvider emailProvider() {
+        when(user.getEmail()).thenReturn("user@example.test");
+        var email = mock(EmailTemplateProvider.class);
+        when(session.getProvider(EmailTemplateProvider.class)).thenReturn(email);
+        when(email.setRealm(realm)).thenReturn(email);
+        when(email.setUser(user)).thenReturn(email);
+        return email;
+    }
+
+    private void grantRoles(String... granted) {
+        var names = java.util.Set.of(granted);
+        for (String name :
+                java.util.List.of("PRINCIPAL", "VICE_PRINCIPAL", "TEACHER", "KITCHEN_STAFF", "ADMIN", "PARENT")) {
+            var role = mock(RoleModel.class);
+            when(realm.getRole(name)).thenReturn(role);
+            when(user.hasRole(role)).thenReturn(names.contains(name));
+        }
     }
 }

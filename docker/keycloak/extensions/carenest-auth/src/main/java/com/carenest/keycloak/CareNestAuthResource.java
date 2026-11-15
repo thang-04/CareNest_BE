@@ -56,7 +56,7 @@ public final class CareNestAuthResource {
     public Map<String, Boolean> recoveryEmail(OtpEmailRequest request) {
         AuthOperations operations = authorizedOperations();
         if (request == null) throw new BadRequestException("Request is required");
-        operations.sendOtp(request.userId(), request.code());
+        operations.sendOtp(request.userId(), request.code(), webOrigin());
         return Map.of("success", true);
     }
 
@@ -65,9 +65,12 @@ public final class CareNestAuthResource {
     public Map<String, Boolean> setupEmail(SetupEmailRequest request) {
         AuthOperations operations = authorizedOperations();
         if (request == null) throw new BadRequestException("Request is required");
-        operations.sendSetupEmail(
-                request.userId(), System.getenv().getOrDefault("CARENEST_AUTH_WEB_ORIGIN", "http://localhost:5173"));
+        operations.sendSetupEmail(request.userId(), webOrigin());
         return Map.of("success", true);
+    }
+
+    private static String webOrigin() {
+        return System.getenv().getOrDefault("CARENEST_AUTH_WEB_ORIGIN", "http://localhost:5173");
     }
 
     private AuthOperations authorizedOperations() {

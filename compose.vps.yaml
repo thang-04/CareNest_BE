@@ -60,6 +60,7 @@ services:
       KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET:?KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET is required, see deploy/vps.env.example}
       CARENEST_WEB_ORIGIN: https://web.carenest.edu.vn
       CARENEST_AUTH_WEB_ORIGIN: https://web.carenest.edu.vn
+      CARENEST_SCHOOL_NAME: ${CARENEST_SCHOOL_NAME:-Trường Mầm Non Thượng Hồng}
       CARENEST_MOBILE_REDIRECT_URI: ${CARENEST_MOBILE_REDIRECT_URI:-carenest://oauth/callback}
       CARENEST_DEV_CLIENT_ENABLED: "false"
       # Mặc định Mailpit cùng VPS; SMTP thật thì đổi trong .env

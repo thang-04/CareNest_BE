@@ -35,6 +35,11 @@
             <groupId>org.mockito</groupId><artifactId>mockito-junit-jupiter</artifactId><scope>test</scope>
         </dependency>
         <dependency>
+            <!-- Render thử template mail trong test; Keycloak runtime đã có FreeMarker -->
+            <groupId>org.freemarker</groupId><artifactId>freemarker</artifactId>
+            <version>2.3.34</version><scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.jboss.resteasy</groupId><artifactId>resteasy-core</artifactId>
             <version>6.2.19.Final</version><scope>test</scope>
         </dependency>
