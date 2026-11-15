@@ -1,6 +1,7 @@
 package com.carenest.service.account;
 
 import com.carenest.dto.account.AccountResponse;
+import com.carenest.dto.child.ActivationCodeResponse;
 import com.carenest.dto.child.AddGuardianRequest;
 import com.carenest.dto.child.AddGuardianResponse;
 import com.carenest.dto.child.ChildGuardianOverviewResponse;
@@ -38,4 +39,7 @@ public interface GuardianAccountService {
     AccountResponse updateParentStatus(CurrentUser actor, Long userId, UserStatus status);
 
     ParentPasswordResponse resetParentPassword(CurrentUser actor, Long userId);
+
+    /** Gửi lại mã kích hoạt cho phụ huynh chưa kích hoạt (AUTH-18): cách nhau 60 giây, mã cũ hết hiệu lực. */
+    ActivationCodeResponse resendActivationCode(CurrentUser actor, Long userId);
 }

@@ -35,6 +35,8 @@ Bổ sung 31/10/2026 (G94-180, phiếu khám Phụ lục II và phiếu theo dõ
 
 Bổ sung 31/10/2026 (G94-180, đón trẻ, ảnh phụ huynh, thông báo): ảnh chân dung sai loại/quá 2 MB 1131, chưa có ảnh hoặc ngoài phạm vi 1132; thông báo không tìm thấy (hoặc của người khác) 1201; đón trẻ 4101–4107 — trẻ không tìm thấy hoặc ngoài phạm vi 4101, không phải GV lớp 4102, lớp không thuộc năm học đang hoạt động 4103, ngày ngoài khoảng 4104, trẻ chưa điểm danh có mặt 4105, trẻ vắng 4106, đã trả hôm nay 4107. Lỗi theo ô của form trả trẻ, đăng ký thiết bị dùng 9001 `INVALID_REQUEST_DATA` (`verification`, `guardianPosition`, `handoverTime`, `note`, `token`, `platform`). Cần thêm vào bản Word của Cần.
 
+Bổ sung 14/11/2026 (G94-355, ảnh đại diện — AUTH-27): tài khoản có role phụ huynh xóa ảnh chân dung 1145 `ACCOUNT_PHOTO_REQUIRED` (403; ảnh phụ huynh bắt buộc, chỉ thay). Lấy link hàng loạt `POST /accounts/photos/urls` sai danh sách (rỗng, >100, id ≤ 0) dùng 400 kiểm dữ liệu chung.
+
 Bổ sung 10/11/2026 (G94-180, yêu cầu đổi SĐT phụ huynh — AUTH-21): 1136–1140 (bảng dưới). Trước khi gộp `dev` 10/11/2026 nhánh dùng 1133–1137; `dev` đã dùng 1133–1135 cho đổi vai trò, sửa hồ sơ nhân sự (AUTH-25) nên mã của nhánh dời sang 1136–1140. Gộp `dev` 11/11/2026: `dev` dùng 1140–1142 cho chữ ký (SIG-01) nên `USERNAME_CHANGE_NOT_ALLOWED` dời 1140 ⇒ 1143.
 
 Bổ sung 10/11/2026 (G94-180, hồ sơ sức khỏe đầy đủ): bản giải thích xu hướng sức khỏe không tìm thấy 5040 (404). Dùng lại 8001/8002 cho AI giải thích xu hướng, 5025 cho nhân sự ngoài phạm vi, 9001 + ô cho sửa khai báo sức khỏe (bảng dưới). Cần thêm vào bản Word của Cần.
