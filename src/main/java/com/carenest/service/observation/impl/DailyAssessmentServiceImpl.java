@@ -55,6 +55,7 @@ import tools.jackson.databind.ObjectMapper;
 public class DailyAssessmentServiceImpl implements DailyAssessmentService {
 
     private static final String LOG_PREFIX = "[DailyAssessmentServiceImpl]";
+    private static final int CLASS_COMMENT_MAX = 500;
     // Thuật ngữ chẩn đoán không dùng trong nhận xét / ghi chú (giáo viên mô tả hành vi quan sát được)
     static final List<String> DIAGNOSTIC_TERMS = List.of(
             "tự kỷ",
@@ -138,7 +139,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
                     rules.today(),
                     cls.yearStart(),
                     currentUser.hasPermission(Permission.ASSESSMENT_RECORD)
-                            && rules.canRecord(currentUser, cls)
+                            && rules.canRecordDay(currentUser, cls, date)
                             && !yearReadOnly,
                     yearReadOnly,
                     baseLocked && unlock == null,
@@ -180,6 +181,10 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
             }
             if (request.classComment() != null) {
                 String text = trim(request.classComment());
+                // Cần chốt 14/11/2026: nhận xét chung của lớp tối đa 500 ký tự
+                if (text.length() > CLASS_COMMENT_MAX) {
+                    throw GlobalException.of(ApiCode.CLASS_COMMENT_TOO_LONG);
+                }
                 String lower = text.toLowerCase(java.util.Locale.ROOT);
                 if (DIAGNOSTIC_TERMS.stream().anyMatch(lower::contains)) {
                     throw GlobalException.of(ApiCode.CLASS_COMMENT_DIAGNOSTIC_TERM);
@@ -352,7 +357,7 @@ public class DailyAssessmentServiceImpl implements DailyAssessmentService {
     /** Thứ tự: quyền (giáo viên lớp) → năm học → ngày → khóa / mở lại. */
     private ClassroomInfoResponse checkWritable(CurrentUser user, Long classId, LocalDate date) {
         ClassroomInfoResponse cls = rules.findClass(classId);
-        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecord(user, cls)) {
+        if (!user.hasPermission(Permission.ASSESSMENT_RECORD) || !rules.canRecordDay(user, cls, date)) {
             throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
         }
         // CFG-YR-01: năm đã kết thúc (hoặc chưa kích hoạt) chỉ xem

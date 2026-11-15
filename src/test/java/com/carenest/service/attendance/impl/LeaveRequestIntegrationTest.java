@@ -166,6 +166,12 @@ class LeaveRequestIntegrationTest {
         assertThat(leave.skippedDates()).isEmpty();
         assertThat(leave.reason()).isEqualTo("Bé ốm");
         assertThat(leave.status()).isEqualTo("ACTIVE");
+        // OBS-31: GV lớp nhận thông báo đơn nghỉ
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM notifications WHERE type = 'LEAVE_REQUEST_CHANGED' AND user_id = ?",
+                        Integer.class,
+                        teacherA.userId()))
+                .isEqualTo(1);
         ClassAttendanceResponse sheet = attendanceService.getClassAttendance(teacherA, classA, TODAY);
         ClassAttendanceResponse.ChildRow row = rowOf(sheet, child1);
         assertThat(row.record().status()).isEqualTo(AttendanceStatus.EXCUSED);

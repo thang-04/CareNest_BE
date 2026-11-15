@@ -68,7 +68,7 @@ class StaffAssignmentServiceImplTest {
     @Test
     void overlappingOpenAssignmentIsConflict() {
         given(campuses.existsById(10L)).willReturn(true);
-        given(repository.existsOverlapping(40L, StaffRole.KITCHEN_STAFF, 10L, null, START))
+        given(repository.existsOverlappingOpenEnded(40L, StaffRole.KITCHEN_STAFF, 10L, null, START, null))
                 .willReturn(true);
 
         assertThatThrownBy(() -> service.createAssignment(

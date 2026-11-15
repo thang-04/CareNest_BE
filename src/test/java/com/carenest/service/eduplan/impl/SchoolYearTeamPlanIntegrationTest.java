@@ -670,6 +670,25 @@ class SchoolYearTeamPlanIntegrationTest {
     }
 
     @Test
+    @DisplayName("EDU-91: kế hoạch tổ cũ không có kế hoạch năm học nguồn không hiện trong danh sách")
+    void legacyTeamWithoutSourceIsHidden() {
+        var team = teamFrom(issuedAnnual());
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .hasSize(1);
+        jdbc.update(
+                "UPDATE edu_team_plans SET legacy_team_without_source = true, curriculum_source_plan_id = NULL WHERE id = ?",
+                team.id());
+        entityManager.clear();
+        assertThat(service.getYearPlans(leader3, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .isEmpty();
+        assertThat(service.getYearPlans(principal, schoolYear, null, null, PageRequest.of(0, 20))
+                        .items())
+                .isEmpty();
+    }
+
+    @Test
     @DisplayName("EDU-60: tổ trưởng chỉ đọc annual ban hành đúng tuổi, list và detail cùng scope")
     void annualVisibilityMatchesPublicationAndAssignment() {
         var draft = service.createYearPlan(

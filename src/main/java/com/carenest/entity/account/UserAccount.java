@@ -174,4 +174,14 @@ public class UserAccount {
         this.photoUpdatedAt = at;
         return old;
     }
+
+    /** Bỏ ảnh chân dung; trả mã tệp cũ để dọn sau khi lưu (null khi chưa có). */
+    public String clearPhoto() {
+        String old = this.photoKey;
+        this.photoKey = null;
+        this.photoContentType = null;
+        this.photoSizeBytes = null;
+        this.photoUpdatedAt = null;
+        return old;
+    }
 }
