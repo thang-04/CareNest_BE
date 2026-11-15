@@ -1,6 +1,7 @@
 -- Bộ dữ liệu dev (profile "dev"): đánh giá định kỳ (nhận xét tháng theo trẻ, nhận xét chung lớp), phiếu bé ngoan,
 -- xếp loại lớp, mở lại ngày đánh giá; khám sức khỏe đầu năm, kỳ cân đo đang diễn ra, giải thích xu hướng tăng trưởng.
--- đánh giá kiến thức kỹ năng theo hoạt động và đánh giá cuối chủ đề (theo giáo án đã ban hành của file 04).
+-- đánh giá kiến thức kỹ năng theo hoạt động và đánh giá cuối chủ đề (theo giáo án đã ban hành của file 04); nhận xét tuần
+-- theo trẻ, mở lại nhận xét tuần và đánh giá cuối chủ đề.
 -- Dữ liệu giả nhìn như thật. Chạy sau R__dev_04_education.sql. Neo CURRENT_DATE.
 --
 -- Có mặt theo công thức điểm danh dùng chung: abs(hashtext(mã trẻ || ':' || ngày)) % 100 >= 5 (khớp attendance_records).
@@ -1098,11 +1099,142 @@ CROSS JOIN LATERAL (
 ) w
 WHERE g.user_id IS NOT NULL;
 
+-- ---------- 10. Nhận xét tuần theo trẻ (OBS-29) ----------
+-- Tuần đã kết thúc của năm học: tuần cũ GV đã gửi phụ huynh chiều thứ Sáu. Tuần gần nhất: lớp thứ lẻ đã gửi, lớp thứ
+-- chẵn còn bản nháp hệ thống ⇒ việc cần làm ở màn GV. Vài bản đã gửi GV sửa lại sáng thứ Hai (lưu lịch sử nội dung).
+-- Lớp của bản nhận xét = lớp trẻ học nhiều ngày nhất trong tuần.
+CREATE TEMP TABLE d05_wc AS
+SELECT DISTINCT ON (s.child_id, s.monday)
+       s.child_id, s.classroom_id, c.campus_id, c.school_year_id, c.k, s.monday, s.friday, s.present_days, s.flags,
+       s.monday = (SELECT max(monday) FROM d05_week) AS last_week,
+       pg_temp.d05_teacher(s.classroom_id, s.friday) AS teacher_id,
+       pg_temp.d05_h(s.code || ':wc:' || s.monday) AS h
+FROM (
+    SELECT a.child_id, a.code, a.classroom_id, w.monday, w.friday, count(*) AS days,
+           count(*) FILTER (WHERE a.present) AS present_days,
+           count(o.child_id) FILTER (WHERE a.present AND o.flag) AS flags
+    FROM d05_week w
+    JOIN d05_att a ON a.d BETWEEN w.monday AND w.friday
+    LEFT JOIN d05_obs o ON o.child_id = a.child_id AND o.date = a.d
+    GROUP BY a.child_id, a.code, a.classroom_id, w.monday, w.friday
+) s
+JOIN d05_class c ON c.classroom_id = s.classroom_id
+WHERE s.present_days > 0
+ORDER BY s.child_id, s.monday, s.days DESC, s.classroom_id;
+
+DELETE FROM d05_wc WHERE teacher_id IS NULL;
+ALTER TABLE d05_wc ADD COLUMN sent boolean, ADD COLUMN revised boolean, ADD COLUMN opening text, ADD COLUMN body text;
+UPDATE d05_wc SET sent = NOT last_week OR k % 2 = 1;
+UPDATE d05_wc SET revised = sent AND NOT last_week AND h % 23 = 0,
+                  opening = 'Tuần ' || to_char(monday, 'DD/MM') || ' – ' || to_char(friday, 'DD/MM/YYYY') || ', bé đi học '
+                      || present_days || ' ngày'
+                      || CASE WHEN flags > 0 THEN ', được ' || flags || ' cờ bé ngoan' ELSE '' END || '. ',
+                  body = pg_temp.d05_pick(ARRAY[
+                      'Bé vui vẻ đến lớp, ăn hết suất và ngủ trưa ngoan.',
+                      'Bé hứng thú với hoạt động góc, chơi hòa thuận cùng các bạn.',
+                      'Bé mạnh dạn phát biểu trong giờ học, thuộc bài thơ của tuần.',
+                      'Bé tự xúc ăn, tự cất dép và gấp khăn sau giờ ngủ.',
+                      'Bé tham gia tích cực giờ vận động ngoài trời và trò chơi dân gian.'], h)
+                      || E'\n' || pg_temp.d05_pick(ARRAY[
+                      'Tuần tới cô tiếp tục rèn cho bé thói quen rửa tay trước khi ăn.',
+                      'Gia đình cho bé đi ngủ sớm để sáng đến lớp đúng giờ.',
+                      'Gia đình khuyến khích bé kể lại các hoạt động ở lớp mỗi tối.',
+                      'Bé cần ăn thêm rau, gia đình phối hợp cùng cô nhắc bé.',
+                      'Cô tiếp tục động viên bé nhường nhịn bạn khi chơi đồ chơi chung.'], h / 7);
+
+CREATE TEMP TABLE d05_wc_new (id bigint, child_id bigint, monday date);
+
+WITH ins AS (
+    INSERT INTO weekly_comments (child_id, classroom_id, campus_id, school_year_id, week_start, content, status,
+                                 draft_source, sent_at, sent_by, created_by, created_at, updated_by, updated_at)
+    SELECT w.child_id, w.classroom_id, w.campus_id, w.school_year_id, w.monday,
+           w.opening || w.body || CASE WHEN w.revised THEN ' Cô đã trao đổi thêm với phụ huynh lúc đón bé.' ELSE '' END,
+           CASE WHEN w.sent THEN 'SENT' ELSE 'DRAFT' END, 'TEMPLATE',
+           CASE WHEN w.revised THEN pg_temp.d05_at(w.friday + 3, TIME '08:15')
+                WHEN w.sent THEN pg_temp.d05_at(w.friday, TIME '16:30') + (w.h % 40) * INTERVAL '1 minute' END,
+           CASE WHEN w.sent THEN w.teacher_id END,
+           w.teacher_id, LEAST(pg_temp.d05_at(w.friday, TIME '06:30'), now()),
+           CASE WHEN w.sent THEN w.teacher_id END,
+           CASE WHEN w.revised THEN pg_temp.d05_at(w.friday + 3, TIME '08:15')
+                WHEN w.sent THEN pg_temp.d05_at(w.friday, TIME '16:30') + (w.h % 40) * INTERVAL '1 minute'
+                ELSE LEAST(pg_temp.d05_at(w.friday, TIME '06:30'), now()) END
+    FROM d05_wc w
+    ON CONFLICT ON CONSTRAINT uk_weekly_comments_child_week DO NOTHING
+    RETURNING id, child_id, week_start
+)
+INSERT INTO d05_wc_new SELECT i.id, i.child_id, i.week_start FROM ins i;
+
+-- Lịch sử nội dung: bản gửi chiều thứ Sáu, GV sửa và gửi lại sáng thứ Hai — chỉ cho bản vừa tạo
+INSERT INTO weekly_comment_revisions (weekly_comment_id, previous_content, previous_sent_at, previous_sent_by, changed_by,
+                                      changed_at)
+SELECT n.id, w.opening || w.body, pg_temp.d05_at(w.friday, TIME '16:30') + (w.h % 40) * INTERVAL '1 minute',
+       w.teacher_id, w.teacher_id, pg_temp.d05_at(w.friday + 3, TIME '08:15')
+FROM d05_wc_new n
+JOIN d05_wc w ON w.child_id = n.child_id AND w.monday = n.monday
+WHERE w.revised;
+
+-- ---------- 11. Mở lại nhận xét tuần theo lớp – tuần, mở lại đánh giá cuối chủ đề ----------
+-- Như mục 5: một lần đã hết hạn (HT), một lần kết thúc sớm (PHT Cơ sở 2), một lần còn hiệu lực tới ngày kia (PHT Cơ sở
+-- 1). Tuần được mở là tuần đã khóa (trước tuần gần nhất). Mỗi lớp chỉ seed một lần mở lại nên chạy lại không thêm bản ghi.
+CREATE TEMP TABLE d05_wc_unlock AS
+SELECT c.classroom_id, c.campus_id, v.monday, v.friday, u.kind, u.reason,
+       CASE u.kind WHEN 'EXPIRED' THEN (SELECT user_id FROM d05_principal)
+                   ELSE (SELECT p.user_id FROM d05_vp p WHERE p.campus_id = c.campus_id) END AS user_id
+FROM (VALUES ('CS-A', 2, 3, 'EXPIRED', 'Cô giáo nghỉ phép cả tuần, chưa kịp gửi nhận xét tuần cho phụ huynh.'),
+             ('CS-B', 3, 2, 'REVOKED', 'Giáo viên xin bổ sung nhận xét cho trẻ mới chuyển lớp giữa tuần.'),
+             ('CS-A', 4, 1, 'ACTIVE', 'Giáo viên dự tập huấn chuyên môn, xin mở lại để gửi nhận xét tuần còn thiếu.'))
+     AS u (campus_code, k, back, kind, reason)
+JOIN d05_class c ON c.campus_code = u.campus_code AND c.k = u.k
+CROSS JOIN LATERAL (
+    SELECT w.monday, w.friday FROM d05_week w ORDER BY w.monday DESC OFFSET u.back LIMIT 1
+) v;
+
+INSERT INTO weekly_comment_unlocks (classroom_id, campus_id, week_start, valid_until, reason, unlocked_by, unlocked_at,
+                                    revoked_by, revoked_at)
+SELECT u.classroom_id, u.campus_id, u.monday,
+       CASE u.kind WHEN 'EXPIRED' THEN pg_temp.d05_at(u.friday + 5, TIME '17:00')
+                   WHEN 'REVOKED' THEN pg_temp.d05_at(u.friday + 4, TIME '11:20')
+                   ELSE pg_temp.d05_at(CURRENT_DATE + 2, TIME '17:00') END,
+       u.reason, u.user_id,
+       CASE WHEN u.kind = 'ACTIVE' THEN LEAST(pg_temp.d05_at(CURRENT_DATE, TIME '07:40'), now() - INTERVAL '5 minutes')
+            ELSE pg_temp.d05_at(u.friday + 4, TIME '07:45') END,
+       CASE WHEN u.kind = 'REVOKED' THEN u.user_id END,
+       CASE WHEN u.kind = 'REVOKED' THEN pg_temp.d05_at(u.friday + 4, TIME '11:20') END
+FROM d05_wc_unlock u
+WHERE u.user_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM weekly_comment_unlocks x WHERE x.classroom_id = u.classroom_id);
+
+-- Đánh giá cuối chủ đề (OBS-27): mỗi điểm trường mở lại chủ đề kết thúc gần nhất của một lớp; period_key = dòng gốc
+-- chủ đề. Cơ sở 1 đã hết hạn (HT), Cơ sở 2 còn hiệu lực tới ngày kia (PHT).
+CREATE TEMP TABLE d05_ev_unlock AS
+SELECT DISTINCT ON (c.campus_code)
+       th.classroom_id, th.campus_id, th.lineage, th.end_date, c.campus_code,
+       CASE c.campus_code WHEN 'CS-A' THEN (SELECT user_id FROM d05_principal)
+                          ELSE (SELECT p.user_id FROM d05_vp p WHERE p.campus_id = th.campus_id) END AS user_id
+FROM d05_theme th
+JOIN d05_class c ON c.classroom_id = th.classroom_id
+WHERE th.teacher_id IS NOT NULL
+ORDER BY c.campus_code, th.end_date DESC, c.k, th.lineage;
+
+INSERT INTO evaluation_unlocks (kind, classroom_id, campus_id, period_key, valid_until, reason, unlocked_by, unlocked_at)
+SELECT 'THEME', u.classroom_id, u.campus_id, u.lineage::text,
+       CASE u.campus_code WHEN 'CS-A' THEN pg_temp.d05_at(u.end_date + 6, TIME '17:00')
+                          ELSE pg_temp.d05_at(CURRENT_DATE + 2, TIME '17:00') END,
+       CASE u.campus_code WHEN 'CS-A' THEN 'Bổ sung đánh giá cho trẻ nghỉ ốm dài ngày trong chủ đề.'
+                          ELSE 'Giáo viên xin chỉnh lại kết quả mục tiêu chấm nhầm của vài trẻ.' END,
+       u.user_id,
+       CASE u.campus_code WHEN 'CS-A' THEN pg_temp.d05_at(u.end_date + 5, TIME '08:00')
+                          ELSE LEAST(pg_temp.d05_at(CURRENT_DATE, TIME '07:50'), now() - INTERVAL '5 minutes') END
+FROM d05_ev_unlock u
+WHERE u.user_id IS NOT NULL
+  AND NOT EXISTS (SELECT 1 FROM evaluation_unlocks x WHERE x.classroom_id = u.classroom_id);
+
 -- ---------- Dọn ----------
 DROP TABLE d05_lms, d05_year, d05_class, d05_days, d05_att, d05_teach, d05_vp, d05_principal, d05_obs, d05_month,
     d05_eval_src, d05_eval, d05_eval_new, d05_cmc, d05_week, d05_week_stat, d05_rating, d05_unlock, d05_kid,
     d05_exam_camp, d05_exam, d05_exam_row, d05_exam_json, d05_exam_edit, d05_self, d05_meas_camp, d05_meas,
-    d05_meas_edit, d05_trend, d05_rows, d05_lesson_week, d05_activity, d05_dar, d05_theme, d05_theme_cell;
+    d05_meas_edit, d05_trend, d05_rows, d05_lesson_week, d05_activity, d05_dar, d05_theme, d05_theme_cell,
+    d05_wc, d05_wc_new, d05_wc_unlock, d05_ev_unlock;
 DROP FUNCTION pg_temp.d05_h(text), pg_temp.d05_at(date, time), pg_temp.d05_pick(text[], bigint),
     pg_temp.d05_age(date, date), pg_temp.d05_who(text, text, numeric, numeric),
     pg_temp.d05_z(text, text, int, numeric, boolean), pg_temp.d05_teacher(bigint, date);
