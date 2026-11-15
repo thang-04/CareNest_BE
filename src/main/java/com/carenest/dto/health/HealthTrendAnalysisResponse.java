@@ -7,7 +7,7 @@ import java.util.List;
 /**
  * Phân tích xu hướng sức khỏe như BE giả của FE ({@code POST /children/{id}/health/trend-analysis}): {@code status}
  * {@code OK} | {@code NOT_ENOUGH_DATA} (dưới 2 lần đo — không gọi AI, không lưu). {@code draft} true tới khi nhân sự duyệt
- * (HLT-05); {@code warnings} tính xác định (HLT-02); {@code content} có cấu trúc do AI viết (HLT-21, null ở bản trước V130),
+ * (HLT-05); {@code warnings} tính xác định (HLT-02); {@code content} có cấu trúc do AI viết (HLT-21, null ở bản trước V137),
  * {@code summary} là bản văn ghép từ {@code content}. {@code stale}: đã có số đo công bố khác lúc phân tích ⇒ cần
  * phân tích lại (HLT-21). {@code period}: khoảng thời gian đã phân tích (HLT-21). Không chứa dữ liệu nhận diện trẻ.
  */

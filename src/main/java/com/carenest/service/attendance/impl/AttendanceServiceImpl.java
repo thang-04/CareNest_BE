@@ -91,7 +91,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         log.info("{}|START", logPrefix);
         try {
             List<AttendanceClassResponse> classes = classroomService.findYearClassrooms(schoolYearId).stream()
-                    .filter(c -> rules.canView(currentUser, c))
+                    // Người dạy thay đã hết đợt vẫn thấy lớp để mở ngày được mở lại trong đợt (xem / ghi xét theo ngày)
+                    .filter(c -> rules.canView(currentUser, c) || rules.substitutedInYear(currentUser, c))
                     .map(c -> new AttendanceClassResponse(
                             c.id(),
                             c.name(),
@@ -119,7 +120,10 @@ public class AttendanceServiceImpl implements AttendanceService {
             LocalDate day = date == null ? rules.today() : date;
             DayInfoResponse info;
             if (classId != null) {
-                ClassroomInfoResponse cls = viewableClass(currentUser, classId);
+                ClassroomInfoResponse cls = findClass(classId);
+                if (!rules.canViewDay(currentUser, cls, day)) {
+                    throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
+                }
                 info = rules.dayInfo(day, cls, null);
             } else {
                 info = rules.dayInfo(
@@ -202,7 +206,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     cls.name(),
                     cls.campusId(),
                     cls.mealSessions(),
-                    cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendance(currentUser, cls),
+                    cls.yearStatus() == SchoolYearStatus.ACTIVE && rules.canRecordAttendanceDay(currentUser, cls, day),
                     rows);
             log.info("{}|END", logPrefix);
             return sheet;
@@ -219,8 +223,9 @@ public class AttendanceServiceImpl implements AttendanceService {
         log.info("{}|START", logPrefix);
         try {
             ClassroomInfoResponse cls = findClass(classId);
-            // ATT-01, AUTH-03: chỉ giáo viên đang dạy lớp
-            if (!rules.canRecordAttendance(currentUser, cls)) {
+            LocalDate date = request.date();
+            // ATT-01, AUTH-03: GV dạy chính đang dạy lớp, hoặc người dạy thay đúng ngày ghi (Cần chốt 14/11/2026)
+            if (!rules.canRecordAttendanceDay(currentUser, cls, date)) {
                 throw GlobalException.of(ApiCode.CLASS_ACCESS_DENIED);
             }
             // CFG-YR-01: lớp năm đã kết thúc (hoặc chưa kích hoạt) chỉ xem
@@ -228,9 +233,13 @@ public class AttendanceServiceImpl implements AttendanceService {
                 throw GlobalException.of(ApiCode.ATTENDANCE_YEAR_NOT_ACTIVE);
             }
             classroomService.lockForUpdate(classId);
-            LocalDate date = request.date();
             if (!rules.isSchoolDay(date)) {
                 throw GlobalException.of(ApiCode.NOT_SCHOOL_DAY);
+            }
+            // Ngày ngoài năm học của lớp không ghi điểm danh (sau ngày kết thúc chỉ ghi ngày trong năm được mở lại)
+            if ((cls.yearStart() != null && date.isBefore(cls.yearStart()))
+                    || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
+                throw GlobalException.of(ApiCode.ATTENDANCE_TODAY_ONLY);
             }
             DayInfoResponse info = rules.dayInfo(date, cls, null);
             // Ngày khác hôm nay chỉ ghi được khi lớp/ngày đang được mở lại

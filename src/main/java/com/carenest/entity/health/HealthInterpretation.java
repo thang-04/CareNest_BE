@@ -46,7 +46,7 @@ public class HealthInterpretation {
     @Column(nullable = false, columnDefinition = "text")
     private String summary;
 
-    /** Nội dung có cấu trúc (HLT-21, V130) dạng JSON của {@code HealthTrendContent}; null ở bản ghi trước V130. */
+    /** Nội dung có cấu trúc (HLT-21, V137) dạng JSON của {@code HealthTrendContent}; null ở bản ghi trước V137. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String content;
@@ -55,7 +55,7 @@ public class HealthInterpretation {
     @Column(nullable = false, updatable = false, columnDefinition = "jsonb")
     private String warnings;
 
-    // HLT-21: khoảng thời gian đã phân tích (V131; bản cũ = ALL)
+    // HLT-21: khoảng thời gian đã phân tích (V138; bản cũ = ALL)
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, updatable = false, length = 20)
     private HealthTrendPeriod period;

@@ -146,3 +146,9 @@ Plan liên repo: BE (phase 1–2), Web `CareNest_FE` (phase 3), App `carenest_ap
 - Thay đổi: `NotificationType.healthTrendApproved('HEALTH_TREND_APPROVED')`, icon sức khỏe, lối mở "Xem sức khỏe của bé"; dữ liệu giả `p5`; `PUSH_NOTIFICATION.md` thêm dòng loại mới (BE: nhánh G94-180).
 - Chưa chạy `node scripts/verify.mjs`/`check-ai-layer.mjs` của App.
 
+
+### 2026-11-15 — Merge `dev` (`613b0274`) trước PR
+- `dev` đã dùng `V130`–`V136` ⇒ đổi tên `V130__health_interpretation_content` thành `V137`, `V131__health_trend_period_and_notice` thành `V138` (user cho phép cờ hook trong lượt này).
+- `V138` tạo lại `ck_notifications_type` theo danh sách đủ của `V136` + `HEALTH_TREND_APPROVED`; bản cũ chạy sau `V136` sẽ bỏ 11 loại thông báo `dev` vừa thêm.
+- Conflict tài liệu: `DATA_DICTIONARY.md`, `notification.md` giữ cả hai bên; `API_INDEX.md`, `FE_API_CALLS.md` sinh lại (`node scripts/ai-layer/api-index.mjs`).
+- Verify: `mvnw clean test` → 1847 test, 0 fail, 0 error, 0 skip (gồm `OpenApiSnapshotTest`, test migration Testcontainers).

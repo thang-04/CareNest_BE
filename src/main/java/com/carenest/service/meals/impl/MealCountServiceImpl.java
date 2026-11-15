@@ -351,6 +351,7 @@ public class MealCountServiceImpl implements MealCountService {
                 mealCountRepository.flush();
                 // P-38: suất chốt ⇒ trừ kho khô ngày đó; nghe sau commit để lỗi kho không chặn xác nhận suất
                 eventPublisher.publishEvent(new MealCountConfirmedEvent(count.getCampusId(), count.getDate()));
+                notifyKitchen(count.getCampusId(), count.getDate());
             }
             MealCountResponse response = view(count, viewer, year);
             log.info("{}|END", logPrefix);
@@ -487,6 +488,28 @@ public class MealCountServiceImpl implements MealCountService {
         if (!incomplete.isEmpty()) {
             throw GlobalException.of(ApiCode.MEAL_COUNT_ATTENDANCE_INCOMPLETE, incomplete);
         }
+    }
+
+    // OBS-31: sổ báo ăn đã xác nhận (hoặc xác nhận lại) ⇒ báo bếp điểm trường dùng số mới
+    private void notifyKitchen(Long campusId, LocalDate date) {
+        LocalDate today = LocalDate.now(clock);
+        Set<Long> staff = staffAssignmentService.findActiveStaffUserIds(List.of(campusId), today);
+        List<Long> kitchen = staffAssignmentService.findActiveAssignmentsByUserIds(staff, today).entrySet().stream()
+                .filter(e -> e.getValue().stream()
+                        .anyMatch(a -> a.staffRole() == StaffRole.KITCHEN_STAFF && campusId.equals(a.campusId())))
+                .map(Map.Entry::getKey)
+                .toList();
+        if (kitchen.isEmpty()) {
+            return;
+        }
+        notificationService.notifyUsers(
+                kitchen,
+                NotificationType.MEAL_COUNT_CONFIRMED,
+                "Sổ báo ăn đã xác nhận",
+                "Sổ báo ăn ngày " + date.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+                        + " đã xác nhận, bếp dùng số này.",
+                "/kitchen/meal-count",
+                false);
     }
 
     private Viewer viewer(CurrentUser user) {

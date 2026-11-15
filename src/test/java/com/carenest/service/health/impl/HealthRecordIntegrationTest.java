@@ -279,7 +279,7 @@ class HealthRecordIntegrationTest {
         assertThat(draft.draft()).isTrue();
         assertThat(count("SELECT count(*) FROM health_interpretations WHERE child_id = ? AND status = 'DRAFT'", child))
                 .isEqualTo(1);
-        // HLT-21 (V131): khoảng phân tích lưu kèm bản giải thích
+        // HLT-21 (V138): khoảng phân tích lưu kèm bản giải thích
         assertThat(count("SELECT count(*) FROM health_interpretations WHERE child_id = ? AND period = 'ALL'", child))
                 .isEqualTo(1);
         assertThat(measurementService.getPublishedHealth(parent, child).interpretation())

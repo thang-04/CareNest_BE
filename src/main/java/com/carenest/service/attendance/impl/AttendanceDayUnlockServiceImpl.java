@@ -11,7 +11,6 @@ import com.carenest.service.account.AccountService;
 import com.carenest.service.attendance.AttendanceDayUnlockService;
 import com.carenest.service.notification.NotificationService;
 import com.carenest.service.organization.ClassroomService;
-import com.carenest.service.organization.StaffAssignmentService;
 import com.carenest.utils.ApiCode;
 import com.carenest.utils.enums.CareNestRole;
 import com.carenest.utils.enums.NotificationType;
@@ -45,7 +44,6 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
     private final AttendanceDayRules rules;
     private final ClassroomService classroomService;
     private final AccountService accountService;
-    private final StaffAssignmentService staffAssignmentService;
     private final NotificationService notificationService;
     private final Clock clock;
 
@@ -106,7 +104,8 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             LocalDate today = rules.today();
             if (!rules.isSchoolDay(date)
                     || date.isAfter(today)
-                    || (cls.yearStart() != null && date.isBefore(cls.yearStart()))) {
+                    || (cls.yearStart() != null && date.isBefore(cls.yearStart()))
+                    || (cls.yearEnd() != null && date.isAfter(cls.yearEnd()))) {
                 throw GlobalException.of(ApiCode.UNLOCK_DATE_OUT_OF_RANGE);
             }
             if (!rules.isBaseLocked(date, rules.cutoff(cls.schoolYearId(), date))) {
@@ -114,7 +113,7 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             }
             // hạn do người mở chọn, sau hiện tại và không quá hết ngày kết thúc năm học
             Instant now = rules.now();
-            Instant yearEndAt = cls.yearEnd() == null
+            Instant yearEndAt = cls.yearEnd() == null || rules.today().isAfter(cls.yearEnd())
                     ? null
                     : cls.yearEnd()
                             .atTime(LocalTime.MAX)
@@ -132,10 +131,8 @@ public class AttendanceDayUnlockServiceImpl implements AttendanceDayUnlockServic
             AttendanceDayUnlock unlock = unlockRepository.save(AttendanceDayUnlock.create(
                     cls.id(), cls.campusId(), date, request.validUntil(), reason, currentUser.userId(), now));
             DayUnlockResponse response = rules.toUnlockView(unlock, cls.name());
-            // ATT-08: báo giáo viên lớp vào sửa điểm danh ngày được mở lại
-            List<Long> teacherIds = staffAssignmentService
-                    .findCurrentTeacherIds(List.of(cls.id()), today)
-                    .getOrDefault(cls.id(), List.of());
+            // ATT-08: báo GV dạy chính và người dạy thay đúng ngày được mở lại vào sửa điểm danh
+            List<Long> teacherIds = rules.dayTeacherIds(cls, date);
             if (!teacherIds.isEmpty()) {
                 notificationService.notifyUsers(
                         teacherIds,
