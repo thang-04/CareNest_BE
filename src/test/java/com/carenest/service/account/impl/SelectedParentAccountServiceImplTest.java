@@ -60,6 +60,7 @@ class SelectedParentAccountServiceImplTest {
     private static final String PHONE = "0900000001";
     private static final String CITIZEN_ID = "001200000001";
     private static final String TEMP_PASS = "Tmp7kQwxy3";
+    private static final String ACTIVATION_CODE = "482913";
     private static final CurrentUser VICE = new CurrentUser(
             3L,
             "kc-3",
@@ -98,6 +99,9 @@ class SelectedParentAccountServiceImplTest {
     @Mock
     private PlatformTransactionManager transactionManager;
 
+    @Mock
+    private ParentActivationCodes activationCodes;
+
     private SelectedParentAccountServiceImpl service;
 
     @BeforeEach
@@ -112,6 +116,7 @@ class SelectedParentAccountServiceImplTest {
                         userAccountRepository, identityProviderClient, authStateStore, transactionTemplate),
                 passwordGenerator,
                 smsSender,
+                activationCodes,
                 transactionTemplate);
     }
 
@@ -368,7 +373,57 @@ class SelectedParentAccountServiceImplTest {
 
             assertApiCode(() -> service.activate(PRINCIPAL, CHILD_ID, GUARDIAN_ID), ApiCode.GUARDIAN_IDENTITY_CONFLICT);
             verify(identityProviderClient).deleteUser("kc-new");
-            verifyNoInteractions(smsSender);
+            verifyNoSmsSent();
+        }
+
+        @Test
+        @DisplayName("AUTH-18: có SMS thật ⇒ tạo PARENT không mật khẩu, lưu mã kích hoạt trong giao dịch, SMS mã")
+        void codeModeCreatesAccountWithoutPasswordAndSendsCode() {
+            givenCandidate(chosen(PHONE, CITIZEN_ID, "Mẹ giả"));
+            given(userAccountRepository.findByCitizenId(CITIZEN_ID)).willReturn(Optional.empty());
+            given(userAccountRepository.findByUsername(PHONE)).willReturn(Optional.empty());
+            given(smsSender.activationCodeMode()).willReturn(true);
+            given(activationCodes.generate()).willReturn(ACTIVATION_CODE);
+            given(identityProviderClient.createUser(any())).willReturn("kc-new");
+            givenSaveAssignsId(70L);
+            given(smsSender.sendActivationCode(any(), anyString())).willReturn(SmsStatus.SENT);
+
+            List<ActivationResult> results = service.activate(PRINCIPAL, CHILD_ID, GUARDIAN_ID);
+
+            ArgumentCaptor<NewIdentityUser> identity = ArgumentCaptor.forClass(NewIdentityUser.class);
+            ArgumentCaptor<UserAccount> saved = ArgumentCaptor.forClass(UserAccount.class);
+            InOrder order =
+                    inOrder(identityProviderClient, userAccountRepository, childIntakeService, activationCodes, smsSender);
+            order.verify(identityProviderClient).createUser(identity.capture());
+            order.verify(userAccountRepository).saveAndFlush(saved.capture());
+            order.verify(childIntakeService).linkAccountRecipient(CHILD_ID, GUARDIAN_ID, 70L);
+            order.verify(activationCodes).store(70L, ACTIVATION_CODE);
+            order.verify(smsSender).sendActivationCode(saved.getValue(), ACTIVATION_CODE);
+            assertThat(identity.getValue()).isEqualTo(new NewIdentityUser(PHONE, null, "Mẹ giả", null));
+            assertThat(results).containsExactly(new ActivationResult(70L, "Mẹ giả", PHONE, true, SmsStatus.SENT));
+            assertThat(results.toString()).doesNotContain(ACTIVATION_CODE);
+            verifyNoInteractions(passwordGenerator);
+            verify(smsSender, never()).sendActivation(any(), any());
+        }
+
+        @Test
+        @DisplayName("ADR-0011, AUTH-18: chế độ mã, ghi DB lỗi ⇒ xóa user Keycloak, không lưu mã, không SMS")
+        void codeModePersistFailureSendsNoCode() {
+            givenCandidate(chosen(PHONE, CITIZEN_ID, "Mẹ giả"));
+            given(userAccountRepository.findByCitizenId(CITIZEN_ID)).willReturn(Optional.empty());
+            given(userAccountRepository.findByUsername(PHONE)).willReturn(Optional.empty());
+            given(smsSender.activationCodeMode()).willReturn(true);
+            given(activationCodes.generate()).willReturn(ACTIVATION_CODE);
+            given(identityProviderClient.createUser(any())).willReturn("kc-new");
+            givenSaveAssignsId(70L);
+            willThrow(GlobalException.of(ApiCode.GUARDIAN_IDENTITY_CONFLICT))
+                    .given(childIntakeService)
+                    .linkAccountRecipient(CHILD_ID, GUARDIAN_ID, 70L);
+
+            assertApiCode(() -> service.activate(PRINCIPAL, CHILD_ID, GUARDIAN_ID), ApiCode.GUARDIAN_IDENTITY_CONFLICT);
+            verify(identityProviderClient).deleteUser("kc-new");
+            verify(activationCodes, never()).store(anyLong(), anyString());
+            verifyNoSmsSent();
         }
 
         @Test
@@ -384,7 +439,7 @@ class SelectedParentAccountServiceImplTest {
 
             verify(childIntakeService).linkAccountRecipient(CHILD_ID, GUARDIAN_ID, 60L);
             verify(userAccountRepository, never()).findByUsername(anyString());
-            verifyNoInteractions(identityProviderClient, passwordGenerator, smsSender);
+            verifyNoInteractions(identityProviderClient, passwordGenerator, smsSender, activationCodes);
             assertThat(results)
                     .containsExactly(new ActivationResult(60L, "Mẹ giả (tài khoản)", "0900000009", false, null));
         }
@@ -517,6 +572,12 @@ class SelectedParentAccountServiceImplTest {
             assertDenied(() -> service.activate(VICE, CHILD_ID, GUARDIAN_ID));
             verifyNoInteractions(userAccountRepository, identityProviderClient, smsSender);
         }
+    }
+
+    // AUTH-18: service hỏi activationCodeMode() trước khi tạo tài khoản ⇒ "không SMS" nghĩa là không gọi hàm gửi nào
+    private void verifyNoSmsSent() {
+        verify(smsSender, never()).sendActivation(any(), any());
+        verify(smsSender, never()).sendActivationCode(any(), any());
     }
 
     private void givenViceManages(long campusId) {

@@ -88,6 +88,7 @@ class ChildEnrollmentServiceImplTest {
     private static final String FATHER_ID = "001200000002";
     private static final String OTHER_ID = "001200000099";
     private static final String TEMP_PASS = "Tmp7kQwxy3";
+    private static final String ACTIVATION_CODE = "482913";
     private static final CurrentUser PRINCIPAL = new CurrentUser(
             2L,
             "kc-2",
@@ -142,6 +143,9 @@ class ChildEnrollmentServiceImplTest {
     @Mock
     private ParentSmsSender smsSender;
 
+    @Mock
+    private ParentActivationCodes activationCodes;
+
     private ChildEnrollmentServiceImpl service;
 
     @BeforeEach
@@ -158,6 +162,7 @@ class ChildEnrollmentServiceImplTest {
                         authStateStore,
                         new TransactionTemplate(transactionManager)),
                 passwordGenerator,
+                activationCodes,
                 smsSender);
     }
 
@@ -453,6 +458,76 @@ class ChildEnrollmentServiceImplTest {
 
         @Test
         @DisplayName(
+                "AUTH-18: có SMS thật ⇒ tạo PARENT không mật khẩu, lưu mã kích hoạt trong giao dịch, sau commit SMS mã")
+        void codeModeCreatesAccountWithoutPasswordAndSendsCode() {
+            EnrollmentDraft draft = givenDraft(VICE, FILES, recipient(0, MOTHER_PHONE, MOTHER_ID, "Mẹ giả"));
+            given(smsSender.activationCodeMode()).willReturn(true);
+            given(activationCodes.generate()).willReturn(ACTIVATION_CODE);
+            given(identityProviderClient.createUser(any())).willReturn("kc-new");
+            givenSaveAssignsId(70L);
+            given(childIntakeService.createEnrolledChild(VICE, draft, Map.of(0, 70L)))
+                    .willReturn(CHILD_ID);
+            given(smsSender.sendActivationCode(any(), eq(ACTIVATION_CODE))).willReturn(SmsStatus.SENT);
+            givenView();
+
+            ChildEnrollmentResponse response = service.enrollWithPhotos(VICE, REQUEST, FILES);
+
+            ArgumentCaptor<NewIdentityUser> identity = ArgumentCaptor.forClass(NewIdentityUser.class);
+            ArgumentCaptor<UserAccount> saved = ArgumentCaptor.forClass(UserAccount.class);
+            InOrder order = inOrder(
+                    identityProviderClient, userAccountRepository, activationCodes, childIntakeService, smsSender);
+            order.verify(identityProviderClient).createUser(identity.capture());
+            order.verify(userAccountRepository).saveAndFlush(saved.capture());
+            order.verify(activationCodes).store(70L, ACTIVATION_CODE);
+            order.verify(childIntakeService).createEnrolledChild(VICE, draft, Map.of(0, 70L));
+            order.verify(smsSender).sendActivationCode(saved.getValue(), ACTIVATION_CODE);
+            assertThat(identity.getValue()).isEqualTo(new NewIdentityUser(MOTHER_PHONE, null, "Mẹ giả", null));
+            assertThat(response.guardianAccounts())
+                    .containsExactly(new GuardianAccountResultResponse(
+                            "Mẹ giả", MOTHER_PHONE, GuardianAccountResult.CREATED, false, SmsStatus.SENT));
+            assertThat(response.guardianAccounts().toString()).doesNotContain(ACTIVATION_CODE);
+            verifyNoInteractions(passwordGenerator);
+            verify(smsSender, never()).sendActivation(any(), any());
+        }
+
+        @Test
+        @DisplayName("ADR-0011, AUTH-18: chế độ mã, ghi hồ sơ lỗi ⇒ xóa user Keycloak, rollback cả mã đã lưu, không SMS")
+        void codeModePersistFailureSendsNoCode() {
+            EnrollmentDraft draft = givenDraft(VICE, FILES, recipient(0, MOTHER_PHONE, MOTHER_ID, "Mẹ giả"));
+            given(smsSender.activationCodeMode()).willReturn(true);
+            given(activationCodes.generate()).willReturn(ACTIVATION_CODE);
+            given(identityProviderClient.createUser(any())).willReturn("kc-new");
+            givenSaveAssignsId(70L);
+            given(childIntakeService.createEnrolledChild(VICE, draft, Map.of(0, 70L)))
+                    .willThrow(GlobalException.of(ApiCode.CHILD_DUPLICATE));
+
+            assertApiCode(() -> service.enrollWithPhotos(VICE, REQUEST, FILES), ApiCode.CHILD_DUPLICATE);
+            verify(identityProviderClient).deleteUser("kc-new");
+            verify(transactionManager).rollback(any());
+            verifyNoSmsSent();
+        }
+
+        @Test
+        @DisplayName("AUTH-18: chế độ mã, CCCD đã có tài khoản ⇒ chỉ liên kết, không sinh/lưu mã, không SMS")
+        void codeModeExistingParentGetsNoCode() {
+            givenDraft(VICE, FILES, recipient(0, MOTHER_PHONE, MOTHER_ID, "Mẹ giả"));
+            given(userAccountRepository.findAllByCitizenIdIn(Set.of(MOTHER_ID)))
+                    .willReturn(List.of(parent(60L, MOTHER_PHONE, MOTHER_ID, "Mẹ giả")));
+            given(userAccountRepository.claimCitizenId(60L, MOTHER_ID)).willReturn(1);
+            given(childIntakeService.createEnrolledChild(eq(VICE), any(), eq(Map.of(0, 60L))))
+                    .willReturn(CHILD_ID);
+            given(smsSender.activationCodeMode()).willReturn(true);
+            givenView();
+
+            ChildEnrollmentResponse response = service.enrollWithPhotos(VICE, REQUEST, FILES);
+
+            assertThat(response.guardianAccounts().getFirst().result()).isEqualTo(GuardianAccountResult.LINKED);
+            verifyNoInteractions(identityProviderClient, activationCodes);
+            verifyNoSmsSent();
+        }
+
+        @Test
+        @DisplayName(
                 "G94-180/AUTH-20 (C-2): CCCD đã có tài khoản ⇒ chỉ liên kết, hồ sơ ghi họ tên/SĐT/email theo tài khoản")
         void existingParentByCitizenIdIsLinkedWithAccountInfo() {
             GuardianDraft mother = recipient(0, MOTHER_PHONE, MOTHER_ID, "Mẹ giả (form)");
@@ -478,7 +553,8 @@ class ChildEnrollmentServiceImplTest {
             assertThat(response.guardianAccounts())
                     .containsExactly(new GuardianAccountResultResponse(
                             "Mẹ giả (tài khoản)", "0900000009", GuardianAccountResult.LINKED, false, null));
-            verifyNoInteractions(identityProviderClient, passwordGenerator, smsSender);
+            verifyNoInteractions(identityProviderClient, passwordGenerator, activationCodes);
+            verifyNoSmsSent();
         }
 
         @Test
@@ -529,7 +605,8 @@ class ChildEnrollmentServiceImplTest {
                     .containsExactly(new GuardianAccountResultResponse(
                             "Mẹ giả", MOTHER_PHONE, GuardianAccountResult.NOT_ACTIVATED, false, null));
             verify(childPhotoService).attachToEnrollment(CHILD_ID, PHOTOS);
-            verifyNoInteractions(identityProviderClient, passwordGenerator, smsSender);
+            verifyNoInteractions(identityProviderClient, passwordGenerator, activationCodes);
+            verifyNoSmsSent();
         }
 
         @Test
@@ -546,7 +623,8 @@ class ChildEnrollmentServiceImplTest {
             ChildEnrollmentResponse response = service.enrollWithPhotos(VICE_WITHOUT_ACCOUNTS, REQUEST, FILES);
 
             assertThat(response.guardianAccounts().getFirst().result()).isEqualTo(GuardianAccountResult.LINKED);
-            verifyNoInteractions(identityProviderClient, smsSender);
+            verifyNoInteractions(identityProviderClient, activationCodes);
+            verifyNoSmsSent();
         }
 
         @Test
@@ -568,7 +646,8 @@ class ChildEnrollmentServiceImplTest {
                     .containsExactly(new GuardianAccountResultResponse(
                             "Mẹ giả", MOTHER_PHONE, GuardianAccountResult.NOT_ACTIVATED, false, null));
             verify(userAccountRepository, never()).claimCitizenId(anyLong(), any());
-            verifyNoInteractions(identityProviderClient, passwordGenerator, smsSender);
+            verifyNoInteractions(identityProviderClient, passwordGenerator, activationCodes);
+            verifyNoSmsSent();
         }
 
         @Test
@@ -607,7 +686,8 @@ class ChildEnrollmentServiceImplTest {
             assertConflict(
                     () -> service.enrollWithPhotos(VICE, REQUEST, FILES),
                     new FieldErrorResponse("guardians.0.idNumber", ChildEnrollmentServiceImpl.CITIZEN_ID_TAKEN));
-            verifyNoInteractions(identityProviderClient, passwordGenerator, smsSender);
+            verifyNoInteractions(identityProviderClient, passwordGenerator, activationCodes);
+            verifyNoSmsSent();
             verify(childIntakeService, never()).createEnrolledChild(any(), any(), anyMap());
         }
 
@@ -637,7 +717,7 @@ class ChildEnrollmentServiceImplTest {
             assertApiCode(() -> service.enrollWithPhotos(VICE, REQUEST, FILES), ApiCode.CHILD_DUPLICATE);
             verify(identityProviderClient).deleteUser("kc-new");
             verify(transactionManager).rollback(any());
-            verifyNoInteractions(smsSender);
+            verifyNoSmsSent();
             verify(childPhotoService, never()).attachToEnrollment(anyLong(), any());
         }
 
@@ -652,7 +732,7 @@ class ChildEnrollmentServiceImplTest {
             assertApiCode(() -> service.enrollWithPhotos(VICE, REQUEST, FILES), ApiCode.IDENTITY_PROVIDER_UNAVAILABLE);
             verify(userAccountRepository, never()).saveAndFlush(any());
             verify(childIntakeService, never()).createEnrolledChild(any(), any(), anyMap());
-            verifyNoInteractions(smsSender);
+            verifyNoSmsSent();
         }
 
         @Test
@@ -666,6 +746,12 @@ class ChildEnrollmentServiceImplTest {
             assertApiCode(() -> service.enrollWithPhotos(VICE, REQUEST, FILES), ApiCode.INVALID_REQUEST_DATA);
             verifyNoInteractions(childPhotoService, userAccountRepository, identityProviderClient, smsSender);
         }
+    }
+
+    // AUTH-18: service luôn hỏi activationCodeMode() ⇒ "không SMS" nghĩa là không gọi hàm gửi nào
+    private void verifyNoSmsSent() {
+        verify(smsSender, never()).sendActivation(any(), any());
+        verify(smsSender, never()).sendActivationCode(any(), any());
     }
 
     private EnrollmentDraft givenDraft(
