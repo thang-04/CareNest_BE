@@ -111,7 +111,7 @@ HT xem danh sách các loại thông báo tự động (theo sự kiện nghiệ
 
 - **FR-001**: Mọi thông báo được tạo cho một người MUST được lưu trước, rồi mới đẩy lên các thiết bị của người đó; thao tác nghiệp vụ tạo ra thông báo MUST NOT chờ việc đẩy.
 - **FR-002**: Hệ thống MUST đẩy lại thông báo khi dịch vụ đẩy lỗi tạm thời, với khoảng chờ tăng dần (bắt đầu 1 phút, gấp đôi mỗi lần, có ngẫu nhiên) và tôn trọng thời gian chờ do dịch vụ đẩy yêu cầu; MUST ngừng đẩy sau 60 phút kể từ khi tạo.
-- **FR-003**: Hệ thống MUST NOT đẩy lại thông báo đã đẩy xong, kể cả khi máy chủ dừng đột ngột hoặc chạy nhiều máy chủ.
+- **FR-003**: Hệ thống MUST NOT gửi lại thiết bị đã ghi nhận gửi thành công chỉ vì thiết bị khác lỗi; thiết bị lỗi tạm thời phải được thử lại riêng trong 60 phút từ lúc tạo tin (PAR-11, Tiền 15/11/2026, clarify spec 902 Q1=A). Ngoại lệ: backend dừng sau Firebase nhận trước lưu kết quả thì được thử lại trong hạn, chấp nhận khả năng banner trùng hiếm gặp riêng cửa sổ này; App bắt buộc chống xử lý trùng theo notificationId ở phần do App quản lý (PAR-12, Q2=A). Nhiều máy chủ không được xử lý đồng thời cùng lượt gửi.
 - **FR-004**: Thiết bị bị dịch vụ đẩy báo không còn hợp lệ MUST bị xóa khỏi danh sách nhận; lỗi do thiếu khóa Apple MUST NOT xóa thiết bị.
 - **FR-005**: Thiết bị không cập nhật quá 270 ngày MUST bị xóa định kỳ hằng ngày.
 - **FR-006**: Banner của thông báo sức khỏe và của thông báo công bố kết quả cân đo / đánh giá trẻ / đánh giá chủ đề (PAR-03) MUST chỉ chứa câu chung, không tên bệnh/triệu chứng/số đo/nhận xét; nội dung đầy đủ chỉ xem trong App.
@@ -154,7 +154,7 @@ HT xem danh sách các loại thông báo tự động (theo sự kiện nghiệ
 
 - **SC-001**: Thao tác nghiệp vụ tạo thông báo (trả trẻ, công bố, gửi thông báo trường) không chậm thêm khi dịch vụ đẩy chậm hoặc lỗi.
 - **SC-002**: Khi dịch vụ đẩy hoạt động, người nhận có App Android nhận banner trong vòng 30 giây kể từ khi thông báo được tạo.
-- **SC-003**: 0 thông báo bị mất khỏi danh sách khi dịch vụ đẩy lỗi; 0 banner trùng do máy chủ chạy lại.
+- **SC-003**: 0 thông báo bị mất khỏi danh sách khi dịch vụ đẩy lỗi; 0 lần gửi lại thiết bị đã ghi thành công vì lỗi thiết bị khác. Riêng backend dừng sau Firebase nhận trước lưu kết quả: cho retry trong hạn 60 phút, chấp nhận khả năng banner OS trùng hiếm gặp; phần do App quản lý không xử lý trùng theo notificationId (PAR-11/12, Tiền 15/11/2026, clarify spec 902 Q1/Q2=A). Đây là nghiệp vụ đích cập nhật, chưa chứng nhận code 019 đã đáp ứng.
 - **SC-004**: BGH gửi một thông báo cho cả lớp (soạn → xem trước → gửi) trong dưới 2 phút.
 - **SC-005**: 100% trường hợp gửi ngoài phạm vi (PHT khác điểm trường) bị chặn.
 - **SC-006**: Lần lặp trúng ngày nghỉ không tạo thông báo nào.

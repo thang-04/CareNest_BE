@@ -11,9 +11,11 @@ import static org.mockito.Mockito.verify;
 
 import com.carenest.entity.notification.DeviceToken;
 import com.carenest.entity.notification.Notification;
+import com.carenest.entity.notification.NotificationPushDelivery;
 import com.carenest.integration.push.PushException;
 import com.carenest.integration.push.PushGateway;
 import com.carenest.repository.notification.DeviceTokenRepository;
+import com.carenest.repository.notification.NotificationPushDeliveryRepository;
 import com.carenest.repository.notification.NotificationRepository;
 import com.carenest.utils.enums.DevicePlatform;
 import com.carenest.utils.enums.NotificationType;
@@ -38,21 +40,39 @@ class PushOutboxWorkerTest {
     private DeviceTokenRepository devices;
     private PushGateway gateway;
     private PushOutboxWorker worker;
+    private NotificationPushDeliveryRepository deliveries;
+    private List<NotificationPushDelivery> rows;
 
     @BeforeEach
     void setUp() {
         notifications = mock(NotificationRepository.class);
         devices = mock(DeviceTokenRepository.class);
         gateway = mock(PushGateway.class);
+        deliveries = mock(NotificationPushDeliveryRepository.class);
+        rows = new ArrayList<>();
+        given(deliveries.findByNotificationIdOrderByIdAsc(any())).willAnswer(invocation -> new ArrayList<>(rows));
+        given(deliveries.save(any())).willAnswer(invocation -> {
+            NotificationPushDelivery row = invocation.getArgument(0);
+            rows.add(row);
+            return row;
+        });
         worker = new PushOutboxWorker(
                 notifications,
                 devices,
-                gateway,
+                new PushDeliveryServiceImpl(
+                        notifications,
+                        devices,
+                        deliveries,
+                        gateway,
+                        Clock.fixed(NOW, ZoneOffset.UTC),
+                        Duration.ofMinutes(60)),
                 mock(PlatformTransactionManager.class),
                 Clock.fixed(NOW, ZoneOffset.UTC),
                 100,
                 Duration.ofMinutes(60),
-                Duration.ofDays(270));
+                Duration.ofDays(270),
+                true,
+                1);
     }
 
     private Notification pending(NotificationType type, Instant createdAt) {
@@ -67,6 +87,7 @@ class PushOutboxWorkerTest {
         for (int i = 0; i < count; i++) {
             DeviceToken d = DeviceToken.of(5L, "token-" + i, DevicePlatform.ANDROID, NOW);
             ReflectionTestUtils.setField(d, "id", 100L + i);
+            given(devices.lockById(100L + i)).willReturn(Optional.of(d));
             list.add(d);
         }
         given(devices.findByUserId(5L)).willReturn(list);
@@ -78,6 +99,7 @@ class PushOutboxWorkerTest {
         Notification n = pending(NotificationType.CHILD_PICKED_UP, NOW);
         devicesOfUser(2);
 
+        assertThat(worker.pushOne(1L)).isEqualTo(PushState.PENDING);
         assertThat(worker.pushOne(1L)).isEqualTo(PushState.SENT);
 
         ArgumentCaptor<PushGateway.PushMessage> sent = ArgumentCaptor.forClass(PushGateway.PushMessage.class);
@@ -88,7 +110,7 @@ class PushOutboxWorkerTest {
                 .containsEntry("childId", "9");
         assertThat(sent.getValue().title()).isEqualTo("Bé An đã được đón");
         assertThat(n.getPushState()).isEqualTo(PushState.SENT);
-        assertThat(n.getPushAttempts()).isEqualTo((short) 1);
+        assertThat(n.getPushAttempts()).isEqualTo((short) 2);
     }
 
     @Test
@@ -99,6 +121,28 @@ class PushOutboxWorkerTest {
         assertThat(worker.pushOne(1L)).isEqualTo(PushState.SKIPPED);
         verify(gateway, never()).send(any());
         assertThat(n.getPushState()).isEqualTo(PushState.SKIPPED);
+    }
+
+    @Test
+    void lockedDeviceRemainsPendingWithoutAttempt() {
+        Notification n = pending(NotificationType.CHILD_PICKED_UP, NOW);
+        devicesOfUser(1);
+        given(devices.lockById(100L)).willReturn(Optional.empty());
+        given(devices.existsById(100L)).willReturn(true);
+
+        assertThat(worker.pushOne(1L)).isEqualTo(PushState.PENDING);
+        assertThat(n.getPushAttempts()).isZero();
+        verify(gateway, never()).send(any());
+    }
+
+    @Test
+    void deviceChangedOwnerAfterSnapshotIsNotSent() {
+        pending(NotificationType.CHILD_PICKED_UP, NOW);
+        DeviceToken device = devicesOfUser(1).getFirst();
+        device.assignTo(6L, DevicePlatform.ANDROID, NOW);
+        assertThat(worker.pushOne(1L)).isEqualTo(PushState.SKIPPED);
+        assertThat(rows.getFirst().getLastErrorKind()).isEqualTo("OWNER_CHANGED");
+        verify(gateway, never()).send(any());
     }
 
     @Test
@@ -178,9 +222,10 @@ class PushOutboxWorkerTest {
                 .given(gateway)
                 .send(any());
 
-        assertThat(worker.pushOne(1L)).isEqualTo(PushState.SENT);
+        assertThat(worker.pushOne(1L)).isEqualTo(PushState.PENDING);
+        assertThat(worker.pushOne(1L)).isEqualTo(PushState.PENDING);
         verify(gateway, times(2)).send(any());
-        assertThat(n.getPushState()).isEqualTo(PushState.SENT);
+        assertThat(n.getPushState()).isEqualTo(PushState.PENDING);
     }
 
     @Test

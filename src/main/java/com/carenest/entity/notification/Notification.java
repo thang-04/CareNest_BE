@@ -63,6 +63,9 @@ public class Notification {
     @Column(name = "push_next_at")
     private Instant pushNextAt;
 
+    @Column(name = "push_initialized_at")
+    private Instant pushInitializedAt;
+
     // Thông báo của trường (spec 019): nội dung đầy đủ, tệp đọc qua /me/announcements/{id}
     @Column(name = "announcement_id", updatable = false)
     private Long announcementId;
@@ -104,6 +107,16 @@ public class Notification {
     public void retryPushAt(Instant next) {
         pushAttempts++;
         pushNextAt = next;
+    }
+
+    public void initializePush(Instant now) {
+        pushInitializedAt = now;
+    }
+
+    public void updatePush(PushState state, Instant next, int attempts) {
+        pushState = state;
+        pushNextAt = next;
+        pushAttempts = (short) Math.min(attempts, Short.MAX_VALUE);
     }
 
     public void markRead(Instant at) {

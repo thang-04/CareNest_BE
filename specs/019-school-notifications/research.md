@@ -4,12 +4,16 @@ Mỗi mục: Quyết định · Lý do · Phương án đã cân nhắc.
 
 ## R1. Hàng chờ đẩy: outbox trong bảng `notifications` + worker `@Scheduled`
 
+> Tiền chốt 15/11/2026 (clarify spec 902 Q2=A, PAR-12): chấp nhận khả năng banner trùng hiếm gặp khi backend dừng sau Firebase nhận trước lưu kết quả, cho retry trong 60 phút từ lúc tạo tin; App bắt buộc chống xử lý trùng theo notificationId trong phần do App quản lý. Kiểm riêng OS auto-display; ngoại lệ không cho phép gửi lại máy đã ghi thành công vì máy khác lỗi (PAR-11).
+
 - **Quyết định:** thêm cột trạng thái đẩy vào chính bảng `notifications` (`push_state`, `push_attempts`, `push_next_at`). Worker `@Scheduled(fixedDelay)` mỗi 5 giây lấy tối đa 100 dòng `PENDING` đến hạn bằng `SELECT … FOR UPDATE SKIP LOCKED`, mỗi dòng xử lý trong một giao dịch ngắn (khóa → đẩy tới các thiết bị → ghi trạng thái → commit).
 - **Lý do:** Tiền chốt 14/11 chưa dùng broker; ghi thông báo và "lệnh đẩy" là cùng một dòng nên luôn atomic với giao dịch nghiệp vụ (FR-001). `SKIP LOCKED` cho phép nhiều máy chủ chạy song song mà một dòng chỉ một máy xử lý (FR-003). Dòng bị khóa trong lúc đẩy; máy chết giữa chừng thì giao dịch rollback, dòng trở lại `PENDING`.
 - **Giới hạn đã biết:** máy chết đúng sau khi FCM nhận nhưng trước khi commit ⇒ có thể đẩy lại 1 lần (at-least-once, cửa sổ vài trăm ms). App bỏ trùng theo `notificationId` trong `data`. Không có cách exactly-once khi gọi dịch vụ bên ngoài.
 - **Thay thế:** RabbitMQ + relay (plan 08/11) — hoãn theo quyết định 14/11; bảng giữ nguyên, sau này chỉ thay worker bằng relay. `@Async` sau commit (như `PushDispatchListener` hiện tại) — mất lệnh khi máy chết, không thử lại.
 
 ## R2. Thử lại và ngừng
+
+> Cập nhật 15/11/2026: lựa chọn “có thiết bị thành công thì không thử lại thiết bị lỗi” dưới đây đã bị thay bởi PAR-11 (Tiền chọn A, clarify spec 902 Q1). Nghiệp vụ đích: retry riêng thiết bị lỗi tạm thời trong 60 phút từ lúc tạo thông báo, không gửi lại thiết bị đã thành công vì máy khác lỗi. Đoạn dưới giữ lịch sử thiết kế/code 019, không dùng làm chuẩn cho triển khai 902; schema/migration chưa được duyệt.
 
 - **Quyết định:** lỗi tạm thời (HTTP 429, 500, 503, lỗi mạng) ⇒ `push_next_at = now + min(1 phút × 2^(lần-1), 30 phút) ± 20% ngẫu nhiên`; có `Retry-After` thì dùng giá trị lớn hơn. Quá 60 phút kể từ `created_at` ⇒ `FAILED`. Thông báo vẫn trong danh sách.
 - **Trạng thái theo thông báo, không theo thiết bị:** chỉ thử lại khi **không thiết bị nào** nhận được và có ít nhất một lỗi tạm thời; có thiết bị đã nhận ⇒ `SENT` (thiết bị lỗi bị bỏ lần đó, ghi log). Tránh đẩy trùng cho thiết bị đã nhận mà không cần bảng theo thiết bị. Trần: một thiết bị lỗi riêng lẻ không được thử lại; nâng lên bảng `notification_deliveries` nếu số liệu cho thấy cần.

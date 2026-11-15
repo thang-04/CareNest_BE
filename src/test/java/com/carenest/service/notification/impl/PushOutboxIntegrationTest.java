@@ -1,10 +1,13 @@
 package com.carenest.service.notification.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.carenest.integration.push.PushException;
 import com.carenest.integration.push.PushGateway;
 import com.carenest.repository.notification.NotificationRepository;
 import com.carenest.service.notification.NotificationService;
@@ -103,6 +106,154 @@ class PushOutboxIntegrationTest {
 
         assertThat(notificationRepository.findById(id).orElseThrow().getPushState())
                 .isEqualTo(PushState.SKIPPED);
+    }
+
+    @Test
+    void commitsSuccessfulDeviceBeforeRetryingOnlyFailedDevice() {
+        jdbc.update(
+                "INSERT INTO device_tokens (user_id, token, platform, created_at, updated_at) VALUES (?, 'tok-a', 'ANDROID', now(), now()), (?, 'tok-b', 'ANDROID', now(), now())",
+                userId,
+                userId);
+        Long id = createNotification();
+        var attempts = new java.util.concurrent.ConcurrentHashMap<String, Integer>();
+        doAnswer(call -> {
+                    PushGateway.PushMessage message = call.getArgument(0);
+                    int count = attempts.merge(message.token(), 1, Integer::sum);
+                    if (message.token().equals("tok-b") && count == 1) {
+                        throw new PushException(PushException.Kind.RETRYABLE, "temporary");
+                    }
+                    return null;
+                })
+                .when(pushGateway)
+                .send(any());
+
+        tx.execute(s -> worker.pushOne(id));
+        tx.execute(s -> worker.pushOne(id));
+        assertThat(attempts).containsEntry("tok-a", 1).containsEntry("tok-b", 1);
+        assertThat(jdbc.queryForObject("SELECT push_state FROM notifications WHERE id = ?", String.class, id))
+                .isEqualTo("PENDING");
+        jdbc.update(
+                "UPDATE notification_push_deliveries SET next_attempt_at = now() - interval '1 second' WHERE notification_id = ? AND state = 'PENDING'",
+                id);
+        tx.execute(s -> worker.pushOne(id));
+
+        assertThat(attempts).containsEntry("tok-a", 1).containsEntry("tok-b", 2);
+        assertThat(jdbc.queryForObject("SELECT push_state FROM notifications WHERE id = ?", String.class, id))
+                .isEqualTo("SENT");
+    }
+
+    @Test
+    void lockedDeviceIsNotSentOrCountedAsMissing() throws Exception {
+        Long deviceId = jdbc.queryForObject(
+                "INSERT INTO device_tokens (user_id, token, platform, created_at, updated_at) VALUES (?, 'tok-locked', 'ANDROID', now(), now()) RETURNING id",
+                Long.class,
+                userId);
+        Long id = createNotification();
+        CountDownLatch locked = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CompletableFuture<Void> holding = CompletableFuture.runAsync(() -> tx.executeWithoutResult(s -> {
+            jdbc.queryForObject("SELECT id FROM device_tokens WHERE id = ? FOR UPDATE", Long.class, deviceId);
+            locked.countDown();
+            await(release);
+        }));
+        assertThat(locked.await(10, TimeUnit.SECONDS)).isTrue();
+        try {
+            CompletableFuture<PushState> result =
+                    CompletableFuture.supplyAsync(() -> tx.execute(s -> worker.pushOne(id)));
+            assertThat(result.get(5, TimeUnit.SECONDS)).isEqualTo(PushState.PENDING);
+            assertThat(jdbc.queryForObject(
+                            "SELECT attempts FROM notification_push_deliveries WHERE notification_id = ?",
+                            Integer.class,
+                            id))
+                    .isZero();
+            verify(pushGateway, times(0)).send(any());
+        } finally {
+            release.countDown();
+            holding.get(10, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void ledgerIsUniqueKeepsHistoryOnDeviceDeletionAndCascadesWithNotification() {
+        Long deviceId = jdbc.queryForObject(
+                "INSERT INTO device_tokens (user_id, token, platform, created_at, updated_at) VALUES (?, 'tok-history', 'ANDROID', now(), now()) RETURNING id",
+                Long.class,
+                userId);
+        Long id = createNotification();
+        jdbc.update(
+                "INSERT INTO notification_push_deliveries (notification_id, device_id, created_at) VALUES (?, ?, now())",
+                id,
+                deviceId);
+        assertThatThrownBy(() -> jdbc.update(
+                        "INSERT INTO notification_push_deliveries (notification_id, device_id, created_at) VALUES (?, ?, now())",
+                        id,
+                        deviceId))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        jdbc.update("DELETE FROM device_tokens WHERE id = ?", deviceId);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM notification_push_deliveries WHERE notification_id = ?",
+                        Integer.class,
+                        id))
+                .isEqualTo(1);
+        jdbc.update("DELETE FROM notifications WHERE id = ?", id);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM notification_push_deliveries WHERE notification_id = ?",
+                        Integer.class,
+                        id))
+                .isZero();
+    }
+
+    @Test
+    void cursorReachesBeyondBatchAndDeliversTwoDevicesWithinThirtySeconds() {
+        String prefix = "bench-" + userId + "-";
+        jdbc.update(
+                "INSERT INTO user_accounts (keycloak_user_id, username, full_name) SELECT ? || i, ? || i, 'Demo' FROM generate_series(1, 301) i",
+                prefix,
+                prefix);
+        jdbc.update(
+                "INSERT INTO device_tokens (user_id, token, platform, created_at, updated_at) SELECT id, username || suffix, 'ANDROID', now(), now() FROM user_accounts CROSS JOIN (VALUES ('-a'), ('-b')) AS devices(suffix) WHERE username LIKE ?",
+                prefix + "%");
+        jdbc.update(
+                "INSERT INTO notifications (user_id, type, title, body, created_at) SELECT id, 'CHILD_WITHDRAWN', 'Tin', 'Nội dung', now() FROM user_accounts WHERE username LIKE ?",
+                prefix + "%");
+        doAnswer(call -> {
+                    Thread.sleep(50);
+                    return null;
+                })
+                .when(pushGateway)
+                .send(any());
+        org.springframework.test.util.ReflectionTestUtils.setField(worker, "cursor", 0L);
+        org.springframework.test.util.ReflectionTestUtils.setField(worker, "ceiling", 0L);
+        long start = System.nanoTime();
+        for (int i = 0; i < 5; i++) worker.pushDue();
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM notifications WHERE push_state = 'SENT'", Integer.class))
+                .isEqualTo(301);
+        verify(pushGateway, times(602)).send(any());
+        assertThat(elapsedMs).isLessThan(30_000);
+    }
+
+    @Test
+    void expiredParentClosesEveryPendingDeliveryEvenWhenNextRetryIsInFuture() {
+        Long id = createNotification();
+        jdbc.update(
+                "UPDATE notifications SET created_at = now() - interval '61 minutes', push_initialized_at = now() - interval '1 hour', push_next_at = now() + interval '1 hour' WHERE id = ?",
+                id);
+        jdbc.update(
+                "INSERT INTO notification_push_deliveries (notification_id, device_id, created_at, next_attempt_at) VALUES (?, 1001, now(), now() + interval '1 hour'), (?, 1002, now(), now() + interval '1 hour')",
+                id,
+                id);
+        org.springframework.test.util.ReflectionTestUtils.setField(worker, "cursor", 0L);
+        org.springframework.test.util.ReflectionTestUtils.setField(worker, "ceiling", 0L);
+        worker.pushDue();
+        assertThat(jdbc.queryForObject("SELECT push_state FROM notifications WHERE id = ?", String.class, id))
+                .isEqualTo("FAILED");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM notification_push_deliveries WHERE notification_id = ? AND state = 'FAILED' AND last_error_kind = 'EXPIRED'",
+                        Integer.class,
+                        id))
+                .isEqualTo(2);
+        verify(pushGateway, times(0)).send(any());
     }
 
     @Test

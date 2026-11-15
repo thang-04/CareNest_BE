@@ -113,7 +113,9 @@ carenest:
   # Thông báo đẩy (spec 019): hàng chờ trong bảng notifications; thiếu file khóa FCM ⇒ chỉ ghi log
   push:
     worker-delay: ${CARENEST_PUSH_WORKER_DELAY:5s}
-    batch-size: 100
+    batch-size: ${CARENEST_PUSH_BATCH_SIZE:300}
+    worker-enabled: ${CARENEST_PUSH_WORKER_ENABLED:true}
+    worker-threads: ${CARENEST_PUSH_WORKER_THREADS:4}
     max-age: 60m
     device-max-idle: 270d
     fcm:

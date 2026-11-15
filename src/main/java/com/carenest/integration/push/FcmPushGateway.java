@@ -34,8 +34,7 @@ public class FcmPushGateway implements PushGateway {
     private static final Duration TOKEN_LIFETIME = Duration.ofHours(1);
     private static final Duration TOKEN_MARGIN = Duration.ofMinutes(5);
     // Token thiết bị hỏng hoặc App đã gỡ: xóa thiết bị (research R3)
-    private static final Set<String> INVALID_TOKEN_CODES =
-            Set.of("UNREGISTERED", "SENDER_ID_MISMATCH", "INVALID_ARGUMENT");
+    private static final Set<String> INVALID_TOKEN_CODES = Set.of("UNREGISTERED", "SENDER_ID_MISMATCH");
 
     private final JsonMapper json = JsonMapper.builder().build();
     private final HttpClient http;

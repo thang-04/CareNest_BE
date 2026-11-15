@@ -89,6 +89,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      CARENEST_PUSH_FCM_CREDENTIALS_FILE: ${CARENEST_PUSH_FCM_CREDENTIALS_FILE:-}
+      CARENEST_PUSH_WORKER_ENABLED: ${CARENEST_PUSH_WORKER_ENABLED:-true}
       SERVER_ADDRESS: 127.0.0.1
       SERVER_PORT: "18310"
       DB_URL: jdbc:postgresql://127.0.0.1:18330/${POSTGRES_DB:-carenest}
@@ -115,6 +117,11 @@ services:
       KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET: ${KEYCLOAK_AUTH_RECOVERY_ASSERTION_SECRET}
       CARENEST_AUTH_SECURE_COOKIES: "true"
       CARENEST_AUTH_WEB_ORIGIN: https://web.carenest.edu.vn
+    volumes:
+      - type: bind
+        source: ${CARENEST_PUSH_FCM_HOST_DIR:-./deploy}
+        target: /run/carenest/fcm
+        read_only: true
 
 volumes:
   postgres-data:

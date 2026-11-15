@@ -129,6 +129,16 @@ class FcmPushGatewayTest {
     }
 
     @Test
+    void invalidPayloadDoesNotInvalidateToken() {
+        sendStatus = 400;
+        sendBody =
+                "{\"error\":{\"status\":\"INVALID_ARGUMENT\",\"details\":[{\"@type\":\"type.googleapis.com/google.rpc.BadRequest\"}]}}";
+        assertThatThrownBy(() -> gateway.send(MESSAGE))
+                .isInstanceOfSatisfying(
+                        PushException.class, ex -> assertThat(ex.kind()).isEqualTo(PushException.Kind.PERMANENT));
+    }
+
+    @Test
     void missingApnsKeyIsPermanentNotInvalid() {
         sendStatus = 401;
         sendBody = "{\"error\":{\"code\":401,\"details\":[{\"errorCode\":\"THIRD_PARTY_AUTH_ERROR\"}]}}";

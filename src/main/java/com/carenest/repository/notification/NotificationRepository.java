@@ -31,6 +31,22 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
             nativeQuery = true)
     List<Long> findDuePushIds(@Param("now") Instant now, @Param("limit") int limit);
 
+    @Query(
+            value = "SELECT id FROM notifications WHERE push_state = 'PENDING'"
+                    + " AND id > :after AND id <= :ceiling"
+                    + " AND (push_next_at IS NULL OR push_next_at <= :now OR created_at <= :cutoff)"
+                    + " ORDER BY id LIMIT :limit",
+            nativeQuery = true)
+    List<Long> findDuePushIdsAfter(
+            @Param("now") Instant now,
+            @Param("cutoff") Instant cutoff,
+            @Param("after") long after,
+            @Param("ceiling") long ceiling,
+            @Param("limit") int limit);
+
+    @Query(value = "SELECT COALESCE(MAX(id), 0) FROM notifications WHERE push_state = 'PENDING'", nativeQuery = true)
+    long findPushCeiling();
+
     /**
      * Khóa một dòng còn chờ đẩy; dòng đang được máy khác xử lý thì bỏ qua (SKIP LOCKED) ⇒ mỗi dòng chỉ một máy đẩy
      * (FR-003).
